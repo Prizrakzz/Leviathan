@@ -1,0 +1,8 @@
+source: faostat
+notes: "Use FAOSTAT as first production/yield source. Raw ingestion may start from downloaded CSV/API output."
+target_items:
+  - cocoa_beans
+elements:
+  - production_quantity
+  - area_harvested
+  - yield
