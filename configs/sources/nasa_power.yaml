@@ -1,0 +1,22 @@
+source: nasa_power
+base_url: "https://power.larc.nasa.gov/api/temporal/daily/point"
+community: "AG"
+format: "JSON"
+
+parameters:
+  - T2M
+  - T2M_MAX
+  - T2M_MIN
+  - PRECTOTCORR
+  - RH2M
+  - WS2M
+  - ALLSKY_SFC_SW_DWN
+
+notes:
+  T2M: "Temperature at 2 meters"
+  T2M_MAX: "Maximum temperature at 2 meters"
+  T2M_MIN: "Minimum temperature at 2 meters"
+  PRECTOTCORR: "Corrected precipitation"
+  RH2M: "Relative humidity at 2 meters"
+  WS2M: "Wind speed at 2 meters"
+  ALLSKY_SFC_SW_DWN: "Surface solar radiation"

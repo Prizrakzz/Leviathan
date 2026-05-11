@@ -1,0 +1,19 @@
+[project]
+name = "leviathan"
+version = "0.1.0"
+description = "Commodity market-neutral trading system"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3",
+    "pandas",
+    "pyyaml",
+    "requests",
+    "tenacity",
+    "python-dotenv",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100

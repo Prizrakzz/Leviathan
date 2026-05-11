@@ -1,0 +1,68 @@
+commodity: cocoa
+regions:
+  - country: cote_divoire
+    country_name: "Côte d'Ivoire"
+    importance: highest
+    locations:
+      - region: soubre
+        latitude: 5.7856
+        longitude: -6.6083
+      - region: daloa
+        latitude: 6.8774
+        longitude: -6.4502
+      - region: abengourou
+        latitude: 6.7297
+        longitude: -3.4964
+      - region: divo
+        latitude: 5.8390
+        longitude: -5.3570
+
+  - country: ghana
+    country_name: "Ghana"
+    importance: highest
+    locations:
+      - region: kumasi_ashanti
+        latitude: 6.6666
+        longitude: -1.6163
+      - region: sefwi_wiawso_western_north
+        latitude: 6.2058
+        longitude: -2.4890
+      - region: koforidua_eastern
+        latitude: 6.0941
+        longitude: -0.2591
+
+  - country: ecuador
+    country_name: "Ecuador"
+    importance: high
+    locations:
+      - region: los_rios_babahoyo
+        latitude: -1.8019
+        longitude: -79.5344
+      - region: guayas_milagro
+        latitude: -2.1340
+        longitude: -79.5941
+      - region: manabi_chone
+        latitude: -0.6982
+        longitude: -80.0936
+
+  - country: nigeria
+    country_name: "Nigeria"
+    importance: medium
+    locations:
+      - region: ondo_akure
+        latitude: 7.2571
+        longitude: 5.2058
+      - region: cross_river_ikom
+        latitude: 5.9667
+        longitude: 8.7167
+
+  - country: cameroon
+    country_name: "Cameroon"
+    importance: medium
+    locations:
+      - region: centre_yaounde
+        latitude: 3.8480
+        longitude: 11.5021
+      - region: southwest_kumba
+        latitude: 4.6363
+        longitude: 9.4469

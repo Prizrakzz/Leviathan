@@ -1,0 +1,6 @@
+environment: dev
+aws_region: us-east-1
+s3_bucket_env_var: LEVIATHAN_BUCKET
+
+local_raw_dir: data/raw
+local_metadata_dir: data/metadata
