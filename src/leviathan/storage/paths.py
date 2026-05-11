@@ -1,0 +1,52 @@
+from __future__ import annotations
+
+
+def raw_weather_key(
+    source: str,
+    commodity: str,
+    country: str,
+    region: str,
+    year: int,
+    month: int,
+    filename: str,
+) -> str:
+    return (
+        f"raw/weather/"
+        f"source={source}/"
+        f"commodity={commodity}/"
+        f"country={country}/"
+        f"region={region}/"
+        f"year={year}/"
+        f"month={month:02d}/"
+        f"{filename}"
+    )
+
+
+def raw_production_key(
+    source: str,
+    commodity: str,
+    year: int,
+    filename: str,
+) -> str:
+    return (
+        f"raw/production/"
+        f"source={source}/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
+def raw_reference_key(
+    source: str,
+    domain: str,
+    commodity: str,
+    filename: str,
+) -> str:
+    return (
+        f"raw/reference/"
+        f"source={source}/"
+        f"domain={domain}/"
+        f"commodity={commodity}/"
+        f"{filename}"
+    )
