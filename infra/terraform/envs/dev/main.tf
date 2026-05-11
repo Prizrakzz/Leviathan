@@ -28,3 +28,27 @@ module "iam" {
   environment  = var.environment
   bucket_arn   = module.s3.bucket_arn
 }
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  repository_name = "leviathan-worker"
+}
+
+module "batch" {
+  source = "../../modules/batch"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  aws_region      = var.aws_region
+  max_vcpus       = var.batch_max_vcpus
+  subnet_ids      = var.batch_subnet_ids
+  security_group_ids = var.batch_security_group_ids
+
+  ecr_repository_url       = module.ecr.repository_url
+  batch_execution_role_arn = module.iam.batch_execution_role_arn
+  batch_job_role_arn       = module.iam.batch_job_role_arn
+  leviathan_bucket         = var.bucket_name
+}

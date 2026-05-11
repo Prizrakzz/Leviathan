@@ -20,3 +20,19 @@ variable "bucket_name" {
   type        = string
   description = "Globally unique S3 bucket name."
 }
+
+variable "batch_max_vcpus" {
+  type        = number
+  description = "Maximum vCPUs for the Batch Fargate compute environment."
+  default     = 16
+}
+
+variable "batch_subnet_ids" {
+  type        = list(string)
+  description = "Subnet IDs for Fargate tasks (default VPC public subnets)."
+}
+
+variable "batch_security_group_ids" {
+  type        = list(string)
+  description = "Security group IDs for Fargate tasks."
+}
