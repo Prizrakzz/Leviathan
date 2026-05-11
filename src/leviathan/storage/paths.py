@@ -50,3 +50,19 @@ def raw_reference_key(
         f"commodity={commodity}/"
         f"{filename}"
     )
+
+def bronze_production_key(
+    source: str,
+    dataset: str,
+    commodity: str,
+    year: int,
+    filename: str,
+) -> str:
+    return (
+        f"bronze/production/"
+        f"source={source}/"
+        f"dataset={dataset}/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
