@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 ELEMENT_TO_METRIC = {
     "Area harvested": "area_harvested",
-    "Production Quantity": "production_quantity",
+    "Production": "production_quantity",
     "Yield": "yield",
 }
 

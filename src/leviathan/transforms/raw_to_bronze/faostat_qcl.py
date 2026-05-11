@@ -18,7 +18,7 @@ TARGET_ITEMS = {
 
 TARGET_ELEMENTS = {
     "area harvested",
-    "production quantity",
+    "production",
     "yield",
 }
 
