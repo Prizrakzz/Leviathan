@@ -1,0 +1,12 @@
+{
+  "source": "faostat",
+  "dataset_code": "QCL",
+  "dataset_name": "Production: Crops and livestock products",
+  "file_name_original": "Production_Crops_Livestock_E_All_Data_(Normalized).zip",
+  "file_name_s3": "Production_Crops_Livestock_E_All_Data_Normalized.zip",
+  "ingest_date": "2026-05-11",
+  "raw_zone": true,
+  "cleaned": false,
+  "partitioned": false,
+  "notes": "Raw FAOSTAT normalized bulk ZIP uploaded unchanged. Partitioning and cocoa filtering will happen in Phase 2."
+}
