@@ -86,3 +86,36 @@ def bronze_weather_key(
         f"month={month:02d}/"
         f"{filename}"
     )
+
+def silver_production_key(
+    commodity: str,
+    year: int,
+    filename: str,
+) -> str:
+    return (
+        f"silver/production/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
+def silver_weather_key(
+    source: str,
+    commodity: str,
+    country: str,
+    region: str,
+    year: int,
+    month: int,
+    filename: str,
+) -> str:
+    return (
+        f"silver/weather/"
+        f"source={source}/"
+        f"commodity={commodity}/"
+        f"country={country}/"
+        f"region={region}/"
+        f"year={year}/"
+        f"month={month:02d}/"
+        f"{filename}"
+    )
