@@ -55,6 +55,16 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # The cocoa weather dataset (1981-2024) is complete.
+    # Do not ingest beyond this year without an explicit ML overlap window review.
+    MAX_INGEST_YEAR = 2024
+    if args.end_year > MAX_INGEST_YEAR:
+        raise SystemExit(
+            f"ERROR: --end-year {args.end_year} exceeds MAX_INGEST_YEAR={MAX_INGEST_YEAR}. "
+            "The cocoa weather dataset (1981-2024) is complete. "
+            "Update MAX_INGEST_YEAR only after an explicit ML overlap window review."
+        )
+
     load_env()
 
     bucket = get_required_env("LEVIATHAN_BUCKET")

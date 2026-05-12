@@ -2,6 +2,13 @@ locals {
   script_base = "s3://${var.bucket_name}/glue-scripts"
   temp_dir    = "s3://${var.bucket_name}/glue-temp"
 
+  glue_scripts = {
+    "raw_to_bronze_nasa_power"    = "${path.module}/../../../../jobs/glue/raw_to_bronze_nasa_power.py"
+    "raw_to_bronze_faostat"       = "${path.module}/../../../../jobs/glue/raw_to_bronze_faostat.py"
+    "bronze_to_silver_nasa_power" = "${path.module}/../../../../jobs/glue/bronze_to_silver_nasa_power.py"
+    "bronze_to_silver_faostat"    = "${path.module}/../../../../jobs/glue/bronze_to_silver_faostat.py"
+  }
+
   common_default_args = {
     "--bucket"              = var.bucket_name
     "--aws_region"          = var.aws_region
@@ -129,6 +136,39 @@ resource "aws_glue_job" "bronze_to_silver_faostat" {
   execution_property {
     max_concurrent_runs = 1
   }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# S3 objects: Glue scripts + leviathan wheel
+# etag = filemd5 ensures re-upload whenever the source file changes.
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_object" "glue_scripts" {
+  for_each = local.glue_scripts
+
+  bucket = var.bucket_name
+  key    = "glue-scripts/${each.key}.py"
+  source = each.value
+  etag   = filemd5(each.value)
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_s3_object" "leviathan_whl" {
+  bucket = var.bucket_name
+  key    = "glue-libs/leviathan-0.1.0-py3-none-any.whl"
+  source = "${path.module}/../../../../dist/leviathan-0.1.0-py3-none-any.whl"
+  etag   = filemd5("${path.module}/../../../../dist/leviathan-0.1.0-py3-none-any.whl")
 
   tags = {
     Project     = var.project_name

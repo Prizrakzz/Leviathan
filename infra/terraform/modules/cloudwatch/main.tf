@@ -68,16 +68,22 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
       # ---- Header ----
       {
         type   = "text"
-        x      = 0; y = 0; width = 24; height = 1
+        x      = 0
+        y      = 0
+        width  = 24
+        height = 1
         properties = {
           markdown = "## Leviathan Pipeline — ${var.environment}"
         }
       },
 
-      # ---- Job duration (last 10 runs per job) ----
+      # ---- Job duration ----
       {
         type   = "metric"
-        x      = 0; y = 1; width = 24; height = 6
+        x      = 0
+        y      = 1
+        width  = 24
+        height = 6
         properties = {
           title  = "Glue Job Duration (seconds)"
           view   = "timeSeries"
@@ -93,12 +99,15 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
       # ---- Success counts ----
       {
         type   = "metric"
-        x      = 0; y = 7; width = 12; height = 4
+        x      = 0
+        y      = 7
+        width  = 12
+        height = 4
         properties = {
           title  = "Succeeded Job Runs"
           view   = "singleValue"
           region = var.aws_region
-          period = 2592000  # 30 days
+          period = 2592000
           stat   = "Sum"
           metrics = [
             for job in local.job_names : ["Glue", "glue.driver.aggregate.numCompletedStages", "JobName", job]
@@ -109,12 +118,15 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
       # ---- Failed task counts ----
       {
         type   = "metric"
-        x      = 12; y = 7; width = 12; height = 4
+        x      = 12
+        y      = 7
+        width  = 12
+        height = 4
         properties = {
           title  = "Failed Tasks (should be 0)"
           view   = "singleValue"
           region = var.aws_region
-          period = 2592000  # 30 days
+          period = 2592000
           stat   = "Sum"
           metrics = [
             for job in local.job_names : ["Glue", "glue.driver.aggregate.numFailedTasks", "JobName", job]
@@ -125,7 +137,10 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
       # ---- S3 bytes written ----
       {
         type   = "metric"
-        x      = 0; y = 11; width = 24; height = 5
+        x      = 0
+        y      = 11
+        width  = 24
+        height = 5
         properties = {
           title  = "S3 Bytes Written per Job Run"
           view   = "timeSeries"

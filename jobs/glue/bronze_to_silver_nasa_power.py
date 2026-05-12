@@ -35,10 +35,14 @@ def _install_leviathan() -> None:
     _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
     if not _os.path.exists(_whl):
         _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--quiet"])
+    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
 
 
-_install_leviathan()
+try:
+    _install_leviathan()
+except Exception as _exc:
+    print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
+    raise
 # ---- End bootstrap ----
 
 import boto3
@@ -50,15 +54,20 @@ from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_w
 
 logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["JOB_NAME", "commodity", "bucket", "aws_region"]
-OPTIONAL_ARGS = ["force_overwrite"]
+REQUIRED_ARGS = ["commodity", "bucket", "aws_region"]
 
-args = getResolvedOptions(sys.argv, REQUIRED_ARGS + OPTIONAL_ARGS)
+args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
 
 COMMODITY: str = args["commodity"]
 BUCKET: str = args["bucket"]
 AWS_REGION: str = args["aws_region"]
-FORCE_OVERWRITE: bool = args.get("force_overwrite", "false").lower() == "true"
+# force_overwrite is optional — parse manually since getResolvedOptions treats all listed args as required
+_fo_idx = next((i for i, a in enumerate(sys.argv) if a == "--force_overwrite"), None)
+FORCE_OVERWRITE: bool = (
+    _fo_idx is not None
+    and _fo_idx + 1 < len(sys.argv)
+    and sys.argv[_fo_idx + 1].lower() == "true"
+)
 
 BRONZE_PATH = f"{BUCKET}/bronze/weather/source=nasa_power/commodity={COMMODITY}"
 SILVER_BASE = f"silver/weather/source=nasa_power/commodity={COMMODITY}"
@@ -150,5 +159,4 @@ def main() -> None:
         raise RuntimeError(f"{failed} partition writes failed during bronze→silver NASA POWER.")
 
 
-if __name__ == "__main__":
-    main()
+main()
