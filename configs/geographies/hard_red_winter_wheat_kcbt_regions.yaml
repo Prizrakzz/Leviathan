@@ -1,0 +1,27 @@
+commodity: hard_red_winter_wheat_kcbt
+regions:
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_hrw_kansas_west
+        latitude: 38.87
+        longitude: -99.34
+      - region: us_hrw_kansas_central
+        latitude: 38.50
+        longitude: -98.00
+      - region: us_hrw_oklahoma
+        latitude: 35.47
+        longitude: -97.52
+      - region: us_hrw_texas_panhandle
+        latitude: 35.22
+        longitude: -101.83
+      - region: us_hrw_colorado_eastern_plains
+        latitude: 39.01
+        longitude: -103.60
+      - region: us_hrw_nebraska_southwest
+        latitude: 40.20
+        longitude: -101.30
+      - region: us_hrw_montana
+        latitude: 46.88
+        longitude: -110.36

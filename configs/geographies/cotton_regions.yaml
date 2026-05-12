@@ -1,0 +1,83 @@
+commodity: cotton
+regions:
+  - country: china
+    country_name: "China"
+    importance: primary
+    locations:
+      - region: cn_cotton_xinjiang
+        latitude: 41.76
+        longitude: 86.15
+
+  - country: india
+    country_name: "India"
+    importance: primary
+    locations:
+      - region: in_cotton_gujarat
+        latitude: 22.26
+        longitude: 71.19
+      - region: in_cotton_maharashtra
+        latitude: 19.75
+        longitude: 75.71
+      - region: in_cotton_telangana
+        latitude: 18.11
+        longitude: 79.02
+      - region: in_cotton_rajasthan
+        latitude: 26.91
+        longitude: 75.79
+      - region: in_cotton_madhya_pradesh
+        latitude: 22.97
+        longitude: 78.66
+      - region: in_cotton_andhra_pradesh
+        latitude: 15.91
+        longitude: 79.74
+
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_cotton_mato_grosso
+        latitude: -12.64
+        longitude: -55.42
+      - region: br_cotton_bahia
+        latitude: -12.58
+        longitude: -41.70
+      - region: br_cotton_goias
+        latitude: -15.93
+        longitude: -50.14
+      - region: br_cotton_minas_gerais
+        latitude: -18.10
+        longitude: -44.38
+
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_cotton_texas_high_plains
+        latitude: 33.58
+        longitude: -101.85
+      - region: us_cotton_texas_rolling_plains
+        latitude: 32.45
+        longitude: -99.73
+      - region: us_cotton_georgia
+        latitude: 32.17
+        longitude: -82.90
+      - region: us_cotton_mississippi_delta
+        latitude: 33.45
+        longitude: -90.65
+      - region: us_cotton_arkansas_delta
+        latitude: 35.05
+        longitude: -90.75
+      - region: us_cotton_california_san_joaquin
+        latitude: 36.74
+        longitude: -119.77
+
+  - country: pakistan
+    country_name: "Pakistan"
+    importance: primary
+    locations:
+      - region: pk_cotton_punjab
+        latitude: 30.37
+        longitude: 71.52
+      - region: pk_cotton_sindh
+        latitude: 26.30
+        longitude: 68.63

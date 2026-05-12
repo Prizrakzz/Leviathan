@@ -16,6 +16,7 @@ logger = get_logger("submit_batch_backfill_nasa_power")
 
 def build_tasks(
     geography_config: dict,
+    commodity: str,
     start_year: int,
     end_year: int,
 ) -> list[dict]:
@@ -34,6 +35,7 @@ def build_tasks(
             for year in range(start_year, end_year + 1):
                 tasks.append(
                     {
+                        "commodity": commodity,
                         "country": country,
                         "region": region,
                         "year": year,
@@ -61,6 +63,7 @@ def submit_tasks(
         )
 
         parameters = {
+            "commodity": task["commodity"],
             "country": task["country"],
             "region": task["region"],
             "start_year": str(task["year"]),
@@ -93,7 +96,7 @@ def submit_tasks(
     return submitted
 
 
-def save_run_record(submitted: list[dict], start_year: int, end_year: int) -> None:
+def save_run_record(submitted: list[dict], commodity: str, start_year: int, end_year: int) -> None:
     run_id = utc_now_iso().replace(":", "-")
     output_dir = Path("data/batch_runs")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -102,7 +105,7 @@ def save_run_record(submitted: list[dict], start_year: int, end_year: int) -> No
     payload = {
         "run_id": run_id,
         "source": "nasa_power",
-        "commodity": "cocoa",
+        "commodity": commodity,
         "start_year": start_year,
         "end_year": end_year,
         "task_count": len(submitted),
@@ -117,6 +120,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Submit NASA POWER backfill tasks to AWS Batch as individual jobs."
     )
+    parser.add_argument("--commodity", required=True)
     parser.add_argument("--start-year", required=True, type=int)
     parser.add_argument("--end-year", required=True, type=int)
     parser.add_argument(
@@ -144,10 +148,11 @@ def main() -> None:
     job_queue = args.job_queue or f"leviathan-{env}-queue"
     job_definition = args.job_definition or f"leviathan-{env}-nasa-power-backfill"
 
-    geography_config = load_yaml("configs/geographies/cocoa_regions.yaml")
+    geography_config = load_yaml(f"configs/geographies/{args.commodity}_regions.yaml")
 
     tasks = build_tasks(
         geography_config=geography_config,
+        commodity=args.commodity,
         start_year=args.start_year,
         end_year=args.end_year,
     )
@@ -169,7 +174,12 @@ def main() -> None:
     )
 
     if not args.dry_run:
-        save_run_record(submitted=submitted, start_year=args.start_year, end_year=args.end_year)
+        save_run_record(
+            submitted=submitted,
+            commodity=args.commodity,
+            start_year=args.start_year,
+            end_year=args.end_year,
+        )
 
     logger.info("Done. %d jobs submitted.", len(submitted))
 

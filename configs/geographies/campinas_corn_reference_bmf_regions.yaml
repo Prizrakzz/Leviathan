@@ -1,0 +1,30 @@
+commodity: campinas_corn_reference_bmf
+regions:
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_corn_sao_paulo_campinas
+        latitude: -22.91
+        longitude: -47.06
+      - region: br_corn_mato_grosso
+        latitude: -12.64
+        longitude: -55.42
+      - region: br_corn_parana
+        latitude: -24.89
+        longitude: -51.55
+      - region: br_corn_goias
+        latitude: -15.93
+        longitude: -50.14
+      - region: br_corn_mato_grosso_do_sul
+        latitude: -20.51
+        longitude: -54.54
+      - region: br_corn_minas_gerais
+        latitude: -18.10
+        longitude: -44.38
+      - region: br_corn_sao_paulo
+        latitude: -21.29
+        longitude: -48.18
+      - region: br_corn_bahia_west
+        latitude: -12.15
+        longitude: -45.00

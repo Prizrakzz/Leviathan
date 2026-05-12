@@ -1,0 +1,41 @@
+commodity: rapeseed_meal_zce
+regions:
+  - country: china
+    country_name: "China"
+    importance: primary
+    locations:
+      - region: cn_rapeseed_hubei
+        latitude: 30.59
+        longitude: 114.30
+      - region: cn_rapeseed_hunan
+        latitude: 28.23
+        longitude: 112.94
+      - region: cn_rapeseed_sichuan
+        latitude: 30.65
+        longitude: 104.07
+      - region: cn_rapeseed_anhui
+        latitude: 31.86
+        longitude: 117.28
+      - region: cn_rapeseed_jiangsu
+        latitude: 32.06
+        longitude: 118.78
+      - region: cn_rapeseed_jiangxi
+        latitude: 28.67
+        longitude: 115.91
+      - region: cn_rapeseed_henan
+        latitude: 34.76
+        longitude: 113.65
+
+  - country: canada
+    country_name: "Canada"
+    importance: primary
+    locations:
+      - region: ca_canola_saskatchewan
+        latitude: 52.13
+        longitude: -106.67
+      - region: ca_canola_alberta
+        latitude: 52.27
+        longitude: -113.81
+      - region: ca_canola_manitoba
+        latitude: 49.90
+        longitude: -97.14

@@ -1,0 +1,63 @@
+commodity: soybean_oil_dce
+regions:
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_soy_mato_grosso
+        latitude: -12.64
+        longitude: -55.42
+      - region: br_soy_parana
+        latitude: -24.89
+        longitude: -51.55
+      - region: br_soy_rio_grande_do_sul
+        latitude: -30.03
+        longitude: -51.23
+      - region: br_soy_goias
+        latitude: -15.93
+        longitude: -50.14
+
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_soy_iowa
+        latitude: 42.03
+        longitude: -93.64
+      - region: us_soy_illinois
+        latitude: 40.63
+        longitude: -89.40
+      - region: us_soy_minnesota
+        latitude: 46.73
+        longitude: -94.69
+      - region: us_soy_indiana
+        latitude: 40.27
+        longitude: -86.13
+
+  - country: argentina
+    country_name: "Argentina"
+    importance: primary
+    locations:
+      - region: ar_soy_buenos_aires
+        latitude: -36.68
+        longitude: -60.56
+      - region: ar_soy_cordoba
+        latitude: -31.42
+        longitude: -64.18
+      - region: ar_soy_santa_fe
+        latitude: -31.63
+        longitude: -60.70
+
+  - country: china
+    country_name: "China"
+    importance: primary
+    locations:
+      - region: cn_soy_heilongjiang
+        latitude: 47.86
+        longitude: 127.76
+      - region: cn_soy_jilin
+        latitude: 43.90
+        longitude: 125.32
+      - region: cn_soy_inner_mongolia
+        latitude: 43.65
+        longitude: 112.00

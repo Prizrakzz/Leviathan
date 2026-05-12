@@ -1,0 +1,63 @@
+commodity: frozen_orange_juice
+regions:
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_orange_sao_paulo_citrus_belt
+        latitude: -21.29
+        longitude: -48.18
+      - region: br_orange_minas_gerais_triangulo
+        latitude: -19.75
+        longitude: -47.93
+      - region: br_orange_parana_northwest
+        latitude: -23.42
+        longitude: -51.93
+
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_orange_florida_central_ridge
+        latitude: 27.90
+        longitude: -81.59
+      - region: us_orange_florida_indian_river
+        latitude: 27.64
+        longitude: -80.40
+      - region: us_orange_florida_southwest
+        latitude: 26.64
+        longitude: -81.87
+
+  - country: mexico
+    country_name: "Mexico"
+    importance: primary
+    locations:
+      - region: mx_orange_veracruz
+        latitude: 19.17
+        longitude: -96.13
+      - region: mx_orange_tamaulipas
+        latitude: 23.74
+        longitude: -99.14
+      - region: mx_orange_san_luis_potosi
+        latitude: 22.16
+        longitude: -100.99
+      - region: mx_orange_nuevo_leon
+        latitude: 25.68
+        longitude: -100.32
+
+  - country: european_union
+    country_name: "European Union"
+    importance: primary
+    locations:
+      - region: eu_orange_spain_valencia
+        latitude: 39.47
+        longitude: -0.38
+      - region: eu_orange_spain_andalusia
+        latitude: 37.39
+        longitude: -5.99
+      - region: eu_orange_italy_sicily
+        latitude: 37.60
+        longitude: 14.02
+      - region: eu_orange_italy_calabria
+        latitude: 39.31
+        longitude: 16.25

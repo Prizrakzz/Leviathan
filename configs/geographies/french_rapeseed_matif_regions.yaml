@@ -1,0 +1,69 @@
+commodity: french_rapeseed_matif
+regions:
+  - country: france
+    country_name: "France"
+    importance: primary
+    locations:
+      - region: fr_rapeseed_centre_val_de_loire
+        latitude: 47.75
+        longitude: 1.68
+      - region: fr_rapeseed_grand_est
+        latitude: 48.70
+        longitude: 6.18
+      - region: fr_rapeseed_bourgogne_franche_comte
+        latitude: 47.28
+        longitude: 4.99
+      - region: fr_rapeseed_hauts_de_france
+        latitude: 50.48
+        longitude: 2.79
+      - region: fr_rapeseed_normandy
+        latitude: 49.18
+        longitude: 0.37
+
+  - country: germany
+    country_name: "Germany"
+    importance: primary
+    locations:
+      - region: de_rapeseed_mecklenburg_vorpommern
+        latitude: 53.61
+        longitude: 12.43
+      - region: de_rapeseed_saxony_anhalt
+        latitude: 51.95
+        longitude: 11.69
+      - region: de_rapeseed_lower_saxony
+        latitude: 52.64
+        longitude: 9.84
+      - region: de_rapeseed_schleswig_holstein
+        latitude: 54.22
+        longitude: 9.70
+
+  - country: poland
+    country_name: "Poland"
+    importance: primary
+    locations:
+      - region: pl_rapeseed_wielkopolskie
+        latitude: 52.40
+        longitude: 16.93
+      - region: pl_rapeseed_dolnoslaskie
+        latitude: 51.11
+        longitude: 17.03
+      - region: pl_rapeseed_kujawsko_pomorskie
+        latitude: 53.12
+        longitude: 18.00
+
+  - country: ukraine
+    country_name: "Ukraine"
+    importance: primary
+    locations:
+      - region: ua_rapeseed_vinnytsia
+        latitude: 49.23
+        longitude: 28.48
+      - region: ua_rapeseed_odesa
+        latitude: 46.48
+        longitude: 30.73
+      - region: ua_rapeseed_lviv
+        latitude: 49.84
+        longitude: 24.03
+      - region: ua_rapeseed_khmelnytskyi
+        latitude: 49.42
+        longitude: 26.98

@@ -1,0 +1,77 @@
+commodity: raw_sugar
+regions:
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_sugar_sao_paulo
+        latitude: -21.29
+        longitude: -48.18
+      - region: br_sugar_goias
+        latitude: -15.93
+        longitude: -50.14
+      - region: br_sugar_minas_gerais
+        latitude: -18.10
+        longitude: -44.38
+      - region: br_sugar_parana
+        latitude: -24.89
+        longitude: -51.55
+      - region: br_sugar_mato_grosso_do_sul
+        latitude: -20.51
+        longitude: -54.54
+
+  - country: india
+    country_name: "India"
+    importance: primary
+    locations:
+      - region: in_sugar_uttar_pradesh
+        latitude: 26.85
+        longitude: 80.95
+      - region: in_sugar_maharashtra
+        latitude: 19.75
+        longitude: 75.71
+      - region: in_sugar_karnataka
+        latitude: 15.32
+        longitude: 75.71
+
+  - country: thailand
+    country_name: "Thailand"
+    importance: primary
+    locations:
+      - region: th_sugar_northeast
+        latitude: 15.87
+        longitude: 102.00
+      - region: th_sugar_central
+        latitude: 14.35
+        longitude: 100.57
+      - region: th_sugar_kanchanaburi
+        latitude: 14.02
+        longitude: 99.53
+      - region: th_sugar_nakhon_sawan
+        latitude: 15.70
+        longitude: 100.12
+
+  - country: china
+    country_name: "China"
+    importance: primary
+    locations:
+      - region: cn_sugar_guangxi
+        latitude: 23.83
+        longitude: 108.32
+      - region: cn_sugar_yunnan
+        latitude: 24.88
+        longitude: 102.83
+      - region: cn_sugar_guangdong
+        latitude: 23.13
+        longitude: 113.26
+
+  - country: australia
+    country_name: "Australia"
+    importance: primary
+    locations:
+      - region: au_sugar_queensland
+        latitude: -19.26
+        longitude: 146.82
+      - region: au_sugar_northern_new_south_wales
+        latitude: -29.43
+        longitude: 153.35

@@ -1,0 +1,69 @@
+commodity: french_wheat_matif
+regions:
+  - country: france
+    country_name: "France"
+    importance: primary
+    locations:
+      - region: fr_wheat_centre_val_de_loire
+        latitude: 47.75
+        longitude: 1.68
+      - region: fr_wheat_hauts_de_france
+        latitude: 50.48
+        longitude: 2.79
+      - region: fr_wheat_grand_est
+        latitude: 48.70
+        longitude: 6.18
+      - region: fr_wheat_normandy
+        latitude: 49.18
+        longitude: 0.37
+      - region: fr_wheat_bourgogne_franche_comte
+        latitude: 47.28
+        longitude: 4.99
+      - region: fr_wheat_nouvelle_aquitaine
+        latitude: 45.00
+        longitude: 0.00
+
+  - country: germany
+    country_name: "Germany"
+    importance: primary
+    locations:
+      - region: de_wheat_lower_saxony
+        latitude: 52.64
+        longitude: 9.84
+      - region: de_wheat_saxony_anhalt
+        latitude: 51.95
+        longitude: 11.69
+      - region: de_wheat_north_rhine_westphalia
+        latitude: 51.43
+        longitude: 7.66
+      - region: de_wheat_bavaria
+        latitude: 48.79
+        longitude: 11.50
+
+  - country: poland
+    country_name: "Poland"
+    importance: primary
+    locations:
+      - region: pl_wheat_wielkopolskie
+        latitude: 52.40
+        longitude: 16.93
+      - region: pl_wheat_lubelskie
+        latitude: 51.25
+        longitude: 22.57
+      - region: pl_wheat_kujawsko_pomorskie
+        latitude: 53.12
+        longitude: 18.00
+
+  - country: romania
+    country_name: "Romania"
+    importance: primary
+    locations:
+      - region: ro_wheat_south_muntenia
+        latitude: 44.85
+        longitude: 25.00
+      - region: ro_wheat_dobrogea
+        latitude: 44.18
+        longitude: 28.64
+      - region: ro_wheat_moldavia
+        latitude: 46.20
+        longitude: 27.70

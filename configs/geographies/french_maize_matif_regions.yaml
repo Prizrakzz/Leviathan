@@ -1,0 +1,60 @@
+commodity: french_maize_matif
+regions:
+  - country: france
+    country_name: "France"
+    importance: primary
+    locations:
+      - region: fr_maize_nouvelle_aquitaine
+        latitude: 45.00
+        longitude: 0.00
+      - region: fr_maize_occitanie
+        latitude: 43.60
+        longitude: 1.44
+      - region: fr_maize_auvergne_rhone_alpes
+        latitude: 45.76
+        longitude: 4.84
+      - region: fr_maize_grand_est
+        latitude: 48.70
+        longitude: 6.18
+      - region: fr_maize_centre_val_de_loire
+        latitude: 47.75
+        longitude: 1.68
+
+  - country: romania
+    country_name: "Romania"
+    importance: primary
+    locations:
+      - region: ro_maize_south_muntenia
+        latitude: 44.85
+        longitude: 25.00
+      - region: ro_maize_dobrogea
+        latitude: 44.18
+        longitude: 28.64
+      - region: ro_maize_west
+        latitude: 45.75
+        longitude: 21.23
+
+  - country: hungary
+    country_name: "Hungary"
+    importance: primary
+    locations:
+      - region: hu_maize_great_plain
+        latitude: 47.16
+        longitude: 19.50
+      - region: hu_maize_southern_transdanubia
+        latitude: 46.07
+        longitude: 18.23
+
+  - country: italy
+    country_name: "Italy"
+    importance: primary
+    locations:
+      - region: it_maize_lombardy
+        latitude: 45.48
+        longitude: 9.19
+      - region: it_maize_veneto
+        latitude: 45.44
+        longitude: 12.33
+      - region: it_maize_emilia_romagna
+        latitude: 44.50
+        longitude: 11.34

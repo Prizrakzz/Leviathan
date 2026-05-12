@@ -1,0 +1,113 @@
+commodity: arabica_coffee
+regions:
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_arabica_sul_de_minas
+        latitude: -21.55
+        longitude: -45.43
+      - region: br_arabica_cerrado_mineiro
+        latitude: -18.94
+        longitude: -46.99
+      - region: br_arabica_sao_paulo_mogiana
+        latitude: -20.54
+        longitude: -47.40
+      - region: br_arabica_espirito_santo_highlands
+        latitude: -20.36
+        longitude: -41.24
+      - region: br_arabica_bahia_chapada_diamantina
+        latitude: -13.00
+        longitude: -41.37
+
+  - country: colombia
+    country_name: "Colombia"
+    importance: primary
+    locations:
+      - region: co_arabica_antioquia
+        latitude: 6.56
+        longitude: -75.83
+      - region: co_arabica_huila
+        latitude: 2.93
+        longitude: -75.28
+      - region: co_arabica_tolima
+        latitude: 4.44
+        longitude: -75.24
+      - region: co_arabica_cauca
+        latitude: 2.44
+        longitude: -76.61
+      - region: co_arabica_caldas
+        latitude: 5.30
+        longitude: -75.25
+      - region: co_arabica_risaralda
+        latitude: 5.31
+        longitude: -75.99
+      - region: co_arabica_quindio
+        latitude: 4.54
+        longitude: -75.67
+      - region: co_arabica_narino
+        latitude: 1.29
+        longitude: -77.36
+
+  - country: ethiopia
+    country_name: "Ethiopia"
+    importance: primary
+    locations:
+      - region: et_arabica_sidama
+        latitude: 6.75
+        longitude: 38.45
+      - region: et_arabica_yirgacheffe
+        latitude: 6.16
+        longitude: 38.21
+      - region: et_arabica_jimma
+        latitude: 7.67
+        longitude: 36.83
+      - region: et_arabica_limu
+        latitude: 8.10
+        longitude: 36.95
+      - region: et_arabica_harar
+        latitude: 9.31
+        longitude: 42.13
+      - region: et_arabica_guji
+        latitude: 5.73
+        longitude: 39.05
+
+  - country: honduras
+    country_name: "Honduras"
+    importance: primary
+    locations:
+      - region: hn_arabica_copan
+        latitude: 14.83
+        longitude: -88.78
+      - region: hn_arabica_ocotepeque
+        latitude: 14.44
+        longitude: -89.18
+      - region: hn_arabica_santa_barbara
+        latitude: 14.92
+        longitude: -88.24
+      - region: hn_arabica_el_paraiso
+        latitude: 13.86
+        longitude: -86.55
+      - region: hn_arabica_marcala_la_paz
+        latitude: 14.15
+        longitude: -88.03
+
+  - country: peru
+    country_name: "Peru"
+    importance: primary
+    locations:
+      - region: pe_arabica_cajamarca
+        latitude: -6.56
+        longitude: -78.65
+      - region: pe_arabica_junin
+        latitude: -11.15
+        longitude: -75.35
+      - region: pe_arabica_san_martin
+        latitude: -6.50
+        longitude: -76.50
+      - region: pe_arabica_cusco
+        latitude: -13.52
+        longitude: -71.97
+      - region: pe_arabica_amazonas
+        latitude: -5.07
+        longitude: -78.05

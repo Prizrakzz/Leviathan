@@ -1,0 +1,93 @@
+commodity: corn_cbot
+regions:
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_corn_iowa
+        latitude: 42.03
+        longitude: -93.64
+      - region: us_corn_illinois
+        latitude: 40.63
+        longitude: -89.40
+      - region: us_corn_nebraska
+        latitude: 41.50
+        longitude: -99.68
+      - region: us_corn_minnesota
+        latitude: 46.73
+        longitude: -94.69
+      - region: us_corn_indiana
+        latitude: 40.27
+        longitude: -86.13
+      - region: us_corn_south_dakota
+        latitude: 44.50
+        longitude: -100.00
+      - region: us_corn_kansas
+        latitude: 38.50
+        longitude: -98.00
+      - region: us_corn_missouri
+        latitude: 38.50
+        longitude: -92.50
+      - region: us_corn_ohio
+        latitude: 40.42
+        longitude: -82.91
+
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_corn_mato_grosso
+        latitude: -12.64
+        longitude: -55.42
+      - region: br_corn_parana
+        latitude: -24.89
+        longitude: -51.55
+      - region: br_corn_goias
+        latitude: -15.93
+        longitude: -50.14
+      - region: br_corn_mato_grosso_do_sul
+        latitude: -20.51
+        longitude: -54.54
+      - region: br_corn_minas_gerais
+        latitude: -18.10
+        longitude: -44.38
+      - region: br_corn_sao_paulo
+        latitude: -21.29
+        longitude: -48.18
+
+  - country: argentina
+    country_name: "Argentina"
+    importance: primary
+    locations:
+      - region: ar_corn_buenos_aires
+        latitude: -36.68
+        longitude: -60.56
+      - region: ar_corn_cordoba
+        latitude: -31.42
+        longitude: -64.18
+      - region: ar_corn_santa_fe
+        latitude: -31.63
+        longitude: -60.70
+      - region: ar_corn_entre_rios
+        latitude: -31.77
+        longitude: -60.52
+
+  - country: ukraine
+    country_name: "Ukraine"
+    importance: primary
+    locations:
+      - region: ua_corn_vinnytsia
+        latitude: 49.23
+        longitude: 28.48
+      - region: ua_corn_poltnava
+        latitude: 49.59
+        longitude: 34.55
+      - region: ua_corn_cherkasy
+        latitude: 49.44
+        longitude: 32.06
+      - region: ua_corn_kirovohrad
+        latitude: 48.51
+        longitude: 32.26
+      - region: ua_corn_dnipropetrovsk
+        latitude: 48.46
+        longitude: 35.05

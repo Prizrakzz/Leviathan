@@ -1,0 +1,32 @@
+commodity: hard_red_spring_wheat_mgex
+regions:
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_hrs_north_dakota
+        latitude: 47.55
+        longitude: -100.47
+      - region: us_hrs_minnesota_northwest
+        latitude: 47.75
+        longitude: -96.00
+      - region: us_hrs_montana_north_central
+        latitude: 47.50
+        longitude: -111.30
+      - region: us_hrs_south_dakota
+        latitude: 44.50
+        longitude: -100.00
+
+  - country: canada
+    country_name: "Canada"
+    importance: primary
+    locations:
+      - region: ca_hrs_saskatchewan
+        latitude: 52.13
+        longitude: -106.67
+      - region: ca_hrs_alberta
+        latitude: 52.27
+        longitude: -113.81
+      - region: ca_hrs_manitoba
+        latitude: 49.90
+        longitude: -97.14

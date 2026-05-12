@@ -1,0 +1,35 @@
+commodity: canola_ice
+regions:
+  - country: canada
+    country_name: "Canada"
+    importance: primary
+    locations:
+      - region: ca_canola_saskatchewan
+        latitude: 52.13
+        longitude: -106.67
+      - region: ca_canola_alberta
+        latitude: 52.27
+        longitude: -113.81
+      - region: ca_canola_manitoba
+        latitude: 49.90
+        longitude: -97.14
+      - region: ca_canola_peace_river
+        latitude: 56.23
+        longitude: -117.29
+
+  - country: australia
+    country_name: "Australia"
+    importance: primary
+    locations:
+      - region: au_canola_western_australia
+        latitude: -31.65
+        longitude: 117.24
+      - region: au_canola_new_south_wales
+        latitude: -34.50
+        longitude: 147.50
+      - region: au_canola_victoria
+        latitude: -36.85
+        longitude: 144.28
+      - region: au_canola_south_australia
+        latitude: -34.93
+        longitude: 138.60

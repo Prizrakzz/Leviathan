@@ -1,0 +1,27 @@
+commodity: soybeans_no_1_dce
+regions:
+  - country: china
+    country_name: "China"
+    importance: primary
+    locations:
+      - region: cn_soy_heilongjiang
+        latitude: 47.86
+        longitude: 127.76
+      - region: cn_soy_jilin
+        latitude: 43.90
+        longitude: 125.32
+      - region: cn_soy_inner_mongolia
+        latitude: 43.65
+        longitude: 112.00
+      - region: cn_soy_liaoning
+        latitude: 41.84
+        longitude: 123.43
+      - region: cn_soy_henan
+        latitude: 34.76
+        longitude: 113.65
+      - region: cn_soy_shandong
+        latitude: 36.65
+        longitude: 117.12
+      - region: cn_soy_anhui
+        latitude: 31.86
+        longitude: 117.28

@@ -1,0 +1,44 @@
+commodity: palm_olein_dce
+regions:
+  - country: indonesia
+    country_name: "Indonesia"
+    importance: primary
+    locations:
+      - region: id_palm_riau
+        latitude: 0.51
+        longitude: 101.45
+      - region: id_palm_north_sumatra
+        latitude: 2.50
+        longitude: 99.00
+      - region: id_palm_south_sumatra
+        latitude: -3.32
+        longitude: 104.91
+      - region: id_palm_west_kalimantan
+        latitude: -0.03
+        longitude: 109.34
+      - region: id_palm_central_kalimantan
+        latitude: -1.68
+        longitude: 113.38
+      - region: id_palm_east_kalimantan
+        latitude: 0.54
+        longitude: 116.42
+
+  - country: malaysia
+    country_name: "Malaysia"
+    importance: primary
+    locations:
+      - region: my_palm_sabah
+        latitude: 5.98
+        longitude: 116.08
+      - region: my_palm_sarawak
+        latitude: 1.55
+        longitude: 110.36
+      - region: my_palm_johor
+        latitude: 1.49
+        longitude: 103.76
+      - region: my_palm_pahang
+        latitude: 3.81
+        longitude: 103.33
+      - region: my_palm_perak
+        latitude: 4.60
+        longitude: 101.07

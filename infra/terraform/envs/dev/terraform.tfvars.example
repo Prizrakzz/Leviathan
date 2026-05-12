@@ -1,0 +1,16 @@
+﻿# Copy this file to terraform.tfvars and fill in your own values.
+# commodity is optional — defaults to "cocoa" if omitted.
+
+bucket_name = "your-globally-unique-bucket-name"
+aws_region  = "us-east-1"
+# commodity = "cocoa"
+
+# Subnet IDs for Batch Fargate tasks — use subnets from your default VPC.
+# aws ec2 describe-subnets --query "Subnets[*].SubnetId" --output text
+batch_subnet_ids = [
+  "subnet-xxxxxxxxxxxxxxxxx",
+]
+
+# Security group for Fargate tasks — the default VPC security group works for outbound-only workloads.
+# aws ec2 describe-security-groups --filters Name=group-name,Values=default --query "SecurityGroups[*].GroupId" --output text
+batch_security_group_ids = ["sg-xxxxxxxxxxxxxxxxx"]

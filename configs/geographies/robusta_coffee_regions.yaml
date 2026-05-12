@@ -1,0 +1,86 @@
+commodity: robusta_coffee
+regions:
+  - country: vietnam
+    country_name: "Vietnam"
+    importance: primary
+    locations:
+      - region: vn_robusta_dak_lak_buon_ma_thuot
+        latitude: 12.67
+        longitude: 108.05
+      - region: vn_robusta_lam_dong_bao_loc
+        latitude: 11.55
+        longitude: 107.80
+      - region: vn_robusta_gia_lai_pleiku
+        latitude: 13.98
+        longitude: 108.00
+      - region: vn_robusta_dak_nong
+        latitude: 12.00
+        longitude: 107.70
+      - region: vn_robusta_kon_tum
+        latitude: 14.35
+        longitude: 108.00
+
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_robusta_espirito_santo_conilon
+        latitude: -19.15
+        longitude: -40.08
+      - region: br_robusta_bahia_conilon
+        latitude: -14.86
+        longitude: -40.84
+      - region: br_robusta_rondonia
+        latitude: -10.88
+        longitude: -61.95
+      - region: br_robusta_minas_matas
+        latitude: -20.76
+        longitude: -42.03
+
+  - country: indonesia
+    country_name: "Indonesia"
+    importance: primary
+    locations:
+      - region: id_robusta_lampung_south_sumatra
+        latitude: -5.45
+        longitude: 105.27
+      - region: id_robusta_west_sumatra
+        latitude: -0.95
+        longitude: 100.35
+      - region: id_robusta_east_java
+        latitude: -7.54
+        longitude: 112.24
+      - region: id_robusta_west_java
+        latitude: -6.90
+        longitude: 107.60
+      - region: id_robusta_south_sulawesi
+        latitude: -4.50
+        longitude: 120.00
+
+  - country: uganda
+    country_name: "Uganda"
+    importance: primary
+    locations:
+      - region: ug_robusta_central
+        latitude: 0.35
+        longitude: 32.58
+      - region: ug_robusta_western
+        latitude: 0.65
+        longitude: 30.27
+      - region: ug_robusta_eastern
+        latitude: 1.06
+        longitude: 34.18
+
+  - country: india
+    country_name: "India"
+    importance: primary
+    locations:
+      - region: in_robusta_karnataka
+        latitude: 12.42
+        longitude: 75.74
+      - region: in_robusta_kerala
+        latitude: 10.85
+        longitude: 76.27
+      - region: in_robusta_tamil_nadu
+        latitude: 11.13
+        longitude: 78.66

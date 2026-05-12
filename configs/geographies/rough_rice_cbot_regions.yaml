@@ -1,0 +1,63 @@
+commodity: rough_rice_cbot
+regions:
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_rice_arkansas_delta
+        latitude: 35.05
+        longitude: -90.75
+      - region: us_rice_louisiana
+        latitude: 30.98
+        longitude: -91.96
+      - region: us_rice_mississippi_delta
+        latitude: 33.45
+        longitude: -90.65
+      - region: us_rice_texas_gulf_coast
+        latitude: 29.76
+        longitude: -95.37
+      - region: us_rice_california_sacramento_valley
+        latitude: 39.50
+        longitude: -121.75
+
+  - country: india
+    country_name: "India"
+    importance: primary
+    locations:
+      - region: in_rice_west_bengal
+        latitude: 23.00
+        longitude: 87.85
+      - region: in_rice_uttar_pradesh
+        latitude: 26.85
+        longitude: 80.95
+      - region: in_rice_punjab
+        latitude: 30.90
+        longitude: 75.85
+      - region: in_rice_andhra_pradesh
+        latitude: 15.91
+        longitude: 79.74
+      - region: in_rice_telangana
+        latitude: 18.11
+        longitude: 79.02
+
+  - country: thailand
+    country_name: "Thailand"
+    importance: primary
+    locations:
+      - region: th_rice_central_plain
+        latitude: 14.35
+        longitude: 100.57
+      - region: th_rice_northeast
+        latitude: 15.87
+        longitude: 102.00
+
+  - country: vietnam
+    country_name: "Vietnam"
+    importance: primary
+    locations:
+      - region: vn_rice_mekong_delta
+        latitude: 10.05
+        longitude: 105.78
+      - region: vn_rice_red_river_delta
+        latitude: 20.97
+        longitude: 105.84

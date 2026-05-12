@@ -1,0 +1,21 @@
+commodity: south_african_white_maize_jse
+regions:
+  - country: south_africa
+    country_name: "South Africa"
+    importance: primary
+    locations:
+      - region: za_white_maize_free_state
+        latitude: -28.45
+        longitude: 26.80
+      - region: za_white_maize_north_west
+        latitude: -26.66
+        longitude: 25.28
+      - region: za_white_maize_mpumalanga
+        latitude: -26.00
+        longitude: 30.00
+      - region: za_white_maize_gauteng
+        latitude: -26.27
+        longitude: 28.11
+      - region: za_white_maize_limpopo
+        latitude: -23.90
+        longitude: 29.45

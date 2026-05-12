@@ -1,0 +1,27 @@
+commodity: brazilian_arabica_coffee
+regions:
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_arabica_sul_de_minas
+        latitude: -21.55
+        longitude: -45.43
+      - region: br_arabica_cerrado_mineiro
+        latitude: -18.94
+        longitude: -46.99
+      - region: br_arabica_matas_de_minas
+        latitude: -20.76
+        longitude: -42.03
+      - region: br_arabica_sao_paulo_mogiana
+        latitude: -20.54
+        longitude: -47.40
+      - region: br_arabica_espirito_santo_highlands
+        latitude: -20.36
+        longitude: -41.24
+      - region: br_arabica_bahia_chapada_diamantina
+        latitude: -13.00
+        longitude: -41.37
+      - region: br_arabica_parana_norte_pioneiro
+        latitude: -23.16
+        longitude: -50.07

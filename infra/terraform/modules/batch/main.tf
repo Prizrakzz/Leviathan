@@ -48,17 +48,19 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
   platform_capabilities = ["FARGATE"]
 
   parameters = {
-    country    = "cote_divoire"
-    region     = "soubre"
-    start_year = "1981"
-    end_year   = "1981"
+    commodity  = "cocoa"
+    country    = "placeholder_country"
+    region     = "placeholder_region"
+    start_year = "2010"
+    end_year   = "2010"
   }
 
   container_properties = jsonencode({
     image = "${var.ecr_repository_url}:latest"
 
     command = [
-      "jobs/backfill_raw_nasa_power_cocoa.py",
+      "jobs/backfill_raw_nasa_power.py",
+      "--commodity", "Ref::commodity",
       "--country", "Ref::country",
       "--region", "Ref::region",
       "--start-year", "Ref::start_year",

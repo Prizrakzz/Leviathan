@@ -1,0 +1,27 @@
+commodity: soft_red_winter_wheat_cbot
+regions:
+  - country: united_states
+    country_name: "United States"
+    importance: primary
+    locations:
+      - region: us_srw_illinois
+        latitude: 40.63
+        longitude: -89.40
+      - region: us_srw_missouri
+        latitude: 38.50
+        longitude: -92.50
+      - region: us_srw_ohio
+        latitude: 40.42
+        longitude: -82.91
+      - region: us_srw_indiana
+        latitude: 40.27
+        longitude: -86.13
+      - region: us_srw_arkansas
+        latitude: 34.75
+        longitude: -92.29
+      - region: us_srw_kentucky
+        latitude: 37.84
+        longitude: -84.27
+      - region: us_srw_tennessee
+        latitude: 35.86
+        longitude: -86.66
