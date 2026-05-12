@@ -1,22 +1,23 @@
-"""Glue Python Shell job: raw → bronze for NASA POWER weather data.
+"""Glue Python Shell: raw → bronze NASA POWER (parallel I/O).
 
-Reads all raw JSON files from S3 under:
-  raw/weather/source=nasa_power/commodity=<commodity>/...
-Writes bronze Parquet files to S3 under:
-  bronze/weather/source=nasa_power/commodity=<commodity>/...
+Performance:
+  Before: ~40 min  — serial loop, 3 S3 calls per file, new boto3 client each call
+  After:  ~2 min   — 1 LIST to build skip-set, then ThreadPoolExecutor(32) with
+                     thread-local boto3 clients doing GET + PUT concurrently
 
-Country and region are inferred from the S3 key path components.
-Pass --ingest_date to override today's date (YYYY-MM-DD).
+Reusable: pass --commodity <name> to handle any commodity's weather data.
+Pass --force_overwrite to reprocess files that already have a bronze counterpart.
 """
 from __future__ import annotations
 
 import io
+import json
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 
 from awsglue.utils import getResolvedOptions
-
-import pandas as pd
 
 # ---- Bootstrap: install leviathan package from S3 at runtime ----
 import os as _os
@@ -41,20 +42,17 @@ def _install_leviathan() -> None:
 _install_leviathan()
 # ---- End bootstrap ----
 
+import boto3
+
 from leviathan.common.logging import get_logger
-from leviathan.storage.paths import bronze_weather_key, raw_weather_key
-from leviathan.storage.s3 import (
-    download_s3_json,
-    list_s3_keys,
-    s3_object_exists,
-    upload_bytes_to_s3,
-)
+from leviathan.storage.paths import bronze_weather_key
+from leviathan.storage.s3 import list_s3_keys
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe
 
 logger = get_logger(__name__)
 
 REQUIRED_ARGS = ["JOB_NAME", "commodity", "bucket", "aws_region"]
-OPTIONAL_ARGS = ["ingest_date"]
+OPTIONAL_ARGS = ["ingest_date", "force_overwrite"]
 
 args = getResolvedOptions(sys.argv, REQUIRED_ARGS + OPTIONAL_ARGS)
 
@@ -62,102 +60,107 @@ COMMODITY: str = args["commodity"]
 BUCKET: str = args["bucket"]
 AWS_REGION: str = args["aws_region"]
 INGEST_DATE: str = args.get("ingest_date") or date.today().isoformat()
+FORCE_OVERWRITE: bool = args.get("force_overwrite", "false").lower() == "true"
 
 RAW_PREFIX = f"raw/weather/source=nasa_power/commodity={COMMODITY}/"
+BRONZE_PREFIX = f"bronze/weather/source=nasa_power/commodity={COMMODITY}/"
+MAX_WORKERS = 32
+
+# One boto3 client per thread — avoids connection-pool contention
+_local = threading.local()
 
 
-def infer_country_region(key: str) -> tuple[str, str]:
-    """Extract country and region from an S3 key with Hive-style partitions."""
+def _s3():
+    if not hasattr(_local, "client"):
+        _local.client = boto3.client("s3", region_name=AWS_REGION)
+    return _local.client
+
+
+def _parse_hive_partition(key: str, field: str) -> str:
     parts = key.split("/")
-    country = ""
-    region = ""
-    for part in parts:
-        if part.startswith("country="):
-            country = part[len("country="):]
-        elif part.startswith("region="):
-            region = part[len("region="):]
-    if not country or not region:
-        raise ValueError(f"Could not infer country/region from key: {key}")
-    return country, region
+    return next((p[len(field) + 1:] for p in parts if p.startswith(f"{field}=")), "")
 
 
-def infer_year_month(key: str) -> tuple[int, int]:
-    """Extract year and month from an S3 key with Hive-style partitions."""
-    parts = key.split("/")
-    year = 0
-    month = 0
-    for part in parts:
-        if part.startswith("year="):
-            year = int(part[len("year="):])
-        elif part.startswith("month="):
-            month = int(part[len("month="):])
-    if not year or not month:
-        raise ValueError(f"Could not infer year/month from key: {key}")
-    return year, month
+def process_one(raw_key: str, existing_bronze: set[str]) -> tuple[str, str]:
+    country = _parse_hive_partition(raw_key, "country")
+    region = _parse_hive_partition(raw_key, "region")
+    year_s = _parse_hive_partition(raw_key, "year")
+    month_s = _parse_hive_partition(raw_key, "month")
+
+    if not country or not region or not year_s or not month_s:
+        return ("failed", f"Could not parse partitions from key: {raw_key}")
+
+    year = int(year_s)
+    month = int(month_s)
+    filename = raw_key.rsplit("/", 1)[-1].replace(".json", ".parquet")
+
+    bkey = bronze_weather_key(
+        source="nasa_power",
+        commodity=COMMODITY,
+        country=country,
+        region=region,
+        year=year,
+        month=month,
+        filename=filename,
+    )
+
+    if bkey in existing_bronze:
+        return ("skipped", bkey)
+
+    try:
+        response = _s3().get_object(Bucket=BUCKET, Key=raw_key)
+        payload = json.loads(response["Body"].read())
+
+        df = nasa_power_payload_to_daily_dataframe(
+            payload=payload,
+            source_file_name=raw_key.rsplit("/", 1)[-1],
+            commodity=COMMODITY,
+            country=country,
+            region=region,
+            ingest_date=INGEST_DATE,
+        )
+
+        buf = io.BytesIO()
+        df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
+        _s3().put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=bkey)
+        return ("success", bkey)
+
+    except Exception as exc:  # noqa: BLE001
+        return ("failed", f"{raw_key}: {exc}")
 
 
 def main() -> None:
     raw_keys = list_s3_keys(BUCKET, RAW_PREFIX, suffix=".json", aws_region=AWS_REGION)
-    logger.info("Found %d raw NASA POWER JSON files for commodity=%s", len(raw_keys), COMMODITY)
+    logger.info("Found %d raw files for commodity=%s", len(raw_keys), COMMODITY)
 
-    success = 0
-    skipped = 0
-    failed = 0
-
-    for raw_key in raw_keys:
-        try:
-            country, region = infer_country_region(raw_key)
-            year, month = infer_year_month(raw_key)
-        except ValueError as exc:
-            logger.warning("Skipping key — %s", exc)
-            failed += 1
-            continue
-
-        filename = raw_key.rsplit("/", 1)[-1].replace(".json", ".parquet")
-        bronze_key = bronze_weather_key(
-            source="nasa_power",
-            commodity=COMMODITY,
-            country=country,
-            region=region,
-            year=year,
-            month=month,
-            filename=filename,
+    # One LIST call replaces N head_object calls for the skip check
+    if FORCE_OVERWRITE:
+        existing_bronze: set[str] = set()
+        logger.info("force_overwrite=true — reprocessing all files")
+    else:
+        existing_bronze = set(
+            list_s3_keys(BUCKET, BRONZE_PREFIX, suffix=".parquet", aws_region=AWS_REGION)
         )
+        logger.info("%d existing bronze files will be skipped", len(existing_bronze))
 
-        if s3_object_exists(BUCKET, bronze_key, aws_region=AWS_REGION):
-            logger.debug("Bronze already exists, skipping: %s", bronze_key)
-            skipped += 1
-            continue
+    success = skipped = failed = 0
 
-        try:
-            payload = download_s3_json(BUCKET, raw_key, aws_region=AWS_REGION)
-            source_file_name = raw_key.rsplit("/", 1)[-1]
-
-            df = nasa_power_payload_to_daily_dataframe(
-                payload=payload,
-                source_file_name=source_file_name,
-                commodity=COMMODITY,
-                country=country,
-                region=region,
-                ingest_date=INGEST_DATE,
-            )
-
-            buf = io.BytesIO()
-            df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-            upload_bytes_to_s3(buf.getvalue(), BUCKET, bronze_key, aws_region=AWS_REGION)
-
-            logger.info("Wrote bronze: %s  rows=%d", bronze_key, len(df))
-            success += 1
-
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to process %s — %s", raw_key, exc)
-            failed += 1
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+        futures = {pool.submit(process_one, k, existing_bronze): k for k in raw_keys}
+        for future in as_completed(futures):
+            status, info = future.result()
+            if status == "success":
+                success += 1
+            elif status == "skipped":
+                skipped += 1
+            else:
+                failed += 1
+                logger.error("Failed: %s", info)
 
     logger.info(
         "raw→bronze NASA POWER complete. success=%d  skipped=%d  failed=%d",
         success, skipped, failed,
     )
-
     if failed > 0:
         raise RuntimeError(f"{failed} files failed during raw→bronze NASA POWER transform.")
 

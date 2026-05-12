@@ -1,12 +1,11 @@
-"""Glue Python Shell job: bronze → silver for FAOSTAT production data.
+"""Glue Python Shell: bronze → silver FAOSTAT (bulk parallel I/O, commodity-generic).
 
-Reads all bronze Parquet files from S3 under:
-  bronze/production/source=faostat/dataset=QCL/commodity=<commodity>/...
-Concatenates them into one DataFrame, applies the silver transform,
-then writes per-year silver Parquet files to S3 under:
-  silver/production/commodity=<commodity>/year=<year>/part-000.parquet
+Performance:
+  Before: serial per-file loop with new boto3 clients
+  After:  pyarrow.dataset reads all bronze files in parallel, single vectorized
+          transform, one boto3 client writing all per-year silver files
 
-Uses s3fs so pd.read_parquet() works directly on s3:// URIs.
+Reusable: pass --commodity <name> — no code changes needed for new commodities.
 """
 from __future__ import annotations
 
@@ -14,8 +13,6 @@ import io
 import sys
 
 from awsglue.utils import getResolvedOptions
-
-import pandas as pd
 
 # ---- Bootstrap: install leviathan package from S3 at runtime ----
 import os as _os
@@ -40,8 +37,11 @@ def _install_leviathan() -> None:
 _install_leviathan()
 # ---- End bootstrap ----
 
+import boto3
+import pyarrow.dataset as ds
+import pyarrow.fs as pafs
+
 from leviathan.common.logging import get_logger
-from leviathan.storage.s3 import list_s3_keys, upload_bytes_to_s3
 from leviathan.transforms.bronze_to_silver.faostat_cocoa import transform_faostat_cocoa_silver_df
 
 logger = get_logger(__name__)
@@ -54,49 +54,35 @@ COMMODITY: str = args["commodity"]
 BUCKET: str = args["bucket"]
 AWS_REGION: str = args["aws_region"]
 
-BRONZE_PREFIX = f"bronze/production/source=faostat/dataset=QCL/commodity={COMMODITY}/"
+BRONZE_PATH = f"{BUCKET}/bronze/production/source=faostat/dataset=QCL/commodity={COMMODITY}"
+
+# Single shared client — FAOSTAT silver is O(tens) of files, concurrency not needed
+_s3 = boto3.client("s3", region_name=AWS_REGION)
 
 
 def main() -> None:
-    bronze_keys = list_s3_keys(BUCKET, BRONZE_PREFIX, suffix=".parquet", aws_region=AWS_REGION)
-    logger.info(
-        "Found %d bronze FAOSTAT Parquet files for commodity=%s",
-        len(bronze_keys), COMMODITY,
-    )
+    s3_fs = pafs.S3FileSystem(region=AWS_REGION)
 
-    if not bronze_keys:
-        raise RuntimeError(
-            f"No bronze FAOSTAT Parquet files found at s3://{BUCKET}/{BRONZE_PREFIX}"
-        )
+    # --- Bulk parallel read of all bronze FAOSTAT files ---
+    logger.info("Reading bronze FAOSTAT from s3://%s ...", BRONZE_PATH)
+    bronze_ds = ds.dataset(BRONZE_PATH, filesystem=s3_fs, format="parquet")
+    bronze_df = bronze_ds.to_table().to_pandas()
+    logger.info("Loaded %d bronze rows from %d files", len(bronze_df), len(bronze_ds.files))
 
-    frames: list[pd.DataFrame] = []
-    for key in bronze_keys:
-        df = pd.read_parquet(
-            f"s3://{BUCKET}/{key}",
-            storage_options={"anon": False},
-        )
-        frames.append(df)
+    # --- Vectorized silver transform, commodity-aware ---
+    year_frames = transform_faostat_cocoa_silver_df(bronze_df, commodity=COMMODITY)
+    logger.info("Silver transform produced %d years of data", len(year_frames))
 
-    bronze_df = pd.concat(frames, ignore_index=True)
-    logger.info("Loaded %d total bronze FAOSTAT rows", len(bronze_df))
-
-    year_frames = transform_faostat_cocoa_silver_df(bronze_df)
-    logger.info("Silver transform produced data for %d years", len(year_frames))
-
-    success = 0
-    failed = 0
+    success = failed = 0
 
     for year, year_df in year_frames:
         silver_key = f"silver/production/commodity={COMMODITY}/year={year}/part-000.parquet"
-
         try:
             buf = io.BytesIO()
             year_df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-            upload_bytes_to_s3(buf.getvalue(), BUCKET, silver_key, aws_region=AWS_REGION)
-
-            logger.info("Wrote silver: %s  rows=%d", silver_key, len(year_df))
+            _s3.put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=silver_key)
+            logger.info("Wrote %s  rows=%d", silver_key, len(year_df))
             success += 1
-
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to write %s — %s", silver_key, exc)
             failed += 1
@@ -105,7 +91,6 @@ def main() -> None:
         "bronze→silver FAOSTAT complete. success=%d  failed=%d",
         success, failed,
     )
-
     if failed > 0:
         raise RuntimeError(f"{failed} years failed during bronze→silver FAOSTAT transform.")
 

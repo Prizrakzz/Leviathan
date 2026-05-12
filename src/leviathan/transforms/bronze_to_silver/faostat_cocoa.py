@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 
 import pandas as pd
@@ -18,10 +19,12 @@ ELEMENT_TO_METRIC = {
 
 
 def standardize_country_name(value: str) -> str:
+    # Decompose accented chars (ô → o + combining circumflex) then strip non-ASCII.
+    # "Côte d'Ivoire" → "cote_divoire", not "côte_divoire".
+    s = unicodedata.normalize("NFKD", str(value).strip())
+    s = s.encode("ascii", "ignore").decode("ascii")
     return (
-        str(value)
-        .strip()
-        .lower()
+        s.lower()
         .replace(" ", "_")
         .replace("-", "_")
         .replace("'", "")
@@ -41,12 +44,19 @@ def load_bronze_faostat(bronze_root: str | Path) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def transform_faostat_cocoa_silver_df(df: pd.DataFrame) -> list[tuple[int, pd.DataFrame]]:
+def transform_faostat_cocoa_silver_df(
+    df: pd.DataFrame,
+    commodity: str = "cocoa",
+) -> list[tuple[int, pd.DataFrame]]:
     """Apply silver cleaning rules to an already-loaded bronze FAOSTAT DataFrame.
 
     Returns a list of ``(year, silver_df)`` pairs ready for writing.
     ``transform_faostat_cocoa_to_silver`` calls this internally; Glue jobs that
     read bronze Parquet directly from S3 should call this instead.
+
+    Args:
+        df: Bronze FAOSTAT DataFrame.
+        commodity: Commodity label to stamp on every row (default: "cocoa").
     """
     required = {"area", "item", "element", "year", "unit", "value", "flag"}
     missing = required - set(df.columns)
@@ -62,7 +72,7 @@ def transform_faostat_cocoa_silver_df(df: pd.DataFrame) -> list[tuple[int, pd.Da
     df["country"] = df["area"].astype(str)
     df["country_key"] = df["country"].map(standardize_country_name)
 
-    df["commodity"] = "cocoa"
+    df["commodity"] = commodity
     df["source"] = "faostat"
     df["dataset"] = "QCL"
 

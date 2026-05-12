@@ -78,6 +78,7 @@ def main() -> None:
         zip_path=TMP_ZIP,
         output_dir=TMP_BRONZE,
         ingest_date=INGEST_DATE,
+        commodity=COMMODITY,
     )
 
     logger.info("Bronze transform wrote %d local Parquet files", len(written_local))

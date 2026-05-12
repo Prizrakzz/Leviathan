@@ -88,11 +88,12 @@ def add_bronze_metadata(
     df: pd.DataFrame,
     ingest_date: str,
     source_file_name: str,
+    commodity: str = "cocoa",
 ) -> pd.DataFrame:
     df = df.copy()
     df["source"] = "faostat"
     df["dataset"] = "QCL"
-    df["commodity"] = "cocoa"
+    df["commodity"] = commodity
     df["ingest_date"] = ingest_date
     df["source_file_name"] = source_file_name
     return df
@@ -102,6 +103,7 @@ def transform_faostat_qcl_zip_to_bronze(
     zip_path: str | Path,
     output_dir: str | Path,
     ingest_date: str,
+    commodity: str = "cocoa",
     chunksize: int = 100_000,
 ) -> list[Path]:
     """
@@ -144,6 +146,7 @@ def transform_faostat_qcl_zip_to_bronze(
                     chunk,
                     ingest_date=ingest_date,
                     source_file_name=zip_path.name,
+                    commodity=commodity,
                 )
 
                 bronze_frames.append(chunk)
