@@ -1,13 +1,204 @@
 # Leviathan
+
 <p align="center">
   <img src="assets/Leviathan-Banner.png" alt="Leviathan Banner" width="100%">
 </p>
-Leviathan is an AWS-native commodity alternative-data platform that ingests weather, LME warehouse stocks, USDA WASDE, Arabic news sentiment, and other market-relevant datasets into a reproducible S3/Snowflake research lakehouse for ensemble ML and quant research.
 
-## Setup
+Leviathan is an AWS-native commodity data platform. It ingests weather and production data for agricultural commodities, transforms it through a medallion lakehouse (raw → bronze → silver), and prepares ML-ready datasets for crop yield modelling.
 
-1. Clone the repo
-2. Create a virtual environment: `python -m venv .venv`
-3. Activate it: `.venv\Scripts\activate` (Windows) or `source .venv/bin/activate` (Mac/Linux)
-4. Install the package: `pip install -e .`
-5. Copy `.env.example` to `.env` and fill in your values
+The first commodity is **cocoa** — 14 growing regions across 5 countries (Côte d'Ivoire, Ghana, Nigeria, Cameroon, Ecuador), with daily weather from 1981–2024 and annual production statistics from 1961–2023.
+
+---
+
+## Architecture
+
+```
+NASA POWER API ──┐
+                 ├─► AWS Batch Fargate ──► S3 raw/ ──► Glue (raw→bronze) ──► S3 bronze/
+FAOSTAT bulk ───┘                                                                  │
+                                                                                   ▼
+                                                                     Glue (bronze→silver)
+                                                                                   │
+                                                                                   ▼
+                                                                           S3 silver/
+                                                                     (Athena / DuckDB ready)
+```
+
+| Layer | Format | Partitioning | Contents |
+|---|---|---|---|
+| `raw/` | JSON (weather) / ZIP (FAOSTAT) | `source/commodity/country/region/year/month/` | API responses, unmodified |
+| `bronze/` | Parquet (Snappy) | `source/commodity/country/region/year/month/` | Parsed, typed, no transformations |
+| `silver/` | Parquet (Snappy) | `source/commodity/country/region/year/month/` | Cleaned, validated, ML-ready |
+
+**Compute:**
+- **Ingestion** — AWS Batch Fargate (parallel fan-out per region/year/month via SQS)
+- **Transformation** — AWS Glue Python Shell (GlueVersion 3.0, 1 DPU, parallel S3 I/O via `ThreadPoolExecutor`)
+- **Querying** — Amazon Athena with Hive partitions registered in Glue Data Catalog
+
+**Infrastructure** is fully managed by Terraform (`infra/terraform/`). Environments: `dev`, `prod`.
+
+---
+
+## Repository layout
+
+```
+configs/
+  commodities/        # Per-commodity modelling config (targets, grain, sources)
+  geographies/        # Region definitions with lat/lon coordinates
+  sources/            # Source-specific config (NASA POWER parameters, FAOSTAT codes)
+
+docker/
+  leviathan_worker/   # Fargate container image for batch ingestion
+
+infra/terraform/
+  envs/dev|prod/      # Environment entrypoints
+  modules/            # batch, cloudwatch, ecr, glue, iam, s3, secrets, step_functions
+
+jobs/
+  glue/               # Glue Python Shell scripts (raw→bronze, bronze→silver)
+  backfill_*.py       # One-time historical backfill runners
+  check_*.py          # Pipeline validation scripts
+  submit_batch_*.py   # Batch job submission helpers
+
+src/leviathan/
+  common/             # Logging, config loading
+  ingestion/          # NASA POWER and FAOSTAT ingestion clients
+  storage/            # S3 helpers, path builders
+  transforms/         # raw→bronze and bronze→silver transform logic
+
+sql/
+  athena/             # DDL and query templates
+  dbt/                # (Planned) dbt models for Snowflake serving layer
+
+tests/
+  unit/               # Transform and utility tests
+  integration/        # End-to-end pipeline tests
+  data_quality/       # Silver layer quality assertions
+```
+
+---
+
+## Local setup
+
+**Requirements:** Python 3.11+, AWS CLI configured, Terraform 1.5+
+
+```bash
+# 1. Clone and create virtual environment
+git clone <repo-url>
+cd Leviathan
+python -m venv .venv
+
+# 2. Activate
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # macOS / Linux
+
+# 3. Install the package in editable mode
+pip install -e .
+```
+
+AWS credentials must have access to the S3 bucket, Glue, Batch, and Athena. The bucket name and region are configured in `infra/terraform/envs/dev/terraform.tfvars`.
+
+---
+
+## Infrastructure
+
+```bash
+cd infra/terraform/envs/dev
+terraform init
+terraform plan
+terraform apply
+```
+
+This provisions: S3 bucket (versioned), IAM roles, ECR repository, Batch compute environment and job queue, Glue jobs, and CloudWatch log groups.
+
+Glue scripts and the `leviathan` wheel are uploaded to S3 as `aws_s3_object` resources and re-deployed automatically on content change (`etag = filemd5(...)`).
+
+---
+
+## Running the pipeline
+
+### 1. Ingest raw weather (NASA POWER)
+
+Historical backfill via Batch Fargate (parallel, one task per region/year/month):
+
+```bash
+python jobs/submit_batch_backfill_nasa_power.py --commodity cocoa --start-year 1981 --end-year 2024
+```
+
+Incremental monthly runs are gated by `MAX_INGEST_YEAR` in `jobs/backfill_raw_nasa_power_cocoa.py`. The current ceiling is **2024**.
+
+### 2. Ingest raw production (FAOSTAT)
+
+```bash
+python jobs/upload_raw_faostat_qcl.py
+```
+
+Downloads the FAOSTAT QCL bulk export and uploads it to `s3://…/raw/production/source=faostat/`.
+
+### 3. Run Glue transform jobs
+
+```bash
+# raw → bronze
+aws glue start-job-run --job-name leviathan-dev-raw-to-bronze-nasa-power
+aws glue start-job-run --job-name leviathan-dev-raw-to-bronze-faostat
+
+# bronze → silver
+aws glue start-job-run --job-name leviathan-dev-bronze-to-silver-nasa-power
+aws glue start-job-run --job-name leviathan-dev-bronze-to-silver-faostat
+```
+
+Jobs are idempotent — existing partitions are skipped unless `--force_overwrite true` is passed.
+
+### 4. Validate
+
+```bash
+# Silver layer shape, types, and quality
+python jobs/check_stage3_cocoa.py
+
+# File counts at every layer against expected (country × region × year × month)
+python jobs/check_pipeline_completeness_cocoa.py
+
+# ML join coverage: every config country has weather + production for 1981–2023
+python jobs/check_ml_overlap_coverage_cocoa.py
+```
+
+All three scripts exit 0 on a clean pipeline.
+
+---
+
+## Current data state (cocoa)
+
+| Layer | Files | Rows | Coverage |
+|---|---|---|---|
+| Raw weather | 7,392 | — | 14 regions × 44 years × 12 months |
+| Bronze weather | 7,392 | — | same |
+| Silver weather | 7,392 | 224,994 | 1981-01-01 → 2024-12-31, 0 duplicates |
+| Silver production | — | 14,957 | 83 country keys, 1961–2023, 0 duplicates |
+
+ML overlap window: **1981–2023** — all 5 config countries have complete coverage in both datasets.
+
+---
+
+## Building the leviathan package
+
+The `leviathan` package is distributed as a wheel and bootstrapped into Glue at runtime:
+
+```bash
+pip install build
+python -m build --wheel
+# outputs dist/leviathan-0.1.0-py3-none-any.whl
+
+aws s3 cp dist/leviathan-0.1.0-py3-none-any.whl \
+  s3://<bucket>/glue-libs/leviathan-0.1.0-py3-none-any.whl
+```
+
+The wheel is also managed as a Terraform `aws_s3_object` resource and re-uploaded on content change.
+
+---
+
+## Adding a new commodity
+
+1. Add `configs/commodities/<commodity>.yaml` — define targets, modelling grain, and sources.
+2. Add `configs/geographies/<commodity>_regions.yaml` — define countries, regions, and coordinates.
+3. Pass `--commodity <name>` to all Glue jobs and backfill scripts — the pipeline is parameterised throughout.
+4. Update `MAX_INGEST_YEAR` in the relevant backfill script after validating the overlap window.
