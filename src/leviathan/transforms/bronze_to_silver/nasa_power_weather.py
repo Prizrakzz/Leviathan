@@ -31,14 +31,18 @@ def load_bronze_weather(bronze_root: str | Path) -> list[Path]:
     return parquet_files
 
 
-def clean_one_weather_file(path: Path) -> pd.DataFrame:
-    df = pd.read_parquet(path)
+def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> pd.DataFrame:
+    """Apply silver cleaning rules to an already-loaded bronze weather DataFrame.
 
+    This is the core transform.  ``clean_one_weather_file`` is a thin wrapper
+    that reads from a local Path before delegating here.  Glue jobs that read
+    from S3 directly should call this function instead.
+    """
     required = {"date", "year", "month", "day", "country", "region", "commodity", "source"}
     missing = required - set(df.columns)
 
     if missing:
-        raise ValueError(f"Missing required NASA POWER bronze columns in {path}: {missing}")
+        raise ValueError(f"Missing required NASA POWER bronze columns in {source_label}: {missing}")
 
     df = df.copy()
 
@@ -85,6 +89,11 @@ def clean_one_weather_file(path: Path) -> pd.DataFrame:
     )
 
     return silver
+
+
+def clean_one_weather_file(path: Path) -> pd.DataFrame:
+    df = pd.read_parquet(path)
+    return clean_one_weather_df(df, source_label=str(path))
 
 
 def transform_nasa_power_weather_to_silver(

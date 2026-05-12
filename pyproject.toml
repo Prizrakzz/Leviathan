@@ -2,12 +2,14 @@
 name = "leviathan"
 version = "0.1.0"
 description = "Commodity market-neutral trading system"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "boto3",
     "pandas",
+    "pyarrow",
     "pyyaml",
     "requests",
+    "s3fs",
     "tenacity",
     "python-dotenv",
 ]

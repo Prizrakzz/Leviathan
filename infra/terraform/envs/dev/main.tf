@@ -52,3 +52,13 @@ module "batch" {
   batch_job_role_arn       = module.iam.batch_job_role_arn
   leviathan_bucket         = var.bucket_name
 }
+
+module "glue" {
+  source = "../../modules/glue"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  aws_region        = var.aws_region
+  bucket_name       = var.bucket_name
+  glue_job_role_arn = module.iam.glue_job_role_arn
+}

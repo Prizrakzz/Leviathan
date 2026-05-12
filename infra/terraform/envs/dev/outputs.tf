@@ -25,3 +25,22 @@ output "nasa_power_backfill_job_definition_arn" {
   description = "ARN of the NASA POWER backfill Batch job definition."
 }
 
+output "glue_raw_to_bronze_nasa_power_job" {
+  value       = module.glue.raw_to_bronze_nasa_power_job_name
+  description = "Glue job: raw → bronze NASA POWER."
+}
+
+output "glue_raw_to_bronze_faostat_job" {
+  value       = module.glue.raw_to_bronze_faostat_job_name
+  description = "Glue job: raw → bronze FAOSTAT."
+}
+
+output "glue_bronze_to_silver_nasa_power_job" {
+  value       = module.glue.bronze_to_silver_nasa_power_job_name
+  description = "Glue job: bronze → silver NASA POWER."
+}
+
+output "glue_bronze_to_silver_faostat_job" {
+  value       = module.glue.bronze_to_silver_faostat_job_name
+  description = "Glue job: bronze → silver FAOSTAT."
+}

@@ -1,0 +1,6170 @@
+{
+  "run_id": "2026-05-11T22-02-08.199934+00-00",
+  "source": "nasa_power",
+  "commodity": "cocoa",
+  "start_year": 1981,
+  "end_year": 2024,
+  "task_count": 616,
+  "tasks": [
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1981",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "6655aeb2-ec23-4cea-bc2a-35a8b8410273"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1982",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "3b189a38-6407-4e2b-8073-533fa89ec4e0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1983",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "de4f4cf8-a911-47fc-a0b0-807bfc1e0f36"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1984",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "8143ae7b-6a2a-4ed2-88d7-d952fc60511a"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1985",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "2350b656-93cb-4455-9f8c-37aec6d8f57d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1986",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "f4022d41-9bc9-4906-a7ed-ab8c69ada499"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1987",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "dfeb0e19-bbf9-407c-9755-ec2697dcb22d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1988",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "3950680d-6eba-410c-b4f4-479ee595c25e"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1989",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "1a697415-2260-4b51-8f3f-3fb1721df13b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1990",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "6dacb24b-3bce-49e8-a5ec-36ea9f365869"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1991",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "10605e9c-6258-4412-ac7f-75ec885cd923"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1992",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "268a86bf-648b-474e-a345-0c3a94f48c4d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1993",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "1510fb43-dcb8-486f-ad7d-378a19121a0b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1994",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "6f532389-3e09-4dfe-9d58-6ea450961c60"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1995",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "1a19a412-3ae7-4477-84fd-6efc10a3ac54"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1996",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "f99899a4-d860-45cf-90f1-d689bb797e72"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1997",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "ee62d160-6f75-4379-b0c6-971228851a36"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1998",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "3edf33ec-0296-45f7-83a7-4e12b64b074c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-1999",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "c154135f-86db-4cba-bb41-f55e6e2af118"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2000",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "330a1cff-df92-4ef8-ba87-8f21f27b02d0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2001",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "d7d03f96-72b2-4847-bec4-60884a00939f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2002",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "fc0985c5-c03f-45b5-8eb1-82d824ed0fe5"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2003",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "770778dd-3c52-490b-b253-6eeea0e69172"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2004",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "5206e453-f97d-4d7e-96ab-e61dedbc9cf1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2005",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "1330565c-3dd9-4122-8839-5ef3679cf4b4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2006",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "34dc84e1-2273-45e5-9407-90d40d1fe5d4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2007",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "23f27899-e15c-472b-aa14-748af2f1ee75"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2008",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "afab185e-fe7c-405d-bd3a-12a33e37a085"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2009",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "114bcf6b-8fbf-45f6-8c05-716f13e4662b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2010",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "7d33bc8e-8755-4c17-805c-cb4438781dd2"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2011",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "f1626ac4-f457-40f4-865f-dc1542db2a95"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2012",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "de0a3bbc-9e9e-46c7-b4ef-117f9e60fc72"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2013",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "9b7790f7-0dc3-48ac-975e-a23183284729"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2014",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "8121542f-8828-4866-afcb-699cd80c1751"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2015",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "a63f8a0a-90ce-49a9-8160-8c8dc37c01ec"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2016",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "f6348c87-851b-4c18-ae99-03c3ee20cd8b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2017",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "2682caf7-9481-4797-98ac-e2976f62efb5"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2018",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "590e482c-8c3c-4211-b62c-47b740f865bc"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2019",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "5eb7686a-75d9-433b-96a6-cb164c6d569d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2020",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "0359ca60-66f0-414e-af0b-87a924232f7d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2021",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "307e8741-c0a2-4e3c-b0e0-f1fcd042a169"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2022",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "a84db761-b960-4045-b235-b33eb05a8959"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2023",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "ca941e67-e5b1-409b-823a-c6755c428b66"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-soubre-2024",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "soubre",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "58cba41b-8778-47e1-9129-7f37d6304c50"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1981",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "b3ecc342-6366-42cf-a9b9-463270d31394"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1982",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "24bce0b6-0f95-4504-b042-22670c57b6b4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1983",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "8185e1bd-de09-4680-a06e-86e37b85ebf4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1984",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "015d4e11-ebb8-4a14-8c43-dcd85d4f47a3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1985",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "176e8524-9c35-40c7-bf95-b06d95a47d72"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1986",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "033cea8f-185f-4737-8610-4274be15450f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1987",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "5f7acb64-09f1-483d-b5a3-1a947f3e9a38"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1988",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "f18b24bb-3ad9-4d49-967e-68435bda35dc"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1989",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "63ad4b39-8f45-4773-951b-dc39a1132071"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1990",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "61de5b21-48f0-447f-bb21-945b712ff91b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1991",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "bdf12711-b237-4172-82c0-3839f2894e80"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1992",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "eb91fd9e-6a6f-4a14-8f15-fa6c8cdbbc60"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1993",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "32d41823-6879-42aa-b3f7-9254ed4f57c2"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1994",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "684b9ba5-a60f-44c2-a4f8-a5d0a55374ec"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1995",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "d5c064c7-377a-4afc-85d3-725a979d1cb0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1996",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "3f8d9c60-1419-44f2-b455-34acebf248f3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1997",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "2cced86f-1747-4eeb-8315-08534aac2e57"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1998",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "fec48dfd-9967-4976-9b65-6a68d7f1b994"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-1999",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "1aa2259f-85f4-4a26-a9e2-2a70cb27f028"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2000",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "79bb7d1e-5e57-4d1f-8d9a-d60c5d83a3f9"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2001",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "f0817609-400a-4804-aeab-f02afd28cd37"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2002",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "cf7e2304-9fe1-4aa0-b2bd-67e16e938b7b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2003",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "3b11dbd6-d2fa-4797-b460-fe055a68c4a6"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2004",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "d6b1c058-0299-4248-9f0c-935d34be26d1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2005",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "2c73999f-f676-4604-97ed-75964a100f31"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2006",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "7ad27bb8-1c94-475b-9890-7ef1264c9478"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2007",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "d33293e9-34b2-4b50-a799-0e0300d26c16"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2008",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "68f10ae3-46cc-47b9-ad30-2e4af04f6cd0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2009",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "605e1a9d-d761-400f-a68a-159d56d4e66c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2010",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "318ee91b-c5be-44fb-b9e1-d6311dbd3138"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2011",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "2a9f024e-0862-40d1-9adc-21c9f6650458"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2012",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "3933c447-6876-4188-a85e-3c31ce3139c8"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2013",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "8b4b9672-3d92-4157-abba-dfb710b632c2"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2014",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "4758ad07-7b0c-4387-bc18-343203c3eaa1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2015",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "bfcd300d-49f9-416d-8758-4692f0bd5495"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2016",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "5f6af29a-ebe4-489c-93f6-f45b2d9b966c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2017",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "e78fbf7b-faf2-4d75-a36d-cc28eb4e058b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2018",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "c3b8ed57-953e-4a0c-847b-917ed1b97926"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2019",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "dc1ff4cc-a24e-4926-a2cf-072ca90d166a"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2020",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "94d8e9a4-d367-4f92-9c39-beb695686a3a"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2021",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "eaeb2b15-c7ce-4670-8bd4-644d41d18e82"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2022",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "a8b7923d-527e-4991-84fc-1a37c9caaefc"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2023",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "aff39b53-6a6d-499e-8fe0-dec18feb9f53"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-daloa-2024",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "daloa",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "38a26782-f7d9-463f-9779-f840ff9f7fcf"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1981",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "a9f9a918-7515-4e9f-9667-8a2c99c2c186"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1982",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "81a58334-fc2f-4b08-99a5-e4143fb1435b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1983",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "a1cc5a88-14bd-4356-937b-8cd598e96861"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1984",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "0e8660f1-5ddb-414f-913f-abfe950c9984"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1985",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "c7344a51-e972-4fe7-86ac-7739862dfd68"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1986",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "0066aae3-c4da-4e28-9f07-e255bbce2d6d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1987",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "423993b3-8460-41fb-9150-137b1b7d431d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1988",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "36f14e9e-6494-41f1-9463-7d2819b6fe6f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1989",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "afec7224-8d0f-4298-af10-8bc8d778138f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1990",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "60661727-4ccd-465b-8ab8-3ac5264eac3b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1991",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "064ed343-6de3-4dc1-a2c3-ed5d842a0deb"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1992",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "17f903f2-b503-4a05-90eb-ee6fa9413588"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1993",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "15f1f1bb-f961-411e-9660-f79d4077dba4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1994",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "9e99004c-2cf8-4a89-875a-04d817f83f59"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1995",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "59e3ca96-7648-4b3a-8485-993f87e75fee"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1996",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "1f8c5a54-74f4-4e88-af8b-4e87ac83501b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1997",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "941bbbe1-37dd-4a85-9c85-1f2fc09c2a96"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1998",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "f96de118-f523-4558-a544-14cb10647f07"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-1999",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "2cc74ebe-4aa3-41b7-b636-233084ad17bd"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2000",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "6d452a48-93ce-4ec4-a076-7202b993fbe7"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2001",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "d8f076f9-335d-4618-b9a0-0237634b4267"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2002",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "4b0cf659-0644-4652-8cf8-bad92b4abb08"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2003",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "e8194cb2-06d3-43c9-82ed-76208d912b52"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2004",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "7bc21e98-ee0f-4e24-a507-074fb3141f83"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2005",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "74aada0c-f8de-4c09-b8a6-22ef57ffe9c7"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2006",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "da1d3936-08df-4c5b-a857-37fd0ce92128"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2007",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "951f198d-c582-4b75-8dd3-1326cd0520f3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2008",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "3e3026cd-c18d-4b31-a939-c518f96809ff"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2009",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "5095bb54-af20-4343-b759-562a26585a41"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2010",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "aa9cb72b-ebad-4e35-ab46-a6f4ca94f8d7"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2011",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "1acd799a-17f1-433e-afe3-fb7fb08c0d09"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2012",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "e04371c0-beb5-4bcd-a5ac-371c1a90b4b1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2013",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "827a77c8-0e4b-4f57-8042-11aef6299d35"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2014",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "f3fdd828-5897-45cc-afe1-7f61dd3563a7"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2015",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "803c7a38-3541-4239-b6fc-28353d0474a1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2016",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "ad81a5ed-3d4b-48e3-968d-878709d3da03"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2017",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "6deb7293-2cb6-48cd-a94f-cd881ff674ea"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2018",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "17e3025b-b971-4c40-b6df-37dd8fa1a689"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2019",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "839f56ad-0f82-41ab-8385-dbf03fe64778"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2020",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "6a79259d-6104-4e03-8355-efd5dbb0e166"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2021",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "05c09d69-72b0-4c89-b4d3-d9f65c28327c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2022",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "469faa81-f1f2-4635-b680-6d2fbf4a3760"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2023",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "78579abc-3ed2-458a-a94d-25af76e21d42"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-abengourou-2024",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "abengourou",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "cb332f67-9bd9-42ad-8f0b-efbc15dce887"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1981",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "3a42c0ee-416f-48ac-a5a1-88f13aed13d6"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1982",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "e9d11575-cae6-400c-b0bc-218d1da7ec91"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1983",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "c47011ed-4b6a-4db6-ba0a-d593232a0b8e"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1984",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "bdf6e294-b0cd-41c0-9b96-5ae50fd5e92e"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1985",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "2fe8be5c-b69c-49e1-982e-cc9412a48713"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1986",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "267404e3-b678-453e-9b33-eeba7dec9b51"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1987",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "afbf40e0-f0c5-4d51-a692-16376c8b1515"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1988",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "708b99ea-cbf4-4654-aea9-eeaa59fcd933"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1989",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "975d4330-8178-466a-bf48-e26ffb5e2ccb"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1990",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "c4f9812a-1003-4a03-af97-1724966f9221"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1991",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "4fc78249-9de6-4879-be2f-8f5340184b5b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1992",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "d9f6cef3-bf55-4d1d-9e1c-0a591f1651a4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1993",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "6307b14b-a4f0-414b-8d76-a03a5b99bc05"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1994",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "5bfdabad-6f26-4b16-939a-57ae460987f2"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1995",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "70c0b825-cbd9-4754-a904-5dd7e2b5f355"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1996",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "9fc8cee9-75f2-4b9e-88f5-c19c0f39677c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1997",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "4a4559bf-8fc7-476c-9f9d-68888968ad75"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1998",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "64c5a043-1765-4420-8db4-2c0b4823b43d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-1999",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "85278986-a685-4c13-9a92-61459584175c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2000",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "d6546cbe-81ad-4494-9f47-a0e3757ab49d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2001",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "1e4e5b0f-4d3c-4a92-9d78-c0ecbecdb093"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2002",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "a206615d-f8ab-473d-a215-83614e8c9bdc"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2003",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "54dde7de-8427-4ce4-9971-f3babd42b566"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2004",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "045b4540-5686-4b29-ada7-97cfd59e23fd"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2005",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "d24a752d-8029-4337-a726-f49f4b596842"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2006",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "963d5025-b005-4192-8eec-d01bee54ad28"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2007",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "452f646b-a81c-4b32-bba2-316623acc01c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2008",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "967778c8-19ea-449e-8b72-0bff31f41f11"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2009",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "408d6109-91c2-47fc-a630-593d0953fedc"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2010",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "3f9d0774-bd3a-4191-89fe-1c3f92016341"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2011",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "cccb5cb2-0998-4584-89d2-684eaee0fe85"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2012",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "377fe45f-d38f-4c63-8388-8f4afe25e884"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2013",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "c689d567-5280-4be8-a861-59691b886cb9"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2014",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "6e9a2853-637b-440f-aaf0-2064ef382d60"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2015",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "65940285-a6b2-43e9-87ce-f3c192e373ce"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2016",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "1f012ba9-525c-4209-aef8-b3078a51ee3a"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2017",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "33d1716d-f6d7-4004-b017-4b434a0c6c92"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2018",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "f5c386eb-2983-49ff-8937-09bb80e40dd9"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2019",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "f638a7a0-7b68-437f-a3ee-fc1c0fa844b3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2020",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "178c2654-33c1-471f-93dd-bda9e87fece7"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2021",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "37b5e2a1-921f-476f-b6ea-4b834f0b4801"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2022",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "b1fea868-cb74-4da7-9b5a-3ee14349cee3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2023",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "e8e8a3e7-60cf-49f5-aee7-5dd041343cee"
+    },
+    {
+      "job_name": "nasa-power-backfill-cote-divoire-divo-2024",
+      "parameters": {
+        "country": "cote_divoire",
+        "region": "divo",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "e601403b-3809-4b7c-b3db-732bf6b493df"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1981",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "1e80f102-85fc-4035-a38c-f56c167e8d76"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1982",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "dbeabb45-828e-4c05-bd03-f700871c7137"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1983",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "f61be869-c14a-4fb6-a472-717e6e12b8b4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1984",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "70ccef35-3784-4487-9877-aefeef8b1608"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1985",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "819096eb-68d1-4f71-98a0-581c060fdf9f"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1986",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "daa8442e-2500-4b70-9195-8019f52a1389"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1987",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "ae79e7d6-9131-4b37-9131-aaad76fdb61a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1988",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "047786cd-fd5b-440e-a29e-3d08654d7f08"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1989",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "a64dce67-2be2-40dd-94a7-efcddd257709"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1990",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "a242fb99-957f-4924-ba6e-2d9a5d86bd39"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1991",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "cfad2464-1220-4237-bf3d-840dbb19797e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1992",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "d280e224-4224-435c-898a-a342611d086a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1993",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "43df2c6a-7a08-4618-aac6-15ef1a8d05db"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1994",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "87fae0bb-f5ed-4837-be34-3aa6b2f4f4bd"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1995",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "0471fba6-a983-4a61-bb8b-0d3fbe0a70e8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1996",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "cfc35fbc-68a4-45a5-8f5a-9ceedeb4d17d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1997",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "a0600616-4a70-48d5-920a-5afa00b31e77"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1998",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "b491ed1e-427a-43c5-80e0-455b1fe3ff94"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-1999",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "d29e3ca6-dc5b-4683-9475-4fdc2e254963"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2000",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "9ee1b285-89b7-4cf0-955a-8d6dd4a8c0cb"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2001",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "88422fb3-48b5-4285-898b-456dee378413"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2002",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "7104bef8-2fe0-4f0a-a15a-7402038b147b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2003",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "690905e9-556f-4620-bdee-ffff915b7388"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2004",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "16476885-d4c4-4af6-8068-226ea7975170"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2005",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "fb61cca0-c90a-4b8f-9b1c-af02a1ba2098"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2006",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "ddf82c70-df66-486c-91b5-7cf7e3b5e256"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2007",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "7649a3c6-2565-4ce0-8b1d-41a7f09a3fc2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2008",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "e45248ae-e922-4d52-9798-6f51d20b99f5"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2009",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "b1b06237-83c7-4c74-adb1-2bcf0da69fdb"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2010",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "6088f9c2-7da6-4b92-a038-e49710be24e8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2011",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "0b56f518-a4f0-45fc-acbe-65c155236183"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2012",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "c3ab7833-6583-4926-b5ac-062e9d36df57"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2013",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "d28b81bb-7b89-4127-af5d-580eb7285171"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2014",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "003e08eb-6511-4bae-821f-1420c4815e48"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2015",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "d0cb6ad8-ead2-4188-94dd-9373db06df9b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2016",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "1211ce3c-a0ac-4936-a5eb-3058a7cd3e1e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2017",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "b772423f-56b5-4225-94d1-7175eb7b50b5"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2018",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "becec466-b0df-4c40-a35e-c624306df508"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2019",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "25c63b14-e3a1-486a-a312-b7bd09c90267"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2020",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "ce8d5ec1-d013-416a-a7a2-a951e0d1d519"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2021",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "b213d872-8a1d-4e86-b632-97dc5f322495"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2022",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "a3b1be96-f921-4f34-b25c-acdce28d256a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2023",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "f55e37fa-6a47-4dcc-a71d-ef45b4facdc9"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-kumasi-ashanti-2024",
+      "parameters": {
+        "country": "ghana",
+        "region": "kumasi_ashanti",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "ee7c2a47-0dac-42aa-9f75-3ec209b6e2d4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1981",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "ebcedcd4-eadb-4213-b674-2a73daa085f0"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1982",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "32b78dc8-cb85-4994-af5e-f35203202ab6"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1983",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "8527b0b3-2213-4155-a319-792ce1a67c61"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1984",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "6fe9465d-2613-498c-9c68-210790be7d67"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1985",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "2e7a5eb2-35ae-4e90-a337-a683d79a4b48"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1986",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "91b73331-104b-4338-8d57-b786bab6f248"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1987",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "11b628db-5ed9-4f01-88a1-ffd35b9c90b6"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1988",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "341f0403-f595-45bf-b50e-3d20e68051a0"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1989",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "03d253fa-53ee-4479-9211-b7f8656b89a2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1990",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "0ec928c5-3f38-4fdf-a1d3-75e1722ed455"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1991",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "88ac8146-5ac9-4978-8776-a70929e29a3a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1992",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "871dd4ff-d024-40a6-9a58-113c4f237bbb"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1993",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "0023db01-978e-4d56-9c61-836a721b2e82"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1994",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "64ae97c3-908c-43a1-bfde-cd4cb39b33ab"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1995",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "cf68e1a2-adcc-44ee-9649-605aed34f7da"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1996",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "da46fb98-4f15-43a4-bc5d-4dab0a085e75"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1997",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "8b9768cd-40f0-4292-9875-8bdca220fa65"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1998",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "6ef7f85c-77ca-4f21-a39d-cf3951de9f5d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-1999",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "2478149c-43e4-4bce-b8bd-5ebc6e49ae07"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2000",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "7fc28dee-8ddf-494f-9c25-42399f00dad1"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2001",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "62e05277-4c8c-4844-a38f-573c1db13194"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2002",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "895c2eb3-6387-48d4-be66-5987fb008ce8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2003",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "13ffda17-5e0d-44f6-96fa-c9cfbe20fb16"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2004",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "7daa8d93-a92e-4526-a8d4-d1990950486f"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2005",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "e47ca4d9-cdd8-4c8b-b135-8c85a1378dc8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2006",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "a044f35c-6d6b-4fba-90c4-efad6d60e6fe"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2007",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "dac48527-bf3e-492c-bee4-103707196fab"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2008",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "9caa3e7c-6318-49c8-9958-86df3fce8f56"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2009",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "01d126b0-1b84-4129-867a-a2c316543e5c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2010",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "ca56df82-c05f-450c-b8e3-98103a1493c6"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2011",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "f1fe12ff-06f6-48d2-b5e9-3b0e8e51a7f5"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2012",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "8d7017aa-1475-4b1d-a21a-6683c9eebda4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2013",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "623656d6-8b89-487a-b57e-db13e6f2eb67"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2014",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "9679eaac-89e8-42d1-8a87-a746bd14c5c5"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2015",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "b4b19409-00ab-4766-80dd-80fcab63529f"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2016",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "3dabf02b-dac0-49fe-a4bd-134cb7b2d7b2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2017",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "bfb3d289-0448-4b4f-9bd5-3593da1d3dda"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2018",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "27373e5c-dfbb-40f4-8e81-479984a41bf0"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2019",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "04985c5d-9c4b-4ca2-a4c1-a1a4e5e449ea"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2020",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "3660b44b-aa7a-4e87-9927-85848605dcce"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2021",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "f9c993e8-c57e-4c0f-a97a-b73b7fe3b216"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2022",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "71aa5e3f-ffc5-4e75-a482-3d8f961ddcc4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2023",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "5674cfc4-81b3-4cd3-b01d-c44103b6cb39"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-sefwi-wiawso-western-north-2024",
+      "parameters": {
+        "country": "ghana",
+        "region": "sefwi_wiawso_western_north",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "91e04fb5-806c-4de6-8c5c-fa658f410a6f"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1981",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "b4e6caed-7109-42e5-bf65-a446ea22a05d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1982",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "add8a1f2-ad9d-4bce-8b36-122b356987b0"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1983",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "32792b18-fc2c-41da-8601-176df02685a1"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1984",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "f799ece4-8434-49b9-a2a6-ca2748ab9959"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1985",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "d4d7ecbd-c88e-4d77-9814-0b64c6841847"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1986",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "cd929b33-0139-481b-84ed-c1fbd184df0b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1987",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "3645755a-75b0-45af-9b08-06ba94d88dd2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1988",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "ac74037c-1d6e-4bac-8d8b-7f46ce3923b4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1989",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "651baa40-119e-4444-a5cc-56c7dd4d7a2c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1990",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "8295cfa3-a869-4f41-93f1-64d229c5c6b4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1991",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "efc33b5e-d6da-4c01-9276-5a577fea6bd2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1992",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "fad5914d-948c-4c21-a284-66f9b4e2a924"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1993",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "5670d91c-54e0-49ba-a48c-16b672ebe4be"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1994",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "b1f9d4db-8f0a-40c3-99ef-0788a3c599ad"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1995",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "73e817a5-42e4-4251-a719-79246add46ef"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1996",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "1973480e-910b-479b-a81a-ee93b586f3a0"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1997",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "b25990d7-858e-44c4-ba26-b5ac0629933b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1998",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "c708ac2e-a7fb-46df-8044-70ed1876c211"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-1999",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "11cb0eaf-17c5-4c3e-a603-d1f375154cca"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2000",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "6725678d-bb2f-420e-a14f-d1e6d10fc98a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2001",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "601cc12f-ebea-4146-a209-f6282634ce4e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2002",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "19924738-219d-4a53-aaa7-e0559ea4a280"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2003",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "47da2a11-a6e2-45ea-b99b-817f52a3e140"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2004",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "5d48e46b-951d-4b22-bfa4-61e1bcf9f892"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2005",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "d4bbdc91-7305-4ba1-9e93-fc9e72c743dd"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2006",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "4a75b6b4-70b0-455e-8eeb-75e31febb299"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2007",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "04d4f32c-addc-4c6b-bb0b-6f4726d67ed9"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2008",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "ac5a734c-02dc-4cdd-bc3a-eccf440d03fa"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2009",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "61799715-b143-4206-a384-a6b408f42ee3"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2010",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "ac5d5fa9-92a4-4035-9bb4-55148d38adcb"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2011",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "7d67c131-9698-4702-a475-6094c33e79ae"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2012",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "96fd7aa8-c07c-456a-8b0c-9fc9fe0e5789"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2013",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "6edb11ae-c86e-4cb5-b922-46915faccf01"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2014",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "83a691b5-e157-47cf-952c-97815cdfa895"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2015",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "f0aeddd0-53f6-4746-bfe5-8d5119cce96a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2016",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "5bcb4190-95b8-46bc-b66b-01975e0db699"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2017",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "8cb53124-5bab-4852-9a69-5720faac43f2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2018",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "9f0134db-531b-4b3b-be0f-7cb1ed6bd08d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2019",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "fb399986-9cb2-442b-a6ff-c239c841edb3"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2020",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "63b9ade9-aba7-448b-a378-b747eb58a9c4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2021",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "97ce81e6-9f04-4355-b84e-8edb987dd13e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2022",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "6b94e82f-97c5-4c6a-81de-fe48d1e253e9"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2023",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "06d05db1-0308-41a2-9aad-196a5d2e9724"
+    },
+    {
+      "job_name": "nasa-power-backfill-ghana-koforidua-eastern-2024",
+      "parameters": {
+        "country": "ghana",
+        "region": "koforidua_eastern",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "85cd739d-6f28-4d88-afda-fe42cdd54b91"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1981",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "2314d355-aca1-476a-93b6-cfab791c4a56"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1982",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "2fdf4d47-646d-434a-824e-3f3a3cb4f449"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1983",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "49789c8e-6c94-49f8-a8bf-e54c40580ac7"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1984",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "df168019-3731-4af9-a114-e435e9f409f3"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1985",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "f3fdca2f-595d-4e89-a133-4e6df62830b1"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1986",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "90db7572-78b7-4a3a-9ea5-bdb755c744d6"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1987",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "c7c168ff-1af3-4177-963b-424771bf67a7"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1988",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "871b592f-d457-4a27-b86e-a216619cc1ef"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1989",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "c48746c7-e390-4479-a3e7-b10c33deef6a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1990",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "7cb415d5-0933-453a-9e4b-15816c05f817"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1991",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "c85f106b-73bd-491d-8e0c-66a62f7835ef"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1992",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "79884f25-f454-438f-a849-b9f7161980e5"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1993",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "ed4b427c-c528-4256-8695-5922c92cc2fb"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1994",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "6b7eb2ae-c316-40c2-8939-eb1f96ddc01d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1995",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "23f8ef1d-f6f7-46b2-b430-5eede7ac4012"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1996",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "c9958c04-471c-4ad0-8b6b-7264cb364e09"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1997",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "f58ec1e5-f71c-40e5-8ed5-5c1cb4530e7b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1998",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "887dd17b-56e0-4837-a191-dfce4c94e7b3"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-1999",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "aa3311ef-72f5-4acd-b852-70f61e4cd424"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2000",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "34c9b212-c29a-44b0-b6f4-2b790ae090f4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2001",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "b6c2b8a4-da97-4d01-9856-40722bee8ea8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2002",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "8a687e33-ea2a-4137-95bf-8072e592fe04"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2003",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "aaab858d-5c9c-4de0-87a8-66c218e65c5e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2004",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "ca6efed3-7bf5-42d2-92c4-1666a4b59713"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2005",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "aa26e902-6ab2-4602-a888-b9f8c032a28c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2006",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "78c67a29-4dbe-4a35-a60c-6a3dbd6b622a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2007",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "433b3f70-4956-4c16-a7df-2140220b5e75"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2008",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "c393b9ca-185b-4a8a-94fa-763a7bbd79fa"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2009",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "2d11edae-9e46-4dcb-85ac-0f0670f4962c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2010",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "180a2cb9-8f85-4c8b-b4d5-0805e93c718e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2011",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "ec01a269-15f2-4315-9ddd-91110591911a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2012",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "4dfd6e85-4514-4751-98c9-2e256adab6dc"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2013",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "d5d4e317-f4a5-423c-85b6-f2a5d027e13d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2014",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "99682002-a10a-427a-a1a4-31e77b9283e6"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2015",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "2788ad2c-133e-4851-8316-2dbb3f9bc31d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2016",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "569d8892-d1cd-4c1d-92d7-88d3f82e495b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2017",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "54763dd4-f3c2-46ab-8776-9e63a1d45d54"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2018",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "0dc7fbf2-69af-4ce8-a4e6-3be44b34e446"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2019",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "98c68b69-451b-42fa-b016-2bbe5ca3785a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2020",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "729743a3-5878-47e3-a044-b298ff73af4f"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2021",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "f86664f8-8a02-47e3-975c-3c7449591500"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2022",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "4a092b1d-df95-4ca8-b379-82ad03d4e9ed"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2023",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "5f907d7a-46da-49c4-a288-7ac2e65e1ec6"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-los-rios-babahoyo-2024",
+      "parameters": {
+        "country": "ecuador",
+        "region": "los_rios_babahoyo",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "7e95f8c1-ab1b-4d7a-8875-5ebc5617feb7"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1981",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "d3c4c70a-2204-4a8f-96a4-3c334b5b3143"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1982",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "841a644b-40cd-405b-81d3-b3061fce534c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1983",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "a08a29eb-aa91-47b9-983f-12b97c6df369"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1984",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "123a1269-2d58-4f66-8b4c-882c763cdd0b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1985",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "4beb9401-e698-4813-9653-42d4e32a5827"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1986",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "3a1cb2a1-a344-4620-bb94-1e46eeb8b848"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1987",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "4830751a-499d-422e-a4b3-e57f28e60790"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1988",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "3ec91a61-ecf3-4a93-8e38-5057c1004f13"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1989",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "b4940e56-8734-4dcf-a5d3-bc64ef7f32c4"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1990",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "637a9e84-72e7-4a90-93b4-369171faf7b7"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1991",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "0205e17c-7aee-4bf5-9d76-65e86970c102"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1992",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "dbb2423b-03ff-415a-89fe-7ad3765f8569"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1993",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "7959239a-d30f-446a-a3c7-5be9b3448a81"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1994",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "0c2f3b5e-2918-4568-aa28-3bc2f422c24c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1995",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "ef47443e-4d39-4270-b35a-b9dd7bf311c3"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1996",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "223c2c69-aea5-4806-9c68-95e946d24c3d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1997",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "f3195096-9394-4c76-883a-53c96ff05b31"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1998",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "ae797ac8-6158-4d52-899a-6be86fe0a3a2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-1999",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "f0050438-f6db-432d-b8e2-428e62d89bd7"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2000",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "79e33005-30f4-4ff6-9cea-81f7f387b79d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2001",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "7777e4fe-cd53-4f32-a75c-b1fba4e5af5c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2002",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "ded9cef1-d413-41c7-8c8b-7219cc40b7a8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2003",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "0ad92b22-205c-43e7-85a4-2d2d9a1339df"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2004",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "87998f5b-f292-4175-9e0e-9778a68b1f10"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2005",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "070521bb-c5c2-4527-907d-e6e2a1405d65"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2006",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "cb284379-b3f7-41e7-89ed-62e7b5cf7410"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2007",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "8f7052ae-04b8-4277-89dd-e7b79743220f"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2008",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "86958888-d33d-4735-98f5-99fe45f634d8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2009",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "c9d5046b-f837-4355-b95d-0fd4cc85ef91"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2010",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "80e81c7e-921d-47df-90fa-dd3abd5137bb"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2011",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "4de82767-2ef9-4294-9bca-9526c2fae56b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2012",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "6f60321f-d3fd-4c79-9253-1f5ae07b882e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2013",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "1617af17-ff4f-41b4-b785-4e9cb96d0409"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2014",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "2303f7fc-2cfc-46e7-8f24-1b68a8fa2281"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2015",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "5a3478dd-9b26-4e2e-bd53-fa3e3808202e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2016",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "d1dafa3c-6efd-4071-bee0-7082e8791a41"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2017",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "70055c49-912e-4450-adc5-5b65b51f362c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2018",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "5b7144ab-dd4b-41f0-9a40-6c9b3be02fb9"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2019",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "f6e132ff-1888-4238-afb5-2218dd3bcced"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2020",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "40073b9f-2860-4e6a-8d67-2b2f2c5062b9"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2021",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "aa367abf-572d-4f73-8f11-5e8c9d6bfb03"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2022",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "70613569-d87e-4f31-84e8-c1243fb0433e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2023",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "afb035af-4e6f-42bf-8ad3-b6bc5abaad99"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-guayas-milagro-2024",
+      "parameters": {
+        "country": "ecuador",
+        "region": "guayas_milagro",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "99d79da9-5de5-4518-ace2-898b35294f9a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1981",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "919bd72e-e9b8-40f7-ac09-4679c1573a31"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1982",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "ff32e52b-7bb6-42db-a5a6-d88dd17dd944"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1983",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "488cb892-6e8f-4184-b2e0-46befba5d0f0"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1984",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "b7e9f318-b255-4e19-a8cf-98a0b949983c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1985",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "922fc317-a4ca-4196-b6e3-70aef4c010aa"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1986",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "c47f9014-d672-4c58-b93c-e0e3d2be24c8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1987",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "6064673e-abc1-45ee-af0b-7aa56af407f7"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1988",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "3aa7bf81-9418-4b14-92f1-3d992fc2ca10"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1989",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "515f8df1-39fa-4579-b4d0-61006aafe63b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1990",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "ae773c9e-7691-413d-a064-578bbef50c0a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1991",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "154e2f1c-38f1-4f6e-8307-b66c9c8d77b2"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1992",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "fa39e9ec-de22-412e-bb5e-91520720a6f8"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1993",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "a5519b26-93e5-40f8-a5b7-0ebabbd54d22"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1994",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "9e7b97df-ca29-4744-ba17-3602fd0e8ede"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1995",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "8b9e06fb-84e5-47f2-82fd-712c079c5785"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1996",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "38e2727c-2f7a-44e9-86d8-2ef002c6a47c"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1997",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "739ade9a-94f9-4bca-b14a-abc225c8eb5d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1998",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "921216b7-6688-4ac2-8fcd-0081f5ba6b36"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-1999",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "0480513e-6552-4555-8e6a-36fbb3811284"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2000",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "59db4c58-4a93-4cfb-928d-57ef3b30cc72"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2001",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "045ac9c5-0ce3-43e4-ad3c-4eee2d92ad7d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2002",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "b6febfd2-7a37-4578-92fd-35bbaf277ae9"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2003",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "c3f53600-a734-4987-a6c6-a41d5dbd3c0f"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2004",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "a2707e7a-fc38-44e0-91c1-a82546594a39"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2005",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "ed29e21b-c47c-4fe1-a5a5-d05a0b238e83"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2006",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "b9dda56a-4b8b-47d1-a012-00008de39e6e"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2007",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "a6805e13-139b-45cc-9997-e46b9f917379"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2008",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "62e54469-361a-4ce9-bec8-e178bb7d1fde"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2009",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "2f2ee701-cccd-46b9-a166-107b9a09aaae"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2010",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "d0fb563d-81bc-4f8a-bfe6-8839e98aad6b"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2011",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "be8a4259-0784-42af-90f1-b89aff61d340"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2012",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "50f44730-bc21-49ed-afbf-dd2020c82eda"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2013",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "fee0fb1e-d099-440f-bd1c-f7cf2fe8ae9d"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2014",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "e84ea9e6-83c5-4e88-8bba-6b76b65c0fca"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2015",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "c68ae571-ad70-44b1-9461-977e4e8c8e92"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2016",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "d6ada21d-ef90-4661-ab0f-6621fcf30e2a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2017",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "0912e3a0-ff8e-428f-916e-a2a0e440af38"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2018",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "027e93c6-45db-449f-8453-86555d6ffb2a"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2019",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "b274330c-5b76-49d0-9758-6723bac88fcd"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2020",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "a23b706f-4b22-4957-a236-4680f907a831"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2021",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "44dbe5fc-5e85-4d49-82df-15cd64153db1"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2022",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "9dfc1dd8-cc8a-4e51-bc42-81cdcca878f9"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2023",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "ddfaa193-d44c-444e-b000-df3a21b27633"
+    },
+    {
+      "job_name": "nasa-power-backfill-ecuador-manabi-chone-2024",
+      "parameters": {
+        "country": "ecuador",
+        "region": "manabi_chone",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "f9bb6373-f31b-4a08-84c2-05da72bdef53"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1981",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "c6ef2977-1269-43fd-bffc-78715ce05792"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1982",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "ec4ebf47-1efe-4f15-9983-a34225d93109"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1983",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "cb6a91a0-7081-4a4c-a42b-305db6b02f86"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1984",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "dff150ef-c5c7-4820-a80c-d75d764cd5e0"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1985",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "f3d94413-b98c-4a5c-b1b3-21ce41f42d2f"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1986",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "0629f36b-af44-4824-8dba-cb0ff781c49a"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1987",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "5ab7e375-c42c-4546-b55e-596353678527"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1988",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "7944b8fa-1bc4-4bdb-a49f-2613b0eaf4df"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1989",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "28ed6dd4-e094-4d68-8176-a72a1c30bd7d"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1990",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "e6cfb641-8752-4ceb-8ff4-f5d6377a0133"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1991",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "be9bfb98-2ca2-427a-849d-257323c171aa"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1992",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "fae7a4b1-813e-424f-9484-d89809d3683e"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1993",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "324e392e-ce4d-4289-ba93-29e8732c8f7a"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1994",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "7de6bb7f-446f-4bdc-b940-2335a64dd174"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1995",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "a467dd6c-873f-436a-9575-41b92b33ffeb"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1996",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "592e84b9-d43b-484b-8283-2f7708becd11"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1997",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "7dd26796-4200-4b46-8383-265d331f5dbd"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1998",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "c0d3f213-4f23-4778-a071-fa77f6e8a6b7"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-1999",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "5e67f00f-b464-42c8-b4ac-855acd5419b2"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2000",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "64e2550b-6e4b-45d0-8566-911a063b074a"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2001",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "fcfad474-a298-444d-baad-6ae98226581f"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2002",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "835de0bc-3b91-4f22-b77b-b06ee549a1ea"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2003",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "0981d35f-7a7f-41b5-bf23-4d68b3e84bd4"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2004",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "5f71f7ba-38c7-4293-98c5-df5dfc9fb38e"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2005",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "db2389ac-6994-40f9-aeb5-f1e8fa585900"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2006",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "ddae3cd6-b645-4e72-a8b6-20010b5044b4"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2007",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "04f943f3-4453-4f01-8cf8-acbcf55b5fc7"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2008",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "dd234af7-3c67-4372-9d2d-68cc4b87081f"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2009",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "6e9146ad-9f00-4408-a9d8-3c8c395d6f06"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2010",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "2ec2ed38-db30-47ef-b7dd-84c285225659"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2011",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "28eb0e5e-8266-4a0c-b918-7bd230dda569"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2012",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "e6684cc8-287b-4169-85a5-b5c268c716ad"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2013",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "a19a646b-a4dc-47d8-9e22-d99ddbcc81f4"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2014",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "8de9f7f8-f7e4-460f-b2bf-cde36cfc4d66"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2015",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "c1a6a169-ce6f-4d54-a27b-aaec0df504e9"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2016",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "f642ab2d-d004-4f3c-9cd2-215eee860c61"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2017",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "61adedd8-e33d-43d9-b74d-06fe2bb12372"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2018",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "e26ada6c-3c41-4f8c-85da-a6f43b5ffac3"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2019",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "edaacd2a-8d81-4ff9-9dfb-c30e13885c2e"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2020",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "a57db900-3b6d-4cb5-ad3f-9492dfceafb0"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2021",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "5766c0d2-b9d2-4b2f-aa42-682015609ae5"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2022",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "8aff69bc-0cbe-4f36-84d3-99021efaac85"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2023",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "f5fe0872-e5d1-42ab-b8ed-82e3119b4434"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-ondo-akure-2024",
+      "parameters": {
+        "country": "nigeria",
+        "region": "ondo_akure",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "5d9e300b-9095-4778-8641-624bd0d81eec"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1981",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "0baecc79-bf4b-44d2-9d30-20d34558d61b"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1982",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "303f4fa9-c070-4c75-8520-621d4c168c3c"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1983",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "7c959307-d0ab-4b6e-9eac-5937ccd1e639"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1984",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "00b2412f-fd4a-4e5c-9e07-10eb6d0d0259"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1985",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "2fa618da-5c73-4aa9-97e0-389f577c7f97"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1986",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "f800d702-dc83-4b4f-a526-45a3a46aa15d"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1987",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "1c637c60-c4b3-445d-883a-45ae6b7fe77d"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1988",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "241b52c7-ab9b-436f-8b2a-be040dd202eb"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1989",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "4a62e4d4-2798-4eba-b38b-c9b9fa15ee64"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1990",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "aa42c2ba-91a7-4e43-9cd2-6f877bef8af7"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1991",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "2f07e355-ef8b-46db-956a-1eab7506ccf2"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1992",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "9d42b3ab-3e32-4be5-82ec-bd9c786ea635"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1993",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "71d3a0cf-f397-4d12-a530-c6b3ebcd1970"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1994",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "2b7fe4fc-cf2d-4a83-a0d3-e31e90e15c46"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1995",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "b6a959ec-e27d-4136-be51-a806854505a7"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1996",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "bc98a472-1042-409e-a395-d2be8f2bc380"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1997",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "9f17be44-4beb-4260-92df-a10c084c33e7"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1998",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "77cbd23a-8b7a-4707-9369-f06d9b86af18"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-1999",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "674034ba-3f48-4b03-80ef-4ff2d1d0974a"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2000",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "e80d4aab-7c01-47c2-a040-a2748af37635"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2001",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "3579c3c0-164d-4291-b3bc-d6a3ca447295"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2002",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "83a4140e-424c-457d-b410-0381e910bce2"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2003",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "9499d67f-cca2-4a00-8677-106b96bdd36b"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2004",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "f6befa98-85a0-4f75-a784-6910d72e5a7a"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2005",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "71dc96f3-0920-4236-a3cf-025fa90bc6f7"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2006",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "2edf0ce7-ba3c-4581-ba76-0491710a7d15"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2007",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "caca776a-c822-4f6f-8c55-b9b519635a5c"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2008",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "f3da3219-4d2c-43e6-b678-85475cfe03a8"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2009",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "a5d7c946-e1a9-4209-9a41-76151a945320"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2010",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "b8f831c9-30d5-48bf-a089-0a00392376f4"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2011",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "7a404a82-cd75-4998-a6f3-ecae9f569709"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2012",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "0999229d-69bb-4d4d-bb25-ecf6a174f5e6"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2013",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "0ae94e5f-2bc5-4e8b-af77-28be5f903ea2"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2014",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "80df3b24-a83c-4ed7-85b8-3a8703e62e35"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2015",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "0da228e7-5d01-464c-b4d0-b768c03bd8d4"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2016",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "03bdd03e-c299-4af7-94be-2be4f0dc9303"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2017",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "a49cd6cd-fce9-4b35-9b19-1fe3facfd384"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2018",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "7373f9f7-96be-44c8-9bbc-539e1c6ef101"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2019",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "45ceb735-fda5-4758-8786-91f562b75728"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2020",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "b3b5d905-4437-44a7-b8ab-026de78eda31"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2021",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "55d31941-48c1-4e2b-9820-26a9cef5d338"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2022",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "10ec914e-ad7e-45a8-92f1-8c4bd675e52c"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2023",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "21ed9115-9dc7-4921-96a9-f90be19de0b9"
+    },
+    {
+      "job_name": "nasa-power-backfill-nigeria-cross-river-ikom-2024",
+      "parameters": {
+        "country": "nigeria",
+        "region": "cross_river_ikom",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "14c2ac65-ffc6-4b8e-a3cb-ae7d86ab826c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1981",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "b4a1e0ac-b951-41f2-8c7e-fcec2ff72211"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1982",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "3f9e4fe9-8d43-4900-ba12-17aa6a3e3654"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1983",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "fda64ebb-f941-48c8-a72f-7abb3bf8be7e"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1984",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "11141b28-e937-4b45-b063-0abb0c07d0d4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1985",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "6e29c5e9-8676-4661-b9c9-121b4e7ea990"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1986",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "685e25ab-da46-4386-b682-e30d1425033e"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1987",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "297c9f90-8e92-4aee-b18f-05e23b35f8db"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1988",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "c9e5069d-bfd2-41f1-bce6-df24aac9b670"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1989",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "e8bd1565-7599-45c3-88f0-6ac9d7d22ef3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1990",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "060d2c9c-2226-40c7-b584-117d5c81ecd3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1991",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "77c890f9-a9c6-40dd-988c-76f94c7347d4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1992",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "88ad4221-884d-4ab1-aaac-653137a073b8"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1993",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "e7229f25-ca03-4e9e-a6c4-c5cc4f2ca3b1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1994",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "b5c4ee0f-a71a-4378-89d4-e03de75a30ee"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1995",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "8668caae-b9e8-44d6-a904-38e402956017"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1996",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "2ae58cc1-ab16-4e76-bf27-b3b11c13aa13"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1997",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "d77c1e97-5e9a-484e-bbf0-364965fee2e5"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1998",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "743d20b6-413a-497d-9e9e-0c68fd9ab8ec"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-1999",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "4aa5ff29-7d88-4920-b4da-bb02d8c2e007"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2000",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "c21f8e99-62f8-4b27-b52d-5c8cf5051dd8"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2001",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "273957a5-6ffa-467e-ba49-7be054bb9c4f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2002",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "a7c5d096-6ac3-43d4-a51a-fee13a19db37"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2003",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "f26faa6d-dc1d-4101-b15d-6367c02534a0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2004",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "93f5862d-a375-406d-bd56-41b718d85627"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2005",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "38143d88-a2f0-4fca-8987-ea09fb1e3ae2"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2006",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "5753533d-1af8-4a6b-8c9f-b9e921e6d428"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2007",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "5fb9658b-7fc5-4702-ab7c-e101cfba8a73"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2008",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "5587ed49-65c8-4b7e-a572-3d61b171a223"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2009",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "9fc08165-da13-4491-818d-31b9f5a32bda"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2010",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "25c74665-f6d6-431a-bac2-447fa38c3845"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2011",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "4079845d-25fa-4bc3-a6c6-1e6ba6b8f652"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2012",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "13aaff74-7f34-4e15-8501-790b32d47dd9"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2013",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "e352b444-d7db-4544-87eb-dfe550ae767c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2014",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "cc0fab0a-2a4f-4208-a898-0f61ac7cb8d1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2015",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "061aee80-25ee-442f-add4-513f641ca548"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2016",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "e34ad0a4-0845-4351-992e-29ae2c20c8cc"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2017",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "fef93469-14bf-47c6-bbde-fde08e1c9440"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2018",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "626a0167-39c7-4228-a612-9cfc3b3e0203"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2019",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "45cbc6af-b38d-405d-8c6d-f6a5c24b90f0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2020",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "8b789ddc-b315-4f5d-a54b-1fa5187ea3b2"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2021",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "31edab6c-aa37-4f7c-ad97-e06575ad2d53"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2022",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "9b186f3b-4440-4000-ab00-29d562a21b81"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2023",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "55fbdf87-95c5-42df-bdca-ef90c2fe008b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-centre-yaounde-2024",
+      "parameters": {
+        "country": "cameroon",
+        "region": "centre_yaounde",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "2822dd69-d74d-4398-bfb6-a6c09c5f41ff"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1981",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1981",
+        "end_year": "1981"
+      },
+      "job_id": "a60b8eb8-9f16-4a1d-bbeb-f721480c796f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1982",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1982",
+        "end_year": "1982"
+      },
+      "job_id": "91511628-c91d-4e67-903c-576cba862fa0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1983",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1983",
+        "end_year": "1983"
+      },
+      "job_id": "000f23d6-37dc-4bc8-9132-2ab824d2e575"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1984",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1984",
+        "end_year": "1984"
+      },
+      "job_id": "f648d2ae-2066-4109-b4bc-04c53095a1e7"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1985",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1985",
+        "end_year": "1985"
+      },
+      "job_id": "ef5eeec8-5af1-40bb-afaa-edd53f5812d8"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1986",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1986",
+        "end_year": "1986"
+      },
+      "job_id": "c06ccaee-0976-4c8d-b046-a13232899171"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1987",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1987",
+        "end_year": "1987"
+      },
+      "job_id": "fabf2791-73dc-41ef-b995-2c415015bdca"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1988",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1988",
+        "end_year": "1988"
+      },
+      "job_id": "fd25304f-f7dc-4474-907d-e59c593fda19"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1989",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1989",
+        "end_year": "1989"
+      },
+      "job_id": "141ca927-06a8-4e5f-af07-db36e779ffa0"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1990",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1990",
+        "end_year": "1990"
+      },
+      "job_id": "b115ef6d-630a-40eb-ba2b-3c2ccf0f8999"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1991",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1991",
+        "end_year": "1991"
+      },
+      "job_id": "ff10fba6-6964-4fa0-8a49-3742a6578332"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1992",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1992",
+        "end_year": "1992"
+      },
+      "job_id": "09272c92-07a4-40c7-a5f4-e76d6a78501a"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1993",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1993",
+        "end_year": "1993"
+      },
+      "job_id": "39381015-f15d-4baa-be28-c4b86872b569"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1994",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1994",
+        "end_year": "1994"
+      },
+      "job_id": "5cf6ff16-a536-41c1-8a57-f674431601df"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1995",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1995",
+        "end_year": "1995"
+      },
+      "job_id": "acbe53b1-8377-4779-9541-f4cf2be7a7cf"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1996",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1996",
+        "end_year": "1996"
+      },
+      "job_id": "6ac2abf8-08cc-49ce-bed5-970e7484cb1f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1997",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1997",
+        "end_year": "1997"
+      },
+      "job_id": "7f5bad5f-2694-49e1-aeef-b8c9714334ec"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1998",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1998",
+        "end_year": "1998"
+      },
+      "job_id": "2c05ce2e-5da1-4edd-a74d-b5e8639b1ea8"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-1999",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "1999",
+        "end_year": "1999"
+      },
+      "job_id": "d439f088-c8cb-473e-afce-84e0575341ba"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2000",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2000",
+        "end_year": "2000"
+      },
+      "job_id": "87715ff0-f4ee-483f-b9c7-9ff1be4713c7"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2001",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2001",
+        "end_year": "2001"
+      },
+      "job_id": "79307d72-38e2-4a66-b586-3ea41bdaf78d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2002",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2002",
+        "end_year": "2002"
+      },
+      "job_id": "4f2a7184-673e-482a-a96d-cc421b89a5ed"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2003",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2003",
+        "end_year": "2003"
+      },
+      "job_id": "b07faf64-81cc-4a49-8839-10748fcd347f"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2004",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2004",
+        "end_year": "2004"
+      },
+      "job_id": "e45dc337-2194-453a-85e9-d56363aa246b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2005",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2005",
+        "end_year": "2005"
+      },
+      "job_id": "91a1650f-2d38-4414-aa5e-609da9710e84"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2006",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2006",
+        "end_year": "2006"
+      },
+      "job_id": "7183824c-a561-4a28-97bd-77ff239592fb"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2007",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2007",
+        "end_year": "2007"
+      },
+      "job_id": "a51f1c6e-b5e7-4580-84e8-6e10bd88a668"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2008",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2008",
+        "end_year": "2008"
+      },
+      "job_id": "58e23168-1dea-456b-bfa0-a0d5090a2760"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2009",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2009",
+        "end_year": "2009"
+      },
+      "job_id": "f14ac101-f712-4f17-a70b-fdf935bb9539"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2010",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2010",
+        "end_year": "2010"
+      },
+      "job_id": "ce0df853-d4d3-4e1f-a67f-0ab8c37df3b1"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2011",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2011",
+        "end_year": "2011"
+      },
+      "job_id": "c5c02b51-16b4-4756-9977-5412a5fde6fd"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2012",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2012",
+        "end_year": "2012"
+      },
+      "job_id": "0745c2a7-648b-4e8e-aff3-74c1268b5cbf"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2013",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2013",
+        "end_year": "2013"
+      },
+      "job_id": "d28beb3c-a5c0-4f47-a855-8c10e3f9f824"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2014",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2014",
+        "end_year": "2014"
+      },
+      "job_id": "41250fb5-b8f3-49e7-b9ba-f0cd735ee9a3"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2015",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2015",
+        "end_year": "2015"
+      },
+      "job_id": "7afa415b-5aa7-4a41-a8e3-82307aea635c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2016",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2016",
+        "end_year": "2016"
+      },
+      "job_id": "c6970b53-9434-40b9-aba2-b5285627d858"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2017",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2017",
+        "end_year": "2017"
+      },
+      "job_id": "43f0bc15-786f-47b1-b0ac-f3c6935a19b4"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2018",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2018",
+        "end_year": "2018"
+      },
+      "job_id": "c23ec68a-e1d0-4eaf-bc85-a011f5103f0b"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2019",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2019",
+        "end_year": "2019"
+      },
+      "job_id": "2684de31-a04f-4e57-ba87-c29b3e06be5c"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2020",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2020",
+        "end_year": "2020"
+      },
+      "job_id": "e9c94e1f-d579-47f5-93d7-6f795ccb52ef"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2021",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2021",
+        "end_year": "2021"
+      },
+      "job_id": "1a95db8a-4e35-49e9-9f89-970f03f81d3d"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2022",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2022",
+        "end_year": "2022"
+      },
+      "job_id": "28ec69d5-597e-4648-8296-aa9b15541178"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2023",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2023",
+        "end_year": "2023"
+      },
+      "job_id": "79f5e442-bfcf-4520-8104-978a53ddb1cd"
+    },
+    {
+      "job_name": "nasa-power-backfill-cameroon-southwest-kumba-2024",
+      "parameters": {
+        "country": "cameroon",
+        "region": "southwest_kumba",
+        "start_year": "2024",
+        "end_year": "2024"
+      },
+      "job_id": "69894dee-ec48-48c3-a58a-95c5d8980689"
+    }
+  ]
+}

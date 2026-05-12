@@ -1,0 +1,83 @@
+﻿SCRIPT_LOCATION = s3://leviathan-dev-shahem-001/glue-scripts/raw_to_bronze_nasa_power.py
+
+file = s3://leviathan-dev-shahem-001/glue-scripts/raw_to_bronze_nasa_power.py
+
+file to download from: s3://leviathan-dev-shahem-001/glue-scripts/raw_to_bronze_nasa_power.py
+
+downloading s3://leviathan-dev-shahem-001/glue-scripts/raw_to_bronze_nasa_power.py; attempt: 0...
+
+Completed 4.6 KiB/4.6 KiB (67.9 KiB/s) with 1 file(s) remaining
+download: s3://leviathan-dev-shahem-001/glue-scripts/raw_to_bronze_nasa_power.py to glue-python-scripts-93ok/raw_to_bronze_nasa_power.py
+
+downloaded s3://leviathan-dev-shahem-001/glue-scripts/raw_to_bronze_nasa_power.py.
+
+EXTRA_PY_FILES = s3://leviathan-dev-shahem-001/glue-libs/leviathan-0.1.0.egg
+
+file = s3://leviathan-dev-shahem-001/glue-libs/leviathan-0.1.0.egg
+
+file to download from: s3://leviathan-dev-shahem-001/glue-libs/leviathan-0.1.0.egg
+
+downloading s3://leviathan-dev-shahem-001/glue-libs/leviathan-0.1.0.egg; attempt: 0...
+
+Completed 12.9 KiB/12.9 KiB (109.9 KiB/s) with 1 file(s) remaining
+download: s3://leviathan-dev-shahem-001/glue-libs/leviathan-0.1.0.egg to glue-python-libs-ZOe3/leviathan-0.1.0.egg
+
+downloaded s3://leviathan-dev-shahem-001/glue-libs/leviathan-0.1.0.egg.
+
+Setting python runtime env to 3.9 analytics (default)
+
+ADDITIONAL_PYTHON_MODULES = pyarrow,s3fs
+installing --enable-job-insights; attempt: 0...
+
+Requirement already satisfied: pyarrow in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (7.0.0)
+
+Requirement already satisfied: s3fs in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (2022.3.0)
+
+Requirement already satisfied: numpy>=1.16.6 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from pyarrow) (1.22.3)
+
+Requirement already satisfied: fsspec==2022.3.0 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from s3fs) (2022.3.0)
+
+Requirement already satisfied: aiohttp<=4 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from s3fs) (3.8.1)
+
+Requirement already satisfied: aiobotocore~=2.2.0 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from s3fs) (2.2.0)
+
+Requirement already satisfied: botocore<1.24.22,>=1.24.21 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiobotocore~=2.2.0->s3fs) (1.24.21)
+
+Requirement already satisfied: wrapt>=1.10.10 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiobotocore~=2.2.0->s3fs) (1.14.1)
+
+Requirement already satisfied: aioitertools>=0.5.1 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiobotocore~=2.2.0->s3fs) (0.10.0)
+
+Requirement already satisfied: multidict<7.0,>=4.5 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiohttp<=4->s3fs) (6.0.2)
+
+Requirement already satisfied: charset-normalizer<3.0,>=2.0 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiohttp<=4->s3fs) (2.0.12)
+
+Requirement already satisfied: async-timeout<5.0,>=4.0.0a3 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiohttp<=4->s3fs) (4.0.2)
+
+Requirement already satisfied: frozenlist>=1.1.1 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiohttp<=4->s3fs) (1.3.0)
+
+Requirement already satisfied: aiosignal>=1.1.2 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiohttp<=4->s3fs) (1.2.0)
+
+Requirement already satisfied: attrs>=17.3.0 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiohttp<=4->s3fs) (21.4.0)
+
+Requirement already satisfied: yarl<2.0,>=1.0 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aiohttp<=4->s3fs) (1.7.2)
+
+Requirement already satisfied: typing_extensions>=4.0 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from aioitertools>=0.5.1->aiobotocore~=2.2.0->s3fs) (4.2.0)
+
+Requirement already satisfied: jmespath<2.0.0,>=0.7.1 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from botocore<1.24.22,>=1.24.21->aiobotocore~=2.2.0->s3fs) (1.0.0)
+
+Requirement already satisfied: urllib3<1.27,>=1.25.4 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from botocore<1.24.22,>=1.24.21->aiobotocore~=2.2.0->s3fs) (1.26.9)
+
+Requirement already satisfied: python-dateutil<3.0.0,>=2.1 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from botocore<1.24.22,>=1.24.21->aiobotocore~=2.2.0->s3fs) (2.8.2)
+
+Requirement already satisfied: idna>=2.0 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from yarl<2.0,>=1.0->aiohttp<=4->s3fs) (3.3)
+
+Requirement already satisfied: six>=1.5 in /.pyenv/versions/3.9.10/envs/python39_loaded/lib/python3.9/site-packages (from python-dateutil<3.0.0,>=2.1->botocore<1.24.22,>=1.24.21->aiobotocore~=2.2.0->s3fs) (1.16.0)
+
+
+[notice] A new release of pip available: 22.1.2 -> 26.0.1
+[notice] To update, run: python3.9 -m pip install --upgrade pip
+
+Egg file installation is not supported anymore.
+Setup complete. Starting script execution: 
+ ---- 
+

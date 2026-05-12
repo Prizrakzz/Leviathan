@@ -41,12 +41,13 @@ def load_bronze_faostat(bronze_root: str | Path) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def transform_faostat_cocoa_to_silver(
-    bronze_root: str | Path,
-    output_root: str | Path,
-) -> list[Path]:
-    df = load_bronze_faostat(bronze_root)
+def transform_faostat_cocoa_silver_df(df: pd.DataFrame) -> list[tuple[int, pd.DataFrame]]:
+    """Apply silver cleaning rules to an already-loaded bronze FAOSTAT DataFrame.
 
+    Returns a list of ``(year, silver_df)`` pairs ready for writing.
+    ``transform_faostat_cocoa_to_silver`` calls this internally; Glue jobs that
+    read bronze Parquet directly from S3 should call this instead.
+    """
     required = {"area", "item", "element", "year", "unit", "value", "flag"}
     missing = required - set(df.columns)
 
@@ -68,13 +69,10 @@ def transform_faostat_cocoa_to_silver(
     df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
-    # Preserve flag as-is; blank/NaN = official government figure
-    # E/F/Fc/Im/*/A = FAO estimated, imputed, or unofficial
     NON_OFFICIAL_FLAGS = {"E", "F", "Fc", "Im", "*", "A"}
     df["flag"] = df["flag"].where(df["flag"].notna() & (df["flag"].astype(str).str.strip() != ""), other=None)
     df["is_official"] = ~df["flag"].astype(str).str.strip().isin(NON_OFFICIAL_FLAGS)
 
-    # Preserve note column if present
     note_col = ["note"] if "note" in df.columns else []
 
     silver = df[
@@ -104,7 +102,6 @@ def transform_faostat_cocoa_to_silver(
         keep="last",
     )
 
-    # Warn if any country/metric combo is entirely non-official
     for (country_key, metric), group in silver.groupby(["country_key", "metric"]):
         if group["is_official"].sum() == 0:
             logger.warning(
@@ -121,11 +118,21 @@ def transform_faostat_cocoa_to_silver(
             non_official_pct,
         )
 
+    return [(int(year), year_df) for year, year_df in silver.groupby("year")]
+
+
+def transform_faostat_cocoa_to_silver(
+    bronze_root: str | Path,
+    output_root: str | Path,
+) -> list[Path]:
+    df = load_bronze_faostat(bronze_root)
+    year_frames = transform_faostat_cocoa_silver_df(df)
+
     written_files: list[Path] = []
     output_root = Path(output_root)
 
-    for year, year_df in silver.groupby("year"):
-        year_dir = output_root / "commodity=cocoa" / f"year={int(year)}"
+    for year, year_df in year_frames:
+        year_dir = output_root / "commodity=cocoa" / f"year={year}"
         year_dir.mkdir(parents=True, exist_ok=True)
 
         output_path = year_dir / "part-000.parquet"
