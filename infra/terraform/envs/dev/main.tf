@@ -62,3 +62,11 @@ module "glue" {
   bucket_name       = var.bucket_name
   glue_job_role_arn = module.iam.glue_job_role_arn
 }
+
+module "cloudwatch" {
+  source = "../../modules/cloudwatch"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+}

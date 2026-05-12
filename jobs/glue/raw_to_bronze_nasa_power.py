@@ -64,7 +64,7 @@ FORCE_OVERWRITE: bool = args.get("force_overwrite", "false").lower() == "true"
 
 RAW_PREFIX = f"raw/weather/source=nasa_power/commodity={COMMODITY}/"
 BRONZE_PREFIX = f"bronze/weather/source=nasa_power/commodity={COMMODITY}/"
-MAX_WORKERS = 32
+MAX_WORKERS = 64
 
 # One boto3 client per thread — avoids connection-pool contention
 _local = threading.local()

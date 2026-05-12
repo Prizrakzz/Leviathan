@@ -1,111 +1,137 @@
+"""Schema / shape / quality sanity check on silver layers — queries run via Athena in AWS.
+
+Checks: row counts, null counts per column, duplicate keys, date ranges, official flag
+distribution. No data is downloaded — all computation happens inside AWS.
+
+Run: python jobs/check_stage3_cocoa.py
+"""
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
 import pandas as pd
+import yaml
+
+sys.path.insert(0, str(Path(__file__).parent))
+from athena_utils import ATHENA_DB, ensure_catalog, run_query
+
+COMMODITY = os.environ.get("LEVIATHAN_COMMODITY", "cocoa")
+CONFIG_PATH = Path("configs/geographies/cocoa_regions.yaml")
 
 
-def count_files(root: Path, pattern: str) -> int:
-    if not root.exists():
-        return 0
-    return len(list(root.rglob(pattern)))
+def load_config() -> tuple[list[str], list[str]]:
+    with CONFIG_PATH.open() as f:
+        cfg = yaml.safe_load(f)
+    countries = [r["country"] for r in cfg["regions"]]
+    regions = [loc["region"] for r in cfg["regions"] for loc in r["locations"]]
+    return countries, regions
 
 
-def check_production() -> None:
-    root = Path("data/silver/production/faostat/cocoa")
-    files = sorted(root.rglob("*.parquet"))
+def check_production(athena) -> None:
+    print("\nSILVER PRODUCTION — schema / shape / quality")
+    print("=" * 70)
 
-    print("\nSILVER PRODUCTION")
-    print("=" * 50)
-    print(f"Files: {len(files)}")
+    # Row count + dedup check
+    dedup = run_query(athena, f"""
+        SELECT
+            COUNT(*) AS total_rows,
+            COUNT(DISTINCT country_key || '|' || metric || '|' || CAST(year AS VARCHAR)) AS distinct_keys
+        FROM {ATHENA_DB}.silver_production
+    """)
+    total = int(dedup[0]["total_rows"])
+    distinct = int(dedup[0]["distinct_keys"])
+    print(f"Total rows:   {total:,}")
+    print(f"Distinct (country_key, metric, year) keys: {distinct:,}")
+    print(f"Duplicate rows: {total - distinct}")
 
-    if not files:
-        return
+    # Per-(country_key, metric) summary
+    summary = run_query(athena, f"""
+        SELECT
+            country_key,
+            metric,
+            MIN(year)  AS min_year,
+            MAX(year)  AS max_year,
+            COUNT(*)   AS rows,
+            COUNT(DISTINCT year) AS years_covered,
+            SUM(CASE WHEN value IS NULL THEN 1 ELSE 0 END) AS null_values,
+            SUM(CASE WHEN is_official = true THEN 1 ELSE 0 END) AS official_rows
+        FROM {ATHENA_DB}.silver_production
+        GROUP BY country_key, metric
+        ORDER BY country_key, metric
+    """)
+    print("\nPer (country_key, metric):")
+    print(pd.DataFrame(summary).to_string(index=False))
 
-    df = pd.concat([pd.read_parquet(file) for file in files], ignore_index=True)
+    # Flag distribution
+    flags = run_query(athena, f"""
+        SELECT COALESCE(flag, '(null)') AS flag, COUNT(*) AS n
+        FROM {ATHENA_DB}.silver_production
+        GROUP BY flag
+        ORDER BY n DESC
+    """)
+    print("\nFlag distribution:")
+    print(pd.DataFrame(flags).to_string(index=False))
 
-    print("Shape:", df.shape)
-    print("Years:", df["year"].min(), "to", df["year"].max())
-    print("Metrics:", sorted(df["metric"].unique()))
-    print("Countries:", df["country"].nunique())
-
-    dupes = df.duplicated(
-        subset=["country_key", "commodity", "metric", "year", "source"]
-    ).sum()
-
-    print("Duplicate country/year/metric rows:", dupes)
-
-    if "flag" in df.columns:
-        print("\nFlag distribution:")
-        print(df["flag"].value_counts(dropna=False))
-
-    if "is_official" in df.columns:
-        official_count = df["is_official"].sum()
-        total = len(df)
-        print(f"\nOfficial rows: {official_count}/{total} ({100 * official_count / total:.1f}%)")
-
-        all_estimated = (
-            df.groupby(["country_key", "metric"])["is_official"]
-            .sum()
-            .reset_index()
-        )
-        zero_official = all_estimated[all_estimated["is_official"] == 0]
-        if not zero_official.empty:
-            print("\nWARNING - country/metric combos with zero official rows:")
-            print(zero_official)
-
-    print(df.head())
+    # Warn on country/metric combos with zero official rows
+    zero_official = [r for r in summary if int(r["official_rows"]) == 0]
+    if zero_official:
+        print("\nWARNING — (country_key, metric) with zero official rows:")
+        print(pd.DataFrame(zero_official)[["country_key", "metric", "years_covered"]].to_string(index=False))
+    else:
+        print("\nAll (country_key, metric) combos have at least one official row.")
 
 
-def check_weather() -> None:
-    root = Path("data/silver/weather/nasa_power/cocoa")
-    files = sorted(root.rglob("*.parquet"))
+def check_weather(athena) -> None:
+    print("\nSILVER WEATHER — schema / shape / quality")
+    print("=" * 70)
 
-    print("\nSILVER WEATHER")
-    print("=" * 50)
-    print(f"Files: {len(files)}")
+    # Row count + dedup check
+    dedup = run_query(athena, f"""
+        SELECT
+            COUNT(*) AS total_rows,
+            COUNT(DISTINCT country || '|' || region || '|' || CAST(date AS VARCHAR)) AS distinct_keys
+        FROM {ATHENA_DB}.silver_weather
+    """)
+    total = int(dedup[0]["total_rows"])
+    distinct = int(dedup[0]["distinct_keys"])
+    print(f"Total rows:   {total:,}")
+    print(f"Distinct (country, region, date) keys: {distinct:,}")
+    print(f"Duplicate rows: {total - distinct}")
 
-    if not files:
-        return
-
-    df = pd.concat([pd.read_parquet(file) for file in files], ignore_index=True)
-
-    print("Shape:", df.shape)
-    print("Date range:", df["date"].min(), "to", df["date"].max())
-    print("Countries:", df["country"].nunique())
-    print("Regions:", df["region"].nunique())
-
-    dupes = df.duplicated(
-        subset=["date", "country", "region", "commodity", "source"]
-    ).sum()
-
-    print("Duplicate region/date rows:", dupes)
-
-    weather_cols = [
-        "temperature_2m_mean_c",
-        "temperature_2m_max_c",
-        "temperature_2m_min_c",
-        "precipitation_mm",
-        "relative_humidity_2m_pct",
-        "wind_speed_2m_m_s",
-        "solar_radiation_mj_m2_day",
-    ]
-
-    existing_weather_cols = [col for col in weather_cols if col in df.columns]
-
-    print("\nNull counts:")
-    print(df[existing_weather_cols].isna().sum())
-
-    print("\nSample:")
-    print(df.head())
+    # Per-(country, region) summary
+    summary = run_query(athena, f"""
+        SELECT
+            country,
+            region,
+            MIN(date)  AS min_date,
+            MAX(date)  AS max_date,
+            COUNT(*)   AS rows,
+            COUNT(DISTINCT date) AS distinct_days,
+            SUM(CASE WHEN temperature_2m_mean_c    IS NULL THEN 1 ELSE 0 END) AS null_temp_mean,
+            SUM(CASE WHEN precipitation_mm         IS NULL THEN 1 ELSE 0 END) AS null_precip,
+            SUM(CASE WHEN relative_humidity_2m_pct IS NULL THEN 1 ELSE 0 END) AS null_rh,
+            SUM(CASE WHEN solar_radiation_mj_m2_day IS NULL THEN 1 ELSE 0 END) AS null_solar
+        FROM {ATHENA_DB}.silver_weather
+        GROUP BY country, region
+        ORDER BY country, region
+    """)
+    print("\nPer (country, region):")
+    print(pd.DataFrame(summary).to_string(index=False))
 
 
 def main() -> None:
     print("STAGE 3 COCOA SILVER CHECK")
-    print("=" * 50)
+    print("=" * 70)
 
-    check_production()
-    check_weather()
+    countries, regions = load_config()
+    athena = ensure_catalog(commodity=COMMODITY, countries=countries, regions=regions)
+
+    check_production(athena)
+    check_weather(athena)
+
+    print("\nDone.")
 
 
 if __name__ == "__main__":

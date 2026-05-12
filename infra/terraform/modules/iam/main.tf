@@ -1,3 +1,8 @@
+locals {
+  # Extract bucket name from ARN (arn:aws:s3:::bucket-name)
+  bucket_name = element(split(":::", var.bucket_arn), 1)
+}
+
 data "aws_iam_policy_document" "s3_data_lake_rw" {
   statement {
     sid = "ListDataLakeBucket"
@@ -125,4 +130,67 @@ resource "aws_iam_role_policy_attachment" "glue_job_role_glue_service" {
 resource "aws_iam_role_policy_attachment" "glue_job_role_s3" {
   role       = aws_iam_role.glue_job_role.name
   policy_arn = aws_iam_policy.s3_data_lake_rw.arn
+}
+
+# ---------------------------------------------------------------------------
+# Athena + Glue catalog permissions for the Glue job role
+# Allows validation scripts running under this role to query Athena and
+# manage the leviathan_dev catalog database/tables.
+# ---------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "athena_validation" {
+  statement {
+    sid = "AthenaQueryExecution"
+    actions = [
+      "athena:StartQueryExecution",
+      "athena:GetQueryExecution",
+      "athena:GetQueryResults",
+      "athena:StopQueryExecution",
+      "athena:GetWorkGroup",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "AthenaResultsS3"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = ["arn:aws:s3:::${local.bucket_name}/athena-results/*"]
+  }
+
+  statement {
+    sid = "GlueCatalogAccess"
+    actions = [
+      "glue:CreateDatabase",
+      "glue:GetDatabase",
+      "glue:CreateTable",
+      "glue:UpdateTable",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetPartitions",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "CloudWatchCustomMetrics"
+    actions = [
+      "cloudwatch:PutMetricData",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "athena_validation" {
+  name        = "${var.project_name}-${var.environment}-athena-validation"
+  description = "Allows Glue job role to run Athena queries and manage Glue catalog for pipeline validation."
+  policy      = data.aws_iam_policy_document.athena_validation.json
+}
+
+resource "aws_iam_role_policy_attachment" "glue_job_role_athena" {
+  role       = aws_iam_role.glue_job_role.name
+  policy_arn = aws_iam_policy.athena_validation.arn
 }

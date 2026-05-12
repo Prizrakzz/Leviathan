@@ -31,7 +31,7 @@ resource "aws_glue_job" "raw_to_bronze_nasa_power" {
     "--ingest_date" = formatdate("YYYY-MM-DD", timestamp())
   })
 
-  max_capacity = 0.0625
+  max_capacity = 1.0
 
   execution_property {
     max_concurrent_runs = 1
@@ -64,7 +64,7 @@ resource "aws_glue_job" "raw_to_bronze_faostat" {
     "--s3_raw_key"  = "raw/production/source=faostat/commodity=cocoa/Production_Crops_Livestock_E_All_Data_Normalized.zip"
   })
 
-  max_capacity = 0.0625
+  max_capacity = 1.0
 
   execution_property {
     max_concurrent_runs = 1
@@ -94,7 +94,7 @@ resource "aws_glue_job" "bronze_to_silver_nasa_power" {
 
   default_arguments = local.common_default_args
 
-  max_capacity = 0.0625
+  max_capacity = 1.0
 
   execution_property {
     max_concurrent_runs = 1
@@ -124,7 +124,7 @@ resource "aws_glue_job" "bronze_to_silver_faostat" {
 
   default_arguments = local.common_default_args
 
-  max_capacity = 0.0625
+  max_capacity = 1.0
 
   execution_property {
     max_concurrent_runs = 1

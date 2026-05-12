@@ -1,92 +1,53 @@
+"""ML join overlap check — all queries run via Athena inside AWS.
+
+Verifies that every config country appears in both silver datasets and that
+every (country, year) in the 1981-2023 overlap window has data in both.
+
+Run: python jobs/check_ml_overlap_coverage_cocoa.py
+"""
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
 import pandas as pd
+import yaml
+
+sys.path.insert(0, str(Path(__file__).parent))
+from athena_utils import ATHENA_DB, ensure_catalog, run_query
+
+COMMODITY = os.environ.get("LEVIATHAN_COMMODITY", "cocoa")
+OVERLAP_START = 1981
+OVERLAP_END = 2023
+CONFIG_PATH = Path("configs/geographies/cocoa_regions.yaml")
 
 
-EXPECTED_WEATHER_START_YEAR = 1981
+def load_config() -> tuple[list[str], list[str]]:
+    with CONFIG_PATH.open() as f:
+        config = yaml.safe_load(f)
+    countries = [r["country"] for r in config["regions"]]
+    regions = [loc["region"] for r in config["regions"] for loc in r["locations"]]
+    return countries, regions
 
 
-def load_parquet_dataset(root: Path) -> pd.DataFrame:
-    files = sorted(root.rglob("*.parquet"))
+def check_country_overlap(athena, countries: list[str]) -> None:
+    print("\nCOUNTRY-LEVEL OVERLAP")
+    print("=" * 70)
 
-    if not files:
-        raise FileNotFoundError(f"No Parquet files found under {root}")
+    fao_rows = run_query(athena, f"SELECT DISTINCT country_key FROM {ATHENA_DB}.silver_production")
+    wthr_rows = run_query(athena, f"SELECT DISTINCT country    FROM {ATHENA_DB}.silver_weather")
 
-    return pd.concat([pd.read_parquet(file) for file in files], ignore_index=True)
+    fao_keys = {r["country_key"] for r in fao_rows}
+    wthr_keys = {r["country"] for r in wthr_rows}
+    cfg_set = set(countries)
 
-
-def check_faostat_coverage() -> pd.DataFrame:
-    root = Path("data/silver/production/faostat/cocoa")
-    df = load_parquet_dataset(root)
-
-    cocoa_yield = df[df["metric"].isin(["yield", "production_quantity", "area_harvested"])]
-
-    print("\nFAOSTAT SILVER COVERAGE")
-    print("=" * 60)
-    print("Rows:", len(cocoa_yield))
-    print("Years:", int(cocoa_yield["year"].min()), "->", int(cocoa_yield["year"].max()))
-    print("Metrics:", sorted(cocoa_yield["metric"].dropna().unique()))
-    print("Countries:", cocoa_yield["country_key"].nunique())
-
-    return cocoa_yield
-
-
-def check_weather_coverage() -> pd.DataFrame:
-    root = Path("data/silver/weather/nasa_power/cocoa")
-    df = load_parquet_dataset(root)
-
-    df["date"] = pd.to_datetime(df["date"])
-    df["year"] = df["date"].dt.year
-    df["month"] = df["date"].dt.month
-
-    print("\nNASA POWER SILVER COVERAGE")
-    print("=" * 60)
-    print("Rows:", len(df))
-    print("Dates:", df["date"].min().date(), "->", df["date"].max().date())
-    print("Years:", int(df["year"].min()), "->", int(df["year"].max()))
-    print("Countries:", sorted(df["country"].dropna().unique()))
-    print("Regions:", df[["country", "region"]].drop_duplicates().shape[0])
-
-    return df
-
-
-def check_missing_region_months(weather: pd.DataFrame) -> None:
-    regions = weather[["country", "region"]].drop_duplicates()
-    min_year = int(weather["year"].min())
-    max_year = int(weather["year"].max())
-
-    expected = []
-
-    for _, row in regions.iterrows():
-        for year in range(min_year, max_year + 1):
-            for month in range(1, 13):
-                expected.append(
-                    {
-                        "country": row["country"],
-                        "region": row["region"],
-                        "year": year,
-                        "month": month,
-                    }
-                )
-
-    expected_df = pd.DataFrame(expected)
-
-    actual_df = weather[["country", "region", "year", "month"]].drop_duplicates()
-
-    missing = expected_df.merge(
-        actual_df,
-        on=["country", "region", "year", "month"],
-        how="left",
-        indicator=True,
-    )
-
-    missing = missing[missing["_merge"] == "left_only"].drop(columns=["_merge"])
-
-    print("\nMISSING WEATHER REGION-MONTH PARTITIONS")
-    print("=" * 60)
-    print("Missing region-months:", len(missing))
+    print(f"Config countries ({len(cfg_set)}):       {sorted(cfg_set)}")
+    print(f"FAOSTAT silver country_keys ({len(fao_keys)}): {sorted(fao_keys)}")
+    print(f"Weather silver countries ({len(wthr_keys)}):   {sorted(wthr_keys)}")
+    print(f"\nMissing from FAOSTAT silver:  {sorted(cfg_set - fao_keys)  or 'None'}")
+    print(f"Missing from weather silver:  {sorted(cfg_set - wthr_keys) or 'None'}")
+    print(f"Can ML-join on:               {sorted(cfg_set & fao_keys & wthr_keys)}")
 
     if not missing.empty:
         print(missing.head(50))
@@ -125,13 +86,74 @@ def check_missing_days(weather: pd.DataFrame) -> None:
         print(pd.DataFrame(problems).head(50))
 
 
+def check_country_overlap(faostat: pd.DataFrame, weather: pd.DataFrame) -> None:
+    """Check that every config country appears as country_key in FAOSTAT and as country in weather."""
+    config_countries = load_config_countries()
+    faostat_countries = set(faostat["country_key"].dropna().unique())
+    weather_countries = set(weather["country"].dropna().unique())
+
+    print("\nCOUNTRY-LEVEL OVERLAP CHECK")
+    print("=" * 60)
+    print(f"Config countries ({len(config_countries)}): {sorted(config_countries)}")
+    print(f"FAOSTAT country_keys ({len(faostat_countries)}): {sorted(faostat_countries)}")
+    print(f"Weather countries ({len(weather_countries)}): {sorted(weather_countries)}")
+
+    missing_from_faostat = [c for c in config_countries if c not in faostat_countries]
+    missing_from_weather = [c for c in config_countries if c not in weather_countries]
+
+    print("\nConfig countries missing from FAOSTAT silver:")
+    print(missing_from_faostat if missing_from_faostat else "  None")
+
+    print("\nConfig countries missing from weather silver:")
+    print(missing_from_weather if missing_from_weather else "  None")
+
+    in_both = faostat_countries & weather_countries
+    print(f"\nCountries in both datasets ({len(in_both)}): {sorted(in_both)}")
+
+
+def check_country_year_matrix(faostat: pd.DataFrame, weather: pd.DataFrame) -> None:
+    """For every (config_country, year) in the overlap window, verify data exists in both."""
+    config_countries = load_config_countries()
+
+    faostat_pairs = set(
+        zip(faostat["country_key"].dropna().astype(str), faostat["year"].dropna().astype(int))
+    )
+    weather_pairs = set(
+        zip(weather["country"].dropna().astype(str), weather["year"].dropna().astype(int))
+    )
+
+    missing_faostat: list[dict] = []
+    missing_weather: list[dict] = []
+
+    for country in config_countries:
+        for year in range(OVERLAP_START, OVERLAP_END + 1):
+            if (country, year) not in faostat_pairs:
+                missing_faostat.append({"country": country, "year": year})
+            if (country, year) not in weather_pairs:
+                missing_weather.append({"country": country, "year": year})
+
+    print(f"\nPER-COUNTRY-YEAR MATRIX ({OVERLAP_START}–{OVERLAP_END})")
+    print("=" * 60)
+
+    print(f"Missing (country, year) from FAOSTAT: {len(missing_faostat)}")
+    if missing_faostat:
+        print(pd.DataFrame(missing_faostat).to_string(index=False))
+
+    print(f"\nMissing (country, year) from weather: {len(missing_weather)}")
+    if missing_weather:
+        print(pd.DataFrame(missing_weather).to_string(index=False))
+
+    if not missing_faostat and not missing_weather:
+        print("  All config countries have data in both datasets for every overlap year.")
+
+
 def check_overlap(faostat: pd.DataFrame, weather: pd.DataFrame) -> None:
     faostat_years = set(faostat["year"].dropna().astype(int).unique())
     weather_years = set(weather["year"].dropna().astype(int).unique())
 
     overlap_years = sorted(faostat_years.intersection(weather_years))
 
-    print("\nML OVERLAP COVERAGE")
+    print("\nML YEAR OVERLAP COVERAGE")
     print("=" * 60)
 
     if not overlap_years:
@@ -147,22 +169,12 @@ def check_overlap(faostat: pd.DataFrame, weather: pd.DataFrame) -> None:
             f"but expected weather start year is {EXPECTED_WEATHER_START_YEAR}."
         )
 
-    expected_years = set(range(min(overlap_years), max(overlap_years) + 1))
-    missing_overlap_years = sorted(expected_years - set(overlap_years))
-
-    if missing_overlap_years:
-        print("Missing years inside overlap range:", missing_overlap_years)
-    else:
-        print("No missing years inside overlap range.")
-
-
 def main() -> None:
-    faostat = check_faostat_coverage()
-    weather = check_weather_coverage()
-
-    check_missing_region_months(weather)
-    check_missing_days(weather)
-    check_overlap(faostat, weather)
+    countries, regions = load_config()
+    athena = ensure_catalog(commodity=COMMODITY, countries=countries, regions=regions)
+    check_country_overlap(athena, countries)
+    check_year_matrix(athena, countries)
+    print("\nDone.")
 
 
 if __name__ == "__main__":

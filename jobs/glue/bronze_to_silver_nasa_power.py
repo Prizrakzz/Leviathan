@@ -62,7 +62,7 @@ FORCE_OVERWRITE: bool = args.get("force_overwrite", "false").lower() == "true"
 
 BRONZE_PATH = f"{BUCKET}/bronze/weather/source=nasa_power/commodity={COMMODITY}"
 SILVER_BASE = f"silver/weather/source=nasa_power/commodity={COMMODITY}"
-MAX_WORKERS = 32
+MAX_WORKERS = 64
 
 # One boto3 client per thread
 _local = threading.local()
