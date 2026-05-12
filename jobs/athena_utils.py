@@ -6,7 +6,7 @@ Only result rows (KBs) are returned to the caller — no data is downloaded.
 Usage:
     from athena_utils import ensure_catalog, run_query, ATHENA_DB
 
-    athena = ensure_catalog(commodity="cocoa", countries=[...], regions=[...])
+    athena = ensure_catalog()
     rows = run_query(athena, "SELECT COUNT(*) AS n FROM leviathan_dev.silver_weather")
     print(rows[0]["n"])
 """
@@ -26,7 +26,17 @@ BUCKET = os.environ.get("LEVIATHAN_BUCKET", "leviathan-dev-shahem-001")
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 ATHENA_RESULTS = f"s3://{BUCKET}/athena-results/"
 
-COMMODITY = "cocoa"
+# All 31 supported commodities — used in partition projection enum for silver tables.
+COMMODITY_ENUM = (
+    "cocoa,corn_cbot,campinas_corn_reference_bmf,french_wheat_matif,french_maize_matif,"
+    "hard_red_winter_wheat_kcbt,hard_red_spring_wheat_mgex,soft_red_winter_wheat_cbot,"
+    "rough_rice_cbot,south_african_white_maize_jse,south_african_yellow_maize_jse,"
+    "soybeans_cbot,soybean_meal_cbot,soybean_oil_cbot,soybeans_no_1_dce,soybeans_no_2_dce,"
+    "soybean_meal_dce,soybean_oil_dce,french_rapeseed_matif,canola_ice,rapeseed_oil_zce,"
+    "rapeseed_meal_zce,malaysian_crude_palm_oil_cme,palm_olein_dce,brazilian_arabica_coffee,"
+    "arabica_coffee,robusta_coffee,cotton,raw_sugar,white_sugar,frozen_orange_juice"
+)
+
 WEATHER_START_YEAR = 1981
 WEATHER_END_YEAR = 2024
 FAOSTAT_START_YEAR = 1961
@@ -106,15 +116,18 @@ def run_query(client, sql: str, database: str | None = ATHENA_DB) -> list[dict]:
 # Catalog bootstrap
 # ---------------------------------------------------------------------------
 
-def ensure_catalog(
-    commodity: str,
-    countries: list[str],
-    regions: list[str],
-) -> boto3.client:
-    """Create the Glue database and external tables if they don't exist.
+def ensure_catalog() -> boto3.client:
+    """Create the Glue database and external tables, recreating them if they exist.
 
     Tables use partition projection so Athena always resolves S3 paths from
     metadata — no crawler and no MSCK REPAIR TABLE ever needed.
+
+    Both tables cover all 31 commodities via a commodity partition key with
+    enum projection.  Country and region use injected projection — values come
+    from WHERE clause predicates at query time.
+
+    DROP + CREATE is used (not CREATE IF NOT EXISTS) so schema changes always
+    take effect on re-run.  S3 data is never touched by this operation.
 
     Returns a configured Athena boto3 client ready for validation queries.
     """
@@ -134,21 +147,19 @@ def ensure_catalog(
         print(f"  [catalog] Created Glue database: {ATHENA_DB}")
 
     # ---- silver_weather ----
-    country_enum = ",".join(countries)
-    region_enum = ",".join(regions)
-    weather_base = f"s3://{BUCKET}/silver/weather/source=nasa_power/commodity={commodity}/"
+    weather_base = f"s3://{BUCKET}/silver/weather/source=nasa_power/"
     weather_template = (
         weather_base
-        + "country=${country}/region=${region}/year=${year}/month=${month}"
+        + "commodity=${commodity}/country=${country}/region=${region}/year=${year}/month=${month}"
     )
 
+    run_query(athena, f"DROP TABLE IF EXISTS {ATHENA_DB}.silver_weather", database=None)
     run_query(
         athena,
         f"""
-CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.silver_weather (
+CREATE EXTERNAL TABLE {ATHENA_DB}.silver_weather (
     date                       DATE,
     day                        INT,
-    commodity                  STRING,
     source                     STRING,
     ingest_date                STRING,
     source_file_name           STRING,
@@ -160,37 +171,37 @@ CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.silver_weather (
     wind_speed_2m_m_s          DOUBLE,
     solar_radiation_mj_m2_day  DOUBLE
 )
-PARTITIONED BY (country STRING, region STRING, year INT, month INT)
+PARTITIONED BY (commodity STRING, country STRING, region STRING, year INT, month INT)
 STORED AS PARQUET
 LOCATION '{weather_base}'
 TBLPROPERTIES (
-    'projection.enabled'        = 'true',
-    'projection.country.type'   = 'enum',
-    'projection.country.values' = '{country_enum}',
-    'projection.region.type'    = 'enum',
-    'projection.region.values'  = '{region_enum}',
-    'projection.year.type'      = 'integer',
-    'projection.year.range'     = '{WEATHER_START_YEAR},{WEATHER_END_YEAR}',
-    'projection.month.type'     = 'integer',
-    'projection.month.range'    = '1,12',
-    'projection.month.digits'   = '2',
-    'storage.location.template' = '{weather_template}'
+    'projection.enabled'          = 'true',
+    'projection.commodity.type'   = 'enum',
+    'projection.commodity.values' = '{COMMODITY_ENUM}',
+    'projection.country.type'     = 'injected',
+    'projection.region.type'      = 'injected',
+    'projection.year.type'        = 'integer',
+    'projection.year.range'       = '{WEATHER_START_YEAR},{WEATHER_END_YEAR}',
+    'projection.month.type'       = 'integer',
+    'projection.month.range'      = '1,12',
+    'projection.month.digits'     = '2',
+    'storage.location.template'   = '{weather_template}'
 )
 """,
         database=None,
     )
 
     # ---- silver_production ----
-    prod_base = f"s3://{BUCKET}/silver/production/commodity={commodity}/"
-    prod_template = prod_base + "year=${year}"
+    prod_base = f"s3://{BUCKET}/silver/production/"
+    prod_template = prod_base + "commodity=${commodity}/year=${year}"
 
+    run_query(athena, f"DROP TABLE IF EXISTS {ATHENA_DB}.silver_production", database=None)
     run_query(
         athena,
         f"""
-CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.silver_production (
+CREATE EXTERNAL TABLE {ATHENA_DB}.silver_production (
     country          STRING,
     country_key      STRING,
-    commodity        STRING,
     metric           STRING,
     unit             STRING,
     value            DOUBLE,
@@ -202,14 +213,16 @@ CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.silver_production (
     ingest_date      STRING,
     source_file_name STRING
 )
-PARTITIONED BY (year INT)
+PARTITIONED BY (commodity STRING, year INT)
 STORED AS PARQUET
 LOCATION '{prod_base}'
 TBLPROPERTIES (
-    'projection.enabled'        = 'true',
-    'projection.year.type'      = 'integer',
-    'projection.year.range'     = '{FAOSTAT_START_YEAR},{FAOSTAT_END_YEAR}',
-    'storage.location.template' = '{prod_template}'
+    'projection.enabled'          = 'true',
+    'projection.commodity.type'   = 'enum',
+    'projection.commodity.values' = '{COMMODITY_ENUM}',
+    'projection.year.type'        = 'integer',
+    'projection.year.range'       = '{FAOSTAT_START_YEAR},{FAOSTAT_END_YEAR}',
+    'storage.location.template'   = '{prod_template}'
 )
 """,
         database=None,

@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from athena_utils import ATHENA_DB, ensure_catalog, run_query
 
 COMMODITY = os.environ.get("LEVIATHAN_COMMODITY", "cocoa")
-CONFIG_PATH = Path("configs/geographies/cocoa_regions.yaml")
+CONFIG_PATH = Path(f"configs/geographies/{COMMODITY}_regions.yaml")
 
 
 def load_config() -> tuple[list[str], list[str]]:
@@ -39,6 +39,7 @@ def check_production(athena) -> None:
             COUNT(*) AS total_rows,
             COUNT(DISTINCT country_key || '|' || metric || '|' || CAST(year AS VARCHAR)) AS distinct_keys
         FROM {ATHENA_DB}.silver_production
+        WHERE commodity = '{COMMODITY}'
     """)
     total = int(dedup[0]["total_rows"])
     distinct = int(dedup[0]["distinct_keys"])
@@ -58,6 +59,7 @@ def check_production(athena) -> None:
             SUM(CASE WHEN value IS NULL THEN 1 ELSE 0 END) AS null_values,
             SUM(CASE WHEN is_official = true THEN 1 ELSE 0 END) AS official_rows
         FROM {ATHENA_DB}.silver_production
+        WHERE commodity = '{COMMODITY}'
         GROUP BY country_key, metric
         ORDER BY country_key, metric
     """)
@@ -68,6 +70,7 @@ def check_production(athena) -> None:
     flags = run_query(athena, f"""
         SELECT COALESCE(flag, '(null)') AS flag, COUNT(*) AS n
         FROM {ATHENA_DB}.silver_production
+        WHERE commodity = '{COMMODITY}'
         GROUP BY flag
         ORDER BY n DESC
     """)
@@ -93,6 +96,7 @@ def check_weather(athena) -> None:
             COUNT(*) AS total_rows,
             COUNT(DISTINCT country || '|' || region || '|' || CAST(date AS VARCHAR)) AS distinct_keys
         FROM {ATHENA_DB}.silver_weather
+        WHERE commodity = '{COMMODITY}'
     """)
     total = int(dedup[0]["total_rows"])
     distinct = int(dedup[0]["distinct_keys"])
@@ -114,6 +118,7 @@ def check_weather(athena) -> None:
             SUM(CASE WHEN relative_humidity_2m_pct IS NULL THEN 1 ELSE 0 END) AS null_rh,
             SUM(CASE WHEN solar_radiation_mj_m2_day IS NULL THEN 1 ELSE 0 END) AS null_solar
         FROM {ATHENA_DB}.silver_weather
+        WHERE commodity = '{COMMODITY}'
         GROUP BY country, region
         ORDER BY country, region
     """)
@@ -122,11 +127,11 @@ def check_weather(athena) -> None:
 
 
 def main() -> None:
-    print("STAGE 3 COCOA SILVER CHECK")
+    print(f"STAGE 3 {COMMODITY.upper()} SILVER CHECK")
     print("=" * 70)
 
     countries, regions = load_config()
-    athena = ensure_catalog(commodity=COMMODITY, countries=countries, regions=regions)
+    athena = ensure_catalog()
 
     check_production(athena)
     check_weather(athena)

@@ -66,7 +66,6 @@ def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> p
         "day",
         "country",
         "region",
-        "commodity",
         "source",
         "ingest_date",
         "source_file_name",
@@ -84,7 +83,7 @@ def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> p
     silver["day"] = silver["day"].astype(int)
 
     silver = silver.drop_duplicates(
-        subset=["date", "country", "region", "commodity", "source"],
+        subset=["date", "country", "region", "source"],
         keep="last",
     )
 

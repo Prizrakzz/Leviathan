@@ -89,7 +89,6 @@ def transform_faostat_cocoa_silver_df(
         [
             "country",
             "country_key",
-            "commodity",
             "metric",
             "year",
             "unit",
@@ -108,7 +107,7 @@ def transform_faostat_cocoa_silver_df(
     silver["year"] = silver["year"].astype(int)
 
     silver = silver.drop_duplicates(
-        subset=["country_key", "commodity", "metric", "year", "source"],
+        subset=["country_key", "metric", "year", "source"],
         keep="last",
     )
 

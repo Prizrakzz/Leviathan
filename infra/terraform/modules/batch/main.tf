@@ -51,8 +51,8 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
     commodity  = "cocoa"
     country    = "placeholder_country"
     region     = "placeholder_region"
-    start_year = "2010"
-    end_year   = "2010"
+    start_year = "1981"
+    end_year   = "1981"
   }
 
   container_properties = jsonencode({

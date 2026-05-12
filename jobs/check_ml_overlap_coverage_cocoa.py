@@ -19,7 +19,7 @@ from athena_utils import ATHENA_DB, ensure_catalog, run_query
 COMMODITY = os.environ.get("LEVIATHAN_COMMODITY", "cocoa")
 OVERLAP_START = 1981
 OVERLAP_END = 2023
-CONFIG_PATH = Path("configs/geographies/cocoa_regions.yaml")
+CONFIG_PATH = Path(f"configs/geographies/{COMMODITY}_regions.yaml")
 
 
 def load_config() -> tuple[list[str], list[str]]:
@@ -34,8 +34,8 @@ def check_country_overlap(athena, countries: list[str]) -> None:
     print("\nCOUNTRY-LEVEL OVERLAP")
     print("=" * 70)
 
-    fao_rows = run_query(athena, f"SELECT DISTINCT country_key FROM {ATHENA_DB}.silver_production")
-    wthr_rows = run_query(athena, f"SELECT DISTINCT country FROM {ATHENA_DB}.silver_weather")
+    fao_rows = run_query(athena, f"SELECT DISTINCT country_key FROM {ATHENA_DB}.silver_production WHERE commodity = '{COMMODITY}'")
+    wthr_rows = run_query(athena, f"SELECT DISTINCT country FROM {ATHENA_DB}.silver_weather WHERE commodity = '{COMMODITY}'")
 
     fao_keys = {r["country_key"] for r in fao_rows}
     wthr_keys = {r["country"] for r in wthr_rows}
@@ -57,11 +57,13 @@ def check_year_matrix(athena, countries: list[str]) -> None:
         SELECT DISTINCT country, year
         FROM {ATHENA_DB}.silver_weather
         WHERE year BETWEEN {OVERLAP_START} AND {OVERLAP_END}
+          AND commodity = '{COMMODITY}'
     """)
     fao_rows = run_query(athena, f"""
         SELECT DISTINCT country_key, year
         FROM {ATHENA_DB}.silver_production
         WHERE year BETWEEN {OVERLAP_START} AND {OVERLAP_END}
+          AND commodity = '{COMMODITY}'
     """)
 
     wthr_pairs = {(r["country"], int(r["year"])) for r in wthr_rows}
@@ -92,7 +94,7 @@ def check_year_matrix(athena, countries: list[str]) -> None:
 
 
 def main() -> None:
-    print("ML OVERLAP COVERAGE CHECK - cocoa")
+    print(f"ML OVERLAP COVERAGE CHECK - {COMMODITY}")
     print("=" * 70)
     print(f"Overlap window: {OVERLAP_START}-{OVERLAP_END}")
 
@@ -100,7 +102,7 @@ def main() -> None:
     print(f"Config: {len(countries)} countries - {countries}")
 
     print("\nInitialising Athena catalog (idempotent)...")
-    athena = ensure_catalog(commodity=COMMODITY, countries=countries, regions=regions)
+    athena = ensure_catalog()
 
     check_country_overlap(athena, countries)
     check_year_matrix(athena, countries)

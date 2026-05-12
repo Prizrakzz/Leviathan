@@ -33,7 +33,7 @@ COMMODITY = os.environ.get("LEVIATHAN_COMMODITY", "cocoa")
 OVERLAP_START = WEATHER_START_YEAR
 OVERLAP_END = FAOSTAT_END_YEAR
 METRICS = ["area_harvested", "production_quantity", "yield"]
-CONFIG_PATH = Path("configs/geographies/cocoa_regions.yaml")
+CONFIG_PATH = Path(f"configs/geographies/{COMMODITY}_regions.yaml")
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +135,7 @@ def check_silver_weather(athena, pairs: list[tuple[str, str]]) -> None:
     rows = run_query(athena, f"""
         SELECT country, region, year, month, COUNT(*) AS n
         FROM {ATHENA_DB}.silver_weather
+        WHERE commodity = '{COMMODITY}'
         GROUP BY country, region, year, month
     """)
     actual = {(r["country"], r["region"], int(r["year"]), int(r["month"])) for r in rows}
@@ -157,6 +158,7 @@ def check_silver_weather(athena, pairs: list[tuple[str, str]]) -> None:
                date_diff('day', min(date), max(date)) + 1 AS expected_days,
                COUNT(DISTINCT date)                        AS actual_days
         FROM {ATHENA_DB}.silver_weather
+        WHERE commodity = '{COMMODITY}'
         GROUP BY country, region
     """)
     problems = [r for r in gap_rows if r["expected_days"] != r["actual_days"]]
@@ -185,6 +187,7 @@ def check_silver_faostat(athena, countries: list[str]) -> None:
     rows = run_query(athena, f"""
         SELECT country_key, metric, year, COUNT(*) AS n
         FROM {ATHENA_DB}.silver_production
+        WHERE commodity = '{COMMODITY}'
         GROUP BY country_key, metric, year
     """)
     actual = {(r["country_key"], r["metric"], int(r["year"])) for r in rows}
@@ -217,7 +220,7 @@ def check_silver_faostat(athena, countries: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    print("PIPELINE COMPLETENESS CHECK — cocoa")
+    print(f"PIPELINE COMPLETENESS CHECK — {COMMODITY}")
     print("=" * 70)
     print(f"Bucket: s3://{BUCKET}  |  Region: {AWS_REGION}  |  Commodity: {COMMODITY}")
     print(f"Weather years:     {WEATHER_START_YEAR}–{WEATHER_END_YEAR}")
@@ -229,7 +232,7 @@ def main() -> None:
     print(f"Countries: {countries}")
 
     print("\nInitialising Athena catalog (idempotent)...")
-    athena = ensure_catalog(commodity=COMMODITY, countries=countries, regions=regions)
+    athena = ensure_catalog()
 
     check_raw_weather(pairs)
     check_bronze_weather(pairs)
