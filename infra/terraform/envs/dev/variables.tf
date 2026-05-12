@@ -36,3 +36,9 @@ variable "batch_security_group_ids" {
   type        = list(string)
   description = "Security group IDs for Fargate tasks."
 }
+
+variable "commodity" {
+  type        = string
+  description = "Commodity name passed to all Glue jobs (e.g. cocoa, coffee)."
+  default     = "cocoa"
+}

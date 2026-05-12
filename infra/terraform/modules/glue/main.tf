@@ -12,7 +12,7 @@ locals {
   common_default_args = {
     "--bucket"              = var.bucket_name
     "--aws_region"          = var.aws_region
-    "--commodity"           = "cocoa"
+    "--commodity"           = var.commodity
     "--enable-job-insights" = "true"
     "--job-language"        = "python"
     "--TempDir"             = local.temp_dir
