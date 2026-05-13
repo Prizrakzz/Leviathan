@@ -97,6 +97,40 @@ resource "aws_iam_role_policy_attachment" "batch_job_role_s3" {
   policy_arn = aws_iam_policy.s3_data_lake_rw.arn
 }
 
+# Orchestrator container needs to submit + poll child Batch jobs and trigger Glue.
+data "aws_iam_policy_document" "batch_orchestrator" {
+  statement {
+    sid = "BatchSubmitAndDescribe"
+    actions = [
+      "batch:SubmitJob",
+      "batch:DescribeJobs",
+      "batch:TerminateJob",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "GlueStartAndDescribe"
+    actions = [
+      "glue:StartJobRun",
+      "glue:GetJobRun",
+      "glue:BatchStopJobRun",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "batch_orchestrator" {
+  name        = "${var.project_name}-${var.environment}-batch-orchestrator"
+  description = "Allows the Batch orchestrator container to submit Batch jobs and trigger Glue runs."
+  policy      = data.aws_iam_policy_document.batch_orchestrator.json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_job_role_orchestrator" {
+  role       = aws_iam_role.batch_job_role.name
+  policy_arn = aws_iam_policy.batch_orchestrator.arn
+}
+
 # ---------------------------------------------------------------------------
 # Glue job role — assumed by Glue Python Shell jobs to read/write S3
 # ---------------------------------------------------------------------------

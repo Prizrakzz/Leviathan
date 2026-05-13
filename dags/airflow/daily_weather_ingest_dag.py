@@ -92,11 +92,13 @@ def _poll_batch(client, job_ids: list[str]) -> dict[str, str]:
     remaining: set[str] = set(job_ids)
     results: dict[str, str] = {}
     while remaining:
-        chunk = list(remaining)[:100]  # AWS hard limit
-        for job in client.describe_jobs(jobs=chunk)["jobs"]:
-            if job["status"] in ("SUCCEEDED", "FAILED"):
-                results[job["jobId"]] = job["status"]
-                remaining.discard(job["jobId"])
+        remaining_list = list(remaining)
+        for i in range(0, len(remaining_list), 100):  # AWS hard limit: 100 per call
+            chunk = remaining_list[i : i + 100]
+            for job in client.describe_jobs(jobs=chunk)["jobs"]:
+                if job["status"] in ("SUCCEEDED", "FAILED"):
+                    results[job["jobId"]] = job["status"]
+                    remaining.discard(job["jobId"])
         if remaining:
             time.sleep(POLL_INTERVAL)
     return results
