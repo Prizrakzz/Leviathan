@@ -1,0 +1,59 @@
+# Maps Leviathan commodity code → exact FAO CSV "Item" string from the
+# Production_Crops_Livestock_E_All_Data_(Normalized).csv dataset.
+#
+# Derived products (meal, oil, refined sugar) that have no dedicated FAO crop
+# row are mapped to their parent crop's production data. See README §FAOSTAT
+# for rationale.
+
+# ── Cocoa ──────────────────────────────────────────────────────────────────
+cocoa: "Cocoa beans"
+
+# ── Maize / Corn ───────────────────────────────────────────────────────────
+corn_cbot:                      "Maize (corn)"
+campinas_corn_reference_bmf:    "Maize (corn)"
+french_maize_matif:             "Maize (corn)"
+south_african_white_maize_jse:  "Maize (corn)"
+south_african_yellow_maize_jse: "Maize (corn)"
+
+# ── Wheat ──────────────────────────────────────────────────────────────────
+french_wheat_matif:        "Wheat"
+hard_red_winter_wheat_kcbt: "Wheat"
+hard_red_spring_wheat_mgex: "Wheat"
+soft_red_winter_wheat_cbot: "Wheat"
+
+# ── Rice ───────────────────────────────────────────────────────────────────
+rough_rice_cbot: "Rice"
+
+# ── Soybeans / Soy products ────────────────────────────────────────────────
+soybeans_cbot:    "Soya beans"
+soybeans_no_1_dce: "Soya beans"
+soybeans_no_2_dce: "Soya beans"
+soybean_meal_cbot: "Soya beans"      # derived — parent crop production used
+soybean_meal_dce:  "Soya beans"      # derived — parent crop production used
+soybean_oil_cbot:  "Soya bean oil"   # direct FAO item
+soybean_oil_dce:   "Soya bean oil"   # direct FAO item
+
+# ── Rapeseed / Canola ──────────────────────────────────────────────────────
+french_rapeseed_matif: "Rape or colza seed"
+canola_ice:            "Rape or colza seed"
+rapeseed_oil_zce:      "Rapeseed or canola oil, crude"  # direct FAO item
+rapeseed_meal_zce:     "Rape or colza seed"             # derived — parent crop production used
+
+# ── Palm oil ───────────────────────────────────────────────────────────────
+malaysian_crude_palm_oil_cme: "Palm oil"
+palm_olein_dce:               "Palm oil"
+
+# ── Coffee ─────────────────────────────────────────────────────────────────
+arabica_coffee:          "Coffee, green"
+robusta_coffee:          "Coffee, green"
+brazilian_arabica_coffee: "Coffee, green"
+
+# ── Cotton ─────────────────────────────────────────────────────────────────
+cotton: "Seed cotton, unginned"
+
+# ── Sugar ──────────────────────────────────────────────────────────────────
+raw_sugar:   "Sugar cane"
+white_sugar: "Sugar cane"  # derived — parent crop production used
+
+# ── Orange juice ───────────────────────────────────────────────────────────
+frozen_orange_juice: "Oranges"

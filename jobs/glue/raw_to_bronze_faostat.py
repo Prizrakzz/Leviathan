@@ -5,11 +5,12 @@ transform_faostat_qcl_zip_to_bronze() function writing Parquet to /tmp,
 then uploads each Parquet file to its bronze S3 key.
 
 Required args:
-  --commodity    e.g. cocoa
-  --bucket       S3 bucket name
-  --aws_region   e.g. us-east-1
-  --ingest_date  YYYY-MM-DD
-  --s3_raw_key   full S3 key of the raw FAOSTAT ZIP file
+  --commodity      e.g. cocoa
+  --fao_item_name  exact FAO CSV Item string, e.g. "Maize (corn)"
+  --bucket         S3 bucket name
+  --aws_region     e.g. us-east-1
+  --ingest_date    YYYY-MM-DD
+  --s3_raw_key     full S3 key of the raw FAOSTAT ZIP file
 """
 from __future__ import annotations
 
@@ -48,15 +49,16 @@ from leviathan.transforms.raw_to_bronze.faostat_qcl import transform_faostat_qcl
 
 logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["JOB_NAME", "commodity", "bucket", "aws_region", "ingest_date", "s3_raw_key"]
+REQUIRED_ARGS = ["JOB_NAME", "commodity", "fao_item_name", "bucket", "aws_region", "ingest_date", "s3_raw_key"]
 
 args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
 
-COMMODITY: str = args["commodity"]
-BUCKET: str = args["bucket"]
-AWS_REGION: str = args["aws_region"]
-INGEST_DATE: str = args["ingest_date"]
-S3_RAW_KEY: str = args["s3_raw_key"]
+COMMODITY:      str = args["commodity"]
+FAO_ITEM_NAME:  str = args["fao_item_name"]
+BUCKET:         str = args["bucket"]
+AWS_REGION:     str = args["aws_region"]
+INGEST_DATE:    str = args["ingest_date"]
+S3_RAW_KEY:     str = args["s3_raw_key"]
 
 TMP_ZIP = Path("/tmp/faostat_raw.zip")
 TMP_BRONZE = Path("/tmp/bronze_faostat")
@@ -79,6 +81,7 @@ def main() -> None:
         output_dir=TMP_BRONZE,
         ingest_date=INGEST_DATE,
         commodity=COMMODITY,
+        fao_item_name=FAO_ITEM_NAME,
     )
 
     logger.info("Bronze transform wrote %d local Parquet files", len(written_local))

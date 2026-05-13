@@ -130,10 +130,29 @@ Incremental monthly runs are gated by `MAX_INGEST_YEAR` in `jobs/backfill_raw_na
 ### 2. Ingest raw production (FAOSTAT)
 
 ```bash
-python jobs/upload_raw_faostat_qcl.py
+python jobs/upload_raw_faostat_qcl.py --file /path/to/Production_Crops_Livestock_E_All_Data_(Normalized).zip
 ```
 
-Downloads the FAOSTAT QCL bulk export and uploads it to `s3://…/raw/production/source=faostat/`.
+Uploads the FAOSTAT QCL bulk export as a **single shared ZIP** to:
+```
+s3://…/raw/production/source=faostat/dataset=QCL/Production_Crops_Livestock_E_All_Data_Normalized.zip
+```
+
+All 31 commodities read from this one file. The Glue raw→bronze job receives a `--fao_item_name` argument (the exact FAO CSV "Item" string) and filters to only that crop's rows at runtime.
+
+#### FAOSTAT derived product mapping
+
+Several commodities traded on futures markets are processed products derived from a parent crop. Because FAOSTAT publishes primary crop production statistics (not meal/oil/refined volumes), these commodities are mapped to their parent crop's FAO item. The silver production table for each derived commodity will therefore reflect the **parent crop's area harvested, production quantity, and yield**.
+
+| Commodity code | FAO item used | Relationship |
+|---|---|---|
+| `soybean_meal_cbot`, `soybean_meal_dce` | `Soya beans` | Meal is a soy crush by-product |
+| `soybean_oil_cbot`, `soybean_oil_dce` | `Soya bean oil` | Direct FAO item (primary oil stats) |
+| `rapeseed_oil_zce` | `Rapeseed or canola oil, crude` | Direct FAO item |
+| `rapeseed_meal_zce` | `Rape or colza seed` | No separate FAO meal item; parent crop used |
+| `white_sugar` | `Sugar cane` | Refined sugar; cane production used |
+
+All mappings are defined in `configs/sources/faostat_item_map.yaml`.
 
 ### 3. Run Glue transform jobs
 

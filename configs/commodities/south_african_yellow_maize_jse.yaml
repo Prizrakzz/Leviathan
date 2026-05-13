@@ -1,0 +1,21 @@
+commodity: south_african_yellow_maize_jse
+label_targets:
+  - production_quantity
+  - harvested_area
+  - yield
+
+modeling_grain:
+  - country
+  - crop_year
+
+first_phase_sources:
+  weather:
+    - nasa_power
+    - chirps
+    - agera5
+  production:
+    - faostat
+    - usda_psd
+  reference:
+    - crop_calendar
+    - geography

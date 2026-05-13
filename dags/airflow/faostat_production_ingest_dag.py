@@ -11,13 +11,15 @@ run_glue_raw_to_bronze  →  run_glue_bronze_to_silver
 
 Design notes
 ------------
-- FAOSTAT has no Batch worker step — raw data is a ZIP uploaded manually (or
-  via a separate ingestion job) to S3 before this DAG runs.
-- The S3 raw key is constructed per-commodity:
-    raw/production/source=faostat/commodity={commodity}/Production_Crops_Livestock_E_All_Data_Normalized.zip
+- FAOSTAT has no Batch worker step — raw data is a single shared ZIP uploaded
+  manually (or via upload_raw_faostat_qcl.py) to S3 before this DAG runs.
+- All commodities share one raw S3 key:
+    raw/production/source=faostat/dataset=QCL/Production_Crops_Livestock_E_All_Data_Normalized.zip
+- The Glue raw→bronze job receives --fao_item_name (exact FAO CSV "Item" string)
+  and filters the ZIP to only that item's rows.
+- FAO item strings are loaded at import time from configs/sources/faostat_item_map.yaml.
 - Pure boto3; no airflow-providers-amazon dependency.
 - Polling loops live inside each @task.
-- Extend FAOSTAT_COMMODITIES as raw ZIPs are uploaded for new commodities.
 """
 from __future__ import annotations
 
@@ -25,8 +27,10 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
+from pathlib import Path
 
 import boto3
+import yaml
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 
@@ -43,13 +47,21 @@ B2S_GLUE_JOB = f"{PROJECT}-{LEVIATHAN_ENV}-bronze-to-silver-faostat"
 
 POLL_INTERVAL = 30  # seconds
 
-# Extend this list as raw FAOSTAT ZIPs are uploaded to S3 for new commodities.
-FAOSTAT_COMMODITIES: list[str] = [
-    "cocoa",
-]
+# ---------------------------------------------------------------------------
+# Load commodity → FAO item name mapping
+# ---------------------------------------------------------------------------
 
-FAOSTAT_RAW_KEY_TEMPLATE = (
-    "raw/production/source=faostat/commodity={commodity}/"
+_ITEM_MAP_PATH = (
+    Path(__file__).parents[2] / "configs" / "sources" / "faostat_item_map.yaml"
+)
+with _ITEM_MAP_PATH.open() as _f:
+    FAOSTAT_ITEM_MAP: dict[str, str] = yaml.safe_load(_f)
+
+FAOSTAT_COMMODITIES: list[str] = list(FAOSTAT_ITEM_MAP.keys())
+
+# Single shared ZIP for all commodities.
+FAOSTAT_RAW_S3_KEY = (
+    "raw/production/source=faostat/dataset=QCL/"
     "Production_Crops_Livestock_E_All_Data_Normalized.zip"
 )
 
@@ -99,13 +111,13 @@ def faostat_production_ingest_dag() -> None:
         runs: list[tuple[str, str]] = []
 
         def _start(commodity: str) -> tuple[str, str]:
-            s3_raw_key = FAOSTAT_RAW_KEY_TEMPLATE.format(commodity=commodity)
             run_id = glue.start_job_run(
                 JobName=R2B_GLUE_JOB,
                 Arguments={
-                    "--commodity":   commodity,
-                    "--ingest_date": ingest_date,
-                    "--s3_raw_key":  s3_raw_key,
+                    "--commodity":      commodity,
+                    "--fao_item_name": FAOSTAT_ITEM_MAP[commodity],
+                    "--ingest_date":   ingest_date,
+                    "--s3_raw_key":    FAOSTAT_RAW_S3_KEY,
                 },
             )["JobRunId"]
             return R2B_GLUE_JOB, run_id

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
 from pathlib import Path
 
 from leviathan.common.config import get_required_env, load_env
@@ -14,7 +13,6 @@ logger = get_logger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", required=True, help="Local FAOSTAT QCL ZIP path")
-    parser.add_argument("--ingest-date", default=str(date.today()), help="YYYY-MM-DD")
     args = parser.parse_args()
 
     load_env()
@@ -24,14 +22,9 @@ def main() -> None:
 
     local_path = Path(args.file)
 
-    s3_filename = local_path.name.replace("(", "").replace(")", "")
-    s3_key = (
-        f"raw/production/"
-        f"source=faostat/"
-        f"dataset=QCL/"
-        f"ingest_date={args.ingest_date}/"
-        f"{s3_filename}"
-    )
+    # Single shared ZIP for all commodities — no ingest_date or commodity prefix.
+    # The Glue job filters to the relevant FAO item at runtime.
+    s3_key = "raw/production/source=faostat/dataset=QCL/Production_Crops_Livestock_E_All_Data_Normalized.zip"
 
     upload_file_to_s3(
         local_path=local_path,

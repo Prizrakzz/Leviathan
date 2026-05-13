@@ -133,15 +133,16 @@ def transform_faostat_cocoa_silver_df(
 def transform_faostat_cocoa_to_silver(
     bronze_root: str | Path,
     output_root: str | Path,
+    commodity: str = "cocoa",
 ) -> list[Path]:
     df = load_bronze_faostat(bronze_root)
-    year_frames = transform_faostat_cocoa_silver_df(df)
+    year_frames = transform_faostat_cocoa_silver_df(df, commodity=commodity)
 
     written_files: list[Path] = []
     output_root = Path(output_root)
 
     for year, year_df in year_frames:
-        year_dir = output_root / "commodity=cocoa" / f"year={year}"
+        year_dir = output_root / f"commodity={commodity}" / f"year={year}"
         year_dir.mkdir(parents=True, exist_ok=True)
 
         output_path = year_dir / "part-000.parquet"

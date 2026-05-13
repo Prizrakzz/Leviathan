@@ -12,10 +12,6 @@ from leviathan.common.logging import get_logger
 logger = get_logger(__name__)
 
 
-TARGET_ITEMS = {
-    "cocoa beans",
-}
-
 TARGET_ELEMENTS = {
     "area harvested",
     "production",
@@ -64,7 +60,8 @@ def clean_basic_types(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def filter_cocoa_rows(df: pd.DataFrame) -> pd.DataFrame:
+def filter_by_fao_item(df: pd.DataFrame, fao_item_name: str) -> pd.DataFrame:
+    """Keep only rows matching the given FAO item name and production elements."""
     df = df.copy()
 
     required_columns = {"item", "element"}
@@ -77,7 +74,7 @@ def filter_cocoa_rows(df: pd.DataFrame) -> pd.DataFrame:
     element_normalized = df["element"].astype(str).str.strip().str.lower()
 
     mask = (
-        item_normalized.isin(TARGET_ITEMS)
+        (item_normalized == fao_item_name.strip().lower())
         & element_normalized.isin(TARGET_ELEMENTS)
     )
 
@@ -103,7 +100,8 @@ def transform_faostat_qcl_zip_to_bronze(
     zip_path: str | Path,
     output_dir: str | Path,
     ingest_date: str,
-    commodity: str = "cocoa",
+    commodity: str,
+    fao_item_name: str,
     chunksize: int = 100_000,
 ) -> list[Path]:
     """
@@ -113,7 +111,7 @@ def transform_faostat_qcl_zip_to_bronze(
     - preserve source-shaped rows
     - normalize column names
     - keep source identifiers
-    - filter to cocoa only for MVP
+    - filter to the specified FAO item (fao_item_name)
     - partition by year
     """
 
@@ -137,7 +135,7 @@ def transform_faostat_qcl_zip_to_bronze(
 
                 chunk = normalize_columns(chunk)
                 chunk = clean_basic_types(chunk)
-                chunk = filter_cocoa_rows(chunk)
+                chunk = filter_by_fao_item(chunk, fao_item_name)
 
                 if chunk.empty:
                     continue
@@ -152,7 +150,7 @@ def transform_faostat_qcl_zip_to_bronze(
                 bronze_frames.append(chunk)
 
     if not bronze_frames:
-        raise ValueError("No cocoa rows found in FAOSTAT QCL file.")
+        raise ValueError(f"No rows found for FAO item '{fao_item_name}' in FAOSTAT QCL file.")
 
     bronze_df = pd.concat(bronze_frames, ignore_index=True)
 
@@ -168,7 +166,7 @@ def transform_faostat_qcl_zip_to_bronze(
             output_dir
             / "source=faostat"
             / "dataset=QCL"
-            / "commodity=cocoa"
+            / f"commodity={commodity}"
             / f"year={year_int}"
         )
 
