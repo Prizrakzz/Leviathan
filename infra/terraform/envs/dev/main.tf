@@ -61,7 +61,6 @@ module "glue" {
   aws_region        = var.aws_region
   bucket_name       = var.bucket_name
   glue_job_role_arn = module.iam.glue_job_role_arn
-  commodity         = var.commodity
 }
 
 module "cloudwatch" {

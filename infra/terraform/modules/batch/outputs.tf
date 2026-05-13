@@ -1,3 +1,8 @@
+output "backfill_orchestrator_job_definition_arn" {
+  value       = aws_batch_job_definition.backfill_orchestrator.arn
+  description = "ARN of the backfill orchestrator Batch job definition."
+}
+
 output "job_queue_arn" {
   value       = aws_batch_job_queue.this.arn
   description = "ARN of the shared Batch job queue."

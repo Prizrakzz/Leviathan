@@ -12,7 +12,6 @@ locals {
   common_default_args = {
     "--bucket"              = var.bucket_name
     "--aws_region"          = var.aws_region
-    "--commodity"           = var.commodity
     "--enable-job-insights" = "true"
     "--job-language"        = "python"
     "--TempDir"             = local.temp_dir
@@ -41,7 +40,7 @@ resource "aws_glue_job" "raw_to_bronze_nasa_power" {
   max_capacity = 1.0
 
   execution_property {
-    max_concurrent_runs = 1
+    max_concurrent_runs = 200
   }
 
   tags = {
@@ -74,7 +73,7 @@ resource "aws_glue_job" "raw_to_bronze_faostat" {
   max_capacity = 1.0
 
   execution_property {
-    max_concurrent_runs = 1
+    max_concurrent_runs = 200
   }
 
   tags = {
@@ -104,7 +103,7 @@ resource "aws_glue_job" "bronze_to_silver_nasa_power" {
   max_capacity = 1.0
 
   execution_property {
-    max_concurrent_runs = 1
+    max_concurrent_runs = 200
   }
 
   tags = {
@@ -134,7 +133,7 @@ resource "aws_glue_job" "bronze_to_silver_faostat" {
   max_capacity = 1.0
 
   execution_property {
-    max_concurrent_runs = 1
+    max_concurrent_runs = 200
   }
 
   tags = {

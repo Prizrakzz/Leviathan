@@ -22,8 +22,3 @@ variable "glue_job_role_arn" {
   type        = string
   description = "ARN of the IAM role assumed by Glue jobs."
 }
-
-variable "commodity" {
-  type    = string
-  default = "cocoa"
-}

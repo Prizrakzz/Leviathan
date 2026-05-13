@@ -20,6 +20,11 @@ output "batch_job_queue_name" {
   description = "Name of the Batch job queue."
 }
 
+output "backfill_orchestrator_job_definition_arn" {
+  value       = module.batch.backfill_orchestrator_job_definition_arn
+  description = "ARN of the backfill orchestrator Batch job definition."
+}
+
 output "nasa_power_backfill_job_definition_arn" {
   value       = module.batch.nasa_power_backfill_job_definition_arn
   description = "ARN of the NASA POWER backfill Batch job definition."

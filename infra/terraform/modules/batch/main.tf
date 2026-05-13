@@ -104,6 +104,74 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Job definition: backfill orchestrator
+# Single Fargate task that submits all worker Batch jobs, polls completion,
+# then fires Glue raw→bronze and bronze→silver for every commodity.
+# One submit-and-forget command — runs for ~36 min, exit code reflects success.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "backfill_orchestrator" {
+  name = "${var.project_name}-${var.environment}-backfill-orchestrator"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    start_year  = "1981"
+    end_year    = "2024"
+    commodities = "all"
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/orchestrate_backfill.py",
+      "--start-year",  "Ref::start_year",
+      "--end-year",    "Ref::end_year",
+      "--commodities", "Ref::commodities"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "backfill-orchestrator"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 57600  # 16 h ceiling; actual runtime ~36 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 resource "aws_cloudwatch_log_group" "batch" {
   name              = "/aws/batch/${var.project_name}-${var.environment}"
   retention_in_days = 30
