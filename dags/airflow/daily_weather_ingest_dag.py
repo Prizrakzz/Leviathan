@@ -28,6 +28,9 @@ import boto3
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 
+from leviathan.common.constants import ALL_COMMODITIES
+from leviathan.common.polling import poll_batch_jobs, poll_glue_runs
+
 # ---------------------------------------------------------------------------
 # Config — resolved from environment variables at import time
 # ---------------------------------------------------------------------------
@@ -43,40 +46,6 @@ B2S_GLUE_JOB   = f"{PROJECT}-{LEVIATHAN_ENV}-bronze-to-silver-nasa-power"
 
 POLL_INTERVAL = 30  # seconds between polling calls
 
-ALL_COMMODITIES: list[str] = [
-    "cocoa",
-    "corn_cbot",
-    "campinas_corn_reference_bmf",
-    "french_wheat_matif",
-    "french_maize_matif",
-    "hard_red_winter_wheat_kcbt",
-    "hard_red_spring_wheat_mgex",
-    "soft_red_winter_wheat_cbot",
-    "rough_rice_cbot",
-    "south_african_white_maize_jse",
-    "south_african_yellow_maize_jse",
-    "soybeans_cbot",
-    "soybean_meal_cbot",
-    "soybean_oil_cbot",
-    "soybeans_no_1_dce",
-    "soybeans_no_2_dce",
-    "soybean_meal_dce",
-    "soybean_oil_dce",
-    "french_rapeseed_matif",
-    "canola_ice",
-    "rapeseed_oil_zce",
-    "rapeseed_meal_zce",
-    "malaysian_crude_palm_oil_cme",
-    "palm_olein_dce",
-    "brazilian_arabica_coffee",
-    "arabica_coffee",
-    "robusta_coffee",
-    "cotton",
-    "raw_sugar",
-    "white_sugar",
-    "frozen_orange_juice",
-]
-
 # ---------------------------------------------------------------------------
 # Internal helpers (not Airflow tasks)
 # ---------------------------------------------------------------------------
@@ -85,40 +54,6 @@ def _load_yaml(path: str) -> dict:
     import yaml
     with open(path) as fh:
         return yaml.safe_load(fh)
-
-
-def _poll_batch(client, job_ids: list[str]) -> dict[str, str]:
-    """Block until all jobs are terminal. Returns {job_id: status}."""
-    remaining: set[str] = set(job_ids)
-    results: dict[str, str] = {}
-    while remaining:
-        remaining_list = list(remaining)
-        for i in range(0, len(remaining_list), 100):  # AWS hard limit: 100 per call
-            chunk = remaining_list[i : i + 100]
-            for job in client.describe_jobs(jobs=chunk)["jobs"]:
-                if job["status"] in ("SUCCEEDED", "FAILED"):
-                    results[job["jobId"]] = job["status"]
-                    remaining.discard(job["jobId"])
-        if remaining:
-            time.sleep(POLL_INTERVAL)
-    return results
-
-
-def _poll_glue(client, runs: list[tuple[str, str]]) -> dict[str, str]:
-    """Block until all Glue runs are terminal. Returns {run_id: status}."""
-    remaining: set[tuple[str, str]] = set(runs)
-    results: dict[str, str] = {}
-    while remaining:
-        done: set[tuple[str, str]] = set()
-        for job_name, run_id in remaining:
-            state = client.get_job_run(JobName=job_name, RunId=run_id)["JobRun"]["JobRunState"]
-            if state in ("SUCCEEDED", "FAILED", "ERROR", "TIMEOUT"):
-                results[run_id] = state
-                done.add((job_name, run_id))
-        remaining -= done
-        if remaining:
-            time.sleep(POLL_INTERVAL)
-    return results
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +110,7 @@ def daily_weather_ingest_dag() -> None:
     def wait_for_batch(job_ids: list[str]) -> dict[str, str]:
         """Poll Batch until every job is terminal. Raise on any failure."""
         batch = boto3.client("batch", region_name=AWS_REGION)
-        results = _poll_batch(batch, job_ids)
+        results = poll_batch_jobs(batch, job_ids, poll_interval=POLL_INTERVAL)
         failed = [jid for jid, s in results.items() if s != "SUCCEEDED"]
         if failed:
             raise RuntimeError(
@@ -202,7 +137,7 @@ def daily_weather_ingest_dag() -> None:
             for f in as_completed(futures):
                 runs.append(f.result())
 
-        statuses = _poll_glue(glue, runs)
+        statuses = poll_glue_runs(glue, runs, poll_interval=POLL_INTERVAL)
         failed = [rid for rid, s in statuses.items() if s != "SUCCEEDED"]
         if failed:
             raise RuntimeError(f"{len(failed)} raw→bronze Glue runs failed.")
@@ -228,7 +163,7 @@ def daily_weather_ingest_dag() -> None:
             for f in as_completed(futures):
                 runs.append(f.result())
 
-        statuses = _poll_glue(glue, runs)
+        statuses = poll_glue_runs(glue, runs, poll_interval=POLL_INTERVAL)
         failed = [rid for rid, s in statuses.items() if s != "SUCCEEDED"]
         if failed:
             raise RuntimeError(f"{len(failed)} bronze→silver Glue runs failed.")

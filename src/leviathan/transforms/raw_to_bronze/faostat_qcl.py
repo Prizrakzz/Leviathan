@@ -85,7 +85,7 @@ def add_bronze_metadata(
     df: pd.DataFrame,
     ingest_date: str,
     source_file_name: str,
-    commodity: str = "cocoa",
+    commodity: str,
 ) -> pd.DataFrame:
     df = df.copy()
     df["source"] = "faostat"

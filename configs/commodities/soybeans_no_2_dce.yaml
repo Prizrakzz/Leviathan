@@ -1,4 +1,4 @@
-commodity: french_wheat_matif
+commodity: soybeans_no_2_dce
 label_targets:
   - production_quantity
   - area_harvested

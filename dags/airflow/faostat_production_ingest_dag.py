@@ -34,6 +34,8 @@ import yaml
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 
+from leviathan.common.polling import poll_glue_runs
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -68,23 +70,6 @@ FAOSTAT_RAW_S3_KEY = (
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-def _poll_glue(client, runs: list[tuple[str, str]]) -> dict[str, str]:
-    """Block until all Glue runs are terminal. Returns {run_id: status}."""
-    remaining: set[tuple[str, str]] = set(runs)
-    results: dict[str, str] = {}
-    while remaining:
-        done: set[tuple[str, str]] = set()
-        for job_name, run_id in remaining:
-            state = client.get_job_run(JobName=job_name, RunId=run_id)["JobRun"]["JobRunState"]
-            if state in ("SUCCEEDED", "FAILED", "ERROR", "TIMEOUT"):
-                results[run_id] = state
-                done.add((job_name, run_id))
-        remaining -= done
-        if remaining:
-            time.sleep(POLL_INTERVAL)
-    return results
-
 
 # ---------------------------------------------------------------------------
 # DAG definition
@@ -127,7 +112,7 @@ def faostat_production_ingest_dag() -> None:
             for f in as_completed(futures):
                 runs.append(f.result())
 
-        statuses = _poll_glue(glue, runs)
+        statuses = poll_glue_runs(glue, runs, poll_interval=POLL_INTERVAL)
         failed = [rid for rid, s in statuses.items() if s != "SUCCEEDED"]
         if failed:
             raise RuntimeError(
@@ -155,7 +140,7 @@ def faostat_production_ingest_dag() -> None:
             for f in as_completed(futures):
                 runs.append(f.result())
 
-        statuses = _poll_glue(glue, runs)
+        statuses = poll_glue_runs(glue, runs, poll_interval=POLL_INTERVAL)
         failed = [rid for rid, s in statuses.items() if s != "SUCCEEDED"]
         if failed:
             raise RuntimeError(

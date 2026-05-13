@@ -1,7 +1,7 @@
 commodity: hard_red_spring_wheat_mgex
 label_targets:
   - production_quantity
-  - harvested_area
+  - area_harvested
   - yield
 
 modeling_grain:

@@ -1,19 +1,17 @@
-"""Glue Python Shell: raw → bronze NASA POWER (parallel I/O).
+"""Glue Python Shell: raw → bronze NASA POWER.
 
-Performance:
-  Before: ~40 min  — serial loop, 3 S3 calls per file, new boto3 client each call
-  After:  ~2 min   — 1 LIST to build skip-set, then ThreadPoolExecutor(32) with
-                     thread-local boto3 clients doing GET + PUT concurrently
+Downloads raw JSON files from S3, parses the NASA POWER payload into daily rows,
+and writes bronze Parquet files. Processes files concurrently using a thread pool.
+Skips files that already have a bronze counterpart unless --force_overwrite is set.
 
-Reusable: pass --commodity <name> to handle any commodity's weather data.
-Pass --force_overwrite to reprocess files that already have a bronze counterpart.
+Required args: --commodity, --bucket, --aws_region
+Optional args: --ingest_date (default: today), --force_overwrite (default: false)
 """
 from __future__ import annotations
 
 import io
 import json
 import sys
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 
@@ -36,7 +34,7 @@ def _install_leviathan() -> None:
     _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
     if not _os.path.exists(_whl):
         _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--quiet"])
+    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
 
 
 _install_leviathan()
@@ -46,7 +44,7 @@ import boto3
 
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_weather_key
-from leviathan.storage.s3 import list_s3_keys
+from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe
 
 logger = get_logger(__name__)
@@ -65,15 +63,6 @@ FORCE_OVERWRITE: bool = args.get("force_overwrite", "false").lower() == "true"
 RAW_PREFIX = f"raw/weather/source=nasa_power/commodity={COMMODITY}/"
 BRONZE_PREFIX = f"bronze/weather/source=nasa_power/commodity={COMMODITY}/"
 MAX_WORKERS = 64
-
-# One boto3 client per thread — avoids connection-pool contention
-_local = threading.local()
-
-
-def _s3():
-    if not hasattr(_local, "client"):
-        _local.client = boto3.client("s3", region_name=AWS_REGION)
-    return _local.client
 
 
 def _parse_hive_partition(key: str, field: str) -> str:
@@ -108,7 +97,7 @@ def process_one(raw_key: str, existing_bronze: set[str]) -> tuple[str, str]:
         return ("skipped", bkey)
 
     try:
-        response = _s3().get_object(Bucket=BUCKET, Key=raw_key)
+        response = get_thread_local_s3_client(AWS_REGION).get_object(Bucket=BUCKET, Key=raw_key)
         payload = json.loads(response["Body"].read())
 
         df = nasa_power_payload_to_daily_dataframe(
@@ -122,7 +111,7 @@ def process_one(raw_key: str, existing_bronze: set[str]) -> tuple[str, str]:
 
         buf = io.BytesIO()
         df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-        _s3().put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=bkey)
+        get_thread_local_s3_client(AWS_REGION).put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=bkey)
         return ("success", bkey)
 
     except Exception as exc:  # noqa: BLE001

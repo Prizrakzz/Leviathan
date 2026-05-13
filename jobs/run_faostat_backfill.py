@@ -65,6 +65,8 @@ def _start_r2b(glue, commodity: str, ingest_date: str, dry_run: bool) -> tuple[s
             "--fao_item_name": ITEM_MAP[commodity],
             "--ingest_date":   ingest_date,
             "--s3_raw_key":    RAW_S3_KEY,
+            "--bucket":        BUCKET,
+            "--aws_region":    AWS_REGION,
         },
     )["JobRunId"]
     print(f"  Started {R2B_JOB} commodity={commodity} run_id={run_id}")
@@ -77,7 +79,11 @@ def _start_b2s(glue, commodity: str, dry_run: bool) -> tuple[str, str]:
         return commodity, "DRY_RUN"
     run_id = glue.start_job_run(
         JobName=B2S_JOB,
-        Arguments={"--commodity": commodity},
+        Arguments={
+            "--commodity":  commodity,
+            "--bucket":     BUCKET,
+            "--aws_region": AWS_REGION,
+        },
     )["JobRunId"]
     print(f"  Started {B2S_JOB} commodity={commodity} run_id={run_id}")
     return commodity, run_id
@@ -121,6 +127,9 @@ def poll_stage(
 
 def run_stage(glue, job_name: str, start_fn, commodities: list[str], dry_run: bool) -> dict[str, str]:
     print(f"\n--- Stage: {job_name} ({len(commodities)} commodities) ---")
+    if not commodities:
+        print("  No commodities to process — skipping.")
+        return {}
     ingest_date = date.today().isoformat()
 
     with ThreadPoolExecutor(max_workers=min(len(commodities), 31)) as pool:

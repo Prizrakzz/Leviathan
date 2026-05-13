@@ -119,8 +119,7 @@ def transform_nasa_power_json_to_bronze(
 
     if len(years) != 1 or len(months) != 1:
         raise ValueError(
-            "This Phase 2 transformer expects one month per raw JSON file. "
-            f"Found years={years}, months={months}"
+            f"Expected one month per raw JSON file; found years={years}, months={months}"
         )
 
     year = int(years[0])

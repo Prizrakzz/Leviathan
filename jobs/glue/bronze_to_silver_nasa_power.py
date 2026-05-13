@@ -1,19 +1,16 @@
-"""Glue Python Shell: bronze → silver NASA POWER (bulk parallel I/O).
+"""Glue Python Shell: bronze → silver NASA POWER.
 
-Performance:
-  Before: ~40 min  — serial loop, 3 S3 API calls per file, new boto3 client each call
-  After:  ~2 min   — pyarrow.dataset reads all files in parallel (internal thread pool),
-                     one vectorized pandas transform, ThreadPoolExecutor(32) writes
-                     all partitions concurrently
+Reads all bronze Parquet files for a commodity from S3 using pyarrow.dataset,
+applies silver cleaning (date coercion, rename, dedup), and writes per-partition
+silver Parquet files concurrently. Skips existing partitions unless --force_overwrite.
 
-Reusable: pass --commodity <name> to handle any commodity's weather data.
-Pass --force_overwrite to delete and re-write existing silver partitions.
+Required args: --commodity, --bucket, --aws_region
+Optional args: --force_overwrite (default: false)
 """
 from __future__ import annotations
 
 import io
 import sys
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from awsglue.utils import getResolvedOptions
@@ -50,6 +47,7 @@ import pyarrow.dataset as ds
 import pyarrow.fs as pafs
 
 from leviathan.common.logging import get_logger
+from leviathan.storage.s3 import get_thread_local_s3_client
 from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_weather_df
 
 logger = get_logger(__name__)
@@ -73,15 +71,6 @@ BRONZE_PATH = f"{BUCKET}/bronze/weather/source=nasa_power/commodity={COMMODITY}"
 SILVER_BASE = f"silver/weather/source=nasa_power/commodity={COMMODITY}"
 MAX_WORKERS = 64
 
-# One boto3 client per thread
-_local = threading.local()
-
-
-def _s3():
-    if not hasattr(_local, "client"):
-        _local.client = boto3.client("s3", region_name=AWS_REGION)
-    return _local.client
-
 
 def write_partition(args_tuple: tuple) -> str:
     (country, region, year, month), group_df = args_tuple
@@ -91,7 +80,7 @@ def write_partition(args_tuple: tuple) -> str:
     )
     buf = io.BytesIO()
     group_df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    _s3().put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=silver_key)
+    get_thread_local_s3_client(AWS_REGION).put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=silver_key)
     return silver_key
 
 

@@ -125,7 +125,7 @@ Historical backfill via Batch Fargate (parallel, one task per region/year/month)
 python jobs/submit_batch_backfill_nasa_power.py --commodity cocoa --start-year 1981 --end-year 2024
 ```
 
-Incremental monthly runs are gated by `MAX_INGEST_YEAR` in `jobs/backfill_raw_nasa_power_cocoa.py`. The current ceiling is **2024**.
+The current ingest ceiling is **2024**.
 
 ### 2. Ingest raw production (FAOSTAT)
 
@@ -170,18 +170,7 @@ Jobs are idempotent — existing partitions are skipped unless `--force_overwrit
 
 ### 4. Validate
 
-```bash
-# Silver layer shape, types, and quality
-python jobs/check_stage3_cocoa.py
-
-# File counts at every layer against expected (country × region × year × month)
-python jobs/check_pipeline_completeness_cocoa.py
-
-# ML join coverage: every config country has weather + production for 1981–2023
-python jobs/check_ml_overlap_coverage_cocoa.py
-```
-
-All three scripts exit 0 on a clean pipeline.
+Run the generic Glue job checks or query the silver layer via Athena to validate shape, types, coverage, and ML join completeness.
 
 ---
 

@@ -1,7 +1,7 @@
 commodity: south_african_white_maize_jse
 label_targets:
   - production_quantity
-  - harvested_area
+  - area_harvested
   - yield
 
 modeling_grain:

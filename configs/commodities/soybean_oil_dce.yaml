@@ -1,8 +1,6 @@
-commodity: french_wheat_matif
+commodity: soybean_oil_dce
 label_targets:
   - production_quantity
-  - area_harvested
-  - yield
 
 modeling_grain:
   - country
@@ -15,7 +13,6 @@ first_phase_sources:
     - agera5
   production:
     - faostat
-    - usda_psd
   reference:
     - crop_calendar
     - geography

@@ -1,7 +1,7 @@
 commodity: corn_cbot
 label_targets:
   - production_quantity
-  - harvested_area
+  - area_harvested
   - yield
 
 modeling_grain:

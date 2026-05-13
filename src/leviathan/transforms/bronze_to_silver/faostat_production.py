@@ -44,19 +44,17 @@ def load_bronze_faostat(bronze_root: str | Path) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def transform_faostat_cocoa_silver_df(
+def transform_faostat_production_silver_df(
     df: pd.DataFrame,
-    commodity: str = "cocoa",
+    commodity: str,
 ) -> list[tuple[int, pd.DataFrame]]:
     """Apply silver cleaning rules to an already-loaded bronze FAOSTAT DataFrame.
 
     Returns a list of ``(year, silver_df)`` pairs ready for writing.
-    ``transform_faostat_cocoa_to_silver`` calls this internally; Glue jobs that
-    read bronze Parquet directly from S3 should call this instead.
 
     Args:
         df: Bronze FAOSTAT DataFrame.
-        commodity: Commodity label to stamp on every row (default: "cocoa").
+        commodity: Commodity label to stamp on every row.
     """
     required = {"area", "item", "element", "year", "unit", "value", "flag"}
     missing = required - set(df.columns)
@@ -65,6 +63,10 @@ def transform_faostat_cocoa_silver_df(
         raise ValueError(f"Missing required FAOSTAT bronze columns: {missing}")
 
     df = df.copy()
+
+    # Normalize element capitalization to match ELEMENT_TO_METRIC keys
+    # (e.g. "area harvested" → "Area harvested", "PRODUCTION" → "Production")
+    df["element"] = df["element"].astype(str).str.strip().str.capitalize()
 
     df = df[df["element"].isin(ELEMENT_TO_METRIC.keys())].copy()
     df["metric"] = df["element"].map(ELEMENT_TO_METRIC)
@@ -128,33 +130,3 @@ def transform_faostat_cocoa_silver_df(
         )
 
     return [(int(year), year_df) for year, year_df in silver.groupby("year")]
-
-
-def transform_faostat_cocoa_to_silver(
-    bronze_root: str | Path,
-    output_root: str | Path,
-    commodity: str = "cocoa",
-) -> list[Path]:
-    df = load_bronze_faostat(bronze_root)
-    year_frames = transform_faostat_cocoa_silver_df(df, commodity=commodity)
-
-    written_files: list[Path] = []
-    output_root = Path(output_root)
-
-    for year, year_df in year_frames:
-        year_dir = output_root / f"commodity={commodity}" / f"year={year}"
-        year_dir.mkdir(parents=True, exist_ok=True)
-
-        output_path = year_dir / "part-000.parquet"
-
-        year_df.to_parquet(
-            output_path,
-            index=False,
-            engine="pyarrow",
-            compression="snappy",
-        )
-
-        logger.info("Wrote silver FAOSTAT cocoa file: %s rows=%s", output_path, len(year_df))
-        written_files.append(output_path)
-
-    return written_files

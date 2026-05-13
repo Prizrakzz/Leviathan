@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import threading
 from pathlib import Path
-from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -67,7 +67,7 @@ def download_s3_json(
     bucket: str,
     key: str,
     aws_region: str = "us-east-1",
-) -> Any:
+) -> object:
     """Download an S3 object and parse it as JSON. No local file is written."""
     s3 = boto3.client("s3", region_name=aws_region)
     response = s3.get_object(Bucket=bucket, Key=key)
@@ -83,3 +83,19 @@ def upload_bytes_to_s3(
     """Upload raw bytes to S3. No local file is required."""
     s3 = boto3.client("s3", region_name=aws_region)
     s3.put_object(Body=data, Bucket=bucket, Key=key)
+
+
+_s3_local = threading.local()
+
+
+def get_thread_local_s3_client(aws_region: str) -> boto3.client:
+    """Return a thread-local boto3 S3 client for use in ThreadPoolExecutor workers.
+
+    Creates a new client on first access per thread, then reuses it.
+    Avoids connection-pool contention when many threads share an S3 client.
+    """
+    if not hasattr(_s3_local, "clients"):
+        _s3_local.clients = {}
+    if aws_region not in _s3_local.clients:
+        _s3_local.clients[aws_region] = boto3.client("s3", region_name=aws_region)
+    return _s3_local.clients[aws_region]

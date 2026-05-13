@@ -1,11 +1,9 @@
-"""Glue Python Shell: bronze → silver FAOSTAT (bulk parallel I/O, commodity-generic).
+"""Glue Python Shell: bronze → silver FAOSTAT.
 
-Performance:
-  Before: serial per-file loop with new boto3 clients
-  After:  pyarrow.dataset reads all bronze files in parallel, single vectorized
-          transform, one boto3 client writing all per-year silver files
+Reads all bronze Parquet files for a commodity from S3 using pyarrow.dataset,
+applies the silver transform, and writes per-year silver Parquet files back to S3.
 
-Reusable: pass --commodity <name> — no code changes needed for new commodities.
+Required args: --commodity, --bucket, --aws_region
 """
 from __future__ import annotations
 
@@ -31,10 +29,14 @@ def _install_leviathan() -> None:
     _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
     if not _os.path.exists(_whl):
         _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--quiet"])
+    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
 
 
-_install_leviathan()
+try:
+    _install_leviathan()
+except Exception as _exc:
+    print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
+    raise
 # ---- End bootstrap ----
 
 import boto3
@@ -42,11 +44,11 @@ import pyarrow.dataset as ds
 import pyarrow.fs as pafs
 
 from leviathan.common.logging import get_logger
-from leviathan.transforms.bronze_to_silver.faostat_cocoa import transform_faostat_cocoa_silver_df
+from leviathan.transforms.bronze_to_silver.faostat_production import transform_faostat_production_silver_df
 
 logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["JOB_NAME", "commodity", "bucket", "aws_region"]
+REQUIRED_ARGS = ["commodity", "bucket", "aws_region"]
 
 args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
 
@@ -70,7 +72,7 @@ def main() -> None:
     logger.info("Loaded %d bronze rows from %d files", len(bronze_df), len(bronze_ds.files))
 
     # --- Vectorized silver transform, commodity-aware ---
-    year_frames = transform_faostat_cocoa_silver_df(bronze_df, commodity=COMMODITY)
+    year_frames = transform_faostat_production_silver_df(bronze_df, commodity=COMMODITY)
     logger.info("Silver transform produced %d years of data", len(year_frames))
 
     success = failed = 0

@@ -37,10 +37,14 @@ def _install_leviathan() -> None:
     _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
     if not _os.path.exists(_whl):
         _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--quiet"])
+    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
 
 
-_install_leviathan()
+try:
+    _install_leviathan()
+except Exception as _exc:
+    print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
+    raise
 # ---- End bootstrap ----
 
 from leviathan.common.logging import get_logger
@@ -49,7 +53,7 @@ from leviathan.transforms.raw_to_bronze.faostat_qcl import transform_faostat_qcl
 
 logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["JOB_NAME", "commodity", "fao_item_name", "bucket", "aws_region", "ingest_date", "s3_raw_key"]
+REQUIRED_ARGS = ["commodity", "fao_item_name", "bucket", "aws_region", "ingest_date", "s3_raw_key"]
 
 args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
 

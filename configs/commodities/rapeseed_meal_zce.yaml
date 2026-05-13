@@ -1,4 +1,4 @@
-commodity: french_wheat_matif
+commodity: rapeseed_meal_zce
 label_targets:
   - production_quantity
   - area_harvested
