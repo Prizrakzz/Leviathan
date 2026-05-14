@@ -17,6 +17,8 @@ import time
 
 import boto3
 
+from leviathan.common.constants import ALL_COMMODITIES
+
 # ---------------------------------------------------------------------------
 # Constants — can be overridden via env vars
 # ---------------------------------------------------------------------------
@@ -25,17 +27,6 @@ ATHENA_DB = "leviathan_dev"
 BUCKET = os.environ.get("LEVIATHAN_BUCKET", "leviathan-dev-shahem-001")
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 ATHENA_RESULTS = f"s3://{BUCKET}/athena-results/"
-
-# All 31 supported commodities — used in partition projection enum for silver tables.
-COMMODITY_ENUM = (
-    "cocoa,corn_cbot,campinas_corn_reference_bmf,french_wheat_matif,french_maize_matif,"
-    "hard_red_winter_wheat_kcbt,hard_red_spring_wheat_mgex,soft_red_winter_wheat_cbot,"
-    "rough_rice_cbot,south_african_white_maize_jse,south_african_yellow_maize_jse,"
-    "soybeans_cbot,soybean_meal_cbot,soybean_oil_cbot,soybeans_no_1_dce,soybeans_no_2_dce,"
-    "soybean_meal_dce,soybean_oil_dce,french_rapeseed_matif,canola_ice,rapeseed_oil_zce,"
-    "rapeseed_meal_zce,malaysian_crude_palm_oil_cme,palm_olein_dce,brazilian_arabica_coffee,"
-    "arabica_coffee,robusta_coffee,cotton,raw_sugar,white_sugar,frozen_orange_juice"
-)
 
 WEATHER_START_YEAR = 1981
 WEATHER_END_YEAR = 2024
@@ -177,7 +168,7 @@ LOCATION '{weather_base}'
 TBLPROPERTIES (
     'projection.enabled'          = 'true',
     'projection.commodity.type'   = 'enum',
-    'projection.commodity.values' = '{COMMODITY_ENUM}',
+    'projection.commodity.values' = '{','.join(ALL_COMMODITIES)}',
     'projection.country.type'     = 'injected',
     'projection.region.type'      = 'injected',
     'projection.year.type'        = 'integer',
@@ -219,7 +210,7 @@ LOCATION '{prod_base}'
 TBLPROPERTIES (
     'projection.enabled'          = 'true',
     'projection.commodity.type'   = 'enum',
-    'projection.commodity.values' = '{COMMODITY_ENUM}',
+    'projection.commodity.values' = '{','.join(ALL_COMMODITIES)}',
     'projection.year.type'        = 'integer',
     'projection.year.range'       = '{FAOSTAT_START_YEAR},{FAOSTAT_END_YEAR}',
     'storage.location.template'   = '{prod_template}'

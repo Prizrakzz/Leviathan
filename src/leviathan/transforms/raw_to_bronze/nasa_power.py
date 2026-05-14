@@ -14,10 +14,7 @@ logger = get_logger(__name__)
 
 
 def parse_nasa_power_date(date_value: str) -> str:
-    """
-    NASA POWER daily keys usually come as YYYYMMDD.
-    Return ISO date string YYYY-MM-DD.
-    """
+    """Parse a YYYYMMDD date key and return an ISO date string YYYY-MM-DD."""
     return datetime.strptime(date_value, "%Y%m%d").date().isoformat()
 
 

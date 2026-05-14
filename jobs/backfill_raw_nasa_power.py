@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import time
 from pathlib import Path
 from time import sleep
@@ -59,7 +60,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Do not ingest beyond this year without an explicit ML overlap window review.
-    MAX_INGEST_YEAR = 2024
+    MAX_INGEST_YEAR: int = datetime.date.today().year
     if args.end_year > MAX_INGEST_YEAR:
         raise SystemExit(
             f"ERROR: --end-year {args.end_year} exceeds MAX_INGEST_YEAR={MAX_INGEST_YEAR}. "

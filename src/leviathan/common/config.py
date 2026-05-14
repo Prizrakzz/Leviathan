@@ -6,7 +6,15 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+def _find_project_root() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return here.parents[3]  # fallback to previous behaviour
+
+
+PROJECT_ROOT: Path = _find_project_root()
 
 def load_env() -> None:
     load_dotenv(PROJECT_ROOT / '.env')

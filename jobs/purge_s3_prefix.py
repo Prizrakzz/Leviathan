@@ -25,18 +25,11 @@ import sys
 
 import boto3
 
+from leviathan.storage.s3 import list_s3_keys
+
 BUCKET = os.environ.get("LEVIATHAN_BUCKET", "leviathan-dev-shahem-001")
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 DELETE_BATCH_SIZE = 1000  # S3 delete_objects max
-
-
-def list_keys(s3, bucket: str, prefix: str) -> list[str]:
-    paginator = s3.get_paginator("list_objects_v2")
-    keys: list[str] = []
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            keys.append(obj["Key"])
-    return keys
 
 
 def delete_keys(s3, bucket: str, keys: list[str]) -> int:
@@ -70,7 +63,7 @@ def main() -> None:
     # Collect all keys across all prefixes
     all_keys: list[str] = []
     for prefix in args.prefixes:
-        keys = list_keys(s3, args.bucket, prefix)
+        keys = list_s3_keys(args.bucket, prefix, aws_region=args.region)
         print(f"  s3://{args.bucket}/{prefix}  →  {len(keys)} objects")
         all_keys.extend(keys)
 

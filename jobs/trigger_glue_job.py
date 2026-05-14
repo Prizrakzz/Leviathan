@@ -15,8 +15,12 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from pathlib import Path
 
 import boto3
+
+sys.path.insert(0, str(Path(__file__).parent))
+from glue_utils import poll_glue_runs
 
 
 POLL_INTERVAL_SECONDS = 15
@@ -75,21 +79,16 @@ def main() -> None:
     run_id = response["JobRunId"]
     print(f"Job run ID: {run_id}")
 
-    while True:
-        time.sleep(POLL_INTERVAL_SECONDS)
+    results = poll_glue_runs(glue, {run_id: known.job_name}, POLL_INTERVAL_SECONDS, TERMINAL_STATES)
+    state = results[run_id]
+    if state == "SUCCEEDED":
+        print(f"Job succeeded: {known.job_name} ({run_id})")
+        sys.exit(0)
+    else:
         detail = glue.get_job_run(JobName=known.job_name, RunId=run_id)
-        state = detail["JobRun"]["JobRunState"]
-        started = detail["JobRun"].get("StartedOn", "")
-        print(f"  [{started}]  state={state}")
-
-        if state in TERMINAL_STATES:
-            if state == "SUCCEEDED":
-                print(f"Job succeeded: {known.job_name} ({run_id})")
-                sys.exit(0)
-            else:
-                error_msg = detail["JobRun"].get("ErrorMessage", "(no error message)")
-                print(f"Job {state}: {known.job_name} ({run_id})\n{error_msg}", file=sys.stderr)
-                sys.exit(1)
+        error_msg = detail["JobRun"].get("ErrorMessage", "(no error message)")
+        print(f"Job {state}: {known.job_name} ({run_id})\n{error_msg}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

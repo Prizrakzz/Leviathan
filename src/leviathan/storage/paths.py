@@ -1,6 +1,16 @@
 from __future__ import annotations
 
 
+def parse_hive_key(key: str, field: str) -> str:
+    """Extract the value of a hive-partition field from an S3 key.
+
+    Example:
+        parse_hive_key("raw/weather/commodity=cocoa/country=US/file.json", "country")
+        # returns "US"
+    """
+    return next((p[len(field) + 1:] for p in key.split("/") if p.startswith(f"{field}=")), "")
+
+
 def raw_weather_key(
     source: str,
     commodity: str,

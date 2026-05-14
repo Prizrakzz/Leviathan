@@ -21,6 +21,9 @@ from pathlib import Path
 import boto3
 import yaml
 
+sys.path.insert(0, str(Path(__file__).parent))
+from glue_utils import poll_glue_runs as _poll_glue_runs
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -99,30 +102,10 @@ def poll_stage(
     if dry_run:
         return {c: "SUCCEEDED" for c, _ in commodity_run_ids}
 
-    remaining = {run_id: commodity for commodity, run_id in commodity_run_ids}
-    results: dict[str, str] = {}
-
-    while remaining:
-        done = {}
-        for run_id, commodity in remaining.items():
-            state = glue.get_job_run(JobName=job_name, RunId=run_id)["JobRun"]["JobRunState"]
-            if state in ("SUCCEEDED", "FAILED", "ERROR", "TIMEOUT"):
-                results[commodity] = state
-                done[run_id] = commodity
-
-        for run_id in done:
-            del remaining[run_id]
-
-        succeeded = sum(1 for s in results.values() if s == "SUCCEEDED")
-        failed    = sum(1 for s in results.values() if s != "SUCCEEDED")
-        if remaining:
-            print(
-                f"  [{job_name}] pending={len(remaining)}  "
-                f"succeeded={succeeded}  failed={failed}"
-            )
-            time.sleep(POLL_INTERVAL)
-
-    return results
+    run_id_to_commodity = {run_id: commodity for commodity, run_id in commodity_run_ids}
+    run_id_to_job = {run_id: job_name for _, run_id in commodity_run_ids}
+    run_statuses = _poll_glue_runs(glue, run_id_to_job, POLL_INTERVAL)
+    return {run_id_to_commodity[run_id]: status for run_id, status in run_statuses.items()}
 
 
 def run_stage(

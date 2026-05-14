@@ -54,12 +54,8 @@ import pandas as pd
 
 from leviathan.common.base_jobs import BaseRawToBronzeJob
 from leviathan.common.validation import load_schema, validate_raw_json
-from leviathan.storage.paths import bronze_weather_key
+from leviathan.storage.paths import bronze_weather_key, parse_hive_key
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe
-
-
-def _parse_hive(key: str, field: str) -> str:
-    return next((p[len(field) + 1:] for p in key.split("/") if p.startswith(f"{field}=")), "")
 
 
 class NasaPowerRawToBronze(BaseRawToBronzeJob):
@@ -71,17 +67,17 @@ class NasaPowerRawToBronze(BaseRawToBronzeJob):
         self._schema = load_schema(self.source)  # load once; validate_raw is called in the thread pool
 
     def bronze_key(self, raw_key: str) -> str:
-        country = _parse_hive(raw_key, "country")
-        region = _parse_hive(raw_key, "region")
-        year = int(_parse_hive(raw_key, "year"))
-        month = int(_parse_hive(raw_key, "month"))
+        country = parse_hive_key(raw_key, "country")
+        region = parse_hive_key(raw_key, "region")
+        year = int(parse_hive_key(raw_key, "year"))
+        month = int(parse_hive_key(raw_key, "month"))
         filename = raw_key.rsplit("/", 1)[-1].replace(".json", ".parquet")
         return bronze_weather_key("nasa_power", self.commodity, country, region, year, month, filename)
 
     def transform(self, raw_bytes: bytes, raw_key: str) -> pd.DataFrame:
         payload = json.loads(raw_bytes)
-        country = _parse_hive(raw_key, "country")
-        region = _parse_hive(raw_key, "region")
+        country = parse_hive_key(raw_key, "country")
+        region = parse_hive_key(raw_key, "region")
         return nasa_power_payload_to_daily_dataframe(
             payload=payload,
             source_file_name=raw_key.rsplit("/", 1)[-1],

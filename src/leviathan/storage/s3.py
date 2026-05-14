@@ -4,6 +4,7 @@ import io
 import json
 import threading
 from pathlib import Path
+from typing import Any
 
 import boto3
 from botocore.config import Config
@@ -114,7 +115,7 @@ def upload_bytes_to_s3(
 _s3_local = threading.local()
 
 
-def get_thread_local_s3_client(aws_region: str) -> boto3.client:
+def get_thread_local_s3_client(aws_region: str) -> Any:
     """Return a thread-local boto3 S3 client for use in ThreadPoolExecutor workers.
 
     Creates a new client on first access per thread, then reuses it.
@@ -135,7 +136,7 @@ def get_thread_local_s3_client(aws_region: str) -> boto3.client:
     retry=retry_if_exception(_is_retryable),
     reraise=True,
 )
-def s3_download_with_retry(bucket: str, key: str, s3_client: boto3.client) -> bytes:
+def s3_download_with_retry(bucket: str, key: str, s3_client: Any) -> bytes:
     """Download an S3 object with exponential-backoff retry on transient errors.
 
     Retries up to 5 times on SlowDown / InternalError / network-level failures.

@@ -116,7 +116,7 @@ def main() -> None:
             upload_file_to_s3(local_path, BUCKET, s3_key, aws_region=AWS_REGION)
             logger.info("Uploaded: %s", s3_key)
             success += 1
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — intentional: catch per-file upload errors, accumulate failures, and continue uploading remaining files; RuntimeError is raised below if any failed
             logger.error("Failed to upload %s — %s", s3_key, exc)
             failed += 1
 

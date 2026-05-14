@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import logging 
+import logging
 
-def get_logger(name:str) -> logging.Logger: 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
+
+def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 

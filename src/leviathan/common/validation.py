@@ -16,7 +16,7 @@ Usage
 from __future__ import annotations
 
 import importlib.resources as pkg_resources
-from typing import Any
+from typing import Any, TypeAlias
 
 import pandas as pd
 import yaml
@@ -25,12 +25,14 @@ from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
 
+SchemaDict: TypeAlias = dict[str, Any]
+
 
 class SchemaValidationError(Exception):
     """Raised when a raw payload does not conform to the expected schema."""
 
 
-def load_schema(source: str) -> dict[str, Any]:
+def load_schema(source: str) -> SchemaDict:
     """Load the YAML schema definition for *source* from the leviathan.schemas package.
 
     Args:
@@ -57,8 +59,8 @@ def load_schema(source: str) -> dict[str, Any]:
 
 
 def validate_raw_json(
-    payload: dict[str, Any],
-    schema: dict[str, Any],
+    payload: SchemaDict,
+    schema: SchemaDict,
     context: str = "",
 ) -> None:
     """Validate a NASA POWER-style JSON payload against *schema*.
@@ -72,7 +74,7 @@ def validate_raw_json(
 
     required_path: str = schema.get("required_path", "")
     if required_path:
-        node: Any = payload
+        node: object = payload
         for part in required_path.split("."):
             if not isinstance(node, dict) or part not in node:
                 raise SchemaValidationError(
@@ -92,7 +94,7 @@ def validate_raw_json(
 
 def validate_raw_df(
     df: pd.DataFrame,
-    schema: dict[str, Any],
+    schema: SchemaDict,
     context: str = "",
 ) -> None:
     """Validate a FAOSTAT-style DataFrame against *schema*.

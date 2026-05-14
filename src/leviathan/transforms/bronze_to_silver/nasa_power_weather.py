@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 
 from leviathan.common.logging import get_logger
@@ -77,7 +75,6 @@ def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> p
         keep="last",
     )
 
-    # Melt wide → long/tidy: one row per (date, variable)
     silver = silver.melt(
         id_vars=id_cols,
         value_vars=present_weather_cols,
@@ -85,7 +82,6 @@ def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> p
         value_name="value",
     )
 
-    # Drop rows where the weather value itself is null
     silver = silver.dropna(subset=["value"])
 
     return silver.reset_index(drop=True)

@@ -38,6 +38,7 @@ import boto3
 
 # Import shared task building / submission helpers from the sibling script.
 sys.path.insert(0, str(Path(__file__).parent))
+from glue_utils import poll_glue_runs as _poll_glue_runs
 from submit_batch_backfill_nasa_power import build_tasks, submit_tasks
 
 from leviathan.common.config import get_required_env, load_env, load_yaml
@@ -113,40 +114,6 @@ def _start_glue_run(
     return job_name, run_id, commodity
 
 
-def poll_glue_runs(
-    client: boto3.client,
-    runs: list[tuple[str, str, str]],  # [(job_name, run_id, commodity), ...]
-    dry_run: bool = False,
-) -> dict[str, str]:
-    """Poll until all Glue runs reach a terminal state. Returns {run_id: status}."""
-    if dry_run:
-        return {run_id: "SUCCEEDED" for _, run_id, _ in runs}
-
-    remaining: set[tuple[str, str, str]] = set(runs)
-    results: dict[str, str] = {}
-
-    while remaining:
-        done: set[tuple[str, str, str]] = set()
-        for job_name, run_id, commodity in remaining:
-            state = client.get_job_run(JobName=job_name, RunId=run_id)["JobRun"]["JobRunState"]
-            if state in ("SUCCEEDED", "FAILED", "ERROR", "TIMEOUT"):
-                results[run_id] = state
-                done.add((job_name, run_id, commodity))
-                logger.info(
-                    "Glue %s commodity=%s run_id=%s → %s",
-                    job_name,
-                    commodity,
-                    run_id,
-                    state,
-                )
-        remaining -= done
-        if remaining:
-            logger.info("Glue: %d runs still in progress...", len(remaining))
-            time.sleep(POLL_INTERVAL_SECONDS)
-
-    return results
-
-
 def run_glue_stage(
     glue: boto3.client,
     job_name: str,
@@ -185,7 +152,8 @@ def run_glue_stage(
             for f in as_completed(futures):
                 runs.append(f.result())
 
-        statuses = poll_glue_runs(glue, runs, dry_run)
+        run_id_to_job = {run_id: job_name for job_name, run_id, _ in runs}
+        statuses = _poll_glue_runs(glue, run_id_to_job, POLL_INTERVAL_SECONDS)
         run_id_to_commodity = {run_id: commodity for _, run_id, commodity in runs}
         for run_id, status in statuses.items():
             commodity = run_id_to_commodity[run_id]

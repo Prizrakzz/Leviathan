@@ -23,7 +23,7 @@ import io
 import sys
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING, ClassVar, Iterable
+from typing import ClassVar, Iterable, TypeAlias
 
 import pandas as pd
 
@@ -35,10 +35,9 @@ from leviathan.storage.s3 import (
     s3_download_with_retry,
 )
 
-if TYPE_CHECKING:
-    pass
-
 logger = get_logger(__name__)
+
+ProcessResult: TypeAlias = tuple[str, str]
 
 # awsglue is only available inside AWS Glue Python Shell; guard the import so
 # the wheel remains importable locally (tests, notebooks, etc.).
@@ -184,7 +183,7 @@ class BaseRawToBronzeJob(_BaseGlueJob, ABC):
         self,
         raw_key: str,
         existing_bronze: set[str],
-    ) -> tuple[str, str]:
+    ) -> ProcessResult:
         bkey = self.bronze_key(raw_key)
         if bkey in existing_bronze:
             return ("skipped", bkey)
