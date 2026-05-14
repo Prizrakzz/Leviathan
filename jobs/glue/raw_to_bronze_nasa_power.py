@@ -49,16 +49,28 @@ from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_
 
 logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["JOB_NAME", "commodity", "bucket", "aws_region"]
-OPTIONAL_ARGS = ["ingest_date", "force_overwrite"]
+REQUIRED_ARGS = ["commodity", "bucket", "aws_region"]
 
-args = getResolvedOptions(sys.argv, REQUIRED_ARGS + OPTIONAL_ARGS)
+args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
 
 COMMODITY: str = args["commodity"]
 BUCKET: str = args["bucket"]
 AWS_REGION: str = args["aws_region"]
-INGEST_DATE: str = args.get("ingest_date") or date.today().isoformat()
-FORCE_OVERWRITE: bool = args.get("force_overwrite", "false").lower() == "true"
+
+# ingest_date is optional — parse manually; getResolvedOptions treats every listed arg as required
+_id_idx = next((i for i, a in enumerate(sys.argv) if a == "--ingest_date"), None)
+INGEST_DATE: str = (
+    sys.argv[_id_idx + 1]
+    if _id_idx is not None and _id_idx + 1 < len(sys.argv)
+    else date.today().isoformat()
+)
+# force_overwrite is optional — parse manually
+_fo_idx = next((i for i, a in enumerate(sys.argv) if a == "--force_overwrite"), None)
+FORCE_OVERWRITE: bool = (
+    _fo_idx is not None
+    and _fo_idx + 1 < len(sys.argv)
+    and sys.argv[_fo_idx + 1].lower() == "true"
+)
 
 RAW_PREFIX = f"raw/weather/source=nasa_power/commodity={COMMODITY}/"
 BRONZE_PREFIX = f"bronze/weather/source=nasa_power/commodity={COMMODITY}/"

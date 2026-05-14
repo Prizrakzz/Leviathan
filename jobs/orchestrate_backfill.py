@@ -1,7 +1,7 @@
 """One-shot backfill orchestrator — designed to run as an AWS Batch Fargate task.
 
-Sequence
---------
+Sequence (full run)
+-------------------
 1. Submit all NASA POWER Batch worker tasks across selected commodities.
 2. Poll until every Batch job reaches a terminal state.
 3. Start raw→bronze Glue jobs for all commodities in parallel.
@@ -13,7 +13,15 @@ Sequence
 The orchestrator runs as a single long-lived container (~36 min for all 31
 commodities, 1981-2024) so it requires a 16-hour Batch timeout ceiling.
 
-Run locally (dry-run):
+Glue-only mode (--skip-batch)
+------------------------------
+Skips Steps 1-2 entirely and runs only the Glue stages. Use this when raw data
+already exists in S3 from a previous Batch run and only the Glue transforms
+need to be (re-)executed. Runs from your local terminal in ~15 min.
+
+Run locally:
+    python jobs/orchestrate_backfill.py --skip-batch
+    python jobs/orchestrate_backfill.py --skip-batch --commodities cocoa,corn_cbot
     python jobs/orchestrate_backfill.py --dry-run --commodities cocoa
     python jobs/orchestrate_backfill.py --dry-run
 """
@@ -33,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from submit_batch_backfill_nasa_power import build_tasks, submit_tasks
 
 from leviathan.common.config import get_required_env, load_env, load_yaml
+from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 
 logger = get_logger("orchestrate_backfill")
@@ -40,40 +49,6 @@ logger = get_logger("orchestrate_backfill")
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-
-ALL_COMMODITIES: list[str] = [
-    "cocoa",
-    "corn_cbot",
-    "campinas_corn_reference_bmf",
-    "french_wheat_matif",
-    "french_maize_matif",
-    "hard_red_winter_wheat_kcbt",
-    "hard_red_spring_wheat_mgex",
-    "soft_red_winter_wheat_cbot",
-    "rough_rice_cbot",
-    "south_african_white_maize_jse",
-    "south_african_yellow_maize_jse",
-    "soybeans_cbot",
-    "soybean_meal_cbot",
-    "soybean_oil_cbot",
-    "soybeans_no_1_dce",
-    "soybeans_no_2_dce",
-    "soybean_meal_dce",
-    "soybean_oil_dce",
-    "french_rapeseed_matif",
-    "canola_ice",
-    "rapeseed_oil_zce",
-    "rapeseed_meal_zce",
-    "malaysian_crude_palm_oil_cme",
-    "palm_olein_dce",
-    "brazilian_arabica_coffee",
-    "arabica_coffee",
-    "robusta_coffee",
-    "cotton",
-    "raw_sugar",
-    "white_sugar",
-    "frozen_orange_juice",
-]
 
 POLL_INTERVAL_SECONDS = 30
 BATCH_DESCRIBE_CHUNK = 100  # AWS hard limit per describe_jobs call
@@ -277,6 +252,15 @@ def main() -> None:
         action="store_true",
         help="Log what would happen without making any AWS API calls.",
     )
+    parser.add_argument(
+        "--skip-batch",
+        action="store_true",
+        help=(
+            "Skip Batch task submission and polling (Steps 1-2). "
+            "Runs only the Glue raw→bronze and bronze→silver stages. "
+            "Use when raw data already exists in S3 from a previous run."
+        ),
+    )
     args = parser.parse_args()
 
     load_env()
@@ -297,62 +281,64 @@ def main() -> None:
     b2s_job_name   = f"{project}-{env}-bronze-to-silver-nasa-power"
 
     logger.info(
-        "Orchestrator starting  commodities=%d  years=%d-%d  dry_run=%s",
+        "Orchestrator starting  commodities=%d  years=%d-%d  dry_run=%s  skip_batch=%s",
         len(commodities),
         args.start_year,
         args.end_year,
         args.dry_run,
+        args.skip_batch,
     )
 
     # -----------------------------------------------------------------------
-    # Step 1: Build + submit all Batch worker tasks
+    # Steps 1-2: Build + submit Batch worker tasks, then poll to completion.
+    # Skipped when --skip-batch is set (raw data already in S3).
     # -----------------------------------------------------------------------
-    all_tasks: list[dict] = []
-    for commodity in commodities:
-        geography = load_yaml(f"configs/geographies/{commodity}_regions.yaml")
-        tasks = build_tasks(
-            geography_config=geography,
-            commodity=commodity,
-            start_year=args.start_year,
-            end_year=args.end_year,
-        )
-        all_tasks.extend(tasks)
-
-    logger.info("Total Batch tasks to submit: %d", len(all_tasks))
-
-    submitted = submit_tasks(
-        tasks=all_tasks,
-        job_queue=job_queue,
-        job_definition=job_definition,
-        aws_region=aws_region,
-        dry_run=args.dry_run,
-    )
-
-    # -----------------------------------------------------------------------
-    # Step 2: Poll all Batch jobs
-    # -----------------------------------------------------------------------
-    job_ids = [s["job_id"] for s in submitted if s["job_id"]]
-    logger.info("Polling %d Batch jobs...", len(job_ids))
-
-    batch_client = boto3.client("batch", region_name=aws_region)
-    batch_statuses = poll_batch_jobs(batch_client, job_ids, dry_run=args.dry_run)
-
-    # Aggregate per commodity
     batch_results: dict[str, dict] = {c: {"succeeded": 0, "failed": 0} for c in commodities}
-    for s in submitted:
-        commodity = s["parameters"]["commodity"]
-        job_id    = s["job_id"]
-        if job_id:
-            status = batch_statuses.get(job_id, "UNKNOWN")
-            key = "succeeded" if status == "SUCCEEDED" else "failed"
-            batch_results[commodity][key] += 1
 
-    failed_count = sum(1 for st in batch_statuses.values() if st != "SUCCEEDED")
-    if failed_count:
-        logger.warning(
-            "%d Batch tasks failed — Glue will still run for commodities with partial data.",
-            failed_count,
+    if args.skip_batch:
+        logger.info("--skip-batch set: skipping Batch submission and polling.")
+    else:
+        all_tasks: list[dict] = []
+        for commodity in commodities:
+            geography = load_yaml(f"configs/geographies/{commodity}_regions.yaml")
+            tasks = build_tasks(
+                geography_config=geography,
+                commodity=commodity,
+                start_year=args.start_year,
+                end_year=args.end_year,
+            )
+            all_tasks.extend(tasks)
+
+        logger.info("Total Batch tasks to submit: %d", len(all_tasks))
+
+        submitted = submit_tasks(
+            tasks=all_tasks,
+            job_queue=job_queue,
+            job_definition=job_definition,
+            aws_region=aws_region,
+            dry_run=args.dry_run,
         )
+
+        job_ids = [s["job_id"] for s in submitted if s["job_id"]]
+        logger.info("Polling %d Batch jobs...", len(job_ids))
+
+        batch_client = boto3.client("batch", region_name=aws_region)
+        batch_statuses = poll_batch_jobs(batch_client, job_ids, dry_run=args.dry_run)
+
+        for s in submitted:
+            commodity = s["parameters"]["commodity"]
+            job_id    = s["job_id"]
+            if job_id:
+                status = batch_statuses.get(job_id, "UNKNOWN")
+                key = "succeeded" if status == "SUCCEEDED" else "failed"
+                batch_results[commodity][key] += 1
+
+        failed_count = sum(1 for st in batch_statuses.values() if st != "SUCCEEDED")
+        if failed_count:
+            logger.warning(
+                "%d Batch tasks failed — Glue will still run for commodities with partial data.",
+                failed_count,
+            )
 
     # -----------------------------------------------------------------------
     # Step 3: Glue raw → bronze (all commodities in parallel)
