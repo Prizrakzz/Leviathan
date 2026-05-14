@@ -9,18 +9,11 @@
 --   Full-scan queries (no WHERE on country/region) perform an S3 LIST and scan all prefixes.
 
 CREATE EXTERNAL TABLE IF NOT EXISTS leviathan_dev.silver_weather (
-    date                       DATE,
+    date                       STRING,
     day                        INT,
-    source                     STRING,
     ingest_date                STRING,
-    source_file_name           STRING,
-    temperature_2m_mean_c      DOUBLE,
-    temperature_2m_max_c       DOUBLE,
-    temperature_2m_min_c       DOUBLE,
-    precipitation_mm           DOUBLE,
-    relative_humidity_2m_pct   DOUBLE,
-    wind_speed_2m_m_s          DOUBLE,
-    solar_radiation_mj_m2_day  DOUBLE
+    variable                   STRING,
+    value                      DOUBLE
 )
 PARTITIONED BY (commodity STRING, country STRING, region STRING, year INT, month INT)
 STORED AS PARQUET

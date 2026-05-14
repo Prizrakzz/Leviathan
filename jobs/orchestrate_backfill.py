@@ -285,6 +285,15 @@ def main() -> None:
             "Use when raw data already exists in S3 from a previous run."
         ),
     )
+    parser.add_argument(
+        "--force-overwrite",
+        action="store_true",
+        help=(
+            "Pass --force_overwrite true to every Glue job run, causing existing "
+            "silver partitions to be rewritten. Required after a silver schema change. "
+            "Example: orchestrate_backfill.py --skip-batch --force-overwrite"
+        ),
+    )
     args = parser.parse_args()
 
     load_env()
@@ -368,14 +377,18 @@ def main() -> None:
     # Step 3: Glue raw → bronze (all commodities in parallel)
     # -----------------------------------------------------------------------
     glue = boto3.client("glue", region_name=aws_region)
+    extra_args: dict[str, str] | None = {"--force_overwrite": "true"} if args.force_overwrite else None
+    if extra_args:
+        logger.info("--force-overwrite set: all Glue runs will overwrite existing silver partitions.")
+
     logger.info("Starting Glue raw→bronze for %d commodities...", len(commodities))
-    r2b_results = run_glue_stage(glue, r2b_job_name, commodities, dry_run=args.dry_run)
+    r2b_results = run_glue_stage(glue, r2b_job_name, commodities, dry_run=args.dry_run, extra_args=extra_args)
 
     # -----------------------------------------------------------------------
     # Step 4: Glue bronze → silver (all commodities in parallel)
     # -----------------------------------------------------------------------
     logger.info("Starting Glue bronze→silver for %d commodities...", len(commodities))
-    b2s_results = run_glue_stage(glue, b2s_job_name, commodities, dry_run=args.dry_run)
+    b2s_results = run_glue_stage(glue, b2s_job_name, commodities, dry_run=args.dry_run, extra_args=extra_args)
 
     # -----------------------------------------------------------------------
     # Summary + exit code

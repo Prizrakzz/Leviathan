@@ -73,18 +73,18 @@ def _start_r2b(glue, commodity: str, ingest_date: str, dry_run: bool) -> tuple[s
     return commodity, run_id
 
 
-def _start_b2s(glue, commodity: str, dry_run: bool) -> tuple[str, str]:
+def _start_b2s(glue, commodity: str, dry_run: bool, force_overwrite: bool = False) -> tuple[str, str]:
     if dry_run:
         print(f"  [DRY RUN] Would start {B2S_JOB} commodity={commodity}")
         return commodity, "DRY_RUN"
-    run_id = glue.start_job_run(
-        JobName=B2S_JOB,
-        Arguments={
-            "--commodity":  commodity,
-            "--bucket":     BUCKET,
-            "--aws_region": AWS_REGION,
-        },
-    )["JobRunId"]
+    arguments: dict[str, str] = {
+        "--commodity":  commodity,
+        "--bucket":     BUCKET,
+        "--aws_region": AWS_REGION,
+    }
+    if force_overwrite:
+        arguments["--force_overwrite"] = "true"
+    run_id = glue.start_job_run(JobName=B2S_JOB, Arguments=arguments)["JobRunId"]
     print(f"  Started {B2S_JOB} commodity={commodity} run_id={run_id}")
     return commodity, run_id
 
@@ -125,7 +125,14 @@ def poll_stage(
     return results
 
 
-def run_stage(glue, job_name: str, start_fn, commodities: list[str], dry_run: bool) -> dict[str, str]:
+def run_stage(
+    glue,
+    job_name: str,
+    start_fn,
+    commodities: list[str],
+    dry_run: bool,
+    force_overwrite: bool = False,
+) -> dict[str, str]:
     print(f"\n--- Stage: {job_name} ({len(commodities)} commodities) ---")
     if not commodities:
         print("  No commodities to process — skipping.")
@@ -136,7 +143,10 @@ def run_stage(glue, job_name: str, start_fn, commodities: list[str], dry_run: bo
         if "r2b" in job_name or "raw" in job_name:
             futures = [pool.submit(_start_r2b, glue, c, ingest_date, dry_run) for c in commodities]
         else:
-            futures = [pool.submit(_start_b2s, glue, c, dry_run) for c in commodities]
+            futures = [
+                pool.submit(_start_b2s, glue, c, dry_run, force_overwrite)
+                for c in commodities
+            ]
         commodity_run_ids = [f.result() for f in as_completed(futures)]
 
     if dry_run:
@@ -150,13 +160,29 @@ def run_stage(glue, job_name: str, start_fn, commodities: list[str], dry_run: bo
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="FAOSTAT backfill: raw→bronze then bronze→silver for all 31 commodities."
+    )
     parser.add_argument(
         "--commodities",
         default="all",
         help='Comma-separated list or "all" (default).',
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--skip-r2b",
+        action="store_true",
+        help="Skip raw→bronze stage (bronze data already exists in S3). Runs bronze→silver only.",
+    )
+    parser.add_argument(
+        "--force-overwrite",
+        action="store_true",
+        help=(
+            "Pass --force_overwrite true to bronze→silver Glue jobs, rewriting existing "
+            "silver partitions. Required after a silver schema change. "
+            "Usually combined with --skip-r2b: run_faostat_backfill.py --skip-r2b --force-overwrite"
+        ),
+    )
     args = parser.parse_args()
 
     commodities = (
@@ -175,17 +201,27 @@ def main() -> None:
 
     glue = boto3.client("glue", region_name=AWS_REGION)
 
-    # Stage 1: raw → bronze
-    r2b_results = run_stage(glue, R2B_JOB, _start_r2b, commodities, args.dry_run)
-    r2b_failed = [c for c, s in r2b_results.items() if s != "SUCCEEDED"]
-    if r2b_failed:
-        print(f"\nWARNING: {len(r2b_failed)} raw→bronze jobs failed: {r2b_failed}")
-        print("Proceeding to bronze→silver for successful commodities only.")
+    if args.force_overwrite:
+        print("--force-overwrite set: bronze→silver jobs will rewrite existing silver partitions.")
 
-    b2s_commodities = [c for c in commodities if r2b_results.get(c) == "SUCCEEDED"]
+    # Stage 1: raw → bronze (skipped when --skip-r2b is set)
+    if args.skip_r2b:
+        print("--skip-r2b set: skipping raw→bronze stage.")
+        r2b_results = {c: "SKIPPED" for c in commodities}
+        b2s_commodities = list(commodities)
+    else:
+        r2b_results = run_stage(glue, R2B_JOB, _start_r2b, commodities, args.dry_run)
+        r2b_failed = [c for c, s in r2b_results.items() if s != "SUCCEEDED"]
+        if r2b_failed:
+            print(f"\nWARNING: {len(r2b_failed)} raw→bronze jobs failed: {r2b_failed}")
+            print("Proceeding to bronze→silver for successful commodities only.")
+        b2s_commodities = [c for c in commodities if r2b_results.get(c) == "SUCCEEDED"]
 
     # Stage 2: bronze → silver
-    b2s_results = run_stage(glue, B2S_JOB, _start_b2s, b2s_commodities, args.dry_run)
+    b2s_results = run_stage(
+        glue, B2S_JOB, _start_b2s, b2s_commodities, args.dry_run,
+        force_overwrite=args.force_overwrite,
+    )
     b2s_failed = [c for c, s in b2s_results.items() if s != "SUCCEEDED"]
 
     # Summary

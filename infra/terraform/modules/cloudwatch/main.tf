@@ -72,6 +72,47 @@ resource "aws_cloudwatch_event_target" "glue_failed_to_logs" {
   target_id = "glue-failures-log-group"
   arn       = aws_cloudwatch_log_group.glue_failures.arn
 }
+
+# ---------------------------------------------------------------------------
+# Dead-letter metric filter + alarm
+# Matches logger.warning("Dead-lettered %s → %s", ...) in dead_letter.py.
+# A Glue job can exit SUCCEEDED while having dead-lettered individual files,
+# so job-level EventBridge rules won't catch these — metric filters will.
+# ---------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_metric_filter" "dead_letter" {
+  for_each = toset(local.job_names)
+
+  name           = "${var.project_name}-${var.environment}-dead-letter-${replace(each.key, "${var.project_name}-${var.environment}-", "")}"
+  log_group_name = "/aws/glue/jobs/${each.key}"
+  pattern        = "\"Dead-lettered\""
+
+  metric_transformation {
+    name          = "DeadLetterCount"
+    namespace     = "Leviathan/${var.environment}"
+    value         = "1"
+    default_value = "0"
+  }
+
+  depends_on = [aws_cloudwatch_log_group.glue_jobs]
+}
+
+resource "aws_cloudwatch_metric_alarm" "dead_letter" {
+  alarm_name          = "${var.project_name}-${var.environment}-dead-letter-detected"
+  alarm_description   = "One or more files were dead-lettered during a Glue job run. Check s3://leviathan-${var.environment}-shahem-001/dead_letter/ for details."
+  metric_name         = "DeadLetterCount"
+  namespace           = "Leviathan/${var.environment}"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = []  # wire to aws_sns_topic.leviathan_alerts.arn when SNS is configured
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
 # ---------------------------------------------------------------------------
 # Dashboard — job duration, success/failure counts per job
 # ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@ import subprocess as _subprocess
 
 def _install_leviathan() -> None:
     import boto3 as _boto3
+    import time as _time
 
     _bucket = next(
         (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
@@ -27,9 +28,18 @@ def _install_leviathan() -> None:
     if not _bucket:
         raise RuntimeError("--bucket argument required for leviathan bootstrap")
     _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
-    if not _os.path.exists(_whl):
-        _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
+    for _attempt in range(3):
+        try:
+            if not _os.path.exists(_whl):
+                _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
+            _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
+            return
+        except Exception:
+            if _attempt == 2:
+                raise
+            if _os.path.exists(_whl):
+                _os.remove(_whl)
+            _time.sleep(5 * (_attempt + 1))
 
 
 try:

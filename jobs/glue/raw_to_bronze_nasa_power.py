@@ -20,6 +20,7 @@ import subprocess as _subprocess
 
 def _install_leviathan() -> None:
     import boto3 as _boto3
+    import time as _time
 
     _bucket = next(
         (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
@@ -28,9 +29,18 @@ def _install_leviathan() -> None:
     if not _bucket:
         raise RuntimeError("--bucket argument required for leviathan bootstrap")
     _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
-    if not _os.path.exists(_whl):
-        _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-    _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
+    for _attempt in range(3):
+        try:
+            if not _os.path.exists(_whl):
+                _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
+            _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
+            return
+        except Exception:
+            if _attempt == 2:
+                raise
+            if _os.path.exists(_whl):
+                _os.remove(_whl)  # remove partial/corrupt download before retry
+            _time.sleep(5 * (_attempt + 1))
 
 
 try:
@@ -58,6 +68,7 @@ class NasaPowerRawToBronze(BaseRawToBronzeJob):
     def __init__(self) -> None:
         super().__init__()
         self.ingest_date: str = self._parse_optional_str("ingest_date", default=date.today().isoformat())
+        self._schema = load_schema(self.source)  # load once; validate_raw is called in the thread pool
 
     def bronze_key(self, raw_key: str) -> str:
         country = _parse_hive(raw_key, "country")
@@ -81,9 +92,7 @@ class NasaPowerRawToBronze(BaseRawToBronzeJob):
         )
 
     def validate_raw(self, raw_bytes: bytes, raw_key: str) -> None:
-        schema = load_schema(self.source)
-        payload = json.loads(raw_bytes)
-        validate_raw_json(payload, schema, context=raw_key)
+        validate_raw_json(json.loads(raw_bytes), self._schema, context=raw_key)
 
 
 NasaPowerRawToBronze().run()
