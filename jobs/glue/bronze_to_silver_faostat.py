@@ -1,16 +1,16 @@
 """Glue Python Shell: bronze → silver FAOSTAT.
 
-Reads all bronze Parquet files for a commodity from S3 using pyarrow.dataset,
-applies the silver transform, and writes per-year silver Parquet files back to S3.
+Reads all bronze Parquet files for a commodity from S3 with per-file retry
+(eliminates pyarrow thundering-herd), applies the silver transform (long/tidy
+format: variable + value), and writes per-year silver Parquet files to S3.
 
 Required args: --commodity, --bucket, --aws_region
+Optional args: --force_overwrite (default: false)
 """
 from __future__ import annotations
 
-import io
 import sys
-
-from awsglue.utils import getResolvedOptions
+from typing import Iterable
 
 # ---- Bootstrap: install leviathan package from S3 at runtime ----
 import os as _os
@@ -39,63 +39,36 @@ except Exception as _exc:
     raise
 # ---- End bootstrap ----
 
-import boto3
-import pyarrow.dataset as ds
-import pyarrow.fs as pafs
+import pandas as pd
 
-from leviathan.common.logging import get_logger
+from leviathan.common.base_jobs import BaseBronzeToSilverJob
 from leviathan.transforms.bronze_to_silver.faostat_production import transform_faostat_production_silver_df
 
-logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["commodity", "bucket", "aws_region"]
+class FaostatBronzeToSilver(BaseBronzeToSilverJob):
+    source = "faostat"
 
-args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
+    def bronze_prefix(self) -> str:
+        return f"bronze/production/source=faostat/dataset=QCL/commodity={self.commodity}/"
 
-COMMODITY: str = args["commodity"]
-BUCKET: str = args["bucket"]
-AWS_REGION: str = args["aws_region"]
+    def silver_prefix(self) -> str:
+        return f"silver/production/source=faostat/commodity={self.commodity}/"
 
-BRONZE_PATH = f"{BUCKET}/bronze/production/source=faostat/dataset=QCL/commodity={COMMODITY}"
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        year_frames = transform_faostat_production_silver_df(df, commodity=self.commodity)
+        if not year_frames:
+            return pd.DataFrame()
+        return pd.concat([ydf for _, ydf in year_frames], ignore_index=True)
 
-# Single shared client — FAOSTAT silver is O(tens) of files, concurrency not needed
-_s3 = boto3.client("s3", region_name=AWS_REGION)
+    def get_partitions(self, df: pd.DataFrame) -> Iterable[tuple[dict, pd.DataFrame]]:
+        for year, group in df.groupby("year"):
+            yield {"year": int(year)}, group.reset_index(drop=True)
 
-
-def main() -> None:
-    s3_fs = pafs.S3FileSystem(region=AWS_REGION)
-
-    # --- Bulk parallel read of all bronze FAOSTAT files ---
-    logger.info("Reading bronze FAOSTAT from s3://%s ...", BRONZE_PATH)
-    bronze_ds = ds.dataset(BRONZE_PATH, filesystem=s3_fs, format="parquet")
-    bronze_df = bronze_ds.to_table().to_pandas()
-    logger.info("Loaded %d bronze rows from %d files", len(bronze_df), len(bronze_ds.files))
-
-    # --- Vectorized silver transform, commodity-aware ---
-    year_frames = transform_faostat_production_silver_df(bronze_df, commodity=COMMODITY)
-    logger.info("Silver transform produced %d years of data", len(year_frames))
-
-    success = failed = 0
-
-    for year, year_df in year_frames:
-        silver_key = f"silver/production/commodity={COMMODITY}/year={year}/part-000.parquet"
-        try:
-            buf = io.BytesIO()
-            year_df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-            _s3.put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=silver_key)
-            logger.info("Wrote %s  rows=%d", silver_key, len(year_df))
-            success += 1
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to write %s — %s", silver_key, exc)
-            failed += 1
-
-    logger.info(
-        "bronze→silver FAOSTAT complete. success=%d  failed=%d",
-        success, failed,
-    )
-    if failed > 0:
-        raise RuntimeError(f"{failed} years failed during bronze→silver FAOSTAT transform.")
+    def _silver_key(self, key_dict: dict) -> str:
+        return (
+            f"silver/production/source=faostat/commodity={self.commodity}"
+            f"/year={key_dict['year']}/part-000.parquet"
+        )
 
 
-if __name__ == "__main__":
-    main()
+FaostatBronzeToSilver().run()

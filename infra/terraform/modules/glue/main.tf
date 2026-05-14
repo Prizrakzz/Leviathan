@@ -1,52 +1,38 @@
+# ---------------------------------------------------------------------------
+# Glue jobs — each job is managed by the generic glue_job child module.
+#
+# WARNING: Replacing the four aws_glue_job resources with module calls changes
+# the Terraform resource addresses from e.g.
+#   module.glue.aws_glue_job.raw_to_bronze_nasa_power
+# to
+#   module.glue.module.raw_to_bronze_nasa_power.aws_glue_job.this
+#
+# Terraform will plan a destroy + create for each job (same AWS names, so the
+# actual Glue job names are preserved). Apply when no jobs are scheduled.
+# Run `terraform state mv` before apply to avoid the brief downtime if needed.
+# ---------------------------------------------------------------------------
+
 locals {
-  script_base = "s3://${var.bucket_name}/glue-scripts"
-  temp_dir    = "s3://${var.bucket_name}/glue-temp"
-
-  glue_scripts = {
-    "raw_to_bronze_nasa_power"    = "${path.module}/../../../../jobs/glue/raw_to_bronze_nasa_power.py"
-    "raw_to_bronze_faostat"       = "${path.module}/../../../../jobs/glue/raw_to_bronze_faostat.py"
-    "bronze_to_silver_nasa_power" = "${path.module}/../../../../jobs/glue/bronze_to_silver_nasa_power.py"
-    "bronze_to_silver_faostat"    = "${path.module}/../../../../jobs/glue/bronze_to_silver_faostat.py"
-  }
-
-  common_default_args = {
-    "--bucket"              = var.bucket_name
-    "--aws_region"          = var.aws_region
-    "--enable-job-insights" = "true"
-    "--job-language"        = "python"
-    "--TempDir"             = local.temp_dir
-  }
+  scripts_dir = "${path.module}/../../../../jobs/glue"
 }
 
 # ---------------------------------------------------------------------------
 # raw → bronze: NASA POWER
 # ---------------------------------------------------------------------------
 
-resource "aws_glue_job" "raw_to_bronze_nasa_power" {
-  name         = "${var.project_name}-${var.environment}-raw-to-bronze-nasa-power"
-  role_arn     = var.glue_job_role_arn
-  glue_version = "3.0"
+module "raw_to_bronze_nasa_power" {
+  source = "../glue_job"
 
-  command {
-    name            = "pythonshell"
-    python_version  = "3.9"
-    script_location = "${local.script_base}/raw_to_bronze_nasa_power.py"
-  }
+  job_name          = "${var.project_name}-${var.environment}-raw-to-bronze-nasa-power"
+  script_local_path = "${local.scripts_dir}/raw_to_bronze_nasa_power.py"
+  bucket_name       = var.bucket_name
+  glue_role_arn     = var.glue_job_role_arn
+  aws_region        = var.aws_region
+  project_name      = var.project_name
+  environment       = var.environment
 
-  default_arguments = merge(local.common_default_args, {
+  extra_default_args = {
     "--ingest_date" = formatdate("YYYY-MM-DD", timestamp())
-  })
-
-  max_capacity = 1.0
-
-  execution_property {
-    max_concurrent_runs = 200
-  }
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
   }
 }
 
@@ -54,32 +40,20 @@ resource "aws_glue_job" "raw_to_bronze_nasa_power" {
 # raw → bronze: FAOSTAT
 # ---------------------------------------------------------------------------
 
-resource "aws_glue_job" "raw_to_bronze_faostat" {
-  name         = "${var.project_name}-${var.environment}-raw-to-bronze-faostat"
-  role_arn     = var.glue_job_role_arn
-  glue_version = "3.0"
+module "raw_to_bronze_faostat" {
+  source = "../glue_job"
 
-  command {
-    name            = "pythonshell"
-    python_version  = "3.9"
-    script_location = "${local.script_base}/raw_to_bronze_faostat.py"
-  }
+  job_name          = "${var.project_name}-${var.environment}-raw-to-bronze-faostat"
+  script_local_path = "${local.scripts_dir}/raw_to_bronze_faostat.py"
+  bucket_name       = var.bucket_name
+  glue_role_arn     = var.glue_job_role_arn
+  aws_region        = var.aws_region
+  project_name      = var.project_name
+  environment       = var.environment
 
-  default_arguments = merge(local.common_default_args, {
+  extra_default_args = {
     "--ingest_date" = formatdate("YYYY-MM-DD", timestamp())
     "--s3_raw_key"  = "raw/production/source=faostat/commodity=cocoa/Production_Crops_Livestock_E_All_Data_Normalized.zip"
-  })
-
-  max_capacity = 1.0
-
-  execution_property {
-    max_concurrent_runs = 200
-  }
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
   }
 }
 
@@ -87,81 +61,37 @@ resource "aws_glue_job" "raw_to_bronze_faostat" {
 # bronze → silver: NASA POWER
 # ---------------------------------------------------------------------------
 
-resource "aws_glue_job" "bronze_to_silver_nasa_power" {
-  name         = "${var.project_name}-${var.environment}-bronze-to-silver-nasa-power"
-  role_arn     = var.glue_job_role_arn
-  glue_version = "3.0"
+module "bronze_to_silver_nasa_power" {
+  source = "../glue_job"
 
-  command {
-    name            = "pythonshell"
-    python_version  = "3.9"
-    script_location = "${local.script_base}/bronze_to_silver_nasa_power.py"
-  }
-
-  default_arguments = local.common_default_args
-
-  max_capacity = 1.0
-
-  execution_property {
-    max_concurrent_runs = 200
-  }
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
-  }
+  job_name          = "${var.project_name}-${var.environment}-bronze-to-silver-nasa-power"
+  script_local_path = "${local.scripts_dir}/bronze_to_silver_nasa_power.py"
+  bucket_name       = var.bucket_name
+  glue_role_arn     = var.glue_job_role_arn
+  aws_region        = var.aws_region
+  project_name      = var.project_name
+  environment       = var.environment
 }
 
 # ---------------------------------------------------------------------------
 # bronze → silver: FAOSTAT
 # ---------------------------------------------------------------------------
 
-resource "aws_glue_job" "bronze_to_silver_faostat" {
-  name         = "${var.project_name}-${var.environment}-bronze-to-silver-faostat"
-  role_arn     = var.glue_job_role_arn
-  glue_version = "3.0"
+module "bronze_to_silver_faostat" {
+  source = "../glue_job"
 
-  command {
-    name            = "pythonshell"
-    python_version  = "3.9"
-    script_location = "${local.script_base}/bronze_to_silver_faostat.py"
-  }
-
-  default_arguments = local.common_default_args
-
-  max_capacity = 1.0
-
-  execution_property {
-    max_concurrent_runs = 200
-  }
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
-  }
+  job_name          = "${var.project_name}-${var.environment}-bronze-to-silver-faostat"
+  script_local_path = "${local.scripts_dir}/bronze_to_silver_faostat.py"
+  bucket_name       = var.bucket_name
+  glue_role_arn     = var.glue_job_role_arn
+  aws_region        = var.aws_region
+  project_name      = var.project_name
+  environment       = var.environment
 }
 
 # ---------------------------------------------------------------------------
-# S3 objects: Glue scripts + leviathan wheel
-# etag = filemd5 ensures re-upload whenever the source file changes.
+# S3: leviathan wheel (script uploads handled inside each glue_job module)
 # ---------------------------------------------------------------------------
-
-resource "aws_s3_object" "glue_scripts" {
-  for_each = local.glue_scripts
-
-  bucket = var.bucket_name
-  key    = "glue-scripts/${each.key}.py"
-  source = each.value
-  etag   = filemd5(each.value)
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
-  }
-}
 
 resource "aws_s3_object" "leviathan_whl" {
   bucket = var.bucket_name
@@ -175,3 +105,4 @@ resource "aws_s3_object" "leviathan_whl" {
     ManagedBy   = "terraform"
   }
 }
+

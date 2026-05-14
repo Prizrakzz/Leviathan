@@ -52,6 +52,7 @@ logger = get_logger("orchestrate_backfill")
 
 POLL_INTERVAL_SECONDS = 30
 BATCH_DESCRIBE_CHUNK = 100  # AWS hard limit per describe_jobs call
+MAX_GLUE_JOB_RETRIES = 3    # Retry failed Glue runs up to this many times
 
 
 # ---------------------------------------------------------------------------
@@ -152,29 +153,52 @@ def run_glue_stage(
     commodities: list[str],
     dry_run: bool,
     extra_args: dict[str, str] | None = None,
+    max_retries: int = MAX_GLUE_JOB_RETRIES,
 ) -> dict[str, str]:
     """Start all Glue runs for a stage in parallel, then poll to completion.
 
-    Returns {commodity: final_status}.
+    Failed runs are automatically retried up to *max_retries* times before the
+    final result is recorded. Returns {commodity: final_status}.
     """
     if dry_run:
         logger.info("[DRY RUN] Would start %d Glue runs for job: %s", len(commodities), job_name)
         return {c: "SUCCEEDED" for c in commodities}
 
-    runs: list[tuple[str, str, str]] = []
+    final_results: dict[str, str] = {}
+    remaining = list(commodities)
 
-    with ThreadPoolExecutor(max_workers=min(len(commodities), 50)) as pool:
-        futures = {
-            pool.submit(_start_glue_run, glue, job_name, c, extra_args): c
-            for c in commodities
-        }
-        for f in as_completed(futures):
-            runs.append(f.result())
+    for attempt in range(1, max_retries + 1):
+        if not remaining:
+            break
+        if attempt > 1:
+            logger.info(
+                "Retry attempt %d/%d for %d failed commodities in %s: %s",
+                attempt, max_retries, len(remaining), job_name, remaining,
+            )
 
-    statuses = poll_glue_runs(glue, runs, dry_run)
-    # Map back from run_id to commodity
-    run_id_to_commodity = {run_id: commodity for _, run_id, commodity in runs}
-    return {run_id_to_commodity[run_id]: status for run_id, status in statuses.items()}
+        runs: list[tuple[str, str, str]] = []
+        with ThreadPoolExecutor(max_workers=min(len(remaining), 50)) as pool:
+            futures = {
+                pool.submit(_start_glue_run, glue, job_name, c, extra_args): c
+                for c in remaining
+            }
+            for f in as_completed(futures):
+                runs.append(f.result())
+
+        statuses = poll_glue_runs(glue, runs, dry_run)
+        run_id_to_commodity = {run_id: commodity for _, run_id, commodity in runs}
+        for run_id, status in statuses.items():
+            commodity = run_id_to_commodity[run_id]
+            final_results[commodity] = status
+
+        remaining = [c for c in remaining if final_results.get(c) != "SUCCEEDED"]
+        if remaining:
+            logger.warning(
+                "%d commodities failed in %s (attempt %d/%d): %s",
+                len(remaining), job_name, attempt, max_retries, remaining,
+            )
+
+    return final_results
 
 
 # ---------------------------------------------------------------------------

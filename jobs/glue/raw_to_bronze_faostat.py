@@ -71,9 +71,12 @@ BRONZE_S3_PREFIX = f"bronze/production/source=faostat/dataset=QCL/commodity={COM
 
 def main() -> None:
     import boto3
+    from botocore.config import Config
+
+    _retry_cfg = Config(retries={"max_attempts": 10, "mode": "adaptive"})
 
     logger.info("Downloading raw FAOSTAT ZIP from s3://%s/%s", BUCKET, S3_RAW_KEY)
-    s3 = boto3.client("s3", region_name=AWS_REGION)
+    s3 = boto3.client("s3", region_name=AWS_REGION, config=_retry_cfg)
     TMP_ZIP.parent.mkdir(parents=True, exist_ok=True)
     s3.download_file(BUCKET, S3_RAW_KEY, str(TMP_ZIP))
     logger.info("Downloaded %d bytes", TMP_ZIP.stat().st_size)

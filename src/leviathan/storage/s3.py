@@ -6,7 +6,33 @@ import threading
 from pathlib import Path
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
+
+
+# ---------------------------------------------------------------------------
+# Module-level boto3 retry configuration
+# ---------------------------------------------------------------------------
+
+_BOTO_RETRY_CONFIG = Config(retries={"max_attempts": 10, "mode": "adaptive"})
+
+_RETRYABLE_CODES = frozenset({
+    "503",
+    "SlowDown",
+    "InternalError",
+    "RequestTimeout",
+    "ServiceUnavailable",
+    "RequestThrottled",
+    "Throttling",
+})
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, ClientError):
+        code = exc.response.get("Error", {}).get("Code", "")
+        return code in _RETRYABLE_CODES
+    return isinstance(exc, BotoCoreError)
 
 
 def upload_file_to_s3(
@@ -20,7 +46,7 @@ def upload_file_to_s3(
     if not path.exists():
         raise FileNotFoundError(f"Local file does not exist: {path}")
 
-    s3 = boto3.client("s3", region_name=aws_region)
+    s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
     s3.upload_file(str(path), bucket, key)
 
 
@@ -29,7 +55,7 @@ def s3_object_exists(
     key: str,
     aws_region: str = "us-east-1",
 ) -> bool:
-    s3 = boto3.client("s3", region_name=aws_region)
+    s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
 
     try:
         s3.head_object(Bucket=bucket, Key=key)
@@ -50,7 +76,7 @@ def list_s3_keys(
     aws_region: str = "us-east-1",
 ) -> list[str]:
     """Return all S3 keys under *prefix* that end with *suffix* (paginated)."""
-    s3 = boto3.client("s3", region_name=aws_region)
+    s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
     paginator = s3.get_paginator("list_objects_v2")
 
     keys: list[str] = []
@@ -69,7 +95,7 @@ def download_s3_json(
     aws_region: str = "us-east-1",
 ) -> object:
     """Download an S3 object and parse it as JSON. No local file is written."""
-    s3 = boto3.client("s3", region_name=aws_region)
+    s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
     response = s3.get_object(Bucket=bucket, Key=key)
     return json.loads(response["Body"].read())
 
@@ -81,7 +107,7 @@ def upload_bytes_to_s3(
     aws_region: str = "us-east-1",
 ) -> None:
     """Upload raw bytes to S3. No local file is required."""
-    s3 = boto3.client("s3", region_name=aws_region)
+    s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
     s3.put_object(Body=data, Bucket=bucket, Key=key)
 
 
@@ -97,5 +123,23 @@ def get_thread_local_s3_client(aws_region: str) -> boto3.client:
     if not hasattr(_s3_local, "clients"):
         _s3_local.clients = {}
     if aws_region not in _s3_local.clients:
-        _s3_local.clients[aws_region] = boto3.client("s3", region_name=aws_region)
+        _s3_local.clients[aws_region] = boto3.client(
+            "s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG
+        )
     return _s3_local.clients[aws_region]
+
+
+@retry(
+    wait=wait_random_exponential(min=1, max=60),
+    stop=stop_after_attempt(5),
+    retry=retry_if_exception(_is_retryable),
+    reraise=True,
+)
+def s3_download_with_retry(bucket: str, key: str, s3_client: boto3.client) -> bytes:
+    """Download an S3 object with exponential-backoff retry on transient errors.
+
+    Retries up to 5 times on SlowDown / InternalError / network-level failures.
+    Raises immediately on non-retryable errors (e.g. 404 NoSuchKey).
+    """
+    response = s3_client.get_object(Bucket=bucket, Key=key)
+    return response["Body"].read()

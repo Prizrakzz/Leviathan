@@ -22,7 +22,12 @@ WEATHER_RENAME_MAP = {
 
 
 def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> pd.DataFrame:
-    """Apply silver cleaning rules to an already-loaded bronze weather DataFrame."""
+    """Apply silver cleaning rules to an already-loaded bronze weather DataFrame.
+
+    Returns a long/tidy DataFrame with one row per (date, variable) combination.
+    Columns: date, year, month, day, country, region, commodity, source,
+             ingest_date, variable, value.
+    """
     required = {"date", "year", "month", "day", "country", "region", "commodity", "source"}
     missing = required - set(df.columns)
 
@@ -44,21 +49,20 @@ def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> p
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    keep_cols = [
+    # Columns to keep before melt: identity + weather variable columns
+    id_cols = [
         "date",
         "year",
         "month",
         "day",
         "country",
         "region",
+        "commodity",
         "source",
         "ingest_date",
-        "source_file_name",
     ]
-
-    for col in weather_cols:
-        if col in df.columns:
-            keep_cols.append(col)
+    present_weather_cols = [col for col in weather_cols if col in df.columns]
+    keep_cols = id_cols + present_weather_cols
 
     silver = df[keep_cols].copy()
 
@@ -67,9 +71,21 @@ def clean_one_weather_df(df: pd.DataFrame, source_label: str = "dataframe") -> p
     silver["month"] = silver["month"].astype(int)
     silver["day"] = silver["day"].astype(int)
 
+    # Dedup on wide format before melt (cheaper than post-melt dedup)
     silver = silver.drop_duplicates(
         subset=["date", "country", "region", "source"],
         keep="last",
     )
 
-    return silver
+    # Melt wide → long/tidy: one row per (date, variable)
+    silver = silver.melt(
+        id_vars=id_cols,
+        value_vars=present_weather_cols,
+        var_name="variable",
+        value_name="value",
+    )
+
+    # Drop rows where the weather value itself is null
+    silver = silver.dropna(subset=["value"])
+
+    return silver.reset_index(drop=True)

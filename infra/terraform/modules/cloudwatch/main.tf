@@ -31,31 +31,47 @@ resource "aws_cloudwatch_log_group" "glue_jobs" {
 # Glue Job Insights emits (enabled via --enable-job-insights = true).
 # ---------------------------------------------------------------------------
 
-resource "aws_cloudwatch_metric_alarm" "glue_job_failed" {
-  for_each = toset(local.job_names)
+resource "aws_cloudwatch_event_rule" "glue_job_failed" {
+  name        = "${var.project_name}-${var.environment}-glue-job-failed"
+  description = "Fires when any Glue job run reaches FAILED state."
 
-  alarm_name          = "${each.key}-failed"
-  alarm_description   = "Glue job ${each.key} had a failed run."
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  threshold           = 1
-  treat_missing_data  = "notBreaching"
+  event_pattern = jsonencode({
+    source      = ["aws.glue"]
+    detail-type = ["Glue Job State Change"]
+    detail = {
+      state = ["FAILED"]
+    }
+  })
 
-  metric_name = "glue.driver.aggregate.numFailedTasks"
-  namespace   = "Glue"
-  dimensions = {
-    JobName = each.key
-  }
-  statistic = "Sum"
-  period    = 300
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
-  }
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
+resource "aws_cloudwatch_log_group" "glue_failures" {
+  name              = "/leviathan/${var.environment}/glue-job-failures"
+  retention_in_days = 90
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+resource "aws_cloudwatch_log_resource_policy" "eventbridge_glue_failures" {
+  policy_name = "${var.project_name}-${var.environment}-eventbridge-glue-failures"
+
+  policy_document = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "events.amazonaws.com" }
+      Action    = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource  = "${aws_cloudwatch_log_group.glue_failures.arn}:*"
+    }]
+  })
+}
+
+resource "aws_cloudwatch_event_target" "glue_failed_to_logs" {
+  rule      = aws_cloudwatch_event_rule.glue_job_failed.name
+  target_id = "glue-failures-log-group"
+  arn       = aws_cloudwatch_log_group.glue_failures.arn
+}
 # ---------------------------------------------------------------------------
 # Dashboard — job duration, success/failure counts per job
 # ---------------------------------------------------------------------------

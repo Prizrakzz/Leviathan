@@ -1,19 +1,17 @@
 """Glue Python Shell: bronze → silver NASA POWER.
 
-Reads all bronze Parquet files for a commodity from S3 using pyarrow.dataset,
-applies silver cleaning (date coercion, rename, dedup), and writes per-partition
-silver Parquet files concurrently. Skips existing partitions unless --force_overwrite.
+Reads all bronze Parquet files for a commodity from S3 with per-file retry
+(eliminates pyarrow thundering-herd), applies silver cleaning (melt to long/tidy
+format), and writes per-partition silver Parquet files concurrently. Skips
+existing partitions unless --force_overwrite is set.
 
 Required args: --commodity, --bucket, --aws_region
 Optional args: --force_overwrite (default: false)
 """
 from __future__ import annotations
 
-import io
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-from awsglue.utils import getResolvedOptions
+from typing import Iterable
 
 # ---- Bootstrap: install leviathan package from S3 at runtime ----
 import os as _os
@@ -42,110 +40,33 @@ except Exception as _exc:
     raise
 # ---- End bootstrap ----
 
-import boto3
-import pyarrow.dataset as ds
-import pyarrow.fs as pafs
+import pandas as pd
 
-from leviathan.common.logging import get_logger
-from leviathan.storage.s3 import get_thread_local_s3_client
+from leviathan.common.base_jobs import BaseBronzeToSilverJob
 from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_weather_df
 
-logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["commodity", "bucket", "aws_region"]
+class NasaPowerBronzeToSilver(BaseBronzeToSilverJob):
+    source = "nasa_power"
 
-args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        return clean_one_weather_df(df, source_label=f"{self.source}/{self.commodity}")
 
-COMMODITY: str = args["commodity"]
-BUCKET: str = args["bucket"]
-AWS_REGION: str = args["aws_region"]
-# force_overwrite is optional — parse manually since getResolvedOptions treats all listed args as required
-_fo_idx = next((i for i, a in enumerate(sys.argv) if a == "--force_overwrite"), None)
-FORCE_OVERWRITE: bool = (
-    _fo_idx is not None
-    and _fo_idx + 1 < len(sys.argv)
-    and sys.argv[_fo_idx + 1].lower() == "true"
-)
+    def get_partitions(self, df: pd.DataFrame) -> Iterable[tuple[dict, pd.DataFrame]]:
+        for (country, region, year, month), group in df.groupby(
+            ["country", "region", "year", "month"]
+        ):
+            yield (
+                {"country": country, "region": region, "year": int(year), "month": int(month)},
+                group.reset_index(drop=True),
+            )
 
-BRONZE_PATH = f"{BUCKET}/bronze/weather/source=nasa_power/commodity={COMMODITY}"
-SILVER_BASE = f"silver/weather/source=nasa_power/commodity={COMMODITY}"
-MAX_WORKERS = 64
-
-
-def write_partition(args_tuple: tuple) -> str:
-    (country, region, year, month), group_df = args_tuple
-    silver_key = (
-        f"{SILVER_BASE}/country={country}/region={region}"
-        f"/year={year}/month={month:02d}/part-000.parquet"
-    )
-    buf = io.BytesIO()
-    group_df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    get_thread_local_s3_client(AWS_REGION).put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=silver_key)
-    return silver_key
-
-
-def main() -> None:
-    s3_fs = pafs.S3FileSystem(region=AWS_REGION)
-
-    # --- Read ALL bronze files in parallel (pyarrow internal thread pool) ---
-    logger.info("Reading bronze dataset from s3://%s ...", BRONZE_PATH)
-    bronze_ds = ds.dataset(BRONZE_PATH, filesystem=s3_fs, format="parquet")
-    n_files = len(bronze_ds.files)
-    table = bronze_ds.to_table()
-    logger.info("Loaded %d rows from %d bronze files", len(table), n_files)
-
-    # --- Single vectorized silver transform over the full DataFrame ---
-    import pandas as pd  # noqa: PLC0415 — imported here to avoid top-level import order issues
-    df = table.to_pandas()
-    silver_df = clean_one_weather_df(df, source_label=BRONZE_PATH)
-    logger.info("Silver transform produced %d rows", len(silver_df))
-
-    # --- Skip partitions that already exist unless force_overwrite ---
-    partitions = list(silver_df.groupby(["country", "region", "year", "month"]))
-    logger.info("Total silver partitions to consider: %d", len(partitions))
-
-    if not FORCE_OVERWRITE:
-        from leviathan.storage.s3 import list_s3_keys  # noqa: PLC0415
-        existing = set(
-            list_s3_keys(BUCKET, SILVER_BASE + "/", suffix=".parquet", aws_region=AWS_REGION)
-        )
-        before = len(partitions)
-        partitions = [
-            (key, group) for key, group in partitions
-            if (
-                f"{SILVER_BASE}/country={key[0]}/region={key[1]}"
-                f"/year={key[2]}/month={key[3]:02d}/part-000.parquet"
-            ) not in existing
-        ]
-        logger.info(
-            "Skipping %d existing silver partitions. Writing %d new.",
-            before - len(partitions), len(partitions),
+    def _silver_key(self, key_dict: dict) -> str:
+        return (
+            f"silver/weather/source=nasa_power/commodity={self.commodity}"
+            f"/country={key_dict['country']}/region={key_dict['region']}"
+            f"/year={key_dict['year']}/month={key_dict['month']:02d}/part-000.parquet"
         )
 
-    if not partitions:
-        logger.info("All silver partitions already exist. Nothing to write.")
-        return
 
-    # --- Write all partitions concurrently ---
-    logger.info("Writing %d partitions with %d workers ...", len(partitions), MAX_WORKERS)
-
-    success = failed = 0
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = {pool.submit(write_partition, item): item[0] for item in partitions}
-        for future in as_completed(futures):
-            try:
-                future.result()
-                success += 1
-            except Exception as exc:  # noqa: BLE001
-                failed += 1
-                logger.error("Partition write failed: %s", exc)
-
-    logger.info(
-        "bronze→silver NASA POWER complete. written=%d  failed=%d",
-        success, failed,
-    )
-    if failed > 0:
-        raise RuntimeError(f"{failed} partition writes failed during bronze→silver NASA POWER.")
-
-
-main()
+NasaPowerBronzeToSilver().run()

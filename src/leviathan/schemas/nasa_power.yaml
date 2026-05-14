@@ -1,0 +1,18 @@
+source: nasa_power
+type: json
+
+# Path inside the JSON payload where the parameter block lives (dot-separated).
+required_path: "properties.parameter"
+
+# These parameter keys must all be present under properties.parameter.
+required_parameters:
+  - T2M
+  - T2M_MAX
+  - T2M_MIN
+  - PRECTOTCORR
+  - RH2M
+  - WS2M
+  - ALLSKY_SFC_SW_DWN
+
+# Date keys under each parameter must be 8-digit strings (YYYYMMDD).
+date_key_length: 8

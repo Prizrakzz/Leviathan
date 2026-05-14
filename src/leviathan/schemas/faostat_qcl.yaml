@@ -1,0 +1,18 @@
+source: faostat_qcl
+type: dataframe
+
+# All of these columns must be present in the loaded bronze DataFrame.
+required_columns:
+  - Area
+  - Item
+  - Element
+  - Year
+  - Unit
+  - Value
+  - Flag
+
+# Element values that map to recognised metrics; others are filtered out.
+expected_elements:
+  - "Area harvested"
+  - "Production"
+  - "Yield"

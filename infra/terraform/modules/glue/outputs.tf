@@ -1,19 +1,20 @@
 output "raw_to_bronze_nasa_power_job_name" {
-  value       = aws_glue_job.raw_to_bronze_nasa_power.name
+  value       = module.raw_to_bronze_nasa_power.job_name
   description = "Name of the raw→bronze NASA POWER Glue job."
 }
 
 output "raw_to_bronze_faostat_job_name" {
-  value       = aws_glue_job.raw_to_bronze_faostat.name
+  value       = module.raw_to_bronze_faostat.job_name
   description = "Name of the raw→bronze FAOSTAT Glue job."
 }
 
 output "bronze_to_silver_nasa_power_job_name" {
-  value       = aws_glue_job.bronze_to_silver_nasa_power.name
+  value       = module.bronze_to_silver_nasa_power.job_name
   description = "Name of the bronze→silver NASA POWER Glue job."
 }
 
 output "bronze_to_silver_faostat_job_name" {
-  value       = aws_glue_job.bronze_to_silver_faostat.name
+  value       = module.bronze_to_silver_faostat.job_name
   description = "Name of the bronze→silver FAOSTAT Glue job."
 }
+

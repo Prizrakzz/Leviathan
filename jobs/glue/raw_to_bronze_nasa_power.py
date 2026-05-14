@@ -9,13 +9,9 @@ Optional args: --ingest_date (default: today), --force_overwrite (default: false
 """
 from __future__ import annotations
 
-import io
 import json
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
-
-from awsglue.utils import getResolvedOptions
 
 # ---- Bootstrap: install leviathan package from S3 at runtime ----
 import os as _os
@@ -37,134 +33,57 @@ def _install_leviathan() -> None:
     _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
 
 
-_install_leviathan()
+try:
+    _install_leviathan()
+except Exception as _exc:
+    print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
+    raise
 # ---- End bootstrap ----
 
-import boto3
+import pandas as pd
 
-from leviathan.common.logging import get_logger
+from leviathan.common.base_jobs import BaseRawToBronzeJob
+from leviathan.common.validation import load_schema, validate_raw_json
 from leviathan.storage.paths import bronze_weather_key
-from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe
 
-logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["commodity", "bucket", "aws_region"]
-
-args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
-
-COMMODITY: str = args["commodity"]
-BUCKET: str = args["bucket"]
-AWS_REGION: str = args["aws_region"]
-
-# ingest_date is optional — parse manually; getResolvedOptions treats every listed arg as required
-_id_idx = next((i for i, a in enumerate(sys.argv) if a == "--ingest_date"), None)
-INGEST_DATE: str = (
-    sys.argv[_id_idx + 1]
-    if _id_idx is not None and _id_idx + 1 < len(sys.argv)
-    else date.today().isoformat()
-)
-# force_overwrite is optional — parse manually
-_fo_idx = next((i for i, a in enumerate(sys.argv) if a == "--force_overwrite"), None)
-FORCE_OVERWRITE: bool = (
-    _fo_idx is not None
-    and _fo_idx + 1 < len(sys.argv)
-    and sys.argv[_fo_idx + 1].lower() == "true"
-)
-
-RAW_PREFIX = f"raw/weather/source=nasa_power/commodity={COMMODITY}/"
-BRONZE_PREFIX = f"bronze/weather/source=nasa_power/commodity={COMMODITY}/"
-MAX_WORKERS = 64
+def _parse_hive(key: str, field: str) -> str:
+    return next((p[len(field) + 1:] for p in key.split("/") if p.startswith(f"{field}=")), "")
 
 
-def _parse_hive_partition(key: str, field: str) -> str:
-    parts = key.split("/")
-    return next((p[len(field) + 1:] for p in parts if p.startswith(f"{field}=")), "")
+class NasaPowerRawToBronze(BaseRawToBronzeJob):
+    source = "nasa_power"
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.ingest_date: str = self._parse_optional_str("ingest_date", default=date.today().isoformat())
 
-def process_one(raw_key: str, existing_bronze: set[str]) -> tuple[str, str]:
-    country = _parse_hive_partition(raw_key, "country")
-    region = _parse_hive_partition(raw_key, "region")
-    year_s = _parse_hive_partition(raw_key, "year")
-    month_s = _parse_hive_partition(raw_key, "month")
+    def bronze_key(self, raw_key: str) -> str:
+        country = _parse_hive(raw_key, "country")
+        region = _parse_hive(raw_key, "region")
+        year = int(_parse_hive(raw_key, "year"))
+        month = int(_parse_hive(raw_key, "month"))
+        filename = raw_key.rsplit("/", 1)[-1].replace(".json", ".parquet")
+        return bronze_weather_key("nasa_power", self.commodity, country, region, year, month, filename)
 
-    if not country or not region or not year_s or not month_s:
-        return ("failed", f"Could not parse partitions from key: {raw_key}")
-
-    year = int(year_s)
-    month = int(month_s)
-    filename = raw_key.rsplit("/", 1)[-1].replace(".json", ".parquet")
-
-    bkey = bronze_weather_key(
-        source="nasa_power",
-        commodity=COMMODITY,
-        country=country,
-        region=region,
-        year=year,
-        month=month,
-        filename=filename,
-    )
-
-    if bkey in existing_bronze:
-        return ("skipped", bkey)
-
-    try:
-        response = get_thread_local_s3_client(AWS_REGION).get_object(Bucket=BUCKET, Key=raw_key)
-        payload = json.loads(response["Body"].read())
-
-        df = nasa_power_payload_to_daily_dataframe(
+    def transform(self, raw_bytes: bytes, raw_key: str) -> pd.DataFrame:
+        payload = json.loads(raw_bytes)
+        country = _parse_hive(raw_key, "country")
+        region = _parse_hive(raw_key, "region")
+        return nasa_power_payload_to_daily_dataframe(
             payload=payload,
             source_file_name=raw_key.rsplit("/", 1)[-1],
-            commodity=COMMODITY,
+            commodity=self.commodity,
             country=country,
             region=region,
-            ingest_date=INGEST_DATE,
+            ingest_date=self.ingest_date,
         )
 
-        buf = io.BytesIO()
-        df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-        get_thread_local_s3_client(AWS_REGION).put_object(Body=buf.getvalue(), Bucket=BUCKET, Key=bkey)
-        return ("success", bkey)
-
-    except Exception as exc:  # noqa: BLE001
-        return ("failed", f"{raw_key}: {exc}")
+    def validate_raw(self, raw_bytes: bytes, raw_key: str) -> None:
+        schema = load_schema(self.source)
+        payload = json.loads(raw_bytes)
+        validate_raw_json(payload, schema, context=raw_key)
 
 
-def main() -> None:
-    raw_keys = list_s3_keys(BUCKET, RAW_PREFIX, suffix=".json", aws_region=AWS_REGION)
-    logger.info("Found %d raw files for commodity=%s", len(raw_keys), COMMODITY)
-
-    # One LIST call replaces N head_object calls for the skip check
-    if FORCE_OVERWRITE:
-        existing_bronze: set[str] = set()
-        logger.info("force_overwrite=true — reprocessing all files")
-    else:
-        existing_bronze = set(
-            list_s3_keys(BUCKET, BRONZE_PREFIX, suffix=".parquet", aws_region=AWS_REGION)
-        )
-        logger.info("%d existing bronze files will be skipped", len(existing_bronze))
-
-    success = skipped = failed = 0
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = {pool.submit(process_one, k, existing_bronze): k for k in raw_keys}
-        for future in as_completed(futures):
-            status, info = future.result()
-            if status == "success":
-                success += 1
-            elif status == "skipped":
-                skipped += 1
-            else:
-                failed += 1
-                logger.error("Failed: %s", info)
-
-    logger.info(
-        "raw→bronze NASA POWER complete. success=%d  skipped=%d  failed=%d",
-        success, skipped, failed,
-    )
-    if failed > 0:
-        raise RuntimeError(f"{failed} files failed during raw→bronze NASA POWER transform.")
-
-
-if __name__ == "__main__":
-    main()
+NasaPowerRawToBronze().run()

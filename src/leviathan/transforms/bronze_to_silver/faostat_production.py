@@ -69,14 +69,13 @@ def transform_faostat_production_silver_df(
     df["element"] = df["element"].astype(str).str.strip().str.capitalize()
 
     df = df[df["element"].isin(ELEMENT_TO_METRIC.keys())].copy()
-    df["metric"] = df["element"].map(ELEMENT_TO_METRIC)
+    df["variable"] = df["element"].map(ELEMENT_TO_METRIC)
 
-    df["country"] = df["area"].astype(str)
-    df["country_key"] = df["country"].map(standardize_country_name)
+    # country: standardized key (e.g. "cote_divoire") — consistent with weather silver
+    df["country"] = df["area"].astype(str).map(standardize_country_name)
 
     df["commodity"] = commodity
     df["source"] = "faostat"
-    df["dataset"] = "QCL"
 
     df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
@@ -85,40 +84,35 @@ def transform_faostat_production_silver_df(
     df["flag"] = df["flag"].where(df["flag"].notna() & (df["flag"].astype(str).str.strip() != ""), other=None)
     df["is_official"] = ~df["flag"].astype(str).str.strip().isin(NON_OFFICIAL_FLAGS)
 
-    note_col = ["note"] if "note" in df.columns else []
-
     silver = df[
         [
+            "commodity",
+            "source",
             "country",
-            "country_key",
-            "metric",
+            "variable",
             "year",
             "unit",
             "value",
             "flag",
             "is_official",
-            *note_col,
-            "source",
-            "dataset",
             "ingest_date",
-            "source_file_name",
         ]
     ].copy()
 
-    silver = silver.dropna(subset=["year", "metric", "country_key"])
+    silver = silver.dropna(subset=["year", "variable", "country"])
     silver["year"] = silver["year"].astype(int)
 
     silver = silver.drop_duplicates(
-        subset=["country_key", "metric", "year", "source"],
+        subset=["country", "variable", "year", "source"],
         keep="last",
     )
 
-    for (country_key, metric), group in silver.groupby(["country_key", "metric"]):
+    for (country, variable), group in silver.groupby(["country", "variable"]):
         if group["is_official"].sum() == 0:
             logger.warning(
-                "No official rows for country_key=%s metric=%s — all values are FAO estimates",
-                country_key,
-                metric,
+                "No official rows for country=%s variable=%s — all values are FAO estimates",
+                country,
+                variable,
             )
 
     non_official_pct = (~silver["is_official"]).mean() * 100
