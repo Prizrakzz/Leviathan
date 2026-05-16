@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
@@ -42,7 +43,8 @@ PROJECT       = os.environ.get("LEVIATHAN_PROJECT", "leviathan")
 C2B_JOB = f"{PROJECT}-{LEVIATHAN_ENV}-chirps-to-bronze"
 B2S_JOB = f"{PROJECT}-{LEVIATHAN_ENV}-bronze-to-silver-chirps"
 
-POLL_INTERVAL = 30  # seconds
+POLL_INTERVAL = 30   # seconds between polling rounds
+_C2B_WINDOW   = 20   # max Glue C2B jobs in-flight simultaneously
 
 _CONFIGS_DIR = Path(__file__).parents[1] / "configs"
 
@@ -80,15 +82,16 @@ def _upload_geo_configs(s3_client, commodities: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 def _is_throttle(exc: BaseException) -> bool:
-    return (
-        isinstance(exc, botocore.exceptions.ClientError)
-        and exc.response["Error"]["Code"] in (
-            "ThrottlingException",
-            "RequestLimitExceeded",
-            "Throttling",
-            "ConcurrentRunsExceededException",
-        )
-    )
+    if not isinstance(exc, botocore.exceptions.ClientError):
+        return False
+    code = exc.response["Error"]["Code"]
+    msg  = exc.response["Error"]["Message"]
+    return code in (
+        "ThrottlingException",
+        "RequestLimitExceeded",
+        "Throttling",
+        "ConcurrentRunsExceededException",
+    ) or (code == "InvalidInputException" and "capacity" in msg.lower())
 
 
 @retry(
@@ -153,26 +156,47 @@ def _run_c2b_stage(
     end_year: int,
     dry_run: bool,
 ) -> dict[tuple[str, int], str]:
-    """Submit one chirps_to_bronze job per commodity × year, poll to completion."""
+    """Submit chirps_to_bronze jobs via a sliding window (≤ _C2B_WINDOW in-flight)."""
     jobs: list[tuple[str, int]] = [
         (c, y) for c in commodities for y in range(start_year, end_year + 1)
     ]
     print(f"\n--- Stage: {C2B_JOB} ({len(jobs)} jobs) ---")
     ingest_date = date.today().isoformat()
 
-    with ThreadPoolExecutor(max_workers=min(len(jobs), 20)) as pool:
-        futures = [pool.submit(_start_c2b, glue, c, y, ingest_date, dry_run) for c, y in jobs]
-        submissions = [f.result() for f in as_completed(futures)]
-
     if dry_run:
+        for c, y in jobs:
+            print(f"  [DRY RUN] Would start {C2B_JOB} {c}/{y}")
         return {(c, y): "SUCCEEDED" for c, y in jobs}
 
-    run_id_to_job: dict[str, str] = {run_id: C2B_JOB for _, _, run_id in submissions}
-    run_id_to_key: dict[str, tuple[str, int]] = {
-        run_id: (c, y) for c, y, run_id in submissions
-    }
-    run_statuses = _poll_glue_runs(glue, run_id_to_job, POLL_INTERVAL)
-    return {run_id_to_key[rid]: status for rid, status in run_statuses.items()}
+    queue:     list[tuple[str, int]]        = list(jobs)
+    in_flight: dict[str, tuple[str, int]]   = {}   # run_id → (commodity, year)
+    results:   dict[tuple[str, int], str]   = {}
+    terminal = frozenset({"SUCCEEDED", "FAILED", "ERROR", "TIMEOUT", "STOPPED"})
+
+    while queue or in_flight:
+        # Fill the window with new submissions.
+        while queue and len(in_flight) < _C2B_WINDOW:
+            c, y = queue.pop(0)
+            _, _, run_id = _start_c2b(glue, c, y, ingest_date, False)
+            in_flight[run_id] = (c, y)
+
+        # Poll all in-flight jobs; drain completed ones.
+        for run_id in list(in_flight):
+            state = glue.get_job_run(JobName=C2B_JOB, RunId=run_id)["JobRun"]["JobRunState"]
+            if state in terminal:
+                key = in_flight.pop(run_id)
+                results[key] = state
+                print(f"  {key[0]}/{key[1]} → {state}  ({len(results)}/{len(jobs)} done)")
+
+        if queue or in_flight:
+            print(
+                f"  [{len(results)}/{len(jobs)} done]  "
+                f"{len(in_flight)} running  {len(queue)} queued — "
+                f"sleeping {POLL_INTERVAL}s..."
+            )
+            time.sleep(POLL_INTERVAL)
+
+    return results
 
 
 def _run_b2s_stage(

@@ -12,7 +12,7 @@ resource "aws_s3_bucket_versioning" "data_lake" {
   bucket = aws_s3_bucket.data_lake.id
 
   versioning_configuration {
-    status = "Enabled"
+    status = "Suspended"
   }
 }
 
@@ -59,6 +59,62 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
 
     transition {
       days          = 90
+      storage_class = "STANDARD_IA"
+    }
+  }
+
+  # Glue temp files and their noncurrent versions accumulate rapidly during
+  # bulk job runs.  Expire everything after 1 day so versioning doesn't cause
+  # cost spikes similar to the May 2026 incident ($13.44 S3 anomaly).
+  rule {
+    id     = "expire-glue-temp"
+    status = "Enabled"
+
+    filter {
+      prefix = "glue-temp/"
+    }
+
+    expiration {
+      days = 1
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+
+  rule {
+    id     = "manage-bronze-versions"
+    status = "Enabled"
+
+    filter {
+      prefix = "bronze/"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+  }
+
+  rule {
+    id     = "manage-silver-versions"
+    status = "Enabled"
+
+    filter {
+      prefix = "silver/"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+
+    transition {
+      days          = 30
       storage_class = "STANDARD_IA"
     }
   }

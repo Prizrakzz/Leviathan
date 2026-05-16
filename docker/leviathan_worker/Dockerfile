@@ -7,6 +7,6 @@ COPY src/ ./src/
 COPY jobs/ ./jobs/
 COPY configs/ ./configs/
 
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e ".[batch]"
 
 ENTRYPOINT ["python"]

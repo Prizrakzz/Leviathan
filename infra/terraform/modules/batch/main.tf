@@ -105,6 +105,71 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
 }
 
 # ---------------------------------------------------------------------------
+# Job definition: CHIRPS COG → bronze backfill
+# Each task handles one (commodity, year) = 12 months of CHIRPS data.
+# Parameters are overridden per-task at submission time.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "chirps_to_bronze_backfill" {
+  name = "${var.project_name}-${var.environment}-chirps-to-bronze-backfill"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    commodity  = "corn_cbot"
+    year       = "1981"
+    bucket     = var.leviathan_bucket
+    aws_region = var.aws_region
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/chirps_to_bronze_task.py",
+      "--commodity",  "Ref::commodity",
+      "--year",       "Ref::year",
+      "--bucket",     "Ref::bucket",
+      "--aws_region", "Ref::aws_region"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET",             value = var.leviathan_bucket },
+      { name = "AWS_REGION",                   value = var.aws_region },
+      { name = "LEVIATHAN_ENV",                value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "chirps-to-bronze"
+      }
+    }
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Job definition: backfill orchestrator
 # Single Fargate task that submits all worker Batch jobs, polls completion,
 # then fires Glue raw→bronze and bronze→silver for every commodity.

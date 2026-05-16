@@ -37,3 +37,9 @@ variable "batch_security_group_ids" {
   description = "Security group IDs for Fargate tasks."
 }
 
+variable "budget_alert_email" {
+  type        = string
+  description = "Email address for monthly cost budget alerts. Leave empty to disable email notifications."
+  default     = ""
+}
+
