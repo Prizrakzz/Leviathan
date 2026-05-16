@@ -130,7 +130,8 @@ module "bronze_to_silver_chirps" {
 }
 
 # ---------------------------------------------------------------------------
-# S3: leviathan wheel (script uploads handled inside each glue_job module)
+# S3: leviathan wheel and bootstrap helper
+# (script uploads handled inside each glue_job module)
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_object" "leviathan_whl" {
@@ -138,6 +139,19 @@ resource "aws_s3_object" "leviathan_whl" {
   key    = "glue-libs/leviathan-0.1.0-py3-none-any.whl"
   source = "${path.module}/../../../../dist/leviathan-0.1.0-py3-none-any.whl"
   etag   = filemd5("${path.module}/../../../../dist/leviathan-0.1.0-py3-none-any.whl")
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_s3_object" "glue_bootstrap" {
+  bucket = var.bucket_name
+  key    = "glue-libs/bootstrap.py"
+  source = "${path.module}/../../../../jobs/glue/bootstrap.py"
+  etag   = filemd5("${path.module}/../../../../jobs/glue/bootstrap.py")
 
   tags = {
     Project     = var.project_name

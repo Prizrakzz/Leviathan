@@ -27,6 +27,7 @@ resource "aws_glue_job" "this" {
       "--enable-job-insights" = "true"
       "--job-language"        = "python"
       "--TempDir"             = "s3://${var.bucket_name}/glue-temp"
+      "--extra-py-files"      = "s3://${var.bucket_name}/glue-libs/bootstrap.py"
     },
     var.extra_default_args,
   )

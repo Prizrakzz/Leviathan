@@ -21,8 +21,7 @@ from pathlib import Path
 import boto3
 import yaml
 
-sys.path.insert(0, str(Path(__file__).parent))
-from glue_utils import poll_glue_runs as _poll_glue_runs
+from leviathan.common.polling import poll_glue_runs as _poll_glue_runs
 
 # ---------------------------------------------------------------------------
 # Config

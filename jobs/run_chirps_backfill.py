@@ -1,5 +1,11 @@
 """CHIRPS backfill: COG -> bronze then bronze -> silver for all 31 commodities.
 
+.. deprecated::
+   This script orchestrates the CHIRPS Glue jobs, which are blocked by the
+   active AWS Glue Health Event.  Use ``jobs/submit_batch_backfill_chirps.py``
+   (COG → bronze) and ``jobs/submit_batch_b2s_chirps.py`` (bronze → silver)
+   instead.  Keep this file as a Glue-fallback reference.
+
 Submits chirps_to_bronze Glue jobs in parallel (one per commodity × year),
 polls to completion, then runs bronze_to_silver_chirps per commodity.
 
@@ -28,8 +34,7 @@ import botocore.exceptions
 import yaml
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-sys.path.insert(0, str(Path(__file__).parent))
-from glue_utils import poll_glue_runs as _poll_glue_runs
+from leviathan.common.polling import poll_glue_runs as _poll_glue_runs
 
 # ---------------------------------------------------------------------------
 # Config

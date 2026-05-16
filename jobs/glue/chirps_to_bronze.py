@@ -1,5 +1,11 @@
 """Glue Python Shell: CHIRPS v3 COG → bronze.
 
+.. deprecated::
+   This Glue job is superseded by the AWS Batch Fargate task
+   ``jobs/batch/chirps_to_bronze_task.py``, which does not require a
+   rasterio version pin and is not blocked by the active Glue Health Event.
+   Keep this file only as a Glue fallback reference.
+
 Reads CHIRPS v3 Cloud-Optimized GeoTIFF files directly via HTTP range requests
 (rasterio/vsicurl).  No raw S3 tier — pixel values are extracted and written
 straight to bronze Parquet, one file per region per month.
@@ -21,42 +27,20 @@ _os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
 _os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "200000000")
 
 import sys
-import subprocess as _subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
-# ---- Bootstrap: install leviathan package from S3 at runtime ----
-def _install_leviathan() -> None:
-    import boto3 as _boto3
-    import time as _time
-
-    _bucket = next(
-        (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
-        None,
-    )
-    if not _bucket:
-        raise RuntimeError("--bucket argument required for leviathan bootstrap")
-    _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
-    for _attempt in range(3):
-        try:
-            if not _os.path.exists(_whl):
-                _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-            _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
-            return
-        except Exception:
-            if _attempt == 2:
-                raise
-            if _os.path.exists(_whl):
-                _os.remove(_whl)
-            _time.sleep(5 * (_attempt + 1))
-
-
+_bucket = next(
+    (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
+    None,
+)
+if _bucket is None:
+    raise RuntimeError("--bucket argument required for leviathan bootstrap")
 try:
-    _install_leviathan()
+    from bootstrap import ensure_leviathan_installed
+    ensure_leviathan_installed(_bucket)
 except Exception as _exc:
     print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
     raise
-# ---- End bootstrap ----
 
 import calendar
 import io

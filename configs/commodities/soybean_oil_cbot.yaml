@@ -10,9 +10,5 @@ first_phase_sources:
   weather:
     - nasa_power
     - chirps
-    - agera5
   production:
     - faostat
-  reference:
-    - crop_calendar
-    - geography

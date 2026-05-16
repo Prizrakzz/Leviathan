@@ -12,42 +12,18 @@ from __future__ import annotations
 import sys
 from typing import Iterable
 
-# ---- Bootstrap: install leviathan package from S3 at runtime ----
-import os as _os
-import subprocess as _subprocess
-
-
-def _install_leviathan() -> None:
-    import boto3 as _boto3
-    import time as _time
-
-    _bucket = next(
-        (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
-        None,
-    )
-    if not _bucket:
-        raise RuntimeError("--bucket argument required for leviathan bootstrap")
-    _whl = "/tmp/leviathan-0.1.0-py3-none-any.whl"
-    for _attempt in range(3):
-        try:
-            if not _os.path.exists(_whl):
-                _boto3.client("s3").download_file(_bucket, "glue-libs/leviathan-0.1.0-py3-none-any.whl", _whl)
-            _subprocess.check_call([sys.executable, "-m", "pip", "install", _whl, "--no-deps", "--quiet"])
-            return
-        except Exception:
-            if _attempt == 2:
-                raise
-            if _os.path.exists(_whl):
-                _os.remove(_whl)
-            _time.sleep(5 * (_attempt + 1))
-
-
+_bucket = next(
+    (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
+    None,
+)
+if _bucket is None:
+    raise RuntimeError("--bucket argument required for leviathan bootstrap")
 try:
-    _install_leviathan()
+    from bootstrap import ensure_leviathan_installed
+    ensure_leviathan_installed(_bucket)
 except Exception as _exc:
     print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
     raise
-# ---- End bootstrap ----
 
 import pandas as pd
 
