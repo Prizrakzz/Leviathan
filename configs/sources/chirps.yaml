@@ -1,0 +1,16 @@
+source: chirps
+dataset: "CHIRPS-3.0"
+base_url: "https://data.chc.ucsb.edu/products/CHIRPS-3.0/global_daily/cogs/p05"
+resolution_degrees: 0.05
+nodata: -9999.0
+
+coverage:
+  start_year: 1981
+  lat_min: -50.0
+  lat_max: 50.0
+
+notes:
+  format: "Cloud-Optimized GeoTIFF (COG)"
+  access: "Public HTTP — no authentication required"
+  file_pattern: "chirps-v3.0.{YYYY}.{MM}.{DD}.cog.tif"
+  ingest_strategy: "HTTP range-read via rasterio/vsicurl — no raw S3 tier"

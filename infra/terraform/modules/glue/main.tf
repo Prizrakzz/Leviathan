@@ -90,6 +90,44 @@ module "bronze_to_silver_faostat" {
 }
 
 # ---------------------------------------------------------------------------
+# COG → bronze: CHIRPS
+# ---------------------------------------------------------------------------
+
+module "chirps_to_bronze" {
+  source = "../glue_job"
+
+  job_name          = "${var.project_name}-${var.environment}-chirps-to-bronze"
+  script_local_path = "${local.scripts_dir}/chirps_to_bronze.py"
+  bucket_name       = var.bucket_name
+  glue_role_arn     = var.glue_job_role_arn
+  aws_region        = var.aws_region
+  project_name      = var.project_name
+  environment       = var.environment
+
+  extra_default_args = {
+    # rasterio bundles GDAL for manylinux — no system dependency needed.
+    "--additional-python-modules" = "rasterio"
+    "--ingest_date"               = formatdate("YYYY-MM-DD", timestamp())
+  }
+}
+
+# ---------------------------------------------------------------------------
+# bronze → silver: CHIRPS
+# ---------------------------------------------------------------------------
+
+module "bronze_to_silver_chirps" {
+  source = "../glue_job"
+
+  job_name          = "${var.project_name}-${var.environment}-bronze-to-silver-chirps"
+  script_local_path = "${local.scripts_dir}/bronze_to_silver_chirps.py"
+  bucket_name       = var.bucket_name
+  glue_role_arn     = var.glue_job_role_arn
+  aws_region        = var.aws_region
+  project_name      = var.project_name
+  environment       = var.environment
+}
+
+# ---------------------------------------------------------------------------
 # S3: leviathan wheel (script uploads handled inside each glue_job module)
 # ---------------------------------------------------------------------------
 

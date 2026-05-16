@@ -1,0 +1,16 @@
+source: chirps
+type: dataframe
+
+required_columns:
+  - commodity
+  - source
+  - country
+  - region
+  - date
+  - year
+  - month
+  - day
+  - latitude
+  - longitude
+  - precipitation_mm
+  - ingest_date

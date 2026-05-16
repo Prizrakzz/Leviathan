@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+CHIRPS_START_YEAR: int = 1981
+
 ALL_COMMODITIES: list[str] = [
     "cocoa",
     "corn_cbot",
