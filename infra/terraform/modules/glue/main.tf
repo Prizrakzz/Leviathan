@@ -105,8 +105,10 @@ module "chirps_to_bronze" {
   environment       = var.environment
 
   extra_default_args = {
-    # rasterio bundles GDAL for manylinux — no system dependency needed.
-    "--additional-python-modules" = "rasterio"
+    # Pin to 1.3.x: rasterio >=1.4 wheels are compiled against numpy 2.x ABI
+    # (dtype size 96) but Glue 3.0 pre-installs numpy 1.24.x (dtype size 88).
+    # 1.3.10 is compiled against numpy 1.x and is the last release before 1.4.
+    "--additional-python-modules" = "rasterio==1.3.10"
     "--ingest_date"               = formatdate("YYYY-MM-DD", timestamp())
   }
 }

@@ -18,3 +18,13 @@ output "bronze_to_silver_faostat_job_name" {
   description = "Name of the bronze→silver FAOSTAT Glue job."
 }
 
+output "chirps_to_bronze_job_name" {
+  value       = module.chirps_to_bronze.job_name
+  description = "Name of the COG→bronze CHIRPS Glue job."
+}
+
+output "bronze_to_silver_chirps_job_name" {
+  value       = module.bronze_to_silver_chirps.job_name
+  description = "Name of the bronze→silver CHIRPS Glue job."
+}
+

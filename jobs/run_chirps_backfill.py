@@ -1,4 +1,4 @@
-"""CHIRPS backfill: COG → bronze then bronze → silver for all 31 commodities.
+"""CHIRPS backfill: COG -> bronze then bronze -> silver for all 31 commodities.
 
 Submits chirps_to_bronze Glue jobs in parallel (one per commodity × year),
 polls to completion, then runs bronze_to_silver_chirps per commodity.
@@ -10,7 +10,7 @@ Usage:
     python jobs/run_chirps_backfill.py
     python jobs/run_chirps_backfill.py --commodities corn_cbot,cocoa
     python jobs/run_chirps_backfill.py --start-year 2010 --end-year 2020
-    python jobs/run_chirps_backfill.py --skip-c2b             # bronze→silver only
+    python jobs/run_chirps_backfill.py --skip-c2b             # bronze->silver only
     python jobs/run_chirps_backfill.py --dry-run
 """
 from __future__ import annotations
@@ -182,7 +182,7 @@ def _run_b2s_stage(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="CHIRPS backfill: COG→bronze then bronze→silver for all 31 commodities."
+        description="CHIRPS backfill: COG->bronze then bronze->silver for all 31 commodities."
     )
     parser.add_argument(
         "--commodities",
@@ -205,7 +205,7 @@ def main() -> None:
     parser.add_argument(
         "--skip-c2b",
         action="store_true",
-        help="Skip COG→bronze stage (bronze already exists). Runs bronze→silver only.",
+        help="Skip COG->bronze stage (bronze already exists). Runs bronze->silver only.",
     )
     parser.add_argument(
         "--force-overwrite",
@@ -237,9 +237,9 @@ def main() -> None:
         print("\nUploading geography configs to S3...")
         _upload_geo_configs(s3_client, commodities)
 
-    # Stage 1: COG → bronze
+    # Stage 1: COG -> bronze
     if args.skip_c2b:
-        print("--skip-c2b set: skipping COG→bronze stage.")
+        print("--skip-c2b set: skipping COG->bronze stage.")
         c2b_results: dict[tuple[str, int], str] = {
             (c, y): "SKIPPED"
             for c in commodities
@@ -253,7 +253,7 @@ def main() -> None:
         c2b_failed_keys = [(c, y) for (c, y), s in c2b_results.items() if s != "SUCCEEDED"]
         if c2b_failed_keys:
             failed_commodities = sorted({c for c, _ in c2b_failed_keys})
-            print(f"\nWARNING: {len(c2b_failed_keys)} COG→bronze jobs failed.")
+            print(f"\nWARNING: {len(c2b_failed_keys)} COG->bronze jobs failed.")
             print(f"Failed commodities: {failed_commodities}")
         # Only run B2S for commodities where ALL years succeeded.
         fully_succeeded = {
@@ -265,7 +265,7 @@ def main() -> None:
         }
         b2s_commodities = [c for c in commodities if c in fully_succeeded]
 
-    # Stage 2: bronze → silver
+    # Stage 2: bronze -> silver
     b2s_results = _run_b2s_stage(
         glue, b2s_commodities, args.dry_run, args.force_overwrite
     )
@@ -280,8 +280,8 @@ def main() -> None:
     print("\n" + "=" * 70)
     print("CHIRPS BACKFILL SUMMARY")
     print("=" * 70)
-    print(f"  COG→bronze:    {c2b_succeeded}/{total_c2b} succeeded  ({c2b_failed} failed)")
-    print(f"  Bronze→silver: {b2s_succeeded}/{len(b2s_commodities)} succeeded  ({b2s_failed} failed)")
+    print(f"  COG->bronze:    {c2b_succeeded}/{total_c2b} succeeded  ({c2b_failed} failed)")
+    print(f"  Bronze->silver: {b2s_succeeded}/{len(b2s_commodities)} succeeded  ({b2s_failed} failed)")
 
     any_fail = c2b_failed > 0 or b2s_failed > 0
     if any_fail:

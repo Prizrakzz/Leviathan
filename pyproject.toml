@@ -29,7 +29,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov",
     "moto[s3]>=4.0",
-    "rasterio",
+    "rasterio==1.3.10",
 ]
 
 [tool.pytest.ini_options]
