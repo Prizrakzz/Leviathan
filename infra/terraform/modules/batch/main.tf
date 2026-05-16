@@ -237,6 +237,70 @@ resource "aws_batch_job_definition" "backfill_orchestrator" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Job definition: CHIRPS bronze → silver
+# One task per commodity.  Reads all bronze Parquet for the commodity,
+# applies silver cleaning + melt transform, writes per-partition silver files.
+# Skip-existing logic is built into BaseBronzeToSilverJob — safe to re-run.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "chirps_bronze_to_silver" {
+  name = "${var.project_name}-${var.environment}-chirps-bronze-to-silver"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    commodity  = "corn_cbot"
+    bucket     = var.leviathan_bucket
+    aws_region = var.aws_region
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/bronze_to_silver_chirps_task.py",
+      "--commodity",  "Ref::commodity",
+      "--bucket",     "Ref::bucket",
+      "--aws_region", "Ref::aws_region"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "2" },
+      { type = "MEMORY", value = "4096" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "chirps-bronze-to-silver"
+      }
+    }
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 resource "aws_cloudwatch_log_group" "batch" {
   name              = "/aws/batch/${var.project_name}-${var.environment}"
   retention_in_days = 30
