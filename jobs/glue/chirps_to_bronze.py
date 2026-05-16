@@ -142,8 +142,10 @@ def _process_month(
             )
             return day, {}
 
-    # Fetch all days in this month concurrently.
-    with ThreadPoolExecutor(max_workers=days_in_month) as pool:
+    # Fetch all days in this month concurrently.  Cap at 5 workers to avoid
+    # throttling the UCSB research server (~20 safe concurrent connections total
+    # across all 12 month threads → 12 × 5 = 60 connections).
+    with ThreadPoolExecutor(max_workers=5) as pool:
         futures = {pool.submit(_fetch_day, d): d for d in range(1, days_in_month + 1)}
         for future in as_completed(futures):
             day, values = future.result()

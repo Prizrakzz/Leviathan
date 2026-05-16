@@ -75,7 +75,7 @@ def _process_month(
             )
             return day, {}
 
-    with ThreadPoolExecutor(max_workers=days_in_month) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:  # cap at 5 to avoid throttling UCSB server
         futures = {pool.submit(_fetch_day, d): d for d in range(1, days_in_month + 1)}
         for future in as_completed(futures):
             day, values = future.result()

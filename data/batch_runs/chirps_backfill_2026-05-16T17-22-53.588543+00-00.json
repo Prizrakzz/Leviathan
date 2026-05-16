@@ -1,0 +1,22 @@
+{
+  "run_id": "2026-05-16T17-22-53.588543+00-00",
+  "source": "chirps",
+  "commodities": [
+    "arabica_coffee"
+  ],
+  "start_year": 2025,
+  "end_year": 2025,
+  "task_count": 1,
+  "tasks": [
+    {
+      "job_name": "chirps-bronze-arabica-coffee-2025",
+      "parameters": {
+        "commodity": "arabica_coffee",
+        "year": "2025",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "c276f785-9bbd-4383-94ef-70cd1a11daa0"
+    }
+  ]
+}

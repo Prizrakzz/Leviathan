@@ -33,7 +33,7 @@ dev = [
     "rasterio==1.3.10",
 ]
 batch = [
-    "rasterio>=1.3",
+    "rasterio>=1.3,<1.5",  # 1.5+ requires Python >=3.12 and numpy>=2
 ]
 
 [tool.pytest.ini_options]
