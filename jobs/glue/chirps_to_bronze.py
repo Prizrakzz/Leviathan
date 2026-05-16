@@ -17,10 +17,12 @@ import os as _os
 _os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
 _os.environ.setdefault("GDAL_HTTP_MAX_RETRY", "3")
 _os.environ.setdefault("GDAL_HTTP_RETRY_DELAY", "1")
+_os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
 _os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "200000000")
 
 import sys
 import subprocess as _subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # ---- Bootstrap: install leviathan package from S3 at runtime ----
@@ -113,7 +115,7 @@ def _load_regions(s3_client, bucket: str, commodity: str) -> list[dict]:
 
 
 def _process_month(
-    s3_client,
+    aws_region: str,
     bucket: str,
     commodity: str,
     year: int,
@@ -122,45 +124,55 @@ def _process_month(
     ingest_date: str,
     force_overwrite: bool,
 ) -> None:
-    """Extract CHIRPS values for every day in a month and write one Parquet per region."""
-    days_in_month = calendar.monthrange(year, month)[1]
+    """Extract CHIRPS values for every day in a month and write one Parquet per region.
 
-    # Collect rows per (country, region) across all days in this month.
+    All days are fetched concurrently — each rasterio.open() call opens an
+    independent GDAL dataset handle, so parallel reads are safe.
+    """
+    days_in_month = calendar.monthrange(year, month)[1]
     region_rows: dict[tuple[str, str], list[dict]] = {}
 
-    for day in range(1, days_in_month + 1):
+    def _fetch_day(day: int) -> tuple[int, dict]:
         try:
-            values = fetch_chirps_daily_values(year, month, day, locations)
+            return day, fetch_chirps_daily_values(year, month, day, locations)
         except Exception as exc:
             logger.warning(
                 "Failed to fetch %d-%02d-%02d after retries: %s — skipping day",
                 year, month, day, exc,
             )
-            continue
+            return day, {}
 
-        day_str = date(year, month, day).isoformat()
-        for loc in locations:
-            region = loc["region"]
-            country = loc["country"]
-            region_rows.setdefault((country, region), []).append({
-                "commodity": commodity,
-                "source": "chirps",
-                "country": country,
-                "region": region,
-                "date": day_str,
-                "year": year,
-                "month": month,
-                "day": day,
-                "latitude": loc["latitude"],
-                "longitude": loc["longitude"],
-                "precipitation_mm": values.get(region),
-                "ingest_date": ingest_date,
-            })
+    # Fetch all days in this month concurrently.
+    with ThreadPoolExecutor(max_workers=days_in_month) as pool:
+        futures = {pool.submit(_fetch_day, d): d for d in range(1, days_in_month + 1)}
+        for future in as_completed(futures):
+            day, values = future.result()
+            if not values:
+                continue
+            day_str = date(year, month, day).isoformat()
+            for loc in locations:
+                region = loc["region"]
+                country = loc["country"]
+                region_rows.setdefault((country, region), []).append({
+                    "commodity": commodity,
+                    "source": "chirps",
+                    "country": country,
+                    "region": region,
+                    "date": day_str,
+                    "year": year,
+                    "month": month,
+                    "day": day,
+                    "latitude": loc["latitude"],
+                    "longitude": loc["longitude"],
+                    "precipitation_mm": values.get(region),
+                    "ingest_date": ingest_date,
+                })
 
     if not region_rows:
         logger.warning("No data collected for %d-%02d commodity=%s", year, month, commodity)
         return
 
+    s3_client = get_thread_local_s3_client(aws_region)
     for (country, region), rows in region_rows.items():
         bkey = bronze_weather_key("chirps", commodity, country, region, year, month, "part-000.parquet")
 
@@ -198,20 +210,31 @@ def main() -> None:
     locations = _load_regions(s3_client, bucket, commodity)
     logger.info("Loaded %d locations for commodity=%s", len(locations), commodity)
 
-    for month in range(1, 13):
-        logger.info("Processing %d-%02d (%d locations)", year, month, len(locations))
-        _process_month(
-            s3_client=s3_client,
-            bucket=bucket,
-            commodity=commodity,
-            year=year,
-            month=month,
-            locations=locations,
-            ingest_date=ingest_date,
-            force_overwrite=force_overwrite,
-        )
+    # Process all 12 months concurrently; within each month all days run concurrently.
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        futures = {
+            pool.submit(
+                _process_month,
+                aws_region=aws_region,
+                bucket=bucket,
+                commodity=commodity,
+                year=year,
+                month=month,
+                locations=locations,
+                ingest_date=ingest_date,
+                force_overwrite=force_overwrite,
+            ): month
+            for month in range(1, 13)
+        }
+        for future in as_completed(futures):
+            month = futures[future]
+            try:
+                future.result()
+            except Exception as exc:
+                logger.error("Month %02d failed: %s", month, exc)
+                raise
 
-    logger.info("CHIRPS → bronze complete  commodity=%s  year=%d", commodity, year)
+    logger.info("CHIRPS -> bronze complete  commodity=%s  year=%d", commodity, year)
 
 
 main()

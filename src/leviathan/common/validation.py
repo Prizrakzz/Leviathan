@@ -16,7 +16,13 @@ Usage
 from __future__ import annotations
 
 import importlib.resources as pkg_resources
-from typing import Any, TypeAlias
+import sys
+from typing import Any
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
 import pandas as pd
 import yaml

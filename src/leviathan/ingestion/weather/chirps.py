@@ -13,6 +13,7 @@ from leviathan.common.logging import get_logger
 os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
 os.environ.setdefault("GDAL_HTTP_MAX_RETRY", "3")
 os.environ.setdefault("GDAL_HTTP_RETRY_DELAY", "1")
+os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
 os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "200000000")
 
 import rasterio  # noqa: E402

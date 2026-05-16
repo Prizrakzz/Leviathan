@@ -23,7 +23,13 @@ import io
 import sys
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import ClassVar, Iterable, TypeAlias
+import sys
+from typing import ClassVar, Iterable
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
 import pandas as pd
 
