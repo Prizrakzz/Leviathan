@@ -23,7 +23,9 @@ from datetime import date
 from pathlib import Path
 
 import boto3
+import botocore.exceptions
 import yaml
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 sys.path.insert(0, str(Path(__file__).parent))
 from glue_utils import poll_glue_runs as _poll_glue_runs
@@ -77,6 +79,19 @@ def _upload_geo_configs(s3_client, commodities: list[str]) -> None:
 # Helpers: job submission
 # ---------------------------------------------------------------------------
 
+def _is_throttle(exc: BaseException) -> bool:
+    return (
+        isinstance(exc, botocore.exceptions.ClientError)
+        and exc.response["Error"]["Code"] in ("ThrottlingException", "RequestLimitExceeded", "Throttling")
+    )
+
+
+@retry(
+    retry=retry_if_exception(_is_throttle),
+    wait=wait_exponential(multiplier=2, min=2, max=60),
+    stop=stop_after_attempt(10),
+    reraise=True,
+)
 def _start_c2b(
     glue, commodity: str, year: int, ingest_date: str, dry_run: bool
 ) -> tuple[str, int, str]:
@@ -98,6 +113,12 @@ def _start_c2b(
     return commodity, year, run_id
 
 
+@retry(
+    retry=retry_if_exception(_is_throttle),
+    wait=wait_exponential(multiplier=2, min=2, max=60),
+    stop=stop_after_attempt(10),
+    reraise=True,
+)
 def _start_b2s(
     glue, commodity: str, dry_run: bool, force_overwrite: bool
 ) -> tuple[str, str]:
@@ -134,7 +155,7 @@ def _run_c2b_stage(
     print(f"\n--- Stage: {C2B_JOB} ({len(jobs)} jobs) ---")
     ingest_date = date.today().isoformat()
 
-    with ThreadPoolExecutor(max_workers=min(len(jobs), 100)) as pool:
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 20)) as pool:
         futures = [pool.submit(_start_c2b, glue, c, y, ingest_date, dry_run) for c, y in jobs]
         submissions = [f.result() for f in as_completed(futures)]
 
