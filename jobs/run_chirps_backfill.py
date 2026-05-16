@@ -82,14 +82,19 @@ def _upload_geo_configs(s3_client, commodities: list[str]) -> None:
 def _is_throttle(exc: BaseException) -> bool:
     return (
         isinstance(exc, botocore.exceptions.ClientError)
-        and exc.response["Error"]["Code"] in ("ThrottlingException", "RequestLimitExceeded", "Throttling")
+        and exc.response["Error"]["Code"] in (
+            "ThrottlingException",
+            "RequestLimitExceeded",
+            "Throttling",
+            "ConcurrentRunsExceededException",
+        )
     )
 
 
 @retry(
     retry=retry_if_exception(_is_throttle),
-    wait=wait_exponential(multiplier=2, min=2, max=60),
-    stop=stop_after_attempt(10),
+    wait=wait_exponential(multiplier=2, min=30, max=120),
+    stop=stop_after_attempt(30),
     reraise=True,
 )
 def _start_c2b(
