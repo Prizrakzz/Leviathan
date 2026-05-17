@@ -26,6 +26,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import sys
 from typing import ClassVar, Iterable
 
+import yaml
+
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 else:
@@ -321,7 +323,26 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
             logger.warning("Silver transform returned empty DataFrame — nothing to write.")
             return
 
-        # 4. Get partitions + skip-existing check
+        # 4. Silver quality checks + report
+        from leviathan.common.quality import (  # noqa: PLC0415
+            run_silver_quality_checks,
+            write_quality_report_to_s3,
+        )
+
+        expected_countries = self._load_expected_countries()
+        quality_report = run_silver_quality_checks(
+            silver_df, self.commodity, self.source, expected_countries
+        )
+        write_quality_report_to_s3(
+            quality_report, self.bucket, self.source, self.commodity, self.aws_region
+        )
+        if not quality_report["passed"]:
+            failures = quality_report.get("hard_failures", {})
+            raise RuntimeError(
+                f"Silver quality checks failed for {self.source}/{self.commodity}: {failures}"
+            )
+
+        # 5. Get partitions + skip-existing check
         partitions = list(self.get_partitions(silver_df))
         logger.info("Total silver partitions: %d", len(partitions))
 
@@ -345,7 +366,7 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
             logger.info("All silver partitions already exist — nothing to write.")
             return
 
-        # 5. Write partitions concurrently
+        # 6. Write partitions concurrently
         write_success = write_failed = 0
         with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
             futures_w = {
@@ -369,13 +390,58 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
                 f"{read_failed} read failures, {write_failed} write failures."
             )
 
+    def validate_bronze(self, df: pd.DataFrame, bronze_key: str) -> None:
+        """Bronze validation hook called for each bronze file before transform.
+
+        Default: attempts to load ``{source}_bronze`` or ``{source}`` schema
+        and runs :func:`~leviathan.common.validation.validate_bronze_df`.
+        Override in subclass to customise or disable.
+        """
+        from leviathan.common.validation import (  # noqa: PLC0415
+            SchemaValidationError,
+            load_schema,
+            validate_bronze_df,
+        )
+
+        schema = None
+        for candidate in (f"{self.source}_bronze", self.source):
+            try:
+                candidate_schema = load_schema(candidate)
+                if "required_columns" in candidate_schema:
+                    schema = candidate_schema
+                    break
+            except SchemaValidationError:
+                continue
+
+        if schema is None:
+            return
+
+        validate_bronze_df(df, schema, source=self.source, context=bronze_key)
+
+    def _load_expected_countries(self) -> list[str]:
+        """Load expected country keys from the geography config for this commodity.
+
+        Returns an empty list if no geography config is found (e.g. FAOSTAT
+        without a region-level config).
+        """
+        try:
+            key = f"configs/geographies/{self.commodity}_regions.yaml"
+            s3_client = get_thread_local_s3_client(self.aws_region)
+            body = s3_client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+            config = yaml.safe_load(body)
+            return [r["country"] for r in config.get("regions", [])]
+        except Exception:  # noqa: BLE001
+            return []
+
     def _read_one(self, key: str) -> tuple[pd.DataFrame | None, str]:
         try:
             import pyarrow.parquet as pq  # noqa: PLC0415
 
             s3_client = get_thread_local_s3_client(self.aws_region)
             data = s3_download_with_retry(self.bucket, key, s3_client)
-            return (pq.read_table(io.BytesIO(data)).to_pandas(), key)
+            df = pq.read_table(io.BytesIO(data)).to_pandas()
+            self.validate_bronze(df, key)
+            return (df, key)
         except Exception as exc:  # noqa: BLE001
             write_dead_letter(
                 self.bucket, self.source, self.commodity, key, str(exc), self.aws_region

@@ -58,6 +58,46 @@ class TestWriteDeadLetter:
             key,
         )
 
+    def test_optional_fields_included_in_record(self, s3_bucket):
+        from leviathan.storage.dead_letter import write_dead_letter
+
+        write_dead_letter(
+            bucket=BUCKET,
+            source="nasa_power",
+            commodity="cocoa",
+            original_key="raw/weather/source=nasa_power/cocoa/test.json",
+            error="SomeError",
+            aws_region=REGION,
+            source_url="https://power.larc.nasa.gov/api",
+            checksum_sha256="abc123",
+        )
+
+        objects = s3_bucket.list_objects_v2(Bucket=BUCKET, Prefix="dead_letter/")
+        record = json.loads(
+            s3_bucket.get_object(Bucket=BUCKET, Key=objects["Contents"][0]["Key"])["Body"].read()
+        )
+        assert record["source_url"] == "https://power.larc.nasa.gov/api"
+        assert record["checksum_sha256"] == "abc123"
+
+    def test_optional_fields_absent_when_not_provided(self, s3_bucket):
+        from leviathan.storage.dead_letter import write_dead_letter
+
+        write_dead_letter(
+            bucket=BUCKET,
+            source="nasa_power",
+            commodity="cocoa",
+            original_key="raw/weather/source=nasa_power/cocoa/test.json",
+            error="SomeError",
+            aws_region=REGION,
+        )
+
+        objects = s3_bucket.list_objects_v2(Bucket=BUCKET, Prefix="dead_letter/")
+        record = json.loads(
+            s3_bucket.get_object(Bucket=BUCKET, Key=objects["Contents"][0]["Key"])["Body"].read()
+        )
+        assert "source_url" not in record
+        assert "checksum_sha256" not in record
+
     def test_record_content(self, s3_bucket):
         from leviathan.storage.dead_letter import write_dead_letter
 

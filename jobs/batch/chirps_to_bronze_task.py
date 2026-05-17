@@ -20,8 +20,9 @@ os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "200000000")
 import argparse
 import calendar
 import io
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date
+from datetime import date, datetime, timezone
 
 import boto3
 import pandas as pd
@@ -104,7 +105,21 @@ def _process_month(
         logger.warning("No data for %d-%02d commodity=%s", year, month, commodity)
         return
 
+    # Entity check: warn if any expected location has all-null precipitation values
+    for (country, region), rows in region_rows.items():
+        null_count = sum(1 for r in rows if r["precipitation_mm"] is None)
+        if null_count == len(rows):
+            logger.warning(
+                "All-null precipitation for country=%s region=%s %d-%02d commodity=%s",
+                country, region, year, month, commodity,
+            )
+
     s3_client = get_thread_local_s3_client(aws_region)
+    access_timestamp = datetime.now(timezone.utc).isoformat()
+    source_url_template = (
+        f"https://data.chc.ucsb.edu/products/CHIRPS-3.0/global_daily/cogs/p05"
+        f"/{year}/chirps-v3.0.{year}.{month:02d}.{{DD}}.cog.tif"
+    )
     for (country, region), rows in region_rows.items():
         bkey = bronze_weather_key(
             "chirps", commodity, country, region, year, month, "part-000.parquet"
@@ -123,6 +138,26 @@ def _process_month(
         df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
         s3_client.put_object(Bucket=bucket, Key=bkey, Body=buf.getvalue())
         logger.info("Wrote bronze: %s (%d rows)", bkey, len(df))
+
+        # Write companion access-metadata JSON alongside the bronze Parquet
+        meta_key = bkey.replace("part-000.parquet", "_meta.json")
+        meta = {
+            "source": "chirps",
+            "commodity": commodity,
+            "year": year,
+            "month": month,
+            "country": country,
+            "region": region,
+            "row_count": len(df),
+            "source_url_template": source_url_template,
+            "access_timestamp": access_timestamp,
+        }
+        s3_client.put_object(
+            Bucket=bucket,
+            Key=meta_key,
+            Body=json.dumps(meta, indent=2).encode("utf-8"),
+            ContentType="application/json",
+        )
 
 
 def main() -> None:

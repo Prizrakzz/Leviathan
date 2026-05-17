@@ -16,3 +16,6 @@ expected_elements:
   - "Area harvested"
   - "Production"
   - "Yield"
+
+year_col: Year
+min_year: 1960

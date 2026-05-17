@@ -2,6 +2,13 @@ from __future__ import annotations
 
 CHIRPS_START_YEAR: int = 1981
 
+# Minimum expected raw file sizes in bytes, keyed by source identifier.
+# Files below these thresholds indicate a truncated/empty download.
+MIN_RAW_FILE_SIZES: dict[str, int] = {
+    "nasa_power": 1_000,        # 1 KB — each monthly JSON window is typically 50–200 KB
+    "faostat_qcl": 10_000_000,  # 10 MB — the FAOSTAT QCL ZIP is ~50 MB in practice
+}
+
 ALL_COMMODITIES: list[str] = [
     "cocoa",
     "corn_cbot",

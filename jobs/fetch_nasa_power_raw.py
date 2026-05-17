@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import time
 from pathlib import Path
 from time import sleep
@@ -13,6 +14,7 @@ from leviathan.common.logging import get_logger
 from leviathan.ingestion.weather.nasa_power import fetch_nasa_power_daily, save_raw_json
 from leviathan.storage.metadata import utc_now_iso, write_json_metadata
 from leviathan.storage.paths import raw_weather_key
+from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
 from leviathan.storage.s3 import s3_object_exists, upload_file_to_s3
 
 
@@ -171,7 +173,10 @@ def main() -> None:
 
                     if args.skip_existing_s3 and args.upload:
                         if s3_object_exists(bucket=bucket, key=s3_key, aws_region=aws_region):
-                            logger.info("Skipping existing S3 object: s3://%s/%s", bucket, s3_key)
+                            logger.warning(
+                                "Skipping duplicate S3 object (already exists): s3://%s/%s",
+                                bucket, s3_key,
+                            )
                             skipped_count += 1
                             record["status"] = "skipped_s3_exists"
                             continue
@@ -207,6 +212,14 @@ def main() -> None:
                             bucket=bucket,
                             key=s3_key,
                             aws_region=aws_region,
+                        )
+
+                        raw_bytes = local_path.read_bytes()
+                        check_min_file_size(raw_bytes, "nasa_power", context=s3_key)
+                        record["file_size_bytes"] = len(raw_bytes)
+                        record["sha256"] = hashlib.sha256(raw_bytes).hexdigest()
+                        write_raw_s3_metadata(
+                            bucket, s3_key, raw_bytes, base_url, "application/json", aws_region
                         )
 
                     api_call_count += 1

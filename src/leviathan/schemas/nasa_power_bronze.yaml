@@ -1,0 +1,26 @@
+source: nasa_power_bronze
+type: dataframe
+
+# Expected columns in the bronze Parquet output from raw_to_bronze_nasa_power.py.
+# Parameter names are lowercased by nasa_power_payload_to_daily_dataframe().
+required_columns:
+  - commodity
+  - source
+  - country
+  - region
+  - date
+  - year
+  - month
+  - day
+  - t2m
+  - t2m_max
+  - t2m_min
+  - prectotcorr
+  - rh2m
+  - ws2m
+  - allsky_sfc_sw_dwn
+  - ingest_date
+  - source_file_name
+
+year_col: year
+min_year: 1980
