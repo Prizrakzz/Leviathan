@@ -59,7 +59,7 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
     image = "${var.ecr_repository_url}:latest"
 
     command = [
-      "jobs/backfill_raw_nasa_power.py",
+      "jobs/fetch_nasa_power_raw.py",
       "--commodity", "Ref::commodity",
       "--country", "Ref::country",
       "--region", "Ref::region",

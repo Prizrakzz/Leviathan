@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
@@ -204,8 +203,6 @@ def main() -> None:
         glue, B2S_JOB, _start_b2s, b2s_commodities, args.dry_run,
         force_overwrite=args.force_overwrite,
     )
-    b2s_failed = [c for c, s in b2s_results.items() if s != "SUCCEEDED"]
-
     # Summary
     print("\n" + "=" * 70)
     print("FAOSTAT BACKFILL SUMMARY")

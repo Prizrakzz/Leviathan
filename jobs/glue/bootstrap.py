@@ -48,7 +48,7 @@ def ensure_leviathan_installed(bucket: str) -> None:
                 [sys.executable, "-m", "pip", "install", whl, "--no-deps", "--quiet"]
             )
             return
-        except (subprocess.CalledProcessError, OSError) as exc:
+        except (subprocess.CalledProcessError, OSError):
             if attempt == 2:
                 raise
             if os.path.exists(whl):

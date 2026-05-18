@@ -318,12 +318,6 @@ reports:
   upload_month: 3
   filename: Informe-Expos-Septiembre-24.pdf
 - report_type: exportaciones
-  source_url: https://federaciondecafeteros.org/wp-content/uploads/2026/03/Informe-Expos-Septiembre-24.pdf
-  s3_key: raw/production/source=fnc/monthly_reports/report_type=exportaciones/upload_year=2026/upload_month=03/Informe-Expos-Septiembre-24.pdf
-  upload_year: 2026
-  upload_month: 3
-  filename: Informe-Expos-Septiembre-24.pdf
-- report_type: exportaciones
   source_url: https://federaciondecafeteros.org/wp-content/uploads/2026/03/Informe-Expos-Octubre-24.pdf
   s3_key: raw/production/source=fnc/monthly_reports/report_type=exportaciones/upload_year=2026/upload_month=03/Informe-Expos-Octubre-24.pdf
   upload_year: 2026
@@ -335,18 +329,6 @@ reports:
   upload_year: 2026
   upload_month: 3
   filename: Informe-Expos-Noviembre-24.pdf
-- report_type: exportaciones
-  source_url: https://federaciondecafeteros.org/wp-content/uploads/2026/03/Informe-Expos-Noviembre-24.pdf
-  s3_key: raw/production/source=fnc/monthly_reports/report_type=exportaciones/upload_year=2026/upload_month=03/Informe-Expos-Noviembre-24.pdf
-  upload_year: 2026
-  upload_month: 3
-  filename: Informe-Expos-Noviembre-24.pdf
-- report_type: exportaciones
-  source_url: https://federaciondecafeteros.org/wp-content/uploads/2026/03/Informe-Expos-Diciembre-24.pdf
-  s3_key: raw/production/source=fnc/monthly_reports/report_type=exportaciones/upload_year=2026/upload_month=03/Informe-Expos-Diciembre-24.pdf
-  upload_year: 2026
-  upload_month: 3
-  filename: Informe-Expos-Diciembre-24.pdf
 - report_type: exportaciones
   source_url: https://federaciondecafeteros.org/wp-content/uploads/2026/03/Informe-Expos-Diciembre-24.pdf
   s3_key: raw/production/source=fnc/monthly_reports/report_type=exportaciones/upload_year=2026/upload_month=03/Informe-Expos-Diciembre-24.pdf

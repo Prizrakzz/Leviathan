@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 # ProcessResult is the return type used by base_jobs worker methods.
-# "ok" = written, "skipped" = already existed, "failed" = dead-lettered.
-ProcessResult = tuple[Literal["ok", "failed", "skipped"], str]
+# "success" = written, "skipped" = already existed, "failed" = dead-lettered.
+ProcessResult = tuple[Literal["success", "failed", "skipped"], str]
 
 # A single geographic sampling location loaded from a commodity's regions YAML.
 class Region(TypedDict):

@@ -34,8 +34,8 @@ def load_yaml(path: str | Path) -> dict[str, Any]:
 
     if not full_path.exists():
         raise FileNotFoundError(f"YAML config not found: {full_path}")
-    
+
     with full_path.open("r", encoding = "utf-8") as file:
         data = yaml.safe_load(file)
-    
+
     return data or {}

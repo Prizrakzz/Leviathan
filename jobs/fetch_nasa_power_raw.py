@@ -6,7 +6,6 @@ import hashlib
 import time
 from pathlib import Path
 from time import sleep
-from uuid import uuid4
 
 from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.dates import month_windows

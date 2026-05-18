@@ -23,19 +23,13 @@ import io
 import sys
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import sys
 from typing import ClassVar, Iterable
 
 import yaml
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
-
 import pandas as pd
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import ProcessResult
 from leviathan.storage.dead_letter import write_dead_letter
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
@@ -44,8 +38,6 @@ from leviathan.storage.s3 import (
 )
 
 logger = get_logger(__name__)
-
-ProcessResult: TypeAlias = tuple[str, str]
 
 # awsglue is only available inside AWS Glue Python Shell; guard the import so
 # the wheel remains importable locally (tests, notebooks, etc.).
