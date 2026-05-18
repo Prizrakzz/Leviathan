@@ -47,6 +47,28 @@ def raw_production_key(
     )
 
 
+def raw_conab_key(
+    crop_year: str,
+    survey_number: int,
+) -> str:
+    """S3 key for a CONAB Boletim da Safra de Café PDF.
+
+    One PDF covers all coffee commodities; no commodity partition at raw layer.
+
+    Args:
+        crop_year: Marketing year in underscore format, e.g. ``"2024_25"``.
+        survey_number: Survey number within the season (1–5).
+    """
+    filename = f"boletim_cafe_{crop_year}_{survey_number:02d}.pdf"
+    return (
+        f"raw/production/"
+        f"source=conab/"
+        f"crop_year={crop_year}/"
+        f"survey={survey_number:02d}/"
+        f"{filename}"
+    )
+
+
 def raw_reference_key(
     source: str,
     domain: str,

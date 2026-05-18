@@ -7,6 +7,7 @@ CHIRPS_START_YEAR: int = 1981
 MIN_RAW_FILE_SIZES: dict[str, int] = {
     "nasa_power": 1_000,        # 1 KB — each monthly JSON window is typically 50–200 KB
     "faostat_qcl": 10_000_000,  # 10 MB — the FAOSTAT QCL ZIP is ~50 MB in practice
+    "conab": 500_000,           # 500 KB — CONAB coffee bulletins are typically 1–3 MB
 }
 
 ALL_COMMODITIES: list[str] = [

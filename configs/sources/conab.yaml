@@ -1,0 +1,25 @@
+source: conab
+notes: >
+  CONAB Boletim da Safra de Café. Brazil coffee crop survey bulletins published 4-5
+  times per marketing season (April–March). PDFs must be downloaded manually from
+  gov.br/conab — the site blocks automated access. One PDF covers arabica and conilon
+  (robusta) together; the commodity split happens at the bronze transform stage.
+target_commodities:
+  - arabica_coffee
+  - brazilian_arabica_coffee
+  - robusta_coffee
+species:
+  - arabica   # Café Arábica
+  - conilon   # Café Conilon (robusta)
+elements:
+  - area_in_formation_ha      # Área em formação (ha)
+  - area_in_production_ha     # Área em produção (ha)
+  - area_total_ha             # Área total (ha)
+  - yield_bags_per_ha         # Produtividade (sacas/ha)
+  - production_thousand_bags  # Produção (mil sacas de 60 kg)
+surveys_per_season: 5
+crop_year_start_month: 4      # April–March marketing year
+crop_year_key_format: "YYYY_YY"  # e.g. 2024_25 (underscored for S3 key safety)
+language: pt-BR
+pdf_tool: pdfplumber           # Native digital PDFs, not scanned
+historical_depth: 2005         # State × species breakdown reliably from ~2005
