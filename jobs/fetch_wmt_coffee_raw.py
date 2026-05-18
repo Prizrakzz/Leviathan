@@ -2,34 +2,26 @@
 
 Discovery strategy
 ------------------
-The FAS browse page at fas.usda.gov/data/search (filtered to commodity=Coffee,
-report_type=World Production, Markets, and Trade Report) is paginated HTML.
-This job paginates through those pages to collect each report's detail-page URL,
-then visits each detail page to extract the direct PDF download link and publication
-date.  Both steps use Python's stdlib ``html.parser`` — no external HTML library
-required.
+All 47 report URLs are stored in a static manifest:
+  configs/sources/usda_fas_coffee_wmt_archive.yaml
 
-Download strategy
------------------
-Sequential with a polite inter-request sleep (default 1 s).  The remote server
-(apps.fas.usda.gov / www.fas.usda.gov) is a USDA government server, not a CDN.
-With only ~47 historical PDFs and 2 new ones per year there is no justification
-for parallelism — threading would only risk rate-limiting without any throughput
-benefit.
+fas.usda.gov is protected by a TLS-fingerprint WAF that blocks plain Python
+``requests``.  Downloads are performed with ``curl_cffi`` impersonating Chrome,
+which bypasses the WAF at the TLS handshake layer.
 
 Idempotency
 -----------
-Pass ``--skip-existing-s3`` to skip reports already uploaded.  Re-running the
-full historical backfill with this flag is safe and fast.
+Pass ``--skip-existing-s3`` to skip reports already uploaded.  Re-running with
+this flag is safe and fast.  Add ``--limit 1`` for a quick smoke-test.
 """
 from __future__ import annotations
 
 import argparse
-import re
 import time
-from datetime import datetime
+from pathlib import Path
 
-import requests
+import yaml
+from curl_cffi import requests as curl_requests
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
@@ -44,99 +36,21 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _PDF_MAGIC = b"%PDF"
+_IMPERSONATE = "chrome124"  # curl_cffi TLS persona — bypasses fas.usda.gov WAF
 
-# FAS search URL: Coffee commodity (609) + WMT report type (10259), one page at a time.
-_BROWSE_URL = (
-    "https://www.fas.usda.gov/data/search"
-    "?reports%5B0%5D=report_commodities%3A609"
-    "&reports%5B1%5D=report_type%3A10259"
-    "&page={page}"
+_MANIFEST_PATH = (
+    Path(__file__).parent.parent / "configs" / "sources" / "usda_fas_coffee_wmt_archive.yaml"
 )
-
-# Matches WMT report detail-page URLs embedded in browse-page HTML.
-_DETAIL_HREF_RE = re.compile(
-    r'href="(https://www\.fas\.usda\.gov/data/coffee-world-markets-and-trade-[^"]+)"'
-)
-
-# Matches any .pdf href that lives on a fas.usda.gov or apps.fas.usda.gov host.
-_PDF_HREF_RE = re.compile(r'href="([^"]*(?:fas|apps\.fas)\.usda\.gov[^"]*\.pdf)"')
-
-# Publication date text on a report detail page, e.g. "December 18, 2025  |"
-_PUB_DATE_RE = re.compile(r"(\w+ \d+, \d{4})\s*\|")
-
-_HEADERS = {
-    "User-Agent": "Leviathan-Data-Pipeline/1.0 (research data ingestion)",
-    "Accept": "text/html,application/xhtml+xml,application/pdf,*/*",
-}
 
 
 # ---------------------------------------------------------------------------
-# HTTP helpers
+# HTTP helper
 # ---------------------------------------------------------------------------
 
-def _get(url: str, session: requests.Session, timeout: int = 30) -> requests.Response:
-    resp = session.get(url, headers=_HEADERS, timeout=timeout, allow_redirects=True)
+def _download_pdf(url: str, session: curl_requests.Session, timeout: int = 60) -> bytes:
+    resp = session.get(url, impersonate=_IMPERSONATE, timeout=timeout, allow_redirects=True)
     resp.raise_for_status()
-    return resp
-
-
-# ---------------------------------------------------------------------------
-# Discovery helpers
-# ---------------------------------------------------------------------------
-
-def _discover_report_pages(session: requests.Session, sleep_seconds: float) -> list[str]:
-    """Paginate through FAS browse pages and return all WMT detail-page URLs."""
-    seen: set[str] = set()
-    page = 0
-
-    while True:
-        url = _BROWSE_URL.format(page=page)
-        logger.info("Fetching browse page %d …", page)
-        html = _get(url, session).text
-
-        found = _DETAIL_HREF_RE.findall(html)
-        new_urls = [u for u in found if u not in seen]
-
-        if not new_urls:
-            # No new results on this page — we have reached the end.
-            break
-
-        seen.update(new_urls)
-        page += 1
-        time.sleep(sleep_seconds)
-
-    urls = sorted(seen)
-    logger.info("Discovered %d WMT report pages.", len(urls))
-    return urls
-
-
-def _parse_detail_page(html: str, detail_url: str) -> tuple[str, str]:
-    """Return ``(publication_date_yyyymmdd, pdf_url)`` from a report detail page.
-
-    Raises:
-        RuntimeError: If the publication date or PDF link cannot be found.
-    """
-    # --- Publication date ---
-    date_match = _PUB_DATE_RE.search(html)
-    if not date_match:
-        raise RuntimeError(
-            f"Could not find publication date on detail page: {detail_url}"
-        )
-    try:
-        pub_dt = datetime.strptime(date_match.group(1), "%B %d, %Y")
-    except ValueError as exc:
-        raise RuntimeError(
-            f"Unparseable date '{date_match.group(1)}' on {detail_url}"
-        ) from exc
-
-    pub_date_str = pub_dt.strftime("%Y%m%d")
-
-    # --- PDF URL ---
-    pdf_matches = _PDF_HREF_RE.findall(html)
-    if not pdf_matches:
-        raise RuntimeError(f"Could not find a FAS PDF link on detail page: {detail_url}")
-
-    return pub_date_str, pdf_matches[0]
+    return resp.content
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +61,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Download USDA FAS Coffee WMT circular PDFs to raw S3. "
-            "Runs sequentially with a polite delay — do not add threading."
+            "Reads URLs from configs/sources/usda_fas_coffee_wmt_archive.yaml. "
+            "Uses curl_cffi to bypass the fas.usda.gov TLS fingerprint WAF."
         )
     )
     parser.add_argument(
@@ -163,8 +78,8 @@ def main() -> None:
     parser.add_argument(
         "--sleep-seconds",
         type=float,
-        default=1.0,
-        help="Polite delay between HTTP requests in seconds (default: 1.0).",
+        default=1.5,
+        help="Polite delay between HTTP requests in seconds (default: 1.5).",
     )
     parser.add_argument(
         "--limit",
@@ -175,73 +90,75 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # -----------------------------------------------------------------------
+    # Load manifest
+    # -----------------------------------------------------------------------
+    manifest_data = yaml.safe_load(_MANIFEST_PATH.read_text(encoding="utf-8"))
+    reports: list[dict] = manifest_data["reports"]
+    logger.info("Loaded %d entries from manifest %s", len(reports), _MANIFEST_PATH.name)
+
+    # -----------------------------------------------------------------------
+    # Dry run
+    # -----------------------------------------------------------------------
+    if args.dry_run:
+        print(f"Manifest: {_MANIFEST_PATH.name}  ({len(reports)} entries)")
+        for entry in reports:
+            note = f"  # {entry['note']}" if entry.get("note") else ""
+            print(f"  {entry['publication_date']}  {entry['pdf_url']}{note}")
+        return
+
+    # -----------------------------------------------------------------------
+    # Download & upload
+    # -----------------------------------------------------------------------
     load_env()
     bucket = get_required_env("LEVIATHAN_BUCKET")
     region = get_required_env("AWS_REGION")
 
-    session = requests.Session()
-
-    # -----------------------------------------------------------------------
-    # Phase A — Discovery
-    # -----------------------------------------------------------------------
-    logger.info("Phase A: discovering WMT report detail pages …")
-    detail_urls = _discover_report_pages(session, args.sleep_seconds)
-
-    if args.dry_run:
-        print(f"Discovered {len(detail_urls)} WMT report pages:")
-        for url in detail_urls:
-            print(f"  {url}")
-        return
-
-    # -----------------------------------------------------------------------
-    # Phase B — Download and upload
-    # -----------------------------------------------------------------------
     if args.limit:
-        detail_urls = detail_urls[: args.limit]
+        reports = reports[: args.limit]
 
     uploaded = skipped = errors = 0
 
-    for detail_url in detail_urls:
-        try:
-            time.sleep(args.sleep_seconds)
-            html = _get(detail_url, session).text
-            pub_date_str, pdf_url = _parse_detail_page(html, detail_url)
-            s3_key = raw_wmt_key(pub_date_str)
+    with curl_requests.Session() as session:
+        for entry in reports:
+            pub_date = entry["publication_date"]
+            pdf_url = entry["pdf_url"]
+            s3_key = raw_wmt_key(pub_date)
 
-            if args.skip_existing_s3 and s3_object_exists(bucket, s3_key, region):
-                logger.info("Skipping — already in S3: %s", s3_key)
-                skipped += 1
-                continue
+            try:
+                if args.skip_existing_s3 and s3_object_exists(bucket, s3_key, region):
+                    logger.info("Skipping — already in S3: %s", s3_key)
+                    skipped += 1
+                    continue
 
-            time.sleep(args.sleep_seconds)
-            logger.info("Downloading %s  (%s) …", pub_date_str, pdf_url)
-            pdf_bytes = _get(pdf_url, session, timeout=60).content
+                logger.info("Downloading %s  %s …", pub_date, pdf_url)
+                pdf_bytes = _download_pdf(pdf_url, session)
 
-            # --- Validate ---
-            if not pdf_bytes.startswith(_PDF_MAGIC):
-                raise RuntimeError(
-                    f"Response is not a valid PDF (missing %%PDF header): {pdf_url}"
+                if not pdf_bytes.startswith(_PDF_MAGIC):
+                    raise RuntimeError(
+                        f"Response is not a valid PDF (missing %%PDF header): {pdf_url}"
+                    )
+                check_min_file_size(pdf_bytes, "usda_fas_coffee_wmt", context=pdf_url)
+
+                upload_bytes_to_s3(pdf_bytes, bucket, s3_key, region)
+                write_raw_s3_metadata(
+                    bucket, s3_key, pdf_bytes, pdf_url, "application/pdf", region
                 )
-            check_min_file_size(pdf_bytes, "usda_fas_coffee_wmt", context=pdf_url)
 
-            # --- Upload ---
-            upload_bytes_to_s3(pdf_bytes, bucket, s3_key, region)
-            write_raw_s3_metadata(
-                bucket, s3_key, pdf_bytes, pdf_url, "application/pdf", region
-            )
+                logger.info(
+                    "Uploaded %s  (%.1f MB) → s3://%s/%s",
+                    pub_date,
+                    len(pdf_bytes) / 1_048_576,
+                    bucket,
+                    s3_key,
+                )
+                uploaded += 1
 
-            logger.info(
-                "Uploaded %s (%.1f MB) → s3://%s/%s",
-                pub_date_str,
-                len(pdf_bytes) / 1_048_576,
-                bucket,
-                s3_key,
-            )
-            uploaded += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed %s (%s): %s", pub_date, pdf_url, exc)
+                errors += 1
 
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to process %s: %s", detail_url, exc)
-            errors += 1
+            time.sleep(args.sleep_seconds)
 
     logger.info(
         "Done. uploaded=%d  skipped=%d  errors=%d", uploaded, skipped, errors
@@ -253,3 +170,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

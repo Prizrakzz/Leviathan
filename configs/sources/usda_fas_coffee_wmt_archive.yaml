@@ -1,0 +1,162 @@
+# USDA FAS Coffee: World Markets and Trade — complete archive manifest
+#
+# All 47 entries scraped from fas.usda.gov/data/search on 2026-05-18.
+# The FAS website blocks automated HTTP clients (WAF/TLS fingerprint filtering),
+# so this manifest is maintained manually.  Update cadence: ~2 new entries/year
+# (June + December).  Use curl_cffi to download — it impersonates Chrome at the
+# TLS layer and is not blocked.
+#
+# Known FAS data issue: The December 22, 2012 entry is a duplicate — the FAS
+# detail page incorrectly links to the June 2012 PDF (coffee-june2012.pdf)
+# instead of a separate December 22 circular.  It is retained here for
+# completeness; the S3 key will differ but the bytes will be identical to the
+# June 22, 2012 entry.
+
+reports:
+
+  - publication_date: "20251218"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2025-12/coffee.pdf"
+
+  - publication_date: "20250625"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2025-06/coffee.pdf"
+
+  - publication_date: "20241218"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-12/coffee.pdf"
+
+  - publication_date: "20240620"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-06/coffee.pdf"
+
+  # Batch-migrated to 2024-08/ during Aug 2024 FAS website migration.
+  # Dec 2023 was the current report at migration time → generic "coffee.pdf"
+  - publication_date: "20231220"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee.pdf"
+
+  - publication_date: "20230622"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-June2023.pdf"
+
+  - publication_date: "20221220"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-Dec2022.pdf"
+
+  - publication_date: "20220623"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-June2022.pdf"
+
+  # FAS filename typo: "Cec2021" instead of "Dec2021"
+  - publication_date: "20211217"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-Cec2021.pdf"
+
+  - publication_date: "20210621"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-June2021.pdf"
+
+  - publication_date: "20201211"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-Dec2020.pdf"
+
+  - publication_date: "20200612"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-June2020.pdf"
+
+  - publication_date: "20191213"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-Dec2019.pdf"
+
+  - publication_date: "20190614"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-June2019.pdf"
+
+  - publication_date: "20181214"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-Dec2018.pdf"
+
+  - publication_date: "20180615"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-june2018.pdf"
+
+  - publication_date: "20171215"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-December2017.pdf"
+
+  - publication_date: "20170616"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-jun2017.pdf"
+
+  - publication_date: "20161216"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-Dec2016.pdf"
+
+  - publication_date: "20160617"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-Jun2016.pdf"
+
+  - publication_date: "20151218"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-Dec2015.pdf"
+
+  - publication_date: "20150619"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-June2015.pdf"
+
+  - publication_date: "20141219"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-Dec2014.pdf"
+
+  - publication_date: "20140620"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-june2014.pdf"
+
+  - publication_date: "20131213"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-dec2013.pdf"
+
+  - publication_date: "20130621"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-June2013.pdf"
+
+  # NOTE: FAS data entry error — Dec 22, 2012 detail page incorrectly links
+  # to coffee-june2012.pdf.  The canonical Dec 2012 report is on 20121213.
+  - publication_date: "20121222"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-june2012.pdf"
+    note: "FAS duplicate entry — same PDF as 20120622; likely a data entry error."
+
+  - publication_date: "20121213"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-dec2012.pdf"
+
+  - publication_date: "20120622"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-june2012.pdf"
+
+  - publication_date: "20111213"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-dec2011.pdf"
+
+  - publication_date: "20110617"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-june2011.pdf"
+
+  - publication_date: "20101217"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-dec2010.pdf"
+
+  - publication_date: "20100623"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-june2010.pdf"
+
+  - publication_date: "20091218"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-December2009.pdf"
+
+  - publication_date: "20090612"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-June2009.pdf"
+
+  - publication_date: "20081215"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-december2008.pdf"
+
+  - publication_date: "20080915"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-September2008.pdf"
+
+  - publication_date: "20080612"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-June2008.pdf"
+
+  - publication_date: "20080312"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-march2008.pdf"
+
+  - publication_date: "20071212"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/coffee-december2007.pdf"
+
+  - publication_date: "20070912"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-September2007.pdf"
+
+  - publication_date: "20061215"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-December-2006.pdf"
+
+  - publication_date: "20060612"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-June2006.pdf"
+
+  - publication_date: "20051211"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-Dec2005.pdf"
+
+  - publication_date: "20050611"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-June2005.pdf"
+
+  - publication_date: "20041211"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-Dec2004.pdf"
+
+  - publication_date: "20040612"
+    pdf_url: "https://fas.usda.gov/sites/default/files/2024-08/Coffee-June2004.pdf"
