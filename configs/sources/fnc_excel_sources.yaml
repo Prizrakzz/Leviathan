@@ -1,0 +1,38 @@
+# FNC (Federación Nacional de Cafeteros) Colombia — bulk Excel data files.
+#
+# URL pattern changes annually as new annual editions are published.
+# Update the url and filename fields when a new year's edition appears.
+# The file at the URL always contains the full historical series, so there
+# is no need to keep old editions in S3 — just update this config and
+# re-run fetch_fnc_excel_raw.py with --skip-existing-s3 cleared.
+#
+# Source page: https://federaciondecafeteros.org/estadisticas-cafeteras/
+# Job: jobs/fetch_fnc_excel_raw.py
+# S3 prefix: raw/production/source=fnc/bulk/
+
+files:
+  - name: production_area_prices
+    url: https://federaciondecafeteros.org/wp-content/uploads/2026/05/Precios-area-y-produccion-de-cafe-2026-1.xlsx
+    filename: Precios-area-y-produccion-de-cafe-2026-1.xlsx
+    description: >
+      Production (monthly, 1956–present), area cultivated by department
+      (2002–present), internal prices COP/125 kg (1944–present), external
+      exdock prices USD cents/lb (1913–present), OIC indicative prices
+      (2000–present). Units: thousands of 60 kg bags, thousands of hectares.
+    sheets_of_interest:
+      - "8. Producción mensual"       # monthly production, col D=date, col E=value
+      - "3. Precio Ex_Dock Mensual"   # monthly external price, col D=date, col E=value
+      - "2. Precio Interno Mensual"   # monthly internal price, col D=date, col E=value
+      - "7. Área cult. dep. producto" # area by department (wide format, row 6=header)
+
+  - name: exports
+    url: https://federaciondecafeteros.org/wp-content/uploads/2026/04/Exportaciones-2026-2.xlsx
+    filename: Exportaciones-2026-2.xlsx
+    description: >
+      Export volume (monthly, 1958–present) and value (monthly, 1958–present),
+      breakdown by coffee type, port of embarkation, and destination country.
+      Units: thousands of 60 kg bags, millions of USD.
+    sheets_of_interest:
+      - "1. Total_Volumen"    # monthly export volume, col D=date, col E=value
+      - "2. Total_Valor"      # monthly export value, col C=date, col D=value
+      - "5. Puerto_Tipo_Vol_Val"  # granular monthly: year/month/port/type/volume/value

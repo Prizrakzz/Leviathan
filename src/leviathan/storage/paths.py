@@ -84,6 +84,45 @@ def raw_conab_key(
     )
 
 
+def raw_fnc_excel_key(filename: str) -> str:
+    """S3 key for a FNC Colombia bulk Excel data file.
+
+    Args:
+        filename: Original Excel filename, e.g.
+            ``"Precios-area-y-produccion-de-cafe-2026-1.xlsx"``.
+    """
+    return f"raw/production/source=fnc/bulk/{filename}"
+
+
+def raw_fnc_report_key(
+    report_type: str,
+    upload_year: int,
+    upload_month: int,
+    filename: str,
+) -> str:
+    """S3 key for a FNC Colombia monthly report PDF.
+
+    The upload_year/upload_month come from the ``/wp-content/uploads/YYYY/MM/``
+    path component and represent when the file was uploaded to the FNC server,
+    not necessarily the report reference month.
+
+    Args:
+        report_type: ``"cifras"`` or ``"exportaciones"``.
+        upload_year: Year from the uploads URL path component.
+        upload_month: Month from the uploads URL path component.
+        filename: URL-decoded PDF filename.
+    """
+    return (
+        f"raw/production/"
+        f"source=fnc/"
+        f"monthly_reports/"
+        f"report_type={report_type}/"
+        f"upload_year={upload_year}/"
+        f"upload_month={upload_month:02d}/"
+        f"{filename}"
+    )
+
+
 def raw_reference_key(
     source: str,
     domain: str,
