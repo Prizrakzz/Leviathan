@@ -62,3 +62,157 @@ surveys:
   - crop_year: "2022_23"
     survey_number: 4
     pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2023/boletim-cafe-dezembro-2023"
+
+  # ── Historical bulletins (Wayback Machine, pre-2023) ─────────────────────────
+
+  # ── Safra 2022 (crop year 2021_22) ──────────────────────────────────────
+  - crop_year: "2021_22"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20221219095715if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/45173_2fa808fbc01be42bbaf9ad0aad4cc00d"
+
+  # ── Historical bulletins (Wayback Machine, pre-2023) ─────────────────────────
+
+  # ── Safra 2021 (crop year 2020_21) ──────────────────────────────────────
+  - crop_year: "2020_21"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20221219095715if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/45166_c217a37038a20bad7beeee5b16525b03"
+
+  # ── Safra 2020 (crop year 2019_20) ──────────────────────────────────────
+  - crop_year: "2019_20"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20221219095715if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/45165_52f8285113b08b42a530e42ae9bf690c"
+  - crop_year: "2019_20"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20210206051321if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/33315_25cecd701f64485618ddb18944982bd5"
+  - crop_year: "2019_20"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20210206051321if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/30380_d1e1f36c2356b81e8a385cd24f05993b"
+
+  # ── Safra 2019 (crop year 2018_19) ──────────────────────────────────────
+  - crop_year: "2018_19"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20210206051321if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/28519_1451c80af85a09013032c62c38317623"
+  - crop_year: "2018_19"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20210206051321if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/26519_d3bb5963ecc22391abd34b0824a87a55"
+
+  # ── Safra 2018 (crop year 2017_18) ──────────────────────────────────────
+  - crop_year: "2017_18"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20210206051321if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/24570_e7291309800401e6e68bdeade41e24bf"
+  - crop_year: "2017_18"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20220624154429if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/24569_6781d53554d8bbd63bde096b0ef84237"
+  - crop_year: "2017_18"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20220624154429if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/24568_3044f9fd7838a9453a596caa86fa77b6"
+
+  # ── Safra 2017 (crop year 2016_17) ──────────────────────────────────────
+  - crop_year: "2016_17"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20220624154429if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/16106_945205b3373e7ca8e09270a79fad36e9"
+  - crop_year: "2016_17"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20220624154429if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/12570_b7fc408ab243602511beab9461222209"
+  - crop_year: "2016_17"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20220624154429if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1188_5a8b86e4fc5583cfeab6c6dadfbcf8af"
+  - crop_year: "2016_17"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1187_ea8e10e018c53730cc14aa7708f4e55d"
+
+  # ── Safra 2016 (crop year 2015_16) ──────────────────────────────────────
+  - crop_year: "2015_16"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1186_31a4932161770b10670278e46d0cc931"
+  - crop_year: "2015_16"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1185_abed425cb6ef7c92188cc77b34d3e9d5"
+  - crop_year: "2015_16"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1184_058fc9b8fedb0b17185dc1f022254e4b"
+  - crop_year: "2015_16"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1183_46d101ed07800927c23e1828eec4ed4a"
+
+  # ── Safra 2015 (crop year 2014_15) ──────────────────────────────────────
+  - crop_year: "2014_15"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1182_16f61eace1ae35314fd16ece456f16ae"
+  - crop_year: "2014_15"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20220714211210if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1181_1501ce1482980c2f558033af04cf5ab8"
+  - crop_year: "2014_15"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1180_8e9cae8899f2dd460048b00c5b67ff08"
+  - crop_year: "2014_15"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1179_acc19a33d7933e44add655f5779a6d8f"
+
+  # ── Safra 2014 (crop year 2013_14) ──────────────────────────────────────
+  - crop_year: "2013_14"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20220624154435if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1178_8430b1a77790219997273845a542975e"
+  - crop_year: "2013_14"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20220624154443if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1177_859ec5043b3aa3d3b90b0f91632d9bbe"
+  - crop_year: "2013_14"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20220624154443if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1176_698f68b0a0e6c4962308c109b8276446"
+  - crop_year: "2013_14"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20220624154443if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1175_49bef97f7bf48acab4ed03bec0df47ac"
+
+  # ── Safra 2013 (crop year 2012_13) ──────────────────────────────────────
+  - crop_year: "2012_13"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20220624154443if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1174_548db76353bd97eb213c0f6dd9c75248"
+  - crop_year: "2012_13"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20220624154443if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/22248_df8185920e18a9d1ddbe361089e6ef74"
+  - crop_year: "2012_13"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20220624154443if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1172_e7c243931271c31355dba9605e6af777"
+  - crop_year: "2012_13"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20220624154443if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/1171_9b6a51134e3bc5f18d5387a498b98c7d"
+
+  # ── Historical bulletins (Wayback Machine, pre-2023) ─────────────────────────
+
+  # ── Safra 2022 (crop year 2021_22) ──────────────────────────────────────
+  - crop_year: "2021_22"
+    survey_number: 1
+    pdf_url: "https://web.archive.org/web/20220624154241if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/40911_0eac1d762da9a95acc3d8d4bd36d7359"
+
+  # ── Safra 2021 (crop year 2020_21) ──────────────────────────────────────
+  - crop_year: "2020_21"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20220624154256if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/40314_5ca4f5eaec7d5fb8e90ec9645427e205"
+  - crop_year: "2020_21"
+    survey_number: 3
+    pdf_url: "https://web.archive.org/web/20220624154307if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/39155_6833f8ba418f3fab83c6d910ce7ecfba"
+  - crop_year: "2020_21"
+    survey_number: 2
+    pdf_url: "https://web.archive.org/web/20220624154351if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/37221_c140375aec407df98f74995349fc365f"
+
+  # ── Safra 2019 (crop year 2018_19) ──────────────────────────────────────
+  - crop_year: "2018_19"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20210206051321if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/30013_fd482acd14be48dead737ef00acb2e75"
+
+  # ── Safra 2018 (crop year 2017_18) ──────────────────────────────────────
+  - crop_year: "2017_18"
+    survey_number: 4
+    pdf_url: "https://web.archive.org/web/20210206051321if_/https://www.conab.gov.br/info-agro/safras/cafe/boletim-da-safra-de-cafe/item/download/24571_eec1a3f8fdc30883717a497a09f7d159"
+
+  # ── Known gaps (not retrievable as PDFs) ────────────────────────────────
+  # GAP: 3º Safra 2022 (crop_year=2021_22, survey=03) — Wayback capture
+  #      at 20220811171826 exists but content is a Word document (.doc),
+  #      not a PDF. Joomla gid=43031. Irrecoverable as PDF.
+  # GAP: 4º Safra 2022 (crop_year=2021_22, survey=04) — No Wayback PDF
+  #      capture found. Joomla gid=45502 (Dec 2022 re-upload) was never
+  #      crawled as a PDF. Original gid unknown.
+  # GAP: 1º Safra 2019 (crop_year=2018_19, survey=01) — No Wayback PDF
+  #      capture found. Joomla gid=24572 was never crawled as a PDF.
+  # GAP: 2º Safra 2020 (crop_year=2019_20, survey=02) — Never appeared
+  #      in any CONAB Joomla listing. Bulletin may not have been published.
