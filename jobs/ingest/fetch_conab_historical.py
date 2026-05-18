@@ -37,7 +37,7 @@ S3 key mapping
 Manifest update
 ---------------
 Successfully fetched bulletins are appended to
-configs/sources/conab_archive.yaml so that fetch_conab_raw.py can
+configs/sources/conab_archive.yaml so that fetch_conab.py can
 re-download from the verified Wayback URL on future runs without
 needing to repeat the CDX lookups.
 

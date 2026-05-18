@@ -69,5 +69,13 @@ def poll_batch_jobs(
                     results[job["jobId"]] = job["status"]
                     remaining.discard(job["jobId"])
         if remaining:
+            succeeded = sum(1 for s in results.values() if s == "SUCCEEDED")
+            failed = sum(1 for s in results.values() if s == "FAILED")
+            logger.info(
+                "Batch: %d pending  %d succeeded  %d failed",
+                len(remaining),
+                succeeded,
+                failed,
+            )
             time.sleep(poll_interval)
     return results

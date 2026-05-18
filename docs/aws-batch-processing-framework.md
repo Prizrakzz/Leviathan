@@ -27,7 +27,7 @@
 ```
 infra/terraform/modules/batch/main.tf       ← Fargate Spot compute environment + job queue
 infra/terraform/modules/ecr/main.tf         ← container image registry
-jobs/submit_batch_backfill_nasa_power.py    ← reference submission script
+jobs/submit/submit_batch_backfill_nasa_power.py    ← reference submission script
 jobs/backfill_raw_nasa_power.py             ← reference task entrypoint
 ```
 
@@ -193,7 +193,7 @@ submitting and reduce it again afterwards.
 
 1. Add `aws_batch_job_definition` in `infra/terraform/modules/batch/main.tf`
    (copy the `nasa_power_backfill` block, change name, command, and parameters).
-2. Write `jobs/submit_batch_backfill_{source}.py`
+2. Write `jobs/submit/submit_batch_backfill_{source}.py`
    (copy `submit_batch_backfill_nasa_power.py`, adjust `build_tasks()`).
 3. Write `jobs/{source}_task.py` as the container entrypoint
    (copy `backfill_raw_nasa_power.py` structure).

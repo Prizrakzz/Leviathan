@@ -4,10 +4,10 @@
 # Update the url and filename fields when a new year's edition appears.
 # The file at the URL always contains the full historical series, so there
 # is no need to keep old editions in S3 — just update this config and
-# re-run fetch_fnc_excel_raw.py with --skip-existing-s3 cleared.
+# re-run fetch_fnc_excel.py with --skip-existing-s3 cleared.
 #
 # Source page: https://federaciondecafeteros.org/estadisticas-cafeteras/
-# Job: jobs/fetch_fnc_excel_raw.py
+# Job: jobs/ingest/fetch_fnc_excel.py
 # S3 prefix: raw/production/source=fnc/bulk/
 
 files:

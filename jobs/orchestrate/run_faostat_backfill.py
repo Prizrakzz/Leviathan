@@ -4,9 +4,9 @@ Submits Glue jobs in parallel (up to 31 concurrent), polls to completion,
 then starts the next stage. Uses the shared FAOSTAT ZIP on S3.
 
 Usage:
-    python jobs/run_faostat_backfill.py
-    python jobs/run_faostat_backfill.py --commodities cocoa,soybeans_cbot
-    python jobs/run_faostat_backfill.py --dry-run
+    python jobs/orchestrate/run_faostat_backfill.py
+    python jobs/orchestrate/run_faostat_backfill.py --commodities cocoa,soybeans_cbot
+    python jobs/orchestrate/run_faostat_backfill.py --dry-run
 """
 from __future__ import annotations
 

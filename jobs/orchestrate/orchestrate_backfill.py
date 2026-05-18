@@ -20,30 +20,32 @@ already exists in S3 from a previous Batch run and only the Glue transforms
 need to be (re-)executed. Runs from your local terminal in ~15 min.
 
 Run locally:
-    python jobs/orchestrate_backfill.py --skip-batch
-    python jobs/orchestrate_backfill.py --skip-batch --commodities cocoa,corn_cbot
-    python jobs/orchestrate_backfill.py --dry-run --commodities cocoa
-    python jobs/orchestrate_backfill.py --dry-run
+    python jobs/orchestrate/orchestrate_backfill.py --skip-batch
+    python jobs/orchestrate/orchestrate_backfill.py --skip-batch --commodities cocoa,corn_cbot
+    python jobs/orchestrate/orchestrate_backfill.py --dry-run --commodities cocoa
+    python jobs/orchestrate/orchestrate_backfill.py --dry-run
 """
 from __future__ import annotations
 
 import argparse
 import os
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import boto3
 
 # Import shared task building / submission helpers from the sibling script.
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "submit"))
 from submit_batch_backfill_nasa_power import build_tasks, submit_tasks
 
 from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
-from leviathan.common.polling import poll_batch_jobs as _poll_batch_jobs, poll_glue_runs as _poll_glue_runs
+from leviathan.common.polling import (
+    poll_batch_jobs as _poll_batch_jobs,
+    poll_glue_runs as _poll_glue_runs,
+)
 
 logger = get_logger("orchestrate_backfill")
 
@@ -284,7 +286,7 @@ def main() -> None:
         logger.info("Polling %d Batch jobs...", len(job_ids))
 
         batch_client = boto3.client("batch", region_name=aws_region)
-        batch_statuses = _poll_batch_jobs(batch_client, job_ids, POLL_INTERVAL_SECONDS) if job_ids else {}
+        batch_statuses = _poll_batch_jobs(batch_client, job_ids) if job_ids else {}
 
         for s in submitted:
             commodity = s["parameters"]["commodity"]

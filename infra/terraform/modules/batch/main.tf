@@ -59,7 +59,7 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
     image = "${var.ecr_repository_url}:latest"
 
     command = [
-      "jobs/fetch_nasa_power_raw.py",
+      "jobs/ingest/fetch_nasa_power.py",
       "--commodity", "Ref::commodity",
       "--country", "Ref::country",
       "--region", "Ref::region",
@@ -192,7 +192,7 @@ resource "aws_batch_job_definition" "backfill_orchestrator" {
     image = "${var.ecr_repository_url}:latest"
 
     command = [
-      "jobs/orchestrate_backfill.py",
+      "jobs/orchestrate/orchestrate_backfill.py",
       "--start-year",  "Ref::start_year",
       "--end-year",    "Ref::end_year",
       "--commodities", "Ref::commodities"

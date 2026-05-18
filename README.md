@@ -122,7 +122,7 @@ Glue scripts and the `leviathan` wheel are uploaded to S3 as `aws_s3_object` res
 Historical backfill via Batch Fargate (parallel, one task per region/year/month):
 
 ```bash
-python jobs/submit_batch_backfill_nasa_power.py --commodity cocoa --start-year 1981 --end-year 2024
+python jobs/submit/submit_batch_backfill_nasa_power.py --commodity cocoa --start-year 1981 --end-year 2024
 ```
 
 The current ingest ceiling is **2024**.
