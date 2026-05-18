@@ -47,6 +47,21 @@ def raw_production_key(
     )
 
 
+def raw_wmt_key(publication_date: str) -> str:
+    """S3 key for a USDA FAS Coffee World Markets and Trade circular PDF.
+
+    Args:
+        publication_date: Publication date in ``YYYYMMDD`` format, e.g. ``"20251218"``.
+    """
+    filename = f"coffee_wmt_{publication_date}.pdf"
+    return (
+        f"raw/production/"
+        f"source=usda_fas_coffee_wmt/"
+        f"publication_date={publication_date}/"
+        f"{filename}"
+    )
+
+
 def raw_conab_key(
     crop_year: str,
     survey_number: int,

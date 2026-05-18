@@ -1,0 +1,25 @@
+source: usda_fas_coffee_wmt
+browse_url: "https://www.fas.usda.gov/data/search?reports%5B0%5D=report_commodities%3A609&reports%5B1%5D=report_type%3A10259"
+notes: >
+  USDA FAS Coffee: World Markets and Trade circular. Published biannually in June
+  and December. Contains arabica and robusta production split by country — the
+  primary structured source for species-level coffee production features. Distinct
+  from country-level GAIN attaché reports (which are narrative and belong in the
+  RAG knowledge base, not the ML feature pipeline).
+publication_cadence: biannual   # June + December
+target_commodities:
+  - arabica_coffee
+  - robusta_coffee
+variables:
+  - arabica_production_thousand_bags
+  - robusta_production_thousand_bags
+  - total_production_thousand_bags
+  - area_harvested_thousand_ha
+  - domestic_consumption_thousand_bags
+  - exports_thousand_bags
+  - beginning_stocks_thousand_bags
+  - ending_stocks_thousand_bags
+units: "thousand 60-kg bags (green bean equivalent)"
+natural_key: [country, species, marketing_year, publication_round]  # publication_round: jun | dec
+historical_depth: 2002   # Archive accessible from fas.usda.gov browse pages
+total_archive_size: ~47  # As of May 2026
