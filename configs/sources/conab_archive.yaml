@@ -1,0 +1,64 @@
+# CONAB Boletim da Safra de Café — complete archive manifest
+#
+# All entries scraped from www.gov.br/conab on 2026-05-18.
+# gov.br/conab only retains surveys from safra 2023 onwards (10 entries).
+# Historical surveys (safra 2005–2022) were not migrated to gov.br and are
+# not available via automated download.
+#
+# Two PDF URL patterns exist on gov.br (both serve valid PDF bytes):
+#   A) Direct .pdf extension: .../{slug}.pdf
+#   B) Plone file object (no extension): .../{slug}   ← same bytes, no .pdf
+#
+# crop_year format: "YYYY_YY"   (e.g. "2024_25")
+# CONAB marketing year runs April–March:
+#   safra {N} = crop_year {N-1}_{last 2 of N}
+#   e.g. safra 2026 = crop_year "2025_26"
+#
+# S3 key template:  raw_conab_key(crop_year, survey_number)
+#   → raw/production/source=conab/crop_year={crop_year}/survey={NN}/boletim_cafe_{crop_year}_{NN}.pdf
+
+surveys:
+
+  # ── Safra 2026 (crop year 2025_26) ──────────────────────────────────────
+  - crop_year: "2025_26"
+    survey_number: 1
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2026/boletim-de-safras-cafe-fevereiro-26.pdf"
+
+  # ── Safra 2025 (crop year 2024_25) ──────────────────────────────────────
+  - crop_year: "2024_25"
+    survey_number: 1
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2025/boletim-cafe-janeiro-2025"
+
+  - crop_year: "2024_25"
+    survey_number: 2
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2025/boletim-cafe-maio-2025"
+
+  - crop_year: "2024_25"
+    survey_number: 3
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2025/boletim-cafe-setembro-2025"
+
+  - crop_year: "2024_25"
+    survey_number: 4
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2025/boletim-cafe-dezembro-2025"
+
+  # ── Safra 2024 (crop year 2023_24) ──────────────────────────────────────
+  - crop_year: "2023_24"
+    survey_number: 2
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2024/boletim-cafe-maio-2024"
+
+  - crop_year: "2023_24"
+    survey_number: 3
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2024/boletim-cafe-setembro-2024"
+
+  - crop_year: "2023_24"
+    survey_number: 4
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2024/boletim-cafe-janeiro-2025"
+
+  # ── Safra 2023 (crop year 2022_23) ──────────────────────────────────────
+  - crop_year: "2022_23"
+    survey_number: 3
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2023/boletim-cafe-setembro-2023"
+
+  - crop_year: "2022_23"
+    survey_number: 4
+    pdf_url: "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2023/boletim-cafe-dezembro-2023"
