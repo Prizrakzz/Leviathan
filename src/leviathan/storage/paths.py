@@ -205,3 +205,16 @@ def silver_weather_key(
         f"month={month:02d}/"
         f"{filename}"
     )
+
+
+def unica_raw_key(harvest_year: str) -> str:
+    """S3 key for a UNICA production-and-milling HTML page.
+
+    One HTML file covers one full harvest year; no commodity partition
+    (UNICA reports Center-South aggregate totals only).
+
+    Args:
+        harvest_year: Harvest year in slash format, e.g. ``"2024/25"``.
+    """
+    hy = harvest_year.replace("/", "_")
+    return f"raw/production/source=unica/harvest_year={hy}/production_milling.html"

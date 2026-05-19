@@ -17,4 +17,8 @@ COPY configs/ ./configs/
 
 RUN pip install --no-cache-dir -e ".[batch]"
 
+# Install Playwright's headless Chromium for JS-rendered scraping jobs.
+# playwright install-deps resolves system library dependencies (libnss3, libgbm1, etc.).
+RUN playwright install chromium && playwright install-deps chromium
+
 ENTRYPOINT ["python"]

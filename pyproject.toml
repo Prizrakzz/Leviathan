@@ -35,6 +35,7 @@ dev = [
     "rasterio==1.3.10",
 ]
 batch = [
+    "playwright>=1.40",
     "rasterio>=1.3,<1.5",  # 1.5+ requires Python >=3.12 and numpy>=2
 ]
 
