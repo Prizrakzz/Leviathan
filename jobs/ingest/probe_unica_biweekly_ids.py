@@ -33,7 +33,7 @@ import ssl
 import time
 import urllib.parse
 import urllib.request
-from collections import Counter
+
 from pathlib import Path
 from typing import Any
 
@@ -192,9 +192,10 @@ def _classify_pdf(pdf_bytes: bytes) -> dict[str, Any]:
 
     is_bulletin = any(p.search(text) for p in _BIWEEKLY_PATTERNS)
 
-    # Most-common YYYY/YYYY pattern (avoids stray years in footnotes).
+    # Use the FIRST YYYY/YYYY match — the season heading almost always appears
+    # before comparison tables that repeat the prior season many times.
     season_matches = _SEASON_RE.findall(text)
-    harvest_year = Counter(season_matches).most_common(1)[0][0] if season_matches else None
+    harvest_year = season_matches[0] if season_matches else None
 
     bnum_match = _BULLETIN_NUM_RE.search(text)
     bulletin_num = int(bnum_match.group(1)) if bnum_match else None
@@ -647,17 +648,84 @@ def cmd_cdx_pdfs(sleep_s: float, cdx_limit: int = 500) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Harvest-year resolution helpers
+# ---------------------------------------------------------------------------
+
+# Matches "SAFRA 2025/2026" or "HARVEST 2024/2025" or "S AFRA 2025/2026"
+# (pdfplumber sometimes splits ligatures) at the START of a text snippet.
+_SEASON_TITLE_RE = re.compile(
+    r"(?:S\s?AFRA|H\s?ARVEST|SAFRA|HARVEST)\s+(\d{4}/\d{4})",
+    re.IGNORECASE,
+)
+
+_PUB_YM_RE = re.compile(r"^(\d{4})/(\d{2})$")
+
+
+def _harvest_year_from_published_ym(published_ym: str | None) -> str | None:
+    """Infer harvest season from publication month.
+
+    UNICA seasons run April–December with closure bulletins in January–March:
+    - April–December of year Y  →  "Y/Y+1"
+    - January–March of year Y   →  "(Y-1)/Y"
+    """
+    m = _PUB_YM_RE.match(published_ym or "")
+    if not m:
+        return None
+    yr, mo = int(m.group(1)), int(m.group(2))
+    return f"{yr}/{yr + 1}" if mo >= 4 else f"{yr - 1}/{yr}"
+
+
+def _resolve_harvest_year(entry: dict[str, Any]) -> str | None:
+    """Return the best harvest_year for a classified entry.
+
+    Priority:
+    1. Text-snippet match — title "SAFRA/HARVEST YYYY/YYYY" is authoritative.
+    2. For cdx_pdf entries: infer from published_ym (more reliable than the
+       most-common-year counter, which is skewed by comparison tables).
+    3. Stored harvest_year from _classify_pdf.
+    4. Infer from published_ym for any source (last resort).
+    """
+    snippet = entry.get("text_snippet") or ""
+    m = _SEASON_TITLE_RE.search(snippet)
+    if m:
+        return m.group(1)
+    # For CDX direct-PDF entries prefer the URL-path date as ground truth.
+    if entry.get("source") == "cdx_pdf":
+        hy = _harvest_year_from_published_ym(entry.get("published_ym"))
+        if hy:
+            return hy
+    stored = entry.get("harvest_year")
+    if stored:
+        return stored
+    return _harvest_year_from_published_ym(entry.get("published_ym"))
+
+
+# ---------------------------------------------------------------------------
 # Sub-command: --export
 # ---------------------------------------------------------------------------
 
 def cmd_export() -> None:
     """Export confirmed entries from classified.json into the bulletin manifest."""
     entries = _load_classified()
-    confirmed = [e for e in entries if e.get("confirmed") and e.get("harvest_year")]
+    confirmed = [e for e in entries if e.get("confirmed")]
 
     if not confirmed:
         logger.warning("classified.json has no confirmed bulletins — nothing to export.")
         return
+
+    # Resolve harvest_year using title-text then stored value then published_ym.
+    resolved: list[dict[str, Any]] = []
+    for e in confirmed:
+        hy = _resolve_harvest_year(e)
+        if not hy:
+            logger.warning("Skipping idm=%s — cannot determine harvest_year", e.get("idm"))
+            continue
+        if hy != e.get("harvest_year"):
+            logger.info(
+                "harvest_year corrected: idm=%s  %s → %s  (published_ym=%s)",
+                e.get("idm"), e.get("harvest_year"), hy, e.get("published_ym"),
+            )
+        resolved.append({**e, "harvest_year": hy})
 
     manifest = _load_manifest()
     existing_idms = {b["idm"] for b in manifest if b.get("idm")}
@@ -675,7 +743,7 @@ def cmd_export() -> None:
                 else (e.get("download_url") or (_DOWNLOAD_BASE + e["idm"]))
             ),
         }
-        for e in confirmed
+        for e in resolved
         if e["idm"] not in existing_idms
     ]
 
