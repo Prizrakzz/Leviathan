@@ -218,3 +218,17 @@ def unica_raw_key(harvest_year: str) -> str:
     """
     hy = harvest_year.replace("/", "_")
     return f"raw/production/source=unica/harvest_year={hy}/production_milling.html"
+
+
+def unica_biweekly_raw_key(harvest_year: str, idm: str) -> str:
+    """S3 key for a UNICA bi-weekly (quinzenal) production report PDF.
+
+    One PDF per bulletin; ``idm`` is the UNICADATA ``download_media.php?idM=``
+    value and uniquely identifies the bulletin across languages.
+
+    Args:
+        harvest_year: Harvest year in slash format, e.g. ``"2024/2025"``.
+        idm: The UNICADATA media download ID, e.g. ``"12439002"``.
+    """
+    hy = harvest_year.replace("/", "_")
+    return f"raw/production/source=unica_biweekly/harvest_year={hy}/idm={idm}/report.pdf"

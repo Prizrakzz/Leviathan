@@ -1,0 +1,34 @@
+# UNICA (Brazilian Sugarcane Industry Association) — Bi-Weekly Production Reports
+#
+# Source: UNICADATA portal — https://unicadata.com.br/listagem.php?idMn=63
+# Language: English (idioma=2), for stable column names.
+# Cadence: Published every ~2 weeks during the milling season (April–November).
+# Data: Cumulative production totals per fortnight — cane, sugar, ethanol (CS region).
+#
+# Why this source exists:
+#   The Per-Harvest historical endpoint (fetch_unica.py) only has data through
+#   2020/2021.  Harvest years 2021/2022 onward are published exclusively as
+#   these PDF bi-weekly bulletins.
+#
+# Enumeration:
+#   The listing page is fully JavaScript-rendered.  Run the fetch job with
+#   --discover to use Playwright and enumerate available bulletin URLs for
+#   the target harvest years; discovered URLs are written to the separate
+#   manifest file: configs/sources/unica_biweekly_manifest.yaml
+#
+# S3 key pattern:
+#   raw/production/source=unica_biweekly/harvest_year=YYYY_YYYY/idm=NNNNNNN/report.pdf
+
+source: unica_biweekly
+listing_url: "https://unicadata.com.br/listagem.php?idMn=63&idioma=2"
+
+# Harvest years to discover and ingest (YYYY/YYYY format).
+# The post-2020 gap: historical endpoint stops at 2020/2021.
+# Add newer seasons here as they become available.
+harvest_years:
+  - "2021/2022"
+  - "2022/2023"
+  - "2023/2024"
+  - "2024/2025"
+  - "2025/2026"
+  - "2026/2027"

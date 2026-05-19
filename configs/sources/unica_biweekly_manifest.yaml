@@ -1,0 +1,41 @@
+# UNICA bi-weekly bulletin manifest
+#
+# Managed by: python jobs/ingest/fetch_unica_biweekly.py --discover
+# Do NOT edit the bulletins list by hand; run --discover to extend it.
+#
+# Schema per entry:
+#   harvest_year  : YYYY/YYYY season this bulletin belongs to
+#   idm           : UNICADATA download_media.php?idM= value (unique per bulletin)
+#   bulletin_num  : sequential UNICA bulletin number shown as iframe_doc_NNN in page HTML
+#   published_ym  : YYYY/MM derived from PDF URL path (approximate publish month)
+#   pdf_url       : direct URL to the PDF file (may be null if discovered via download_url only)
+#   download_url  : https://unicadata.com.br/download_media.php?idM=<idm>
+#
+# Note: The listing page (listagem.php?idMn=63) is fully JS-rendered and shows
+# only the most-recent bulletin.  Historical bulletins (pre-2024/2025) require
+# direct idm values sourced from Wayback Machine research or UNICADATA staff.
+#
+# Known bulletins
+# ---------------
+# Season 2023/2024 — sourced from Wayback Machine capture (May 2024)
+# Season 2026/2027 — discovered by Playwright (May 2026, English version)
+# ---------------------------------------------------------------------------
+
+bulletins:
+
+  # 2024/2025 season — first bulletin (sourced from Wayback Machine capture, May 2024)
+  # An April bulletin is the opening fortnight of the season that started that April.
+  - harvest_year: "2024/2025"
+    idm: "12439002"
+    bulletin_num: null
+    published_ym: "2024/04"
+    pdf_url: null
+    download_url: "https://unicadata.com.br/download_media.php?idM=12439002"
+
+  # 2026/2027 season — first bulletin of the new season (discovered 2026-05-19)
+  - harvest_year: "2026/2027"
+    idm: "32820684"
+    bulletin_num: null
+    published_ym: "2026/04"
+    pdf_url: "https://unicadata.com.br/arquivos/pdfs/2026/04/a2a17e065b9771b00a3e7afa90b116a5.pdf"
+    download_url: "https://unicadata.com.br/download_media.php?idM=32820684"

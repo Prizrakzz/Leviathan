@@ -37,6 +37,10 @@ dev = [
 batch = [
     "rasterio>=1.3,<1.5",  # 1.5+ requires Python >=3.12 and numpy>=2
 ]
+biweekly = [
+    "playwright>=1.40",    # headless browser for JS-rendered listing page
+    "pdfplumber>=0.11",    # PDF table extraction for bulletin parsing
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
