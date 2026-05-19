@@ -9,39 +9,37 @@
 # selects a harvest year.  The fetch job uses Playwright (headless Chromium)
 # to drive the form and capture the rendered HTML table.
 #
-# Harvest year format used by UNICA: "YYYY/YY" (e.g. "2025/26").
-# S3 key format: raw/production/source=unica/harvest_year=YYYY_YY/production_milling.html
+# Harvest year format used by UNICA on the site: "YYYY/YYYY" (e.g. "2020/2021").
+# S3 key format: raw/production/source=unica/harvest_year=YYYY_YYYY/production_milling.html
+#
+# NOTE: The Per-Harvest view (idMn=32, tipoHistorico=4) currently only exposes
+# data up to harvest year 2020/2021 (verified May 2026).  Update this list when
+# newer years become available in the select dropdown.
 
 source: unica
-url: "https://unicadata.com.br/historico-de-producao-e-moagem.php?idioma=2"
+# idMn=32 → Production and Milling / Per Harvest (tipoHistorico=4)
+url: "https://unicadata.com.br/historico-de-producao-e-moagem.php?idMn=32&tipoHistorico=4&idioma=2"
 region: centro_sul
 
-# Playwright selectors — verify on first run with --debug-html flag.
-# The form exposes two <select> dropdowns (start/end harvest year) and a submit button.
 playwright:
   page_load_wait_ms: 10000
   table_wait_ms: 20000
 
-# Historical range.  First known harvest year with consistent data: 2005/06.
+# Available harvest years (labels as they appear in the safra <select>).
 harvest_years:
-  - "2005/06"
-  - "2006/07"
-  - "2007/08"
-  - "2008/09"
-  - "2009/10"
-  - "2010/11"
-  - "2011/12"
-  - "2012/13"
-  - "2013/14"
-  - "2014/15"
-  - "2015/16"
-  - "2016/17"
-  - "2017/18"
-  - "2018/19"
-  - "2019/20"
-  - "2020/21"
-  - "2021/22"
-  - "2022/23"
-  - "2023/24"
-  - "2024/25"
-  - "2025/26"
+  - "2005/2006"
+  - "2006/2007"
+  - "2007/2008"
+  - "2008/2009"
+  - "2009/2010"
+  - "2010/2011"
+  - "2011/2012"
+  - "2012/2013"
+  - "2013/2014"
+  - "2014/2015"
+  - "2015/2016"
+  - "2016/2017"
+  - "2017/2018"
+  - "2018/2019"
+  - "2019/2020"
+  - "2020/2021"
