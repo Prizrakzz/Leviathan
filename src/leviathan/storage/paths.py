@@ -65,6 +65,7 @@ def raw_wmt_key(publication_date: str) -> str:
 def raw_conab_key(
     crop_year: str,
     survey_number: int,
+    ext: str = ".pdf",
 ) -> str:
     """S3 key for a CONAB Boletim da Safra de Café PDF.
 
@@ -72,9 +73,12 @@ def raw_conab_key(
 
     Args:
         crop_year: Marketing year in underscore format, e.g. ``"2024_25"``.
-        survey_number: Survey number within the season (1–5).
+        survey_number: Survey number within the season (1–5).  For pre-2013
+            OlalaCMS bulletins this is the publication month (1–12).
+        ext: File extension including dot, e.g. ``".pdf"`` (default) or
+            ``".doc"`` for OLE2/Word captures from the pre-2013 OlalaCMS era.
     """
-    filename = f"boletim_cafe_{crop_year}_{survey_number:02d}.pdf"
+    filename = f"boletim_cafe_{crop_year}_{survey_number:02d}{ext}"
     return (
         f"raw/production/"
         f"source=conab/"
