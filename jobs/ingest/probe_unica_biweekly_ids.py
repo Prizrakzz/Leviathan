@@ -247,7 +247,8 @@ def _save_manifest(bulletins: list[dict[str, Any]]) -> None:
         lines.append(f"    published_ym: \"{b.get('published_ym') or ''}\"\n")
         pdf_url = b.get("pdf_url")
         lines.append(f"    pdf_url: {repr(pdf_url) if pdf_url else 'null'}\n")
-        lines.append(f"    download_url: \"{b.get('download_url')}\"\n")
+        dl = b.get("download_url")
+        lines.append(f"    download_url: {repr(dl) if dl else 'null'}\n")
         lines.append("\n")
 
     _MANIFEST_PATH.write_text("".join(lines), encoding="utf-8")

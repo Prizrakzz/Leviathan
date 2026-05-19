@@ -81,10 +81,9 @@ _JOOMLA_DOWNLOAD_BASE = (
     "https://www.conab.gov.br/info-agro/safras/cafe/"
     "boletim-da-safra-de-cafe/item/download"
 )
-_GID_JSON_PATH = Path(__file__).parent.parent / "data" / "conab" / "conab_joomla_gids.json"
-_MANIFEST_PATH = (
-    Path(__file__).parent.parent / "configs" / "sources" / "conab_archive.yaml"
-)
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+_GID_JSON_PATH = _PROJECT_ROOT / "data" / "conab" / "conab_joomla_gids.json"
+_MANIFEST_PATH = _PROJECT_ROOT / "configs" / "sources" / "conab_archive.yaml"
 
 _SSL_CTX = ssl.create_default_context()
 
@@ -222,7 +221,7 @@ def _download_bulletin(
         if data:
             # Got bytes but not a PDF — log a snippet to help diagnose
             logger.debug(
-                "    Non-PDF response via %s: %s…", strategy, data[:80]
+                "    Non-PDF response via %s: %s...", strategy, data[:80]
             )
 
     return None, None
@@ -289,7 +288,7 @@ def _append_to_manifest(new_entries: list[dict], manifest_path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Fetch historical CONAB coffee bulletin PDFs from Wayback Machine → S3. "
+            "Fetch historical CONAB coffee bulletin PDFs from Wayback Machine -> S3. "
             "Reads conab_joomla_gids.json (run probe_wayback_conab.py first)."
         )
     )
@@ -316,19 +315,30 @@ def main() -> None:
         metavar="N",
         help="Process at most N distinct bulletins — use 1 for a smoke test.",
     )
+    parser.add_argument(
+        "--gid-file",
+        type=Path,
+        default=_GID_JSON_PATH,
+        metavar="PATH",
+        help=(
+            "JSON file of gid candidates in conab_joomla_gids.json format. "
+            f"Default: {_GID_JSON_PATH}"
+        ),
+    )
     args = parser.parse_args()
 
     # -----------------------------------------------------------------------
     # Load gid candidates
     # -----------------------------------------------------------------------
-    if not _GID_JSON_PATH.exists():
+    gid_file: Path = args.gid_file
+    if not gid_file.exists():
         parser.error(
-            f"Not found: {_GID_JSON_PATH}\n"
+            f"Not found: {gid_file}\n"
             "  Run: .venv\\Scripts\\python.exe probe_wayback_conab.py"
         )
 
-    raw_entries: list[dict] = json.loads(_GID_JSON_PATH.read_text(encoding="utf-8"))
-    logger.info("Loaded %d gid entries from %s", len(raw_entries), _GID_JSON_PATH.name)
+    raw_entries: list[dict] = json.loads(gid_file.read_text(encoding="utf-8"))
+    logger.info("Loaded %d gid entries from %s", len(raw_entries), gid_file.name)
 
     # Group by (safra_year, levantamento) → list of candidate gid entries
     # Multiple gids per bulletin = multiple upload events on the old Joomla site
@@ -351,7 +361,7 @@ def main() -> None:
         for safra, lev in sorted_keys:
             crop_year = _safra_to_crop_year(safra)
             s3_key = raw_conab_key(crop_year, lev)
-            print(f"  {lev}º Safra {safra}  ({crop_year})  →  {s3_key}")
+            print(f"  {lev}o Safra {safra}  ({crop_year})  ->  {s3_key}")
             for c in candidates[(safra, lev)]:
                 print(f"    gid: {c['gid_hash']}  snap_ts: {c.get('wayback_snap_ts')}")
         return
@@ -377,15 +387,15 @@ def main() -> None:
             crop_year = _safra_to_crop_year(safra_year)
             survey_number = levantamento
             s3_key = raw_conab_key(crop_year, survey_number)
-            label = f"{levantamento}º Safra {safra_year} (crop_year={crop_year})"
+            label = f"{levantamento}o Safra {safra_year} (crop_year={crop_year})"
 
             try:
                 if args.skip_existing_s3 and s3_object_exists(bucket, s3_key, region):
-                    logger.info("Skipping — already in S3: %s", s3_key)
+                    logger.info("Skipping - already in S3: %s", s3_key)
                     skipped += 1
                     continue
 
-                logger.info("Downloading %s …", label)
+                logger.info("Downloading %s ...", label)
 
                 pdf_bytes: Optional[bytes] = None
                 source_url: Optional[str] = None
@@ -415,7 +425,7 @@ def main() -> None:
                 )
 
                 logger.info(
-                    "Uploaded %s  (%.1f MB)  →  s3://%s/%s",
+                    "Uploaded %s  (%.1f MB)  ->  s3://%s/%s",
                     label,
                     len(pdf_bytes) / 1_048_576,
                     bucket,
@@ -455,7 +465,7 @@ def main() -> None:
 
     if missing:
         logger.warning(
-            "Bulletins not retrieved (%d) — Wayback has no capture or all strategies failed:",
+            "Bulletins not retrieved (%d) - Wayback has no capture or all strategies failed:",
             len(missing),
         )
         for item in sorted(missing):

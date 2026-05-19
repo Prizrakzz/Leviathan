@@ -84,6 +84,28 @@ def raw_conab_key(
     )
 
 
+def raw_conab_hist_series_key(
+    safra_year: int,
+    survey_no: int,
+    filename: str,
+) -> str:
+    """S3 key for a CONAB per-bulletin Excel (previsão de safra) data file.
+
+    Args:
+        safra_year: Marketing year the survey covers, e.g. ``2026``.
+        survey_no: Survey number within the season (1–5).
+        filename: Original Excel filename, e.g. ``"site_previsao-de-safra-cafe-fev-2026.xls"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=conab/"
+        f"bulletin_xls/"
+        f"safra_year={safra_year}/"
+        f"survey={survey_no:02d}/"
+        f"{filename}"
+    )
+
+
 def raw_fnc_excel_key(filename: str) -> str:
     """S3 key for a FNC Colombia bulk Excel data file.
 

@@ -1,4 +1,4 @@
-# UNICA bi-weekly bulletin manifest
+﻿# UNICA bi-weekly bulletin manifest
 #
 # Managed by: python jobs/ingest/fetch_unica_biweekly.py --discover
 # Do NOT edit the bulletins list by hand; run --discover to extend it.
@@ -17,8 +17,8 @@
 #
 # Known bulletins
 # ---------------
-# Season 2024/2025 — sourced from Wayback Machine capture (May 2024)
-# Season 2025/2026 — Harvest Closure bulletin, discovered by Playwright (May 2026, English version)
+# Season 2024/2025 â€” sourced from Wayback Machine capture (May 2024)
+# Season 2025/2026 â€” Harvest Closure bulletin, discovered by Playwright (May 2026, English version)
 # ---------------------------------------------------------------------------
 
 bulletins:
@@ -28,98 +28,98 @@ bulletins:
     bulletin_num: None
     published_ym: "2012/08"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2012/08/04500aa73c3eb5ceafb5488c6d178084.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2020/2021"
     idm: "pdf_9116ebc0880a8949"
     bulletin_num: None
     published_ym: "2020/10"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2020/10/9116ebc0880a8949640f5a45c2efc20f.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2022/2023"
     idm: "pdf_ee049e5f1f5e08d0"
     bulletin_num: None
     published_ym: "2022/07"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2022/07/ee049e5f1f5e08d0a0f4266ed861f8d6.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2022/2023"
     idm: "pdf_35d5f4012d86b540"
     bulletin_num: None
     published_ym: "2022/06"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2022/06/35d5f4012d86b54036b7702645b81060.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2022/2023"
     idm: "pdf_ccb21ce8c5241dfc"
     bulletin_num: None
     published_ym: "2022/09"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2022/09/ccb21ce8c5241dfc63c3a4f0565aeba8.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_16959fe92326858a"
     bulletin_num: None
     published_ym: "2024/02"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/02/16959fe92326858afdd381431e4f314b.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_1775f0afde26b483"
     bulletin_num: None
     published_ym: "2024/03"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/03/1775f0afde26b483a099c91e0741d92f.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_21a82493fb88d343"
     bulletin_num: None
     published_ym: "2024/01"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/01/21a82493fb88d34377c835070e6fac87.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_619458c440a4431a"
     bulletin_num: None
     published_ym: "2024/02"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/02/619458c440a4431a259ca6f4a01617dc.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_a9134730a24317ab"
     bulletin_num: None
     published_ym: "2023/11"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2023/11/a9134730a24317ab321dfcdba2e8715e.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_ac0ed7c46f976f51"
     bulletin_num: None
     published_ym: "2024/04"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/04/ac0ed7c46f976f51a8a0b7ae81d17a0e.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_cb5313a3afeefda0"
     bulletin_num: None
     published_ym: "2023/11"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2023/11/cb5313a3afeefda0cdde6bd302d5a277.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_ce6a4ed1616cfe11"
     bulletin_num: None
     published_ym: "2024/02"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/02/ce6a4ed1616cfe11cb84ef1747d841ca.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2023/2024"
     idm: "pdf_d1670aa1c0a7481c"
     bulletin_num: None
     published_ym: "2023/11"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2023/11/d1670aa1c0a7481c525635081ce207c2.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "12439002"
@@ -133,112 +133,112 @@ bulletins:
     bulletin_num: None
     published_ym: "2024/06"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/06/34bb0c3e8294ed7736fc1d11c7f83a53.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_3e4fa41a04d15c2c"
     bulletin_num: None
     published_ym: "2024/05"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/05/3e4fa41a04d15c2cdc40e6123c4ac783.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_41ca3a66aeaf8e4f"
     bulletin_num: None
     published_ym: "2025/01"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/01/41ca3a66aeaf8e4f76ae1d28e0429138.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_52af87f325a37c27"
     bulletin_num: None
     published_ym: "2024/05"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/05/52af87f325a37c272158eb7f3dd68b26.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_6f55ed1c49965717"
     bulletin_num: None
     published_ym: "2024/08"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/08/6f55ed1c499657173a6c772d4f0fbf0f.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_75ddaaaf6a38e67a"
     bulletin_num: None
     published_ym: "2024/08"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/08/75ddaaaf6a38e67ad00d588093b5822e.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_77e151e9ca065370"
     bulletin_num: None
     published_ym: "2024/05"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/05/77e151e9ca065370be03cf6a53dc18bd.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_8602093f03f1e247"
     bulletin_num: None
     published_ym: "2024/12"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/12/8602093f03f1e2475d13039dd6bf7228.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_9e1248ac0ede539e"
     bulletin_num: None
     published_ym: "2024/07"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/07/9e1248ac0ede539e297fe5d20781387c.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_aa1bfaa6f3a0c468"
     bulletin_num: None
     published_ym: "2025/03"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/03/aa1bfaa6f3a0c46812e7926a5e385e4e.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_b46cdc4ce61890ef"
     bulletin_num: None
     published_ym: "2024/09"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/09/b46cdc4ce61890ef293d9be4308cb85b.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_d0a88b587823bdad"
     bulletin_num: None
     published_ym: "2024/09"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/09/d0a88b587823bdad296902f24b2d32c0.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_d37e51d6518ff761"
     bulletin_num: None
     published_ym: "2025/04"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/04/d37e51d6518ff761b5446a43dd9f8e5f.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_d5f0bf26b77ccfa0"
     bulletin_num: None
     published_ym: "2024/11"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/11/d5f0bf26b77ccfa00804c097ab43f6b0.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_e3c8c49ec8139a3b"
     bulletin_num: None
     published_ym: "2025/01"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/01/e3c8c49ec8139a3bf96c1740df2bb3f3.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2024/2025"
     idm: "pdf_e655a8379f17981e"
     bulletin_num: None
     published_ym: "2024/10"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/10/e655a8379f17981e6d3b0dc92be51406.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "32820684"
@@ -252,117 +252,117 @@ bulletins:
     bulletin_num: None
     published_ym: "2026/01"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2026/01/047586cc55ca3fc89e0aa92cf65687f4.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_18f1f9e2756a903d"
     bulletin_num: None
     published_ym: "2026/01"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2026/01/18f1f9e2756a903db0955797eb44cfe8.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_1ccd91c7bb852ef4"
     bulletin_num: None
     published_ym: "2025/10"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/10/1ccd91c7bb852ef499e1c124794b5c41.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_4c2294e6416ce67d"
     bulletin_num: None
     published_ym: "2025/06"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/06/4c2294e6416ce67db7acb5d959262746.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_4d8cc86b9734d57c"
     bulletin_num: None
     published_ym: "2025/05"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/05/4d8cc86b9734d57c69fa5e4eb83ffe50.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_66321ca24f049ce0"
     bulletin_num: None
     published_ym: "2025/07"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/07/66321ca24f049ce0b51882b1dd991fe8.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_7d35772e532cc19c"
     bulletin_num: None
     published_ym: "2025/05"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/05/7d35772e532cc19c50e4ed650c6ab914.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_9779771420600a54"
     bulletin_num: None
     published_ym: "2025/10"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/10/9779771420600a549683dc205790bd9b.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_a27980b66c6eea5b"
     bulletin_num: None
     published_ym: "2025/08"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/08/a27980b66c6eea5bb8ef66523a0bc6c9.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_ad8c23ecbbee321f"
     bulletin_num: None
     published_ym: "2025/12"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/12/ad8c23ecbbee321feab0e06c69177c0f.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_c101b6aaec2aa000"
     bulletin_num: None
     published_ym: "2025/04"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/04/c101b6aaec2aa000aa8e4ce7d362336d.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_d202463da8b96630"
     bulletin_num: None
     published_ym: "2026/02"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2026/02/d202463da8b96630d1df1c414a43ac05.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_dade0c391edd7b79"
     bulletin_num: None
     published_ym: "2025/08"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/08/dade0c391edd7b79fc09e1180cea2daa.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_daff98f47a1665a9"
     bulletin_num: None
     published_ym: "2026/02"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2026/02/daff98f47a1665a92c62f8992bc4b1b4.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_dcba75dc3802f248"
     bulletin_num: None
     published_ym: "2025/12"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/12/dcba75dc3802f24879da44c5eabe7c88.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_ed46abf1b8f535f8"
     bulletin_num: None
     published_ym: "2025/10"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/10/ed46abf1b8f535f8ef47e8059e94c4f7.pdf'
-    download_url: "None"
+    download_url: null
 
   - harvest_year: "2025/2026"
     idm: "pdf_f288c53df2a3effa"
     bulletin_num: None
     published_ym: "2025/06"
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/06/f288c53df2a3effacd813536e4bf8c74.pdf'
-    download_url: "None"
+    download_url: null
 

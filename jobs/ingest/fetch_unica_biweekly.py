@@ -428,9 +428,8 @@ def _save_manifest(bulletins: list[dict[str, Any]]) -> None:
         lines.append(f"    bulletin_num: {b.get('bulletin_num')}\n")
         lines.append(f"    published_ym: \"{b.get('published_ym')}\"\n")
         lines.append(f"    pdf_url: {repr(b.get('pdf_url')) if b.get('pdf_url') else 'null'}\n")
-        lines.append(
-            f"    download_url: \"{b.get('download_url')}\"\n"
-        )
+        dl = b.get("download_url")
+        lines.append(f"    download_url: {repr(dl) if dl else 'null'}\n")
         lines.append("\n")
 
     _MANIFEST_PATH.write_text("".join(lines), encoding="utf-8")
@@ -592,7 +591,8 @@ def main() -> None:
         # For normal bulletins: use download_url or fall back to download_media.php.
         # For hash-based (pdf_*) bulletins: use pdf_url directly.
         download_url = b.get("download_url")
-        if not download_url:
+        # Guard against "None" strings written by older versions of _save_manifest.
+        if not download_url or download_url == "None":
             if idm and str(idm).startswith("pdf_"):
                 download_url = b.get("pdf_url")
             elif idm:

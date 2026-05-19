@@ -26,6 +26,8 @@ listing_url: "https://unicadata.com.br/listagem.php?idMn=63&idioma=2"
 # The post-2020 gap: historical endpoint stops at 2020/2021.
 # Add newer seasons here as they become available.
 harvest_years:
+  - "2012/2013"
+  - "2020/2021"
   - "2021/2022"
   - "2022/2023"
   - "2023/2024"
