@@ -17,8 +17,8 @@
 #
 # Known bulletins
 # ---------------
-# Season 2023/2024 — sourced from Wayback Machine capture (May 2024)
-# Season 2026/2027 — discovered by Playwright (May 2026, English version)
+# Season 2024/2025 — sourced from Wayback Machine capture (May 2024)
+# Season 2025/2026 — Harvest Closure bulletin, discovered by Playwright (May 2026, English version)
 # ---------------------------------------------------------------------------
 
 bulletins:
@@ -32,8 +32,11 @@ bulletins:
     pdf_url: null
     download_url: "https://unicadata.com.br/download_media.php?idM=12439002"
 
-  # 2026/2027 season — first bulletin of the new season (discovered 2026-05-19)
-  - harvest_year: "2026/2027"
+  # 2025/2026 season — Harvest Closure bulletin (final bulletin of the season).
+  # Published April 2026; the PDF explicitly says "HARVEST 2025/2026 Harvest Closure".
+  # NB: our inference heuristic (pub_month <= 3 → previous season) mis-labelled this
+  #     as 2026/2027; corrected to 2025/2026 after pdfplumber classification (2026-05-19).
+  - harvest_year: "2025/2026"
     idm: "32820684"
     bulletin_num: null
     published_ym: "2026/04"

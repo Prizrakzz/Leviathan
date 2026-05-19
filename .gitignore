@@ -34,6 +34,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Ephemeral pipeline artefacts (not for version control)
+configs/sources/unica_biweekly_classified.json
+
 # Terraform
 **/.terraform/
 *.tfstate

@@ -198,26 +198,29 @@ async def _discover_bulletins_async(
                     logger.warning("Playwright: failed to select year %s: %s", year, exc)
                     continue
 
-            # Extract bulletin metadata from the current page state.
-            bulletin = await _extract_current_bulletin(page, year)
-            if bulletin is None:
-                logger.warning("Playwright: could not extract bulletin for year=%s", year)
+            # Extract ALL bulletin download links from the current page state.
+            page_bulletins = await _extract_all_bulletins(page, year)
+            if not page_bulletins:
+                logger.warning("Playwright: no bulletins found for year=%s", year)
                 continue
 
-            idm = bulletin.get("idm")
-            if idm and idm in existing_idms:
-                logger.info("Playwright: bulletin idm=%s already known — skipping", idm)
-                continue
+            for bulletin in page_bulletins:
+                idm = bulletin.get("idm")
+                if idm and idm in existing_idms:
+                    logger.debug("Playwright: bulletin idm=%s already known — skipping", idm)
+                    continue
 
-            logger.info(
-                "Playwright: discovered bulletin  harvest_year=%s  idm=%s  "
-                "published=%s  bulletin_num=%s",
-                bulletin.get("harvest_year"),
-                idm,
-                bulletin.get("published_ym"),
-                bulletin.get("bulletin_num"),
-            )
-            found.append(bulletin)
+                logger.info(
+                    "Playwright: discovered bulletin  harvest_year=%s  idm=%s  "
+                    "published=%s  bulletin_num=%s",
+                    bulletin.get("harvest_year"),
+                    idm,
+                    bulletin.get("published_ym"),
+                    bulletin.get("bulletin_num"),
+                )
+                if idm:
+                    existing_idms.add(idm)
+                found.append(bulletin)
 
         await browser.close()
 
@@ -287,6 +290,111 @@ async def _extract_current_bulletin(
         "pdf_url": iframe_src if iframe_src else None,
         "download_url": download_url,
     }
+
+
+async def _extract_all_bulletins(
+    page: Any, year: str | None
+) -> list[dict[str, Any]]:
+    """Extract metadata for ALL bulletins visible on the current listing page.
+
+    Strategy
+    --------
+    1. Collect every ``download_media.php`` link on the page.
+    2. If the page also has a second ``<select>`` for bulletin number (common
+       in UNICADATA's JS-rendered portal), iterate through its options, selecting
+       each to load the corresponding iframe, then capture the PDF URL.
+    3. Fall back to ``_extract_current_bulletin`` for the single displayed
+       bulletin if no list/select is found.
+
+    Returns a list of bulletin dicts (may be empty).
+    """
+    from playwright.async_api import TimeoutError as PlaywrightTimeout
+
+    bulletins: list[dict[str, Any]] = []
+
+    # ── Strategy A: check for a secondary <select> that lists bulletin numbers
+    # ─────────────────────────────────────────────────────────────────────────
+    # UNICADATA sometimes has a second select (e.g. name="idBoletim" or
+    # name="numero") populated after the harvest-year is chosen.  If present,
+    # iterate through its options to enumerate each bulletin.
+    bulletin_select = page.locator(
+        "select[name='idBoletim'], select[name='numero'], "
+        "select[name='boletim'], select[name='bulletin']"
+    ).first
+    try:
+        await bulletin_select.wait_for(state="visible", timeout=4_000)
+        opts = await bulletin_select.locator("option[value]").all()
+        bulletin_values = [
+            (await o.get_attribute("value"), await o.inner_text())
+            for o in opts
+            if (await o.get_attribute("value") or "").strip()
+        ]
+        logger.info(
+            "Playwright: bulletin select has %d options for year=%s",
+            len(bulletin_values), year,
+        )
+        for val, label in bulletin_values:
+            try:
+                await bulletin_select.select_option(value=val)
+                await page.wait_for_load_state("networkidle", timeout=10_000)
+            except Exception:  # noqa: BLE001
+                pass
+            b = await _extract_current_bulletin(page, year)
+            if b and b.get("idm"):
+                bulletins.append(b)
+        if bulletins:
+            return bulletins
+    except PlaywrightTimeout:
+        pass  # no second select — fall through
+
+    # ── Strategy B: gather all download_media.php links visible at once
+    # ─────────────────────────────────────────────────────────────────────────
+    dl_links = await page.locator("a[href*='download_media.php']").all()
+    logger.info(
+        "Playwright: found %d download_media.php links for year=%s",
+        len(dl_links), year,
+    )
+    if len(dl_links) > 1:
+        # Get the current iframe src to pair with the first link.
+        iframe_src = ""
+        try:
+            iframe_el = page.locator("iframe.iframe-doc, iframe[id^='iframe_doc']").first
+            await iframe_el.wait_for(state="attached", timeout=5_000)
+            iframe_src = await iframe_el.get_attribute("src") or ""
+        except PlaywrightTimeout:
+            pass
+
+        ym_match_first = re.search(r"/arquivos/pdfs/(\d{4})/(\d{2})/", iframe_src)
+        first_published_ym = (
+            f"{ym_match_first.group(1)}/{ym_match_first.group(2)}"
+            if ym_match_first else None
+        )
+
+        for i, link in enumerate(dl_links):
+            dl_href = await link.get_attribute("href") or ""
+            idm_match = re.search(r"idM=(\d+)", dl_href, re.IGNORECASE)
+            if not idm_match:
+                continue
+            idm = idm_match.group(1)
+            # Only the first link's iframe src is known without clicking each row.
+            published_ym = first_published_ym if i == 0 else None
+            pdf_url = iframe_src if (i == 0 and iframe_src) else None
+            bulletins.append({
+                "harvest_year": year,
+                "idm": idm,
+                "bulletin_num": None,
+                "published_ym": published_ym,
+                "pdf_url": pdf_url,
+                "download_url": _DOWNLOAD_BASE + idm,
+            })
+        return bulletins
+
+    # ── Strategy C: single bulletin — delegate to existing function
+    # ─────────────────────────────────────────────────────────────────────────
+    b = await _extract_current_bulletin(page, year)
+    if b:
+        bulletins.append(b)
+    return bulletins
 
 
 # ---------------------------------------------------------------------------
@@ -481,7 +589,14 @@ def main() -> None:
     for b in target_bulletins:
         idm = b.get("idm")
         harvest_year = b.get("harvest_year") or "unknown"
-        download_url = b.get("download_url") or (_DOWNLOAD_BASE + idm if idm else None)
+        # For normal bulletins: use download_url or fall back to download_media.php.
+        # For hash-based (pdf_*) bulletins: use pdf_url directly.
+        download_url = b.get("download_url")
+        if not download_url:
+            if idm and str(idm).startswith("pdf_"):
+                download_url = b.get("pdf_url")
+            elif idm:
+                download_url = _DOWNLOAD_BASE + idm
 
         if not idm or not download_url:
             logger.warning("Skipping bulletin with missing idm or download_url: %s", b)
