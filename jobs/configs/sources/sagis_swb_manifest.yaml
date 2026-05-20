@@ -1,0 +1,16 @@
+bulletins:
+- bulletin_url: https://www.sagis.org.za/wp-content/uploads/2026/05/SWB_20260514.pdf
+  upload_year: 2026
+  upload_month: 5
+  filename: SWB_20260514.pdf
+  s3_key: raw/production/source=sagis_swb/upload_year=2026/upload_month=05/SWB_20260514.pdf
+- bulletin_url: https://www.sagis.org.za/wp-content/uploads/2026/05/SWB_20260507.pdf
+  upload_year: 2026
+  upload_month: 5
+  filename: SWB_20260507.pdf
+  s3_key: raw/production/source=sagis_swb/upload_year=2026/upload_month=05/SWB_20260507.pdf
+- bulletin_url: https://www.sagis.org.za/wp-content/uploads/2026/04/SWB_20260423.pdf
+  upload_year: 2026
+  upload_month: 4
+  filename: SWB_20260423.pdf
+  s3_key: raw/production/source=sagis_swb/upload_year=2026/upload_month=04/SWB_20260423.pdf

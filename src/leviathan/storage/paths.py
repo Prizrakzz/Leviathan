@@ -455,3 +455,29 @@ def raw_nass_crops_key(download_date: str) -> str:
         f"download_date={download_date}/"
         f"qs.crops.txt.gz"
     )
+
+
+# ---------------------------------------------------------------------------
+# SAGIS (South African Grain Information Service) — Weekly Bulletin
+# ---------------------------------------------------------------------------
+
+def raw_sagis_swb_key(upload_year: int, upload_month: int, filename: str) -> str:
+    """S3 key for a SAGIS South Africa Weekly Bulletin (SWB) PDF.
+
+    The ``upload_year`` / ``upload_month`` come from the
+    ``/wp-content/uploads/YYYY/MM/`` URL path component, consistent with
+    ``raw_fnc_report_key()``.  Bulletin date extraction is deferred to the
+    bronze transform.
+
+    Args:
+        upload_year:  Year from the uploads URL path component, e.g. ``2026``.
+        upload_month: Month from the uploads URL path component, e.g. ``5``.
+        filename:     URL-decoded PDF filename, e.g. ``"SWB_20260514.pdf"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=sagis_swb/"
+        f"upload_year={upload_year}/"
+        f"upload_month={upload_month:02d}/"
+        f"{filename}"
+    )
