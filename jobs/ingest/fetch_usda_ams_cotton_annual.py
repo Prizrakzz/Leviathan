@@ -362,9 +362,9 @@ def _upload_report(
 
         if not pdf_bytes.startswith(_PDF_MAGIC):
             raise RuntimeError(
-                f"Response is not a valid PDF (missing %PDF header): {pdf_url}"
+                f"Response is not a valid PDF (missing %PDF header): {download_url}"
             )
-        check_min_file_size(pdf_bytes, "usda_ams_cotton_classing_annual", context=pdf_url)
+        check_min_file_size(pdf_bytes, "usda_ams_cotton_classing_annual", context=download_url)
 
         upload_bytes_to_s3(pdf_bytes, bucket, s3_key, region)
         write_raw_s3_metadata(
@@ -381,7 +381,7 @@ def _upload_report(
         return "uploaded"
 
     except Exception as exc:  # noqa: BLE001
-        logger.error("Failed season=%d (%s): %s", season_year, pdf_url, exc)
+        logger.error("Failed season=%d (%s): %s", season_year, download_url, exc)
         time.sleep(sleep_seconds)
         return "error"
 

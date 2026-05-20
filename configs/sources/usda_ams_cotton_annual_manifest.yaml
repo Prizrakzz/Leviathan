@@ -25,4 +25,83 @@ reports:
     report_begin_date: "2025-07-01"
     pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
     filename: "cnaacq_2025.pdf"
-    download_url: "https://web.archive.org/web/20250607094139
+    download_url: "https://web.archive.org/web/20250607094139if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+
+  - season_year: 2024
+    report_begin_date: "2024-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2024.pdf"
+    download_url: "https://web.archive.org/web/20240630035913if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+
+  - season_year: 2023
+    report_begin_date: "2023-07-01"
+    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2023-07-01/1132912/ams_1658_00008.pdf"
+    filename: "ams_1658_00008.pdf"
+    download_url: "https://web.archive.org/web/20250301232211if_/https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2023-07-01/1132912/ams_1658_00008.pdf"
+
+  - season_year: 2022
+    report_begin_date: "2022-07-01"
+    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2022-07-01/1021928/ams_1658_00007.pdf"
+    filename: "ams_1658_00007.pdf"
+    download_url: "https://web.archive.org/web/20250302131947if_/https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2022-07-01/1021928/ams_1658_00007.pdf"
+
+  - season_year: 2021
+    report_begin_date: "2021-07-01"
+    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2021-07-01/908346/ams_1658_00006.pdf"
+    filename: "ams_1658_00006.pdf"
+    download_url: "https://web.archive.org/web/20250303042711if_/https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2021-07-01/908346/ams_1658_00006.pdf"
+
+  - season_year: 2020
+    report_begin_date: "2020-07-01"
+    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2020-07-01/771735/ams_1658_00005.pdf"
+    filename: "ams_1658_00005.pdf"
+    download_url: "https://web.archive.org/web/20250303210537if_/https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2020-07-01/771735/ams_1658_00005.pdf"
+
+  - season_year: 2019
+    report_begin_date: "2019-07-01"
+    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2019-07-01/606731/ams_1658_00003.pdf"
+    filename: "ams_1658_00003.pdf"
+    download_url: "https://web.archive.org/web/20250303125736if_/https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2019-07-01/606731/ams_1658_00003.pdf"
+
+  - season_year: 2018
+    report_begin_date: "2018-06-01"
+    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2018-06-01/601276/2017%20MARS%20Report.pdf"
+    filename: "2017 MARS Report.pdf"
+    download_url: "https://web.archive.org/web/20250218155233if_/https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2018-06-01/601276/2017%20MARS%20Report.pdf"
+
+  - season_year: 2017
+    report_begin_date: "2017-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2017.pdf"
+    download_url: "https://web.archive.org/web/20170715105103if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+
+  - season_year: 2016
+    report_begin_date: "2016-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2016.pdf"
+    download_url: "https://web.archive.org/web/20161221124611if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+
+  - season_year: 2015
+    report_begin_date: "2015-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2015.pdf"
+    download_url: "https://web.archive.org/web/20150906014625if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+
+  - season_year: 2011
+    report_begin_date: "2011-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2011.pdf"
+    download_url: "https://web.archive.org/web/20111024160400if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+
+  - season_year: 2009
+    report_begin_date: "2009-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2009.pdf"
+    download_url: "https://web.archive.org/web/20090601014218if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+
+  - season_year: 2008
+    report_begin_date: "2008-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2008.pdf"
+    download_url: "https://web.archive.org/web/20080920114753if_/https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+

@@ -22,7 +22,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "sagis_swb": 50_000,               # 50 KB — SWB bulletins are multi-page with charts
     "sagis_weekly": 5_000,             # 5 KB — oldest .xls files (2005/06) may be small
     "sagis_cec": 5_000,                # 5 KB — old .doc/.xls reports (2001-2006) can be small
-    "usda_ams_cotton_classing_annual": 500_000,  # 500 KB — annual quality PDFs are typically 1.5-2 MB
+    "usda_ams_cotton_classing_annual": 100_000,  # 100 KB — older reports (2008-2017) can be ~250 KB; modern ones are 2-4 MB
 }
 
 ALL_COMMODITIES: list[str] = [
