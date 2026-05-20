@@ -62,6 +62,28 @@ def raw_wmt_key(publication_date: str) -> str:
     )
 
 
+def raw_gain_coffee_key(
+    country_iso2: str,
+    publication_date: str,
+    filename: str,
+) -> str:
+    """S3 key for a USDA FAS GAIN Coffee Annual / Semi-annual report PDF.
+
+    Args:
+        country_iso2: ISO 3166-1 alpha-2 country code, e.g. ``"BR"``.
+        publication_date: Publication date in ``YYYYMMDD`` format.
+        filename: Sanitised PDF filename (spaces replaced by underscores),
+            e.g. ``"Coffee_Annual_Brasilia_Brazil_BR2025-0005.pdf"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_gain_coffee/"
+        f"country={country_iso2}/"
+        f"publication_date={publication_date}/"
+        f"{filename}"
+    )
+
+
 def raw_conab_key(
     crop_year: str,
     survey_number: int,

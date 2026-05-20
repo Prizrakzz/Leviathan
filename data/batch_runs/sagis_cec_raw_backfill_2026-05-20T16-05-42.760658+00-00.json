@@ -1,0 +1,8 @@
+{
+  "run_id": "2026-05-20T16-05-42.760658+00-00",
+  "source": "sagis_cec",
+  "job_name": "sagis-cec-raw-backfill",
+  "job_id": "f62f181e-44df-4e0e-9e5a-75dbb3aa95cd",
+  "job_queue": "leviathan-dev-queue",
+  "job_definition": "leviathan-dev-sagis-cec-raw-backfill"
+}

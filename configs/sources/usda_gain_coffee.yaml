@@ -1,0 +1,63 @@
+source: usda_gain_coffee
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A609"
+
+notes: >
+  USDA FAS GAIN (Global Agricultural Information Network) country-level Coffee Annual and
+  Semi-annual attaché intelligence reports.  Each report is authored by a USDA Foreign
+  Agricultural Service officer (attaché) posted in-country and provides local market
+  intelligence: crop condition, production estimates, trade flows, domestic policy,
+  and competitive dynamics — grounded in primary fieldwork rather than remote modelling.
+
+  Distinct from the WMT circular (usda_fas_coffee_wmt) which is a single global summary.
+  GAIN reports are the highest GraphRAG-value documents in the corpus: per-origin,
+  per-season narrative intelligence ideal for entity/relationship extraction, community
+  detection, and RAG retrieval.
+
+  Target scope: 18 major coffee-producing countries (arabica + robusta origins).
+  Report categories: Coffee Annual, Coffee Semi-annual.
+  Historical depth: 1998–present (~25 years).
+
+  fas.usda.gov is protected by a TLS-fingerprint WAF.  Downloads use curl_cffi
+  impersonating Chrome 124 (same approach as usda_fas_coffee_wmt).
+
+publication_cadence: annual          # Coffee Annual (once per marketing year)
+  # Coffee Semi-annual also available for some origins
+
+target_commodities:
+  - arabica_coffee
+  - robusta_coffee
+  - brazilian_arabica_coffee
+
+report_categories:
+  - Coffee Annual
+  - Coffee Semi-annual
+
+target_countries:                    # ISO 3166-1 alpha-2
+  - BR   # Brazil         (largest arabica producer)
+  - CO   # Colombia
+  - ET   # Ethiopia
+  - VN   # Vietnam        (largest robusta producer)
+  - ID   # Indonesia
+  - HN   # Honduras
+  - GT   # Guatemala
+  - PE   # Peru
+  - MX   # Mexico
+  - UG   # Uganda
+  - IN   # India
+  - TZ   # Tanzania
+  - KE   # Kenya
+  - CI   # Cote d'Ivoire
+  - CM   # Cameroon
+  - PG   # Papua New Guinea
+  - PH   # Philippines
+  - LA   # Laos
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_coffee/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+total_archive_size: ~300-400         # filtered to 18 target countries, 1998–present
+
+graphrag_priority: P2                # Highest GraphRAG value — local attaché intelligence per origin
