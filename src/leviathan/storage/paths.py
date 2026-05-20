@@ -254,6 +254,26 @@ def raw_mpob_monthly_key(year: int, month: int) -> str:
     )
 
 
+def raw_mpob_overview_pdf_key(year: int) -> str:
+    """S3 key for an MPOB BEPI *Overview of Industry* annual PDF.
+
+    These PDFs predate the BEPI HTML stat pages (which start 2017) and are
+    the primary data source for years ≤2016.  Files are named differently
+    across years on the source server but are normalised here.
+
+    Args:
+        year: Calendar year, e.g. ``2016``.
+    """
+    filename = f"mpob_overview_{year}.pdf"
+    return (
+        f"raw/production/"
+        f"source=mpob/"
+        f"release_type=overview_pdf/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
 def raw_mpob_annual_key(year: int) -> str:
     """S3 key for an MPOB BEPI annual summary HTML page.
 

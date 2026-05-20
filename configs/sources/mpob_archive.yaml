@@ -28,7 +28,8 @@
 #
 # Historical depth:
 #   BEPI site launched ~2017; HTML tables available from 2017-present.
-#   Pre-2016 data: Overview PDFs only (deferred; not in this manifest).
+#   Pre-2017 data: Overview PDFs available from 2010-present (see below).
+#   Pre-2010: no data found on server (2006-2009 return 404).
 #
 # Update cadence:  Monthly (monthly_release); Annual (annual_summary)
 #
@@ -110,3 +111,40 @@ releases:
   # NOTE: 2021-2025 monthly releases are not available in val+val1 format.
   # Exhaustive scan of art=1008-1248 found zero val1 entries; those years use
   # standalone val codes per stat table (annual-style), not monthly wrappers.
+
+  # --------------------------------------------------------------------------
+  # Overview PDFs — "Overview of Industry {year}"
+  # Static PDFs at bepi.mpob.gov.my/images/overview/
+  # Primary data source for years 2010-2016 (pre-BEPI HTML stat pages).
+  # URL pattern 2010-2020: Overview_of_Industry_{YYYY}.pdf
+  # Confirmed available: 2010-2016 (pre-2017 scope).
+  # Probe script: scratch/mpob/probe_overview_pdfs.py
+  # --------------------------------------------------------------------------
+
+  - release_type: overview_pdf
+    year: 2010
+    stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2010.pdf"
+
+  - release_type: overview_pdf
+    year: 2011
+    stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2011.pdf"
+
+  - release_type: overview_pdf
+    year: 2012
+    stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2012.pdf"
+
+  - release_type: overview_pdf
+    year: 2013
+    stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2013.pdf"
+
+  - release_type: overview_pdf
+    year: 2014
+    stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2014.pdf"
+
+  - release_type: overview_pdf
+    year: 2015
+    stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2015.pdf"
+
+  - release_type: overview_pdf
+    year: 2016
+    stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2016.pdf"

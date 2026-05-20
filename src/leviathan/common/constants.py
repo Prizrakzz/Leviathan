@@ -10,6 +10,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "conab": 500_000,                 # 500 KB — CONAB coffee bulletins are typically 1–3 MB
     "usda_fas_coffee_wmt": 100_000,   # 100 KB — WMT circulars are typically 1–2 MB
     "mpob": 5_000,                    # 5 KB — MPOB BEPI HTML table pages are typically 20–80 KB
+    "mpob_overview_pdf": 50_000,       # 50 KB — early PDFs (2010-2011) can be ~100 KB; guards against empty responses
 }
 
 ALL_COMMODITIES: list[str] = [

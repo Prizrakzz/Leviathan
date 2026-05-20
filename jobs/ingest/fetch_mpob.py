@@ -1,16 +1,21 @@
-"""Fetch MPOB BEPI palm oil HTML table pages to raw S3.
+"""Fetch MPOB BEPI palm oil reports (HTML tables and PDFs) to raw S3.
 
-Two report series are downloaded:
+Three report series are downloaded:
 
   annual_summary   — "Summary Of The Malaysian Palm Oil Industry {year}"
-                     One page per calendar year; national CPO production,
+                     One HTML page per calendar year; national CPO production,
                      closing stocks, exports, imports, FFB price (all months).
-                     bepi.mpob.gov.my/index.php/summary-2/...
+                     bepi.mpob.gov.my/stat/web_report1.php?val={YYYY}84
 
   monthly_release  — "{Month} {year}"
-                     One page per calendar month; same variables plus
+                     One HTML page per calendar month; same variables plus
                      regional breakdown (Peninsular Malaysia / Sabah / Sarawak).
-                     bepi.mpob.gov.my/index.php/monthly-release/...
+                     bepi.mpob.gov.my/stat/web_report1.php?val={YYYY}75&val1={MM}
+
+  overview_pdf     — "Overview of Industry {year}"
+                     Annual PDF report covering production, trade, prices and
+                     area statistics.  Primary source for pre-2017 data.
+                     bepi.mpob.gov.my/images/overview/Overview_of_Industry_{year}.pdf
 
 Discovery strategy
 ------------------
@@ -46,7 +51,11 @@ import yaml
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
-from leviathan.storage.paths import raw_mpob_annual_key, raw_mpob_monthly_key
+from leviathan.storage.paths import (
+    raw_mpob_annual_key,
+    raw_mpob_monthly_key,
+    raw_mpob_overview_pdf_key,
+)
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
 from leviathan.storage.s3 import s3_object_exists, upload_bytes_to_s3
 
@@ -122,9 +131,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--release-type",
-        choices=["annual_summary", "monthly_release"],
+        choices=["annual_summary", "monthly_release", "overview_pdf"],
         default=None,
-        help="Process only this release type (default: both).",
+        help="Process only this release type (default: all).",
     )
     args = parser.parse_args()
 
@@ -159,8 +168,10 @@ def main() -> None:
             month = entry.get("month")
             if rt == "annual_summary":
                 s3_key = raw_mpob_annual_key(year)
-            else:
+            elif rt == "monthly_release":
                 s3_key = raw_mpob_monthly_key(year, month)
+            else:
+                s3_key = raw_mpob_overview_pdf_key(year)
             print(f"  {rt:<20}  {year}/{month or '--':>2}  →  {s3_key}")
         return
 
@@ -185,9 +196,12 @@ def main() -> None:
         if rt == "annual_summary":
             s3_key = raw_mpob_annual_key(year)
             label = f"annual_summary/{year}"
-        else:
+        elif rt == "monthly_release":
             s3_key = raw_mpob_monthly_key(year, month)
             label = f"monthly_release/{year}/{month:02d}"
+        else:
+            s3_key = raw_mpob_overview_pdf_key(year)
+            label = f"overview_pdf/{year}"
 
         try:
             if args.skip_existing_s3 and s3_object_exists(bucket, s3_key, region):
@@ -196,30 +210,41 @@ def main() -> None:
                 continue
 
             logger.info("Downloading %s  %s …", label, url)
-            html_text = _download_html(url, session)
 
-            if _TABLE_MARKER not in html_text.upper():
-                raise RuntimeError(
-                    f"Validation failed: '{_TABLE_MARKER}' not found in response from {url}"
-                )
+            if rt == "overview_pdf":
+                resp = session.get(url, timeout=60, allow_redirects=True)
+                resp.raise_for_status()
+                payload = resp.content
+                if not payload.startswith(b"%PDF"):
+                    raise RuntimeError(
+                        f"Validation failed: response is not a PDF (magic bytes missing) from {url}"
+                    )
+                check_min_file_size(payload, "mpob_overview_pdf", context=url)
+                content_type = "application/pdf"
+            else:
+                html_text = _download_html(url, session)
+                if _TABLE_MARKER not in html_text.upper():
+                    raise RuntimeError(
+                        f"Validation failed: '{_TABLE_MARKER}' not found in response from {url}"
+                    )
+                payload = html_text.encode("utf-8")
+                check_min_file_size(payload, "mpob", context=url)
+                content_type = "text/html; charset=utf-8"
 
-            html_bytes = html_text.encode("utf-8")
-            check_min_file_size(html_bytes, "mpob", context=url)
-
-            upload_bytes_to_s3(html_bytes, bucket, s3_key, region)
+            upload_bytes_to_s3(payload, bucket, s3_key, region)
             write_raw_s3_metadata(
                 bucket,
                 s3_key,
-                html_bytes,
+                payload,
                 url,
-                "text/html; charset=utf-8",
+                content_type,
                 region,
             )
 
             logger.info(
                 "Uploaded %s  (%.1f KB) → s3://%s/%s",
                 label,
-                len(html_bytes) / 1_024,
+                len(payload) / 1_024,
                 bucket,
                 s3_key,
             )
