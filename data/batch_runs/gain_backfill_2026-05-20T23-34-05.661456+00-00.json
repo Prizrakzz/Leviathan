@@ -1,0 +1,81 @@
+{
+  "run_id": "2026-05-20T23-34-05.661456+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "wheat",
+    "corn",
+    "soybeans",
+    "palm_oil",
+    "sugar",
+    "cotton",
+    "rapeseed",
+    "rice",
+    "soybean_oil",
+    "soybean_meal",
+    "orange_juice",
+    "cocoa"
+  ],
+  "task_count": 12,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-wheat",
+      "job_id": "5096e539-8e4a-4cde-bc9e-cccda9498fe9",
+      "commodity": "wheat"
+    },
+    {
+      "job_name": "gain-backfill-corn",
+      "job_id": "f9d5c734-ab77-4c2c-b3f5-d88ff1f028a8",
+      "commodity": "corn"
+    },
+    {
+      "job_name": "gain-backfill-soybeans",
+      "job_id": "488a8761-0ebe-42ed-90a6-1051f004ee9d",
+      "commodity": "soybeans"
+    },
+    {
+      "job_name": "gain-backfill-palm-oil",
+      "job_id": "dcb9de37-4f4f-48f6-ad58-199e688fc551",
+      "commodity": "palm_oil"
+    },
+    {
+      "job_name": "gain-backfill-sugar",
+      "job_id": "6e4ef7a5-64a0-4ec0-8be3-d34b2f6db2fa",
+      "commodity": "sugar"
+    },
+    {
+      "job_name": "gain-backfill-cotton",
+      "job_id": "155faf1e-75bf-4d2d-aa0c-ba5c5cb17142",
+      "commodity": "cotton"
+    },
+    {
+      "job_name": "gain-backfill-rapeseed",
+      "job_id": "f69e341c-078f-4f66-8779-d98371792ba7",
+      "commodity": "rapeseed"
+    },
+    {
+      "job_name": "gain-backfill-rice",
+      "job_id": "28e0c815-8288-437d-a000-e7989bb22155",
+      "commodity": "rice"
+    },
+    {
+      "job_name": "gain-backfill-soybean-oil",
+      "job_id": "f205ef54-1991-4645-850e-650eb90e5549",
+      "commodity": "soybean_oil"
+    },
+    {
+      "job_name": "gain-backfill-soybean-meal",
+      "job_id": "21999ce1-e0ed-4619-af1b-15f9f3e41a0c",
+      "commodity": "soybean_meal"
+    },
+    {
+      "job_name": "gain-backfill-orange-juice",
+      "job_id": "03c26578-5688-4a56-b24b-6648ee5bab50",
+      "commodity": "orange_juice"
+    },
+    {
+      "job_name": "gain-backfill-cocoa",
+      "job_id": "2fa0dccc-ca87-4c4d-b754-50f53b9c903d",
+      "commodity": "cocoa"
+    }
+  ]
+}

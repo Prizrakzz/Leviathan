@@ -152,6 +152,10 @@ def _scrape_esmis_page(
         ext = href.rsplit(".", 1)[-1].lower()
         if ext not in ("txt", "pdf"):
             continue
+        # Skip readme files — they are supplementary docs, not WASDE reports.
+        basename = href.rsplit("/", 1)[-1].lower()
+        if basename.startswith("readme"):
+            continue
 
         text = a.get_text(strip=True)
         m = _LINK_DATE_RE.search(text)
@@ -494,7 +498,7 @@ def main() -> None:
             s3_key = raw_wasde_key(e["release_date"], e["mmyy"], e["fmt"])
             print(
                 f"  {e['release_date']}  {e['fmt'].upper():3}  "
-                f"{e['filename']}  →  {s3_key}"
+                f"{e['filename']}  ->  {s3_key}"
             )
         session.close()
         return

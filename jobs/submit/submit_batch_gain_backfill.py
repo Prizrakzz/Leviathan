@@ -36,12 +36,14 @@ COMMODITIES: list[dict] = [
     {"name": "cotton",      "commodity_id": "6",     "countries": "US,IN,CN,BR,AU,PK,UZ"},
     {"name": "rapeseed",    "commodity_id": "28",    "countries": "CA,AU,FR,CN,DE,UA,PL"},
     {"name": "rice",        "commodity_id": "16",    "countries": "TH,VN,IN,CN,US,PK"},
-    {"name": "soybean_oil",  "commodity_id": "13022", "countries": "BR,US,AR,CN"},
-    {"name": "soybean_meal", "commodity_id": "13021", "countries": "US,BR,AR,CN"},
-    # Processed Fruit (13014) is the closest GAIN category for FCOJ — no dedicated OJ ID
-    {"name": "orange_juice", "commodity_id": "13014", "countries": "BR,US,MX", "title_filter": "orange"},
-    # Cocoa has no FAS taxonomy ID — uses title-filter on all GAIN reports
-    {"name": "cocoa",        "commodity_id": None,    "countries": "CI,GH,CM,ID,NG,EC,PE", "title_filter": "cocoa"},
+    # Soybean oil: major producers, processors, and importers globally
+    {"name": "soybean_oil",  "commodity_id": "13022", "countries": "AR,BR,US,CN,IN,ID,PH,VN,PY,MY,MX,TH,DE,NL,BD,PK,EG,CO,PE"},
+    # Soybean meal: major producers and importing/consuming countries
+    {"name": "soybean_meal", "commodity_id": "13021", "countries": "US,AR,BR,CN,IN,ID,PH,VN,TH,MX,DE,NL,PY,BD,KR,JP,EG,CO"},
+    # OJ / citrus: 13014 is wrong (generic catchall) — use title-filter on all GAIN reports
+    {"name": "orange_juice", "commodity_id": None,    "countries": "BR,US,MX,ZA,AR,TR,EG,IN,CN,ES,NG,AU,PK", "title_filter": "citrus", "max_empty_pages": 200},
+    # Cocoa has no FAS taxonomy ID — uses title-filter; needs many pages to find scattered reports
+    {"name": "cocoa",        "commodity_id": None,    "countries": "CI,GH,CM,NG,ID,EC,PE,BR,DO,MX,IN,DE,NL", "title_filter": "cocoa", "max_empty_pages": 200},
 ]
 
 
@@ -79,6 +81,8 @@ def submit_tasks(
             command += ["--commodity-id", str(c["commodity_id"])]
         if c.get("title_filter"):
             command += ["--title-filter", c["title_filter"]]
+        if c.get("max_empty_pages"):
+            command += ["--max-empty-pages", str(c["max_empty_pages"])]
 
         if dry_run:
             logger.info("[DRY RUN] Would submit: %s  cmd=%s", job_name, command)

@@ -197,12 +197,13 @@ def crawl(
     title_filter: str | None,
     sleep_listing: float = 1.5,
     sleep_landing: float = 1.0,
+    max_empty_pages: int = _MAX_EMPTY_PAGES,
 ) -> list[dict]:
     """Return list of raw record dicts (one per report PDF found)."""
     records: list[dict] = []
     page_num = 0
     empty_run = 0
-    max_empty = _MAX_EMPTY_PAGES if title_filter else 0  # only applies to no-commodity-id path
+    max_empty = max_empty_pages if title_filter else 0  # only applies to title-filter path
 
     with cr.Session() as sess:
         sess.headers.update({
@@ -421,6 +422,7 @@ def main() -> None:
     parser.add_argument("--bucket", required=True)
     parser.add_argument("--aws-region", required=True)
     parser.add_argument("--title-filter", default=None)
+    parser.add_argument("--max-empty-pages", type=int, default=_MAX_EMPTY_PAGES)
     parser.add_argument("--sleep-seconds", type=float, default=2.0)
     parser.add_argument("--skip-existing-s3", action="store_true", default=True)
     parser.add_argument("--dry-run", action="store_true")
@@ -444,10 +446,11 @@ def main() -> None:
         search_url=search_url,
         target_iso2=target_iso2,
         title_filter=args.title_filter,
+        max_empty_pages=args.max_empty_pages,
     )
     if not records:
-        logger.error("No records found. Aborting.")
-        raise SystemExit(1)
+        logger.warning("No records found for %s — exiting cleanly.", source_name)
+        raise SystemExit(0)
 
     # 2. Build manifest
     manifest = build_manifest(records, source_name)

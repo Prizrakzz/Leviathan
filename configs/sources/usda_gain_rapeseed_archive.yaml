@@ -1,0 +1,32 @@
+source: usda_gain_rapeseed
+generated: '2026-05-21'
+total_records: 3
+target_countries:
+- AU
+- CA
+- UA
+reports:
+- report_id: AS2026-0007
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Oilseeds and Products Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Oilseeds%20and%20Products%20Annual_Canberra_Australia_AS2026-0007.pdf
+  filename_clean: Oilseeds_and_Products_Annual_Canberra_Australia_AS2026-0007.pdf
+- report_id: CA2026-0008
+  country_iso2: CA
+  country_name: ''
+  post: Ottawa
+  category: Oilseeds and Products Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Oilseeds%20and%20Products%20Annual_Ottawa_Canada_CA2026-0008.pdf
+  filename_clean: Oilseeds_and_Products_Annual_Ottawa_Canada_CA2026-0008.pdf
+- report_id: UP2026-0011
+  country_iso2: UA
+  country_name: ''
+  post: Kyiv
+  category: Oilseeds and Products Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Oilseeds%20and%20Products%20Annual_Kyiv_Ukraine_UP2026-0011.pdf
+  filename_clean: Oilseeds_and_Products_Annual_Kyiv_Ukraine_UP2026-0011.pdf

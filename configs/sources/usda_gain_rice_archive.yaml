@@ -1,0 +1,41 @@
+source: usda_gain_rice
+generated: '2026-05-21'
+total_records: 4
+target_countries:
+- IN
+- PK
+- TH
+- VN
+reports:
+- report_id: IN2026-0019
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_New%20Delhi_India_IN2026-0019.pdf
+  filename_clean: Grain_and_Feed_Annual_New_Delhi_India_IN2026-0019.pdf
+- report_id: PK2026-0003
+  country_iso2: PK
+  country_name: ''
+  post: Islamabad
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Islamabad_Pakistan_PK2026-0003.pdf
+  filename_clean: Grain_and_Feed_Annual_Islamabad_Pakistan_PK2026-0003.pdf
+- report_id: TH2026-0012
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Grain and Feed Monthly
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Monthly_Bangkok_Thailand_TH2026-0012.pdf
+  filename_clean: Grain_and_Feed_Monthly_Bangkok_Thailand_TH2026-0012.pdf
+- report_id: VM2026-0012
+  country_iso2: VN
+  country_name: ''
+  post: Ho Chi Minh City
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Ho%20Chi%20Minh%20City_Vietnam_VM2026-0012.pdf
+  filename_clean: Grain_and_Feed_Annual_Ho_Chi_Minh_City_Vietnam_VM2026-0012.pdf

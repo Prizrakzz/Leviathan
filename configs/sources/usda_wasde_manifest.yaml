@@ -11,4 +11,4382 @@
 #   url            https://   — direct download URL from esmis.nal.usda.gov
 #   filename       wasde{mmyy}.{fmt} — normalized filename used in S3 key
 
+
+
 reports:
+
+  - release_date: "1973-09-17"
+    calendar_month: "1973-09"
+    mmyy: "0973"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v118rd84f/g732d931g/wasde-09-17-1973.pdf"
+    filename: "wasde0973.pdf"
+
+  - release_date: "1973-10-29"
+    calendar_month: "1973-10"
+    mmyy: "1073"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zg64tm28n/8k71nh362/wasde-10-29-1973.pdf"
+    filename: "wasde1073.pdf"
+
+  - release_date: "1973-11-14"
+    calendar_month: "1973-11"
+    mmyy: "1173"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9593tv476/4x51hj34c/wasde-11-14-1973.pdf"
+    filename: "wasde1173.pdf"
+
+  - release_date: "1973-12-27"
+    calendar_month: "1973-12"
+    mmyy: "1273"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/37720d09j/1z40kt23k/wasde-12-27-1973.pdf"
+    filename: "wasde1273.pdf"
+
+  - release_date: "1974-01-25"
+    calendar_month: "1974-01"
+    mmyy: "0174"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vx021f43n/sb397853x/wasde-01-25-1974.pdf"
+    filename: "wasde0174.pdf"
+
+  - release_date: "1974-03-15"
+    calendar_month: "1974-03"
+    mmyy: "0374"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1z40kt211/0p096727h/wasde-03-15-1974.pdf"
+    filename: "wasde0374.pdf"
+
+  - release_date: "1974-04-25"
+    calendar_month: "1974-04"
+    mmyy: "0474"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/kh04dq01v/5t34sk005/wasde-04-25-1974.pdf"
+    filename: "wasde0474.pdf"
+
+  - release_date: "1974-05-09"
+    calendar_month: "1974-05"
+    mmyy: "0574"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s4655g89j/ks65hc51t/wasde-05-09-1974.pdf"
+    filename: "wasde0574.pdf"
+
+  - release_date: "1974-06-24"
+    calendar_month: "1974-06"
+    mmyy: "0674"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mk61rh17m/s7526c699/wasde-06-24-1974.pdf"
+    filename: "wasde0674.pdf"
+
+  - release_date: "1974-07-25"
+    calendar_month: "1974-07"
+    mmyy: "0774"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/k930bx366/4m90dv85v/wasde-07-25-1974.pdf"
+    filename: "wasde0774.pdf"
+
+  - release_date: "1974-08-13"
+    calendar_month: "1974-08"
+    mmyy: "0874"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7d278t334/cn69m440f/wasde-08-13-1974.pdf"
+    filename: "wasde0874.pdf"
+
+  - release_date: "1974-09-12"
+    calendar_month: "1974-09"
+    mmyy: "0974"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qj72p746b/k3569462h/wasde-09-12-1974.pdf"
+    filename: "wasde0974.pdf"
+
+  - release_date: "1974-10-25"
+    calendar_month: "1974-10"
+    mmyy: "1074"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/p2676v76z/0r967401k/wasde-10-25-1974.pdf"
+    filename: "wasde1074.pdf"
+
+  - release_date: "1974-11-11"
+    calendar_month: "1974-11"
+    mmyy: "1174"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/d791sg52k/0g354f591/wasde-11-11-1974.pdf"
+    filename: "wasde1174.pdf"
+
+  - release_date: "1974-12-11"
+    calendar_month: "1974-12"
+    mmyy: "1274"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0g354f58r/nz805z96w/wasde-12-11-1974.pdf"
+    filename: "wasde1274.pdf"
+
+  - release_date: "1975-01-27"
+    calendar_month: "1975-01"
+    mmyy: "0175"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8w32r590n/8g84mm54r/wasde-01-27-1975.pdf"
+    filename: "wasde0175.pdf"
+
+  - release_date: "1975-03-18"
+    calendar_month: "1975-03"
+    mmyy: "0375"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ft848r00d/kw52j844n/wasde-03-18-1975.pdf"
+    filename: "wasde0375.pdf"
+
+  - release_date: "1975-04-25"
+    calendar_month: "1975-04"
+    mmyy: "0475"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s4655g909/2r36tx879/wasde-04-25-1975.pdf"
+    filename: "wasde0475.pdf"
+
+  - release_date: "1975-06-11"
+    calendar_month: "1975-06"
+    mmyy: "0675"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vq27zn73r/xd07gt003/wasde-06-11-1975.pdf"
+    filename: "wasde0675.pdf"
+
+  - release_date: "1975-07-25"
+    calendar_month: "1975-07"
+    mmyy: "0775"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h702q6713/vm40xr940/wasde-07-25-1975.pdf"
+    filename: "wasde0775.pdf"
+
+  - release_date: "1975-08-12"
+    calendar_month: "1975-08"
+    mmyy: "0875"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bc386j502/2r36tx88k/wasde-08-12-1975.pdf"
+    filename: "wasde0875.pdf"
+
+  - release_date: "1975-09-12"
+    calendar_month: "1975-09"
+    mmyy: "0975"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vq27zn741/b5644r92t/wasde-09-12-1975.pdf"
+    filename: "wasde0975.pdf"
+
+  - release_date: "1975-10-28"
+    calendar_month: "1975-10"
+    mmyy: "1075"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mg74qm58m/9p290960f/wasde-10-28-1975.pdf"
+    filename: "wasde1075.pdf"
+
+  - release_date: "1975-11-11"
+    calendar_month: "1975-11"
+    mmyy: "1175"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zs25x8738/9880vr22k/wasde-11-11-1975.pdf"
+    filename: "wasde1175.pdf"
+
+  - release_date: "1975-12-11"
+    calendar_month: "1975-12"
+    mmyy: "1275"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jm214p484/9z9030141/wasde-12-11-1975.pdf"
+    filename: "wasde1275.pdf"
+
+  - release_date: "1976-01-26"
+    calendar_month: "1976-01"
+    mmyy: "0176"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4x51hj333/8623hz01z/wasde-01-26-1976.pdf"
+    filename: "wasde0176.pdf"
+
+  - release_date: "1976-03-09"
+    calendar_month: "1976-03"
+    mmyy: "0376"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/47429948w/vt150j65f/wasde-03-09-1976.pdf"
+    filename: "wasde0376.pdf"
+
+  - release_date: "1976-04-23"
+    calendar_month: "1976-04"
+    mmyy: "0476"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w9505073d/rb68xc21v/wasde-04-23-1976.pdf"
+    filename: "wasde0476.pdf"
+
+  - release_date: "1976-05-11"
+    calendar_month: "1976-05"
+    mmyy: "0576"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vx021f44x/sx61dm60n/wasde-05-11-1976.pdf"
+    filename: "wasde0576.pdf"
+
+  - release_date: "1976-06-23"
+    calendar_month: "1976-06"
+    mmyy: "0676"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0r9674009/8p58pd30x/wasde-06-23-1976.pdf"
+    filename: "wasde0676.pdf"
+
+  - release_date: "1976-07-30"
+    calendar_month: "1976-07"
+    mmyy: "0776"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j3860728j/qj72p750x/wasde-07-30-1976.pdf"
+    filename: "wasde0776.pdf"
+
+  - release_date: "1976-08-13"
+    calendar_month: "1976-08"
+    mmyy: "0876"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sq87bt99c/bg257f41b/wasde-08-13-1976.pdf"
+    filename: "wasde0876.pdf"
+
+  - release_date: "1976-09-13"
+    calendar_month: "1976-09"
+    mmyy: "0976"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5999n377g/41687h805/wasde-09-13-1976.pdf"
+    filename: "wasde0976.pdf"
+
+  - release_date: "1976-10-22"
+    calendar_month: "1976-10"
+    mmyy: "1076"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z029p511d/4b29b636m/wasde-10-22-1976.pdf"
+    filename: "wasde1076.pdf"
+
+  - release_date: "1976-11-11"
+    calendar_month: "1976-11"
+    mmyy: "1176"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qn59q4317/rv042t33w/wasde-11-11-1976.pdf"
+    filename: "wasde1176.pdf"
+
+  - release_date: "1976-12-13"
+    calendar_month: "1976-12"
+    mmyy: "1276"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zs25x875t/ht24wj762/wasde-12-13-1976.pdf"
+    filename: "wasde1276.pdf"
+
+  - release_date: "1977-01-26"
+    calendar_month: "1977-01"
+    mmyy: "0177"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xw42n827r/st74cq77k/wasde-01-26-1977.pdf"
+    filename: "wasde0177.pdf"
+
+  - release_date: "1977-03-22"
+    calendar_month: "1977-03"
+    mmyy: "0377"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/p5547r812/9306sz70s/wasde-03-22-1977.pdf"
+    filename: "wasde0377.pdf"
+
+  - release_date: "1977-04-22"
+    calendar_month: "1977-04"
+    mmyy: "0477"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zc77sq41z/6395w7395/wasde-04-22-1977.pdf"
+    filename: "wasde0477.pdf"
+
+  - release_date: "1977-05-17"
+    calendar_month: "1977-05"
+    mmyy: "0577"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b8515n680/tb09j607p/wasde-05-17-1977.pdf"
+    filename: "wasde0577.pdf"
+
+  - release_date: "1977-06-24"
+    calendar_month: "1977-06"
+    mmyy: "0677"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w0892b32n/ks65hc523/wasde-06-24-1977.pdf"
+    filename: "wasde0677.pdf"
+
+  - release_date: "1977-07-13"
+    calendar_month: "1977-07"
+    mmyy: "0777"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jm214p49d/dv13zt51x/wasde-07-13-1977.pdf"
+    filename: "wasde0777.pdf"
+
+  - release_date: "1977-08-12"
+    calendar_month: "1977-08"
+    mmyy: "0877"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b5644r908/rj430478d/wasde-08-12-1977.pdf"
+    filename: "wasde0877.pdf"
+
+  - release_date: "1977-09-30"
+    calendar_month: "1977-09"
+    mmyy: "0977"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5999n378r/7d278t36z/wasde-09-30-1977.pdf"
+    filename: "wasde0977.pdf"
+
+  - release_date: "1977-10-26"
+    calendar_month: "1977-10"
+    mmyy: "1077"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ns0646310/p8418n54d/wasde-10-26-1977.pdf"
+    filename: "wasde1077.pdf"
+
+  - release_date: "1977-11-11"
+    calendar_month: "1977-11"
+    mmyy: "1177"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qr46r116c/cc08hf94s/wasde-11-11-1977.pdf"
+    filename: "wasde1177.pdf"
+
+  - release_date: "1977-12-12"
+    calendar_month: "1977-12"
+    mmyy: "1277"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x346d441h/n870zr14n/wasde-12-12-1977.pdf"
+    filename: "wasde1277.pdf"
+
+  - release_date: "1978-01-26"
+    calendar_month: "1978-01"
+    mmyy: "0178"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ww72bb80d/nv935315t/wasde-01-26-1978.pdf"
+    filename: "wasde0178.pdf"
+
+  - release_date: "1978-02-27"
+    calendar_month: "1978-02"
+    mmyy: "0278"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gx41mj18r/rf55z799s/wasde-02-27-1978.pdf"
+    filename: "wasde0278.pdf"
+
+  - release_date: "1978-03-15"
+    calendar_month: "1978-03"
+    mmyy: "0378"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vm40xr915/08612n83b/wasde-03-15-1978.pdf"
+    filename: "wasde0378.pdf"
+
+  - release_date: "1978-04-21"
+    calendar_month: "1978-04"
+    mmyy: "0478"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zs25x8763/pk02cb071/wasde-04-21-1978.pdf"
+    filename: "wasde0478.pdf"
+
+  - release_date: "1978-05-17"
+    calendar_month: "1978-05"
+    mmyy: "0578"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j96020977/rn301165k/wasde-05-17-1978.pdf"
+    filename: "wasde0578.pdf"
+
+  - release_date: "1978-06-23"
+    calendar_month: "1978-06"
+    mmyy: "0678"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3f462581t/pz50gw37k/wasde-06-23-1978.pdf"
+    filename: "wasde0678.pdf"
+
+  - release_date: "1978-07-12"
+    calendar_month: "1978-07"
+    mmyy: "0778"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fj236234f/pn89d682v/wasde-07-12-1978.pdf"
+    filename: "wasde0778.pdf"
+
+  - release_date: "1978-08-11"
+    calendar_month: "1978-08"
+    mmyy: "0878"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4t64gn41j/0z708w81m/wasde-08-11-1978.pdf"
+    filename: "wasde0878.pdf"
+
+  - release_date: "1978-09-21"
+    calendar_month: "1978-09"
+    mmyy: "0978"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gh93gz818/5d86p0577/wasde-09-21-1978.pdf"
+    filename: "wasde0978.pdf"
+
+  - release_date: "1978-10-24"
+    calendar_month: "1978-10"
+    mmyy: "1078"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/c821gk06v/5d86p058h/wasde-10-24-1978.pdf"
+    filename: "wasde1078.pdf"
+
+  - release_date: "1978-11-13"
+    calendar_month: "1978-11"
+    mmyy: "1178"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7m01bm05f/mg74qm60n/wasde-11-13-1978.pdf"
+    filename: "wasde1178.pdf"
+
+  - release_date: "1978-12-11"
+    calendar_month: "1978-12"
+    mmyy: "1278"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nv935314j/gm80hv743/wasde-12-11-1978.pdf"
+    filename: "wasde1278.pdf"
+
+  - release_date: "1979-01-26"
+    calendar_month: "1979-01"
+    mmyy: "0179"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j67314135/j098zb39p/wasde-01-26-1979.pdf"
+    filename: "wasde0179.pdf"
+
+  - release_date: "1979-02-09"
+    calendar_month: "1979-02"
+    mmyy: "0279"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9k41zd88g/9g54xh95n/wasde-02-09-1979.pdf"
+    filename: "wasde0279.pdf"
+
+  - release_date: "1979-03-07"
+    calendar_month: "1979-03"
+    mmyy: "0379"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8336h221c/8w32r591x/wasde-03-07-1979.pdf"
+    filename: "wasde0379.pdf"
+
+  - release_date: "1979-04-24"
+    calendar_month: "1979-04"
+    mmyy: "0479"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qf85nb684/0v838077z/wasde-04-24-1979.pdf"
+    filename: "wasde0479.pdf"
+
+  - release_date: "1979-05-11"
+    calendar_month: "1979-05"
+    mmyy: "0579"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/474299495/gt54kn355/wasde-05-11-1979.pdf"
+    filename: "wasde0579.pdf"
+
+  - release_date: "1979-06-22"
+    calendar_month: "1979-06"
+    mmyy: "0679"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zs25x877c/bn999719j/wasde-06-22-1979.pdf"
+    filename: "wasde0679.pdf"
+
+  - release_date: "1979-07-13"
+    calendar_month: "1979-07"
+    mmyy: "0779"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4m90dv839/qb98mf88c/wasde-07-13-1979.pdf"
+    filename: "wasde0779.pdf"
+
+  - release_date: "1979-08-13"
+    calendar_month: "1979-08"
+    mmyy: "0879"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q811kk017/hm50ts05j/wasde-08-13-1979.pdf"
+    filename: "wasde0879.pdf"
+
+  - release_date: "1979-09-13"
+    calendar_month: "1979-09"
+    mmyy: "0979"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9019s280z/k643b156m/wasde-09-13-1979.pdf"
+    filename: "wasde0979.pdf"
+
+  - release_date: "1979-10-24"
+    calendar_month: "1979-10"
+    mmyy: "1079"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/k643b155b/k0698782r/wasde-10-24-1979.pdf"
+    filename: "wasde1079.pdf"
+
+  - release_date: "1979-11-13"
+    calendar_month: "1979-11"
+    mmyy: "1179"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5d86p054d/765371620/wasde-11-13-1979.pdf"
+    filename: "wasde1179.pdf"
+
+  - release_date: "1979-12-12"
+    calendar_month: "1979-12"
+    mmyy: "1279"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4b29b635b/cn69m441q/wasde-12-12-1979.pdf"
+    filename: "wasde1279.pdf"
+
+  - release_date: "1980-01-28"
+    calendar_month: "1980-01"
+    mmyy: "0180"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/73666478n/bv73c072b/wasde-01-28-1980.pdf"
+    filename: "wasde0180.pdf"
+
+  - release_date: "1980-02-12"
+    calendar_month: "1980-02"
+    mmyy: "0280"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sx61dm57b/zs25x879x/wasde-02-12-1980.pdf"
+    filename: "wasde0280.pdf"
+
+  - release_date: "1980-03-11"
+    calendar_month: "1980-03"
+    mmyy: "0380"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/05741r965/4t64gn42t/wasde-03-11-1980.pdf"
+    filename: "wasde0380.pdf"
+
+  - release_date: "1980-04-25"
+    calendar_month: "1980-04"
+    mmyy: "0480"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qr46r117n/79407x52t/wasde-04-25-1980.pdf"
+    filename: "wasde0480.pdf"
+
+  - release_date: "1980-05-12"
+    calendar_month: "1980-05"
+    mmyy: "0580"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1j92g772f/h415p984x/wasde-05-12-1980.pdf"
+    filename: "wasde0580.pdf"
+
+  - release_date: "1980-06-23"
+    calendar_month: "1980-06"
+    mmyy: "0680"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b5644r91j/th83kz633/wasde-06-23-1980.pdf"
+    filename: "wasde0680.pdf"
+
+  - release_date: "1980-07-14"
+    calendar_month: "1980-07"
+    mmyy: "0780"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3t945r08v/n009w262s/wasde-07-14-1980.pdf"
+    filename: "wasde0780.pdf"
+
+  - release_date: "1980-08-12"
+    calendar_month: "1980-08"
+    mmyy: "0880"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cz30pt03v/pk02cb089/wasde-08-12-1980.pdf"
+    filename: "wasde0880.pdf"
+
+  - release_date: "1980-09-12"
+    calendar_month: "1980-09"
+    mmyy: "0980"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vm40xr92f/8c97kq694/wasde-09-12-1980.pdf"
+    filename: "wasde0980.pdf"
+
+  - release_date: "1980-10-24"
+    calendar_month: "1980-10"
+    mmyy: "1080"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gf06g305m/pc289j30b/wasde-10-24-1980.pdf"
+    filename: "wasde1080.pdf"
+
+  - release_date: "1980-11-12"
+    calendar_month: "1980-11"
+    mmyy: "1180"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nc580m97v/4x51hj36x/wasde-11-12-1980.pdf"
+    filename: "wasde1180.pdf"
+
+  - release_date: "1980-12-11"
+    calendar_month: "1980-12"
+    mmyy: "1280"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rx913q13m/g732d9349/wasde-12-11-1980.pdf"
+    filename: "wasde1280.pdf"
+
+  - release_date: "1981-01-27"
+    calendar_month: "1981-01"
+    mmyy: "0181"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1z40kt229/wp988k11q/wasde-01-27-1981.pdf"
+    filename: "wasde0181.pdf"
+
+  - release_date: "1981-02-12"
+    calendar_month: "1981-02"
+    mmyy: "0281"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7w62f855d/1v53jx36d/wasde-02-12-1981.pdf"
+    filename: "wasde0281.pdf"
+
+  - release_date: "1981-03-11"
+    calendar_month: "1981-03"
+    mmyy: "0381"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qr46r118x/nk322d741/wasde-03-11-1981.pdf"
+    filename: "wasde0381.pdf"
+
+  - release_date: "1981-04-24"
+    calendar_month: "1981-04"
+    mmyy: "0481"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pr76f374d/9880vr23v/wasde-04-24-1981.pdf"
+    filename: "wasde0481.pdf"
+
+  - release_date: "1981-05-12"
+    calendar_month: "1981-05"
+    mmyy: "0581"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jh343s65j/3197xm45s/wasde-05-12-1981.pdf"
+    filename: "wasde0581.pdf"
+
+  - release_date: "1981-06-30"
+    calendar_month: "1981-06"
+    mmyy: "0681"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cv43nx06f/p8418n55p/wasde-06-30-1981.pdf"
+    filename: "wasde0681.pdf"
+
+  - release_date: "1981-07-13"
+    calendar_month: "1981-07"
+    mmyy: "0781"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xw42n8281/4m90dv864/wasde-07-13-1981.pdf"
+    filename: "wasde0781.pdf"
+
+  - release_date: "1981-08-13"
+    calendar_month: "1981-08"
+    mmyy: "0881"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1r66j1484/rv042t345/wasde-08-13-1981.pdf"
+    filename: "wasde0881.pdf"
+
+  - release_date: "1981-09-14"
+    calendar_month: "1981-09"
+    mmyy: "0981"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3197xm41p/hq37vn93g/wasde-09-14-1981.pdf"
+    filename: "wasde0981.pdf"
+
+  - release_date: "1981-10-23"
+    calendar_month: "1981-10"
+    mmyy: "1081"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m326m211w/wd375w66b/wasde-10-23-1981.pdf"
+    filename: "wasde1081.pdf"
+
+  - release_date: "1981-11-13"
+    calendar_month: "1981-11"
+    mmyy: "1181"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jh343s66t/bk128b26g/wasde-11-13-1981.pdf"
+    filename: "wasde1181.pdf"
+
+  - release_date: "1981-12-11"
+    calendar_month: "1981-12"
+    mmyy: "1281"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s1784m089/hq37vn94r/wasde-12-11-1981.pdf"
+    filename: "wasde1281.pdf"
+
+  - release_date: "1982-01-26"
+    calendar_month: "1982-01"
+    mmyy: "0182"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jw827c130/ht24wj79w/wasde-01-26-1982.pdf"
+    filename: "wasde0182.pdf"
+
+  - release_date: "1982-02-11"
+    calendar_month: "1982-02"
+    mmyy: "0282"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/44558d72q/fq977v19w/wasde-02-11-1982.pdf"
+    filename: "wasde0282.pdf"
+
+  - release_date: "1982-03-11"
+    calendar_month: "1982-03"
+    mmyy: "0382"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mw22v586t/w0892b371/wasde-03-11-1982.pdf"
+    filename: "wasde0382.pdf"
+
+  - release_date: "1982-04-23"
+    calendar_month: "1982-04"
+    mmyy: "0482"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5425kb02w/pr76f3777/wasde-04-23-1982.pdf"
+    filename: "wasde0482.pdf"
+
+  - release_date: "1982-05-11"
+    calendar_month: "1982-05"
+    mmyy: "0582"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z890rt60n/mk61rh195/wasde-05-11-1982.pdf"
+    filename: "wasde0582.pdf"
+
+  - release_date: "1982-06-23"
+    calendar_month: "1982-06"
+    mmyy: "0682"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b2773w088/k06987831/wasde-06-23-1982.pdf"
+    filename: "wasde0682.pdf"
+
+  - release_date: "1982-07-13"
+    calendar_month: "1982-07"
+    mmyy: "0782"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5d86p055p/pg15bf260/wasde-07-13-1982.pdf"
+    filename: "wasde0782.pdf"
+
+  - release_date: "1982-08-12"
+    calendar_month: "1982-08"
+    mmyy: "0882"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w0892b33x/9880vr244/wasde-08-12-1982.pdf"
+    filename: "wasde0882.pdf"
+
+  - release_date: "1982-09-13"
+    calendar_month: "1982-09"
+    mmyy: "0982"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vd66w017s/xw42n8299/wasde-09-13-1982.pdf"
+    filename: "wasde0982.pdf"
+
+  - release_date: "1982-10-22"
+    calendar_month: "1982-10"
+    mmyy: "1082"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fq977v18m/kp78gg801/wasde-10-22-1982.pdf"
+    filename: "wasde1082.pdf"
+
+  - release_date: "1982-11-12"
+    calendar_month: "1982-11"
+    mmyy: "1182"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qf85nb69d/c247ds41z/wasde-11-12-1982.pdf"
+    filename: "wasde1182.pdf"
+
+  - release_date: "1982-12-13"
+    calendar_month: "1982-12"
+    mmyy: "1282"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/05741r98q/0v8380787/wasde-12-13-1982.pdf"
+    filename: "wasde1282.pdf"
+
+  - release_date: "1983-01-24"
+    calendar_month: "1983-01"
+    mmyy: "0183"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0c483j72b/jh343s68c/wasde-01-24-1983.pdf"
+    filename: "wasde0183.pdf"
+
+  - release_date: "1983-02-14"
+    calendar_month: "1983-02"
+    mmyy: "0283"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s4655g91k/rb68xc224/wasde-02-14-1983.pdf"
+    filename: "wasde0283.pdf"
+
+  - release_date: "1983-03-23"
+    calendar_month: "1983-03"
+    mmyy: "0383"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/kw52j843c/12579s59n/wasde-03-23-1983.pdf"
+    filename: "wasde0383.pdf"
+
+  - release_date: "1983-04-22"
+    calendar_month: "1983-04"
+    mmyy: "0483"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m900nt730/q524jp13s/wasde-04-22-1983.pdf"
+    filename: "wasde0483.pdf"
+
+  - release_date: "1983-05-11"
+    calendar_month: "1983-05"
+    mmyy: "0583"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rv042t32m/ww72bb82z/wasde-05-11-1983.pdf"
+    filename: "wasde0583.pdf"
+
+  - release_date: "1983-06-23"
+    calendar_month: "1983-06"
+    mmyy: "0683"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mw22v5873/w9505077h/wasde-06-23-1983.pdf"
+    filename: "wasde0683.pdf"
+
+  - release_date: "1983-07-13"
+    calendar_month: "1983-07"
+    mmyy: "0783"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hm50ts048/gb19f611h/wasde-07-13-1983.pdf"
+    filename: "wasde0783.pdf"
+
+  - release_date: "1983-08-12"
+    calendar_month: "1983-08"
+    mmyy: "0883"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v118rd85q/2514nk82b/wasde-08-12-1983.pdf"
+    filename: "wasde0883.pdf"
+
+  - release_date: "1983-09-13"
+    calendar_month: "1983-09"
+    mmyy: "0983"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6m311p67k/5q47rp130/wasde-09-13-1983.pdf"
+    filename: "wasde0983.pdf"
+
+  - release_date: "1983-10-25"
+    calendar_month: "1983-10"
+    mmyy: "1083"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0k225b32v/hq37vn951/wasde-10-25-1983.pdf"
+    filename: "wasde1083.pdf"
+
+  - release_date: "1983-11-14"
+    calendar_month: "1983-11"
+    mmyy: "1183"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w0892b346/8w32r5926/wasde-11-14-1983.pdf"
+    filename: "wasde1183.pdf"
+
+  - release_date: "1983-12-13"
+    calendar_month: "1983-12"
+    mmyy: "1283"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rn3011649/ft848r04h/wasde-12-13-1983.pdf"
+    filename: "wasde1283.pdf"
+
+  - release_date: "1984-01-24"
+    calendar_month: "1984-01"
+    mmyy: "0184"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xk81jk66f/8p58pd32g/wasde-01-24-1984.pdf"
+    filename: "wasde0184.pdf"
+
+  - release_date: "1984-02-21"
+    calendar_month: "1984-02"
+    mmyy: "0284"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hq37vn926/pz50gw38v/wasde-02-21-1984.pdf"
+    filename: "wasde0284.pdf"
+
+  - release_date: "1984-03-12"
+    calendar_month: "1984-03"
+    mmyy: "0384"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xd07gs99j/474299516/wasde-03-12-1984.pdf"
+    filename: "wasde0384.pdf"
+
+  - release_date: "1984-04-24"
+    calendar_month: "1984-04"
+    mmyy: "0484"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x920fx199/st74cq78v/wasde-04-24-1984.pdf"
+    filename: "wasde0484.pdf"
+
+  - release_date: "1984-05-10"
+    calendar_month: "1984-05"
+    mmyy: "0584"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2514nk80s/dn39x1870/wasde-05-10-1984.pdf"
+    filename: "wasde0584.pdf"
+
+  - release_date: "1984-06-22"
+    calendar_month: "1984-06"
+    mmyy: "0684"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bv73c068r/tt44pn21k/wasde-06-22-1984.pdf"
+    filename: "wasde0684.pdf"
+
+  - release_date: "1984-07-11"
+    calendar_month: "1984-07"
+    mmyy: "0784"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qj72p748w/79407x55n/wasde-07-11-1984.pdf"
+    filename: "wasde0784.pdf"
+
+  - release_date: "1984-08-13"
+    calendar_month: "1984-08"
+    mmyy: "0884"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dj52w506g/hh63sw30n/wasde-08-13-1984.pdf"
+    filename: "wasde0884.pdf"
+
+  - release_date: "1984-09-13"
+    calendar_month: "1984-09"
+    mmyy: "0984"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8336h222n/j6731414f/wasde-09-13-1984.pdf"
+    filename: "wasde0984.pdf"
+
+  - release_date: "1984-10-24"
+    calendar_month: "1984-10"
+    mmyy: "1084"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9306sz68r/r781wg40j/wasde-10-24-1984.pdf"
+    filename: "wasde1084.pdf"
+
+  - release_date: "1984-11-13"
+    calendar_month: "1984-11"
+    mmyy: "1184"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wd375w652/zs25x880p/wasde-11-13-1984.pdf"
+    filename: "wasde1184.pdf"
+
+  - release_date: "1984-12-11"
+    calendar_month: "1984-12"
+    mmyy: "1284"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bn9997188/r781wg41t/wasde-12-11-1984.pdf"
+    filename: "wasde1284.pdf"
+
+  - release_date: "1985-01-11"
+    calendar_month: "1985-01"
+    mmyy: "0185"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/p8418n534/0k225b34d/wasde-01-11-1985.pdf"
+    filename: "wasde0185.pdf"
+
+  - release_date: "1985-02-11"
+    calendar_month: "1985-02"
+    mmyy: "0285"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hd76s0392/mg74qm626/wasde-02-11-1985.pdf"
+    filename: "wasde0285.pdf"
+
+  - release_date: "1985-03-11"
+    calendar_month: "1985-03"
+    mmyy: "0385"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x346d442s/3x816m94z/wasde-03-11-1985.pdf"
+    filename: "wasde0385.pdf"
+
+  - release_date: "1985-04-10"
+    calendar_month: "1985-04"
+    mmyy: "0485"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m326m2125/zk51vh074/wasde-04-10-1985.pdf"
+    filename: "wasde0485.pdf"
+
+  - release_date: "1985-05-10"
+    calendar_month: "1985-05"
+    mmyy: "0585"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7p88cg81j/d217qp79j/wasde-05-10-1985.pdf"
+    filename: "wasde0585.pdf"
+
+  - release_date: "1985-06-10"
+    calendar_month: "1985-06"
+    mmyy: "0685"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8049g548j/2801pg60j/wasde-06-10-1985.pdf"
+    filename: "wasde0685.pdf"
+
+  - release_date: "1985-07-10"
+    calendar_month: "1985-07"
+    mmyy: "0785"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/kk91fk80h/xg94hp87z/wasde-07-10-1985.pdf"
+    filename: "wasde0785.pdf"
+
+  - release_date: "1985-08-12"
+    calendar_month: "1985-08"
+    mmyy: "0885"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8910jt83g/rv042t35f/wasde-08-12-1985.pdf"
+    filename: "wasde0885.pdf"
+
+  - release_date: "1985-09-11"
+    calendar_month: "1985-09"
+    mmyy: "0985"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1c18dg106/nv9353163/wasde-09-11-1985.pdf"
+    filename: "wasde0985.pdf"
+
+  - release_date: "1985-10-10"
+    calendar_month: "1985-10"
+    mmyy: "1085"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7s75dc71j/7p88cg833/wasde-10-10-1985.pdf"
+    filename: "wasde1085.pdf"
+
+  - release_date: "1985-11-12"
+    calendar_month: "1985-11"
+    mmyy: "1185"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zw12z569x/4f16c318x/wasde-11-12-1985.pdf"
+    filename: "wasde1185.pdf"
+
+  - release_date: "1985-12-10"
+    calendar_month: "1985-12"
+    mmyy: "1285"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gb19f607x/6969z112h/wasde-12-10-1985.pdf"
+    filename: "wasde1285.pdf"
+
+  - release_date: "1986-01-10"
+    calendar_month: "1986-01"
+    mmyy: "0186"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5t34sj99m/s1784m11m/wasde-01-10-1986.pdf"
+    filename: "wasde0186.pdf"
+
+  - release_date: "1986-02-10"
+    calendar_month: "1986-02"
+    mmyy: "0286"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1c18dg11g/5999n380s/wasde-02-10-1986.pdf"
+    filename: "wasde0286.pdf"
+
+  - release_date: "1986-03-10"
+    calendar_month: "1986-03"
+    mmyy: "0386"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x059c773j/fj2362360/wasde-03-10-1986.pdf"
+    filename: "wasde0386.pdf"
+
+  - release_date: "1986-04-10"
+    calendar_month: "1986-04"
+    mmyy: "0486"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v692t6545/f4752h07h/wasde-04-10-1986.pdf"
+    filename: "wasde0486.pdf"
+
+  - release_date: "1986-05-09"
+    calendar_month: "1986-05"
+    mmyy: "0586"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/n870zr13c/9880vr25d/wasde-05-09-1986.pdf"
+    filename: "wasde0586.pdf"
+
+  - release_date: "1986-06-10"
+    calendar_month: "1986-06"
+    mmyy: "0686"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bv73c0691/q811kk03s/wasde-06-10-1986.pdf"
+    filename: "wasde0686.pdf"
+
+  - release_date: "1986-07-11"
+    calendar_month: "1986-07"
+    mmyy: "0786"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5425kb035/6t053g34s/wasde-07-11-1986.pdf"
+    filename: "wasde0786.pdf"
+
+  - release_date: "1986-08-12"
+    calendar_month: "1986-08"
+    mmyy: "0886"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9593tv49r/fb494881b/wasde-08-12-1986.pdf"
+    filename: "wasde0886.pdf"
+
+  - release_date: "1986-09-11"
+    calendar_month: "1986-09"
+    mmyy: "0986"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/df65v817r/s4655g96z/wasde-09-11-1986.pdf"
+    filename: "wasde0986.pdf"
+
+  - release_date: "1986-10-10"
+    calendar_month: "1986-10"
+    mmyy: "1086"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w0892b35g/vd66w0246/wasde-10-10-1986.pdf"
+    filename: "wasde1086.pdf"
+
+  - release_date: "1986-11-10"
+    calendar_month: "1986-11"
+    mmyy: "1186"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gt54kn34w/k0698785k/wasde-11-10-1986.pdf"
+    filename: "wasde1186.pdf"
+
+  - release_date: "1986-12-10"
+    calendar_month: "1986-12"
+    mmyy: "1286"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7s75dc72t/jd472w72q/wasde-12-10-1986.pdf"
+    filename: "wasde1286.pdf"
+
+  - release_date: "1987-01-15"
+    calendar_month: "1987-01"
+    mmyy: "0187"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/02870w32k/sf2685471/wasde-01-15-1987.pdf"
+    filename: "wasde0187.pdf"
+
+  - release_date: "1987-02-09"
+    calendar_month: "1987-02"
+    mmyy: "0287"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jq085k31g/2f75r8391/wasde-02-09-1987.pdf"
+    filename: "wasde0287.pdf"
+
+  - release_date: "1987-03-09"
+    calendar_month: "1987-03"
+    mmyy: "0387"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g158bh58d/2n49t212c/wasde-03-09-1987.pdf"
+    filename: "wasde0387.pdf"
+
+  - release_date: "1987-04-09"
+    calendar_month: "1987-04"
+    mmyy: "0487"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qz20ss81s/d791sg53v/wasde-04-09-1987.pdf"
+    filename: "wasde0487.pdf"
+
+  - release_date: "1987-05-11"
+    calendar_month: "1987-05"
+    mmyy: "0587"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/f7623c90s/m613mx873/wasde-05-11-1987.pdf"
+    filename: "wasde0587.pdf"
+
+  - release_date: "1987-06-09"
+    calendar_month: "1987-06"
+    mmyy: "0687"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7p88cg82t/73666480p/wasde-06-09-1987.pdf"
+    filename: "wasde0687.pdf"
+
+  - release_date: "1987-07-09"
+    calendar_month: "1987-07"
+    mmyy: "0787"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/f4752h03d/p5547r86f/wasde-07-09-1987.pdf"
+    filename: "wasde0787.pdf"
+
+  - release_date: "1987-08-11"
+    calendar_month: "1987-08"
+    mmyy: "0887"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tb09j6054/2v23vt71n/wasde-08-11-1987.pdf"
+    filename: "wasde0887.pdf"
+
+  - release_date: "1987-09-10"
+    calendar_month: "1987-09"
+    mmyy: "0987"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q524jp117/9k41zd91s/wasde-09-10-1987.pdf"
+    filename: "wasde0987.pdf"
+
+  - release_date: "1987-10-08"
+    calendar_month: "1987-10"
+    mmyy: "1087"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qj72p7495/9w032332r/wasde-10-08-1987.pdf"
+    filename: "wasde1087.pdf"
+
+  - release_date: "1987-11-10"
+    calendar_month: "1987-11"
+    mmyy: "1187"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cc08hf93h/n583xv36f/wasde-11-10-1987.pdf"
+    filename: "wasde1187.pdf"
+
+  - release_date: "1987-12-10"
+    calendar_month: "1987-12"
+    mmyy: "1287"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9c67wn09j/jw827c16t/wasde-12-10-1987.pdf"
+    filename: "wasde1287.pdf"
+
+  - release_date: "1988-01-14"
+    calendar_month: "1988-01"
+    mmyy: "0188"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5712m691t/sf268549k/wasde-01-14-1988.pdf"
+    filename: "wasde0188.pdf"
+
+  - release_date: "1988-02-09"
+    calendar_month: "1988-02"
+    mmyy: "0288"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q237hs35k/n583xv37q/wasde-02-09-1988.pdf"
+    filename: "wasde0288.pdf"
+
+  - release_date: "1988-03-09"
+    calendar_month: "1988-03"
+    mmyy: "0388"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2z10wq47t/m900nt75j/wasde-03-09-1988.pdf"
+    filename: "wasde0388.pdf"
+
+  - release_date: "1988-04-11"
+    calendar_month: "1988-04"
+    mmyy: "0488"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1j92g773q/t435gd221/wasde-04-11-1988.pdf"
+    filename: "wasde0488.pdf"
+
+  - release_date: "1988-05-10"
+    calendar_month: "1988-05"
+    mmyy: "0588"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j3860730k/9z9030184/wasde-05-10-1988.pdf"
+    filename: "wasde0588.pdf"
+
+  - release_date: "1988-06-09"
+    calendar_month: "1988-06"
+    mmyy: "0688"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/73666479x/qf85nb748/wasde-06-09-1988.pdf"
+    filename: "wasde0688.pdf"
+
+  - release_date: "1988-07-12"
+    calendar_month: "1988-07"
+    mmyy: "0788"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bg257f402/qn59q432h/wasde-07-12-1988.pdf"
+    filename: "wasde0788.pdf"
+
+  - release_date: "1988-08-11"
+    calendar_month: "1988-08"
+    mmyy: "0888"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pn89d6809/j6731415q/wasde-08-11-1988.pdf"
+    filename: "wasde0888.pdf"
+
+  - release_date: "1988-09-12"
+    calendar_month: "1988-09"
+    mmyy: "0988"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8910jt851/vd66w022n/wasde-09-12-1988.pdf"
+    filename: "wasde0988.pdf"
+
+  - release_date: "1988-10-12"
+    calendar_month: "1988-10"
+    mmyy: "1088"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5138jf27h/7w62f861j/wasde-10-12-1988.pdf"
+    filename: "wasde1088.pdf"
+
+  - release_date: "1988-11-09"
+    calendar_month: "1988-11"
+    mmyy: "1188"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/br86b403w/k3569465b/wasde-11-09-1988.pdf"
+    filename: "wasde1188.pdf"
+
+  - release_date: "1988-12-12"
+    calendar_month: "1988-12"
+    mmyy: "1288"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j3860731v/bz60cw561/wasde-12-12-1988.pdf"
+    filename: "wasde1288.pdf"
+
+  - release_date: "1989-01-13"
+    calendar_month: "1989-01"
+    mmyy: "0189"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s4655g934/0r967402v/wasde-01-13-1989.pdf"
+    filename: "wasde0189.pdf"
+
+  - release_date: "1989-02-09"
+    calendar_month: "1989-02"
+    mmyy: "0289"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qf85nb705/qb98mf89n/wasde-02-09-1989.pdf"
+    filename: "wasde0289.pdf"
+
+  - release_date: "1989-03-09"
+    calendar_month: "1989-03"
+    mmyy: "0389"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9z9030159/wm117p31q/wasde-03-09-1989.pdf"
+    filename: "wasde0389.pdf"
+
+  - release_date: "1989-04-11"
+    calendar_month: "1989-04"
+    mmyy: "0489"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w0892b36r/xp68kg71t/wasde-04-11-1989.pdf"
+    filename: "wasde0489.pdf"
+
+  - release_date: "1989-05-11"
+    calendar_month: "1989-05"
+    mmyy: "0589"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/t722h9228/9019s2817/wasde-05-11-1989.pdf"
+    filename: "wasde0589.pdf"
+
+  - release_date: "1989-06-12"
+    calendar_month: "1989-06"
+    mmyy: "0689"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dj52w507r/6969z115b/wasde-06-12-1989.pdf"
+    filename: "wasde0689.pdf"
+
+  - release_date: "1989-07-12"
+    calendar_month: "1989-07"
+    mmyy: "0789"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hx11xf573/3j333261k/wasde-07-12-1989.pdf"
+    filename: "wasde0789.pdf"
+
+  - release_date: "1989-08-10"
+    calendar_month: "1989-08"
+    mmyy: "0889"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gf06g306w/vt150j66q/wasde-08-10-1989.pdf"
+    filename: "wasde0889.pdf"
+
+  - release_date: "1989-09-12"
+    calendar_month: "1989-09"
+    mmyy: "0989"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mw22v588c/0g354f62b/wasde-09-12-1989.pdf"
+    filename: "wasde0989.pdf"
+
+  - release_date: "1989-10-12"
+    calendar_month: "1989-10"
+    mmyy: "1089"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xs55mc32c/79407x54c/wasde-10-12-1989.pdf"
+    filename: "wasde1089.pdf"
+
+  - release_date: "1989-11-09"
+    calendar_month: "1989-11"
+    mmyy: "1189"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g445cd48d/6t053g352/wasde-11-09-1989.pdf"
+    filename: "wasde1189.pdf"
+
+  - release_date: "1989-12-12"
+    calendar_month: "1989-12"
+    mmyy: "1289"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b5644r933/t148fh496/wasde-12-12-1989.pdf"
+    filename: "wasde1289.pdf"
+
+  - release_date: "1990-01-11"
+    calendar_month: "1990-01"
+    mmyy: "0190"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/02870w344/rr171x65x/wasde-01-11-1990.pdf"
+    filename: "wasde0190.pdf"
+
+  - release_date: "1990-02-09"
+    calendar_month: "1990-02"
+    mmyy: "0290"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tb09j606d/kk91fk83b/wasde-02-09-1990.pdf"
+    filename: "wasde0290.pdf"
+
+  - release_date: "1990-03-09"
+    calendar_month: "1990-03"
+    mmyy: "0390"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1c18dg12r/41687h82q/wasde-03-09-1990.pdf"
+    filename: "wasde0390.pdf"
+
+  - release_date: "1990-04-10"
+    calendar_month: "1990-04"
+    mmyy: "0490"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7w62f856p/xk81jk698/wasde-04-10-1990.pdf"
+    filename: "wasde0490.pdf"
+
+  - release_date: "1990-05-10"
+    calendar_month: "1990-05"
+    mmyy: "0590"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vd66w0182/bg257f445/wasde-05-10-1990.pdf"
+    filename: "wasde0590.pdf"
+
+  - release_date: "1990-06-12"
+    calendar_month: "1990-06"
+    mmyy: "0690"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nk322d72g/xs55mc33n/wasde-06-12-1990.pdf"
+    filename: "wasde0690.pdf"
+
+  - release_date: "1990-07-12"
+    calendar_month: "1990-07"
+    mmyy: "0790"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bg257f42m/vq27zn759/wasde-07-12-1990.pdf"
+    filename: "wasde0790.pdf"
+
+  - release_date: "1990-08-09"
+    calendar_month: "1990-08"
+    mmyy: "0890"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8910jt869/k35694642/wasde-08-09-1990.pdf"
+    filename: "wasde0890.pdf"
+
+  - release_date: "1990-09-12"
+    calendar_month: "1990-09"
+    mmyy: "0990"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/br86b4045/bk128b281/wasde-09-12-1990.pdf"
+    filename: "wasde0990.pdf"
+
+  - release_date: "1990-10-11"
+    calendar_month: "1990-10"
+    mmyy: "1090"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qf85nb71f/dn39x1909/wasde-10-11-1990.pdf"
+    filename: "wasde1090.pdf"
+
+  - release_date: "1990-11-08"
+    calendar_month: "1990-11"
+    mmyy: "1190"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/c821gk08d/bc386j545/wasde-11-08-1990.pdf"
+    filename: "wasde1190.pdf"
+
+  - release_date: "1990-12-11"
+    calendar_month: "1990-12"
+    mmyy: "1290"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5d86p056z/gq67jr44w/wasde-12-11-1990.pdf"
+    filename: "wasde1290.pdf"
+
+  - release_date: "1991-01-11"
+    calendar_month: "1991-01"
+    mmyy: "0191"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/kk91fk81s/fx719m704/wasde-01-11-1991.pdf"
+    filename: "wasde0191.pdf"
+
+  - release_date: "1991-02-11"
+    calendar_month: "1991-02"
+    mmyy: "0291"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3n203z40w/47429953r/wasde-02-11-1991.pdf"
+    filename: "wasde0291.pdf"
+
+  - release_date: "1991-03-11"
+    calendar_month: "1991-03"
+    mmyy: "0391"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m039k523f/6969z1142/wasde-03-11-1991.pdf"
+    filename: "wasde0391.pdf"
+
+  - release_date: "1991-04-10"
+    calendar_month: "1991-04"
+    mmyy: "0491"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v692t655f/k930bx391/wasde-04-10-1991.pdf"
+    filename: "wasde0491.pdf"
+
+  - release_date: "1991-05-09"
+    calendar_month: "1991-05"
+    mmyy: "0591"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z603qx69x/cv43nx080/wasde-05-09-1991.pdf"
+    filename: "wasde0591.pdf"
+
+  - release_date: "1991-06-11"
+    calendar_month: "1991-06"
+    mmyy: "0691"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sn009z13h/cj82k778v/wasde-06-11-1991.pdf"
+    filename: "wasde0691.pdf"
+
+  - release_date: "1991-07-11"
+    calendar_month: "1991-07"
+    mmyy: "0791"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5q47rp11f/5d86p060j/wasde-07-11-1991.pdf"
+    filename: "wasde0791.pdf"
+
+  - release_date: "1991-08-12"
+    calendar_month: "1991-08"
+    mmyy: "0891"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zg64tm30p/v692t6570/wasde-08-12-1991.pdf"
+    filename: "wasde0891.pdf"
+
+  - release_date: "1991-09-12"
+    calendar_month: "1991-09"
+    mmyy: "0991"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5x21tf77t/xp68kg73c/wasde-09-12-1991.pdf"
+    filename: "wasde0991.pdf"
+
+  - release_date: "1991-10-10"
+    calendar_month: "1991-10"
+    mmyy: "1091"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sj1392214/9p290961q/wasde-10-10-1991.pdf"
+    filename: "wasde1091.pdf"
+
+  - release_date: "1991-11-12"
+    calendar_month: "1991-11"
+    mmyy: "1191"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rf55z798h/9z903019d/wasde-11-12-1991.pdf"
+    filename: "wasde1191.pdf"
+
+  - release_date: "1991-12-11"
+    calendar_month: "1991-12"
+    mmyy: "1291"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jw827c148/pz50gw394/wasde-12-11-1991.pdf"
+    filename: "wasde1291.pdf"
+
+  - release_date: "1992-01-13"
+    calendar_month: "1992-01"
+    mmyy: "0192"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/r781wg39s/5x21tf79c/wasde-01-13-1992.pdf"
+    filename: "wasde0192.pdf"
+
+  - release_date: "1992-02-11"
+    calendar_month: "1992-02"
+    mmyy: "0292"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6969z1117/m613mx89n/wasde-02-11-1992.pdf"
+    filename: "wasde0292.pdf"
+
+  - release_date: "1992-03-11"
+    calendar_month: "1992-03"
+    mmyy: "0392"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8910jt87k/dv13zt526/wasde-03-11-1992.pdf"
+    filename: "wasde0392.pdf"
+
+  - release_date: "1992-04-10"
+    calendar_month: "1992-04"
+    mmyy: "0492"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jw827c15j/s1784m12w/wasde-04-10-1992.pdf"
+    filename: "wasde0492.pdf"
+
+  - release_date: "1992-05-11"
+    calendar_month: "1992-05"
+    mmyy: "0592"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sx61dm58m/wh246s49x/wasde-05-11-1992.pdf"
+    filename: "wasde0592.pdf"
+
+  - release_date: "1992-06-10"
+    calendar_month: "1992-06"
+    mmyy: "0692"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/79407x51j/p5547r84w/wasde-06-10-1992.pdf"
+    filename: "wasde0692.pdf"
+
+  - release_date: "1992-07-09"
+    calendar_month: "1992-07"
+    mmyy: "0792"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x346d4432/v692t661k/wasde-07-09-1992.pdf"
+    filename: "wasde0792.pdf"
+
+  - release_date: "1992-08-12"
+    calendar_month: "1992-08"
+    mmyy: "0892"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sb397852n/5d86p059s/wasde-08-12-1992.pdf"
+    filename: "wasde0892.pdf"
+
+  - release_date: "1992-09-10"
+    calendar_month: "1992-09"
+    mmyy: "0992"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jd472w71f/tq57nr36z/wasde-09-10-1992.pdf"
+    filename: "wasde0992.pdf"
+
+  - release_date: "1992-10-08"
+    calendar_month: "1992-10"
+    mmyy: "1092"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9k41zd90h/q811kk042/wasde-10-08-1992.pdf"
+    filename: "wasde1092.pdf"
+
+  - release_date: "1992-11-10"
+    calendar_month: "1992-11"
+    mmyy: "1192"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0z708w80b/cr56n1320/wasde-11-10-1992.pdf"
+    filename: "wasde1192.pdf"
+
+  - release_date: "1992-12-10"
+    calendar_month: "1992-12"
+    mmyy: "1292"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gf06g3075/h702q676g/wasde-12-10-1992.pdf"
+    filename: "wasde1292.pdf"
+
+  - release_date: "1993-01-12"
+    calendar_month: "1993-01"
+    mmyy: "0193"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/37720d109/8p58pd359/wasde-01-12-1993.pdf"
+    filename: "wasde0193.pdf"
+
+  - release_date: "1993-02-10"
+    calendar_month: "1993-02"
+    mmyy: "0293"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vt150j645/4b29b641g/wasde-02-10-1993.pdf"
+    filename: "wasde0293.pdf"
+
+  - release_date: "1993-03-10"
+    calendar_month: "1993-03"
+    mmyy: "0393"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q524jp12h/5425kb060/wasde-03-10-1993.pdf"
+    filename: "wasde0393.pdf"
+
+  - release_date: "1993-04-12"
+    calendar_month: "1993-04"
+    mmyy: "0493"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4m90dv84k/v118rd860/wasde-04-12-1993.pdf"
+    filename: "wasde0493.pdf"
+
+  - release_date: "1993-05-11"
+    calendar_month: "1993-05"
+    mmyy: "0593"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1v53jx34v/jw827c19n/wasde-05-11-1993.pdf"
+    filename: "wasde0593.pdf"
+
+  - release_date: "1993-06-10"
+    calendar_month: "1993-06"
+    mmyy: "0693"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m326m213f/s7526c702/wasde-06-10-1993.pdf"
+    filename: "wasde0693.pdf"
+
+  - release_date: "1993-07-12"
+    calendar_month: "1993-07"
+    mmyy: "0793"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w9505074p/xs55mc34x/wasde-07-12-1993.pdf"
+    filename: "wasde0793.pdf"
+
+  - release_date: "1993-08-11"
+    calendar_month: "1993-08"
+    mmyy: "0893"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9w032329f/qv33rx07g/wasde-08-11-1993.pdf"
+    filename: "wasde0893.pdf"
+
+  - release_date: "1993-09-09"
+    calendar_month: "1993-09"
+    mmyy: "0993"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6w924c12z/bc386j53w/wasde-09-09-1993.pdf"
+    filename: "wasde0993.pdf"
+
+  - release_date: "1993-10-12"
+    calendar_month: "1993-10"
+    mmyy: "1093"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/41687h79d/2801pg61t/wasde-10-12-1993.pdf"
+    filename: "wasde1093.pdf"
+
+  - release_date: "1993-11-09"
+    calendar_month: "1993-11"
+    mmyy: "1193"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ng451h816/n583xv398/wasde-11-09-1993.pdf"
+    filename: "wasde1193.pdf"
+
+  - release_date: "1993-12-09"
+    calendar_month: "1993-12"
+    mmyy: "1293"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7w62f857z/6w924c14h/wasde-12-09-1993.pdf"
+    filename: "wasde1293.pdf"
+
+  - release_date: "1994-01-12"
+    calendar_month: "1994-01"
+    mmyy: "0194"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jm214p505/fj2362378/wasde-01-12-1994.pdf"
+    filename: "wasde0194.pdf"
+
+  - release_date: "1994-02-10"
+    calendar_month: "1994-02"
+    mmyy: "0294"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1z40kt24v/rb68xc24p/wasde-02-10-1994.pdf"
+    filename: "wasde0294.pdf"
+
+  - release_date: "1994-03-10"
+    calendar_month: "1994-03"
+    mmyy: "0394"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zg64tm31z/mc87pq548/wasde-03-10-1994.pdf"
+    filename: "wasde0394.pdf"
+
+  - release_date: "1994-04-12"
+    calendar_month: "1994-04"
+    mmyy: "0494"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0c483j73m/v692t659j/wasde-04-12-1994.pdf"
+    filename: "wasde0494.pdf"
+
+  - release_date: "1994-05-10"
+    calendar_month: "1994-05"
+    mmyy: "0594"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5t34sk01f/bn9997209/wasde-05-10-1994.pdf"
+    filename: "wasde0594.pdf"
+
+  - release_date: "1994-06-09"
+    calendar_month: "1994-06"
+    mmyy: "0694"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h128nf02d/rr171x64n/wasde-06-09-1994.pdf"
+    filename: "wasde0694.pdf"
+
+  - release_date: "1994-07-12"
+    calendar_month: "1994-07"
+    mmyy: "0794"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sx61dm59w/ww72bb837/wasde-07-12-1994.pdf"
+    filename: "wasde0794.pdf"
+
+  - release_date: "1994-08-11"
+    calendar_month: "1994-08"
+    mmyy: "0894"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/t148fh453/1831ck32q/wasde-08-11-1994.pdf"
+    filename: "wasde0894.pdf"
+
+  - release_date: "1994-09-12"
+    calendar_month: "1994-09"
+    mmyy: "0994"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1z40kt254/zs25x883h/wasde-09-12-1994.pdf"
+    filename: "wasde0994.pdf"
+
+  - release_date: "1994-10-12"
+    calendar_month: "1994-10"
+    mmyy: "1094"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bv73c070s/pg15bf278/wasde-10-12-1994.pdf"
+    filename: "wasde1094.pdf"
+
+  - release_date: "1994-11-09"
+    calendar_month: "1994-11"
+    mmyy: "1194"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0g354f60s/1v53jx37p/wasde-11-09-1994.pdf"
+    filename: "wasde1194.pdf"
+
+  - release_date: "1994-12-09"
+    calendar_month: "1994-12"
+    mmyy: "1294"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9306sz691/w37637157/wasde-12-09-1994.pdf"
+    filename: "wasde1294.pdf"
+
+  - release_date: "1995-01-12"
+    calendar_month: "1995-01"
+    mmyy: "0195"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qf85nb730/qn59q433s/wasde-01-12-1995.txt"
+    filename: "wasde0195.txt"
+
+  - release_date: "1995-02-12"
+    calendar_month: "1995-02"
+    mmyy: "0295"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mk61rh18w/zs25x884s/wasde-02-12-1995.txt"
+    filename: "wasde0295.txt"
+
+  - release_date: "1995-03-12"
+    calendar_month: "1995-03"
+    mmyy: "0395"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nc580m99d/2514nk83m/wasde-03-12-1995.txt"
+    filename: "wasde0395.txt"
+
+  - release_date: "1995-04-11"
+    calendar_month: "1995-04"
+    mmyy: "0495"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g732d932r/v692t6588/wasde-04-11-1995.txt"
+    filename: "wasde0495.txt"
+
+  - release_date: "1995-05-11"
+    calendar_month: "1995-05"
+    mmyy: "0595"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/t722h923j/9593tv50h/wasde-05-11-1995.txt"
+    filename: "wasde0595.txt"
+
+  - release_date: "1995-06-12"
+    calendar_month: "1995-06"
+    mmyy: "0695"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wh246s45t/m613mx88c/wasde-06-12-1995.txt"
+    filename: "wasde0695.txt"
+
+  - release_date: "1995-07-12"
+    calendar_month: "1995-07"
+    mmyy: "0795"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xd07gt01c/9k41zd94m/wasde-07-12-1995.txt"
+    filename: "wasde0795.txt"
+
+  - release_date: "1995-08-14"
+    calendar_month: "1995-08"
+    mmyy: "0895"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1n79h461f/4q77fr56x/wasde-08-14-1995.txt"
+    filename: "wasde0895.txt"
+
+  - release_date: "1995-09-12"
+    calendar_month: "1995-09"
+    mmyy: "0995"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6395w740x/pv63g062v/wasde-09-12-1995.txt"
+    filename: "wasde0995.txt"
+
+  - release_date: "1995-10-11"
+    calendar_month: "1995-10"
+    mmyy: "1095"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0k225b334/n583xv380/wasde-10-11-1995.txt"
+    filename: "wasde1095.txt"
+
+  - release_date: "1995-11-09"
+    calendar_month: "1995-11"
+    mmyy: "1195"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v979v340b/wh246s50p/wasde-11-09-1995.txt"
+    filename: "wasde1195.txt"
+
+  - release_date: "1995-12-12"
+    calendar_month: "1995-12"
+    mmyy: "1295"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3r074v305/8p58pd341/wasde-12-12-1995.txt"
+    filename: "wasde1295.txt"
+
+  - release_date: "1996-01-16"
+    calendar_month: "1996-01"
+    mmyy: "0196"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nk322d73r/2v23vt72x/wasde-01-16-1996.txt"
+    filename: "wasde0196.txt"
+
+  - release_date: "1996-02-09"
+    calendar_month: "1996-02"
+    mmyy: "0296"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rr171x63c/cf95jb630/wasde-02-09-1996.txt"
+    filename: "wasde0296.txt"
+
+  - release_date: "1996-03-14"
+    calendar_month: "1996-03"
+    mmyy: "0396"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fb4948799/dz010q40s/wasde-03-14-1996.txt"
+    filename: "wasde0396.txt"
+
+  - release_date: "1996-04-11"
+    calendar_month: "1996-04"
+    mmyy: "0496"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/00000033j/jw827c18c/wasde-04-11-1996.txt"
+    filename: "wasde0496.txt"
+
+  - release_date: "1996-05-10"
+    calendar_month: "1996-05"
+    mmyy: "0596"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8p58pd316/g445cd49p/wasde-05-10-1996.txt"
+    filename: "wasde0596.txt"
+
+  - release_date: "1996-06-12"
+    calendar_month: "1996-06"
+    mmyy: "0696"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7w62f8587/8623hz03h/wasde-06-12-1996.txt"
+    filename: "wasde0696.txt"
+
+  - release_date: "1996-07-12"
+    calendar_month: "1996-07"
+    mmyy: "0796"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/n009w261h/1544bp448/wasde-07-12-1996.txt"
+    filename: "wasde0796.txt"
+
+  - release_date: "1996-08-12"
+    calendar_month: "1996-08"
+    mmyy: "0896"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h415p9813/5d86p061t/wasde-08-12-1996.txt"
+    filename: "wasde0896.txt"
+
+  - release_date: "1996-09-11"
+    calendar_month: "1996-09"
+    mmyy: "0996"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g732d9331/mw22v591p/wasde-09-11-1996.txt"
+    filename: "wasde0996.txt"
+
+  - release_date: "1996-10-11"
+    calendar_month: "1996-10"
+    mmyy: "1096"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fx719m69c/sb3978571/wasde-10-11-1996.txt"
+    filename: "wasde1096.txt"
+
+  - release_date: "1996-11-12"
+    calendar_month: "1996-11"
+    mmyy: "1196"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cz30pt044/02870w39h/wasde-11-12-1996.txt"
+    filename: "wasde1196.txt"
+
+  - release_date: "1996-12-12"
+    calendar_month: "1996-12"
+    mmyy: "1296"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fb4948802/td96k2827/wasde-12-12-1996.txt"
+    filename: "wasde1296.txt"
+
+  - release_date: "1997-01-10"
+    calendar_month: "1997-01"
+    mmyy: "0197"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/f1881m213/vt150j72v/wasde-01-10-1997.txt"
+    filename: "wasde0197.txt"
+
+  - release_date: "1997-02-12"
+    calendar_month: "1997-02"
+    mmyy: "0297"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/f1881m22c/kd17ct20t/wasde-02-12-1997.txt"
+    filename: "wasde0297.txt"
+
+  - release_date: "1997-03-11"
+    calendar_month: "1997-03"
+    mmyy: "0397"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5t34sk02q/ws859g05t/wasde-03-11-1997.txt"
+    filename: "wasde0397.txt"
+
+  - release_date: "1997-04-11"
+    calendar_month: "1997-04"
+    mmyy: "0497"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9306sz712/hq37vn97k/wasde-04-11-1997.txt"
+    filename: "wasde0497.txt"
+
+  - release_date: "1997-05-12"
+    calendar_month: "1997-05"
+    mmyy: "0597"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h702q674x/8p58pd33r/wasde-05-12-1997.txt"
+    filename: "wasde0597.txt"
+
+  - release_date: "1997-06-12"
+    calendar_month: "1997-06"
+    mmyy: "0697"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xg94hp85d/ww72bb84h/wasde-06-12-1997.txt"
+    filename: "wasde0697.txt"
+
+  - release_date: "1997-07-11"
+    calendar_month: "1997-07"
+    mmyy: "0797"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h702q6756/tx31qj045/wasde-07-11-1997.txt"
+    filename: "wasde0797.txt"
+
+  - release_date: "1997-08-12"
+    calendar_month: "1997-08"
+    mmyy: "0897"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qv33rx05x/n583xv401/wasde-08-12-1997.txt"
+    filename: "wasde0897.txt"
+
+  - release_date: "1997-09-12"
+    calendar_month: "1997-09"
+    mmyy: "0997"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pv63g061k/dn39x189j/wasde-09-12-1997.txt"
+    filename: "wasde0997.txt"
+
+  - release_date: "1997-10-10"
+    calendar_month: "1997-10"
+    mmyy: "1097"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g158bh59p/5m60qs27t/wasde-10-10-1997.txt"
+    filename: "wasde1097.txt"
+
+  - release_date: "1997-11-10"
+    calendar_month: "1997-11"
+    mmyy: "1197"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3197xm42z/00000034t/wasde-11-10-1997.txt"
+    filename: "wasde1197.txt"
+
+  - release_date: "1997-12-11"
+    calendar_month: "1997-12"
+    mmyy: "1297"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dr26xx626/k0698786v/wasde-12-11-1997.txt"
+    filename: "wasde1297.txt"
+
+  - release_date: "1998-01-13"
+    calendar_month: "1998-01"
+    mmyy: "0198"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8623hz027/zc77sq43h/wasde-01-13-1998.txt"
+    filename: "wasde0198.txt"
+
+  - release_date: "1998-02-11"
+    calendar_month: "1998-02"
+    mmyy: "0298"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tx31qj03w/9s1616538/wasde-02-11-1998.txt"
+    filename: "wasde0298.txt"
+
+  - release_date: "1998-03-12"
+    calendar_month: "1998-03"
+    mmyy: "0398"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ws859g04j/w95050792/wasde-03-12-1998.txt"
+    filename: "wasde0398.txt"
+
+  - release_date: "1998-04-09"
+    calendar_month: "1998-04"
+    mmyy: "0498"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h415p982c/rj4304820/wasde-04-09-1998.txt"
+    filename: "wasde0498.txt"
+
+  - release_date: "1998-05-12"
+    calendar_month: "1998-05"
+    mmyy: "0598"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j38607324/02870w36p/wasde-05-12-1998.txt"
+    filename: "wasde0598.txt"
+
+  - release_date: "1998-06-12"
+    calendar_month: "1998-06"
+    mmyy: "0698"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nz805z975/z890rt63g/wasde-06-12-1998.txt"
+    filename: "wasde0698.txt"
+
+  - release_date: "1998-07-10"
+    calendar_month: "1998-07"
+    mmyy: "0798"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h128nf03p/4q77fr576/wasde-07-10-1998.txt"
+    filename: "wasde0798.txt"
+
+  - release_date: "1998-08-12"
+    calendar_month: "1998-08"
+    mmyy: "0898"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w9505075z/z890rt64r/wasde-08-12-1998.txt"
+    filename: "wasde0898.txt"
+
+  - release_date: "1998-09-11"
+    calendar_month: "1998-09"
+    mmyy: "0998"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v692t656q/wm117p320/wasde-09-11-1998.txt"
+    filename: "wasde0998.txt"
+
+  - release_date: "1998-10-09"
+    calendar_month: "1998-10"
+    mmyy: "1098"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9w0323306/zg64tm33h/wasde-10-09-1998.txt"
+    filename: "wasde1098.txt"
+
+  - release_date: "1998-11-10"
+    calendar_month: "1998-11"
+    mmyy: "1198"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x059c774t/br86b4070/wasde-11-10-1998.txt"
+    filename: "wasde1198.txt"
+
+  - release_date: "1998-12-11"
+    calendar_month: "1998-12"
+    mmyy: "1298"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h415p983n/h989r363w/wasde-12-11-1998.txt"
+    filename: "wasde1298.txt"
+
+  - release_date: "1999-01-12"
+    calendar_month: "1999-01"
+    mmyy: "0199"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4f16c317n/qr46r1217/wasde-01-12-1999.txt"
+    filename: "wasde0199.txt"
+
+  - release_date: "1999-02-10"
+    calendar_month: "1999-02"
+    mmyy: "0299"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3197xm437/j3860735z/wasde-02-10-1999.txt"
+    filename: "wasde0299.txt"
+
+  - release_date: "1999-03-11"
+    calendar_month: "1999-03"
+    mmyy: "0399"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/37720d11k/n296wz38r/wasde-03-11-1999.txt"
+    filename: "wasde0399.txt"
+
+  - release_date: "1999-04-09"
+    calendar_month: "1999-04"
+    mmyy: "0499"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4j03cz965/5q47rp15j/wasde-04-09-1999.txt"
+    filename: "wasde0499.txt"
+
+  - release_date: "1999-05-12"
+    calendar_month: "1999-05"
+    mmyy: "0599"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cz30pt05d/n583xv419/wasde-05-12-1999.txt"
+    filename: "wasde0599.txt"
+
+  - release_date: "1999-06-11"
+    calendar_month: "1999-06"
+    mmyy: "0699"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sb3978546/q237hs374/wasde-06-11-1999.txt"
+    filename: "wasde0699.txt"
+
+  - release_date: "1999-07-12"
+    calendar_month: "1999-07"
+    mmyy: "0799"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s4655g95p/x633f131h/wasde-07-12-1999.txt"
+    filename: "wasde0799.txt"
+
+  - release_date: "1999-08-12"
+    calendar_month: "1999-08"
+    mmyy: "0899"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0p096728s/q524jp15b/wasde-08-12-1999.txt"
+    filename: "wasde0899.txt"
+
+  - release_date: "1999-09-10"
+    calendar_month: "1999-09"
+    mmyy: "0999"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5x21tf783/6t053g37m/wasde-09-10-1999.txt"
+    filename: "wasde0999.txt"
+
+  - release_date: "1999-10-08"
+    calendar_month: "1999-10"
+    mmyy: "1099"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xd07gt02n/1g05fb82g/wasde-10-08-1999.txt"
+    filename: "wasde1099.txt"
+
+  - release_date: "1999-11-10"
+    calendar_month: "1999-11"
+    mmyy: "1199"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9w032331g/7d278t377/wasde-11-10-1999.txt"
+    filename: "wasde1199.txt"
+
+  - release_date: "1999-12-10"
+    calendar_month: "1999-12"
+    mmyy: "1299"
+    fmt: txt
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zk51vh06v/v692t664d/wasde-12-10-1999.txt"
+    filename: "wasde1299.txt"
+
+  - release_date: "2000-01-12"
+    calendar_month: "2000-01"
+    mmyy: "0100"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tb09j608z/gt54kn37q/wasde-01-12-2000.pdf"
+    filename: "wasde0100.pdf"
+
+  - release_date: "2000-02-11"
+    calendar_month: "2000-02"
+    mmyy: "0200"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j9602098h/08612n85w/wasde-02-11-2000.pdf"
+    filename: "wasde0200.pdf"
+
+  - release_date: "2000-03-10"
+    calendar_month: "2000-03"
+    mmyy: "0300"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5q47rp12q/gh93gz843/wasde-03-10-2000.pdf"
+    filename: "wasde0300.pdf"
+
+  - release_date: "2000-04-01"
+    calendar_month: "2000-04"
+    mmyy: "0400"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/p2676v80j/5x21tf804/wasde-04-01-2000.pdf"
+    filename: "wasde0400.pdf"
+
+  - release_date: "2000-05-12"
+    calendar_month: "2000-05"
+    mmyy: "0500"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/79407x533/sb397856r/wasde-05-12-2000.pdf"
+    filename: "wasde0500.pdf"
+
+  - release_date: "2000-06-09"
+    calendar_month: "2000-06"
+    mmyy: "0600"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/f4752h04p/vq27zn77v/wasde-06-09-2000.pdf"
+    filename: "wasde0600.pdf"
+
+  - release_date: "2000-07-12"
+    calendar_month: "2000-07"
+    mmyy: "0700"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2v23vt70c/79407x59r/wasde-07-12-2000.pdf"
+    filename: "wasde0700.pdf"
+
+  - release_date: "2000-08-11"
+    calendar_month: "2000-08"
+    mmyy: "0800"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1831ck305/vm40xr96j/wasde-08-11-2000.pdf"
+    filename: "wasde0800.pdf"
+
+  - release_date: "2000-09-12"
+    calendar_month: "2000-09"
+    mmyy: "0900"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wp988k120/s1784m15q/wasde-09-12-2000.pdf"
+    filename: "wasde0900.pdf"
+
+  - release_date: "2000-10-12"
+    calendar_month: "2000-10"
+    mmyy: "1000"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/k06987849/tt44pn22v/wasde-10-12-2000.pdf"
+    filename: "wasde1000.pdf"
+
+  - release_date: "2000-11-09"
+    calendar_month: "2000-11"
+    mmyy: "1100"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gx41mj20s/5712m693c/wasde-11-09-2000.pdf"
+    filename: "wasde1100.pdf"
+
+  - release_date: "2000-12-12"
+    calendar_month: "2000-12"
+    mmyy: "1200"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zw12z570p/8c97kq73q/wasde-12-12-2000.pdf"
+    filename: "wasde1200.pdf"
+
+  - release_date: "2001-01-11"
+    calendar_month: "2001-01"
+    mmyy: "0101"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8336h223x/mg74qm63g/wasde-01-11-2001.pdf"
+    filename: "wasde0101.pdf"
+
+  - release_date: "2001-02-08"
+    calendar_month: "2001-02"
+    mmyy: "0201"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5425kb04f/j3860734p/wasde-02-08-2001.pdf"
+    filename: "wasde0201.pdf"
+
+  - release_date: "2001-03-08"
+    calendar_month: "2001-03"
+    mmyy: "0301"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ft848r037/x346d445m/wasde-03-08-2001.pdf"
+    filename: "wasde0301.pdf"
+
+  - release_date: "2001-04-10"
+    calendar_month: "2001-04"
+    mmyy: "0401"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/t148fh46c/n009w2632/wasde-04-10-2001.pdf"
+    filename: "wasde0401.pdf"
+
+  - release_date: "2001-05-10"
+    calendar_month: "2001-05"
+    mmyy: "0501"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cc08hf952/wd375w67m/wasde-05-10-2001_wheat-revision.pdf"
+    filename: "wasde0501.pdf"
+
+  - release_date: "2001-06-12"
+    calendar_month: "2001-06"
+    mmyy: "0601"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pk02cb09k/wh246s53h/wasde-06-12-2001.pdf"
+    filename: "wasde0601.pdf"
+
+  - release_date: "2001-07-11"
+    calendar_month: "2001-07"
+    mmyy: "0701"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fq977v20n/9p2909620/wasde-07-11-2001.pdf"
+    filename: "wasde0701.pdf"
+
+  - release_date: "2001-08-10"
+    calendar_month: "2001-08"
+    mmyy: "0801"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zc77sq427/xk81jk701/wasde-08-10-2001.pdf"
+    filename: "wasde0801.pdf"
+
+  - release_date: "2001-09-14"
+    calendar_month: "2001-09"
+    mmyy: "0901"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mg74qm61x/tb09j6097/wasde-09-14-2001.pdf"
+    filename: "wasde0901.pdf"
+
+  - release_date: "2001-10-12"
+    calendar_month: "2001-10"
+    mmyy: "1001"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cr56n131q/7s75dc733/wasde-10-12-2001.pdf"
+    filename: "wasde1001.pdf"
+
+  - release_date: "2001-11-09"
+    calendar_month: "2001-11"
+    mmyy: "1101"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w95050767/5999n382b/wasde-11-09-2001.pdf"
+    filename: "wasde1101.pdf"
+
+  - release_date: "2001-12-11"
+    calendar_month: "2001-12"
+    mmyy: "1201"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/kd17ct192/jh343s71p/wasde-12-11-2001.pdf"
+    filename: "wasde1201.pdf"
+
+  - release_date: "2002-01-11"
+    calendar_month: "2002-01"
+    mmyy: "0102"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q811kk02h/cf95jb648/wasde-01-11-2002.pdf"
+    filename: "wasde0102.pdf"
+
+  - release_date: "2002-02-08"
+    calendar_month: "2002-02"
+    mmyy: "0202"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6m311p68v/tq57nr377/wasde-02-08-2002.pdf"
+    filename: "wasde0202.pdf"
+
+  - release_date: "2002-03-08"
+    calendar_month: "2002-03"
+    mmyy: "0302"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rv042z11p/5d86p381x/wasde-03-08-2002.pdf"
+    filename: "wasde0302.pdf"
+
+  - release_date: "2002-04-10"
+    calendar_month: "2002-04"
+    mmyy: "0402"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xd07gt03x/rn301166v/wasde-04-10-2002.pdf"
+    filename: "wasde0402.pdf"
+
+  - release_date: "2002-05-10"
+    calendar_month: "2002-05"
+    mmyy: "0502"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/c534fp31z/qj72p7516/wasde-05-10-2002_broilers_revision.pdf"
+    filename: "wasde0502.pdf"
+
+  - release_date: "2002-06-12"
+    calendar_month: "2002-06"
+    mmyy: "0602"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6q182p82t/mg74qr16x/wasde-06-12-2002.pdf"
+    filename: "wasde0602.pdf"
+
+  - release_date: "2002-07-11"
+    calendar_month: "2002-07"
+    mmyy: "0702"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xk81jk67q/d504rk69j/wasde-07-11-2002.pdf"
+    filename: "wasde0702.pdf"
+
+  - release_date: "2002-08-12"
+    calendar_month: "2002-08"
+    mmyy: "0802"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h415pf19f/k3569817h/wasde-08-12-2002.pdf"
+    filename: "wasde0802.pdf"
+
+  - release_date: "2002-09-12"
+    calendar_month: "2002-09"
+    mmyy: "0902"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gb19f6086/b5644r94c/wasde-09-12-2002.pdf"
+    filename: "wasde0902.pdf"
+
+  - release_date: "2002-10-11"
+    calendar_month: "2002-10"
+    mmyy: "1002"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hm50tw52j/6395wb67z/wasde-10-11-2002.pdf"
+    filename: "wasde1002.pdf"
+
+  - release_date: "2002-11-12"
+    calendar_month: "2002-11"
+    mmyy: "1102"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z029p512p/dv13zt53g/wasde-11-12-2002_China_wheat_revision.pdf"
+    filename: "wasde1102.pdf"
+
+  - release_date: "2002-12-10"
+    calendar_month: "2002-12"
+    mmyy: "1202"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sb397d25k/sx61dq88z/wasde-12-10-2002.pdf"
+    filename: "wasde1202.pdf"
+
+  - release_date: "2003-01-10"
+    calendar_month: "2003-01"
+    mmyy: "0103"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w0892b389/hd76s0413/wasde-01-10-2003.pdf"
+    filename: "wasde0103.pdf"
+
+  - release_date: "2003-02-11"
+    calendar_month: "2003-02"
+    mmyy: "0203"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5d86p3826/9p290d912/wasde-02-11-2003.pdf"
+    filename: "wasde0203.pdf"
+
+  - release_date: "2003-03-11"
+    calendar_month: "2003-03"
+    mmyy: "0303"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1v53jx354/79407x58g/wasde-03-11-2003.pdf"
+    filename: "wasde0303.pdf"
+
+  - release_date: "2003-04-10"
+    calendar_month: "2003-04"
+    mmyy: "0403"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2f75r838r/7d278t39s/wasde-04-10-2003.pdf"
+    filename: "wasde0403.pdf"
+
+  - release_date: "2003-05-12"
+    calendar_month: "2003-05"
+    mmyy: "0503"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sx61dm61x/c247ds427/wasde-05-12-2003.pdf"
+    filename: "wasde0503.pdf"
+
+  - release_date: "2003-06-11"
+    calendar_month: "2003-06"
+    mmyy: "0603"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cv43nx07q/xw42n831b/wasde-06-11-2003.pdf"
+    filename: "wasde0603.pdf"
+
+  - release_date: "2003-07-11"
+    calendar_month: "2003-07"
+    mmyy: "0703"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dr26xx63g/7h149q16q/wasde-07-11-2003.pdf"
+    filename: "wasde0703.pdf"
+
+  - release_date: "2003-08-12"
+    calendar_month: "2003-08"
+    mmyy: "0803"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vd66w021c/mc87pq56t/wasde-08-12-2003.pdf"
+    filename: "wasde0803.pdf"
+
+  - release_date: "2003-09-11"
+    calendar_month: "2003-09"
+    mmyy: "0903"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/r494vp883/v405sf08p/wasde-09-11-2003.pdf"
+    filename: "wasde0903.pdf"
+
+  - release_date: "2003-10-10"
+    calendar_month: "2003-10"
+    mmyy: "1003"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0g354f612/8w32r593g/wasde-10-10-2003.pdf"
+    filename: "wasde1003.pdf"
+
+  - release_date: "2003-11-12"
+    calendar_month: "2003-11"
+    mmyy: "1103"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jm214t22t/h702qb085/wasde-11-12-2003.pdf"
+    filename: "wasde1103.pdf"
+
+  - release_date: "2003-12-11"
+    calendar_month: "2003-12"
+    mmyy: "1203"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9s161651q/d217qp81k/wasde-12-11-2003.pdf"
+    filename: "wasde1203.pdf"
+
+  - release_date: "2004-01-12"
+    calendar_month: "2004-01"
+    mmyy: "0104"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v405sf09z/bk128f77k/wasde-01-12-2004.pdf"
+    filename: "wasde0104.pdf"
+
+  - release_date: "2004-02-10"
+    calendar_month: "2004-02"
+    mmyy: "0204"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/k930bx38r/td96k283h/wasde-02-10-2004.pdf"
+    filename: "wasde0204.pdf"
+
+  - release_date: "2004-03-10"
+    calendar_month: "2004-03"
+    mmyy: "0304"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/k930c187g/9w032654d/wasde-03-10-2004.pdf"
+    filename: "wasde0304.pdf"
+
+  - release_date: "2004-04-08"
+    calendar_month: "2004-04"
+    mmyy: "0404"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zp38wc90p/j9602099s/wasde-04-08-2004.pdf"
+    filename: "wasde0404.pdf"
+
+  - release_date: "2004-05-12"
+    calendar_month: "2004-05"
+    mmyy: "0504"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5999n716k/44558j13c/wasde-05-12-2004.pdf"
+    filename: "wasde0504.pdf"
+
+  - release_date: "2004-06-10"
+    calendar_month: "2004-06"
+    mmyy: "0604"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dr26xx64r/gx41mj22b/wasde-06-10-2004.pdf"
+    filename: "wasde0604.pdf"
+
+  - release_date: "2004-07-12"
+    calendar_month: "2004-07"
+    mmyy: "0704"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/th83m331t/b8515s06t/wasde-07-12-2004.pdf"
+    filename: "wasde0704.pdf"
+
+  - release_date: "2004-08-12"
+    calendar_month: "2004-08"
+    mmyy: "0804"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2801pg59s/9c67wn134/wasde-08-12-2004.pdf"
+    filename: "wasde0804.pdf"
+
+  - release_date: "2004-09-10"
+    calendar_month: "2004-09"
+    mmyy: "0904"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sx61dq897/c534ft07q/wasde-09-10-2004.pdf"
+    filename: "wasde0904.pdf"
+
+  - release_date: "2004-10-12"
+    calendar_month: "2004-10"
+    mmyy: "1004"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/np193953s/ns064633j/wasde-10-12-2004.pdf"
+    filename: "wasde1004.pdf"
+
+  - release_date: "2004-11-12"
+    calendar_month: "2004-11"
+    mmyy: "1104"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4j03d344d/3484zm67p/wasde-11-12-2004_China_cotton_ending_stocks.pdf"
+    filename: "wasde1104.pdf"
+
+  - release_date: "2004-12-10"
+    calendar_month: "2004-12"
+    mmyy: "1204"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6108vb649/pn89d684d/wasde-12-10-2004.pdf"
+    filename: "wasde1204.pdf"
+
+  - release_date: "2005-01-12"
+    calendar_month: "2005-01"
+    mmyy: "0105"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3j333622q/db78th09n/wasde-01-12-2005.pdf"
+    filename: "wasde0105.pdf"
+
+  - release_date: "2005-02-09"
+    calendar_month: "2005-02"
+    mmyy: "0205"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qz20ss822/1r66j1505/wasde-02-09-2005.pdf"
+    filename: "wasde0205.pdf"
+
+  - release_date: "2005-03-10"
+    calendar_month: "2005-03"
+    mmyy: "0305"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/st74cv16p/6108vg14x/wasde-03-10-2005.pdf"
+    filename: "wasde0305.pdf"
+
+  - release_date: "2005-04-08"
+    calendar_month: "2005-04"
+    mmyy: "0405"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m039k524q/2r36tx90m/wasde-04-08-2005.pdf"
+    filename: "wasde0405.pdf"
+
+  - release_date: "2005-05-12"
+    calendar_month: "2005-05"
+    mmyy: "0505"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9p290d90s/zc77st98q/wasde-05-12-2005.pdf"
+    filename: "wasde0505.pdf"
+
+  - release_date: "2005-06-10"
+    calendar_month: "2005-06"
+    mmyy: "0605"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/c534fp327/gq67jr46f/wasde-06-10-2005.pdf"
+    filename: "wasde0605.pdf"
+
+  - release_date: "2005-07-12"
+    calendar_month: "2005-07"
+    mmyy: "0705"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hd76s3705/8910jz45w/wasde-07-12-2005.pdf"
+    filename: "wasde0705.pdf"
+
+  - release_date: "2005-08-12"
+    calendar_month: "2005-08"
+    mmyy: "0805"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mw22v589n/tb09j6100/wasde-08-12-2005.pdf"
+    filename: "wasde0805.pdf"
+
+  - release_date: "2005-09-12"
+    calendar_month: "2005-09"
+    mmyy: "0905"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xp68kg70j/4t64gn46x/wasde-09-12-2005.pdf"
+    filename: "wasde0905.pdf"
+
+  - release_date: "2005-10-12"
+    calendar_month: "2005-10"
+    mmyy: "1005"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xg94hp86p/6108vb65k/wasde-10-12-2005.pdf"
+    filename: "wasde1005.pdf"
+
+  - release_date: "2005-11-10"
+    calendar_month: "2005-11"
+    mmyy: "1105"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s1784m10b/xd07gt046/wasde-11-10-2005.pdf"
+    filename: "wasde1105.pdf"
+
+  - release_date: "2005-12-09"
+    calendar_month: "2005-12"
+    mmyy: "1205"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5999n3791/k06987874/wasde-12-09-2005.pdf"
+    filename: "wasde1205.pdf"
+
+  - release_date: "2006-01-12"
+    calendar_month: "2006-01"
+    mmyy: "0106"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nv935317c/h702q677r/wasde-01-12-2006.pdf"
+    filename: "wasde0106.pdf"
+
+  - release_date: "2006-02-09"
+    calendar_month: "2006-02"
+    mmyy: "0206"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gb19f609g/hm50ts06t/wasde-02-09-2006.pdf"
+    filename: "wasde0206.pdf"
+
+  - release_date: "2006-03-13"
+    calendar_month: "2006-03"
+    mmyy: "0306"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v692t990n/rf55zc441/wasde-03-13-2006_revision.pdf"
+    filename: "wasde0306.pdf"
+
+  - release_date: "2006-04-10"
+    calendar_month: "2006-04"
+    mmyy: "0406"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x633f1307/cz30pt06p/wasde-04-10-2006.pdf"
+    filename: "wasde0406.pdf"
+
+  - release_date: "2006-05-12"
+    calendar_month: "2006-05"
+    mmyy: "0506"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2v23vz129/kk91fq39m/wasde-05-12-2006.pdf"
+    filename: "wasde0506.pdf"
+
+  - release_date: "2006-06-09"
+    calendar_month: "2006-06"
+    mmyy: "0606"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m900nt748/qf85nb76t/wasde-06-09-2006_revision.pdf"
+    filename: "wasde0606.pdf"
+
+  - release_date: "2006-07-12"
+    calendar_month: "2006-07"
+    mmyy: "0706"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zs25x878n/9c67wn12v/wasde-07-12-2006_China_rice_revision.pdf"
+    filename: "wasde0706.pdf"
+
+  - release_date: "2006-08-11"
+    calendar_month: "2006-08"
+    mmyy: "0806"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/js956g16k/1v53jx38z/wasde-08-11-2006.pdf"
+    filename: "wasde0806.pdf"
+
+  - release_date: "2006-09-12"
+    calendar_month: "2006-09"
+    mmyy: "0906"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dn39x1888/1r66j151f/wasde-09-12-2006.pdf"
+    filename: "wasde0906.pdf"
+
+  - release_date: "2006-10-12"
+    calendar_month: "2006-10"
+    mmyy: "1006"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pr76f376z/1j92g7758/wasde-10-12-2006.pdf"
+    filename: "wasde1006.pdf"
+
+  - release_date: "2006-11-09"
+    calendar_month: "2006-11"
+    mmyy: "1106"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bz60cw55r/js956g17v/wasde-11-09-2006.pdf"
+    filename: "wasde1106.pdf"
+
+  - release_date: "2006-12-11"
+    calendar_month: "2006-12"
+    mmyy: "1206"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j098zb40f/p5547r901/wasde-12-11-2006.pdf"
+    filename: "wasde1206.pdf"
+
+  - release_date: "2007-01-12"
+    calendar_month: "2007-01"
+    mmyy: "0107"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6682x4252/1v53jx400/wasde-01-12-2007.pdf"
+    filename: "wasde0107.pdf"
+
+  - release_date: "2007-02-09"
+    calendar_month: "2007-02"
+    mmyy: "0207"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cc08hf96b/0c483j74w/wasde-02-09-2007.pdf"
+    filename: "wasde0207.pdf"
+
+  - release_date: "2007-03-09"
+    calendar_month: "2007-03"
+    mmyy: "0307"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7w62f859h/4b29b6449/wasde-03-09-2007.pdf"
+    filename: "wasde0307.pdf"
+
+  - release_date: "2007-04-10"
+    calendar_month: "2007-04"
+    mmyy: "0407"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2b88qc62k/f1881m23n/wasde-04-10-2007.pdf"
+    filename: "wasde0407.pdf"
+
+  - release_date: "2007-05-11"
+    calendar_month: "2007-05"
+    mmyy: "0507"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/f7623c912/gf06g310g/wasde-05-11-2007.pdf"
+    filename: "wasde0507.pdf"
+
+  - release_date: "2007-06-11"
+    calendar_month: "2007-06"
+    mmyy: "0607"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7m01bm06q/zs25x8852/wasde-06-11-2007.pdf"
+    filename: "wasde0607.pdf"
+
+  - release_date: "2007-07-12"
+    calendar_month: "2007-07"
+    mmyy: "0707"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vx021f47r/8w32r594r/wasde-07-12-2007.pdf"
+    filename: "wasde0707.pdf"
+
+  - release_date: "2007-08-10"
+    calendar_month: "2007-08"
+    mmyy: "0807"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v979v341m/7m01bm088/wasde-08-10-2007.pdf"
+    filename: "wasde0807.pdf"
+
+  - release_date: "2007-09-12"
+    calendar_month: "2007-09"
+    mmyy: "0907"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1831ck31f/dv13zt54r/wasde-09-12-2007.pdf"
+    filename: "wasde0907.pdf"
+
+  - release_date: "2007-10-12"
+    calendar_month: "2007-10"
+    mmyy: "1007"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ns0646328/s4655g977/wasde-10-12-2007.pdf"
+    filename: "wasde1007.pdf"
+
+  - release_date: "2007-11-09"
+    calendar_month: "2007-11"
+    mmyy: "1107"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bk128b27r/gh93gz86n/wasde-11-09-2007.pdf"
+    filename: "wasde1107.pdf"
+
+  - release_date: "2007-12-11"
+    calendar_month: "2007-12"
+    mmyy: "1207"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m039k5250/v405s974f/wasde-12-11-2007.pdf"
+    filename: "wasde1207.pdf"
+
+  - release_date: "2008-01-11"
+    calendar_month: "2008-01"
+    mmyy: "0108"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gh93gz83t/05741s00j/wasde-01-11-2008.pdf"
+    filename: "wasde0108.pdf"
+
+  - release_date: "2008-02-08"
+    calendar_month: "2008-02"
+    mmyy: "0208"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3j3332609/4b29b642r/wasde-02-08-2008.pdf"
+    filename: "wasde0208.pdf"
+
+  - release_date: "2008-03-11"
+    calendar_month: "2008-03"
+    mmyy: "0308"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6w924c137/fx719m72p/wasde-03-11-2008.pdf"
+    filename: "wasde0308.pdf"
+
+  - release_date: "2008-04-09"
+    calendar_month: "2008-04"
+    mmyy: "0408"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/d504rk670/m900nt773/wasde-04-09-2008.pdf"
+    filename: "wasde0408.pdf"
+
+  - release_date: "2008-05-09"
+    calendar_month: "2008-05"
+    mmyy: "0508"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rx913q14w/bn999721k/wasde-05-09-2008.pdf"
+    filename: "wasde0508.pdf"
+
+  - release_date: "2008-06-10"
+    calendar_month: "2008-06"
+    mmyy: "0608"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xk81jk680/0z708w84f/wasde-06-10-2008.pdf"
+    filename: "wasde0608.pdf"
+
+  - release_date: "2008-07-11"
+    calendar_month: "2008-07"
+    mmyy: "0708"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6969z113s/w9505078s/wasde-07-11-2008.pdf"
+    filename: "wasde0708.pdf"
+
+  - release_date: "2008-08-12"
+    calendar_month: "2008-08"
+    mmyy: "0808"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7h149q15f/6969z116m/wasde-08-12-2008.pdf"
+    filename: "wasde0808.pdf"
+
+  - release_date: "2008-09-12"
+    calendar_month: "2008-09"
+    mmyy: "0908"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gb19f6107/fn106z34h/wasde-09-12-2008.pdf"
+    filename: "wasde0908.pdf"
+
+  - release_date: "2008-10-28"
+    calendar_month: "2008-10"
+    mmyy: "1008"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x059c7753/2227mq02c/wasde-10-28-2008.pdf"
+    filename: "wasde1008.pdf"
+
+  - release_date: "2008-11-10"
+    calendar_month: "2008-11"
+    mmyy: "1108"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vd66w023x/1r66j1530/wasde-11-10-2008.pdf"
+    filename: "wasde1108.pdf"
+
+  - release_date: "2008-12-12"
+    calendar_month: "2008-12"
+    mmyy: "1208"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sf2685489/t435gd239/wasde-12-12-2008.pdf"
+    filename: "wasde1208.pdf"
+
+  - release_date: "2009-01-12"
+    calendar_month: "2009-01"
+    mmyy: "0109"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/t148fh48x/79407x60h/wasde-01-12-2009.pdf"
+    filename: "wasde0109.pdf"
+
+  - release_date: "2009-02-10"
+    calendar_month: "2009-02"
+    mmyy: "0209"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qv33rx066/v118rd90k/wasde-02-10-2009.pdf"
+    filename: "wasde0209.pdf"
+
+  - release_date: "2009-03-11"
+    calendar_month: "2009-03"
+    mmyy: "0309"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/db78tc27r/rj4304838/wasde-03-11-2009.pdf"
+    filename: "wasde0309.pdf"
+
+  - release_date: "2009-04-09"
+    calendar_month: "2009-04"
+    mmyy: "0409"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zg64tm327/3484zh159/wasde-04-09-2009.pdf"
+    filename: "wasde0409.pdf"
+
+  - release_date: "2009-05-12"
+    calendar_month: "2009-05"
+    mmyy: "0509"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9k41zd922/t722h927n/wasde-05-12-2009.pdf"
+    filename: "wasde0509.pdf"
+
+  - release_date: "2009-06-10"
+    calendar_month: "2009-06"
+    mmyy: "0609"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h128nf04z/3t945r12f/wasde-06-10-2009.pdf"
+    filename: "wasde0609.pdf"
+
+  - release_date: "2009-07-10"
+    calendar_month: "2009-07"
+    mmyy: "0709"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sb397855g/1c18dg131/wasde-07-10-2009.pdf"
+    filename: "wasde0709.pdf"
+
+  - release_date: "2009-08-12"
+    calendar_month: "2009-08"
+    mmyy: "0809"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/f4752h067/m900nt79n/wasde-08-12-2009.pdf"
+    filename: "wasde0809.pdf"
+
+  - release_date: "2009-09-11"
+    calendar_month: "2009-09"
+    mmyy: "0909"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5q47rp148/9g54xh976/wasde-09-11-2009.pdf"
+    filename: "wasde0909.pdf"
+
+  - release_date: "2009-10-09"
+    calendar_month: "2009-10"
+    mmyy: "1009"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sn009z14s/2j62s5291/wasde-10-09-2009.pdf"
+    filename: "wasde1009.pdf"
+
+  - release_date: "2009-11-10"
+    calendar_month: "2009-11"
+    mmyy: "1109"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9880vr26p/37720d14d/wasde-11-10-2009.pdf"
+    filename: "wasde1109.pdf"
+
+  - release_date: "2009-12-10"
+    calendar_month: "2009-12"
+    mmyy: "1209"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0g354f63m/zg64tm34s/wasde-12-10-2009.pdf"
+    filename: "wasde1209.pdf"
+
+  - release_date: "2010-01-12"
+    calendar_month: "2010-01"
+    mmyy: "0110"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2j62s524n/8049g550k/wasde-01-12-2010.pdf"
+    filename: "wasde0110.pdf"
+
+  - release_date: "2010-02-09"
+    calendar_month: "2010-02"
+    mmyy: "0210"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/47429952g/zs25x886b/wasde-02-09-2010.pdf"
+    filename: "wasde0210.pdf"
+
+  - release_date: "2010-03-10"
+    calendar_month: "2010-03"
+    mmyy: "0310"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/kh04dq024/nk322d759/wasde-03-10-2010.pdf"
+    filename: "wasde0310.pdf"
+
+  - release_date: "2010-04-09"
+    calendar_month: "2010-04"
+    mmyy: "0410"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bz60cw579/6w924c15s/wasde-04-09-2010.pdf"
+    filename: "wasde0410.pdf"
+
+  - release_date: "2010-05-11"
+    calendar_month: "2010-05"
+    mmyy: "0510"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5425kb05q/w3763717s/wasde-05-11-2010.pdf"
+    filename: "wasde0510.pdf"
+
+  - release_date: "2010-06-10"
+    calendar_month: "2010-06"
+    mmyy: "0610"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j098zb41q/b8515n719/wasde-06-10-2010.pdf"
+    filename: "wasde0610.pdf"
+
+  - release_date: "2010-07-09"
+    calendar_month: "2010-07"
+    mmyy: "0710"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3n203z415/8c97kq758/wasde-07-09-2010.pdf"
+    filename: "wasde0710.pdf"
+
+  - release_date: "2010-08-12"
+    calendar_month: "2010-08"
+    mmyy: "0810"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hh63sw29w/rn3011674/wasde-08-12-2010.pdf"
+    filename: "wasde0810.pdf"
+
+  - release_date: "2010-09-10"
+    calendar_month: "2010-09"
+    mmyy: "0910"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xp68kg723/44558d730/wasde-09-10-2010.pdf"
+    filename: "wasde0910.pdf"
+
+  - release_date: "2010-10-08"
+    calendar_month: "2010-10"
+    mmyy: "1010"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/05741r990/v692t665p/wasde-10-08-2010.pdf"
+    filename: "wasde1010.pdf"
+
+  - release_date: "2010-11-09"
+    calendar_month: "2010-11"
+    mmyy: "1110"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wh246s48n/6682x428w/wasde-11-09-2010.pdf"
+    filename: "wasde1110.pdf"
+
+  - release_date: "2010-12-10"
+    calendar_month: "2010-12"
+    mmyy: "1210"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rf55z801m/7p88cg85n/wasde-12-10-2010.pdf"
+    filename: "wasde1210.pdf"
+
+  - release_date: "2011-01-12"
+    calendar_month: "2011-01"
+    mmyy: "0111"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/st74cq794/8623hz04s/wasde-01-12-2011.pdf"
+    filename: "wasde0111.pdf"
+
+  - release_date: "2011-02-09"
+    calendar_month: "2011-02"
+    mmyy: "0211"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9s1616520/h989r3645/wasde-02-09-2011.pdf"
+    filename: "wasde0211.pdf"
+
+  - release_date: "2011-03-10"
+    calendar_month: "2011-03"
+    mmyy: "0311"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/02870w35d/4j03cz97f/wasde-03-10-2011.pdf"
+    filename: "wasde0311.pdf"
+
+  - release_date: "2011-04-08"
+    calendar_month: "2011-04"
+    mmyy: "0411"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z890rt626/0p0967292/wasde-04-08-2011.pdf"
+    filename: "wasde0411.pdf"
+
+  - release_date: "2011-05-11"
+    calendar_month: "2011-05"
+    mmyy: "0511"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bz60cw58k/p8418n56z/wasde-05-11-2011.pdf"
+    filename: "wasde0511.pdf"
+
+  - release_date: "2011-06-09"
+    calendar_month: "2011-06"
+    mmyy: "0611"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/hd76s040t/7d278t423/wasde-06-09-2011.pdf"
+    filename: "wasde0611.pdf"
+
+  - release_date: "2011-07-12"
+    calendar_month: "2011-07"
+    mmyy: "0711"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8s45q910p/xk81jk72k/wasde-07-12-2011.pdf"
+    filename: "wasde0711.pdf"
+
+  - release_date: "2011-08-11"
+    calendar_month: "2011-08"
+    mmyy: "0811"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8g84mm551/w3763719b/wasde-08-11-2011.pdf"
+    filename: "wasde0811.pdf"
+
+  - release_date: "2011-09-12"
+    calendar_month: "2011-09"
+    mmyy: "0911"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3f4625823/wm117p34j/wasde-09-12-2011.pdf"
+    filename: "wasde0911.pdf"
+
+  - release_date: "2011-10-12"
+    calendar_month: "2011-10"
+    mmyy: "1011"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h989r362m/tb09j6118/wasde-10-12-2011.pdf"
+    filename: "wasde1011.pdf"
+
+  - release_date: "2011-11-09"
+    calendar_month: "2011-11"
+    mmyy: "1111"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/p5547r855/j67314178/wasde-11-09-2011.pdf"
+    filename: "wasde1111.pdf"
+
+  - release_date: "2011-12-09"
+    calendar_month: "2011-12"
+    mmyy: "1211"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x920fx21b/sb397860b/wasde-12-09-2011.pdf"
+    filename: "wasde1211.pdf"
+
+  - release_date: "2012-01-12"
+    calendar_month: "2012-01"
+    mmyy: "0112"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mw22v590d/n870zr15x/wasde-01-12-2012.pdf"
+    filename: "wasde0112.pdf"
+
+  - release_date: "2012-02-09"
+    calendar_month: "2012-02"
+    mmyy: "0212"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/db78tc281/x920fx25f/wasde-02-09-2012.pdf"
+    filename: "wasde0212.pdf"
+
+  - release_date: "2012-03-09"
+    calendar_month: "2012-03"
+    mmyy: "0312"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3197xm462/fx719m73z/wasde-03-09-2012.pdf"
+    filename: "wasde0312.pdf"
+
+  - release_date: "2012-04-10"
+    calendar_month: "2012-04"
+    mmyy: "0412"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m326m214q/sf268550b/wasde-04-10-2012.pdf"
+    filename: "wasde0412.pdf"
+
+  - release_date: "2012-05-10"
+    calendar_month: "2012-05"
+    mmyy: "0512"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/db78tc299/rv042t388/wasde-05-10-2012.pdf"
+    filename: "wasde0512.pdf"
+
+  - release_date: "2012-06-12"
+    calendar_month: "2012-06"
+    mmyy: "0612"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gb19f612s/gx41mj24w/wasde-06-12-2012.pdf"
+    filename: "wasde0612.pdf"
+
+  - release_date: "2012-07-11"
+    calendar_month: "2012-07"
+    mmyy: "0712"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xp68kg74n/zs25x887m/wasde-07-11-2012.pdf"
+    filename: "wasde0712.pdf"
+
+  - release_date: "2012-08-10"
+    calendar_month: "2012-08"
+    mmyy: "0812"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ms35t8930/73666483h/wasde-08-10-2012.pdf"
+    filename: "wasde0812.pdf"
+
+  - release_date: "2012-09-12"
+    calendar_month: "2012-09"
+    mmyy: "0912"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gm80hv75c/kd17ct213/wasde-09-12-2012.pdf"
+    filename: "wasde0912.pdf"
+
+  - release_date: "2012-10-11"
+    calendar_month: "2012-10"
+    mmyy: "1012"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jw827c173/ns064634t/wasde-10-11-2012.pdf"
+    filename: "wasde1012.pdf"
+
+  - release_date: "2012-11-09"
+    calendar_month: "2012-11"
+    mmyy: "1112"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zw12z571z/hx11xf59n/wasde-11-09-2012.pdf"
+    filename: "wasde1112.pdf"
+
+  - release_date: "2012-12-11"
+    calendar_month: "2012-12"
+    mmyy: "1212"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2r36tx89v/df65v8199/wasde-12-11-2012.pdf"
+    filename: "wasde1212.pdf"
+
+  - release_date: "2013-01-11"
+    calendar_month: "2013-01"
+    mmyy: "0113"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1r66j149d/ws859g07c/wasde-01-11-2013.pdf"
+    filename: "wasde0113.pdf"
+
+  - release_date: "2013-02-08"
+    calendar_month: "2013-02"
+    mmyy: "0213"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/474299541/mc87pq573/wasde-02-08-2013.pdf"
+    filename: "wasde0213.pdf"
+
+  - release_date: "2013-03-08"
+    calendar_month: "2013-03"
+    mmyy: "0313"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b2773w09j/2n49t213n/wasde-03-08-2013.pdf"
+    filename: "wasde0313.pdf"
+
+  - release_date: "2013-04-10"
+    calendar_month: "2013-04"
+    mmyy: "0413"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z603qx70p/m039k5268/wasde-04-10-2013.pdf"
+    filename: "wasde0413.pdf"
+
+  - release_date: "2013-05-10"
+    calendar_month: "2013-05"
+    mmyy: "0513"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/x920fx22m/ff365560t/wasde-05-10-2013.pdf"
+    filename: "wasde0513.pdf"
+
+  - release_date: "2013-06-12"
+    calendar_month: "2013-06"
+    mmyy: "0613"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8c97kq70w/zg64tm352/wasde-06-12-2013.pdf"
+    filename: "wasde0613.pdf"
+
+  - release_date: "2013-07-11"
+    calendar_month: "2013-07"
+    mmyy: "0713"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mc87pq55j/gm80hv786/R1wasde-07-11-2013.pdf"
+    filename: "wasde0713.pdf"
+
+  - release_date: "2013-08-12"
+    calendar_month: "2013-08"
+    mmyy: "0813"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bk128b299/rb68xc267/ORIGwasde-08-12-2013.pdf"
+    filename: "wasde0813.pdf"
+
+  - release_date: "2013-09-12"
+    calendar_month: "2013-09"
+    mmyy: "0913"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/08612n84m/3f4625866/wasde-09-12-2013.pdf"
+    filename: "wasde0913.pdf"
+
+  - release_date: "2013-11-08"
+    calendar_month: "2013-11"
+    mmyy: "1113"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9k41zd93b/vt150j74d/wasde-11-08-2013.pdf"
+    filename: "wasde1113.pdf"
+
+  - release_date: "2013-12-10"
+    calendar_month: "2013-12"
+    mmyy: "1213"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7w62f8608/td96k284s/wasde-12-10-2013.pdf"
+    filename: "wasde1213.pdf"
+
+  - release_date: "2014-01-10"
+    calendar_month: "2014-01"
+    mmyy: "0114"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tq57nr35p/zs25x888w/wasde-01-10-2014.pdf"
+    filename: "wasde0114.pdf"
+
+  - release_date: "2014-02-10"
+    calendar_month: "2014-02"
+    mmyy: "0214"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ms35t8948/rv042t39j/wasde-02-10-2014.pdf"
+    filename: "wasde0214.pdf"
+
+  - release_date: "2014-03-10"
+    calendar_month: "2014-03"
+    mmyy: "0314"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m900nt76t/ww72bb862/wasde-03-10-2014.pdf"
+    filename: "wasde0314.pdf"
+
+  - release_date: "2014-04-09"
+    calendar_month: "2014-04"
+    mmyy: "0414"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ht24wj80n/02870w408/wasde-04-09-2014.pdf"
+    filename: "wasde0414.pdf"
+
+  - release_date: "2014-05-09"
+    calendar_month: "2014-05"
+    mmyy: "0514"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/79407x56x/0k225b35p/wasde-05-09-2014.pdf"
+    filename: "wasde0514.pdf"
+
+  - release_date: "2014-06-11"
+    calendar_month: "2014-06"
+    mmyy: "0614"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b8515n698/5x21tf81d/wasde-06-11-2014.pdf"
+    filename: "wasde0614.pdf"
+
+  - release_date: "2014-07-11"
+    calendar_month: "2014-07"
+    mmyy: "0714"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vq27zn76k/7d278t40j/wasde-07-11-2014.pdf"
+    filename: "wasde0714.pdf"
+
+  - release_date: "2014-08-12"
+    calendar_month: "2014-08"
+    mmyy: "0814"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8336h2246/9g54xh98g/wasde-08-12-2014.pdf"
+    filename: "wasde0814.pdf"
+
+  - release_date: "2014-09-11"
+    calendar_month: "2014-09"
+    mmyy: "0914"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/t722h924t/q524jp16m/wasde-09-11-2014.pdf"
+    filename: "wasde0914.pdf"
+
+  - release_date: "2014-10-10"
+    calendar_month: "2014-10"
+    mmyy: "1014"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vh53ww03h/3n203z440/wasde-10-10-2014.pdf"
+    filename: "wasde1014.pdf"
+
+  - release_date: "2014-11-10"
+    calendar_month: "2014-11"
+    mmyy: "1114"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v692t6609/gf06g3121/wasde-11-10-2014.pdf"
+    filename: "wasde1114.pdf"
+
+  - release_date: "2014-12-10"
+    calendar_month: "2014-12"
+    mmyy: "1214"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6t053g36b/4j03cz990/wasde-12-10-2014.pdf"
+    filename: "wasde1214.pdf"
+
+  - release_date: "2015-01-12"
+    calendar_month: "2015-01"
+    mmyy: "0115"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6q182k43h/gm80hv79g/wasde-01-12-2015.pdf"
+    filename: "wasde0115.pdf"
+
+  - release_date: "2015-02-10"
+    calendar_month: "2015-02"
+    mmyy: "0215"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4f16c3196/qz20ss84m/wasde-02-10-2015.pdf"
+    filename: "wasde0215.pdf"
+
+  - release_date: "2015-03-10"
+    calendar_month: "2015-03"
+    mmyy: "0315"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1831ck330/j098zb420/wasde-03-10-2015.pdf"
+    filename: "wasde0315.pdf"
+
+  - release_date: "2015-04-09"
+    calendar_month: "2015-04"
+    mmyy: "0415"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zp38wc91z/z890rt669/wasde-04-09-2015.pdf"
+    filename: "wasde0415.pdf"
+
+  - release_date: "2015-05-12"
+    calendar_month: "2015-05"
+    mmyy: "0515"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4t64gn433/2v23vt75r/wasde-05-12-2015.pdf"
+    filename: "wasde0515.pdf"
+
+  - release_date: "2015-06-10"
+    calendar_month: "2015-06"
+    mmyy: "0615"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/k643b157w/pr76f378h/wasde-06-10-2015.pdf"
+    filename: "wasde0615.pdf"
+
+  - release_date: "2015-07-10"
+    calendar_month: "2015-07"
+    mmyy: "0715"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q524jp142/hd76s042c/wasde-07-10-2015.pdf"
+    filename: "wasde0715.pdf"
+
+  - release_date: "2015-08-12"
+    calendar_month: "2015-08"
+    mmyy: "0815"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rb68xc23d/mc87pq58c/wasde-08-12-2015.pdf"
+    filename: "wasde0815.pdf"
+
+  - release_date: "2015-09-11"
+    calendar_month: "2015-09"
+    mmyy: "0915"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z029p513z/2801pg63c/wasde-09-11-2015.pdf"
+    filename: "wasde0915.pdf"
+
+  - release_date: "2015-10-09"
+    calendar_month: "2015-10"
+    mmyy: "1015"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g445cd50f/c534fp36b/wasde-10-09-2015.pdf"
+    filename: "wasde1015.pdf"
+
+  - release_date: "2015-11-10"
+    calendar_month: "2015-11"
+    mmyy: "1115"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/qr46r120z/k643b1606/wasde-11-10-2015.pdf"
+    filename: "wasde1115.pdf"
+
+  - release_date: "2015-12-09"
+    calendar_month: "2015-12"
+    mmyy: "1215"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rj430479p/ng451h859/wasde-12-09-2015.pdf"
+    filename: "wasde1215.pdf"
+
+  - release_date: "2016-01-12"
+    calendar_month: "2016-01"
+    mmyy: "0116"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jd472w730/mg74qm64r/wasde-01-12-2016.pdf"
+    filename: "wasde0116.pdf"
+
+  - release_date: "2016-02-09"
+    calendar_month: "2016-02"
+    mmyy: "0216"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gx41mj212/tt44pn234/wasde-02-09-2016.pdf"
+    filename: "wasde0216.pdf"
+
+  - release_date: "2016-03-09"
+    calendar_month: "2016-03"
+    mmyy: "0316"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zs25x8827/d504rk71k/wasde-03-09-2016.pdf"
+    filename: "wasde0316.pdf"
+
+  - release_date: "2016-04-12"
+    calendar_month: "2016-04"
+    mmyy: "0416"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/db78tc302/fn106z35s/wasde-04-12-2016.pdf"
+    filename: "wasde0416.pdf"
+
+  - release_date: "2016-05-10"
+    calendar_month: "2016-05"
+    mmyy: "0516"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bg257f43w/9c67wn14d/wasde-05-10-2016.pdf"
+    filename: "wasde0516.pdf"
+
+  - release_date: "2016-06-10"
+    calendar_month: "2016-06"
+    mmyy: "0616"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jh343s69n/m900nt80d/wasde-06-10-2016.pdf"
+    filename: "wasde0616.pdf"
+
+  - release_date: "2016-07-12"
+    calendar_month: "2016-07"
+    mmyy: "0716"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0z708w82w/76537165t/wasde-07-12-2016.pdf"
+    filename: "wasde0716.pdf"
+
+  - release_date: "2016-08-12"
+    calendar_month: "2016-08"
+    mmyy: "0816"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sj139222d/736664827/wasde-08-12-2016.pdf"
+    filename: "wasde0816.pdf"
+
+  - release_date: "2016-09-12"
+    calendar_month: "2016-09"
+    mmyy: "0916"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zk51vh08d/2r36tx925/wasde-09-12-2016.pdf"
+    filename: "wasde0916.pdf"
+
+  - release_date: "2016-10-12"
+    calendar_month: "2016-10"
+    mmyy: "1016"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4b29b639f/9306sz72b/wasde-10-12-2016.pdf"
+    filename: "wasde1016.pdf"
+
+  - release_date: "2016-11-09"
+    calendar_month: "2016-11"
+    mmyy: "1116"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/v692t662v/6d56zx101/wasde-11-09-2016.pdf"
+    filename: "wasde1116.pdf"
+
+  - release_date: "2016-12-09"
+    calendar_month: "2016-12"
+    mmyy: "1216"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/73666481z/qj72p752g/wasde-12-09-2016.pdf"
+    filename: "wasde1216.pdf"
+
+  - release_date: "2017-01-12"
+    calendar_month: "2017-01"
+    mmyy: "0117"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fb494882m/5138jf292/wasde-01-12-2017.pdf"
+    filename: "wasde0117.pdf"
+
+  - release_date: "2017-02-09"
+    calendar_month: "2017-02"
+    mmyy: "0217"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/79407x576/n583xv42k/wasde-02-09-2017.pdf"
+    filename: "wasde0217.pdf"
+
+  - release_date: "2017-03-09"
+    calendar_month: "2017-03"
+    mmyy: "0317"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wp988k138/3f462585x/wasde-03-09-2017.pdf"
+    filename: "wasde0317.pdf"
+
+  - release_date: "2017-04-11"
+    calendar_month: "2017-04"
+    mmyy: "0417"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/t722h9253/m039k528t/wasde-04-11-2017.pdf"
+    filename: "wasde0417.pdf"
+
+  - release_date: "2017-05-10"
+    calendar_month: "2017-05"
+    mmyy: "0517"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4m90dv88p/cr56n134j/wasde-05-10-2017.pdf"
+    filename: "wasde0517.pdf"
+
+  - release_date: "2017-06-09"
+    calendar_month: "2017-06"
+    mmyy: "0617"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/df65v8181/6682x427m/wasde-06-09-2017.pdf"
+    filename: "wasde0617.pdf"
+
+  - release_date: "2017-07-12"
+    calendar_month: "2017-07"
+    mmyy: "0717"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9g54xh96x/bn999722v/wasde-07-12-2017.pdf"
+    filename: "wasde0717.pdf"
+
+  - release_date: "2017-08-10"
+    calendar_month: "2017-08"
+    mmyy: "0817"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8k71nh37b/ff3655613/wasde-08-10-2017.pdf"
+    filename: "wasde0817.pdf"
+
+  - release_date: "2017-09-12"
+    calendar_month: "2017-09"
+    mmyy: "0917"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/br86b406q/k930bx40s/wasde-09-12-2017.pdf"
+    filename: "wasde0917.pdf"
+
+  - release_date: "2017-10-12"
+    calendar_month: "2017-10"
+    mmyy: "1017"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tm70mv56x/08612n865/wasde-10-12-2017.pdf"
+    filename: "wasde1017.pdf"
+
+  - release_date: "2017-11-09"
+    calendar_month: "2017-11"
+    mmyy: "1117"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gm80hv76n/c534fp352/wasde-11-09-2017.pdf"
+    filename: "wasde1117.pdf"
+
+  - release_date: "2017-12-12"
+    calendar_month: "2017-12"
+    mmyy: "1217"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pn89d6834/rf55z802w/wasde-12-12-2017.pdf"
+    filename: "wasde1217.pdf"
+
+  - release_date: "2018-01-12"
+    calendar_month: "2018-01"
+    mmyy: "0118"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8336h225g/mk61rh20x/wasde-01-12-2018.pdf"
+    filename: "wasde0118.pdf"
+
+  - release_date: "2018-02-08"
+    calendar_month: "2018-02"
+    mmyy: "0218"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ft848r05s/1g05fb86k/wasde-02-08-2018.pdf"
+    filename: "wasde0218.pdf"
+
+  - release_date: "2018-03-08"
+    calendar_month: "2018-03"
+    mmyy: "0318"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z603qx71z/8c97kq76j/wasde-03-08-2018.pdf"
+    filename: "wasde0318.pdf"
+
+  - release_date: "2018-04-10"
+    calendar_month: "2018-04"
+    mmyy: "0418"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wh246s51z/zs25x8916/wasde-04-10-2018.pdf"
+    filename: "wasde0418.pdf"
+
+  - release_date: "2018-05-10"
+    calendar_month: "2018-05"
+    mmyy: "0518"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5425kb078/tt44pn24d/wasde-05-10-2018.pdf"
+    filename: "wasde0518.pdf"
+
+  - release_date: "2018-06-12"
+    calendar_month: "2018-06"
+    mmyy: "0618"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/5d86p0623/p8418n577/wasde-06-12-2018.pdf"
+    filename: "wasde0618.pdf"
+
+  - release_date: "2018-07-12"
+    calendar_month: "2018-07"
+    mmyy: "0718"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6682x426b/8049g5524/wasde-07-12-2018.pdf"
+    filename: "wasde0718.pdf"
+
+  - release_date: "2018-08-10"
+    calendar_month: "2018-08"
+    mmyy: "0818"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/xw42n8302/cr56n135t/wasde-08-10-2018.pdf"
+    filename: "wasde0818.pdf"
+
+  - release_date: "2018-09-12"
+    calendar_month: "2018-09"
+    mmyy: "0918"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4b29b6406/fx719m747/wasde-09-12-2018.pdf"
+    filename: "wasde0918.pdf"
+
+  - release_date: "2018-10-11"
+    calendar_month: "2018-10"
+    mmyy: "1018"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m039k877c/gt54ks040/WASDE-582-October-11-2018.pdf"
+    filename: "wasde1018.pdf"
+
+  - release_date: "2018-11-08"
+    calendar_month: "2018-11"
+    mmyy: "1118"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g445ch502/6h440w87f/latest.pdf"
+    filename: "wasde1118.pdf"
+
+  - release_date: "2018-12-14"
+    calendar_month: "2018-12"
+    mmyy: "1218"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/4q77fw19m/kk91fq550/latest.pdf"
+    filename: "wasde1218.pdf"
+
+  - release_date: "2019-02-08"
+    calendar_month: "2019-02"
+    mmyy: "0219"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nz806541q/6682x9431/latest.pdf"
+    filename: "wasde0219.pdf"
+
+  - release_date: "2019-03-08"
+    calendar_month: "2019-03"
+    mmyy: "0319"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0p096d888/f7623k84w/latest.pdf"
+    filename: "wasde0319.pdf"
+
+  - release_date: "2019-04-09"
+    calendar_month: "2019-04"
+    mmyy: "0419"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m326m8891/ws859p558/latest.pdf"
+    filename: "wasde0419.pdf"
+
+  - release_date: "2019-05-10"
+    calendar_month: "2019-05"
+    mmyy: "0519"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7s75dn66b/f1881w33j/wasde0519.pdf"
+    filename: "wasde0519.pdf"
+
+  - release_date: "2019-06-11"
+    calendar_month: "2019-06"
+    mmyy: "0619"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/41687t15q/k0698h679/latest.pdf"
+    filename: "wasde0619.pdf"
+
+  - release_date: "2019-07-11"
+    calendar_month: "2019-07"
+    mmyy: "0719"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ks65hp42q/vd66w940f/latest.pdf"
+    filename: "wasde0719.pdf"
+
+  - release_date: "2019-08-12"
+    calendar_month: "2019-08"
+    mmyy: "0819"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sf268h73q/0p096k137/latest.pdf"
+    filename: "wasde0819.pdf"
+
+  - release_date: "2019-09-12"
+    calendar_month: "2019-09"
+    mmyy: "0919"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gx41mw834/9g54xw18t/latest.pdf"
+    filename: "wasde0919.pdf"
+
+  - release_date: "2019-10-10"
+    calendar_month: "2019-10"
+    mmyy: "1019"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/vd66wc47s/q237j636h/latest.pdf"
+    filename: "wasde1019.pdf"
+
+  - release_date: "2019-11-08"
+    calendar_month: "2019-11"
+    mmyy: "1119"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/st74d522v/qb98mv97t/latest.pdf"
+    filename: "wasde1119.pdf"
+
+  - release_date: "2019-12-10"
+    calendar_month: "2019-12"
+    mmyy: "1219"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1544c4419/6108vs89v/latest.pdf"
+    filename: "wasde1219.pdf"
+
+  - release_date: "2020-01-10"
+    calendar_month: "2020-01"
+    mmyy: "0120"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/79408c82d/jw827v53v/latest.pdf"
+    filename: "wasde0120.pdf"
+
+  - release_date: "2020-02-11"
+    calendar_month: "2020-02"
+    mmyy: "0220"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pz50hc74s/pz50hc752/latest.pdf"
+    filename: "wasde0220.pdf"
+
+  - release_date: "2020-03-10"
+    calendar_month: "2020-03"
+    mmyy: "0320"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/02871d57q/tx31r242v/latest.pdf"
+    filename: "wasde0320.pdf"
+
+  - release_date: "2020-04-09"
+    calendar_month: "2020-04"
+    mmyy: "0420"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q237jb60d/8910kc45j/latest.pdf"
+    filename: "wasde0420.pdf"
+
+  - release_date: "2020-05-12"
+    calendar_month: "2020-05"
+    mmyy: "0520"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w6634p60m/2v23wd923/latest.pdf"
+    filename: "wasde0520.pdf"
+
+  - release_date: "2020-06-11"
+    calendar_month: "2020-06"
+    mmyy: "0620"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g158c396h/8910kd95z/latest.pdf"
+    filename: "wasde0620.pdf"
+
+  - release_date: "2020-07-10"
+    calendar_month: "2020-07"
+    mmyy: "0720"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sb397x16q/b8516938c/latest.pdf"
+    filename: "wasde0720.pdf"
+
+  - release_date: "2020-08-12"
+    calendar_month: "2020-08"
+    mmyy: "0820"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gm80jj54x/vt151665j/latest.pdf"
+    filename: "wasde0820.pdf"
+
+  - release_date: "2020-09-11"
+    calendar_month: "2020-09"
+    mmyy: "0920"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dv140g79v/k0698x33z/latest.pdf"
+    filename: "wasde0920.pdf"
+
+  - release_date: "2020-10-09"
+    calendar_month: "2020-10"
+    mmyy: "1020"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/bk1292082/k3569t999/latest.pdf"
+    filename: "wasde1020.pdf"
+
+  - release_date: "2020-11-10"
+    calendar_month: "2020-11"
+    mmyy: "1120"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6d570p50v/ng452846b/latest.pdf"
+    filename: "wasde1120.pdf"
+
+  - release_date: "2020-12-10"
+    calendar_month: "2020-12"
+    mmyy: "1220"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/ft849g262/c247fj49w/latest.pdf"
+    filename: "wasde1220.pdf"
+
+  - release_date: "2021-01-12"
+    calendar_month: "2021-01"
+    mmyy: "0121"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gf06gv276/ft849g92n/latest.pdf"
+    filename: "wasde0121.pdf"
+
+  - release_date: "2021-02-09"
+    calendar_month: "2021-02"
+    mmyy: "0221"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dv140m16d/s7527501k/latest.pdf"
+    filename: "wasde0221.pdf"
+
+  - release_date: "2021-03-09"
+    calendar_month: "2021-03"
+    mmyy: "0321"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dn39xt93w/dv140m731/latest.pdf"
+    filename: "wasde0321.pdf"
+
+  - release_date: "2021-04-09"
+    calendar_month: "2021-04"
+    mmyy: "0421"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h702r223s/jh344n06q/latest.pdf"
+    filename: "wasde0421.pdf"
+
+  - release_date: "2021-05-12"
+    calendar_month: "2021-05"
+    mmyy: "0521"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2514pf89m/c534gj23m/latest.pdf"
+    filename: "wasde0521.pdf"
+
+  - release_date: "2021-06-10"
+    calendar_month: "2021-06"
+    mmyy: "0621"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/kh04fk547/k06994480/latest.pdf"
+    filename: "wasde0621.pdf"
+
+  - release_date: "2021-07-12"
+    calendar_month: "2021-07"
+    mmyy: "0721"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/b2774s581/t148gf75k/latest.pdf"
+    filename: "wasde0721.pdf"
+
+  - release_date: "2021-08-12"
+    calendar_month: "2021-08"
+    mmyy: "0821"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9019t127d/ft849n815/wasde0821.pdf"
+    filename: "wasde0821.pdf"
+
+  - release_date: "2021-09-10"
+    calendar_month: "2021-09"
+    mmyy: "0921"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gf06h129z/g158cg441/wasde0921.pdf"
+    filename: "wasde0921.pdf"
+
+  - release_date: "2021-10-12"
+    calendar_month: "2021-10"
+    mmyy: "1021"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cc08jf37b/vx022d918/wasde1021.pdf"
+    filename: "wasde1021.pdf"
+
+  - release_date: "2021-11-09"
+    calendar_month: "2021-11"
+    mmyy: "1121"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wp989j89k/bk129b79p/wasde1121.pdf"
+    filename: "wasde1121.pdf"
+
+  - release_date: "2021-12-09"
+    calendar_month: "2021-12"
+    mmyy: "1221"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m039m632s/r781xh99m/wasde1221.pdf"
+    filename: "wasde1221.pdf"
+
+  - release_date: "2022-01-12"
+    calendar_month: "2022-01"
+    mmyy: "0122"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pv63h1937/n009x4613/wasde0122.pdf"
+    filename: "wasde0122.pdf"
+
+  - release_date: "2022-02-09"
+    calendar_month: "2022-02"
+    mmyy: "0222"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w0893f10d/8p58qg12k/wasde0222.pdf"
+    filename: "wasde0222.pdf"
+
+  - release_date: "2022-03-09"
+    calendar_month: "2022-03"
+    mmyy: "0322"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/fj237573x/gh93j268p/wasde0322.pdf"
+    filename: "wasde0322.pdf"
+
+  - release_date: "2022-04-08"
+    calendar_month: "2022-04"
+    mmyy: "0422"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/jw828h37k/5q47ss31q/wasde0422.pdf"
+    filename: "wasde0422.pdf"
+
+  - release_date: "2022-05-12"
+    calendar_month: "2022-05"
+    mmyy: "0522"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/c534gt149/vt151p823/wasde0522.pdf"
+    filename: "wasde0522.pdf"
+
+  - release_date: "2022-06-10"
+    calendar_month: "2022-06"
+    mmyy: "0622"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/pv63h524n/9c67xt79f/wasde0622.pdf"
+    filename: "wasde0622.pdf"
+
+  - release_date: "2022-07-12"
+    calendar_month: "2022-07"
+    mmyy: "0722"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wd377347q/zw130c65c/wasde0722.pdf"
+    filename: "wasde0722.pdf"
+
+  - release_date: "2022-08-12"
+    calendar_month: "2022-08"
+    mmyy: "0822"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cc08jp14g/cr56p755q/wasde0822.pdf"
+    filename: "wasde0822.pdf"
+
+  - release_date: "2022-09-12"
+    calendar_month: "2022-09"
+    mmyy: "0922"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/7p88dr073/1v53m537g/wasde0922.pdf"
+    filename: "wasde0922.pdf"
+
+  - release_date: "2022-10-12"
+    calendar_month: "2022-10"
+    mmyy: "1022"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/d791tq772/pn89ff99n/wasde1022.pdf"
+    filename: "wasde1022.pdf"
+
+  - release_date: "2022-11-09"
+    calendar_month: "2022-11"
+    mmyy: "1122"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/3j334c74p/fx71bx60x/wasde1122.pdf"
+    filename: "wasde1122.pdf"
+
+  - release_date: "2022-12-09"
+    calendar_month: "2022-12"
+    mmyy: "1222"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/d791ts13x/x920h834t/wasde1222.pdf"
+    filename: "wasde1222.pdf"
+
+  - release_date: "2023-01-12"
+    calendar_month: "2023-01"
+    mmyy: "0123"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0v839b45x/x346ff79g/wasde0123.pdf"
+    filename: "wasde0123.pdf"
+
+  - release_date: "2023-02-08"
+    calendar_month: "2023-02"
+    mmyy: "0223"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/q237k4856/ww72cp559/wasde0223.pdf"
+    filename: "wasde0223.pdf"
+
+  - release_date: "2023-03-08"
+    calendar_month: "2023-03"
+    mmyy: "0323"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/w6635g402/pn89fj97q/wasde0323.pdf"
+    filename: "wasde0323.pdf"
+
+  - release_date: "2023-04-11"
+    calendar_month: "2023-04"
+    mmyy: "0423"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2j62tj65b/2z10z4029/wasde0423.pdf"
+    filename: "wasde0423.pdf"
+
+  - release_date: "2023-05-12"
+    calendar_month: "2023-05"
+    mmyy: "0523"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8910m7465/0p097p24j/wasde0523.pdf"
+    filename: "wasde0523.pdf"
+
+  - release_date: "2023-06-09"
+    calendar_month: "2023-06"
+    mmyy: "0623"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/dn39zg239/zp38xv092/wasde0623.pdf"
+    filename: "wasde0623.pdf"
+
+  - release_date: "2023-07-12"
+    calendar_month: "2023-07"
+    mmyy: "0723"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s7527s86m/cc08jx83b/wasde0723.pdf"
+    filename: "wasde0723.pdf"
+
+  - release_date: "2023-08-11"
+    calendar_month: "2023-08"
+    mmyy: "0823"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8c97n5538/6w925t710/wasde0823.pdf"
+    filename: "wasde0823.pdf"
+
+  - release_date: "2023-09-12"
+    calendar_month: "2023-09"
+    mmyy: "0923"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/9880x805c/v405tt51d/wasde0923.pdf"
+    filename: "wasde0923.pdf"
+
+  - release_date: "2023-10-12"
+    calendar_month: "2023-10"
+    mmyy: "1023"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/gb19gq521/w9506k26q/wasde1023.pdf"
+    filename: "wasde1023.pdf"
+
+  - release_date: "2023-11-09"
+    calendar_month: "2023-11"
+    mmyy: "1123"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/j0990x88f/gq67m972q/wasde1123.pdf"
+    filename: "wasde1123.pdf"
+
+  - release_date: "2023-12-08"
+    calendar_month: "2023-12"
+    mmyy: "1223"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/nv936n21f/1j92ht93w/wasde1223.pdf"
+    filename: "wasde1223.pdf"
+
+  - release_date: "2024-01-12"
+    calendar_month: "2024-01"
+    mmyy: "0124"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/m613pj64v/3j334p895/wasde0124.pdf"
+    filename: "wasde0124.pdf"
+
+  - release_date: "2024-02-08"
+    calendar_month: "2024-02"
+    mmyy: "0224"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/6108x0329/gx41p613n/wasde0224.pdf"
+    filename: "wasde0224.pdf"
+
+  - release_date: "2024-03-08"
+    calendar_month: "2024-03"
+    mmyy: "0324"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/8g84p850x/3n205n568/wasde0324.pdf"
+    filename: "wasde0324.pdf"
+
+  - release_date: "2024-04-11"
+    calendar_month: "2024-04"
+    mmyy: "0424"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/0g3563734/0c4856877/wasde0424.pdf"
+    filename: "wasde0424.pdf"
+
+  - release_date: "2024-05-10"
+    calendar_month: "2024-05"
+    mmyy: "0524"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/mp48v3615/cz30rh065/wasde0524.pdf"
+    filename: "wasde0524.pdf"
+
+  - release_date: "2024-06-12"
+    calendar_month: "2024-06"
+    mmyy: "0624"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sf269x278/vt152776f/wasde0624.pdf"
+    filename: "wasde0624.pdf"
+
+  - release_date: "2024-07-12"
+    calendar_month: "2024-07"
+    mmyy: "0724"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/h702rx54z/6395xz09z/wasde0724.pdf"
+    filename: "wasde0724.pdf"
+
+  - release_date: "2024-08-12"
+    calendar_month: "2024-08"
+    mmyy: "0824"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/r781z751z/m613pp61v/wasde0824.pdf"
+    filename: "wasde0824.pdf"
+
+  - release_date: "2024-09-12"
+    calendar_month: "2024-09"
+    mmyy: "0924"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rf5610383/t148h943n/wasde0924.pdf"
+    filename: "wasde0924.pdf"
+
+  - release_date: "2024-10-11"
+    calendar_month: "2024-10"
+    mmyy: "1024"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/cv43qp248/t148hb32b/wasde1024.pdf"
+    filename: "wasde1024.pdf"
+
+  - release_date: "2024-11-08"
+    calendar_month: "2024-11"
+    mmyy: "1124"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/s4657804b/z029qx92b/latest.pdf"
+    filename: "wasde1124.pdf"
+
+  - release_date: "2024-12-10"
+    calendar_month: "2024-12"
+    mmyy: "1224"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/rb690665c/bn99c223f/wasde1224v2.pdf"
+    filename: "wasde1224.pdf"
+
+  - release_date: "2025-01-10"
+    calendar_month: "2025-01"
+    mmyy: "0125"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/2801rc34n/1z40nn26q/wasde0125.pdf"
+    filename: "wasde0125.pdf"
+
+  - release_date: "2025-02-11"
+    calendar_month: "2025-02"
+    mmyy: "0225"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/sx61gg96j/bg259884f/wasde0225.pdf"
+    filename: "wasde0225.pdf"
+
+  - release_date: "2025-03-11"
+    calendar_month: "2025-03"
+    mmyy: "0325"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/zc77vn735/k356c177v/wasde0325.pdf"
+    filename: "wasde0325.pdf"
+
+  - release_date: "2025-04-10"
+    calendar_month: "2025-04"
+    mmyy: "0425"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tq57qn89q/jm216m82c/wasde0425v2.pdf"
+    filename: "wasde0425.pdf"
+
+  - release_date: "2025-05-12"
+    calendar_month: "2025-05"
+    mmyy: "0525"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/1r66m015q/ws85cd79j/wasde0525v2.pdf"
+    filename: "wasde0525.pdf"
+
+  - release_date: "2025-06-12"
+    calendar_month: "2025-06"
+    mmyy: "0625"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/g732g751w/8k71qg06g/wasde0625.pdf"
+    filename: "wasde0625.pdf"
+
+  - release_date: "2025-07-11"
+    calendar_month: "2025-07"
+    mmyy: "0725"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/tx31sh59w/np195824g/wasde0725.pdf"
+    filename: "wasde0725.pdf"
+
+  - release_date: "2025-08-12"
+    calendar_month: "2025-08"
+    mmyy: "0825"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/wd377v73w/pn89g498p/wasde0825.pdf"
+    filename: "wasde0825.pdf"
+
+  - release_date: "2025-09-12"
+    calendar_month: "2025-09"
+    mmyy: "0925"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/3t945q76s/z890tt821/r494xm02f/wasde0925.pdf"
+    filename: "wasde0925.pdf"
+
+  - release_date: "2025-11-14"
+    calendar_month: "2025-11"
+    mmyy: "1125"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795643/wasde1125.pdf"
+    filename: "wasde1125.pdf"
+
+  - release_date: "2025-12-09"
+    calendar_month: "2025-12"
+    mmyy: "1225"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795676/wasde1225.pdf"
+    filename: "wasde1225.pdf"
+
+  - release_date: "2026-01-12"
+    calendar_month: "2026-01"
+    mmyy: "0126"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795722/wasde0126.pdf"
+    filename: "wasde0126.pdf"
+
+  - release_date: "2026-02-10"
+    calendar_month: "2026-02"
+    mmyy: "0226"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795765/wasde0226.pdf"
+    filename: "wasde0226.pdf"
+
+  - release_date: "2026-03-10"
+    calendar_month: "2026-03"
+    mmyy: "0326"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795813/wasde0326.pdf"
+    filename: "wasde0326.pdf"
+
+  - release_date: "2026-04-09"
+    calendar_month: "2026-04"
+    mmyy: "0426"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795855/wasde0426.pdf"
+    filename: "wasde0426.pdf"
+
+  - release_date: "2026-05-12"
+    calendar_month: "2026-05"
+    mmyy: "0526"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795903/wasde0526v2.pdf"
+    filename: "wasde0526.pdf"
+
