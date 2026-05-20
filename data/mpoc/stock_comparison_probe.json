@@ -1,0 +1,56 @@
+{
+  "main_page": {
+    "url": "https://mpoc.org.my/market-insight/stock-comparison/",
+    "status_code": 200,
+    "size_bytes": 395839,
+    "validation_marker_found": true,
+    "countries": [
+      "China",
+      "India",
+      "Pakistan",
+      "Bangladesh",
+      "Usa"
+    ]
+  },
+  "sub_url_check": [
+    {
+      "country": "China",
+      "url": null,
+      "status": "no_sub_url"
+    },
+    {
+      "country": "India",
+      "url": null,
+      "status": "no_sub_url"
+    },
+    {
+      "country": "Pakistan",
+      "url": null,
+      "status": "no_sub_url"
+    },
+    {
+      "country": "Bangladesh",
+      "url": null,
+      "status": "no_sub_url"
+    },
+    {
+      "country": "Usa",
+      "url": null,
+      "status": "no_sub_url"
+    }
+  ],
+  "archive_check": [
+    {
+      "url": "https://mpoc.org.my/market-insight/stock-comparison-archive/",
+      "status_code": 404
+    },
+    {
+      "url": "https://mpoc.org.my/market-insight/stock-comparison/archive/",
+      "status_code": 404
+    },
+    {
+      "url": "https://mpoc.org.my/category/stock-comparison/",
+      "status_code": 404
+    }
+  ]
+}

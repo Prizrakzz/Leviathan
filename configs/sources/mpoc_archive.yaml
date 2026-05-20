@@ -1,0 +1,1108 @@
+# MPOC (Malaysian Palm Oil Council) - market intelligence and trade statistics
+# Source : Malaysian Palm Oil Council
+# URL    : https://mpoc.org.my
+# CMS    : WordPress; no WAF; standard requests with Chrome UA works
+#
+# Four series:
+#   trade_statistics   - Monthly Palm Oil Trade Statistics (2009-2023, 15 pages)
+#   stock_comparison   - Stock Comparison single live page (multi-country oils & fats)
+#   competitive_prices - Daily Palm Oil Prices single live page (CPO vs SBO vs SFO)
+#   market_highlights  - Individual market analysis articles (342 articles)
+
+releases:
+
+  # ---------------------------------------------------------------------------
+  # trade_statistics: 2009-2023 (15 entries)
+  # URL pattern: https://mpoc.org.my/monthly-palm-oil-trade-statistics-{YYYY}/
+  # Validation marker: EXPORTS TO MAJOR COUNTRIES
+  # ---------------------------------------------------------------------------
+  - release_type: trade_statistics
+    year: 2009
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2009/"
+  - release_type: trade_statistics
+    year: 2010
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2010/"
+  - release_type: trade_statistics
+    year: 2011
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2011/"
+  - release_type: trade_statistics
+    year: 2012
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2012/"
+  - release_type: trade_statistics
+    year: 2013
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2013/"
+  - release_type: trade_statistics
+    year: 2014
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2014/"
+  - release_type: trade_statistics
+    year: 2015
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2015/"
+  - release_type: trade_statistics
+    year: 2016
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2016/"
+  - release_type: trade_statistics
+    year: 2017
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2017/"
+  - release_type: trade_statistics
+    year: 2018
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2018/"
+  - release_type: trade_statistics
+    year: 2019
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2019/"
+  - release_type: trade_statistics
+    year: 2020
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2020/"
+  - release_type: trade_statistics
+    year: 2021
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2021/"
+  - release_type: trade_statistics
+    year: 2022
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2022/"
+  - release_type: trade_statistics
+    year: 2023
+    stat_url: "https://mpoc.org.my/monthly-palm-oil-trade-statistics-2023/"
+
+  # ---------------------------------------------------------------------------
+  # stock_comparison: single live page; re-run without --skip-existing-s3 to refresh
+  # Validation marker: OILS AND FATS ENDING STOCKS
+  # ---------------------------------------------------------------------------
+  - release_type: stock_comparison
+    stat_url: "https://mpoc.org.my/market-insight/stock-comparison/"
+
+  # ---------------------------------------------------------------------------
+  # competitive_prices: single live page; re-run without --skip-existing-s3 to refresh
+  # Validation markers: CPO and SBO
+  # ---------------------------------------------------------------------------
+  - release_type: competitive_prices
+    stat_url: "https://mpoc.org.my/market-insight/daily-palm-oil-prices/"
+
+  # ---------------------------------------------------------------------------
+  # market_highlights: 342 articles (spidered 2026-05-20)
+  # Validation: min-size guard only (no structural marker)
+  # ---------------------------------------------------------------------------
+  - release_type: market_highlights
+    slug: "industry-overview"
+    stat_url: "https://www.mpoc.org.my/industry-overview/"
+  - release_type: market_highlights
+    slug: "palm-oil-applications"
+    stat_url: "https://www.mpoc.org.my/palm-oil-applications/"
+  - release_type: market_highlights
+    slug: "palm-sphere"
+    stat_url: "https://www.mpoc.org.my/palm-sphere/"
+  - release_type: market_highlights
+    slug: "international-regulatory-updates"
+    stat_url: "https://www.mpoc.org.my/international-regulatory-updates/"
+  - release_type: market_highlights
+    slug: "eudr-central-info"
+    stat_url: "https://www.mpoc.org.my/eudr-central-info"
+  - release_type: market_highlights
+    slug: "palm-oil-news"
+    stat_url: "https://www.mpoc.org.my/palm-oil-news/"
+  - release_type: market_highlights
+    slug: "the-rise-of-aseans-foodservice-industry-an-engine-for-palm-oil-demand"
+    stat_url: "https://www.mpoc.org.my/the-rise-of-aseans-foodservice-industry-an-engine-for-palm-oil-demand/"
+  - release_type: market_highlights
+    slug: "unlocking-opportunities-palm-acid-oil-in-the-european-market"
+    stat_url: "https://www.mpoc.org.my/unlocking-opportunities-palm-acid-oil-in-the-european-market/"
+  - release_type: market_highlights
+    slug: "beauty-beyond-luxury-how-malaysian-palm-oil-can-power-the-uaes-booming-premium-beauty-market"
+    stat_url: "https://www.mpoc.org.my/beauty-beyond-luxury-how-malaysian-palm-oil-can-power-the-uaes-booming-premium-beauty-market/"
+  - release_type: market_highlights
+    slug: "north-africas-sweet-success-the-rising-growth-of-the-confectionery-industry"
+    stat_url: "https://www.mpoc.org.my/north-africas-sweet-success-the-rising-growth-of-the-confectionery-industry/"
+  - release_type: market_highlights
+    slug: "expanding-opportunities-for-malaysian-palm-oil-in-sri-lanka"
+    stat_url: "https://www.mpoc.org.my/expanding-opportunities-for-malaysian-palm-oil-in-sri-lanka/"
+  - release_type: market_highlights
+    slug: "unlocking-sub-saharan-africas-palm-oil-potential-a-strategic-opportunity-for-malaysia"
+    stat_url: "https://www.mpoc.org.my/unlocking-sub-saharan-africas-palm-oil-potential-a-strategic-opportunity-for-malaysia/"
+  - release_type: market_highlights
+    slug: "libyan-palm-oil-market-an-emerging-landscape-for-malaysian-exporters-2"
+    stat_url: "https://www.mpoc.org.my/libyan-palm-oil-market-an-emerging-landscape-for-malaysian-exporters-2/"
+  - release_type: market_highlights
+    slug: "strategic-opportunities-for-malaysian-oleochemicals-in-the-united-states"
+    stat_url: "https://www.mpoc.org.my/strategic-opportunities-for-malaysian-oleochemicals-in-the-united-states/"
+  - release_type: market_highlights
+    slug: "the-growth-of-omans-horeca-sector-unlocking-opportunities-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/the-growth-of-omans-horeca-sector-unlocking-opportunities-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "opportunities-for-malaysian-palm-oil-in-south-koreas-growing-prepared-foods-market"
+    stat_url: "https://www.mpoc.org.my/opportunities-for-malaysian-palm-oil-in-south-koreas-growing-prepared-foods-market/"
+  - release_type: market_highlights
+    slug: "unlocking-the-potential-of-sustainable-palm-oil-in-the-j-beauty-industry"
+    stat_url: "https://www.mpoc.org.my/unlocking-the-potential-of-sustainable-palm-oil-in-the-j-beauty-industry/"
+  - release_type: market_highlights
+    slug: "insights-into-the-biodiesel-industry-latin-america-and-the-united-states"
+    stat_url: "https://www.mpoc.org.my/insights-into-the-biodiesel-industry-latin-america-and-the-united-states/"
+  - release_type: market_highlights
+    slug: "vietnams-palm-oil-imports-on-the-rise-trends-and-prospects"
+    stat_url: "https://www.mpoc.org.my/vietnams-palm-oil-imports-on-the-rise-trends-and-prospects/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-in-the-eu-27-performance-and-projections-for-2024"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-in-the-eu-27-performance-and-projections-for-2024/"
+  - release_type: market_highlights
+    slug: "philippines-rising-demand-for-palm-oil-in-a-dynamic-economic-landscape"
+    stat_url: "https://www.mpoc.org.my/philippines-rising-demand-for-palm-oil-in-a-dynamic-economic-landscape/"
+  - release_type: market_highlights
+    slug: "expanding-horizons-the-growth-and-potential-of-malaysian-palm-oil-in-the-tanzanian-market"
+    stat_url: "https://www.mpoc.org.my/expanding-horizons-the-growth-and-potential-of-malaysian-palm-oil-in-the-tanzanian-market/"
+  - release_type: market_highlights
+    slug: "opportunities-for-malaysian-palm-oil-players-in-china"
+    stat_url: "https://www.mpoc.org.my/opportunities-for-malaysian-palm-oil-players-in-china/"
+  - release_type: market_highlights
+    slug: "regional-geopolitical-risks-and-its-impacts-on-malaysian-palm-oil-performance-in-egypt-navigating-2023-and-forecasting-2024"
+    stat_url: "https://www.mpoc.org.my/regional-geopolitical-risks-and-its-impacts-on-malaysian-palm-oil-performance-in-egypt-navigating-2023-and-forecasting-2024/"
+  - release_type: market_highlights
+    slug: "indian-vegetable-oil-imports-emerging-trends-and-implications"
+    stat_url: "https://www.mpoc.org.my/indian-vegetable-oil-imports-emerging-trends-and-implications/"
+  - release_type: market_highlights
+    slug: "significance-of-kenya-as-the-eastern-hub-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/significance-of-kenya-as-the-eastern-hub-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "analysis-of-oils-and-fats-segmentation-in-india-projections-for-the-near-future"
+    stat_url: "https://www.mpoc.org.my/analysis-of-oils-and-fats-segmentation-in-india-projections-for-the-near-future/"
+  - release_type: market_highlights
+    slug: "analyzing-the-surge-in-indian-vegetable-oil-imports-global-dynamics-price-spreads-and-seasonal-shifts"
+    stat_url: "https://www.mpoc.org.my/analyzing-the-surge-in-indian-vegetable-oil-imports-global-dynamics-price-spreads-and-seasonal-shifts/"
+  - release_type: market_highlights
+    slug: "potential-of-enhancing-exports-of-malaysian-palm-oil-through-the-uae"
+    stat_url: "https://www.mpoc.org.my/potential-of-enhancing-exports-of-malaysian-palm-oil-through-the-uae/"
+  - release_type: market_highlights
+    slug: "despite-all-the-rhetoric-german-palm-oil-imports-are-actually-growing"
+    stat_url: "https://www.mpoc.org.my/despite-all-the-rhetoric-german-palm-oil-imports-are-actually-growing/"
+  - release_type: market_highlights
+    slug: "opportunities-for-palm-oil-in-south-koreas-growing-prepared-foods-market"
+    stat_url: "https://www.mpoc.org.my/opportunities-for-palm-oil-in-south-koreas-growing-prepared-foods-market/"
+  - release_type: market_highlights
+    slug: "industry-insight-into-mexican-oleochemical-industry"
+    stat_url: "https://www.mpoc.org.my/industry-insight-into-mexican-oleochemical-industry/"
+  - release_type: market_highlights
+    slug: "saudi-arabias-animal-feed-industry-opportunity-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/saudi-arabias-animal-feed-industry-opportunity-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "global-movement-against-trans-fat-the-growing-trend-of-restriction-and-reformulation"
+    stat_url: "https://www.mpoc.org.my/global-movement-against-trans-fat-the-growing-trend-of-restriction-and-reformulation/"
+  - release_type: market_highlights
+    slug: "oppurtunities-for-palm-oil-in-turkeys-horeca-sector"
+    stat_url: "https://www.mpoc.org.my/oppurtunities-for-palm-oil-in-turkeys-horeca-sector/"
+  - release_type: market_highlights
+    slug: "connecting-food-can-the-blockchain-revolutionise-supply-chain-traceability"
+    stat_url: "https://www.mpoc.org.my/connecting-food-can-the-blockchain-revolutionise-supply-chain-traceability/"
+  - release_type: market_highlights
+    slug: "theres-an-app-for-that-how-indonesia-is-reaching-smallholders"
+    stat_url: "https://www.mpoc.org.my/theres-an-app-for-that-how-indonesia-is-reaching-smallholders/"
+  - release_type: market_highlights
+    slug: "of-elephants-and-men-how-the-earthworm-foundation-works-towards-the-coexistence-of-both-species"
+    stat_url: "https://www.mpoc.org.my/of-elephants-and-men-how-the-earthworm-foundation-works-towards-the-coexistence-of-both-species/"
+  - release_type: market_highlights
+    slug: "the-rimba-collective-a-fresh-look-at-saving-forests"
+    stat_url: "https://www.mpoc.org.my/the-rimba-collective-a-fresh-look-at-saving-forests/"
+  - release_type: market_highlights
+    slug: "getting-off-the-couch-the-trials-and-tribulations-of-sustainable-palm-oil"
+    stat_url: "https://www.mpoc.org.my/getting-off-the-couch-the-trials-and-tribulations-of-sustainable-palm-oil/"
+  - release_type: market_highlights
+    slug: "the-eus-path-towards-the-deforestation-free-regulation"
+    stat_url: "https://www.mpoc.org.my/the-eus-path-towards-the-deforestation-free-regulation/"
+  - release_type: market_highlights
+    slug: "trialogue-negotiations-on-the-deforestation-free-products-regulation"
+    stat_url: "https://www.mpoc.org.my/trialogue-negotiations-on-the-deforestation-free-products-regulation/"
+  - release_type: market_highlights
+    slug: "the-2022-sustainable-palm-oil-dialogue-a-recap"
+    stat_url: "https://www.mpoc.org.my/the-2022-sustainable-palm-oil-dialogue-a-recap/"
+  - release_type: market_highlights
+    slug: "specialty-fats-potential-in-the-maghreb-region"
+    stat_url: "https://www.mpoc.org.my/specialty-fats-potential-in-the-maghreb-region/"
+  - release_type: market_highlights
+    slug: "current-disruptions-in-sudan-and-its-implications-on-palm-oil-imports"
+    stat_url: "https://www.mpoc.org.my/current-disruptions-in-sudan-and-its-implications-on-palm-oil-imports/"
+  - release_type: market_highlights
+    slug: "growth-prospects-for-malaysian-palm-oil-in-vietnams-foodservice-sector"
+    stat_url: "https://www.mpoc.org.my/growth-prospects-for-malaysian-palm-oil-in-vietnams-foodservice-sector/"
+  - release_type: market_highlights
+    slug: "palm-oil-for-food-industries-and-its-potential-in-turkey"
+    stat_url: "https://www.mpoc.org.my/palm-oil-for-food-industries-and-its-potential-in-turkey/"
+  - release_type: market_highlights
+    slug: "the-growing-demand-in-oleochemicals-in-the-us-beauty-personal-care-market"
+    stat_url: "https://www.mpoc.org.my/the-growing-demand-in-oleochemicals-in-the-us-beauty-personal-care-market/"
+  - release_type: market_highlights
+    slug: "food-processing-industry-a-sunrise-sector-in-india"
+    stat_url: "https://www.mpoc.org.my/food-processing-industry-a-sunrise-sector-in-india/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-based-products-potential-in-confectionery-and-bakery-market-in-egypt"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-based-products-potential-in-confectionery-and-bakery-market-in-egypt/"
+  - release_type: market_highlights
+    slug: "for-palm-oil-there-is-a-europe-beyond-the-eu"
+    stat_url: "https://www.mpoc.org.my/for-palm-oil-there-is-a-europe-beyond-the-eu/"
+  - release_type: market_highlights
+    slug: "chinas-oleochemicals-market-offers-opportunities-for-higher-palm-based-derivatives-and-palm-fraction-exports"
+    stat_url: "https://www.mpoc.org.my/chinas-oleochemicals-market-offers-opportunities-for-higher-palm-based-derivatives-and-palm-fraction-exports/"
+  - release_type: market_highlights
+    slug: "cpo-price-sentiment-for-2021"
+    stat_url: "https://www.mpoc.org.my/cpo-price-sentiment-for-2021/"
+  - release_type: market_highlights
+    slug: "positive-malaysian-palm-oil-market-outlook-in-iran-2021"
+    stat_url: "https://www.mpoc.org.my/positive-malaysian-palm-oil-market-outlook-in-iran-2021/"
+  - release_type: market_highlights
+    slug: "overview-and-outlook-of-malaysian-palm-oil-exports-to-europe"
+    stat_url: "https://www.mpoc.org.my/overview-and-outlook-of-malaysian-palm-oil-exports-to-europe/"
+  - release_type: market_highlights
+    slug: "outlook-for-palm-oil-demand-in-the-subcontinent-region-q4-2020"
+    stat_url: "https://www.mpoc.org.my/outlook-for-palm-oil-demand-in-the-subcontinent-region-q4-2020/"
+  - release_type: market_highlights
+    slug: "sub-saharan-africa-poised-to-have-largest-increase-of-mpo-import-volume-in-2020"
+    stat_url: "https://www.mpoc.org.my/sub-saharan-africa-poised-to-have-largest-increase-of-mpo-import-volume-in-2020/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-import-performance-in-saudi-arabia-in-2020"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-import-performance-in-saudi-arabia-in-2020/"
+  - release_type: market_highlights
+    slug: "mpo-exports-to-algeria-in-2020-performance-and-update"
+    stat_url: "https://www.mpoc.org.my/mpo-exports-to-algeria-in-2020-performance-and-update/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-growth-in-ghana"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-growth-in-ghana/"
+  - release_type: market_highlights
+    slug: "review-of-mpo-export-performance-to-nigeria-jan-sept-2020"
+    stat_url: "https://www.mpoc.org.my/review-of-mpo-export-performance-to-nigeria-jan-sept-2020/"
+  - release_type: market_highlights
+    slug: "malaysias-palm-oil-exports-to-china-for-4th-quarter-2020-is-anticipated-to-remain-at-2019s-level"
+    stat_url: "https://www.mpoc.org.my/malaysias-palm-oil-exports-to-china-for-4th-quarter-2020-is-anticipated-to-remain-at-2019s-level/"
+  - release_type: market_highlights
+    slug: "palm-oil-market-chain-in-haiti"
+    stat_url: "https://www.mpoc.org.my/palm-oil-market-chain-in-haiti/"
+  - release_type: market_highlights
+    slug: "turkeys-palm-oil-imports-weakened-in-september-amid-lower-food-manufacturing-activities-and-weakening-lira"
+    stat_url: "https://www.mpoc.org.my/turkeys-palm-oil-imports-weakened-in-september-amid-lower-food-manufacturing-activities-and-weakening-lira/"
+  - release_type: market_highlights
+    slug: "privacy-cookies-policy"
+    stat_url: "https://mpoc.org.my/privacy-cookies-policy/"
+  - release_type: market_highlights
+    slug: "exploring-the-potential-of-sustainable-palm-oil-in-the-j-beauty-industry"
+    stat_url: "https://www.mpoc.org.my/exploring-the-potential-of-sustainable-palm-oil-in-the-j-beauty-industry/"
+  - release_type: market_highlights
+    slug: "market-dynamics-and-growth-drivers-in-japans-processed-food-industry"
+    stat_url: "https://www.mpoc.org.my/market-dynamics-and-growth-drivers-in-japans-processed-food-industry/"
+  - release_type: market_highlights
+    slug: "part-2-glycerin-market-analysis-in-china-present-scenario-and-future-prospects"
+    stat_url: "https://www.mpoc.org.my/part-2-glycerin-market-analysis-in-china-present-scenario-and-future-prospects/"
+  - release_type: market_highlights
+    slug: "part-1-glycerin-market-analysis-in-china-present-scenario-and-future-prospects"
+    stat_url: "https://www.mpoc.org.my/part-1-glycerin-market-analysis-in-china-present-scenario-and-future-prospects/"
+  - release_type: market_highlights
+    slug: "malaysias-emerging-commercial-opportunities-from-the-comprehensive-and-progressive-agreement-for-transpacific-partnership-cptpp-the-bigger-picture-regarding-trade-agreements"
+    stat_url: "https://www.mpoc.org.my/malaysias-emerging-commercial-opportunities-from-the-comprehensive-and-progressive-agreement-for-transpacific-partnership-cptpp-the-bigger-picture-regarding-trade-agreements/"
+  - release_type: market_highlights
+    slug: "tunisia-a-promising-market-for-malaysian-palm-oil-expansion"
+    stat_url: "https://www.mpoc.org.my/tunisia-a-promising-market-for-malaysian-palm-oil-expansion/"
+  - release_type: market_highlights
+    slug: "implications-of-no-palm-oil-labelling-towards-local-palm-oil-industry"
+    stat_url: "https://www.mpoc.org.my/implications-of-no-palm-oil-labelling-towards-local-palm-oil-industry/"
+  - release_type: market_highlights
+    slug: "the-food-processing-industry-in-bangladesh"
+    stat_url: "https://www.mpoc.org.my/the-food-processing-industry-in-bangladesh/"
+  - release_type: market_highlights
+    slug: "unlocking-opportunities-analyzing-the-potential-of-the-tanzanian-market"
+    stat_url: "https://www.mpoc.org.my/unlocking-opportunities-analyzing-the-potential-of-the-tanzanian-market/"
+  - release_type: market_highlights
+    slug: "palm-oil-imports-to-china-poised-to-increase-following-the-governments-lifting-of-covid-19-protocols"
+    stat_url: "https://www.mpoc.org.my/palm-oil-imports-to-china-poised-to-increase-following-the-governments-lifting-of-covid-19-protocols/"
+  - release_type: market_highlights
+    slug: "cooking-oils-and-fats-market-segmentation-in-south-america"
+    stat_url: "https://www.mpoc.org.my/cooking-oils-and-fats-market-segmentation-in-south-america/"
+  - release_type: market_highlights
+    slug: "palm-applications-in-russia-potential-in-the-animal-feed-industry"
+    stat_url: "https://www.mpoc.org.my/palm-applications-in-russia-potential-in-the-animal-feed-industry/"
+  - release_type: market_highlights
+    slug: "europes-deadliest-winter-looms-near"
+    stat_url: "https://www.mpoc.org.my/europes-deadliest-winter-looms-near/"
+  - release_type: market_highlights
+    slug: "malaysian-certified-sustainable-palm-oil-product-potential-in-the-middle-east"
+    stat_url: "https://www.mpoc.org.my/malaysian-certified-sustainable-palm-oil-product-potential-in-the-middle-east/"
+  - release_type: market_highlights
+    slug: "pakistans-evolving-growth-of-processed-food-industry-an-opportunity-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/pakistans-evolving-growth-of-processed-food-industry-an-opportunity-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "towards-the-red-iii-a-failed-reform-and-unpleasant-surprise-for-palm-oil-as-a-biofuel-feedstock"
+    stat_url: "https://www.mpoc.org.my/towards-the-red-iii-a-failed-reform-and-unpleasant-surprise-for-palm-oil-as-a-biofuel-feedstock/"
+  - release_type: market_highlights
+    slug: "growth-potential-of-palm-oil-in-the-philippines-foodservice-industry"
+    stat_url: "https://www.mpoc.org.my/growth-potential-of-palm-oil-in-the-philippines-foodservice-industry/"
+  - release_type: market_highlights
+    slug: "opportunities-for-palm-oil-in-saudi-arabias-horeca-sector"
+    stat_url: "https://www.mpoc.org.my/opportunities-for-palm-oil-in-saudi-arabias-horeca-sector/"
+  - release_type: market_highlights
+    slug: "oil-on-the-boil-causing-huge-volatility-india"
+    stat_url: "https://www.mpoc.org.my/oil-on-the-boil-causing-huge-volatility-india/"
+  - release_type: market_highlights
+    slug: "algerian-confectionery-sector-a-promising-market-for-malaysian-palm-based-fats"
+    stat_url: "https://www.mpoc.org.my/algerian-confectionery-sector-a-promising-market-for-malaysian-palm-based-fats/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-exports-to-sub-saharan-africa-is-projected-to-rise-in-the-second-half-of-2021"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-exports-to-sub-saharan-africa-is-projected-to-rise-in-the-second-half-of-2021/"
+  - release_type: market_highlights
+    slug: "increasing-trend-of-specialty-fats-exports-from-russia-to-car"
+    stat_url: "https://www.mpoc.org.my/increasing-trend-of-specialty-fats-exports-from-russia-to-car/"
+  - release_type: market_highlights
+    slug: "current-indian-vegoils-scenario"
+    stat_url: "https://www.mpoc.org.my/current-indian-vegoils-scenario/"
+  - release_type: market_highlights
+    slug: "slump-or-new-normal-european-palm-oil-imports-2021-and-beyond"
+    stat_url: "https://www.mpoc.org.my/slump-or-new-normal-european-palm-oil-imports-2021-and-beyond/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-export-performance-in-asia-pacific-region-in-2021"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-export-performance-in-asia-pacific-region-in-2021/"
+  - release_type: market_highlights
+    slug: "mpo-in-bangladesh-what-to-expect-in-the-price-sensitive-market"
+    stat_url: "https://www.mpoc.org.my/mpo-in-bangladesh-what-to-expect-in-the-price-sensitive-market/"
+  - release_type: market_highlights
+    slug: "positive-outlook-remains-for-palm-oil-in-china-despite-the-recovery-of-swine-sector"
+    stat_url: "https://www.mpoc.org.my/positive-outlook-remains-for-palm-oil-in-china-despite-the-recovery-of-swine-sector/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-prospects-in-the-west-of-suez-region"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-prospects-in-the-west-of-suez-region/"
+  - release_type: market_highlights
+    slug: "positive-palm-oil-outlook-in-east-suez-region-jan-jun-2021"
+    stat_url: "https://www.mpoc.org.my/positive-palm-oil-outlook-in-east-suez-region-jan-jun-2021/"
+  - release_type: market_highlights
+    slug: "palm-oil-internet-seminar-pointers-october-18-24-2021"
+    stat_url: "https://www.mpoc.org.my/palm-oil-internet-seminar-pointers-october-18-24-2021/"
+  - release_type: market_highlights
+    slug: "the-potential-for-animal-feed-industry-in-bangladesh-amidst-covid-19-impact"
+    stat_url: "https://www.mpoc.org.my/the-potential-for-animal-feed-industry-in-bangladesh-amidst-covid-19-impact/"
+  - release_type: market_highlights
+    slug: "kenya-transformation-to-become-the-largest-malaysian-palm-oil-importer-in-sub-saharan-africa"
+    stat_url: "https://www.mpoc.org.my/kenya-transformation-to-become-the-largest-malaysian-palm-oil-importer-in-sub-saharan-africa/"
+  - release_type: market_highlights
+    slug: "china-leads-the-global-instant-noodle-consumption"
+    stat_url: "https://www.mpoc.org.my/china-leads-the-global-instant-noodle-consumption/"
+  - release_type: market_highlights
+    slug: "factors-affecting-palm-oil-development-and-trade-in-mexico"
+    stat_url: "https://www.mpoc.org.my/factors-affecting-palm-oil-development-and-trade-in-mexico/"
+  - release_type: market_highlights
+    slug: "the-demand-of-malaysian-palm-oil-products-in-the-asia-pacific-region"
+    stat_url: "https://www.mpoc.org.my/the-demand-of-malaysian-palm-oil-products-in-the-asia-pacific-region/"
+  - release_type: market_highlights
+    slug: "will-italian-biodiesel-soon-sport-no-palm-oil-labels"
+    stat_url: "https://www.mpoc.org.my/will-italian-biodiesel-soon-sport-no-palm-oil-labels/"
+  - release_type: market_highlights
+    slug: "will-the-indian-festival-season-usher-in-cheer"
+    stat_url: "https://www.mpoc.org.my/will-the-indian-festival-season-usher-in-cheer/"
+  - release_type: market_highlights
+    slug: "palm-oil-in-ssa-a-situational-analysis-on-major-regional-importing-countries"
+    stat_url: "https://www.mpoc.org.my/palm-oil-in-ssa-a-situational-analysis-on-major-regional-importing-countries/"
+  - release_type: market_highlights
+    slug: "myanmar-malaysian-palm-oil-opportunity-in-the-land-of-gold"
+    stat_url: "https://www.mpoc.org.my/myanmar-malaysian-palm-oil-opportunity-in-the-land-of-gold/"
+  - release_type: market_highlights
+    slug: "misconception-of-palm-oils-health-attributes-in-middle-east-market"
+    stat_url: "https://www.mpoc.org.my/misconception-of-palm-oils-health-attributes-in-middle-east-market/"
+  - release_type: market_highlights
+    slug: "saudi-arabia-palm-oil-market-trends-and-updates"
+    stat_url: "https://www.mpoc.org.my/saudi-arabia-palm-oil-market-trends-and-updates/"
+  - release_type: market_highlights
+    slug: "growth-trends-in-the-brazilian-oils-and-fats-market"
+    stat_url: "https://www.mpoc.org.my/growth-trends-in-the-brazilian-oils-and-fats-market/"
+  - release_type: market_highlights
+    slug: "tapping-into-the-beauty-segment-of-sweden-with-palm-based-oleochemicals"
+    stat_url: "https://www.mpoc.org.my/tapping-into-the-beauty-segment-of-sweden-with-palm-based-oleochemicals/"
+  - release_type: market_highlights
+    slug: "post-covid-19-sd-outlook-for-oils-fats-in-china"
+    stat_url: "https://www.mpoc.org.my/post-covid-19-sd-outlook-for-oils-fats-in-china/"
+  - release_type: market_highlights
+    slug: "iran-2023-oils-and-fats-demand-and-malaysian-palm-oil-export-opportunities"
+    stat_url: "https://www.mpoc.org.my/iran-2023-oils-and-fats-demand-and-malaysian-palm-oil-export-opportunities/"
+  - release_type: market_highlights
+    slug: "strategising-export-learning-the-trade-landscape-of-uzbekistan"
+    stat_url: "https://www.mpoc.org.my/strategising-export-learning-the-trade-landscape-of-uzbekistan/"
+  - release_type: market_highlights
+    slug: "performance-and-outlook-of-turkish-vegetable-oil-sector"
+    stat_url: "https://www.mpoc.org.my/performance-and-outlook-of-turkish-vegetable-oil-sector/"
+  - release_type: market_highlights
+    slug: "egypt-staying-ahead-window-of-opportunity-for-greater-malaysian-palm-oil-exports"
+    stat_url: "https://www.mpoc.org.my/egypt-staying-ahead-window-of-opportunity-for-greater-malaysian-palm-oil-exports/"
+  - release_type: market_highlights
+    slug: "growth-in-the-halal-market-segment-in-the-united-states-and-opportunities-for-palm-oil"
+    stat_url: "https://www.mpoc.org.my/growth-in-the-halal-market-segment-in-the-united-states-and-opportunities-for-palm-oil/"
+  - release_type: market_highlights
+    slug: "oleochemicals-market-opportunities-in-turkey"
+    stat_url: "https://www.mpoc.org.my/oleochemicals-market-opportunities-in-turkey/"
+  - release_type: market_highlights
+    slug: "growing-opportunities-for-malaysian-palm-oil-in-china-bakery-market"
+    stat_url: "https://www.mpoc.org.my/growing-opportunities-for-malaysian-palm-oil-in-china-bakery-market/"
+  - release_type: market_highlights
+    slug: "bangladesh-oils-fats-review-outlook"
+    stat_url: "https://www.mpoc.org.my/bangladesh-oils-fats-review-outlook/"
+  - release_type: market_highlights
+    slug: "trade-facilitation-through-the-establishment-of-storage-and-warehousing-facility-in-the-selected-african-markets"
+    stat_url: "https://www.mpoc.org.my/trade-facilitation-through-the-establishment-of-storage-and-warehousing-facility-in-the-selected-african-markets/"
+  - release_type: market_highlights
+    slug: "drought-in-south-america-implication-on-palm-oil-trade-by-brazil-and-argentina"
+    stat_url: "https://www.mpoc.org.my/drought-in-south-america-implication-on-palm-oil-trade-by-brazil-and-argentina/"
+  - release_type: market_highlights
+    slug: "iran-as-a-malaysian-palm-oil-export-destination-and-transit-opportunities"
+    stat_url: "https://www.mpoc.org.my/iran-as-a-malaysian-palm-oil-export-destination-and-transit-opportunities/"
+  - release_type: market_highlights
+    slug: "a-case-study-for-the-eu-the-double-bind-of-biodiesel-expansion-and-food-security-crisis"
+    stat_url: "https://www.mpoc.org.my/a-case-study-for-the-eu-the-double-bind-of-biodiesel-expansion-and-food-security-crisis/"
+  - release_type: market_highlights
+    slug: "chinas-palm-oil-market-outlook-2022"
+    stat_url: "https://www.mpoc.org.my/chinas-palm-oil-market-outlook-2022/"
+  - release_type: market_highlights
+    slug: "opportunity-for-palm-oil-intake-to-increase-in-turkey"
+    stat_url: "https://www.mpoc.org.my/opportunity-for-palm-oil-intake-to-increase-in-turkey/"
+  - release_type: market_highlights
+    slug: "will-malaysia-be-able-to-weather-the-decline-in-palm-oil-exports-to-the-united-states"
+    stat_url: "https://www.mpoc.org.my/will-malaysia-be-able-to-weather-the-decline-in-palm-oil-exports-to-the-united-states/"
+  - release_type: market_highlights
+    slug: "palm-based-oleochemical-in-pakistans-the-booming-beauty-and-personal-care-industry"
+    stat_url: "https://www.mpoc.org.my/palm-based-oleochemical-in-pakistans-the-booming-beauty-and-personal-care-industry/"
+  - release_type: market_highlights
+    slug: "north-africa-ports-infrastructure-a-gateway-to-land-locked-african-markets"
+    stat_url: "https://www.mpoc.org.my/north-africa-ports-infrastructure-a-gateway-to-land-locked-african-markets/"
+  - release_type: market_highlights
+    slug: "impact-of-minimum-support-prices-prices-on-indian-oilseeds"
+    stat_url: "https://www.mpoc.org.my/impact-of-minimum-support-prices-prices-on-indian-oilseeds/"
+  - release_type: market_highlights
+    slug: "potential-for-palm-oil-in-korean-cosmetic-industry"
+    stat_url: "https://www.mpoc.org.my/potential-for-palm-oil-in-korean-cosmetic-industry/"
+  - release_type: market_highlights
+    slug: "red-ii-current-status-of-eu-member-states-and-its-impact-on-palm-oil-current-future"
+    stat_url: "https://www.mpoc.org.my/red-ii-current-status-of-eu-member-states-and-its-impact-on-palm-oil-current-future/"
+  - release_type: market_highlights
+    slug: "market-potentials-for-malaysian-palm-oil-products-in-turkey"
+    stat_url: "https://www.mpoc.org.my/market-potentials-for-malaysian-palm-oil-products-in-turkey/"
+  - release_type: market_highlights
+    slug: "chinas-palm-oil-market-outlook-2021"
+    stat_url: "https://www.mpoc.org.my/chinas-palm-oil-market-outlook-2021/"
+  - release_type: market_highlights
+    slug: "usa-palm-oil-outlook-amid-strong-domestic-soybean-crush"
+    stat_url: "https://www.mpoc.org.my/usa-palm-oil-outlook-amid-strong-domestic-soybean-crush/"
+  - release_type: market_highlights
+    slug: "latest-policy-change-on-soybean-meal-use-in-animal-feed-in-china-may-improve-palm-oil-demand"
+    stat_url: "https://www.mpoc.org.my/latest-policy-change-on-soybean-meal-use-in-animal-feed-in-china-may-improve-palm-oil-demand/"
+  - release_type: market_highlights
+    slug: "rapeseed-situation-in-china-and-its-effect-on-palm-oil-import"
+    stat_url: "https://www.mpoc.org.my/rapeseed-situation-in-china-and-its-effect-on-palm-oil-import/"
+  - release_type: market_highlights
+    slug: "sub-saharan-palm-oil-import-duties-and-its-impact-on-palm-oil-imports"
+    stat_url: "https://www.mpoc.org.my/sub-saharan-palm-oil-import-duties-and-its-impact-on-palm-oil-imports/"
+  - release_type: market_highlights
+    slug: "oil-palm-expansion-programme-will-india-achieve-its-target-to-reduce-import-dependency"
+    stat_url: "https://www.mpoc.org.my/oil-palm-expansion-programme-will-india-achieve-its-target-to-reduce-import-dependency/"
+  - release_type: market_highlights
+    slug: "taiwan-a-resilient-market-of-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/taiwan-a-resilient-market-of-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "exploring-palm-oil-market-in-latin-america-and-the-caribbean"
+    stat_url: "https://www.mpoc.org.my/exploring-palm-oil-market-in-latin-america-and-the-caribbean/"
+  - release_type: market_highlights
+    slug: "the-scourge-of-adulteration-in-india"
+    stat_url: "https://www.mpoc.org.my/the-scourge-of-adulteration-in-india/"
+  - release_type: market_highlights
+    slug: "revised-marpol-annex-ii-regulations-another-non-tariff-barrier-against-palm-oil"
+    stat_url: "https://www.mpoc.org.my/revised-marpol-annex-ii-regulations-another-non-tariff-barrier-against-palm-oil/"
+  - release_type: market_highlights
+    slug: "an-overview-of-the-development-of-high-oleic-soybean-oil-in-the-united-states-and-its-implication-on-palm-oil"
+    stat_url: "https://www.mpoc.org.my/an-overview-of-the-development-of-high-oleic-soybean-oil-in-the-united-states-and-its-implication-on-palm-oil/"
+  - release_type: market_highlights
+    slug: "the-impact-of-president-xis-call-to-stop-food-wasting-on-palm-oil-demand"
+    stat_url: "https://www.mpoc.org.my/the-impact-of-president-xis-call-to-stop-food-wasting-on-palm-oil-demand/"
+  - release_type: market_highlights
+    slug: "bangladesh-edible-oil-refining-sector-a-potential-destination-for-malaysian-fdi"
+    stat_url: "https://www.mpoc.org.my/bangladesh-edible-oil-refining-sector-a-potential-destination-for-malaysian-fdi/"
+  - release_type: market_highlights
+    slug: "recent-improvements-on-infrastructure-has-eased-the-movement-of-goods-in-east-africa"
+    stat_url: "https://www.mpoc.org.my/recent-improvements-on-infrastructure-has-eased-the-movement-of-goods-in-east-africa/"
+  - release_type: market_highlights
+    slug: "change-in-composition-of-palm-oil-products-imported-by-china"
+    stat_url: "https://www.mpoc.org.my/change-in-composition-of-palm-oil-products-imported-by-china/"
+  - release_type: market_highlights
+    slug: "ukraine-war-and-global-oils-fats-markets"
+    stat_url: "https://www.mpoc.org.my/ukraine-war-and-global-oils-fats-markets/"
+  - release_type: market_highlights
+    slug: "impact-of-global-prices-on-indian-vegoils-imports"
+    stat_url: "https://www.mpoc.org.my/impact-of-global-prices-on-indian-vegoils-imports/"
+  - release_type: market_highlights
+    slug: "the-russia-ukraine-war-impact-on-egypts-food-supply-emphasis-on-oils-and-fats"
+    stat_url: "https://www.mpoc.org.my/the-russia-ukraine-war-impact-on-egypts-food-supply-emphasis-on-oils-and-fats/"
+  - release_type: market_highlights
+    slug: "russia-ukraine-conflict-and-its-impact-on-the-regional-edible-oil-market"
+    stat_url: "https://www.mpoc.org.my/russia-ukraine-conflict-and-its-impact-on-the-regional-edible-oil-market/"
+  - release_type: market_highlights
+    slug: "sub-saharan-africa-oils-fats-situation-2021-2022-forecast"
+    stat_url: "https://www.mpoc.org.my/sub-saharan-africa-oils-fats-situation-2021-2022-forecast/"
+  - release_type: market_highlights
+    slug: "chinas-cosmetic-and-personal-care-market-growth-sector-for-palm-based-ingredients"
+    stat_url: "https://www.mpoc.org.my/chinas-cosmetic-and-personal-care-market-growth-sector-for-palm-based-ingredients/"
+  - release_type: market_highlights
+    slug: "palm-oil-market-potential-in-pakistan-heading-towards-2022"
+    stat_url: "https://www.mpoc.org.my/palm-oil-market-potential-in-pakistan-heading-towards-2022/"
+  - release_type: market_highlights
+    slug: "eu-27-biofuels-outlook-market-trending-towards-advanced-biofuels"
+    stat_url: "https://www.mpoc.org.my/eu-27-biofuels-outlook-market-trending-towards-advanced-biofuels/"
+  - release_type: market_highlights
+    slug: "algeria-oils-and-fats-market-perspective-implications-on-palm-oil"
+    stat_url: "https://www.mpoc.org.my/algeria-oils-and-fats-market-perspective-implications-on-palm-oil/"
+  - release_type: market_highlights
+    slug: "taking-the-fork-in-the-road-time-for-malaysian-palm-oil-to-rethink-europe"
+    stat_url: "https://www.mpoc.org.my/taking-the-fork-in-the-road-time-for-malaysian-palm-oil-to-rethink-europe/"
+  - release_type: market_highlights
+    slug: "on-the-great-road-from-east-to-west"
+    stat_url: "https://www.mpoc.org.my/on-the-great-road-from-east-to-west/"
+  - release_type: market_highlights
+    slug: "iran-potential-market-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/iran-potential-market-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "potential-for-malaysian-palm-oil-in-sub-saharan-africa-emerging-markets"
+    stat_url: "https://www.mpoc.org.my/potential-for-malaysian-palm-oil-in-sub-saharan-africa-emerging-markets/"
+  - release_type: market_highlights
+    slug: "can-mexico-achieve-self-sufficiency-in-palm-oil-production"
+    stat_url: "https://www.mpoc.org.my/can-mexico-achieve-self-sufficiency-in-palm-oil-production/"
+  - release_type: market_highlights
+    slug: "vanaspati-shortening-industries-of-bangladesh-loyal-consumer-of-palm-oil"
+    stat_url: "https://www.mpoc.org.my/vanaspati-shortening-industries-of-bangladesh-loyal-consumer-of-palm-oil/"
+  - release_type: market_highlights
+    slug: "rising-prices-and-its-impact-in-india"
+    stat_url: "https://www.mpoc.org.my/rising-prices-and-its-impact-in-india/"
+  - release_type: market_highlights
+    slug: "growth-of-malaysian-palm-kernel-shell-in-japan"
+    stat_url: "https://www.mpoc.org.my/growth-of-malaysian-palm-kernel-shell-in-japan/"
+  - release_type: market_highlights
+    slug: "palm-oil-market-potentials-in-maghreb-countries-morocco-algeria-tunisia"
+    stat_url: "https://www.mpoc.org.my/palm-oil-market-potentials-in-maghreb-countries-morocco-algeria-tunisia/"
+  - release_type: market_highlights
+    slug: "land-grab-issues-and-how-it-affects-foreign-investments-in-sub-saharan-africa"
+    stat_url: "https://www.mpoc.org.my/land-grab-issues-and-how-it-affects-foreign-investments-in-sub-saharan-africa/"
+  - release_type: market_highlights
+    slug: "pakistans-fast-growing-fast-food-sector-potential-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/pakistans-fast-growing-fast-food-sector-potential-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "strengthening-malaysian-palm-oil-in-mena-region"
+    stat_url: "https://www.mpoc.org.my/strengthening-malaysian-palm-oil-in-mena-region/"
+  - release_type: market_highlights
+    slug: "malaysias-palm-oil-is-gaining-market-share-in-china-in-2020"
+    stat_url: "https://www.mpoc.org.my/malaysias-palm-oil-is-gaining-market-share-in-china-in-2020/"
+  - release_type: market_highlights
+    slug: "performance-of-palm-oil-in-west-of-suez-region"
+    stat_url: "https://www.mpoc.org.my/performance-of-palm-oil-in-west-of-suez-region/"
+  - release_type: market_highlights
+    slug: "upcoming-challenges-for-palm-oil-and-mpo-in-bangladesh-market"
+    stat_url: "https://www.mpoc.org.my/upcoming-challenges-for-palm-oil-and-mpo-in-bangladesh-market/"
+  - release_type: market_highlights
+    slug: "second-wave-of-covid-19-in-asia-pacific-region-challenging-time-for-palm-oil"
+    stat_url: "https://www.mpoc.org.my/second-wave-of-covid-19-in-asia-pacific-region-challenging-time-for-palm-oil/"
+  - release_type: market_highlights
+    slug: "a-look-at-india-palm-oil-import-trend-what-to-expect-post-pandemic"
+    stat_url: "https://www.mpoc.org.my/a-look-at-india-palm-oil-import-trend-what-to-expect-post-pandemic/"
+  - release_type: market_highlights
+    slug: "fluctuating-fortunes-of-palm-oil-in-india"
+    stat_url: "https://www.mpoc.org.my/fluctuating-fortunes-of-palm-oil-in-india/"
+  - release_type: market_highlights
+    slug: "the-dominance-of-united-states-as-the-largest-importer-of-palm-oil-in-the-americas-region"
+    stat_url: "https://www.mpoc.org.my/the-dominance-of-united-states-as-the-largest-importer-of-palm-oil-in-the-americas-region/"
+  - release_type: market_highlights
+    slug: "the-role-of-malaysian-palm-oil-in-food-security-for-the-organisation-of-islamic-countries-oic"
+    stat_url: "https://www.mpoc.org.my/the-role-of-malaysian-palm-oil-in-food-security-for-the-organisation-of-islamic-countries-oic/"
+  - release_type: market_highlights
+    slug: "palm-oil-internet-seminar-pointers-28-march-1-april-2022"
+    stat_url: "https://www.mpoc.org.my/palm-oil-internet-seminar-pointers-28-march-1-april-2022/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-market-challenges-and-performance-in-the-u-s-in-2020-21"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-market-challenges-and-performance-in-the-u-s-in-2020-21/"
+  - release_type: market_highlights
+    slug: "serbia-palm-oil-market-potential-and-outlook-2022"
+    stat_url: "https://www.mpoc.org.my/serbia-palm-oil-market-potential-and-outlook-2022/"
+  - release_type: market_highlights
+    slug: "south-america-palm-oil-market-prospect-beyond-the-global-turbulences"
+    stat_url: "https://www.mpoc.org.my/south-america-palm-oil-market-prospect-beyond-the-global-turbulences/"
+  - release_type: market_highlights
+    slug: "palm-oil-ukraine-likelihood-of-a-ban-and-possible-impacts-on-regional-trade"
+    stat_url: "https://www.mpoc.org.my/palm-oil-ukraine-likelihood-of-a-ban-and-possible-impacts-on-regional-trade/"
+  - release_type: market_highlights
+    slug: "soybean-imports-trend-and-in-china-and-its-impact-on-palm-oil-2"
+    stat_url: "https://www.mpoc.org.my/soybean-imports-trend-and-in-china-and-its-impact-on-palm-oil-2/"
+  - release_type: market_highlights
+    slug: "current-and-future-outlook-of-mpo-export-to-turkey"
+    stat_url: "https://www.mpoc.org.my/current-and-future-outlook-of-mpo-export-to-turkey/"
+  - release_type: market_highlights
+    slug: "mpo-exports-to-sub-saharan-africa-anticipated-to-post-strong-numbers-in-2022"
+    stat_url: "https://www.mpoc.org.my/mpo-exports-to-sub-saharan-africa-anticipated-to-post-strong-numbers-in-2022/"
+  - release_type: market_highlights
+    slug: "soybean-imports-trend-and-in-china-and-its-impact-on-palm-oil"
+    stat_url: "https://www.mpoc.org.my/soybean-imports-trend-and-in-china-and-its-impact-on-palm-oil/"
+  - release_type: market_highlights
+    slug: "market-highlights-infographic-sub-saharan-africa"
+    stat_url: "https://www.mpoc.org.my/market-highlights-infographic-sub-saharan-africa/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-cooking-oil-consortium-the-possible-way-out-for-malaysia-to-penetrate-chinas-cooking-oil-market"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-cooking-oil-consortium-the-possible-way-out-for-malaysia-to-penetrate-chinas-cooking-oil-market/"
+  - release_type: market_highlights
+    slug: "the-importance-of-cpo-exports-in-the-sub-saharan-africas-overall-palm-oil-market"
+    stat_url: "https://www.mpoc.org.my/the-importance-of-cpo-exports-in-the-sub-saharan-africas-overall-palm-oil-market/"
+  - release_type: market_highlights
+    slug: "trade-agreements-to-boost-malaysian-palm-oil-in-sub-saharan-africa"
+    stat_url: "https://www.mpoc.org.my/trade-agreements-to-boost-malaysian-palm-oil-in-sub-saharan-africa/"
+  - release_type: market_highlights
+    slug: "palm-based-cooking-oil-overcoming-barriers-in-chinas-household-sector"
+    stat_url: "https://www.mpoc.org.my/palm-based-cooking-oil-overcoming-barriers-in-chinas-household-sector/"
+  - release_type: market_highlights
+    slug: "the-importance-of-the-establishment-of-palm-oil-logistics-in-the-united-states-in-supporting-mpo-market-expansion"
+    stat_url: "https://www.mpoc.org.my/the-importance-of-the-establishment-of-palm-oil-logistics-in-the-united-states-in-supporting-mpo-market-expansion/"
+  - release_type: market_highlights
+    slug: "addressing-food-security-issues-in-iraq-through-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/addressing-food-security-issues-in-iraq-through-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "snapshot-of-the-oleochemicals-market-in-egypt"
+    stat_url: "https://www.mpoc.org.my/snapshot-of-the-oleochemicals-market-in-egypt/"
+  - release_type: market_highlights
+    slug: "positioning-mpo-as-more-lucrative-to-bangladeshi-palm-oil-importers"
+    stat_url: "https://www.mpoc.org.my/positioning-mpo-as-more-lucrative-to-bangladeshi-palm-oil-importers/"
+  - release_type: market_highlights
+    slug: "will-the-last-minute-trade-deal-with-the-eu-make-britain-great-again"
+    stat_url: "https://www.mpoc.org.my/will-the-last-minute-trade-deal-with-the-eu-make-britain-great-again/"
+  - release_type: market_highlights
+    slug: "pakistan-a-consistent-market-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/pakistan-a-consistent-market-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "sub-saharan-africa-2nd-half-2020-malaysian-palm-oil-outlook"
+    stat_url: "https://www.mpoc.org.my/sub-saharan-africa-2nd-half-2020-malaysian-palm-oil-outlook/"
+  - release_type: market_highlights
+    slug: "free-trade-agreement-fta-focus-on-australia-and-new-zealand-palm-oil-demands"
+    stat_url: "https://www.mpoc.org.my/free-trade-agreement-fta-focus-on-australia-and-new-zealand-palm-oil-demands/"
+  - release_type: market_highlights
+    slug: "china-wto-accession-and-asean-china-free-trade-agreement"
+    stat_url: "https://www.mpoc.org.my/china-wto-accession-and-asean-china-free-trade-agreement/"
+  - release_type: market_highlights
+    slug: "free-trade-agreement-with-eurasian-economic-union-prospects-for-malaysia"
+    stat_url: "https://www.mpoc.org.my/free-trade-agreement-with-eurasian-economic-union-prospects-for-malaysia/"
+  - release_type: market_highlights
+    slug: "palm-oil-expansion-in-north-america"
+    stat_url: "https://www.mpoc.org.my/palm-oil-expansion-in-north-america/"
+  - release_type: market_highlights
+    slug: "indias-tryst-with-trade-agreements"
+    stat_url: "https://www.mpoc.org.my/indias-tryst-with-trade-agreements/"
+  - release_type: market_highlights
+    slug: "trade-agreement-with-african-nations-to-boost-malaysian-market-share-in-sub-saharan-africa"
+    stat_url: "https://www.mpoc.org.my/trade-agreement-with-african-nations-to-boost-malaysian-market-share-in-sub-saharan-africa/"
+  - release_type: market_highlights
+    slug: "trade-opportunities-within-north-and-east-africa-through-regional-trade-agreements"
+    stat_url: "https://www.mpoc.org.my/trade-opportunities-within-north-and-east-africa-through-regional-trade-agreements/"
+  - release_type: market_highlights
+    slug: "enhancing-malaysian-palm-oil-trade-with-ecowas"
+    stat_url: "https://www.mpoc.org.my/enhancing-malaysian-palm-oil-trade-with-ecowas/"
+  - release_type: market_highlights
+    slug: "resurgence-of-malaysian-palm-oil-in-india"
+    stat_url: "https://www.mpoc.org.my/resurgence-of-malaysian-palm-oil-in-india/"
+  - release_type: market_highlights
+    slug: "market-highlights-bangladesh"
+    stat_url: "https://www.mpoc.org.my/market-highlights-bangladesh/"
+  - release_type: market_highlights
+    slug: "palm-oil-complementing-oils-and-fats-industry-of-the-americas"
+    stat_url: "https://www.mpoc.org.my/palm-oil-complementing-oils-and-fats-industry-of-the-americas/"
+  - release_type: market_highlights
+    slug: "the-pandemic-and-the-indian-economy-2020-to-2021"
+    stat_url: "https://www.mpoc.org.my/the-pandemic-and-the-indian-economy-2020-to-2021/"
+  - release_type: market_highlights
+    slug: "afghanistan-potential-market-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/afghanistan-potential-market-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "would-kenya-continue-to-be-a-major-mpo-export-destination"
+    stat_url: "https://www.mpoc.org.my/would-kenya-continue-to-be-a-major-mpo-export-destination/"
+  - release_type: market_highlights
+    slug: "a-review-on-indias-oils-and-fats-market-2021"
+    stat_url: "https://www.mpoc.org.my/a-review-on-indias-oils-and-fats-market-2021/"
+  - release_type: market_highlights
+    slug: "chinas-palm-oil-market-opportunities-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/chinas-palm-oil-market-opportunities-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "maintaining-malaysian-palm-oil-market-share-in-nigeria"
+    stat_url: "https://www.mpoc.org.my/maintaining-malaysian-palm-oil-market-share-in-nigeria/"
+  - release_type: market_highlights
+    slug: "palm-oil-sectoral-growth-in-usa-mexico-and-haiti"
+    stat_url: "https://www.mpoc.org.my/palm-oil-sectoral-growth-in-usa-mexico-and-haiti/"
+  - release_type: market_highlights
+    slug: "joint-venture-opportunities-and-challenges-in-west-africa"
+    stat_url: "https://www.mpoc.org.my/joint-venture-opportunities-and-challenges-in-west-africa/"
+  - release_type: market_highlights
+    slug: "trade-agreements-their-impact-on-commodity-trade"
+    stat_url: "https://www.mpoc.org.my/trade-agreements-their-impact-on-commodity-trade/"
+  - release_type: market_highlights
+    slug: "leveraging-on-malaysia-turkey-free-trade-agreement-for-strategic-market-access-in-the-region"
+    stat_url: "https://www.mpoc.org.my/leveraging-on-malaysia-turkey-free-trade-agreement-for-strategic-market-access-in-the-region/"
+  - release_type: market_highlights
+    slug: "trade-agreement-with-nigeria-an-avenue-malaysia-should-explore"
+    stat_url: "https://www.mpoc.org.my/trade-agreement-with-nigeria-an-avenue-malaysia-should-explore/"
+  - release_type: market_highlights
+    slug: "rise-of-mpo-market-share-in-bangladesh-making-investment-opportunities-lucrative"
+    stat_url: "https://www.mpoc.org.my/rise-of-mpo-market-share-in-bangladesh-making-investment-opportunities-lucrative/"
+  - release_type: market_highlights
+    slug: "atiga-catalyst-for-palm-oil-trade-in-asean"
+    stat_url: "https://www.mpoc.org.my/atiga-catalyst-for-palm-oil-trade-in-asean/"
+  - release_type: market_highlights
+    slug: "lower-sunflower-seed-production-in-romania-to-spur-palm-oil-imports"
+    stat_url: "https://www.mpoc.org.my/lower-sunflower-seed-production-in-romania-to-spur-palm-oil-imports/"
+  - release_type: market_highlights
+    slug: "logistical-supports-for-palm-oil-market-expansion-in-the-united-states"
+    stat_url: "https://www.mpoc.org.my/logistical-supports-for-palm-oil-market-expansion-in-the-united-states/"
+  - release_type: market_highlights
+    slug: "maintaining-malaysian-palm-oil-market-share-in-sub-saharan-africa"
+    stat_url: "https://www.mpoc.org.my/maintaining-malaysian-palm-oil-market-share-in-sub-saharan-africa/"
+  - release_type: market_highlights
+    slug: "export-fostering-prospects-of-countertrade"
+    stat_url: "https://www.mpoc.org.my/export-fostering-prospects-of-countertrade/"
+  - release_type: market_highlights
+    slug: "vietnams-bakery-and-confectionery-sector-opportunity-for-malaysian-palm-oil"
+    stat_url: "https://www.mpoc.org.my/vietnams-bakery-and-confectionery-sector-opportunity-for-malaysian-palm-oil/"
+  - release_type: market_highlights
+    slug: "the-development-and-prospect-of-oleochemicals-industry-in-the-us"
+    stat_url: "https://www.mpoc.org.my/the-development-and-prospect-of-oleochemicals-industry-in-the-us/"
+  - release_type: market_highlights
+    slug: "palm-oil-internet-seminar-pointers-april-2021"
+    stat_url: "https://www.mpoc.org.my/palm-oil-internet-seminar-pointers-april-2021/"
+  - release_type: market_highlights
+    slug: "indian-food-processing-a-sunrise-investment-sector"
+    stat_url: "https://www.mpoc.org.my/indian-food-processing-a-sunrise-investment-sector/"
+  - release_type: market_highlights
+    slug: "palm-oil-price-trends-2021-market-expectations-and-sentiments"
+    stat_url: "https://www.mpoc.org.my/palm-oil-price-trends-2021-market-expectations-and-sentiments/"
+  - release_type: market_highlights
+    slug: "palm-oil-in-opportunities-in-poland-looking-into-non-food"
+    stat_url: "https://www.mpoc.org.my/palm-oil-in-opportunities-in-poland-looking-into-non-food/"
+  - release_type: market_highlights
+    slug: "pkc-market-in-the-middle-east"
+    stat_url: "https://www.mpoc.org.my/pkc-market-in-the-middle-east/"
+  - release_type: market_highlights
+    slug: "chinas-growing-bakery-sector-opportunities-for-palm-based-fats"
+    stat_url: "https://www.mpoc.org.my/chinas-growing-bakery-sector-opportunities-for-palm-based-fats/"
+  - release_type: market_highlights
+    slug: "bangladesh-food-industry-continuous-growth-and-growing-potential-for-palm-oil-consumption"
+    stat_url: "https://www.mpoc.org.my/bangladesh-food-industry-continuous-growth-and-growing-potential-for-palm-oil-consumption/"
+  - release_type: market_highlights
+    slug: "current-status-and-development-trends-of-animal-feed-industry-in-china"
+    stat_url: "https://www.mpoc.org.my/current-status-and-development-trends-of-animal-feed-industry-in-china/"
+  - release_type: market_highlights
+    slug: "palm-oil-looking-beyond-the-pandemic"
+    stat_url: "https://www.mpoc.org.my/palm-oil-looking-beyond-the-pandemic/"
+  - release_type: market_highlights
+    slug: "china-palm-oil-market-improving-malaysias-market-share"
+    stat_url: "https://www.mpoc.org.my/china-palm-oil-market-improving-malaysias-market-share/"
+  - release_type: market_highlights
+    slug: "cpo-duty-exemption-will-pakistan-buy-more-malaysian-cpo"
+    stat_url: "https://www.mpoc.org.my/cpo-duty-exemption-will-pakistan-buy-more-malaysian-cpo/"
+  - release_type: market_highlights
+    slug: "summary-of-mpoc-bmds-joint-pointers"
+    stat_url: "https://www.mpoc.org.my/summary-of-mpoc-bmds-joint-pointers/"
+  - release_type: market_highlights
+    slug: "growth-avenues-for-malaysian-palm-oil-in-sub-saharan-africa"
+    stat_url: "https://www.mpoc.org.my/growth-avenues-for-malaysian-palm-oil-in-sub-saharan-africa/"
+  - release_type: market_highlights
+    slug: "palm-oil-performance-during-covid-19-in-egypt"
+    stat_url: "https://www.mpoc.org.my/palm-oil-performance-during-covid-19-in-egypt/"
+  - release_type: market_highlights
+    slug: "nigeria-palm-oil-demand-expected-to-rise-post-covid-19"
+    stat_url: "https://www.mpoc.org.my/nigeria-palm-oil-demand-expected-to-rise-post-covid-19/"
+  - release_type: market_highlights
+    slug: "african-continental-free-trade-area-afcfta-its-impact-on-edible-oil-trade"
+    stat_url: "https://www.mpoc.org.my/african-continental-free-trade-area-afcfta-its-impact-on-edible-oil-trade/"
+  - release_type: market_highlights
+    slug: "palm-oil-demand-outlook-2020-in-vietnam"
+    stat_url: "https://www.mpoc.org.my/palm-oil-demand-outlook-2020-in-vietnam/"
+  - release_type: market_highlights
+    slug: "resilience-of-mpo-share-in-bangladesh-and-malaysian-investment-opportunity"
+    stat_url: "https://www.mpoc.org.my/resilience-of-mpo-share-in-bangladesh-and-malaysian-investment-opportunity/"
+  - release_type: market_highlights
+    slug: "fuzzy-numbers-are-german-palm-oil-imports-falling-or-rising"
+    stat_url: "https://www.mpoc.org.my/fuzzy-numbers-are-german-palm-oil-imports-falling-or-rising/"
+  - release_type: market_highlights
+    slug: "complementing-new-forces-of-growth-with-effective-supply-chain"
+    stat_url: "https://www.mpoc.org.my/complementing-new-forces-of-growth-with-effective-supply-chain/"
+  - release_type: market_highlights
+    slug: "effects-of-trade-war-and-trade-spats-on-palm-oil-exports"
+    stat_url: "https://www.mpoc.org.my/effects-of-trade-war-and-trade-spats-on-palm-oil-exports/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-sector-performance-in-2020-and-market-opportunities"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-sector-performance-in-2020-and-market-opportunities/"
+  - release_type: market_highlights
+    slug: "impact-of-covid-19-on-mpo-industry-in-2020-a-review"
+    stat_url: "https://www.mpoc.org.my/impact-of-covid-19-on-mpo-industry-in-2020-a-review/"
+  - release_type: market_highlights
+    slug: "overview-of-the-global-palm-oil-sector-in-2020-and-outlook-for-2021"
+    stat_url: "https://www.mpoc.org.my/overview-of-the-global-palm-oil-sector-in-2020-and-outlook-for-2021/"
+  - release_type: market_highlights
+    slug: "challenges-faced-by-malaysian-palm-oil-the-way-forward"
+    stat_url: "https://www.mpoc.org.my/challenges-faced-by-malaysian-palm-oil-the-way-forward/"
+  - release_type: market_highlights
+    slug: "palm-oil-market-outlook-within-the-americas-region"
+    stat_url: "https://www.mpoc.org.my/palm-oil-market-outlook-within-the-americas-region/"
+  - release_type: market_highlights
+    slug: "chinas-vegetable-oil-outlook-and-palm-oil-situation"
+    stat_url: "https://www.mpoc.org.my/chinas-vegetable-oil-outlook-and-palm-oil-situation/"
+  - release_type: market_highlights
+    slug: "outlook-for-malaysian-palm-oil-exports-to-asia-pacific-region-excluding-china-in-2020"
+    stat_url: "https://www.mpoc.org.my/outlook-for-malaysian-palm-oil-exports-to-asia-pacific-region-excluding-china-in-2020/"
+  - release_type: market_highlights
+    slug: "worsening-covid-19-situation-in-pakistan-to-affect-palm-oil-imports"
+    stat_url: "https://www.mpoc.org.my/worsening-covid-19-situation-in-pakistan-to-affect-palm-oil-imports/"
+  - release_type: market_highlights
+    slug: "near-term-prospects-of-oil-crop-feedstock-in-the-eu"
+    stat_url: "https://www.mpoc.org.my/near-term-prospects-of-oil-crop-feedstock-in-the-eu/"
+  - release_type: market_highlights
+    slug: "tight-soybean-end-stock-to-boost-soybean-prices"
+    stat_url: "https://www.mpoc.org.my/tight-soybean-end-stock-to-boost-soybean-prices/"
+  - release_type: market_highlights
+    slug: "emerging-markets-palm-oil-growth-prospects-in-kazakhstan"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-palm-oil-growth-prospects-in-kazakhstan/"
+  - release_type: market_highlights
+    slug: "an-analysis-of-the-united-states-oils-and-fats-market-demand"
+    stat_url: "https://www.mpoc.org.my/an-analysis-of-the-united-states-oils-and-fats-market-demand/"
+  - release_type: market_highlights
+    slug: "the-impact-of-covid-19-on-palm-oil-demand-in-the-eu"
+    stat_url: "https://www.mpoc.org.my/the-impact-of-covid-19-on-palm-oil-demand-in-the-eu/"
+  - release_type: market_highlights
+    slug: "palm-oil-demand-scenario-in-china-post-covid-19"
+    stat_url: "https://www.mpoc.org.my/palm-oil-demand-scenario-in-china-post-covid-19/"
+  - release_type: market_highlights
+    slug: "kenya-expected-to-increase-palm-oil-imports-in-the-coming-months"
+    stat_url: "https://www.mpoc.org.my/kenya-expected-to-increase-palm-oil-imports-in-the-coming-months/"
+  - release_type: market_highlights
+    slug: "covid-19-prospects-of-demand-recovery-in-russia"
+    stat_url: "https://www.mpoc.org.my/covid-19-prospects-of-demand-recovery-in-russia/"
+  - release_type: market_highlights
+    slug: "forecast-on-import-trend-of-oils-and-fats-in-bangladesh-during-may-june-2020"
+    stat_url: "https://www.mpoc.org.my/forecast-on-import-trend-of-oils-and-fats-in-bangladesh-during-may-june-2020/"
+  - release_type: market_highlights
+    slug: "emerging-markets-potential-markets-to-explore-in-the-middle-east"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-potential-markets-to-explore-in-the-middle-east/"
+  - release_type: market_highlights
+    slug: "emerging-markets-opportunities-for-palm-oil-in-algeria"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-opportunities-for-palm-oil-in-algeria/"
+  - release_type: market_highlights
+    slug: "india-tackles-covid-19-fallout"
+    stat_url: "https://www.mpoc.org.my/india-tackles-covid-19-fallout/"
+  - release_type: market_highlights
+    slug: "sunflower-oil-gaining-popularity-among-chinese-consumer"
+    stat_url: "https://www.mpoc.org.my/sunflower-oil-gaining-popularity-among-chinese-consumer/"
+  - release_type: market_highlights
+    slug: "palm-oil-internet-seminar-pointers-june-22-28-2020"
+    stat_url: "https://www.mpoc.org.my/palm-oil-internet-seminar-pointers-june-22-28-2020/"
+  - release_type: market_highlights
+    slug: "emerging-markets-opportunities-for-palm-oil-in-asia-pacific-region"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-opportunities-for-palm-oil-in-asia-pacific-region/"
+  - release_type: market_highlights
+    slug: "what-might-the-new-normal-be-for-palm-oil-in-the-eu"
+    stat_url: "https://www.mpoc.org.my/what-might-the-new-normal-be-for-palm-oil-in-the-eu/"
+  - release_type: market_highlights
+    slug: "palm-oil-demand-outlook-in-the-philippines-for-2020"
+    stat_url: "https://www.mpoc.org.my/palm-oil-demand-outlook-in-the-philippines-for-2020/"
+  - release_type: market_highlights
+    slug: "summary-of-the-webinar-on-mitigating-the-impact-of-covid-19-on-malaysian-palm-oil-trade"
+    stat_url: "https://www.mpoc.org.my/summary-of-the-webinar-on-mitigating-the-impact-of-covid-19-on-malaysian-palm-oil-trade/"
+  - release_type: market_highlights
+    slug: "what-does-brexit-mean-for-malaysia-and-palm-oil"
+    stat_url: "https://www.mpoc.org.my/what-does-brexit-mean-for-malaysia-and-palm-oil/"
+  - release_type: market_highlights
+    slug: "emerging-markets-uzbekistans-palm-oil-potential"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-uzbekistans-palm-oil-potential/"
+  - release_type: market_highlights
+    slug: "emerging-markets-growth-segment-for-palm-oil-within-china"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-growth-segment-for-palm-oil-within-china/"
+  - release_type: market_highlights
+    slug: "suspension-of-indian-import-licences-for-rbd-palm-products"
+    stat_url: "https://www.mpoc.org.my/suspension-of-indian-import-licences-for-rbd-palm-products/"
+  - release_type: market_highlights
+    slug: "emerging-markets-evaluating-sub-saharan-africa-for-palm-oil-potential"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-evaluating-sub-saharan-africa-for-palm-oil-potential/"
+  - release_type: market_highlights
+    slug: "emerging-markets-in-americas-region"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-in-americas-region/"
+  - release_type: market_highlights
+    slug: "emerging-markets-eurasian-economic-union"
+    stat_url: "https://www.mpoc.org.my/emerging-markets-eurasian-economic-union/"
+  - release_type: market_highlights
+    slug: "restrictions-on-refined-palm-oil-import-in-india-to-revitalize-palm-oil-refining-sector-in-nepal"
+    stat_url: "https://www.mpoc.org.my/restrictions-on-refined-palm-oil-import-in-india-to-revitalize-palm-oil-refining-sector-in-nepal/"
+  - release_type: market_highlights
+    slug: "would-there-be-an-impulsive-consumption-after-the-covid-19-lockdown-is-lifted-in-china"
+    stat_url: "https://www.mpoc.org.my/would-there-be-an-impulsive-consumption-after-the-covid-19-lockdown-is-lifted-in-china/"
+  - release_type: market_highlights
+    slug: "impact-of-covid-19-on-ramadan-consumption-of-oils-and-fats"
+    stat_url: "https://www.mpoc.org.my/impact-of-covid-19-on-ramadan-consumption-of-oils-and-fats/"
+  - release_type: market_highlights
+    slug: "continuing-impact-of-covid-19-restrictions"
+    stat_url: "https://www.mpoc.org.my/continuing-impact-of-covid-19-restrictions/"
+  - release_type: market_highlights
+    slug: "chinas-hog-production-growth-a-post-asf-update"
+    stat_url: "https://www.mpoc.org.my/chinas-hog-production-growth-a-post-asf-update/"
+  - release_type: market_highlights
+    slug: "chinas-cooking-oil-consumption-likely-to-increase-in-2020"
+    stat_url: "https://www.mpoc.org.my/chinas-cooking-oil-consumption-likely-to-increase-in-2020/"
+  - release_type: market_highlights
+    slug: "the-impact-of-the-covid-19-crisis-on-the-trade-and-consumption-of-palm-oil-in-italy"
+    stat_url: "https://www.mpoc.org.my/the-impact-of-the-covid-19-crisis-on-the-trade-and-consumption-of-palm-oil-in-italy/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-supply-and-demand-outlook-for-2020"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-supply-and-demand-outlook-for-2020/"
+  - release_type: market_highlights
+    slug: "can-sub-saharan-africa-region-import-more-cpo"
+    stat_url: "https://www.mpoc.org.my/can-sub-saharan-africa-region-import-more-cpo/"
+  - release_type: market_highlights
+    slug: "japan-palm-oil-consumption-steady-despite-covid-19-concerns"
+    stat_url: "https://www.mpoc.org.my/japan-palm-oil-consumption-steady-despite-covid-19-concerns/"
+  - release_type: market_highlights
+    slug: "staring-into-the-abyss-the-coronavirus-and-the-european-market-for-used-cooking-oil"
+    stat_url: "https://www.mpoc.org.my/staring-into-the-abyss-the-coronavirus-and-the-european-market-for-used-cooking-oil/"
+  - release_type: market_highlights
+    slug: "ethiopia-barriers-faced-as-a-result-of-the-pandemic"
+    stat_url: "https://www.mpoc.org.my/ethiopia-barriers-faced-as-a-result-of-the-pandemic/"
+  - release_type: market_highlights
+    slug: "covid-19-the-netherlands-and-palm-oil"
+    stat_url: "https://www.mpoc.org.my/covid-19-the-netherlands-and-palm-oil/"
+  - release_type: market_highlights
+    slug: "should-malaysia-review-its-biodiesel-policy"
+    stat_url: "https://www.mpoc.org.my/should-malaysia-review-its-biodiesel-policy/"
+  - release_type: market_highlights
+    slug: "malaysian-b20-biodiesel-affected-by-low-crude-oil-prices"
+    stat_url: "https://www.mpoc.org.my/malaysian-b20-biodiesel-affected-by-low-crude-oil-prices/"
+  - release_type: market_highlights
+    slug: "would-china-gain-from-the-excess-cpo-due-to-lower-biodiesel-mandate-in-producing-countries"
+    stat_url: "https://www.mpoc.org.my/would-china-gain-from-the-excess-cpo-due-to-lower-biodiesel-mandate-in-producing-countries/"
+  - release_type: market_highlights
+    slug: "opportunities-for-palm-oil-in-central-eastern-europe"
+    stat_url: "https://www.mpoc.org.my/opportunities-for-palm-oil-in-central-eastern-europe/"
+  - release_type: market_highlights
+    slug: "impressive-increase-in-1st-quarter-2020-imports-of-mpo-in-bangladesh"
+    stat_url: "https://www.mpoc.org.my/impressive-increase-in-1st-quarter-2020-imports-of-mpo-in-bangladesh/"
+  - release_type: market_highlights
+    slug: "outlook-for-palm-oil-demand-in-the-indian-subcontinent-region-q2-2020"
+    stat_url: "https://www.mpoc.org.my/outlook-for-palm-oil-demand-in-the-indian-subcontinent-region-q2-2020/"
+  - release_type: market_highlights
+    slug: "outlook-of-malaysian-biodiesel-mandate-in-2020"
+    stat_url: "https://www.mpoc.org.my/outlook-of-malaysian-biodiesel-mandate-in-2020/"
+  - release_type: market_highlights
+    slug: "the-impact-of-the-covid-19-crisis-on-palm-oil-trade-and-consumption-in-germany"
+    stat_url: "https://www.mpoc.org.my/the-impact-of-the-covid-19-crisis-on-palm-oil-trade-and-consumption-in-germany/"
+  - release_type: market_highlights
+    slug: "chinas-palm-oil-import-q1-performance-and-q2-outlook"
+    stat_url: "https://www.mpoc.org.my/chinas-palm-oil-import-q1-performance-and-q2-outlook/"
+  - release_type: market_highlights
+    slug: "us-food-industry-trends-in-2020"
+    stat_url: "https://www.mpoc.org.my/us-food-industry-trends-in-2020/"
+  - release_type: market_highlights
+    slug: "impact-of-covid-19-restrictions-on-south-american-soymeal-prices"
+    stat_url: "https://www.mpoc.org.my/impact-of-covid-19-restrictions-on-south-american-soymeal-prices/"
+  - release_type: market_highlights
+    slug: "palm-oil-demand-stable-in-south-africa-amidst-covid-19"
+    stat_url: "https://www.mpoc.org.my/palm-oil-demand-stable-in-south-africa-amidst-covid-19/"
+  - release_type: market_highlights
+    slug: "covid-19-restrictions-affecting-the-soybean-crushing-industry-in-argentina"
+    stat_url: "https://www.mpoc.org.my/covid-19-restrictions-affecting-the-soybean-crushing-industry-in-argentina/"
+  - release_type: market_highlights
+    slug: "india-changes-conditions-on-import-of-refined-palm-oil"
+    stat_url: "https://www.mpoc.org.my/india-changes-conditions-on-import-of-refined-palm-oil/"
+  - release_type: market_highlights
+    slug: "pakistan-removes-2-additional-import-duty-on-edible-oil"
+    stat_url: "https://www.mpoc.org.my/pakistan-removes-2-additional-import-duty-on-edible-oil/"
+  - release_type: market_highlights
+    slug: "fear-of-a-downfall-in-sub-saharan-africas-demand-for-palm-oil-amid-covid-19"
+    stat_url: "https://www.mpoc.org.my/fear-of-a-downfall-in-sub-saharan-africas-demand-for-palm-oil-amid-covid-19/"
+  - release_type: market_highlights
+    slug: "covid-19-virus-impacting-indian-agriculture"
+    stat_url: "https://www.mpoc.org.my/covid-19-virus-impacting-indian-agriculture/"
+  - release_type: market_highlights
+    slug: "bangladeshs-unutilized-refining-capacity-amid-slow-down-in-imports"
+    stat_url: "https://www.mpoc.org.my/bangladeshs-unutilized-refining-capacity-amid-slow-down-in-imports/"
+  - release_type: market_highlights
+    slug: "chinas-oleochemical-market-brace-for-higher-demand-amid-disruption-in-supply-chain-and-covid-19"
+    stat_url: "https://www.mpoc.org.my/chinas-oleochemical-market-brace-for-higher-demand-amid-disruption-in-supply-chain-and-covid-19/"
+  - release_type: market_highlights
+    slug: "recovery-in-chinas-soybean-crushing-activities-poses-threat-to-malaysian-palm-oil-imports-in-china"
+    stat_url: "https://www.mpoc.org.my/recovery-in-chinas-soybean-crushing-activities-poses-threat-to-malaysian-palm-oil-imports-in-china/"
+  - release_type: market_highlights
+    slug: "indias-import-of-edible-oil-decline-32-in-march-2020"
+    stat_url: "https://www.mpoc.org.my/indias-import-of-edible-oil-decline-32-in-march-2020/"
+  - release_type: market_highlights
+    slug: "mexico-braces-for-the-surge-in-covid-19-cases-and-the-collapse-of-oil-prices"
+    stat_url: "https://www.mpoc.org.my/mexico-braces-for-the-surge-in-covid-19-cases-and-the-collapse-of-oil-prices/"
+  - release_type: market_highlights
+    slug: "impact-of-demand-and-imports-of-palm-oil-in-west-africa-amidst-the-convid-19-pandemic"
+    stat_url: "https://www.mpoc.org.my/impact-of-demand-and-imports-of-palm-oil-in-west-africa-amidst-the-convid-19-pandemic/"
+  - release_type: market_highlights
+    slug: "vegetable-oils-scenario-as-covid-19-locks-down-india"
+    stat_url: "https://www.mpoc.org.my/vegetable-oils-scenario-as-covid-19-locks-down-india/"
+  - release_type: market_highlights
+    slug: "lower-oilseed-stocks-in-china-support-margin-and-triggered-import-crushing"
+    stat_url: "https://www.mpoc.org.my/lower-oilseed-stocks-in-china-support-margin-and-triggered-import-crushing/"
+  - release_type: market_highlights
+    slug: "chinas-riving-economy-and-the-demand-of-the-palm-oil"
+    stat_url: "https://www.mpoc.org.my/chinas-riving-economy-and-the-demand-of-the-palm-oil/"
+  - release_type: market_highlights
+    slug: "pakistani-demand-on-track-despite-covid-19"
+    stat_url: "https://www.mpoc.org.my/pakistani-demand-on-track-despite-covid-19/"
+  - release_type: market_highlights
+    slug: "big-drop-in-us-ethanol-prices"
+    stat_url: "https://www.mpoc.org.my/big-drop-in-us-ethanol-prices/"
+  - release_type: market_highlights
+    slug: "china-soybean-crushing-capacity-moving-up-north"
+    stat_url: "https://www.mpoc.org.my/china-soybean-crushing-capacity-moving-up-north/"
+  - release_type: market_highlights
+    slug: "mco-in-bangladesh-threatens-ramadan-demand-for-oils-fats"
+    stat_url: "https://www.mpoc.org.my/mco-in-bangladesh-threatens-ramadan-demand-for-oils-fats/"
+  - release_type: market_highlights
+    slug: "key-issues-affecting-palm-oil-in-the-eu-and-in-eu-member-states-in-2020-and-beyond"
+    stat_url: "https://www.mpoc.org.my/key-issues-affecting-palm-oil-in-the-eu-and-in-eu-member-states-in-2020-and-beyond/"
+  - release_type: market_highlights
+    slug: "coronavirus-implications-on-egypt"
+    stat_url: "https://www.mpoc.org.my/coronavirus-implications-on-egypt/"
+  - release_type: market_highlights
+    slug: "impact-of-covid-19-on-indian-vegoils-business"
+    stat_url: "https://www.mpoc.org.my/impact-of-covid-19-on-indian-vegoils-business/"
+  - release_type: market_highlights
+    slug: "government-of-india-relaxes-certificate-of-origin-conditions"
+    stat_url: "https://www.mpoc.org.my/government-of-india-relaxes-certificate-of-origin-conditions/"
+  - release_type: market_highlights
+    slug: "food-industry-likely-to-maintain-palm-oil-imports-in-turkey"
+    stat_url: "https://www.mpoc.org.my/food-industry-likely-to-maintain-palm-oil-imports-in-turkey/"
+  - release_type: market_highlights
+    slug: "usa-renewable-energy-producers-hit-hard-by-the-corona-virus-pandemic"
+    stat_url: "https://www.mpoc.org.my/usa-renewable-energy-producers-hit-hard-by-the-corona-virus-pandemic/"
+  - release_type: market_highlights
+    slug: "demand-for-oleochemicals-will-be-key-driver-to-support-palm-oil-prices"
+    stat_url: "https://www.mpoc.org.my/demand-for-oleochemicals-will-be-key-driver-to-support-palm-oil-prices/"
+  - release_type: market_highlights
+    slug: "gcc-challenges-in-the-first-half-2020"
+    stat_url: "https://www.mpoc.org.my/gcc-challenges-in-the-first-half-2020/"
+  - release_type: market_highlights
+    slug: "plan-to-boost-oilseed-crops-in-pakistan"
+    stat_url: "https://www.mpoc.org.my/plan-to-boost-oilseed-crops-in-pakistan/"
+  - release_type: market_highlights
+    slug: "china-soybean-outlook-after-inking-the-phase-1-trade-agreement-with-us"
+    stat_url: "https://www.mpoc.org.my/china-soybean-outlook-after-inking-the-phase-1-trade-agreement-with-us/"
+  - release_type: market_highlights
+    slug: "summary-port-sops-during-covid-19-pandemic-nightmare-for-logistics-operations"
+    stat_url: "https://www.mpoc.org.my/summary-port-sops-during-covid-19-pandemic-nightmare-for-logistics-operations/"
+  - release_type: market_highlights
+    slug: "covid-19-impact-on-us-soybeans-industry"
+    stat_url: "https://www.mpoc.org.my/covid-19-impact-on-us-soybeans-industry/"
+  - release_type: market_highlights
+    slug: "covid-19-disruptions-and-a-dilemma-for-essential-goods-manufacturers-in-india"
+    stat_url: "https://www.mpoc.org.my/covid-19-disruptions-and-a-dilemma-for-essential-goods-manufacturers-in-india/"
+  - release_type: market_highlights
+    slug: "eu-adopts-temporary-economic-measures-during-covid-19-outbreak"
+    stat_url: "https://www.mpoc.org.my/eu-adopts-temporary-economic-measures-during-covid-19-outbreak/"
+  - release_type: market_highlights
+    slug: "malaysian-palm-oil-export-jan-feb-2020-grow-in-south-korea-despite-of-covid-19-scare"
+    stat_url: "https://www.mpoc.org.my/malaysian-palm-oil-export-jan-feb-2020-grow-in-south-korea-despite-of-covid-19-scare/"
+  - release_type: market_highlights
+    slug: "sub-continent-region-covid-19-unlikely-to-affect-palm-oil-demand"
+    stat_url: "https://www.mpoc.org.my/sub-continent-region-covid-19-unlikely-to-affect-palm-oil-demand/"
+  - release_type: market_highlights
+    slug: "how-will-crude-oil-price-slump-impact-nigeria"
+    stat_url: "https://www.mpoc.org.my/how-will-crude-oil-price-slump-impact-nigeria/"
+  - release_type: market_highlights
+    slug: "mpoa-statement"
+    stat_url: "https://www.mpoc.org.my/mpoa-statement/"
+  - release_type: market_highlights
+    slug: "palm-oil-skids-on-covid-19"
+    stat_url: "https://www.mpoc.org.my/palm-oil-skids-on-covid-19/"
+  - release_type: market_highlights
+    slug: "crash-of-crude-oil-market-and-its-impact-on-oils-fats"
+    stat_url: "https://www.mpoc.org.my/crash-of-crude-oil-market-and-its-impact-on-oils-fats/"

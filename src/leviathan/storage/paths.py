@@ -274,6 +274,75 @@ def raw_mpob_overview_pdf_key(year: int) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# MPOC (Malaysian Palm Oil Council) — market data and narrative
+# ---------------------------------------------------------------------------
+
+def raw_mpoc_trade_stats_key(year: int) -> str:
+    """S3 key for an MPOC Monthly Palm Oil Trade Statistics HTML page.
+
+    One page per calendar year; contains Malaysia's exports/imports,
+    export destinations by country, production & stocks, and CPO prices.
+    Available years: 2009–2023.
+    """
+    filename = f"mpoc_trade_stats_{year}.html"
+    return (
+        f"raw/production/"
+        f"source=mpoc/"
+        f"release_type=trade_statistics/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
+def raw_mpoc_stock_comparison_key() -> str:
+    """S3 key for the MPOC Stock Comparison page.
+
+    Single live page covering oils & fats ending stocks for China, India,
+    Pakistan, Bangladesh, and USA — cross-commodity (Palm, Soy, Sunflower,
+    Rapeseed) with analyst narrative paragraphs per country.
+    Re-run without --skip-existing-s3 to refresh with current month's data.
+    """
+    return (
+        "raw/production/"
+        "source=mpoc/"
+        "release_type=stock_comparison/"
+        "mpoc_stock_comparison.html"
+    )
+
+
+def raw_mpoc_competitive_prices_key() -> str:
+    """S3 key for the MPOC Competitive Price Table page.
+
+    Monthly CPO BMD+3 vs SBO ARG FOB vs SFO Black Sea FOB price comparison
+    with price premiums of substitute oils over CPO.
+    Single live page — re-run without --skip-existing-s3 to refresh.
+    """
+    return (
+        "raw/production/"
+        "source=mpoc/"
+        "release_type=competitive_prices/"
+        "mpoc_competitive_prices.html"
+    )
+
+
+def raw_mpoc_article_key(slug: str) -> str:
+    """S3 key for an MPOC Market Highlights article.
+
+    Args:
+        slug: URL slug of the article, e.g.
+              ``"the-rise-of-aseans-foodservice-industry-an-engine-for-palm-oil-demand"``.
+    """
+    filename = f"mpoc_article_{slug}.html"
+    return (
+        f"raw/production/"
+        f"source=mpoc/"
+        f"release_type=market_highlights/"
+        f"slug={slug}/"
+        f"{filename}"
+    )
+
+
 def raw_mpob_annual_key(year: int) -> str:
     """S3 key for an MPOB BEPI annual summary HTML page.
 

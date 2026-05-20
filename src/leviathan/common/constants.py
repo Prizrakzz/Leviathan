@@ -11,6 +11,10 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "usda_fas_coffee_wmt": 100_000,   # 100 KB — WMT circulars are typically 1–2 MB
     "mpob": 5_000,                    # 5 KB — MPOB BEPI HTML table pages are typically 20–80 KB
     "mpob_overview_pdf": 50_000,       # 50 KB — early PDFs (2010-2011) can be ~100 KB; guards against empty responses
+    "mpoc_trade_stats": 50_000,        # 50 KB — annual HTML pages are ~350-390 KB in practice
+    "mpoc_stock_comparison": 5_000,    # 5 KB — single page with tables + narrative, ~390 KB in practice
+    "mpoc_competitive_prices": 1_000,  # 1 KB — small table page, ~330 KB in practice
+    "mpoc_article": 2_000,             # 2 KB — individual article pages vary widely
 }
 
 ALL_COMMODITIES: list[str] = [

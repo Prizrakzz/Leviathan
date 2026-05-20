@@ -1,0 +1,18 @@
+{
+  "url": "https://mpoc.org.my/market-insight/daily-palm-oil-prices/",
+  "status_code": 200,
+  "size_bytes": 335824,
+  "validation_markers": {
+    "CPO": true,
+    "SBO": true
+  },
+  "spread_table_found": true,
+  "spread_row_labels": [
+    "26-Jan",
+    "26-Feb",
+    "26-Mar",
+    "26-Apr",
+    "25-Npq"
+  ],
+  "notes": "Single live page \u2014 no historical archive. Re-run fetch_mpoc.py periodically (without --skip-existing-s3) to refresh."
+}
