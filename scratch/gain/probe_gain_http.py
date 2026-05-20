@@ -417,7 +417,7 @@ def crawl(
                 if skip_landing:
                     fh.write(json.dumps(record, ensure_ascii=False) + "\n")
                     saved += 1
-                    print(f"  ✓ {iso2}  {pub_date}  {title}")
+                    print(f"  [OK] {iso2}  {pub_date}  {title}")
                     continue
 
                 # Fetch landing page for PDF URL
@@ -434,11 +434,11 @@ def crawl(
                     fh.write(json.dumps(record, ensure_ascii=False) + "\n")
                     saved += 1
                     print(
-                        f"  ✓ {iso2}  {pub_date}  {record['report_id'] or title}  "
-                        f"→ {record['pdf_url'].split('/')[-1]}"
+                        f"  [OK] {iso2}  {pub_date}  {record['report_id'] or title}  "
+                        f"-> {record['pdf_url'].split('/')[-1]}"
                     )
                 else:
-                    print(f"  ✗ No PDF for {title} ({card['landing_url']})")
+                    print(f"  [NO PDF] {title} ({card['landing_url']})")
 
                 time.sleep(sleep_landing)
 

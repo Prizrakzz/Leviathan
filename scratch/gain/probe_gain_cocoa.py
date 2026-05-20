@@ -206,8 +206,8 @@ def crawl(
                     saved += 1
                     page_cocoa += 1
                     print(
-                        f"  ✓ {iso2}  {pub_date}  {record.get('report_id') or title}"
-                        + (f"  → {record['pdf_url'].split('/')[-1]}" if record["pdf_url"] else "")
+                        f"  [OK] {iso2}  {pub_date}  {record.get('report_id') or title}"
+                        + (f"  -> {record['pdf_url'].split('/')[-1]}" if record["pdf_url"] else "")
                     )
 
             if page_cocoa == 0:

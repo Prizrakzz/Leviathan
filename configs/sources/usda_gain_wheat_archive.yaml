@@ -1,0 +1,77 @@
+source: usda_gain_wheat
+generated: '2026-05-20'
+total_records: 8
+target_countries:
+- AR
+- AU
+- CA
+- EG
+- IN
+- PK
+- TR
+- UA
+reports:
+- report_id: AR2026-0006
+  country_iso2: AR
+  country_name: ''
+  post: Buenos Aires
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Buenos%20Aires_Argentina_AR2026-0006.pdf
+  filename_clean: Grain_and_Feed_Annual_Buenos_Aires_Argentina_AR2026-0006.pdf
+- report_id: AS2026-0010
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Canberra_Australia_AS2026-0010.pdf
+  filename_clean: Grain_and_Feed_Annual_Canberra_Australia_AS2026-0010.pdf
+- report_id: CA2026-0009
+  country_iso2: CA
+  country_name: ''
+  post: Ottawa
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Ottawa_Canada_CA2026-0009.pdf
+  filename_clean: Grain_and_Feed_Annual_Ottawa_Canada_CA2026-0009.pdf
+- report_id: EG2026-0009
+  country_iso2: EG
+  country_name: ''
+  post: Cairo
+  category: Egyptian Wheat Procurement Price Increase for 2026 Season
+  publication_date: '20260501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/05/Egyptian%20Wheat%20Procurement%20Price%20Increase%20for%202026%20Season_Cairo_Egypt_EG2026-0009.pdf
+  filename_clean: Egyptian_Wheat_Procurement_Price_Increase_for_2026_Season_Cairo_Egypt_EG2026-0009.pdf
+- report_id: IN2026-0019
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_New%20Delhi_India_IN2026-0019.pdf
+  filename_clean: Grain_and_Feed_Annual_New_Delhi_India_IN2026-0019.pdf
+- report_id: PK2026-0003
+  country_iso2: PK
+  country_name: ''
+  post: Islamabad
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Islamabad_Pakistan_PK2026-0003.pdf
+  filename_clean: Grain_and_Feed_Annual_Islamabad_Pakistan_PK2026-0003.pdf
+- report_id: TU2026-0013
+  country_iso2: TR
+  country_name: ''
+  post: Ankara
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Ankara_Turkiye_TU2026-0013.pdf
+  filename_clean: Grain_and_Feed_Annual_Ankara_Turkiye_TU2026-0013.pdf
+- report_id: UP2026-0012
+  country_iso2: UA
+  country_name: ''
+  post: Kyiv
+  category: Grain and Feed Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Grain%20and%20Feed%20Annual_Kyiv_Ukraine_UP2026-0012.pdf
+  filename_clean: Grain_and_Feed_Annual_Kyiv_Ukraine_UP2026-0012.pdf

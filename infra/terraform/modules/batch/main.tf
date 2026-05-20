@@ -371,3 +371,76 @@ resource "aws_cloudwatch_log_group" "batch" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: GAIN raw backfill
+# One task per commodity (10 total) submitted in parallel by
+# jobs/submit/submit_batch_gain_backfill.py.
+# Each task: crawl FAS GAIN pages → build manifest → download PDFs → S3.
+# command is overridden per-task at submission time (containerOverrides).
+# Sizing: 1 vCPU / 2 GB — curl_cffi is single-threaded; memory covers BS4 +
+# in-memory PDF bytes (largest GAIN PDFs ~5 MB, 500 records max per commodity).
+# Timeout: 6 h ceiling — a full commodity crawl + download is typically 1-3 h.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "gain_backfill" {
+  name = "${var.project_name}-${var.environment}-gain-backfill"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {}
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    # Default command — overridden per-task via containerOverrides at submit time.
+    command = [
+      "jobs/batch/gain_backfill_task.py",
+      "--commodity-name", "wheat",
+      "--commodity-id",   "15",
+      "--target-countries", "US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR",
+      "--bucket", "${var.leviathan_bucket}",
+      "--aws-region", "${var.aws_region}",
+      "--skip-existing-s3",
+      "--sleep-seconds", "2"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "gain-backfill"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 21600  # 6 h ceiling
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

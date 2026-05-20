@@ -14,6 +14,7 @@ COPY pyproject.toml ./
 COPY src/ ./src/
 COPY jobs/ ./jobs/
 COPY configs/ ./configs/
+COPY scratch/gain/ ./scratch/gain/
 
 RUN pip install --no-cache-dir -e ".[batch]"
 
