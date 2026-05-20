@@ -83,8 +83,8 @@ _UA = (
 # Matches: qs.crops_20260520.txt.gz
 _CROPS_FILENAME_RE = re.compile(r'(qs\.crops_(\d{8})\.txt\.gz)')
 
-# Expected column name in the first line of the decompressed CSV.
-_EXPECTED_COLUMN = "source_desc"
+# Expected column name in the first line of the decompressed CSV (headers are uppercase).
+_EXPECTED_COLUMN = "SOURCE_DESC"
 
 # Download timeout in seconds.  The file is ~1 GB; allow 15 minutes.
 _DOWNLOAD_TIMEOUT = 900
