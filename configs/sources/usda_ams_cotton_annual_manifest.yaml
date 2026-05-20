@@ -1,4 +1,4 @@
-# USDA AMS Cotton Annual Quality Report (MyMarketNews slug 1658) manifest
+# USDA AMS Cotton Annual Quality Report (MyMarketNews slug 1658 / cnaacq.pdf) manifest
 #
 # Managed by: python jobs/ingest/fetch_usda_ams_cotton_annual.py --discover
 # Do NOT edit the reports list by hand; run --discover to extend it.
@@ -6,17 +6,23 @@
 # Schema per entry:
 #   season_year       : beginning year of the marketing season (used in S3 key)
 #   report_begin_date : ISO date matching the URL path component in the filerepo URL
-#   pdf_url           : direct URL to the PDF file on mymarketnews.ams.usda.gov
-#   filename          : PDF filename extracted from pdf_url
+#   pdf_url           : canonical PDF URL (may be blocked; use download_url for fetching)
+#   filename          : PDF filename for S3 key
+#   download_url      : (optional) Wayback archive URL for entries where pdf_url is
+#                       inaccessible; absent when download equals pdf_url (direct)
 #
-# Source: https://mymarketnews.ams.usda.gov/viewReport/1658
-# MyMarketNews slug 1658 = "Annual Cotton Quality Report" (CNAACQ)
-# Published annually in late June/early July covering the July–June season.
+# Discovery:
+#   --discover queries the Wayback CDX API for filerepo/1658 snapshots (2017+) and
+#   unique cnaacq.pdf digest-collapsed snapshots (2008-2016 gap fill).
+#   mymarketnews.ams.usda.gov blocks all programmatic HTTP connections;
+#   www.ams.usda.gov (cnaacq.pdf) is accessible directly for the current season.
 # ---------------------------------------------------------------------------
+
 
 reports:
 
-  - season_year: 2024
-    report_begin_date: "2024-07-01"
-    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2024-07-01/1254489/ams_1658_00010.pdf"
-    filename: "ams_1658_00010.pdf"
+  - season_year: 2025
+    report_begin_date: "2025-07-01"
+    pdf_url: "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+    filename: "cnaacq_2025.pdf"
+    download_url: "https://web.archive.org/web/20250607094139

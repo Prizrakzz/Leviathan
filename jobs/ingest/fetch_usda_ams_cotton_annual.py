@@ -2,24 +2,30 @@
 
 Two sources covering 1986-present:
 
-  Source A — Archive (1986–2013)
+  Source A — Archive (1986–1998)
     Static IIS directory listing at:
       https://apps.ams.usda.gov/Cotton/AnnualCNMarketNewsReports/Quality/
-    Crawled with BeautifulSoup; yields files like 1986ACQ.pdf … 2013ACQ.pdf.
+    Crawled with BeautifulSoup; yields files like 1986ACQ.pdf … 1998ACQ.pdf.
     Plain requests (no WAF on static gov server).
 
-  Source B — MyMarketNews slug 1658 (~2013–present)
+  Source B — MyMarketNews slug 1658 / live cnaacq.pdf (2008–present)
     Annual Cotton Quality Report (CNAACQ).  Historical PDF URLs are discovered
-    via a Playwright scrape of:
-      https://mymarketnews.ams.usda.gov/viewReport/1658
-    which expands "Previous Releases" decade accordion sections.  Discovered
-    URLs are written to configs/sources/usda_ams_cotton_annual_manifest.yaml.
+    via the Wayback Machine CDX API (mymarketnews.ams.usda.gov blocks all
+    programmatic HTTP connections).  The current-season report is downloaded
+    directly from www.ams.usda.gov/mnreports/cnaacq.pdf (different, accessible
+    server).
+    Discovered URLs are written to
+      configs/sources/usda_ams_cotton_annual_manifest.yaml
+    which stores a ``download_url`` field (Wayback archive URL or direct) in
+    addition to the canonical ``pdf_url``.
 
 Modes
 -----
---discover  (requires ``playwright[chromium]``, installed via the [biweekly] extra)
-    Playwright headless scrape of viewReport/1658 → write/update manifest YAML.
-    Run once to seed the manifest; subsequent normal runs use the manifest.
+--discover
+    Query Wayback CDX API for filerepo/1658 PDFs (2017-present) and
+    for unique cnaacq.pdf snapshots (2008-2016 gap).  Add current-season
+    live cnaacq.pdf entry.  Write/update the manifest YAML.  No Playwright
+    or AWS credentials required.
 
 Normal (no --discover)
     Download from both Source A (live directory crawl) and Source B (manifest).
@@ -35,8 +41,10 @@ from __future__ import annotations
 import argparse
 import re
 import time
+from datetime import date
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 import requests
 import yaml
@@ -57,8 +65,8 @@ logger = get_logger(__name__)
 _ARCHIVE_URL = (
     "https://apps.ams.usda.gov/Cotton/AnnualCNMarketNewsReports/Quality/"
 )
-_VIEW_REPORT_URL = "https://mymarketnews.ams.usda.gov/viewReport/1658"
-_FILEREPO_BASE = "https://mymarketnews.ams.usda.gov"
+_CNAACQ_URL = "https://www.ams.usda.gov/mnreports/cnaacq.pdf"
+_WAYBACK_CDX_URL = "http://web.archive.org/cdx/search/cdx"
 
 _MANIFEST_PATH = (
     Path(__file__).parent.parent.parent
@@ -69,11 +77,11 @@ _MANIFEST_PATH = (
 
 _PDF_MAGIC = b"%PDF"
 _REQUEST_TIMEOUT_S = 60
-_PLAYWRIGHT_TIMEOUT_MS = 30_000
 
 _ARCHIVE_FILENAME_RE = re.compile(r"(\d{4})ACQ\.pdf", re.IGNORECASE)
 _FILEREPO_PATH_RE = re.compile(
-    r"/filerepo/sites/default/files/1658/(\d{4})-\d{2}-\d{2}/\d+/([^\"'\s]+\.pdf)"
+    r"/filerepo/sites/default/files/1658/(\d{4})-\d{2}-\d{2}/(\d+)/([^?\"'\s]+\.pdf)",
+    re.IGNORECASE,
 )
 
 
@@ -140,142 +148,187 @@ def _load_manifest() -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# --discover  (Playwright)
+# --discover  (Wayback CDX API)
 # ---------------------------------------------------------------------------
 
-def _discover_and_update_manifest() -> None:
-    """Scrape viewReport/1658 with Playwright, update the manifest YAML."""
-    import asyncio
+def _wayback_cdx(
+    session: requests.Session,
+    url_pattern: str,
+    fl: str,
+    extra_params: dict[str, Any] | None = None,
+) -> list[list[str]]:
+    """Query the Wayback Machine CDX API.  Returns data rows (header stripped)."""
+    params: dict[str, Any] = {
+        "url": url_pattern,
+        "output": "json",
+        "fl": fl,
+    }
+    if extra_params:
+        params.update(extra_params)
+    resp = session.get(_WAYBACK_CDX_URL, params=params, timeout=60)
+    resp.raise_for_status()
+    data = resp.json()
+    return data[1:] if len(data) > 1 else []  # skip header row
 
-    new_reports = asyncio.run(_discover_async())
 
-    if not new_reports:
-        logger.info("Playwright: no new reports discovered.")
-        return
+def _discover_via_wayback(session: requests.Session) -> list[dict[str, Any]]:
+    """Query Wayback CDX to enumerate annual cotton quality PDFs.
 
-    # Merge with existing manifest (de-duplicate by season_year)
-    existing_data = yaml.safe_load(_MANIFEST_PATH.read_text(encoding="utf-8")) or {}
-    existing: list[dict[str, Any]] = existing_data.get("reports") or []
-    existing_years = {int(r["season_year"]) for r in existing}
+    Part 1 — filerepo/1658 PDFs archived by Wayback (2017-present):
+        One entry per season_year; picks the highest node-ID URL variant
+        (most recent file version) and wraps it in a Wayback ``if_`` URL.
 
-    added = 0
-    for report in new_reports:
-        if int(report["season_year"]) not in existing_years:
-            existing.append(report)
-            existing_years.add(int(report["season_year"]))
-            added += 1
-            logger.info(
-                "Manifest: adding season_year=%d  %s",
-                report["season_year"],
-                report["filename"],
-            )
+    Part 2 — /mnreports/cnaacq.pdf unique versions (2008-2016 gap fill):
+        Uses ``collapse=digest`` to get one row per unique file.  Season year
+        is derived from the month of the first-seen timestamp (≥6 → same year).
 
-    existing.sort(key=lambda r: r["season_year"], reverse=True)
+    Part 3 — live cnaacq.pdf for the current season:
+        Direct download from www.ams.usda.gov (no Wayback needed).
+    """
+    reports: list[dict[str, Any]] = []
+    seen_years: set[int] = set()
 
-    # Preserve the header comment then dump updated reports list
+    # ---- Part 1: filerepo/1658 Wayback snapshots ----
+    logger.info("Wayback CDX: querying filerepo/1658 PDFs...")
+    filerepo_rows = _wayback_cdx(
+        session,
+        "mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/*",
+        fl="original,timestamp,statuscode",
+        extra_params={"filter": "statuscode:200", "limit": "500", "collapse": "original"},
+    )
+
+    # Pick highest node-ID entry per season_year (most recent/canonical)
+    best: dict[int, dict[str, Any]] = {}
+    for original, timestamp, _status in filerepo_rows:
+        if ".pdf" not in original.lower():
+            continue
+        m = _FILEREPO_PATH_RE.search(original)
+        if not m:
+            continue
+        year = int(m.group(1))
+        node_id = int(m.group(2))
+        filename = unquote(m.group(3))
+        date_m = re.search(r"/1658/(\d{4}-\d{2}-\d{2})/", original)
+        if year not in best or node_id > best[year]["_node_id"]:
+            best[year] = {
+                "season_year": year,
+                "report_begin_date": date_m.group(1) if date_m else f"{year}-07-01",
+                "pdf_url": original,
+                "filename": filename,
+                "download_url": f"https://web.archive.org/web/{timestamp}if_/{original}",
+                "_node_id": node_id,
+            }
+
+    for year in sorted(best):
+        entry = {k: v for k, v in best[year].items() if not k.startswith("_")}
+        reports.append(entry)
+        seen_years.add(year)
+        logger.info("Wayback CDX: filerepo season=%d  %s", year, entry["filename"])
+
+    # ---- Part 2: cnaacq.pdf unique versions (gap fill) ----
+    logger.info("Wayback CDX: querying cnaacq.pdf unique versions...")
+    cnaacq_rows = _wayback_cdx(
+        session,
+        "www.ams.usda.gov/mnreports/cnaacq.pdf",
+        fl="timestamp,length,statuscode",
+        extra_params={"filter": "statuscode:200", "collapse": "digest", "limit": "100"},
+    )
+
+    for timestamp, _length, _status in cnaacq_rows:
+        ts_year = int(timestamp[:4])
+        ts_month = int(timestamp[4:6])
+        # Published late June/early July; snapshot month ≥6 → that year's report
+        season_year = ts_year if ts_month >= 6 else ts_year - 1
+        if season_year in seen_years:
+            continue
+        wayback_url = f"https://web.archive.org/web/{timestamp}if_/{_CNAACQ_URL}"
+        reports.append({
+            "season_year": season_year,
+            "report_begin_date": f"{season_year}-07-01",
+            "pdf_url": _CNAACQ_URL,
+            "filename": f"cnaacq_{season_year}.pdf",
+            "download_url": wayback_url,
+        })
+        seen_years.add(season_year)
+        logger.info(
+            "Wayback CDX: cnaacq.pdf season=%d  (snapshot %s)", season_year, timestamp[:8]
+        )
+
+    # ---- Part 3: live cnaacq.pdf for the current season ----
+    today = date.today()
+    current_season = today.year if today.month >= 7 else today.year - 1
+    if current_season not in seen_years:
+        reports.append({
+            "season_year": current_season,
+            "report_begin_date": f"{current_season}-07-01",
+            "pdf_url": _CNAACQ_URL,
+            "filename": f"cnaacq_{current_season}.pdf",
+            # download_url == pdf_url (direct, no Wayback needed)
+        })
+        seen_years.add(current_season)
+        logger.info("Live cnaacq.pdf: current season=%d", current_season)
+
+    reports.sort(key=lambda r: r["season_year"], reverse=True)
+    logger.info(
+        "Wayback discover: %d entries, years %s",
+        len(reports),
+        sorted(seen_years),
+    )
+    return reports
+
+
+def _save_manifest(reports: list[dict[str, Any]]) -> None:
+    """Write the manifest YAML, preserving the header comment block."""
     header_lines: list[str] = []
     for line in _MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
         if line.startswith("#") or line.strip() == "":
             header_lines.append(line)
         else:
             break
-
     with _MANIFEST_PATH.open("w", encoding="utf-8") as fh:
         fh.write("\n".join(header_lines) + "\n\n")
         fh.write("reports:\n\n")
-        for report in existing:
+        for report in reports:
             fh.write(f"  - season_year: {report['season_year']}\n")
             fh.write(f"    report_begin_date: \"{report['report_begin_date']}\"\n")
             fh.write(f"    pdf_url: \"{report['pdf_url']}\"\n")
-            fh.write(f"    filename: \"{report['filename']}\"\n\n")
+            fh.write(f"    filename: \"{report['filename']}\"\n")
+            dl = report.get("download_url")
+            if dl and dl != report["pdf_url"]:
+                fh.write(f"    download_url: \"{dl}\"\n")
+            fh.write("\n")
 
+
+def _discover_and_update_manifest(session: requests.Session) -> None:
+    """Query Wayback CDX to discover historical PDFs and update the manifest."""
+    new_reports = _discover_via_wayback(session)
+    if not new_reports:
+        logger.info("Wayback discover: no entries found.")
+        return
+
+    existing = _load_manifest()
+    existing_by_year: dict[int, dict[str, Any]] = {
+        int(r["season_year"]): r for r in existing
+    }
+
+    added = updated = 0
+    for report in new_reports:
+        year = int(report["season_year"])
+        if year not in existing_by_year:
+            existing_by_year[year] = report
+            added += 1
+            logger.info("Manifest: +season=%d  %s", year, report["filename"])
+        elif not existing_by_year[year].get("download_url"):
+            # Existing entry has no download_url — update with Wayback info
+            existing_by_year[year] = report
+            updated += 1
+            logger.info("Manifest: updated season=%d with download_url", year)
+
+    merged = sorted(existing_by_year.values(), key=lambda r: r["season_year"], reverse=True)
+    _save_manifest(merged)
     logger.info(
-        "Manifest updated: %d new entries added, %d total",
-        added,
-        len(existing),
+        "Manifest: %d added, %d updated, %d total", added, updated, len(merged)
     )
-
-
-async def _discover_async() -> list[dict[str, Any]]:
-    """Playwright scrape of viewReport/1658. Returns list of discovered report dicts."""
-    from playwright.async_api import async_playwright
-
-    found: list[dict[str, Any]] = []
-    seen_years: set[int] = set()
-
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
-        page = await browser.new_page()
-
-        logger.info("Playwright: navigating to %s", _VIEW_REPORT_URL)
-        await page.goto(
-            _VIEW_REPORT_URL,
-            wait_until="networkidle",
-            timeout=_PLAYWRIGHT_TIMEOUT_MS,
-        )
-
-        def _extract_links_from_html(html: str) -> list[dict[str, Any]]:
-            """Parse all filerepo/1658 PDF links from page HTML."""
-            results = []
-            for m in _FILEREPO_PATH_RE.finditer(html):
-                year_str, fname = m.group(1), m.group(2)
-                season_year = int(year_str)
-                if season_year in seen_years:
-                    continue
-                # Reconstruct the full filerepo path from the HTML
-                full_match = m.group(0)  # e.g. /filerepo/sites/default/files/1658/2024-07-01/1254489/ams_1658_00010.pdf
-                pdf_url = _FILEREPO_BASE + full_match
-                # report_begin_date is the date component in the URL path
-                date_m = re.search(r"/1658/(\d{4}-\d{2}-\d{2})/", full_match)
-                report_begin_date = date_m.group(1) if date_m else f"{season_year}-07-01"
-                results.append({
-                    "season_year": season_year,
-                    "report_begin_date": report_begin_date,
-                    "pdf_url": pdf_url,
-                    "filename": fname,
-                })
-                seen_years.add(season_year)
-            return results
-
-        # Collect links from initial page load
-        html = await page.content()
-        initial = _extract_links_from_html(html)
-        found.extend(initial)
-        logger.info("Playwright: found %d links on initial page load", len(initial))
-
-        # Expand any collapsed "Previous Releases" accordion sections
-        # Look for buttons/elements with aria-expanded="false" or text like "2020s"/"2010s"
-        expand_selectors = [
-            "button[aria-expanded='false']",
-            "a[aria-expanded='false']",
-            "[data-toggle='collapse']:not(.collapsed)",
-            ".accordion-button.collapsed",
-        ]
-        for selector in expand_selectors:
-            try:
-                elements = await page.locator(selector).all()
-                for el in elements:
-                    try:
-                        text = (await el.inner_text()).strip()
-                        logger.info("Playwright: clicking expand element: %r", text[:60])
-                        await el.click()
-                        await page.wait_for_timeout(800)
-                    except Exception as exc:  # noqa: BLE001
-                        logger.debug("Playwright: click failed (%s)", exc)
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Playwright: selector %r failed (%s)", selector, exc)
-
-        # Re-collect links after expansion
-        html = await page.content()
-        expanded = _extract_links_from_html(html)
-        found.extend(expanded)
-        logger.info("Playwright: found %d additional links after expansion", len(expanded))
-
-        await browser.close()
-
-    found.sort(key=lambda r: r["season_year"], reverse=True)
-    logger.info("Playwright: discovered %d unique annual report entries", len(found))
-    return found
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +346,9 @@ def _upload_report(
     """Download one PDF and upload to S3.  Returns 'uploaded', 'skipped', or 'error'."""
     season_year = int(entry["season_year"])
     filename = entry["filename"]
-    pdf_url = entry["pdf_url"]
+    canonical_url = entry["pdf_url"]
+    # Use download_url (Wayback or direct) if provided, else fall back to pdf_url
+    download_url = entry.get("download_url") or canonical_url
     s3_key = raw_cotton_annual_key(season_year, filename)
 
     try:
@@ -302,8 +357,8 @@ def _upload_report(
             time.sleep(sleep_seconds)
             return "skipped"
 
-        logger.info("Downloading season=%d  %s …", season_year, pdf_url)
-        pdf_bytes = _download_pdf(pdf_url, session)
+        logger.info("Downloading season=%d  %s …", season_year, download_url)
+        pdf_bytes = _download_pdf(download_url, session)
 
         if not pdf_bytes.startswith(_PDF_MAGIC):
             raise RuntimeError(
@@ -313,7 +368,7 @@ def _upload_report(
 
         upload_bytes_to_s3(pdf_bytes, bucket, s3_key, region)
         write_raw_s3_metadata(
-            bucket, s3_key, pdf_bytes, pdf_url, "application/pdf", region
+            bucket, s3_key, pdf_bytes, canonical_url, "application/pdf", region
         )
         logger.info(
             "Uploaded season=%d  (%.1f MB) → s3://%s/%s",
@@ -347,9 +402,9 @@ def main() -> None:
         "--discover",
         action="store_true",
         help=(
-            "Playwright scrape of mymarketnews.ams.usda.gov/viewReport/1658 "
-            "to discover historical slug-1658 PDF URLs and update the manifest YAML. "
-            "Requires playwright[chromium] (pip install leviathan[biweekly])."
+            "Query Wayback Machine CDX API to discover historical slug-1658 "
+            "PDF URLs and cnaacq.pdf snapshots; update the manifest YAML. "
+            "No Playwright or AWS credentials required."
         ),
     )
     parser.add_argument(
@@ -383,15 +438,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # --discover: scrape viewReport/1658, update manifest, then exit
-    if args.discover:
-        _discover_and_update_manifest()
-        return
-
-    # Build combined entry list
-    headers = {"User-Agent": "Mozilla/5.0"}
+    # Build shared HTTP session
     session = requests.Session()
-    session.headers.update(headers)
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+
+    # --discover: query Wayback CDX, update manifest, then exit
+    if args.discover:
+        _discover_and_update_manifest(session)
+        return
 
     entries: list[dict[str, Any]] = []
 
