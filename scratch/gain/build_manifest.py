@@ -1,17 +1,25 @@
-"""Build configs/sources/usda_gain_coffee_archive.yaml from probe output.
+"""Build a GAIN commodity manifest YAML from probe output.
 
 Reads from either:
   - scratch/gain/api_results.jsonl     (from probe_gain_api.py --save)
-  - scratch/gain/crawl_results.jsonl   (from probe_gain_playwright.py)
+  - scratch/gain/crawl_{commodity}.jsonl   (from probe_gain_http.py)
 
 Produces a clean, deduplicated, sorted YAML manifest consumed by
-jobs/ingest/fetch_gain_coffee.py.
+jobs/ingest/fetch_gain.py.
 
 Usage
 -----
-    python scratch/gain/build_manifest.py --source api
-    python scratch/gain/build_manifest.py --source playwright
-    python scratch/gain/build_manifest.py  # auto-detects whichever file exists
+For coffee (backwards compat):
+    python scratch/gain/build_manifest.py \\
+        --source-name usda_gain_coffee \\
+        --input scratch/gain/crawl_coffee.jsonl
+
+For wheat (after running probe_gain_http.py for wheat):
+    python scratch/gain/build_manifest.py \\
+        --source-name usda_gain_wheat \\
+        --input scratch/gain/crawl_wheat.jsonl
+
+--output defaults to configs/sources/{source_name}_archive.yaml.
 """
 from __future__ import annotations
 
@@ -30,16 +38,19 @@ import yaml
 
 _SCRATCH_DIR = Path(__file__).parent
 _REPO_ROOT = _SCRATCH_DIR.parent.parent  # scratch/ → Leviathan/
-_OUT_MANIFEST = _REPO_ROOT / "configs" / "sources" / "usda_gain_coffee_archive.yaml"
+_CONFIGS_SOURCES_DIR = _REPO_ROOT / "configs" / "sources"
 
 _API_RESULTS = _SCRATCH_DIR / "api_results.jsonl"
-_CRAWL_RESULTS = _SCRATCH_DIR / "crawl_results.jsonl"
+_CRAWL_RESULTS = _SCRATCH_DIR / "crawl_results.jsonl"  # legacy default
 
 # ---------------------------------------------------------------------------
 # Country ISO2 mapping (must stay in sync with probe scripts)
 # ---------------------------------------------------------------------------
 
+# Comprehensive country name → ISO2 mapping covering all GAIN commodity producers.
+# Keys are lowercase substrings that appear in FAS report titles.
 COUNTRY_NAME_TO_ISO2: dict[str, str] = {
+    # Coffee origins
     "brazil": "BR",
     "colombia": "CO",
     "ethiopia": "ET",
@@ -64,9 +75,69 @@ COUNTRY_NAME_TO_ISO2: dict[str, str] = {
     "lao p.d.r.": "LA",
     "lao pdr": "LA",
     "lao people": "LA",
+    # Grains / wheat / corn / rice / oilseeds / softs
+    "united states": "US",
+    "france": "FR",
+    "australia": "AU",
+    "canada": "CA",
+    "ukraine": "UA",
+    "russia": "RU",
+    "russian federation": "RU",
+    "pakistan": "PK",
+    "egypt": "EG",
+    "argentina": "AR",
+    "china": "CN",
+    "germany": "DE",
+    "poland": "PL",
+    "turkey": "TR",
+    "türkiye": "TR",
+    "turkiye": "TR",
+    "south africa": "ZA",
+    "nigeria": "NG",
+    "thailand": "TH",
+    "ghana": "GH",
+    "paraguay": "PY",
+    "bolivia": "BO",
+    "ecuador": "EC",
+    "uzbekistan": "UZ",
+    "malaysia": "MY",
+    "myanmar": "MM",
+    "burma": "MM",
+    "taiwan": "TW",
+    "south korea": "KR",
+    "korea": "KR",
+    "japan": "JP",
+    "senegal": "SN",
+    "nicaragua": "NI",
+    "costa rica": "CR",
+    "el salvador": "SV",
+    "dominican republic": "DO",
+    "haiti": "HT",
+    "venezuela": "VE",
+    "chile": "CL",
+    "uruguay": "UY",
+    "zambia": "ZM",
+    "zimbabwe": "ZW",
+    "mozambique": "MZ",
+    "rwanda": "RW",
+    "burundi": "BI",
+    "angola": "AO",
+    "sri lanka": "LK",
+    "nepal": "NP",
+    "bangladesh": "BD",
+    "iran": "IR",
+    "iraq": "IQ",
+    "saudi arabia": "SA",
+    "kazakhstan": "KZ",
+    "romania": "RO",
+    "hungary": "HU",
+    "spain": "ES",
+    "italy": "IT",
+    "netherlands": "NL",
+    "belgium": "BE",
+    "austria": "AT",
+    "new zealand": "NZ",
 }
-
-TARGET_ISO2: set[str] = set(COUNTRY_NAME_TO_ISO2.values())
 
 
 def _iso2_from_name(name: str) -> str | None:
@@ -171,7 +242,7 @@ def _parse_pdf_url(pdf_url: str) -> dict:
 # Normalise a raw record from either source
 # ---------------------------------------------------------------------------
 
-def _normalise_api_record(raw: dict) -> dict | None:
+def _normalise_api_record(raw: dict, target_iso2: set[str]) -> dict | None:
     """Normalise a record from probe_gain_api.py (newgainapi JSON format)."""
     # Typical newgainapi fields (case varies):
     report_id = (
@@ -193,11 +264,15 @@ def _normalise_api_record(raw: dict) -> dict | None:
         report_id[:2] if report_id else ""
     ).upper()
 
-    # Try to resolve ISO2
     iso2 = (
-        country_code if country_code in TARGET_ISO2
-        else _iso2_from_name(country_name)
+        _iso2_from_name(country_name)
+        or (country_code if len(country_code) == 2 else "")
     )
+
+    if not iso2:
+        return None
+    if target_iso2 and iso2 not in target_iso2:
+        return None
 
     attachments = raw.get("Attachments") or raw.get("attachments") or []
     pdf_url = ""
@@ -245,8 +320,8 @@ def _normalise_api_record(raw: dict) -> dict | None:
     }
 
 
-def _normalise_playwright_record(raw: dict) -> dict | None:
-    """Normalise a record from probe_gain_playwright.py."""
+def _normalise_playwright_record(raw: dict, target_iso2: set[str]) -> dict | None:
+    """Normalise a record from probe_gain_playwright.py or probe_gain_http.py."""
     pdf_url = raw.get("pdf_url") or ""
     if not pdf_url:
         return None
@@ -268,7 +343,9 @@ def _normalise_playwright_record(raw: dict) -> dict | None:
         if parsed["pub_year"] and parsed["pub_month"]:
             publication_date = f"{parsed['pub_year']}{parsed['pub_month']:02d}01"
 
-    if not iso2 or iso2 not in TARGET_ISO2:
+    if not iso2:
+        return None
+    if target_iso2 and iso2 not in target_iso2:
         return None
 
     return {
@@ -288,43 +365,76 @@ def _normalise_playwright_record(raw: dict) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build GAIN coffee manifest YAML.")
+    parser = argparse.ArgumentParser(description="Build GAIN commodity manifest YAML.")
+    parser.add_argument(
+        "--source-name",
+        required=True,
+        metavar="SOURCE_NAME",
+        help=(
+            "Source identifier for the YAML manifest, e.g. 'usda_gain_wheat'. "
+            "Output defaults to configs/sources/{source_name}_archive.yaml."
+        ),
+    )
+    parser.add_argument(
+        "--input",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Input JSONL file from probe_gain_http.py "
+            "(default: auto-detect api_results.jsonl or crawl_results.jsonl)."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help="Output YAML manifest path (default: configs/sources/{source_name}_archive.yaml).",
+    )
     parser.add_argument(
         "--source",
         choices=["api", "playwright", "auto"],
         default="auto",
-        help="Which probe output to read (default: auto-detect).",
-    )
-    parser.add_argument(
-        "--include-all-countries",
-        action="store_true",
-        help="Include countries outside TARGET_ISO2 (for debugging).",
+        help="Which probe format to normalise: 'api' (newgainapi JSON) or 'playwright'/'auto' (HTTP crawler).",
     )
     args = parser.parse_args()
 
-    # Determine source file
-    if args.source == "auto":
+    source_name = args.source_name.strip()
+    out_manifest = (
+        Path(args.output)
+        if args.output
+        else _CONFIGS_SOURCES_DIR / f"{source_name}_archive.yaml"
+    )
+
+    # Determine input file
+    if args.input:
+        input_path = Path(args.input)
+        detected_source = args.source if args.source != "auto" else "playwright"
+    elif args.source == "auto":
         if _API_RESULTS.exists():
-            source = "api"
-            print(f"Auto-detected: api_results.jsonl")
+            input_path = _API_RESULTS
+            detected_source = "api"
+            print("Auto-detected: api_results.jsonl")
         elif _CRAWL_RESULTS.exists():
-            source = "playwright"
-            print(f"Auto-detected: crawl_results.jsonl")
+            input_path = _CRAWL_RESULTS
+            detected_source = "playwright"
+            print("Auto-detected: crawl_results.jsonl")
         else:
             print(
                 "ERROR: Neither api_results.jsonl nor crawl_results.jsonl found.\n"
-                "Run probe_gain_api.py --save  or  probe_gain_playwright.py first."
+                "Run probe_gain_http.py first, or pass --input PATH."
             )
             raise SystemExit(1)
     else:
-        source = args.source
+        input_path = _API_RESULTS if args.source == "api" else _CRAWL_RESULTS
+        detected_source = args.source
 
-    input_path = _API_RESULTS if source == "api" else _CRAWL_RESULTS
     if not input_path.exists():
         print(f"ERROR: {input_path} not found.")
         raise SystemExit(1)
 
-    normalise_fn = _normalise_api_record if source == "api" else _normalise_playwright_record
+    # target_iso2 = empty set means accept all countries (probe already filtered)
+    target_iso2: set[str] = set()
+    normalise_fn = _normalise_api_record if detected_source == "api" else _normalise_playwright_record
 
     # Read + normalise
     records: list[dict] = []
@@ -341,13 +451,8 @@ def main() -> None:
                 skipped += 1
                 continue
 
-            norm = normalise_fn(raw)
+            norm = normalise_fn(raw, target_iso2)
             if norm is None:
-                skipped += 1
-                continue
-
-            # Country filter
-            if not args.include_all_countries and norm["country_iso2"] not in TARGET_ISO2:
                 skipped += 1
                 continue
 
@@ -370,16 +475,15 @@ def main() -> None:
 
     print(f"After dedup: {len(deduped)} records ({len(records) - len(deduped)} duplicates removed)")
 
-    # Sort: country_iso2 asc, then publication_date desc
-    deduped.sort(key=lambda r: (r["country_iso2"], r["publication_date"]), reverse=False)
-    # Secondary: within same country, newest first
+    # Sort: country_iso2 asc, then publication_date desc within each country
     from itertools import groupby
+    from collections import Counter
+    deduped.sort(key=lambda r: (r["country_iso2"], r["publication_date"]))
     sorted_records: list[dict] = []
     for iso2, group in groupby(deduped, key=lambda r: r["country_iso2"]):
         sorted_records.extend(sorted(group, key=lambda r: r["publication_date"], reverse=True))
 
     # Country summary
-    from collections import Counter
     country_counts = Counter(r["country_iso2"] for r in sorted_records)
     print("\nRecords per country:")
     for iso2, count in sorted(country_counts.items()):
@@ -387,15 +491,15 @@ def main() -> None:
 
     # Build YAML structure
     manifest = {
-        "source": "usda_gain_coffee",
+        "source": source_name,
         "generated": date.today().strftime("%Y-%m-%d"),
         "total_records": len(sorted_records),
-        "target_countries": sorted(TARGET_ISO2),
+        "target_countries": sorted(country_counts.keys()),
         "reports": sorted_records,
     }
 
-    _OUT_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
-    with open(_OUT_MANIFEST, "w", encoding="utf-8") as fh:
+    out_manifest.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_manifest, "w", encoding="utf-8") as fh:
         yaml.dump(
             manifest,
             fh,
@@ -405,9 +509,12 @@ def main() -> None:
             width=120,
         )
 
-    print(f"\nManifest written: {_OUT_MANIFEST}")
+    print(f"\nManifest written: {out_manifest}")
     print(f"Total reports: {len(sorted_records)}")
-    print("\nNext step: python jobs/ingest/fetch_gain_coffee.py --dry-run --limit 5 --country-codes BR")
+    print(
+        f"\nNext step: python jobs/ingest/fetch_gain.py "
+        f"--source {source_name} --dry-run --limit 5"
+    )
 
 
 if __name__ == "__main__":

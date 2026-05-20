@@ -1,0 +1,61 @@
+source: usda_gain_corn
+
+commodity_id: 14  # FAS taxonomy: "Corn"
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A14"
+
+notes: >
+  USDA FAS GAIN country-level Corn/Maize Annual and Semi-annual attaché intelligence reports.
+  Covers CBOT corn, Campinas reference (BMF), French maize (MATIF), and South African maize
+  (JSE white/yellow) production origins. Primary intelligence on area harvested, crop
+  conditions, ethanol policy, feed demand, and export flows.
+
+publication_cadence: annual
+
+target_commodities:
+  - corn_cbot
+  - campinas_corn_reference_bmf
+  - french_maize_matif
+  - south_african_white_maize_jse
+  - south_african_yellow_maize_jse
+
+report_categories:
+  - Grain and Feed Annual
+  - Grain and Feed Semi-Annual
+  - Grain and Feed Update
+
+target_countries:
+  - US   # United States    (CBOT)
+  - BR   # Brazil           (Campinas/BMF)
+  - AR   # Argentina
+  - CN   # China            (largest consumer)
+  - UA   # Ukraine          (major exporter)
+  - FR   # France           (MATIF)
+  - ZA   # South Africa     (JSE white/yellow maize)
+  - MX   # Mexico
+  - PH   # Philippines
+  - NG   # Nigeria          (West African indicator)
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_corn/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 14
+    --target-countries US,BR,AR,CN,UA,FR,ZA,MX,PH,NG
+    --output scratch/gain/crawl_corn.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_corn
+    --input scratch/gain/crawl_corn.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_corn
+    --skip-existing-s3
+    --sleep-seconds 2

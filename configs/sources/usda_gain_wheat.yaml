@@ -1,0 +1,65 @@
+source: usda_gain_wheat
+
+commodity_id: 15  # FAS taxonomy: "Wheat"
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A15"
+
+notes: >
+  USDA FAS GAIN country-level Wheat Annual and Semi-annual attaché intelligence reports.
+  Covers hard red winter (KCBT), hard red spring (MGEX), soft red winter (CBOT), and
+  French wheat (MATIF) production origins. FAS attaché officers provide in-country
+  primary intelligence on crop conditions, area harvested, yield forecasts, domestic
+  procurement policy, and export competitiveness. Spans ~25 years from ~1998.
+
+publication_cadence: annual
+
+target_commodities:
+  - french_wheat_matif
+  - hard_red_winter_wheat_kcbt
+  - hard_red_spring_wheat_mgex
+  - soft_red_winter_wheat_cbot
+
+report_categories:
+  - Grain and Feed Annual
+  - Grain and Feed Semi-Annual
+  - Grain and Feed Update
+
+target_countries:
+  - US   # United States    (SRW, HRW, HRS)
+  - FR   # France           (MATIF)
+  - AU   # Australia        (major exporter)
+  - CA   # Canada           (spring wheat)
+  - UA   # Ukraine          (Black Sea origin)
+  - RU   # Russia           (largest exporter)
+  - IN   # India            (second largest producer)
+  - PK   # Pakistan
+  - EG   # Egypt            (largest importer)
+  - AR   # Argentina        (SRW exporter)
+  - CN   # China            (largest producer)
+  - DE   # Germany
+  - PL   # Poland
+  - TR   # Turkey           (Türkiye)
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_wheat/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 15
+    --target-countries US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR
+    --output scratch/gain/crawl_wheat.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_wheat
+    --input scratch/gain/crawl_wheat.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_wheat
+    --skip-existing-s3
+    --sleep-seconds 2

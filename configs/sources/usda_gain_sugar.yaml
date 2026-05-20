@@ -1,0 +1,56 @@
+source: usda_gain_sugar
+
+commodity_id: 34  # FAS taxonomy: "Sugar"
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A34"
+
+notes: >
+  USDA FAS GAIN country-level Sugar Annual and Semi-annual attaché intelligence reports.
+  Covers the raw sugar (ICE No. 11) and white sugar (ICE No. 5 / LIFFE) spread origins.
+  Primary intelligence on cane crushing schedules, domestic consumption policy, ethanol
+  blending mandates (BR), export subsidy schemes (IN), and mill competitiveness.
+
+publication_cadence: annual
+
+target_commodities:
+  - raw_sugar
+  - white_sugar
+
+report_categories:
+  - Sugar Annual
+  - Sugar Semi-Annual
+
+target_countries:
+  - BR   # Brazil           (dominant raw exporter, flex-fuel ethanol)
+  - IN   # India            (second largest producer/subsidised exporter)
+  - TH   # Thailand         (major white sugar exporter)
+  - AU   # Australia        (efficient raw exporter)
+  - CO   # Colombia
+  - MX   # Mexico           (NAFTA sugar dispute history)
+  - ID   # Indonesia        (large importer)
+  - PH   # Philippines
+  - EC   # Ecuador
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_sugar/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 34
+    --target-countries BR,IN,TH,AU,CO,MX,ID,PH,EC
+    --output scratch/gain/crawl_sugar.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_sugar
+    --input scratch/gain/crawl_sugar.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_sugar
+    --skip-existing-s3
+    --sleep-seconds 2

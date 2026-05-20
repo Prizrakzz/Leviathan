@@ -1,0 +1,59 @@
+source: usda_gain_palm_oil
+
+commodity_id: 13023  # FAS taxonomy: "Vegetable Oils (excl. soybean)"
+# Note: FAS does not have a dedicated "Palm Oil" commodity filter.
+# Palm oil reports are filed under Vegetable Oils (excl. soybean) = 13023.
+# The probe will capture all countries under this category; manifest filtering
+# targets MY and ID as the dominant origins for the CPO/palm olein spreads.
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A13023"
+
+notes: >
+  USDA FAS GAIN country-level Palm Oil (and other vegetable oil) Annual attaché intelligence
+  reports. The FAS taxonomy groups palm, coconut, and other veg oils under commodity 13023.
+  Malaysia (MPOB-level detail) and Indonesia dominate. Reports cover mill output, export
+  quotas, biodiesel mandates, and CPO price dynamics — complements MPOB/MPOC bronze data.
+  Target: Malaysian CPO (CME) and Palm Olein (DCE) spread origins.
+
+publication_cadence: annual
+
+target_commodities:
+  - malaysian_crude_palm_oil_cme
+  - palm_olein_dce
+
+report_categories:
+  - Oilseeds and Products Annual
+  - Oilseeds and Products Update
+
+target_countries:
+  - MY   # Malaysia         (MPOB-level intelligence, dominant exporter)
+  - ID   # Indonesia        (largest producer)
+  - TH   # Thailand
+  - CO   # Colombia         (Americas palm origin)
+  - NG   # Nigeria          (West African origin)
+  - CM   # Cameroon
+  - GH   # Ghana
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_palm_oil/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 13023
+    --target-countries MY,ID,TH,CO,NG,CM,GH
+    --output scratch/gain/crawl_palm_oil.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_palm_oil
+    --input scratch/gain/crawl_palm_oil.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_palm_oil
+    --skip-existing-s3
+    --sleep-seconds 2

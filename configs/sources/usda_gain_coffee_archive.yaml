@@ -1,0 +1,4199 @@
+source: usda_gain_coffee
+generated: '2026-05-20'
+total_records: 522
+target_countries:
+- BR
+- CI
+- CM
+- CO
+- ET
+- GT
+- HN
+- ID
+- IN
+- KE
+- LA
+- MX
+- PE
+- PG
+- PH
+- TZ
+- UG
+- VN
+reports:
+- report_id: BR2026-0008
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Brewing Opportunity - Brazil's Specialty Coffee Sector Shows Strong Potential
+  publication_date: '20260301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/03/Brewing%20Opportunity%20-%20Brazil%27s%20Specialty%20Coffee%20Sector%20Shows%20Strong%20Potential_Brasilia_Brazil_BR2026-0008.pdf
+  filename_clean: Brewing_Opportunity_-_Brazil's_Specialty_Coffee_Sector_Shows_Strong_Potential_Brasilia_Brazil_BR2026-0008.pdf
+- report_id: BR2025-0048
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Coffee Semi-annual
+  publication_date: '20251201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/12/Coffee%20Semi-annual_Brasilia_Brazil_BR2025-0048.pdf
+  filename_clean: Coffee_Semi-annual_Brasilia_Brazil_BR2025-0048.pdf
+- report_id: BR2025-0013
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Brasilia_Brazil_BR2025-0013.pdf
+  filename_clean: Coffee_Annual_Brasilia_Brazil_BR2025-0013.pdf
+- report_id: BR2024-0035
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Coffee Semi-annual
+  publication_date: '20241101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/11/Coffee%20Semi-annual_Brasilia_Brazil_BR2024-0035.pdf
+  filename_clean: Coffee_Semi-annual_Brasilia_Brazil_BR2024-0035.pdf
+- report_id: BR2024-0012
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Coffee Annual
+  publication_date: '20240601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/06/Coffee%20Annual_Brasilia_Brazil_BR2024-0012.pdf
+  filename_clean: Coffee_Annual_Brasilia_Brazil_BR2024-0012.pdf
+- report_id: BR2023-0031
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Coffee Semi-annual
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/Coffee%20Semi-annual_Brasilia_Brazil_BR2023-0031.pdf
+  filename_clean: Coffee_Semi-annual_Brasilia_Brazil_BR2023-0031.pdf
+- report_id: BR2023-0011
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Coffee Annual
+  publication_date: '20230601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/06/Coffee%20Annual_Brasilia_Brazil_BR2023-0011.pdf
+  filename_clean: Coffee_Annual_Brasilia_Brazil_BR2023-0011.pdf
+- report_id: BR2022-0060
+  country_iso2: BR
+  country_name: ''
+  post: Sao Paulo ATO
+  category: Coffee Semi-annual
+  publication_date: '20221101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_BR2022-0060.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_BR2022-0060.pdf
+- report_id: BR2022-0035
+  country_iso2: BR
+  country_name: ''
+  post: Sao Paulo ATO
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_BR2022-0035.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_BR2022-0035.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20211101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-15-2021.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-15-2021.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_05-15-2021.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20201101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-15-2020.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-15-2020.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_05-15-2020.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20191101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-15-2019.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-15-2019.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-16-2019.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-16-2019.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20181101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-5-2018.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-5-2018.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-15-2018.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-15-2018.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20171101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-14-2017.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-14-2017.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-15-2017.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-15-2017.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Brazil to Import Coffee
+  publication_date: '20170201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/02/Brazil%20to%20Import%20Coffee_Sao%20Paulo%20ATO_Brazil_2-14-2017.pdf
+  filename_clean: Brazil_to_Import_Coffee_Sao_Paulo_ATO_Brazil_2-14-2017.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20161101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-16-2016.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-16-2016.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-16-2016.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-16-2016.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20151101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-16-2015.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-16-2015.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-7-2015.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-7-2015.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20141101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-14-2014.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-14-2014.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-7-2014.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-7-2014.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20131101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-12-2013.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-12-2013.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-13-2013.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-13-2013.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20111101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-10-2011.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-10-2011.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_5-9-2011.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_5-9-2011.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20101101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/11/Coffee%20Semi-annual_Sao%20Paulo%20ATO_Brazil_11-10-2010.pdf
+  filename_clean: Coffee_Semi-annual_Sao_Paulo_ATO_Brazil_11-10-2010.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: COFFEE SEMI-ANNUAL
+  publication_date: '20091101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/11/COFFEE%20SEMI-ANNUAL_Sao%20Paulo%20ATO_Brazil_11-13-2009.pdf
+  filename_clean: COFFEE_SEMI-ANNUAL_Sao_Paulo_ATO_Brazil_11-13-2009.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_11-14-2008.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_11-14-2008.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/06/Annual_Sao%20Paulo%20ATO_Brazil_05-28-2008.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_05-28-2008.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20071101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/11/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_11-16-2007.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_11-16-2007.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Annual_Sao%20Paulo%20ATO_Brazil_05-15-2007.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_05-15-2007.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20061101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/11/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_11-14-2006.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_11-14-2006.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_Sao%20Paulo%20ATO_Brazil_05-11-2006.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_05-11-2006.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20051101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/11/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_11-22-2005.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_11-22-2005.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual%20Report_Sao%20Paulo%20ATO_Brazil_05-20-2005.pdf
+  filename_clean: Annual_Report_Sao_Paulo_ATO_Brazil_05-20-2005.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20041101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/11/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_11-04-2004.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_11-04-2004.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Annual_Sao%20Paulo%20ATO_Brazil_05-24-2004.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_05-24-2004.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20031201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/12/Coffee%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_11-28-2003.pdf
+  filename_clean: Coffee_Semi-Annual_Sao_Paulo_ATO_Brazil_11-28-2003.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_05-13-2003.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_05-13-2003.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20021101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/11/Coffee%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_11-22-2002.pdf
+  filename_clean: Coffee_Semi-Annual_Sao_Paulo_ATO_Brazil_11-22-2002.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_05-10-2002.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_05-10-2002.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20011101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/11/Coffee%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_11-06-2001.pdf
+  filename_clean: Coffee_Semi-Annual_Sao_Paulo_ATO_Brazil_11-06-2001.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_05-16-2001.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_05-16-2001.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20001101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/11/Coffee%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_11-24-2000.pdf
+  filename_clean: Coffee_Semi-Annual_Sao_Paulo_ATO_Brazil_11-24-2000.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/06/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_06-19-2000.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_06-19-2000.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Production Update
+  publication_date: '20000301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/03/Coffee%20Production%20Update_Sao%20Paulo%20ATO_Brazil_03-03-2000.pdf
+  filename_clean: Coffee_Production_Update_Sao_Paulo_ATO_Brazil_03-03-2000.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/11/Coffee%20Semi-Annual_Brasilia_Brazil_11-16-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Brasilia_Brazil_11-16-1999.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Sao%20Paulo%20ATO_Brazil_05-11-1999.pdf
+  filename_clean: Coffee_Annual_Sao_Paulo_ATO_Brazil_05-11-1999.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_11-13-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Sao_Paulo_ATO_Brazil_11-13-1998.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_Accra_Cote%20d%27Ivoire_05-10-2005.pdf
+  filename_clean: Annual_Accra_Cote_d'Ivoire_05-10-2005.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20041201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/12/Semi-Annual_Accra_Cote%20d%27Ivoire_11-29-2004.pdf
+  filename_clean: Semi-Annual_Accra_Cote_d'Ivoire_11-29-2004.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Update
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Coffee%20Update_Accra_Cote%20d%27Ivoire_05-17-2004.pdf
+  filename_clean: Coffee_Update_Accra_Cote_d'Ivoire_05-17-2004.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20031101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/11/Coffee%20Semi-Annual_Accra_Cote%20d%27Ivoire_11-19-2003.pdf
+  filename_clean: Coffee_Semi-Annual_Accra_Cote_d'Ivoire_11-19-2003.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_Accra_Cote%20d%27Ivoire_05-22-2003.pdf
+  filename_clean: Coffee_Annual_Accra_Cote_d'Ivoire_05-22-2003.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20021201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/12/Coffee%20Semi-Annual_Accra_Cote%20d%27Ivoire_11-27-2002.pdf
+  filename_clean: Coffee_Semi-Annual_Accra_Cote_d'Ivoire_11-27-2002.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Accra_Cote%20d%27Ivoire_05-15-2002.pdf
+  filename_clean: Coffee_Annual_Accra_Cote_d'Ivoire_05-15-2002.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20011101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/11/Coffee%20Semi-Annual_Accra_Cote%20d%27Ivoire_11-16-2001.pdf
+  filename_clean: Coffee_Semi-Annual_Accra_Cote_d'Ivoire_11-16-2001.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Accra_Cote%20d%27Ivoire_05-18-2001.pdf
+  filename_clean: Coffee_Annual_Accra_Cote_d'Ivoire_05-18-2001.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20001101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/11/Coffee%20Semi-Annual_Accra_Cote%20d%27Ivoire_11-16-2000.pdf
+  filename_clean: Coffee_Semi-Annual_Accra_Cote_d'Ivoire_11-16-2000.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Accra_Cote%20d%27Ivoire_05-15-2000.pdf
+  filename_clean: Coffee_Annual_Accra_Cote_d'Ivoire_05-15-2000.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/11/Coffee%20Semi-Annual_Accra_Cote%20d%27Ivoire_11-12-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Accra_Cote_d'Ivoire_11-12-1999.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Accra_Cote%20d%27Ivoire_05-17-1999.pdf
+  filename_clean: Coffee_Annual_Accra_Cote_d'Ivoire_05-17-1999.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi-Annual_Accra_Cote%20d%27Ivoire_11-13-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Accra_Cote_d'Ivoire_11-13-1998.pdf
+- report_id: ''
+  country_iso2: CI
+  country_name: ''
+  post: ''
+  category: Liberalization of Cocoa and Coffee Marketing
+  publication_date: '19980901'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/09/Liberalization%20of%20Cocoa%20and%20Coffee%20Marketing_Accra_Cote%20d%27Ivoire_09-09-1998.pdf
+  filename_clean: Liberalization_of_Cocoa_and_Coffee_Marketing_Accra_Cote_d'Ivoire_09-09-1998.pdf
+- report_id: CO2025-0035
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Semi-annual
+  publication_date: '20251201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/12/Coffee%20Semi-annual_Bogota_Colombia_CO2025-0035.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_CO2025-0035.pdf
+- report_id: CO2025-0014
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Bogota_Colombia_CO2025-0014.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_CO2025-0014.pdf
+- report_id: CO2024-0009
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Semi-annual
+  publication_date: '20241101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/11/Coffee%20Semi-annual_Bogota_Colombia_CO2024-0009.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_CO2024-0009.pdf
+- report_id: CO2024-0007
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_Bogota_Colombia_CO2024-0007.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_CO2024-0007.pdf
+- report_id: CO2023-0027
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Semi-annual
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/Coffee%20Semi-annual_Bogota_Colombia_CO2023-0027.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_CO2023-0027.pdf
+- report_id: CO2023-0012
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Bogota_Colombia_CO2023-0012.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_CO2023-0012.pdf
+- report_id: CO2022-0022
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Semi-annual
+  publication_date: '20221101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/11/Coffee%20Semi-annual_Bogota_Colombia_CO2022-0022.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_CO2022-0022.pdf
+- report_id: CO2022-0010
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_Bogota_Colombia_CO2022-0010.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_CO2022-0010.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20211101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/11/Coffee%20Semi-annual_Bogota_Colombia_11-15-2021.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-15-2021.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Bogota_Colombia_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_05-15-2021.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20201101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/11/Coffee%20Semi-annual_Bogota_Colombia_11-15-2020.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-15-2020.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Bogota_Colombia_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_05-15-2020.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20191101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/11/Coffee%20Semi-annual_Bogota_Colombia_11-15-2019.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-15-2019.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Bogota_Colombia_5-15-2019.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-15-2019.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20181101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/11/Coffee%20Semi-annual_Bogota_Colombia_11-26-2018.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-26-2018.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Bogota_Colombia_5-14-2018.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-14-2018.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20171101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/11/Coffee%20Semi-annual_Bogota_Colombia_11-15-2017.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-15-2017.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Bogota_Colombia_5-15-2017.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-15-2017.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20161101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/11/Coffee%20Semi-annual_Bogota_Colombia_11-15-2016.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-15-2016.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Bogota_Colombia_5-13-2016.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-13-2016.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20151101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/11/Coffee%20Semi-annual_Bogota_Colombia_11-10-2015.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-10-2015.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Bogota_Colombia_5-15-2015.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-15-2015.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20141101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/11/Coffee%20Semi-annual_Bogota_Colombia_11-13-2014.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-13-2014.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Bogota_Colombia_5-14-2014.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-14-2014.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20131101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/11/Coffee%20Semi-annual_Bogota_Colombia_11-15-2013.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-15-2013.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Update - Recovery Underway But Subsidy Crisis Looms as Farme
+  publication_date: '20131101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/11/Coffee%20Update%20-%20Recovery%20Underway%20But%20Subsidy%20Crisis%20Looms%20as%20Farme_Bogota_Colombia_11-7-2013.pdf
+  filename_clean: Coffee_Update_-_Recovery_Underway_But_Subsidy_Crisis_Looms_as_Farme_Bogota_Colombia_11-7-2013.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Coffee%20Annual_Bogota_Colombia_5-7-2013.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-7-2013.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Grower Protests Inspire a Domino Effect of Agricultural Subsi
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Coffee%20Grower%20Protests%20Inspire%20a%20Domino%20Effect%20of%20Agricultural%20Subsi_Bogota_Colombia_4-16-2013.pdf
+  filename_clean: Coffee_Grower_Protests_Inspire_a_Domino_Effect_of_Agricultural_Subsi_Bogota_Colombia_4-16-2013.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20121201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/12/Coffee%20Semi-annual_Bogota_Colombia_11-29-2012.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-29-2012.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Bogota_Colombia_5-14-2012.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-14-2012.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Bogota_Colombia_5-24-2011.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_5-24-2011.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20101101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/11/Coffee%20Semi-annual_Bogota_Colombia_11-15-2010.pdf
+  filename_clean: Coffee_Semi-annual_Bogota_Colombia_11-15-2010.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Colombian Gvmt Extends $50 million in subsidies to Coffee Sector
+  publication_date: '20091201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/12/Colombian%20Gvmt%20Extends%20%2450%20million%20in%20subsidies%20to%20Coffee%20Sector_Bogota_Colombia_12-4-2009.pdf
+  filename_clean: Colombian_Gvmt_Extends_$50_million_in_subsidies_to_Coffee_Sector_Bogota_Colombia_12-4-2009.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: COFFEE SEMI-ANNUAL
+  publication_date: '20091101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/11/COFFEE%20SEMI-ANNUAL_Bogota_Colombia_11-6-2009.pdf
+  filename_clean: COFFEE_SEMI-ANNUAL_Bogota_Colombia_11-6-2009.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Semi-Annual_Bogota_Colombia_11-14-2008.pdf
+  filename_clean: Semi-Annual_Bogota_Colombia_11-14-2008.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/06/Annual_Bogota_Colombia_06-04-2008.pdf
+  filename_clean: Annual_Bogota_Colombia_06-04-2008.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20071101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/11/Semi-Annual_Bogota_Colombia_11-20-2007.pdf
+  filename_clean: Semi-Annual_Bogota_Colombia_11-20-2007.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Annual_Bogota_Colombia_05-16-2007.pdf
+  filename_clean: Annual_Bogota_Colombia_05-16-2007.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20061101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/11/Semi-Annual_Bogota_Colombia_11-21-2006.pdf
+  filename_clean: Semi-Annual_Bogota_Colombia_11-21-2006.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_Bogota_Colombia_05-17-2006.pdf
+  filename_clean: Annual_Bogota_Colombia_05-17-2006.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20051101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/11/Semi-Annual_Bogota_Colombia_11-21-2005.pdf
+  filename_clean: Semi-Annual_Bogota_Colombia_11-21-2005.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_Bogota_Colombia_05-18-2005.pdf
+  filename_clean: Annual_Bogota_Colombia_05-18-2005.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20041101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/11/Semi-Annual_Bogota_Colombia_11-15-2004.pdf
+  filename_clean: Semi-Annual_Bogota_Colombia_11-15-2004.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Annual_Bogota_Colombia_05-17-2004.pdf
+  filename_clean: Annual_Bogota_Colombia_05-17-2004.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20031101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/11/Coffee%20Semi-Annual_Bogota_Colombia_11-17-2003.pdf
+  filename_clean: Coffee_Semi-Annual_Bogota_Colombia_11-17-2003.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_Bogota_Colombia_05-19-2003.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_05-19-2003.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20021101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/11/Coffee%20Semi-Annual_Bogota_Colombia_11-20-2002.pdf
+  filename_clean: Coffee_Semi-Annual_Bogota_Colombia_11-20-2002.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Bogota_Colombia_05-16-2002.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_05-16-2002.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20011201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/12/Coffee%20Semi-Annual_Bogota_Colombia_11-30-2001.pdf
+  filename_clean: Coffee_Semi-Annual_Bogota_Colombia_11-30-2001.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Bogota_Colombia_05-23-2001.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_05-23-2001.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20001101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/11/Coffee%20Semi-Annual_Bogota_Colombia_11-16-2000.pdf
+  filename_clean: Coffee_Semi-Annual_Bogota_Colombia_11-16-2000.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Bogota_Colombia_05-15-2000.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_05-15-2000.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Situation Update
+  publication_date: '20000201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/02/Coffee%20Situation%20Update_Bogota_Colombia_02-07-2000.pdf
+  filename_clean: Coffee_Situation_Update_Bogota_Colombia_02-07-2000.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee  Semi-Annual
+  publication_date: '19991101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/11/Coffee%20%20Semi-Annual_Bogota_Colombia_11-15-1999.pdf
+  filename_clean: Coffee__Semi-Annual_Bogota_Colombia_11-15-1999.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee - Voluntary Report
+  publication_date: '19990701'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/07/Coffee%20-%20Voluntary%20Report_Bogota_Colombia_07-15-1999.pdf
+  filename_clean: Coffee_-_Voluntary_Report_Bogota_Colombia_07-15-1999.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Bogota_Colombia_05-18-1999.pdf
+  filename_clean: Coffee_Annual_Bogota_Colombia_05-18-1999.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Update
+  publication_date: '19990201'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/02/Coffee%20Update_Bogota_Colombia_02-22-1999.pdf
+  filename_clean: Coffee_Update_Bogota_Colombia_02-22-1999.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi-Annual_Bogota_Colombia_11-18-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Bogota_Colombia_11-18-1998.pdf
+- report_id: ET2025-0014
+  country_iso2: ET
+  country_name: ''
+  post: Addis Ababa
+  category: Coffee Annual
+  publication_date: '20250601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/06/Coffee%20Annual_Addis%20Ababa_Ethiopia_ET2025-0014.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_ET2025-0014.pdf
+- report_id: ET2023-0014
+  country_iso2: ET
+  country_name: ''
+  post: Addis Ababa
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_ET2023-0014.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_ET2023-0014.pdf
+- report_id: ET2022-0018
+  country_iso2: ET
+  country_name: ''
+  post: Addis Ababa
+  category: Coffee Annual
+  publication_date: '20220901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/09/Coffee%20Annual_Addis%20Ababa_Ethiopia_ET2022-0018.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_ET2022-0018.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_05-15-2021.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_05-15-2020.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_5-29-2019.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_5-29-2019.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_5-24-2018.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_5-24-2018.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_5-19-2017.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_5-19-2017.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/06/Coffee%20Annual_Addis%20Ababa_Ethiopia_6-13-2016.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_6-13-2016.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_5-12-2014.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_5-12-2014.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/06/Coffee%20Annual_Addis%20Ababa_Ethiopia_6-4-2013.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_6-4-2013.pdf
+- report_id: ''
+  country_iso2: ET
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Addis%20Ababa_Ethiopia_4-25-2012.pdf
+  filename_clean: Coffee_Annual_Addis_Ababa_Ethiopia_4-25-2012.pdf
+- report_id: GT2026-0003
+  country_iso2: GT
+  country_name: ''
+  post: Guatemala City
+  category: Coffee Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Coffee%20Annual_Guatemala%20City_Guatemala_GT2026-0003.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_GT2026-0003.pdf
+- report_id: GT2025-0007
+  country_iso2: GT
+  country_name: ''
+  post: Guatemala City
+  category: Coffee Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Coffee%20Annual_Guatemala%20City_Guatemala_GT2025-0007.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_GT2025-0007.pdf
+- report_id: GT2024-0004
+  country_iso2: GT
+  country_name: ''
+  post: Guatemala City
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_Guatemala%20City_Guatemala_GT2024-0004.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_GT2024-0004.pdf
+- report_id: GT2023-0003
+  country_iso2: GT
+  country_name: ''
+  post: Guatemala City
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Guatemala%20City_Guatemala_GT2023-0003.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_GT2023-0003.pdf
+- report_id: GT2022-0005
+  country_iso2: GT
+  country_name: ''
+  post: Guatemala City
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_Guatemala%20City_Guatemala_GT2022-0005.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_GT2022-0005.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Guatemala%20City_Guatemala_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_05-15-2021.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Preliminary Assessment of Eta and Iota Tropical Depressions Impact on Guatemalan Agriculture
+  publication_date: '20201201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/12/Preliminary%20Assessment%20of%20Eta%20and%20Iota%20Tropical%20Depressions%20Impact%20on%20Guatemalan%20Agriculture_Guatemala%20City_Guatemala_12-07-2020.pdf
+  filename_clean: Preliminary_Assessment_of_Eta_and_Iota_Tropical_Depressions_Impact_on_Guatemalan_Agriculture_Guatemala_City_Guatemala_12-07-2020.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Guatemala%20City_Guatemala_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_05-15-2020.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-15-2019.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-15-2019.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-9-2018.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-9-2018.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-15-2017.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-15-2017.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-13-2016.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-13-2016.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-11-2015.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-11-2015.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-15-2014.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-15-2014.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-24-2013.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-24-2013.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: WCR meeting on Coffee Leaf Rust in Central America
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/WCR%20meeting%20on%20Coffee%20Leaf%20Rust%20in%20Central%20America_Guatemala_Guatemala_4-24-2013.pdf
+  filename_clean: WCR_meeting_on_Coffee_Leaf_Rust_in_Central_America_Guatemala_Guatemala_4-24-2013.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-7-2012.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-7-2012.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-9-2011.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-9-2011.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Guatemala%20City_Guatemala_5-18-2010.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_5-18-2010.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20080601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/06/Annual%20Report_Guatemala%20City_Guatemala_06-16-2008.pdf
+  filename_clean: Annual_Report_Guatemala_City_Guatemala_06-16-2008.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Annual_Guatemala%20City_Guatemala_05-18-2007.pdf
+  filename_clean: Annual_Guatemala_City_Guatemala_05-18-2007.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_Guatemala%20City_Guatemala_05-19-2006.pdf
+  filename_clean: Annual_Guatemala_City_Guatemala_05-19-2006.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_Guatemala%20City_Guatemala_05-20-2005.pdf
+  filename_clean: Annual_Guatemala_City_Guatemala_05-20-2005.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_Guatemala%20City_Guatemala_05-15-2003.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_05-15-2003.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Guatemala%20City_Guatemala_05-15-2002.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_05-15-2002.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20011101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/11/Coffee%20Semi-Annual_Guatemala%20City_Guatemala_11-15-2001.pdf
+  filename_clean: Coffee_Semi-Annual_Guatemala_City_Guatemala_11-15-2001.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/06/Coffee%20Annual_Guatemala%20City_Guatemala_05-29-2001.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_05-29-2001.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Guatemala%20City_Guatemala_05-16-2000.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_05-16-2000.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991201'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/12/Coffee%20Semi-Annual_Guatemala%20City_Guatemala_12-03-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Guatemala_City_Guatemala_12-03-1999.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Guatemala%20City_Guatemala_05-21-1999.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Guatemala_05-21-1999.pdf
+- report_id: ''
+  country_iso2: GT
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi-Annual_Guatemala%20City_Guatemala_11-17-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Guatemala_City_Guatemala_11-17-1998.pdf
+- report_id: HO2026-0002
+  country_iso2: HN
+  country_name: ''
+  post: Tegucigalpa
+  category: Coffee Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Coffee%20Annual_Tegucigalpa_Honduras_HO2026-0002.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_HO2026-0002.pdf
+- report_id: HO2025-0002
+  country_iso2: HN
+  country_name: ''
+  post: Tegucigalpa
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Tegucigalpa_Honduras_HO2025-0002.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_HO2025-0002.pdf
+- report_id: HO2024-0002
+  country_iso2: HN
+  country_name: ''
+  post: Tegucigalpa
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_Tegucigalpa_Honduras_HO2024-0002.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_HO2024-0002.pdf
+- report_id: HO2023-0003
+  country_iso2: HN
+  country_name: ''
+  post: Tegucigalpa
+  category: Coffee Annual
+  publication_date: '20230601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/06/Coffee%20Annual_Tegucigalpa_Honduras_HO2023-0003.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_HO2023-0003.pdf
+- report_id: HO2022-0005
+  country_iso2: HN
+  country_name: ''
+  post: Tegucigalpa
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_Tegucigalpa_Honduras_HO2022-0005.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_HO2022-0005.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Tegucigalpa_Honduras_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_05-15-2021.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Tegucigalpa_Honduras_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_05-15-2020.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Tegucigalpa_Honduras_5-22-2018.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_5-22-2018.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Tegucigalpa_Honduras_5-24-2017.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_5-24-2017.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Tegucigalpa_Honduras_4-26-2016.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_4-26-2016.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/06/Coffee%20Annual_Tegucigalpa_Honduras_4-20-2015.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_4-20-2015.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Tegucigalpa_Honduras_5-28-2014.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_5-28-2014.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/06/Coffee%20Annual_Tegucigalpa_Honduras_6-20-2013.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_6-20-2013.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Tegucigalpa_Honduras_5-9-2012.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_5-9-2012.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Tegucigalpa_Honduras_4-18-2011.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_4-18-2011.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Tegucigalpa_Honduras_4-30-2010.pdf
+  filename_clean: Coffee_Annual_Tegucigalpa_Honduras_4-30-2010.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20091101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/11/Semi-Annual_Tegucigalpa_Honduras_11-17-2009.pdf
+  filename_clean: Semi-Annual_Tegucigalpa_Honduras_11-17-2009.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Semi-Annual_Tegucigalpa_Honduras_11-20-2008.pdf
+  filename_clean: Semi-Annual_Tegucigalpa_Honduras_11-20-2008.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/07/Annual_Tegucigalpa_Honduras_07-08-2008.pdf
+  filename_clean: Annual_Tegucigalpa_Honduras_07-08-2008.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Annual_Guatemala%20City_Honduras_05-26-2004.pdf
+  filename_clean: Annual_Guatemala_City_Honduras_05-26-2004.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_Guatemala%20City_Honduras_05-16-2003.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Honduras_05-16-2003.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Guatemala%20City_Honduras_05-28-2002.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Honduras_05-28-2002.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/06/Coffee%20Annual_Guatemala%20City_Honduras_05-30-2001.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Honduras_05-30-2001.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Guatemala%20City_Honduras_05-16-2000.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Honduras_05-16-2000.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991201'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/12/Coffee%20Semi-Annual_Guatemala%20City_Honduras_12-03-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Guatemala_City_Honduras_12-03-1999.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990601'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/06/Coffee%20Annual_Guatemala%20City_Honduras_05-22-1999.pdf
+  filename_clean: Coffee_Annual_Guatemala_City_Honduras_05-22-1999.pdf
+- report_id: ''
+  country_iso2: HN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi-Annual_Guatemala%20City_Honduras_11-17-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Guatemala_City_Honduras_11-17-1998.pdf
+- report_id: ID2026-0021
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Annual
+  publication_date: '20260501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/05/Coffee%20Annual_Jakarta_Indonesia_ID2026-0021.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_ID2026-0021.pdf
+- report_id: ID2025-0039
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Semi-annual
+  publication_date: '20251201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/12/Coffee%20Semi-annual_Jakarta_Indonesia_ID2025-0039.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_ID2025-0039.pdf
+- report_id: ID2025-0021
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Jakarta_Indonesia_ID2025-0021.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_ID2025-0021.pdf
+- report_id: ID2024-0040
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Semi-annual
+  publication_date: '20241101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/11/Coffee%20Semi-annual_Jakarta_Indonesia_ID2024-0040.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_ID2024-0040.pdf
+- report_id: ID2024-0016
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_Jakarta_Indonesia_ID2024-0016.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_ID2024-0016.pdf
+- report_id: ID2023-0026
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Semi-annual
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/Coffee%20Semi-annual_Jakarta_Indonesia_ID2023-0026.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_ID2023-0026.pdf
+- report_id: ID2023-0012
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Jakarta_Indonesia_ID2023-0012.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_ID2023-0012.pdf
+- report_id: ID2022-0032
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Semi-annual
+  publication_date: '20221101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/11/Coffee%20Semi-annual_Jakarta_Indonesia_ID2022-0032.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_ID2022-0032.pdf
+- report_id: ID2022-0014
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Coffee Annual
+  publication_date: '20220501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/05/Coffee%20Annual_Jakarta_Indonesia_ID2022-0014.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_ID2022-0014.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20211101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-15-2021.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-15-2021.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Jakarta_Indonesia_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-15-2021.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20201101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-15-2020.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-15-2020.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Jakarta_Indonesia_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-15-2020.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20191101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-15-2019.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-15-2019.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Jakarta_Indonesia_5-15-2019.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-15-2019.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20181101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-14-2018.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-14-2018.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: FAS Jakarta Obtains Fresh Food of Plant Origin Recognition Renewal
+  publication_date: '20181001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/10/FAS%20Jakarta%20Obtains%20Fresh%20Food%20of%20Plant%20Origin%20Recognition%20Renewal%20%20_Jakarta_Indonesia_10-01-2018.pdf
+  filename_clean: FAS_Jakarta_Obtains_Fresh_Food_of_Plant_Origin_Recognition_Renewal___Jakarta_Indonesia_10-01-2018.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Jakarta_Indonesia_5-17-2018.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-17-2018.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20171101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-14-2017.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-14-2017.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Jakarta_Indonesia_5-15-2017.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-15-2017.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20161101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-14-2016.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-14-2016.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Indonesia Expands U.S. Plant Products Eligible for Recognition
+  publication_date: '20160801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/08/Indonesia%20Expands%20U.S.%20Plant%20Products%20Eligible%20for%20Recognition_Jakarta_Indonesia_8-24-2016.pdf
+  filename_clean: Indonesia_Expands_U.S._Plant_Products_Eligible_for_Recognition_Jakarta_Indonesia_8-24-2016.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20151101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-16-2015.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-16-2015.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20141101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-12-2014.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-12-2014.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Jakarta_Indonesia_5-14-2014.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-14-2014.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20131101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-22-2013.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-22-2013.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Coffee%20Annual_Jakarta_Indonesia_5-15-2013.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-15-2013.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20121101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-27-2012.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-27-2012.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Jakarta_Indonesia_5-31-2012.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-31-2012.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20111201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/12/Coffee%20Semi-annual_Jakarta_Indonesia_12-6-2011.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_12-6-2011.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Jakarta_Indonesia_5-16-2011.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-16-2011.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20101101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/11/Coffee%20Semi-annual_Jakarta_Indonesia_11-15-2010.pdf
+  filename_clean: Coffee_Semi-annual_Jakarta_Indonesia_11-15-2010.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Jakarta_Indonesia_5-18-2010.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_5-18-2010.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: COFFEE SEMI-ANNUAL
+  publication_date: '20091201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/12/COFFEE%20SEMI-ANNUAL_Jakarta_Indonesia_12-10-2009.pdf
+  filename_clean: COFFEE_SEMI-ANNUAL_Jakarta_Indonesia_12-10-2009.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Semi Annual 2008
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Semi%20Annual%202008_Jakarta_Indonesia_11-17-2008.pdf
+  filename_clean: Semi_Annual_2008_Jakarta_Indonesia_11-17-2008.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Coffee%20Annual_Jakarta_Indonesia_05-16-2008.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-16-2008.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Semi Annual Report
+  publication_date: '20071101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/11/Semi%20Annual%20Report_Jakarta_Indonesia_11-19-2007.pdf
+  filename_clean: Semi_Annual_Report_Jakarta_Indonesia_11-19-2007.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: 2007 Coffee Annual
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/2007%20Coffee%20Annual_Jakarta_Indonesia_05-17-2007.pdf
+  filename_clean: 2007_Coffee_Annual_Jakarta_Indonesia_05-17-2007.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Semi Annual Report
+  publication_date: '20061101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/11/Semi%20Annual%20Report_Jakarta_Indonesia_11-21-2006.pdf
+  filename_clean: Semi_Annual_Report_Jakarta_Indonesia_11-21-2006.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_Jakarta_Indonesia_05-11-2006.pdf
+  filename_clean: Annual_Jakarta_Indonesia_05-11-2006.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_Jakarta_Indonesia_05-13-2005.pdf
+  filename_clean: Annual_Jakarta_Indonesia_05-13-2005.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20041101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/11/Semi-Annual_Jakarta_Indonesia_11-17-2004.pdf
+  filename_clean: Semi-Annual_Jakarta_Indonesia_11-17-2004.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Annual_Jakarta_Indonesia_05-17-2004.pdf
+  filename_clean: Annual_Jakarta_Indonesia_05-17-2004.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20031101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/11/Coffee%20Semi-Annual_Jakarta_Indonesia_11-14-2003.pdf
+  filename_clean: Coffee_Semi-Annual_Jakarta_Indonesia_11-14-2003.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/06/Coffee%20Annual_Jakarta_Indonesia_05-29-2003.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-29-2003.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20021201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/12/Coffee%20Semi-Annual_Jakarta_Indonesia_11-27-2002.pdf
+  filename_clean: Coffee_Semi-Annual_Jakarta_Indonesia_11-27-2002.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Jakarta_Indonesia_05-14-2002.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-14-2002.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Update (February 2002)
+  publication_date: '20020301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/03/Coffee%20Update%20%28February%202002%29_Jakarta_Indonesia_02-28-2002.pdf
+  filename_clean: Coffee_Update_(February_2002)_Jakarta_Indonesia_02-28-2002.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Jakarta_Indonesia_05-15-2001.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-15-2001.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20001101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/11/Coffee%20Semi-Annual_Jakarta_Indonesia_11-15-2000.pdf
+  filename_clean: Coffee_Semi-Annual_Jakarta_Indonesia_11-15-2000.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Jakarta_Indonesia_05-12-2000.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-12-2000.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/11/Coffee%20Semi-Annual_Jakarta_Indonesia_11-16-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Jakarta_Indonesia_11-16-1999.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Jakarta_Indonesia_05-17-1999.pdf
+  filename_clean: Coffee_Annual_Jakarta_Indonesia_05-17-1999.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi-Annual_Jakarta_Indonesia_11-16-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Jakarta_Indonesia_11-16-1998.pdf
+- report_id: IN2026-0026
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Annual
+  publication_date: '20260501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/05/Coffee%20Annual_New%20Delhi_India_IN2026-0026.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_IN2026-0026.pdf
+- report_id: IN2025-0062
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Semi-annual
+  publication_date: '20251201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/12/Coffee%20Semi-annual_New%20Delhi_India_IN2025-0062.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_IN2025-0062.pdf
+- report_id: IN2025-0028
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_New%20Delhi_India_IN2025-0028.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_IN2025-0028.pdf
+- report_id: IN2024-0051
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Semi-annual
+  publication_date: '20241001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/10/Coffee%20Semi-annual_New%20Delhi_India_IN2024-0051.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_IN2024-0051.pdf
+- report_id: IN2024-0021
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_New%20Delhi_India_IN2024-0021.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_IN2024-0021.pdf
+- report_id: IN2023-0081
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Semi-annual
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/Coffee%20Semi-annual_New%20Delhi_India_IN2023-0081.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_IN2023-0081.pdf
+- report_id: IN2023-0033
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_New%20Delhi_India_IN2023-0033.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_IN2023-0033.pdf
+- report_id: IN2022-0102
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Semi-annual
+  publication_date: '20221101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/11/Coffee%20Semi-annual_New%20Delhi_India_IN2022-0102.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_IN2022-0102.pdf
+- report_id: IN2022-0047
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_New%20Delhi_India_IN2022-0047.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_IN2022-0047.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20211101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/11/Coffee%20Semi-annual_New%20Delhi_India_11-15-2021.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-15-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: India's FSSAI Issues Final Standards for Walnut Kernels and Other Various Food Products
+  publication_date: '20210801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/08/India%27s%20FSSAI%20Issues%20Final%20Standards%20for%20Walnut%20Kernels%20and%20Other%20Various%20Food%20Products_New%20Delhi_India_08-06-2021.pdf
+  filename_clean: India's_FSSAI_Issues_Final_Standards_for_Walnut_Kernels_and_Other_Various_Food_Products_New_Delhi_India_08-06-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_New%20Delhi_India_05-15-2021.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_05-15-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20201101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/11/Coffee%20Semi-annual_New%20Delhi_India_11-15-2020.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-15-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Record-setting Southwest Monsoon Season Ends
+  publication_date: '20201001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/10/Record-setting%20Southwest%20Monsoon%20Season%20Ends_Mumbai_India_10-06-2020.pdf
+  filename_clean: Record-setting_Southwest_Monsoon_Season_Ends_Mumbai_India_10-06-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: FSSAI Proposes Draft Standards for Walnut Kernels and Other Various Food Products
+  publication_date: '20200901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/09/FSSAI%20Proposes%20Draft%20Standards%20for%20Walnut%20Kernels%20and%20Other%20Various%20Food%20Products%20_New%20Delhi_India_09-11-2020.pdf
+  filename_clean: FSSAI_Proposes_Draft_Standards_for_Walnut_Kernels_and_Other_Various_Food_Products__New_Delhi_India_09-11-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Update - August 2020
+  publication_date: '20200901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/09/Monsoon%20Update%20-%20August%202020_Mumbai_India_09-03-2020.pdf
+  filename_clean: Monsoon_Update_-_August_2020_Mumbai_India_09-03-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_New%20Delhi_India_05-15-2020.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_05-15-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20191101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/11/Coffee%20Semi-annual_New%20Delhi_India_11-15-2019.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-15-2019.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_New%20Delhi_India_5-16-2019.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-16-2019.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20181101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/11/Coffee%20Semi-annual_New%20Delhi_India_11-15-2018.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-15-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_New%20Delhi_India_5-15-2018.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-15-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: GOI Invites Comments on Standards for Coffee and Packaged Water
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/GOI%20Invites%20Comments%20on%20Standards%20for%20Coffee%20and%20Packaged%20Water_New%20Delhi_India_5-7-2018.pdf
+  filename_clean: GOI_Invites_Comments_on_Standards_for_Coffee_and_Packaged_Water_New_Delhi_India_5-7-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20171101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/11/Coffee%20Semi-annual_New%20Delhi_India_11-16-2017.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-16-2017.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_New%20Delhi_India_5-15-2017.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-15-2017.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20161101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/11/Coffee%20Semi-annual_New%20Delhi_India_11-16-2016.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-16-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Final Amendment for Irradiated Food Standards and Label Requirements
+  publication_date: '20160901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/09/Final%20Amendment%20for%20Irradiated%20Food%20Standards%20and%20Label%20Requirements_New%20Delhi_India_9-6-2016.pdf
+  filename_clean: Final_Amendment_for_Irradiated_Food_Standards_and_Label_Requirements_New_Delhi_India_9-6-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_New%20Delhi_India_5-11-2016.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-11-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: WTO Notified - Irradiated Foods Standards and Labeling Requirements
+  publication_date: '20160101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/01/WTO%20Notified%20-%20Irradiated%20Foods%20Standards%20and%20Labeling%20Requirements_New%20Delhi_India_1-14-2016.pdf
+  filename_clean: WTO_Notified_-_Irradiated_Foods_Standards_and_Labeling_Requirements_New_Delhi_India_1-14-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20151001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/10/Coffee%20Semi-annual_New%20Delhi_India_10-30-2015.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_10-30-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Casual Dining and QSR Sector See Fast Track Growth in India
+  publication_date: '20150701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/07/Casual%20Dining%20and%20QSR%20Sector%20See%20Fast%20Track%20Growth%20in%20India_New%20Delhi_India_7-13-2015.pdf
+  filename_clean: Casual_Dining_and_QSR_Sector_See_Fast_Track_Growth_in_India_New_Delhi_India_7-13-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Pune…Fastest Growing City of India
+  publication_date: '20150701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/07/Pune%E2%80%A6Fastest%20Growing%20City%20of%20India_New%20Delhi_India_7-13-2015.pdf
+  filename_clean: Pune…Fastest_Growing_City_of_India_New_Delhi_India_7-13-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_New%20Delhi_India_5-15-2015.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-15-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20141101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/11/Coffee%20Semi-annual_New%20Delhi_India_11-12-2014.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-12-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_New%20Delhi_India_5-15-2014.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-15-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20131101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/11/Coffee%20Semi-annual_New%20Delhi_India_11-15-2013.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-15-2013.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: List of Permissible Food Packaging Sizes Expanded
+  publication_date: '20130601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/06/List%20of%20Permissible%20Food%20Packaging%20Sizes%20Expanded_New%20Delhi_India_6-19-2013.pdf
+  filename_clean: List_of_Permissible_Food_Packaging_Sizes_Expanded_New_Delhi_India_6-19-2013.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Coffee%20Annual_New%20Delhi_India_5-16-2013.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-16-2013.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20121101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/11/Coffee%20Semi-annual_New%20Delhi_India_11-9-2012.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-9-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: New Norms Under Legal Metrology-Packaged Commodities- Rules- 2012
+  publication_date: '20121101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/11/New%20Norms%20Under%20Legal%20Metrology-Packaged%20Commodities-%20Rules-%202012_New%20Delhi_India_11-9-2012.pdf
+  filename_clean: New_Norms_Under_Legal_Metrology-Packaged_Commodities-_Rules-_2012_New_Delhi_India_11-9-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: India May Allow New Package Sizes
+  publication_date: '20120601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/06/India%20May%20Allow%20New%20Package%20Sizes_New%20Delhi_India_6-27-2012.pdf
+  filename_clean: India_May_Allow_New_Package_Sizes_New_Delhi_India_6-27-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_New%20Delhi_India_5-18-2012.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-18-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Third Amendment to the Legal Metrology Rules 2011
+  publication_date: '20120301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/03/Third%20Amendment%20to%20the%20Legal%20Metrology%20Rules%202011_New%20Delhi_India_3-6-2012.pdf
+  filename_clean: Third_Amendment_to_the_Legal_Metrology_Rules_2011_New_Delhi_India_3-6-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: India International Coffee Festival 2012
+  publication_date: '20111201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/12/India%20International%20Coffee%20Festival%202012_New%20Delhi_India_12-9-2011.pdf
+  filename_clean: India_International_Coffee_Festival_2012_New_Delhi_India_12-9-2011.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20111101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/11/Coffee%20Semi-annual_New%20Delhi_India_11-1-2011.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-1-2011.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_New%20Delhi_India_5-13-2011.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-13-2011.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20101101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/11/Coffee%20Semi-annual_New%20Delhi_India_11-15-2010.pdf
+  filename_clean: Coffee_Semi-annual_New_Delhi_India_11-15-2010.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_New%20Delhi_India_5-4-2010.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_5-4-2010.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: COFFEE SEMI-ANNUAL
+  publication_date: '20091101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/11/COFFEE%20SEMI-ANNUAL_New%20Delhi_India_11-13-2009.pdf
+  filename_clean: COFFEE_SEMI-ANNUAL_New_Delhi_India_11-13-2009.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Update
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Update_New%20Delhi_India_10-30-2008.pdf
+  filename_clean: Update_New_Delhi_India_10-30-2008.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Annual_New%20Delhi_India_05-16-2008.pdf
+  filename_clean: Annual_New_Delhi_India_05-16-2008.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_New%20Delhi_India_05-11-2006.pdf
+  filename_clean: Annual_New_Delhi_India_05-11-2006.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_New%20Delhi_India_05-11-2005.pdf
+  filename_clean: Annual_New_Delhi_India_05-11-2005.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20041101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/11/Semi-Annual_New%20Delhi_India_11-09-2004.pdf
+  filename_clean: Semi-Annual_New_Delhi_India_11-09-2004.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Annual_New%20Delhi_India_05-21-2004.pdf
+  filename_clean: Annual_New_Delhi_India_05-21-2004.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Report
+  publication_date: '20031101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/11/Coffee%20Report_New%20Delhi_India_11-17-2003.pdf
+  filename_clean: Coffee_Report_New_Delhi_India_11-17-2003.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_New%20Delhi_India_05-12-2003.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_05-12-2003.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20021101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/11/Coffee%20Semi-Annual_New%20Delhi_India_11-12-2002.pdf
+  filename_clean: Coffee_Semi-Annual_New_Delhi_India_11-12-2002.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_New%20Delhi_India_05-13-2002.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_05-13-2002.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Update - November
+  publication_date: '20011101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/11/Coffee%20Update%20-%20November_New%20Delhi_India_11-16-2001.pdf
+  filename_clean: Coffee_Update_-_November_New_Delhi_India_11-16-2001.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_New%20Delhi_India_05-15-2001.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_05-15-2001.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Voluntary
+  publication_date: '20001201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/12/Coffee%20Voluntary_New%20Delhi_India_12-26-2000.pdf
+  filename_clean: Coffee_Voluntary_New_Delhi_India_12-26-2000.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_New%20Delhi_India_05-15-2000.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_05-15-2000.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991201'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/12/Coffee%20Semi-Annual_New%20Delhi_India_11-30-1999.pdf
+  filename_clean: Coffee_Semi-Annual_New_Delhi_India_11-30-1999.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_New%20Delhi_India_05-14-1999.pdf
+  filename_clean: Coffee_Annual_New_Delhi_India_05-14-1999.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Coffee Semi Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi%20Annual_New%20Delhi_India_11-13-1998.pdf
+  filename_clean: Coffee_Semi_Annual_New_Delhi_India_11-13-1998.pdf
+- report_id: KE2026-0011
+  country_iso2: KE
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20260501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/05/Coffee%20Annual_Nairobi_Kenya_KE2026-0011.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_KE2026-0011.pdf
+- report_id: KE2025-0011
+  country_iso2: KE
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Nairobi_Kenya_KE2025-0011.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_KE2025-0011.pdf
+- report_id: KE2024-0003
+  country_iso2: KE
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20240601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/06/Coffee%20Annual_Nairobi_Kenya_KE2024-0003.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_KE2024-0003.pdf
+- report_id: KE2023-0004
+  country_iso2: KE
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Nairobi_Kenya_KE2023-0004.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_KE2023-0004.pdf
+- report_id: KE2022-0005
+  country_iso2: KE
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20220501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/05/Coffee%20Annual_Nairobi_Kenya_KE2022-0005.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_KE2022-0005.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/06/Coffee%20Annual_Nairobi_Kenya_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_05-15-2021.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/06/Coffee%20Annual_Nairobi_Kenya_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_05-15-2020.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Nairobi_Kenya_5-21-2019.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-21-2019.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Nairobi_Kenya_5-15-2018.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-15-2018.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Nairobi_Kenya_5-15-2017.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-15-2017.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Nairobi_Kenya_5-13-2016.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-13-2016.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Nairobi_Kenya_5-14-2015.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-14-2015.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Nairobi_Kenya_5-7-2014.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-7-2014.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/06/Coffee%20Annual_Nairobi_Kenya_6-3-2013.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_6-3-2013.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: East African Community Region Coffee Report
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/East%20African%20Community%20Region%20Coffee%20Report_Nairobi_Kenya_5-24-2012.pdf
+  filename_clean: East_African_Community_Region_Coffee_Report_Nairobi_Kenya_5-24-2012.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Nairobi_Kenya_5-15-2012.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-15-2012.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Nairobi_Kenya_5-16-2011.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-16-2011.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Tanzania Coffee Annual Report
+  publication_date: '20100601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/06/Tanzania%20Coffee%20Annual%20Report_Nairobi_Kenya_6-23-2010.pdf
+  filename_clean: Tanzania_Coffee_Annual_Report_Nairobi_Kenya_6-23-2010.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Nairobi_Kenya_5-28-2010.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_5-28-2010.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Kenya Coffee Update Report
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Kenya%20Coffee%20Update%20Report_Nairobi_Kenya_05-13-2008.pdf
+  filename_clean: Kenya_Coffee_Update_Report_Nairobi_Kenya_05-13-2008.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Kenya Coffee Annual Report
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Kenya%20Coffee%20Annual%20Report_Nairobi_Kenya_05-14-2007.pdf
+  filename_clean: Kenya_Coffee_Annual_Report_Nairobi_Kenya_05-14-2007.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Kenya Coffee Annual Report
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Kenya%20Coffee%20Annual%20Report_Nairobi_Kenya_05-11-2006.pdf
+  filename_clean: Kenya_Coffee_Annual_Report_Nairobi_Kenya_05-11-2006.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Kenya Coffee Annual update Report
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Kenya%20Coffee%20Annual%20update%20Report_Nairobi_Kenya_05-13-2005.pdf
+  filename_clean: Kenya_Coffee_Annual_update_Report_Nairobi_Kenya_05-13-2005.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Update
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Update_Nairobi_Kenya_05-11-2004.pdf
+  filename_clean: Update_Nairobi_Kenya_05-11-2004.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Coffee%20Annual_Nairobi_Kenya_04-09-2003.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_04-09-2003.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Update Report
+  publication_date: '20021101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/11/Coffee%20Update%20Report_Nairobi_Kenya_11-21-2002.pdf
+  filename_clean: Coffee_Update_Report_Nairobi_Kenya_11-21-2002.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Nairobi_Kenya_05-08-2002.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_05-08-2002.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Nairobi_Kenya_05-07-2001.pdf
+  filename_clean: Coffee_Annual_Nairobi_Kenya_05-07-2001.pdf
+- report_id: ''
+  country_iso2: KE
+  country_name: ''
+  post: ''
+  category: Coffee Update
+  publication_date: '20001101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/11/Coffee%20Update_Nairobi_Kenya_11-08-2000.pdf
+  filename_clean: Coffee_Update_Nairobi_Kenya_11-08-2000.pdf
+- report_id: MX2026-0026
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Coffee Annual
+  publication_date: '20260501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/05/Coffee%20Annual_Mexico%20City_Mexico_MX2026-0026.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_MX2026-0026.pdf
+- report_id: MX2025-0023
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Mexico%20City_Mexico_MX2025-0023.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_MX2025-0023.pdf
+- report_id: MX2024-0025
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_Mexico%20City_Mexico_MX2024-0025.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_MX2024-0025.pdf
+- report_id: MX2023-0024
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Mexico%20City_Mexico_MX2023-0024.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_MX2023-0024.pdf
+- report_id: MX2022-0031
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_Mexico%20City_Mexico_MX2022-0031.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_MX2022-0031.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Mexico%20City_Mexico_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_05-15-2021.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Mexico%20City_Mexico_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_05-15-2020.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Mexico%20City_Mexico_5-31-2019.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-31-2019.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Extension of Duty Free Import Quota on Coffee
+  publication_date: '20180901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/09/Mexico%20Announces%20Extension%20of%20Duty%20Free%20Import%20Quota%20on%20Coffee_Mexico_Mexico_9-5-2018.pdf
+  filename_clean: Mexico_Announces_Extension_of_Duty_Free_Import_Quota_on_Coffee_Mexico_Mexico_9-5-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Mexico%20City_Mexico_5-15-2018.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-15-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Mexico%20City_Mexico_5-25-2017.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-25-2017.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Mexico%20City_Mexico_5-13-2016.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-13-2016.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Mexico%20City_Mexico_5-18-2015.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-18-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Mexico%20City_Mexico_5-13-2014.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-13-2014.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Modifications to Duty Free Imports of Coffee in 40 Gram Containers
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Modifications%20to%20Duty%20Free%20Imports%20of%20Coffee%20in%2040%20Gram%20Containers_Mexico_Mexico_4-10-2014.pdf
+  filename_clean: Modifications_to_Duty_Free_Imports_of_Coffee_in_40_Gram_Containers_Mexico_Mexico_4-10-2014.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Coffee Hedging Mechanism
+  publication_date: '20130901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/09/Mexico%20Announces%20Coffee%20Hedging%20Mechanism_Mexico_Mexico_9-13-2013.pdf
+  filename_clean: Mexico_Announces_Coffee_Hedging_Mechanism_Mexico_Mexico_9-13-2013.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/06/Coffee%20Annual_Mexico%20City_Mexico_6-4-2013.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_6-4-2013.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Rust Update
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Coffee%20Rust%20Update_Mexico_Mexico_4-5-2013.pdf
+  filename_clean: Coffee_Rust_Update_Mexico_Mexico_4-5-2013.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Mexico%20City_Mexico_5-14-2012.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-14-2012.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Mexico%20City_Mexico_5-10-2011.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-10-2011.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee in 40 Gram Containers Allowed Duty Free
+  publication_date: '20110301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/03/Coffee%20in%2040%20Gram%20Containers%20Allowed%20Duty%20Free_Mexico_Mexico_3-28-2011.pdf
+  filename_clean: Coffee_in_40_Gram_Containers_Allowed_Duty_Free_Mexico_Mexico_3-28-2011.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Organic Foods Find Growing Niche in Mexico
+  publication_date: '20110201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/02/Organic%20Foods%20Find%20Growing%20Niche%20in%20Mexico_Mexico%20ATO_Mexico_2-11-2011.pdf
+  filename_clean: Organic_Foods_Find_Growing_Niche_in_Mexico_Mexico_ATO_Mexico_2-11-2011.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Mexico%20City_Mexico_5-24-2010.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_5-24-2010.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Annual_Mexico%20City_Mexico_05-14-2008.pdf
+  filename_clean: Annual_Mexico_City_Mexico_05-14-2008.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Annual%20Report_Mexico%20City_Mexico_05-14-2007.pdf
+  filename_clean: Annual_Report_Mexico_City_Mexico_05-14-2007.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_Mexico%20City_Mexico_05-15-2006.pdf
+  filename_clean: Annual_Mexico_City_Mexico_05-15-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_Mexico%20City_Mexico_05-19-2005.pdf
+  filename_clean: Annual_Mexico_City_Mexico_05-19-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Worldwide Tariff-Rate Quota for Coffee Products
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Mexico%20Announces%20Worldwide%20Tariff-Rate%20Quota%20for%20Coffee%20Products_Mexico%20City_Mexico_05-10-2005.pdf
+  filename_clean: Mexico_Announces_Worldwide_Tariff-Rate_Quota_for_Coffee_Products_Mexico_City_Mexico_05-10-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Annual_Mexico%20City_Mexico_05-13-2004.pdf
+  filename_clean: Annual_Mexico_City_Mexico_05-13-2004.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Import Permits (Cupos) for Green Coffee Beans
+  publication_date: '20030701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/07/Mexico%20Announces%20Import%20Permits%20%28Cupos%29%20for%20Green%20Coffee%20Beans_Mexico%20City_Mexico_07-15-2003.pdf
+  filename_clean: Mexico_Announces_Import_Permits_(Cupos)_for_Green_Coffee_Beans_Mexico_City_Mexico_07-15-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Import Permits  (cupos) for Selected Coffee Products
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Mexico%20Announces%20Import%20Permits%20%20%28cupos%29%20for%20Selected%20Coffee%20Products_Mexico%20City_Mexico_05-07-2003.pdf
+  filename_clean: Mexico_Announces_Import_Permits__(cupos)_for_Selected_Coffee_Products_Mexico_City_Mexico_05-07-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Coffee%20Annual_Mexico%20City_Mexico_04-15-2003.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_04-15-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Mexico%20City_Mexico_05-15-2002.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_05-15-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Based Product Imports from the U.S. Exceed 2002 Safeguard
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Coffee%20Based%20Product%20Imports%20from%20the%20U.S.%20Exceed%202002%20Safeguard_Mexico%20City_Mexico_04-09-2002.pdf
+  filename_clean: Coffee_Based_Product_Imports_from_the_U.S._Exceed_2002_Safeguard_Mexico_City_Mexico_04-09-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Import Permits (Cupos) for Coffee Extracts
+  publication_date: '20020301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/03/Mexico%20Announces%20Import%20Permits%20%28Cupos%29%20for%20Coffee%20Extracts_Mexico%20City_Mexico_03-26-2002.pdf
+  filename_clean: Mexico_Announces_Import_Permits_(Cupos)_for_Coffee_Extracts_Mexico_City_Mexico_03-26-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Imports of Select Coffee Products from the U.S. Exceed 2001 NAFTA Safeguard
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Imports%20of%20Select%20Coffee%20Products%20from%20the%20U.S.%20Exceed%202001%20NAFTA%20Safeguard_Mexico%20City_Mexico_10-12-2001.pdf
+  filename_clean: Imports_of_Select_Coffee_Products_from_the_U.S._Exceed_2001_NAFTA_Safeguard_Mexico_City_Mexico_10-12-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual - Revised
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual%20-%20Revised_Mexico%20City_Mexico_05-23-2001.pdf
+  filename_clean: Coffee_Annual_-_Revised_Mexico_City_Mexico_05-23-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Publishes Official Mexican Standard
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Mexico%20Publishes%20Official%20Mexican%20Standard_Mexico%20City_Mexico_05-15-2001.pdf
+  filename_clean: Mexico_Publishes_Official_Mexican_Standard_Mexico_City_Mexico_05-15-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Imports of Select Coffee Products from the U.S. Exceed 2001 NAFTA Safeguard
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Imports%20of%20Select%20Coffee%20Products%20from%20the%20U.S.%20Exceed%202001%20NAFTA%20Safeguard_Mexico%20City_Mexico_05-04-2001.pdf
+  filename_clean: Imports_of_Select_Coffee_Products_from_the_U.S._Exceed_2001_NAFTA_Safeguard_Mexico_City_Mexico_05-04-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces New Supports for Coffee Growers
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Mexico%20Announces%20New%20Supports%20for%20Coffee%20Growers_Mexico%20City_Mexico_04-06-2001.pdf
+  filename_clean: Mexico_Announces_New_Supports_for_Coffee_Growers_Mexico_City_Mexico_04-06-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Imports of Select Coffee Products from the U.S. Exceed 2000 NAFTA Safeguard
+  publication_date: '20000801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/08/Imports%20of%20Select%20Coffee%20Products%20from%20the%20U.S.%20Exceed%202000%20NAFTA%20Safeguard_Mexico%20City_Mexico_08-03-2000.pdf
+  filename_clean: Imports_of_Select_Coffee_Products_from_the_U.S._Exceed_2000_NAFTA_Safeguard_Mexico_City_Mexico_08-03-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Mexico%20City_Mexico_05-10-2000.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_05-10-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: 1999 Safeguard Quota Filled for Coffee Products
+  publication_date: '19991101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/11/1999%20Safeguard%20Quota%20Filled%20for%20Coffee%20Products_Mexico%20City_Mexico_11-16-1999.pdf
+  filename_clean: 1999_Safeguard_Quota_Filled_for_Coffee_Products_Mexico_City_Mexico_11-16-1999.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/11/Coffee%20Semi-Annual_Mexico%20City_Mexico_11-15-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Mexico_City_Mexico_11-15-1999.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Mexico%20City_Mexico_05-13-1999.pdf
+  filename_clean: Coffee_Annual_Mexico_City_Mexico_05-13-1999.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20Semi-Annual_Mexico%20City_Mexico_11-13-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Mexico_City_Mexico_11-13-1998.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: 1998 TRQ Filled for Coffee Imported from the United
+  publication_date: '19980901'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/09/1998%20TRQ%20Filled%20for%20Coffee%20Imported%20from%20the%20United_Mexico%20City_Mexico_09-18-1998.pdf
+  filename_clean: 1998_TRQ_Filled_for_Coffee_Imported_from_the_United_Mexico_City_Mexico_09-18-1998.pdf
+- report_id: PE2025-0018
+  country_iso2: PE
+  country_name: ''
+  post: Lima
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Lima_Peru_PE2025-0018.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_PE2025-0018.pdf
+- report_id: PE2024-0008
+  country_iso2: PE
+  country_name: ''
+  post: Lima
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_Lima_Peru_PE2024-0008.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_PE2024-0008.pdf
+- report_id: PE2023-0014
+  country_iso2: PE
+  country_name: ''
+  post: Lima
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Lima_Peru_PE2023-0014.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_PE2023-0014.pdf
+- report_id: PE2022-0009
+  country_iso2: PE
+  country_name: ''
+  post: Lima
+  category: Coffee Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Coffee%20Annual_Lima_Peru_PE2022-0009.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_PE2022-0009.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Lima_Peru_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_05-15-2021.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Lima_Peru_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_05-15-2020.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Coffee%20Annual_Lima_Peru_4-23-2019.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_4-23-2019.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Lima_Peru_5-9-2018.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-9-2018.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Lima_Peru_5-3-2017.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-3-2017.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Lima_Peru_5-25-2016.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-25-2016.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Coffee%20Annual_Lima_Peru_4-30-2015.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_4-30-2015.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Lima_Peru_5-14-2014.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-14-2014.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Coffee%20Annual_Lima_Peru_5-13-2013.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-13-2013.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Lima_Peru_5-10-2012.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-10-2012.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/05/Coffee%20Annual_Lima_Peru_5-10-2011.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-10-2011.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Lima_Peru_5-13-2010.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_5-13-2010.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Annual_Lima_Peru_04-28-2008.pdf
+  filename_clean: Annual_Lima_Peru_04-28-2008.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Annual_Lima_Peru_05-09-2007.pdf
+  filename_clean: Annual_Lima_Peru_05-09-2007.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_Lima_Peru_05-15-2006.pdf
+  filename_clean: Annual_Lima_Peru_05-15-2006.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_Lima_Peru_05-13-2005.pdf
+  filename_clean: Annual_Lima_Peru_05-13-2005.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Lima_Peru_04-26-2004.pdf
+  filename_clean: Annual_Lima_Peru_04-26-2004.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_Lima_Peru_05-15-2003.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_05-15-2003.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/06/Coffee%20Annual_Lima_Peru_06-03-2002.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_06-03-2002.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Lima_Peru_05-21-2001.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_05-21-2001.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Lima_Peru_05-19-2000.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_05-19-2000.pdf
+- report_id: ''
+  country_iso2: PE
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Lima_Peru_05-20-1999.pdf
+  filename_clean: Coffee_Annual_Lima_Peru_05-20-1999.pdf
+- report_id: RP2023-0021
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: MFN Tariff Schedule Opens for Public Comment
+  publication_date: '20230201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/02/MFN%20Tariff%20Schedule%20Opens%20for%20Public%20Comment_Manila_Philippines_RP2023-0021.pdf
+  filename_clean: MFN_Tariff_Schedule_Opens_for_Public_Comment_Manila_Philippines_RP2023-0021.pdf
+- report_id: RP2023-0019
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: TRQ Administration Rules and Regulations
+  publication_date: '20230201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/02/TRQ%20Administration%20Rules%20and%20Regulations_Manila_Philippines_RP2023-0019.pdf
+  filename_clean: TRQ_Administration_Rules_and_Regulations_Manila_Philippines_RP2023-0019.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/06/Coffee%20Annual_Manila_Philippines_4-26-2011.pdf
+  filename_clean: Coffee_Annual_Manila_Philippines_4-26-2011.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Manila_Philippines_4-27-2010.pdf
+  filename_clean: Coffee_Annual_Manila_Philippines_4-27-2010.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Annual_Manila_Philippines_05-18-2008.pdf
+  filename_clean: Annual_Manila_Philippines_05-18-2008.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Annual_Manila_Philippines_05-24-2007.pdf
+  filename_clean: Annual_Manila_Philippines_05-24-2007.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Coffee%20Annual_Manila_Philippines_05-22-2003.pdf
+  filename_clean: Coffee_Annual_Manila_Philippines_05-22-2003.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Manila_Philippines_05-13-2002.pdf
+  filename_clean: Coffee_Annual_Manila_Philippines_05-13-2002.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Manila_Philippines_05-23-2001.pdf
+  filename_clean: Coffee_Annual_Manila_Philippines_05-23-2001.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Annual_Manila_Philippines_05-18-2000.pdf
+  filename_clean: Coffee_Annual_Manila_Philippines_05-18-2000.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Annual_Manila_Philippines_05-13-1999.pdf
+  filename_clean: Coffee_Annual_Manila_Philippines_05-13-1999.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee PSD Update
+  publication_date: '19981101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/11/Coffee%20PSD%20Update_Manila_Philippines_11-17-1998.pdf
+  filename_clean: Coffee_PSD_Update_Manila_Philippines_11-17-1998.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Coffee, Tea, and Cocoa Powder Tariffs Reduced
+  publication_date: '19980801'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/08/Coffee%2C%20Tea%2C%20and%20Cocoa%20Powder%20Tariffs%20Reduced_Manila_Philippines_08-19-1998.pdf
+  filename_clean: Coffee,_Tea,_and_Cocoa_Powder_Tariffs_Reduced_Manila_Philippines_08-19-1998.pdf
+- report_id: TZ2026-0003
+  country_iso2: TZ
+  country_name: ''
+  post: Dar Es Salaam
+  category: Coffee Annual
+  publication_date: '20260501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/05/Coffee%20Annual_Dar%20Es%20Salaam_Tanzania_TZ2026-0003.pdf
+  filename_clean: Coffee_Annual_Dar_Es_Salaam_Tanzania_TZ2026-0003.pdf
+- report_id: TZ2025-0004
+  country_iso2: TZ
+  country_name: ''
+  post: Dar Es Salaam
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Dar%20Es%20Salaam_Tanzania_TZ2025-0004.pdf
+  filename_clean: Coffee_Annual_Dar_Es_Salaam_Tanzania_TZ2025-0004.pdf
+- report_id: TZ2024-0002
+  country_iso2: TZ
+  country_name: ''
+  post: Dar Es Salaam
+  category: Coffee Annual
+  publication_date: '20240601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/06/Coffee%20Annual_Dar%20Es%20Salaam_Tanzania_TZ2024-0002.pdf
+  filename_clean: Coffee_Annual_Dar_Es_Salaam_Tanzania_TZ2024-0002.pdf
+- report_id: TZ2023-0003
+  country_iso2: TZ
+  country_name: ''
+  post: Dar Es Salaam
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Dar%20Es%20Salaam_Tanzania_TZ2023-0003.pdf
+  filename_clean: Coffee_Annual_Dar_Es_Salaam_Tanzania_TZ2023-0003.pdf
+- report_id: TZ2022-0003
+  country_iso2: TZ
+  country_name: ''
+  post: Dar Es Salaam
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_Dar%20Es%20Salaam_Tanzania_TZ2022-0003.pdf
+  filename_clean: Coffee_Annual_Dar_Es_Salaam_Tanzania_TZ2022-0003.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Dar%20Es%20Salaam_Tanzania_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Dar_Es_Salaam_Tanzania_05-15-2021.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Dar%20Es%20Salaam_Tanzania_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Dar_Es_Salaam_Tanzania_05-15-2020.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Nairobi_Tanzania%20-%20United%20Republic%20of_5-23-2019.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_-_United_Republic_of_5-23-2019.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Nairobi_Tanzania%20-%20United%20Republic%20of_5-24-2018.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_-_United_Republic_of_5-24-2018.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/06/Coffee%20Annual_Nairobi_Tanzania_6-9-2017.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_6-9-2017.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Nairobi_Tanzania_5-23-2016.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_5-23-2016.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Nairobi_Tanzania_5-14-2015.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_5-14-2015.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Nairobi_Tanzania_5-7-2014.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_5-7-2014.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/06/Coffee%20Annual_Nairobi_Tanzania_6-3-2013.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_6-3-2013.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Nairobi_Tanzania_5-23-2012.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_5-23-2012.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/06/Coffee%20Annual_Nairobi_Tanzania_6-10-2011.pdf
+  filename_clean: Coffee_Annual_Nairobi_Tanzania_6-10-2011.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Tanzania Coffee Update Report
+  publication_date: '20041101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/11/Tanzania%20Coffee%20Update%20Report_Nairobi_Tanzania%20-%20United%20Republic%20of_11-08-2004.pdf
+  filename_clean: Tanzania_Coffee_Update_Report_Nairobi_Tanzania_-_United_Republic_of_11-08-2004.pdf
+- report_id: ''
+  country_iso2: TZ
+  country_name: ''
+  post: ''
+  category: Coffee Update Report
+  publication_date: '20021101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/11/Coffee%20Update%20Report_Nairobi_Tanzania%20-%20United%20Republic%20of_11-21-2002.pdf
+  filename_clean: Coffee_Update_Report_Nairobi_Tanzania_-_United_Republic_of_11-21-2002.pdf
+- report_id: UG2025-0001
+  country_iso2: UG
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Nairobi_Uganda_UG2025-0001.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_UG2025-0001.pdf
+- report_id: UG2024-0001
+  country_iso2: UG
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20240601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/06/Coffee%20Annual_Nairobi_Uganda_UG2024-0001.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_UG2024-0001.pdf
+- report_id: UG2023-0001
+  country_iso2: UG
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Nairobi_Uganda_UG2023-0001.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_UG2023-0001.pdf
+- report_id: UG2022-0001
+  country_iso2: UG
+  country_name: ''
+  post: Nairobi
+  category: Coffee Annual
+  publication_date: '20220501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/05/Coffee%20Annual_Nairobi_Uganda_UG2022-0001.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_UG2022-0001.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/06/Coffee%20Annual_Nairobi_Uganda_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_05-15-2021.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Coffee%20Annual_Nairobi_Uganda_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_05-15-2020.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Nairobi_Uganda_5-21-2019.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_5-21-2019.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/05/Coffee%20Annual_Nairobi_Uganda_5-16-2018.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_5-16-2018.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/Coffee%20Annual_Nairobi_Uganda_5-15-2017.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_5-15-2017.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/05/Coffee%20Annual_Nairobi_Uganda_5-13-2016.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_5-13-2016.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Nairobi_Uganda_5-14-2015.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_5-14-2015.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Nairobi_Uganda_5-7-2014.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_5-7-2014.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/06/Coffee%20Annual_Nairobi_Uganda_6-3-2013.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_6-3-2013.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Nairobi_Uganda_5-22-2012.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_5-22-2012.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/06/Coffee%20Annual_Nairobi_Uganda_6-10-2011.pdf
+  filename_clean: Coffee_Annual_Nairobi_Uganda_6-10-2011.pdf
+- report_id: ''
+  country_iso2: UG
+  country_name: ''
+  post: ''
+  category: Uganda Coffee Annual Report
+  publication_date: '20100701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/07/Uganda%20Coffee%20Annual%20Report_Nairobi_Uganda_7-8-2010.pdf
+  filename_clean: Uganda_Coffee_Annual_Report_Nairobi_Uganda_7-8-2010.pdf
+- report_id: VM2025-0051
+  country_iso2: VN
+  country_name: ''
+  post: Ho Chi Minh City
+  category: Coffee Semi-Annual
+  publication_date: '20251201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/12/Coffee%20Semi-Annual_Ho%20Chi%20Minh%20City_Vietnam_VM2025-0051.pdf
+  filename_clean: Coffee_Semi-Annual_Ho_Chi_Minh_City_Vietnam_VM2025-0051.pdf
+- report_id: VM2025-0018
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Coffee Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Coffee%20Annual_Hanoi_Vietnam_VM2025-0018.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_VM2025-0018.pdf
+- report_id: VM2024-0047
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Coffee Semi-annual
+  publication_date: '20241201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/12/Coffee%20Semi-annual_Hanoi_Vietnam_VM2024-0047.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_VM2024-0047.pdf
+- report_id: VM2024-0012
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Coffee Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Coffee%20Annual_Hanoi_Vietnam_VM2024-0012.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_VM2024-0012.pdf
+- report_id: VM2024-0003
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Vietnam Updates the List of HS Codes for Imported Products under  MARD's Specialized Inspection
+  publication_date: '20240301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/03/Vietnam%20Updates%20the%20List%20of%20HS%20Codes%20for%20Imported%20Products%20under%20%20MARD%27s%20Specialized%20Inspection_Hanoi_Vietnam_VM2024-0003.pdf
+  filename_clean: Vietnam_Updates_the_List_of_HS_Codes_for_Imported_Products_under__MARD's_Specialized_Inspection_Hanoi_Vietnam_VM2024-0003.pdf
+- report_id: VM2023-0070
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Coffee Semi-annual
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/Coffee%20Semi-annual_Hanoi_Vietnam_VM2023-0070.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_VM2023-0070.pdf
+- report_id: VM2023-0025
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Coffee Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Coffee%20Annual_Hanoi_Vietnam_VM2023-0025.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_VM2023-0025.pdf
+- report_id: VM2022-0082
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Coffee Semi-annual
+  publication_date: '20221101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/11/Coffee%20Semi-annual_Hanoi_Vietnam_VM2022-0082.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_VM2022-0082.pdf
+- report_id: VM2022-0032
+  country_iso2: VN
+  country_name: ''
+  post: Hanoi
+  category: Coffee Annual
+  publication_date: '20220601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/06/Coffee%20Annual_Hanoi_Vietnam_VM2022-0032.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_VM2022-0032.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20211101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-15-2021.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-15-2021.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Coffee%20Annual_Hanoi_Vietnam_05-15-2021.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_05-15-2021.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20201101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-15-2020.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-15-2020.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20200601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/06/Coffee%20Annual_Hanoi_Vietnam_05-15-2020.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_05-15-2020.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20191201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/12/Coffee%20Semi-annual_Hanoi_Vietnam_11-15-2019.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-15-2019.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20190501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/05/Coffee%20Annual_Hanoi_Vietnam_5-20-2019.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_5-20-2019.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20181101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-28-2018.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-28-2018.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: MARD Issues HS Codes for Plant Products
+  publication_date: '20180701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/07/MARD%20Issues%20HS%20Codes%20for%20Plant%20Products%20_Hanoi_Vietnam_7-9-2018.pdf
+  filename_clean: MARD_Issues_HS_Codes_for_Plant_Products__Hanoi_Vietnam_7-9-2018.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20180601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/06/Coffee%20Annual_Hanoi_Vietnam_6-4-2018.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_6-4-2018.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20171101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-28-2017.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-28-2017.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: COFFEE ANNUAL
+  publication_date: '20170501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/05/COFFEE%20ANNUAL_Hanoi_Vietnam_5-17-2017.pdf
+  filename_clean: COFFEE_ANNUAL_Hanoi_Vietnam_5-17-2017.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20161101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-30-2016.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-30-2016.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20160601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/06/Coffee%20Annual_Hanoi_Vietnam_6-1-2016.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_6-1-2016.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20151101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-18-2015.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-18-2015.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20150501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/05/Coffee%20Annual_Hanoi_Vietnam_5-20-2015.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_5-20-2015.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20141101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-24-2014.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-24-2014.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Coffee%20Annual_Hanoi_Vietnam_5-23-2014.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_5-23-2014.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20131101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-29-2013.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-29-2013.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Coffee%20Annual_Hanoi_Vietnam_5-21-2013.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_5-21-2013.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20121101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/11/Coffee%20Semi-annual_Hanoi_Vietnam_11-13-2012.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_11-13-2012.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20120501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/05/Coffee%20Annual_Hanoi_Vietnam_5-24-2012.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_5-24-2012.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20111201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/12/Coffee%20Semi-annual_Hanoi_Vietnam_12-6-2011.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_12-6-2011.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20110601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/06/Coffee%20Annual_Hanoi_Vietnam_5-25-2011.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_5-25-2011.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual
+  publication_date: '20101201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/12/Coffee%20Semi-annual_Hanoi_Vietnam_12-21-2010.pdf
+  filename_clean: Coffee_Semi-annual_Hanoi_Vietnam_12-21-2010.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Coffee%20Annual_Hanoi_Vietnam_5-21-2010.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_5-21-2010.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20090501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/05/Annual%20Report_Hanoi_Vietnam_05-14-2009.pdf
+  filename_clean: Annual_Report_Hanoi_Vietnam_05-14-2009.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Semi-annual Report
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Semi-annual%20Report_Hanoi_Vietnam_11-14-2008.pdf
+  filename_clean: Semi-annual_Report_Hanoi_Vietnam_11-14-2008.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Annual%20Report_Hanoi_Vietnam_05-20-2008.pdf
+  filename_clean: Annual_Report_Hanoi_Vietnam_05-20-2008.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-annual Report
+  publication_date: '20071101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/11/Coffee%20Semi-annual%20Report_Hanoi_Vietnam_11-21-2007.pdf
+  filename_clean: Coffee_Semi-annual_Report_Hanoi_Vietnam_11-21-2007.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Annual%20Report_Hanoi_Vietnam_05-15-2007.pdf
+  filename_clean: Annual_Report_Hanoi_Vietnam_05-15-2007.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Semi-annual report
+  publication_date: '20061101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/11/Semi-annual%20report_Hanoi_Vietnam_11-15-2006.pdf
+  filename_clean: Semi-annual_report_Hanoi_Vietnam_11-15-2006.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Annual report
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual%20report_Hanoi_Vietnam_05-24-2006.pdf
+  filename_clean: Annual_report_Hanoi_Vietnam_05-24-2006.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee annual report
+  publication_date: '20051101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/11/Coffee%20annual%20report_Hanoi_Vietnam_11-15-2005.pdf
+  filename_clean: Coffee_annual_report_Hanoi_Vietnam_11-15-2005.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/05/Annual_Hanoi_Vietnam_05-23-2005.pdf
+  filename_clean: Annual_Hanoi_Vietnam_05-23-2005.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20041101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/11/Semi-Annual_Hanoi_Vietnam_11-22-2004.pdf
+  filename_clean: Semi-Annual_Hanoi_Vietnam_11-22-2004.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: SEMI-ANNUAL
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/SEMI-ANNUAL_Hanoi_Vietnam_05-18-2004.pdf
+  filename_clean: SEMI-ANNUAL_Hanoi_Vietnam_05-18-2004.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20031201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/12/Coffee%20Semi-Annual_Hanoi_Vietnam_11-26-2003.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_11-26-2003.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Vietnam's Coffee Standards
+  publication_date: '20030801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/08/Vietnam%27s%20Coffee%20Standards_Hanoi_Vietnam_07-31-2003.pdf
+  filename_clean: Vietnam's_Coffee_Standards_Hanoi_Vietnam_07-31-2003.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20030601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/06/Coffee%20Annual_Hanoi_Vietnam_06-02-2003.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_06-02-2003.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20021101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/11/Coffee%20Semi-Annual_Hanoi_Vietnam_11-26-2002.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_11-26-2002.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Coffee%20Annual_Hanoi_Vietnam_05-24-2002.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_05-24-2002.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20011101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/11/Coffee%20Semi-Annual_Hanoi_Vietnam_11-16-2001.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_11-16-2001.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Coffee%20Annual_Hanoi_Vietnam_05-24-2001.pdf
+  filename_clean: Coffee_Annual_Hanoi_Vietnam_05-24-2001.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20001201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/12/Coffee%20Semi-Annual_Hanoi_Vietnam_11-29-2000.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_11-29-2000.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Coffee%20Semi-Annual_Hanoi_Vietnam_05-10-2000.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_05-10-2000.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19991101'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/11/Coffee%20Semi-Annual_Hanoi_Vietnam_11-24-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_11-24-1999.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19990501'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/05/Coffee%20Semi-Annual_Hanoi_Vietnam_05-26-1999.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_05-26-1999.pdf
+- report_id: ''
+  country_iso2: VN
+  country_name: ''
+  post: ''
+  category: Coffee Semi-Annual
+  publication_date: '19981201'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/12/Coffee%20Semi-Annual_Hanoi_Vietnam_12-11-1998.pdf
+  filename_clean: Coffee_Semi-Annual_Hanoi_Vietnam_12-11-1998.pdf

@@ -62,26 +62,36 @@ def raw_wmt_key(publication_date: str) -> str:
     )
 
 
+def raw_gain_key(
+    source_name: str,
+    country_iso2: str,
+    publication_date: str,
+    filename: str,
+) -> str:
+    """Generic S3 key for any USDA FAS GAIN commodity report PDF.
+
+    Args:
+        source_name: Source identifier, e.g. ``"usda_gain_wheat"``.
+        country_iso2: ISO 3166-1 alpha-2 country code, e.g. ``"US"``.
+        publication_date: Publication date in ``YYYYMMDD`` format.
+        filename: Sanitised PDF filename (spaces replaced by underscores).
+    """
+    return (
+        f"raw/production/"
+        f"source={source_name}/"
+        f"country={country_iso2}/"
+        f"publication_date={publication_date}/"
+        f"{filename}"
+    )
+
+
 def raw_gain_coffee_key(
     country_iso2: str,
     publication_date: str,
     filename: str,
 ) -> str:
-    """S3 key for a USDA FAS GAIN Coffee Annual / Semi-annual report PDF.
-
-    Args:
-        country_iso2: ISO 3166-1 alpha-2 country code, e.g. ``"BR"``.
-        publication_date: Publication date in ``YYYYMMDD`` format.
-        filename: Sanitised PDF filename (spaces replaced by underscores),
-            e.g. ``"Coffee_Annual_Brasilia_Brazil_BR2025-0005.pdf"``.
-    """
-    return (
-        f"raw/production/"
-        f"source=usda_gain_coffee/"
-        f"country={country_iso2}/"
-        f"publication_date={publication_date}/"
-        f"{filename}"
-    )
+    """S3 key for a USDA FAS GAIN Coffee Annual / Semi-annual report PDF."""
+    return raw_gain_key("usda_gain_coffee", country_iso2, publication_date, filename)
 
 
 def raw_conab_key(

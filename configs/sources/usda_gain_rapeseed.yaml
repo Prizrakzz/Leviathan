@@ -1,0 +1,59 @@
+source: usda_gain_rapeseed
+
+commodity_id: 28  # FAS taxonomy: "Oilseeds (excl. soybean)"
+# Covers rapeseed, canola, sunflower, and other oilseeds.
+# Country filter (CA, AU, FR, CN, DE, UA, PL) isolates rapeseed/canola origins.
+# Probe may also return sunflower reports for UA/PL — manifest category filtering
+# ("Oilseeds and Products Annual") will correctly include all oilseeds per country
+# which is fine because rapeseed and sunflower are co-produced in these regions.
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A28"
+
+notes: >
+  USDA FAS GAIN country-level Rapeseed/Canola Annual attaché intelligence reports.
+  Covers ICE canola (Winnipeg) and French rapeseed (MATIF) production origins.
+  Primary intelligence on area seeded, crushing capacity, biodiesel mandate policy
+  (EU RED II/III), and crush margins. FAS groups rapeseed under "Oilseeds (excl. soybean)".
+
+publication_cadence: annual
+
+target_commodities:
+  - canola_ice
+  - french_rapeseed_matif
+
+report_categories:
+  - Oilseeds and Products Annual
+  - Oilseeds and Products Update
+
+target_countries:
+  - CA   # Canada           (ICE canola dominant origin)
+  - AU   # Australia        (southern-hemisphere canola)
+  - FR   # France           (MATIF rapeseed)
+  - CN   # China            (large domestic rapeseed)
+  - DE   # Germany          (largest EU rapeseed)
+  - UA   # Ukraine          (rapeseed + sunflower overlap)
+  - PL   # Poland
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_rapeseed/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 28
+    --target-countries CA,AU,FR,CN,DE,UA,PL
+    --output scratch/gain/crawl_rapeseed.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_rapeseed
+    --input scratch/gain/crawl_rapeseed.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_rapeseed
+    --skip-existing-s3
+    --sleep-seconds 2

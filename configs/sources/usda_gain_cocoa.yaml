@@ -1,0 +1,55 @@
+source: usda_gain_cocoa
+
+commodity_id: null
+# FAS does not expose "Cocoa" as a standalone commodity filter in the GAIN search sidebar
+# (34 IDs discovered; none correspond to Cocoa). Commodity 31 ("Processed Food Products")
+# returns generic food/dairy reports for CI, GH, etc. — not cocoa.
+# Solution: probe_gain_http.py --title-filter "cocoa" crawls all GAIN reports for target
+# countries and keeps only cards whose title contains "cocoa" (case-insensitive).
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251"
+# No commodity filter — full GAIN report stream scoped to target countries + title filter.
+
+notes: >
+  USDA FAS GAIN country-level Cocoa Annual and Semi-annual attaché intelligence reports.
+  Covers Côte d'Ivoire (largest producer, ~40% world share), Ghana, Cameroon, Indonesia,
+  Nigeria, Ecuador, Peru. Primary intelligence on mid-crop/main-crop size, bean quality,
+  port logistics, government marketing board activity, and El Niño/La Niña impacts.
+
+publication_cadence: annual
+
+target_commodities:
+  - cocoa
+
+report_categories:
+  - Cocoa Annual
+  - Cocoa Semi-Annual
+
+target_countries:
+  - CI   # Côte d'Ivoire    (dominant origin)
+  - GH   # Ghana
+  - CM   # Cameroon
+  - ID   # Indonesia        (Sulawesi bulk robusta cocoa)
+  - NG   # Nigeria
+  - EC   # Ecuador          (fine/flavour origin)
+  - PE   # Peru
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_cocoa/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+crawl_command: >
+  python scratch/gain/probe_gain_cocoa.py --output scratch/gain/crawl_cocoa.jsonl
+  # Uses early-exit on 15 consecutive empty pages — no commodity ID required.
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_cocoa
+    --input scratch/gain/crawl_cocoa.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_cocoa
+    --skip-existing-s3
+    --sleep-seconds 2

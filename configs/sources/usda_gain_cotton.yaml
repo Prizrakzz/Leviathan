@@ -1,0 +1,54 @@
+source: usda_gain_cotton
+
+commodity_id: 6  # FAS taxonomy: "Cotton"
+# Note: ID 13040 is "Cotton and Hemp" — check both IDs if 6 yields fewer results.
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A6"
+
+notes: >
+  USDA FAS GAIN country-level Cotton Annual and Semi-annual attaché intelligence reports.
+  Covers NYBOT/ICE cotton No. 2 origins. Primary intelligence on area planted, boll weevil
+  pressure, government support schemes (China RNR program, India MSP), export registration,
+  and logistical bottlenecks. Also covers lint quality mix (staple length, micronaire).
+
+publication_cadence: annual
+
+target_commodities:
+  - cotton
+
+report_categories:
+  - Cotton and Products Annual
+  - Cotton and Products Semi-Annual
+
+target_countries:
+  - US   # United States    (NYBOT benchmark; Delta, Southeast, West Texas)
+  - IN   # India            (second largest producer)
+  - CN   # China            (largest consumer; Xinjiang origin)
+  - BR   # Brazil           (fast-growing Cerrado origin)
+  - AU   # Australia        (high-quality machine-picked)
+  - PK   # Pakistan         (major consumer; Indus valley origin)
+  - UZ   # Uzbekistan       (Central Asian origin)
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_cotton/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 6
+    --target-countries US,IN,CN,BR,AU,PK,UZ
+    --output scratch/gain/crawl_cotton.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_cotton
+    --input scratch/gain/crawl_cotton.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_cotton
+    --skip-existing-s3
+    --sleep-seconds 2

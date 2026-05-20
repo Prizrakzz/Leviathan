@@ -1,22 +1,36 @@
-"""Fast HTTP-only GAIN coffee report crawler using curl_cffi + BeautifulSoup.
+"""Generic GAIN report crawler — curl_cffi + BeautifulSoup, no browser required.
 
-No browser required — fas.usda.gov search results are server-side rendered.
-WAF bypass is handled by curl_cffi impersonating Chrome 124.
+fas.usda.gov search results are server-side rendered.  WAF bypass is handled
+by curl_cffi impersonating Chrome 124.
 
 Usage
 -----
-Quick test (first 2 listing pages, no landing-page fetches):
-    python scratch/gain/probe_gain_http.py --limit-pages 2 --skip-landing
+Discover commodity filter IDs first (one-time):
+    python scratch/gain/probe_gain_commodity_ids.py
 
-Full crawl (all pages, visits landing pages for PDF URLs):
-    python scratch/gain/probe_gain_http.py
+Coffee (commodity_id=609, all 18 origins):
+    python scratch/gain/probe_gain_http.py \\
+        --commodity-id 609 \\
+        --target-countries BR,CO,ET,VN,ID,HN,GT,PE,MX,UG,IN,TZ,KE,CI,CM,PG,PH,LA \\
+        --output scratch/gain/crawl_coffee.jsonl
+
+Wheat (replace ID with discovered value):
+    python scratch/gain/probe_gain_http.py \\
+        --commodity-id NNN \\
+        --target-countries US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR \\
+        --output scratch/gain/crawl_wheat.jsonl
+
+Quick structure test (first 2 pages, no landing-page fetches):
+    python scratch/gain/probe_gain_http.py --commodity-id 609 \\
+        --target-countries BR,CO --limit-pages 2 --skip-landing
 
 Output
 ------
-  scratch/gain/crawl_results.jsonl   (one JSON record per report)
+  {output}   (one JSON record per report, default: scratch/gain/crawl_results.jsonl)
 
 Next step:
-    python scratch/gain/build_manifest.py --source playwright
+    python scratch/gain/build_manifest.py --source-name usda_gain_wheat \\
+        --input scratch/gain/crawl_wheat.jsonl
 """
 from __future__ import annotations
 
@@ -36,19 +50,25 @@ from curl_cffi import requests as cr
 
 _IMPERSONATE = "chrome124"
 _BASE_URL = "https://fas.usda.gov"
-_SEARCH_URL = (
+_SEARCH_BASE = (
     "https://fas.usda.gov/data/search"
     "?reports%5B0%5D=report_type%3A10251"   # Attaché Report (GAIN)
-    "&reports%5B1%5D=report_commodities%3A609"  # Coffee commodity
+    "&reports%5B1%5D=report_commodities%3A{cid}"  # commodity filter — filled at runtime
 )
-
-_OUT_PATH = Path(__file__).parent / "crawl_results.jsonl"
+_SEARCH_BASE_NO_COMMODITY = (
+    "https://fas.usda.gov/data/search"
+    "?reports%5B0%5D=report_type%3A10251"   # GAIN only, no commodity filter
+)
+_DEFAULT_OUT_PATH = Path(__file__).parent / "crawl_results.jsonl"
 
 # ---------------------------------------------------------------------------
 # Country mapping  (title substring → ISO2)
 # ---------------------------------------------------------------------------
 
+# Comprehensive country name → ISO2 mapping covering all GAIN commodity producers.
+# Keys are lowercase substrings that appear in FAS report titles (e.g. "Kenya: Coffee Annual").
 COUNTRY_NAME_TO_ISO2: dict[str, str] = {
+    # Coffee origins
     "brazil": "BR",
     "colombia": "CO",
     "ethiopia": "ET",
@@ -73,8 +93,90 @@ COUNTRY_NAME_TO_ISO2: dict[str, str] = {
     "lao p.d.r.": "LA",
     "lao pdr": "LA",
     "lao people": "LA",
+    # Grains / wheat / corn / rice
+    "united states": "US",
+    "france": "FR",
+    "australia": "AU",
+    "canada": "CA",
+    "ukraine": "UA",
+    "russia": "RU",
+    "russian federation": "RU",
+    "pakistan": "PK",
+    "egypt": "EG",
+    "argentina": "AR",
+    "china": "CN",
+    "germany": "DE",
+    "poland": "PL",
+    "turkey": "TR",
+    "türkiye": "TR",
+    "turkiye": "TR",
+    "south africa": "ZA",
+    "nigeria": "NG",
+    "thailand": "TH",
+    "ghana": "GH",
+    "paraguay": "PY",
+    "bolivia": "BO",
+    "ecuador": "EC",
+    "uzbekistan": "UZ",
+    # Palm oil / oilseeds
+    "malaysia": "MY",
+    # Additional origins that appear in GAIN titles
+    "myanmar": "MM",
+    "burma": "MM",
+    "taiwan": "TW",
+    "south korea": "KR",
+    "korea": "KR",
+    "japan": "JP",
+    "nigeria": "NG",
+    "senegal": "SN",
+    "mali": "ML",
+    "burkina faso": "BF",
+    "benin": "BJ",
+    "togo": "TG",
+    "guinea": "GN",
+    "nicaragua": "NI",
+    "costa rica": "CR",
+    "el salvador": "SV",
+    "panama": "PA",
+    "dominican republic": "DO",
+    "haiti": "HT",
+    "jamaica": "JM",
+    "trinidad": "TT",
+    "venezuela": "VE",
+    "chile": "CL",
+    "uruguay": "UY",
+    "zambia": "ZM",
+    "zimbabwe": "ZW",
+    "mozambique": "MZ",
+    "malawi": "MW",
+    "rwanda": "RW",
+    "burundi": "BI",
+    "democratic republic of congo": "CD",
+    "angola": "AO",
+    "sri lanka": "LK",
+    "myanmar": "MM",
+    "nepal": "NP",
+    "bangladesh": "BD",
+    "iran": "IR",
+    "iraq": "IQ",
+    "saudi arabia": "SA",
+    "kazakhstan": "KZ",
+    "uzbekistan": "UZ",
+    "romania": "RO",
+    "hungary": "HU",
+    "czech": "CZ",
+    "spain": "ES",
+    "italy": "IT",
+    "portugal": "PT",
+    "sweden": "SE",
+    "denmark": "DK",
+    "finland": "FI",
+    "netherlands": "NL",
+    "belgium": "BE",
+    "austria": "AT",
+    "switzerland": "CH",
+    "new zealand": "NZ",
 }
-TARGET_ISO2: set[str] = set(COUNTRY_NAME_TO_ISO2.values())
 
 # ---------------------------------------------------------------------------
 # HTTP helpers
@@ -245,13 +347,17 @@ def crawl(
     skip_landing: bool,
     sleep_listing: float,
     sleep_landing: float,
+    target_iso2: set[str],
+    search_url: str,
+    out_path: Path,
+    title_filter: str | None = None,
 ) -> int:
-    _OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     saved = 0
     skipped_country = 0
     page_num = 0
 
-    with cr.Session() as sess, open(_OUT_PATH, "w", encoding="utf-8") as fh:
+    with cr.Session() as sess, open(out_path, "w", encoding="utf-8") as fh:
         sess.headers.update({
             "Accept": "text/html,application/xhtml+xml",
             "Accept-Language": "en-US,en;q=0.9",
@@ -263,7 +369,7 @@ def crawl(
                 print(f"\n--limit-pages {limit_pages} reached.")
                 break
 
-            page_url = _SEARCH_URL if page_num == 0 else f"{_SEARCH_URL}&page={page_num}"
+            page_url = search_url if page_num == 0 else f"{search_url}&page={page_num}"
             print(f"\n[Page {page_num + 1}] {page_url}")
 
             html = _get_html(sess, page_url)
@@ -281,7 +387,11 @@ def crawl(
                 title = card["title"]
                 iso2 = _iso2_from_title(title)
 
-                if not iso2:
+                if not iso2 or iso2 not in target_iso2:
+                    skipped_country += 1
+                    continue
+
+                if title_filter and title_filter.lower() not in title.lower():
                     skipped_country += 1
                     continue
 
@@ -341,7 +451,7 @@ def crawl(
             time.sleep(sleep_listing)
 
     print(f"\nDone. Saved: {saved}, Skipped (non-target country): {skipped_country}")
-    print(f"Output: {_OUT_PATH}")
+    print(f"Output: {out_path}")
     return saved
 
 
@@ -352,7 +462,46 @@ def crawl(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Fast HTTP GAIN coffee crawler (curl_cffi + BeautifulSoup, no browser)."
+        description="Generic GAIN crawler (curl_cffi + BeautifulSoup, no browser)."
+    )
+    parser.add_argument(
+        "--commodity-id",
+        type=int,
+        default=None,
+        metavar="NNN",
+        help=(
+            "FAS taxonomy commodity filter ID, e.g. 609 for Coffee. "
+            "Run probe_gain_commodity_ids.py to discover IDs. "
+            "Omit to search all GAIN reports (use with --title-filter to scope results)."
+        ),
+    )
+    parser.add_argument(
+        "--title-filter",
+        default=None,
+        metavar="TEXT",
+        help=(
+            "Case-insensitive substring filter on the report card title, e.g. 'cocoa' or "
+            "'cocoa annual'. Applied after country filtering. Used when no commodity-id "
+            "covers the target (e.g. Cocoa is not in the FAS GAIN taxonomy sidebar)."
+        ),
+    )
+    parser.add_argument(
+        "--target-countries",
+        required=True,
+        metavar="CC,...",
+        help=(
+            "Comma-separated ISO2 country codes to capture, e.g. "
+            "'US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR' for wheat."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help=(
+            f"Output JSONL file path (default: {_DEFAULT_OUT_PATH}). "
+            "Use scratch/gain/crawl_{commodity}.jsonl to keep commodity outputs separate."
+        ),
     )
     parser.add_argument(
         "--limit-pages",
@@ -380,11 +529,22 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    target_iso2: set[str] = {c.strip().upper() for c in args.target_countries.split(",") if c.strip()}
+    if args.commodity_id is not None:
+        search_url = _SEARCH_BASE.format(cid=args.commodity_id)
+    else:
+        search_url = _SEARCH_BASE_NO_COMMODITY
+    out_path = Path(args.output) if args.output else _DEFAULT_OUT_PATH
+
     print("USDA GAIN HTTP Crawler (curl_cffi + BeautifulSoup)")
-    print(f"Search URL: {_SEARCH_URL}")
+    print(f"Commodity ID: {args.commodity_id if args.commodity_id is not None else '(none — all GAIN reports)'}")
+    if args.title_filter:
+        print(f"Title filter: '{args.title_filter}'")
+    print(f"Search URL:   {search_url}")
+    print(f"Output:       {out_path}")
     if args.limit_pages:
-        print(f"Limit: {args.limit_pages} pages")
-    print(f"Target countries: {sorted(TARGET_ISO2)}")
+        print(f"Limit:        {args.limit_pages} pages")
+    print(f"Target countries ({len(target_iso2)}): {sorted(target_iso2)}")
     print()
 
     n = crawl(
@@ -392,13 +552,24 @@ def main() -> None:
         skip_landing=args.skip_landing,
         sleep_listing=args.sleep_listing,
         sleep_landing=args.sleep_landing,
+        target_iso2=target_iso2,
+        search_url=search_url,
+        out_path=out_path,
+        title_filter=args.title_filter,
     )
 
     if n == 0:
-        print("\nWARNING: No records saved. Check the search URL or HTML structure.")
+        print("\nWARNING: No records saved. Check the search URL, HTML structure, or title filter.")
         raise SystemExit(1)
 
-    print(f"\nNext step: python scratch/gain/build_manifest.py --source playwright")
+    if args.commodity_id is not None:
+        source_guess = f"usda_gain_commodity{args.commodity_id}"
+    else:
+        source_guess = "usda_gain_<commodity>"
+    print(
+        f"\nNext step: python scratch/gain/build_manifest.py "
+        f"--source-name {source_guess} --input {out_path}"
+    )
 
 
 if __name__ == "__main__":

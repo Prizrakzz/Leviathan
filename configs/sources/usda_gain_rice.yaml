@@ -1,0 +1,53 @@
+source: usda_gain_rice
+
+commodity_id: 16  # FAS taxonomy: "Rice"
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A16"
+
+notes: >
+  USDA FAS GAIN country-level Rice Annual and Semi-annual attaché intelligence reports.
+  Covers CBOT Rough Rice origins. Primary intelligence on area planted, yield by type
+  (indica/jasmine/fragrant), government procurement prices, export bans/quotas (India 2023
+  precedent), and milled rice export flows from Thailand and Vietnam.
+
+publication_cadence: annual
+
+target_commodities:
+  - rough_rice_cbot
+
+report_categories:
+  - Grain and Feed Annual
+  - Grain and Feed Semi-Annual
+  - Grain and Feed Update
+
+target_countries:
+  - TH   # Thailand         (jasmine/white rice benchmark exporter)
+  - VN   # Vietnam          (second largest exporter)
+  - IN   # India            (largest exporter by volume, export ban risk)
+  - CN   # China            (largest consumer/importer)
+  - US   # United States    (CBOT rough rice; Arkansas, California, Louisiana)
+  - PK   # Pakistan         (Basmati origin)
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_rice/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 16
+    --target-countries TH,VN,IN,CN,US,PK
+    --output scratch/gain/crawl_rice.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_rice
+    --input scratch/gain/crawl_rice.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_rice
+    --skip-existing-s3
+    --sleep-seconds 2

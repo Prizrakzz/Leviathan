@@ -1,0 +1,51 @@
+source: usda_gain_soybean_oil
+
+commodity_id: 13022  # FAS taxonomy: "Soybean Oil"
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A13022"
+
+notes: >
+  USDA FAS GAIN country-level Soybean Oil Annual attaché intelligence reports.
+  Covers the CBOT/DCE soybean oil spread origins. Primary intelligence on crush margin
+  economics, biodiesel mandate policy (AR/BR renewable diesel mandates), export tax
+  differentials (Argentina differential export tax on soy products), and import demand.
+
+publication_cadence: annual
+
+target_commodities:
+  - soybean_oil_cbot
+  - soybean_oil_dce
+
+report_categories:
+  - Oilseeds and Products Annual
+  - Oilseeds and Products Update
+
+target_countries:
+  - BR   # Brazil           (DCE/CBOT spread; growing biodiesel mandate)
+  - US   # United States    (CBOT)
+  - AR   # Argentina        (differential export tax origin)
+  - CN   # China            (DCE; largest importer and crusher)
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_soybean_oil/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 13022
+    --target-countries BR,US,AR,CN
+    --output scratch/gain/crawl_soybean_oil.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_soybean_oil
+    --input scratch/gain/crawl_soybean_oil.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_soybean_oil
+    --skip-existing-s3
+    --sleep-seconds 2
