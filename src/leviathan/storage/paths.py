@@ -387,3 +387,33 @@ def unica_biweekly_raw_key(harvest_year: str, idm: str) -> str:
     """
     hy = harvest_year.replace("/", "_")
     return f"raw/production/source=unica_biweekly/harvest_year={hy}/idm={idm}/report.pdf"
+
+
+# ---------------------------------------------------------------------------
+# USDA PSD (Production, Supply and Distribution) — global S/D balance sheets
+# ---------------------------------------------------------------------------
+
+def raw_psd_bulk_key(release_date: str) -> str:
+    """S3 key for a USDA PSD bulk all-commodities ZIP download.
+
+    One ZIP per download event; contains a single CSV with all commodities,
+    all countries, all marketing years (1960s–present), and all monthly
+    WASDE vintages.  The ``Month`` column in the CSV identifies the WASDE
+    release month, enabling revision-surprise feature engineering downstream.
+
+    Downloaded without authentication from:
+        https://apps.fas.usda.gov/psdonline/downloads/psd_alldata_csv.zip
+
+    Args:
+        release_date: Date of download in ``YYYY-MM-DD`` format, e.g.
+            ``"2026-05-20"``.  Using date (not month) avoids key collision
+            when downloading both before and after the WASDE release within
+            the same calendar month.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_psd/"
+        f"release_type=bulk/"
+        f"release_date={release_date}/"
+        f"psd_alldata.zip"
+    )

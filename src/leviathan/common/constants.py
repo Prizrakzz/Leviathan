@@ -15,6 +15,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "mpoc_stock_comparison": 5_000,    # 5 KB — single page with tables + narrative, ~390 KB in practice
     "mpoc_competitive_prices": 1_000,  # 1 KB — small table page, ~330 KB in practice
     "mpoc_article": 2_000,             # 2 KB — individual article pages vary widely
+    "usda_psd": 10_000_000,            # 10 MB — bulk ZIP is ~50-80 MB compressed in practice
 }
 
 ALL_COMMODITIES: list[str] = [
