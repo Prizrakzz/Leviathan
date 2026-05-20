@@ -527,6 +527,27 @@ def raw_nass_crops_key(download_date: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# USDA WASDE
+# ---------------------------------------------------------------------------
+
+def raw_wasde_key(release_date: str, mmyy: str, fmt: str) -> str:
+    """S3 key for a single USDA WASDE release file.
+
+    Args:
+        release_date: YYYY-MM-DD, e.g. "1995-01-12" or "2026-05-12"
+        mmyy: Two-digit month + two-digit year, e.g. "0195" for January 1995,
+              "0526" for May 2026.
+        fmt: File format extension — "txt" (1995–1999) or "pdf" (all other years).
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_wasde/"
+        f"release_date={release_date}/"
+        f"wasde{mmyy}.{fmt}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # SAGIS (South African Grain Information Service) — Weekly Bulletin
 # ---------------------------------------------------------------------------
 

@@ -1,0 +1,77 @@
+source: usda_wasde
+
+notes: >
+  USDA World Agricultural Supply and Demand Estimates (WASDE).
+  Published monthly by the World Agricultural Outlook Board (WAOB).
+  Released on the second Friday of each month at 12:00 pm ET.
+  First release: September 1973 (WASDE-001).
+
+  Three format eras:
+    1973-1994  PDF only (scanned images; pdfplumber will not work;
+               OCR via Bedrock Data Automation / Textract deferred to bronze)
+    1995-1999  TXT only (TXT was the authoritative distribution format for this
+               era; files contain the full report including narrative pages)
+    2000-present  PDF (digital typeset; pdfplumber-compatible in bronze layer)
+
+  Archive source:
+    https://esmis.nal.usda.gov/publication/world-agricultural-supply-and-demand-estimates
+
+  Relationship to usda_psd:
+    The psd_alldata_csv.zip (fetch_usda_psd.py) already contains all WASDE
+    supply/demand table vintages via the Month column. WASDE raw files are
+    ingested here for narrative content only — the "OUTLOOK FOR" sections
+    (pages 1-7 per report): OUTLOOK FOR WHEAT, OUTLOOK FOR COARSE GRAINS,
+    OUTLOOK FOR OILSEEDS, OUTLOOK FOR COTTON, OUTLOOK FOR SUGAR, etc.
+    These narrative sections are the primary target for GraphRAG knowledge
+    graph construction and LLM-based feature engineering.
+
+  Notable historical content:
+    1973-1974  First WASDE releases (post-Soviet grain deal era, global food crisis)
+    1988       North American drought (worst since 1936 Dust Bowl)
+    1995-1996  World grain shortage (global carryover stocks at 50-year low)
+    1997-1998  El Nino crop disruptions (Indonesia, Australia, Brazil, US)
+    1998-1999  Russia grain crisis (post-default food security concerns)
+    2000-present  Digital archive, consistent PDF layout
+
+  Deduplication:
+    Correction releases (v2, v3 on usda.gov; duplicate-dated TXT entries in
+    1995 era) are deduplicated at manifest-build time: per calendar month,
+    the entry with the latest release_date is retained.
+
+publication_cadence: monthly
+first_release: "1973-09-17"
+
+target_commodities:
+  - corn_cbot
+  - campinas_corn_reference_bmf
+  - french_maize_matif
+  - south_african_white_maize_jse
+  - south_african_yellow_maize_jse
+  - soft_red_winter_wheat_cbot
+  - hard_red_winter_wheat_kcbt
+  - hard_red_spring_wheat_mgex
+  - french_wheat_matif
+  - rough_rice_cbot
+  - soybeans_cbot
+  - soybeans_no_1_dce
+  - soybeans_no_2_dce
+  - soybean_meal_cbot
+  - soybean_meal_dce
+  - soybean_oil_cbot
+  - soybean_oil_dce
+  - french_rapeseed_matif
+  - canola_ice
+  - rapeseed_oil_zce
+  - rapeseed_meal_zce
+  - malaysian_crude_palm_oil_cme
+  - palm_olein_dce
+  - cotton
+  - raw_sugar
+  - white_sugar
+  - frozen_orange_juice
+  - arabica_coffee
+  - brazilian_arabica_coffee
+  - robusta_coffee
+  - cocoa
+
+ingest_script: jobs/ingest/fetch_usda_wasde.py
