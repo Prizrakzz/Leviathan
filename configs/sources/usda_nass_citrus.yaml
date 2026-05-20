@@ -1,0 +1,71 @@
+source: usda_nass_citrus
+
+notes: >
+  USDA NASS Florida Citrus PDF reports. All series originate from:
+    https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/
+
+  All files are hosted on nass.usda.gov static infrastructure — no authentication
+  required, no Wayback Machine needed. Discovery scrapes three index pages.
+
+  Six report series:
+
+  1. monthly_forecast — Monthly Citrus Production Forecast (Oct–Jul, ~10/season).
+     Citrus_Forecast/history.php
+     Filename pattern: cit{MM}{YY}.pdf  (some 2018-19 entries use month
+     abbreviations, e.g. citAPR19.pdf — history.php is authoritative).
+     Coverage: 1996-97 through present.
+
+  2. maturity_test — Maturity Test Results (September + November, ~2/season).
+     Same history.php page.
+     Filename pattern: mat{MM}{YY}.pdf (September) or cit{MM}{YY}.pdf (November).
+     NOTE: November entries use cit*.pdf filenames but are labeled
+     "Maturity Test Results" in link text — classified by link text, not filename.
+     Coverage: 1996-97 through present.
+
+  3. freeze_damage — Ad hoc Freeze Damage Reports (~8 total, scattered across seasons).
+     Same history.php page.
+     Filename pattern: frz{MM}{YY}.pdf
+     Notable events: Jan 2011, Feb 2011, Feb 2010, Jan 2010, Feb 2009, etc.
+     Rare but high-signal for FCOJ price modelling and GraphRAG freeze narratives.
+
+  4. annual_statistics — FL Citrus Statistics annual book (published ~March).
+     Citrus_Statistics/index.php
+     Filename pattern: fcs{YYYY-YY abbreviation}.pdf / FCS{YYYY}.pdf (varies by vintage).
+     Coverage: 2008-09 through present.
+     Supersedes citrus_summary_final from 2008-09 onward.
+
+  5. citrus_summary_prelim — Preliminary Citrus Summary (published ~September).
+     Citrus_Summary/index.php → Citrus_Summary_Prelim/ subdirectory.
+     Filename pattern: cit{MMDDYY}.pdf
+     Coverage: 1996-97 through present.
+
+  6. citrus_summary_final — Final annual Citrus Summary book.
+     Citrus_Summary/index.php → YYYY-YY/ season subdirectory.
+     Filename pattern: cs{abbreviation}.pdf
+     Coverage: 1998-99 through 2007-08 (superseded by annual_statistics from 2008-09).
+     Pre-1998-99 final books require contacting the FL Field Office — not online.
+
+  Notable gap: October 2013 report absent (government furlough — text note on page).
+
+publication_cadence:
+  monthly_forecast: monthly_in_season    # October through July
+  maturity_test: biannual                # September and November
+  freeze_damage: ad_hoc
+  annual_statistics: annual              # ~March
+  citrus_summary_prelim: annual          # ~September
+  citrus_summary_final: annual           # ~February (historical only, through 2007-08)
+
+coverage_start_year: 1996
+
+target_commodities:
+  - frozen_orange_juice
+
+report_types:
+  - monthly_forecast
+  - maturity_test
+  - freeze_damage
+  - annual_statistics
+  - citrus_summary_prelim
+  - citrus_summary_final
+
+ingest_script: jobs/ingest/fetch_usda_nass_citrus.py

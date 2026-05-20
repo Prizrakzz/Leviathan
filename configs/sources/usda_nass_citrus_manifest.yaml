@@ -1,0 +1,2258 @@
+# USDA NASS Florida Citrus PDF manifest
+# Populated by: python jobs/ingest/fetch_usda_nass_citrus.py --discover
+#
+# Schema per entry:
+#   report_type:   monthly_forecast | maturity_test | freeze_damage |
+#                  annual_statistics | citrus_summary_prelim | citrus_summary_final
+#   season:        YYYY-YY string (e.g. "2024-25")
+#   release_date:  YYYYMMDD string, or "" if not parseable from page
+#   pdf_url:       canonical URL on nass.usda.gov
+#   filename:      PDF filename (last URL path component)
+
+
+reports:
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit1224.pdf"
+    filename: "cit1224.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit1124.pdf"
+    filename: "cit1124.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit1024.pdf"
+    filename: "cit1024.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit0725.pdf"
+    filename: "cit0725.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit0625.pdf"
+    filename: "cit0625.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: "20250512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit0525.pdf"
+    filename: "cit0525.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit0425.pdf"
+    filename: "cit0425.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit0325.pdf"
+    filename: "cit0325.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit0225.pdf"
+    filename: "cit0225.pdf"
+
+  - report_type: monthly_forecast
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/cit0125.pdf"
+    filename: "cit0125.pdf"
+
+  - report_type: maturity_test
+    season: "2024-25"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2024-25/mat0924.pdf"
+    filename: "mat0924.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit1223b.pdf"
+    filename: "cit1223b.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit1123.pdf"
+    filename: "cit1123.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit1023.pdf"
+    filename: "cit1023.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit0724.pdf"
+    filename: "cit0724.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit0624.pdf"
+    filename: "cit0624.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: "20240510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit0524.pdf"
+    filename: "cit0524.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit0424.pdf"
+    filename: "cit0424.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit0324.pdf"
+    filename: "cit0324.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit0224.pdf"
+    filename: "cit0224.pdf"
+
+  - report_type: monthly_forecast
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/cit0124.pdf"
+    filename: "cit0124.pdf"
+
+  - report_type: maturity_test
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2023-24/mat0923.pdf"
+    filename: "mat0923.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2023-24"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit082924.pdf"
+    filename: "cit082924.pdf"
+
+  - report_type: annual_statistics
+    season: "2023-24"
+    release_date: "20250218"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2023-24/FCS2024.pdf"
+    filename: "FCS2024.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit1222a.pdf"
+    filename: "cit1222a.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit1122.pdf"
+    filename: "cit1122.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit1022.pdf"
+    filename: "cit1022.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit0723.pdf"
+    filename: "cit0723.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit0623.pdf"
+    filename: "cit0623.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: "20230512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit0523.pdf"
+    filename: "cit0523.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit0423.pdf"
+    filename: "cit0423.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit0323.pdf"
+    filename: "cit0323.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit0223.pdf"
+    filename: "cit0223.pdf"
+
+  - report_type: monthly_forecast
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/cit0123.pdf"
+    filename: "cit0123.pdf"
+
+  - report_type: maturity_test
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2022-23/mat0922a.pdf"
+    filename: "mat0922a.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2022-23"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit083123.pdf"
+    filename: "cit083123.pdf"
+
+  - report_type: annual_statistics
+    season: "2022-23"
+    release_date: "20240313"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2022-23/FCS2023.pdf"
+    filename: "FCS2023.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit1221.pdf"
+    filename: "cit1221.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit1121a.pdf"
+    filename: "cit1121a.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit1021.pdf"
+    filename: "cit1021.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit0722.pdf"
+    filename: "cit0722.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit0622.pdf"
+    filename: "cit0622.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: "20220512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit0522.pdf"
+    filename: "cit0522.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit0422.pdf"
+    filename: "cit0422.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit0322.pdf"
+    filename: "cit0322.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit0222.pdf"
+    filename: "cit0222.pdf"
+
+  - report_type: monthly_forecast
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/cit0122.pdf"
+    filename: "cit0122.pdf"
+
+  - report_type: maturity_test
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2021-22/mat0921.pdf"
+    filename: "mat0921.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2021-22"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit090722.pdf"
+    filename: "cit090722.pdf"
+
+  - report_type: annual_statistics
+    season: "2021-22"
+    release_date: "20230328"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2021-22/FCS2022.pdf"
+    filename: "FCS2022.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit1220.pdf"
+    filename: "cit1220.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit1120.pdf"
+    filename: "cit1120.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit1020a.pdf"
+    filename: "cit1020a.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit0721.pdf"
+    filename: "cit0721.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit0621.pdf"
+    filename: "cit0621.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: "20210512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit0521.pdf"
+    filename: "cit0521.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit0421.pdf"
+    filename: "cit0421.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit0321.pdf"
+    filename: "cit0321.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit0221.pdf"
+    filename: "cit0221.pdf"
+
+  - report_type: monthly_forecast
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/cit0121.pdf"
+    filename: "cit0121.pdf"
+
+  - report_type: maturity_test
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2020-21/mat0920.pdf"
+    filename: "mat0920.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2020-21"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit90821.pdf"
+    filename: "cit90821.pdf"
+
+  - report_type: annual_statistics
+    season: "2020-21"
+    release_date: "20220323"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2020-21/fcs2021b.pdf"
+    filename: "fcs2021b.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit1219.pdf"
+    filename: "cit1219.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit1119.pdf"
+    filename: "cit1119.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit1019.pdf"
+    filename: "cit1019.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit0720.pdf"
+    filename: "cit0720.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit0620.pdf"
+    filename: "cit0620.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: "20200512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit0520.pdf"
+    filename: "cit0520.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit0420.pdf"
+    filename: "cit0420.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit0320a.pdf"
+    filename: "cit0320a.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit0220a.pdf"
+    filename: "cit0220a.pdf"
+
+  - report_type: monthly_forecast
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/cit0120b.pdf"
+    filename: "cit0120b.pdf"
+
+  - report_type: maturity_test
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2019-20/mat0919.pdf"
+    filename: "mat0919.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2019-20"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit82620.pdf"
+    filename: "cit82620.pdf"
+
+  - report_type: annual_statistics
+    season: "2019-20"
+    release_date: "20210330"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2019-20/fcs1920b.pdf"
+    filename: "fcs1920b.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: "20190510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/citMAY19.pdf"
+    filename: "citMAY19.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/citJUNE19.pdf"
+    filename: "citJUNE19.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/citFEB19.pdf"
+    filename: "citFEB19.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/citAPR19.pdf"
+    filename: "citAPR19.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/cit1218.pdf"
+    filename: "cit1218.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/cit1118.pdf"
+    filename: "cit1118.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/cit1018.pdf"
+    filename: "cit1018.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/cit0719.pdf"
+    filename: "cit0719.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/cit0319.pdf"
+    filename: "cit0319.pdf"
+
+  - report_type: monthly_forecast
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/cit0119.pdf"
+    filename: "cit0119.pdf"
+
+  - report_type: maturity_test
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2018-19/mat0918.pdf"
+    filename: "mat0918.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2018-19"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit82819.pdf"
+    filename: "cit82819.pdf"
+
+  - report_type: annual_statistics
+    season: "2018-19"
+    release_date: "20200311"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2018-19/fcs1819.pdf"
+    filename: "fcs1819.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit1217.pdf"
+    filename: "cit1217.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit1117.pdf"
+    filename: "cit1117.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit1017.pdf"
+    filename: "cit1017.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit0718.pdf"
+    filename: "cit0718.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit0618.pdf"
+    filename: "cit0618.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: "20180510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit0518.pdf"
+    filename: "cit0518.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit0418.pdf"
+    filename: "cit0418.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit0318.pdf"
+    filename: "cit0318.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit0218.pdf"
+    filename: "cit0218.pdf"
+
+  - report_type: monthly_forecast
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/cit0118.pdf"
+    filename: "cit0118.pdf"
+
+  - report_type: maturity_test
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2017-18/mat0917.pdf"
+    filename: "mat0917.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2017-18"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit82818.pdf"
+    filename: "cit82818.pdf"
+
+  - report_type: annual_statistics
+    season: "2017-18"
+    release_date: "20190529"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2017-18/fcs1718.pdf"
+    filename: "fcs1718.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit1216.pdf"
+    filename: "cit1216.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit1116.pdf"
+    filename: "cit1116.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit1016.pdf"
+    filename: "cit1016.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit0717.pdf"
+    filename: "cit0717.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit0617.pdf"
+    filename: "cit0617.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: "20170510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit0517.pdf"
+    filename: "cit0517.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit0417.pdf"
+    filename: "cit0417.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit0317.pdf"
+    filename: "cit0317.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit0217.pdf"
+    filename: "cit0217.pdf"
+
+  - report_type: monthly_forecast
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/cit0117.pdf"
+    filename: "cit0117.pdf"
+
+  - report_type: maturity_test
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2016-17/mat0916.pdf"
+    filename: "mat0916.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2016-17"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit83117.pdf"
+    filename: "cit83117.pdf"
+
+  - report_type: annual_statistics
+    season: "2016-17"
+    release_date: "20180417"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2016-17/fcs1617.pdf"
+    filename: "fcs1617.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit1215.pdf"
+    filename: "cit1215.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit1115.pdf"
+    filename: "cit1115.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit1015.pdf"
+    filename: "cit1015.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit0716.pdf"
+    filename: "cit0716.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit0616.pdf"
+    filename: "cit0616.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: "20160510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit0516.pdf"
+    filename: "cit0516.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit0416.pdf"
+    filename: "cit0416.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit0316.pdf"
+    filename: "cit0316.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit0216.pdf"
+    filename: "cit0216.pdf"
+
+  - report_type: monthly_forecast
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/cit0116.pdf"
+    filename: "cit0116.pdf"
+
+  - report_type: maturity_test
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2015-16/mat0915.pdf"
+    filename: "mat0915.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2015-16"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit91216.pdf"
+    filename: "cit91216.pdf"
+
+  - report_type: annual_statistics
+    season: "2015-16"
+    release_date: "20170329"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2015-16/fcs1516.pdf"
+    filename: "fcs1516.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit1214.pdf"
+    filename: "cit1214.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit1114.pdf"
+    filename: "cit1114.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit1014.pdf"
+    filename: "cit1014.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit0715.pdf"
+    filename: "cit0715.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit0615.pdf"
+    filename: "cit0615.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: "20150512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit0515.pdf"
+    filename: "cit0515.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit0415.pdf"
+    filename: "cit0415.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit0315.pdf"
+    filename: "cit0315.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit0215.pdf"
+    filename: "cit0215.pdf"
+
+  - report_type: monthly_forecast
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/cit0115.pdf"
+    filename: "cit0115.pdf"
+
+  - report_type: maturity_test
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2014-15/mat0914.pdf"
+    filename: "mat0914.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2014-15"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit91715.pdf"
+    filename: "cit91715.pdf"
+
+  - report_type: annual_statistics
+    season: "2014-15"
+    release_date: "20160322"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2014-15/fcs1415.pdf"
+    filename: "fcs1415.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit1213.pdf"
+    filename: "cit1213.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit1113.pdf"
+    filename: "cit1113.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit0714.pdf"
+    filename: "cit0714.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit0614.pdf"
+    filename: "cit0614.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: "20140509"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit0514.pdf"
+    filename: "cit0514.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit0414.pdf"
+    filename: "cit0414.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit0314.pdf"
+    filename: "cit0314.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit0214.pdf"
+    filename: "cit0214.pdf"
+
+  - report_type: monthly_forecast
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/cit0114.pdf"
+    filename: "cit0114.pdf"
+
+  - report_type: maturity_test
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2013-14/mat0913.pdf"
+    filename: "mat0913.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2013-14"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit91814.pdf"
+    filename: "cit91814.pdf"
+
+  - report_type: annual_statistics
+    season: "2013-14"
+    release_date: "20150330"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2013-14/fcs1314.pdf"
+    filename: "fcs1314.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit1212.pdf"
+    filename: "cit1212.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit1112.pdf"
+    filename: "cit1112.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit1012.pdf"
+    filename: "cit1012.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit0713.pdf"
+    filename: "cit0713.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit0613.pdf"
+    filename: "cit0613.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: "20130510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit0513.pdf"
+    filename: "cit0513.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit0413.pdf"
+    filename: "cit0413.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit0313.pdf"
+    filename: "cit0313.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit0213.pdf"
+    filename: "cit0213.pdf"
+
+  - report_type: monthly_forecast
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/cit0113.pdf"
+    filename: "cit0113.pdf"
+
+  - report_type: maturity_test
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2012-13/mat0912.pdf"
+    filename: "mat0912.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2012-13"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit91913.pdf"
+    filename: "cit91913.pdf"
+
+  - report_type: annual_statistics
+    season: "2012-13"
+    release_date: "20140410"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2012-13/fcs1213.pdf"
+    filename: "fcs1213.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit1211.pdf"
+    filename: "cit1211.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit1111.pdf"
+    filename: "cit1111.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit1011.pdf"
+    filename: "cit1011.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit0712.pdf"
+    filename: "cit0712.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit0612.pdf"
+    filename: "cit0612.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: "20120510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit0512.pdf"
+    filename: "cit0512.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit0412.pdf"
+    filename: "cit0412.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit0312.pdf"
+    filename: "cit0312.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit0212.pdf"
+    filename: "cit0212.pdf"
+
+  - report_type: monthly_forecast
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/cit0112rev.pdf"
+    filename: "cit0112rev.pdf"
+
+  - report_type: maturity_test
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2011-12/mat0911.pdf"
+    filename: "mat0911.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2011-12"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92012.pdf"
+    filename: "cit92012.pdf"
+
+  - report_type: annual_statistics
+    season: "2011-12"
+    release_date: "20130301"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2011-12/fcs1112.pdf"
+    filename: "fcs1112.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit1210.pdf"
+    filename: "cit1210.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit1110.pdf"
+    filename: "cit1110.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit1010.pdf"
+    filename: "cit1010.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit0711.pdf"
+    filename: "cit0711.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit0611.pdf"
+    filename: "cit0611.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: "20110511"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit0511.pdf"
+    filename: "cit0511.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit0411.pdf"
+    filename: "cit0411.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit0311.pdf"
+    filename: "cit0311.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit0211.pdf"
+    filename: "cit0211.pdf"
+
+  - report_type: monthly_forecast
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/cit0111.pdf"
+    filename: "cit0111.pdf"
+
+  - report_type: maturity_test
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/mat0910.pdf"
+    filename: "mat0910.pdf"
+
+  - report_type: freeze_damage
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2010-11/frz0111.pdf"
+    filename: "frz0111.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2010-11"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92211.pdf"
+    filename: "cit92211.pdf"
+
+  - report_type: annual_statistics
+    season: "2010-11"
+    release_date: "20120410"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2010-11/fcs1011.pdf"
+    filename: "fcs1011.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit1209.pdf"
+    filename: "cit1209.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit1109.pdf"
+    filename: "cit1109.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit1009.pdf"
+    filename: "cit1009.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit0710.pdf"
+    filename: "cit0710.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit0610.pdf"
+    filename: "cit0610.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: "20100511"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit0510.pdf"
+    filename: "cit0510.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit0410.pdf"
+    filename: "cit0410.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit0310.pdf"
+    filename: "cit0310.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit0210.pdf"
+    filename: "cit0210.pdf"
+
+  - report_type: monthly_forecast
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/cit0110.pdf"
+    filename: "cit0110.pdf"
+
+  - report_type: maturity_test
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/mat0909.pdf"
+    filename: "mat0909.pdf"
+
+  - report_type: freeze_damage
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2009-10/frz0210.pdf"
+    filename: "frz0210.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2009-10"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92310.pdf"
+    filename: "cit92310.pdf"
+
+  - report_type: annual_statistics
+    season: "2009-10"
+    release_date: "20110324"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2009-10/fcs0910.pdf"
+    filename: "fcs0910.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit1208.pdf"
+    filename: "cit1208.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit1108.pdf"
+    filename: "cit1108.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit1008.pdf"
+    filename: "cit1008.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit0709.pdf"
+    filename: "cit0709.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit0609.pdf"
+    filename: "cit0609.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: "20090512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit0509.pdf"
+    filename: "cit0509.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit0409.pdf"
+    filename: "cit0409.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit0309.pdf"
+    filename: "cit0309.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit0209.pdf"
+    filename: "cit0209.pdf"
+
+  - report_type: monthly_forecast
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/cit0109.pdf"
+    filename: "cit0109.pdf"
+
+  - report_type: maturity_test
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/mat0908.pdf"
+    filename: "mat0908.pdf"
+
+  - report_type: freeze_damage
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2008-09/frz0209.pdf"
+    filename: "frz0209.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2008-09"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92409.pdf"
+    filename: "cit92409.pdf"
+
+  - report_type: annual_statistics
+    season: "2008-09"
+    release_date: "20100322"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Statistics/2008-09/fcs0809all.pdf"
+    filename: "fcs0809all.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit1207.pdf"
+    filename: "cit1207.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit1107.pdf"
+    filename: "cit1107.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit1007.pdf"
+    filename: "cit1007.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit0708.pdf"
+    filename: "cit0708.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit0608.pdf"
+    filename: "cit0608.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: "20080509"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit0508.pdf"
+    filename: "cit0508.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit0408.pdf"
+    filename: "cit0408.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit0308.pdf"
+    filename: "cit0308.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit0208.pdf"
+    filename: "cit0208.pdf"
+
+  - report_type: monthly_forecast
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/cit0108.pdf"
+    filename: "cit0108.pdf"
+
+  - report_type: maturity_test
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2007-08/mat0907.pdf"
+    filename: "mat0907.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92008.pdf"
+    filename: "cit92008.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2007-08"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2007-08/cs0708all.pdf"
+    filename: "cs0708all.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit1206.pdf"
+    filename: "cit1206.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit1106.pdf"
+    filename: "cit1106.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit1006.pdf"
+    filename: "cit1006.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit0707.pdf"
+    filename: "cit0707.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit0607.pdf"
+    filename: "cit0607.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: "20070511"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit0507.pdf"
+    filename: "cit0507.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit0407.pdf"
+    filename: "cit0407.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit0307.pdf"
+    filename: "cit0307.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit0207.pdf"
+    filename: "cit0207.pdf"
+
+  - report_type: monthly_forecast
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/cit0107.pdf"
+    filename: "cit0107.pdf"
+
+  - report_type: maturity_test
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2006-07/mat0906.pdf"
+    filename: "mat0906.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92007.pdf"
+    filename: "cit92007.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2006-07"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2006-07/cs0607all.pdf"
+    filename: "cs0607all.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit1205.pdf"
+    filename: "cit1205.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit1105.pdf"
+    filename: "cit1105.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit1005.pdf"
+    filename: "cit1005.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit0706.pdf"
+    filename: "cit0706.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit0606.pdf"
+    filename: "cit0606.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: "20060512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit0506.pdf"
+    filename: "cit0506.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit0406.pdf"
+    filename: "cit0406.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit0306.pdf"
+    filename: "cit0306.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit0206.pdf"
+    filename: "cit0206.pdf"
+
+  - report_type: monthly_forecast
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/cit0106.pdf"
+    filename: "cit0106.pdf"
+
+  - report_type: maturity_test
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2005-06/mat0905.pdf"
+    filename: "mat0905.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92106.pdf"
+    filename: "cit92106.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2005-06"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2005-06/CS0506all.pdf"
+    filename: "CS0506all.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit1204.pdf"
+    filename: "cit1204.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit1104.pdf"
+    filename: "cit1104.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit1004.pdf"
+    filename: "cit1004.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit0705.pdf"
+    filename: "cit0705.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit0605.pdf"
+    filename: "cit0605.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: "20050512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit0505.pdf"
+    filename: "cit0505.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit0405.pdf"
+    filename: "cit0405.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit0305.pdf"
+    filename: "cit0305.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit0205.pdf"
+    filename: "cit0205.pdf"
+
+  - report_type: monthly_forecast
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/cit0105.pdf"
+    filename: "cit0105.pdf"
+
+  - report_type: maturity_test
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2004-05/mat0904.pdf"
+    filename: "mat0904.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92205.pdf"
+    filename: "cit92205.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2004-05"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2004-05/cs0405all.pdf"
+    filename: "cs0405all.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit1203.pdf"
+    filename: "cit1203.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit1103.pdf"
+    filename: "cit1103.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit1003.pdf"
+    filename: "cit1003.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit0704.pdf"
+    filename: "cit0704.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit0604.pdf"
+    filename: "cit0604.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: "20040512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit0504.pdf"
+    filename: "cit0504.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit0404.pdf"
+    filename: "cit0404.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit0304.pdf"
+    filename: "cit0304.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit0204.pdf"
+    filename: "cit0204.pdf"
+
+  - report_type: monthly_forecast
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/cit0104.pdf"
+    filename: "cit0104.pdf"
+
+  - report_type: maturity_test
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2003-04/mat0903.pdf"
+    filename: "mat0903.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92304.pdf"
+    filename: "cit92304.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2003-04"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2003-04/cs0304all.pdf"
+    filename: "cs0304all.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit1202.pdf"
+    filename: "cit1202.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit1102.pdf"
+    filename: "cit1102.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit1002.pdf"
+    filename: "cit1002.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit0703.pdf"
+    filename: "cit0703.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit0603.pdf"
+    filename: "cit0603.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: "20030512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit0503.pdf"
+    filename: "cit0503.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit0403.pdf"
+    filename: "cit0403.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit0303.pdf"
+    filename: "cit0303.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit0203.pdf"
+    filename: "cit0203.pdf"
+
+  - report_type: monthly_forecast
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/cit0103.pdf"
+    filename: "cit0103.pdf"
+
+  - report_type: maturity_test
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2002-03/mat0902.pdf"
+    filename: "mat0902.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit91803.pdf"
+    filename: "cit91803.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2002-03"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2002-03/cs0203.pdf"
+    filename: "cs0203.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit1201.pdf"
+    filename: "cit1201.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit1101.pdf"
+    filename: "cit1101.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit1001.pdf"
+    filename: "cit1001.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit0702.pdf"
+    filename: "cit0702.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit0602.pdf"
+    filename: "cit0602.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: "20020510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit0502.pdf"
+    filename: "cit0502.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit0402.pdf"
+    filename: "cit0402.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit0302.pdf"
+    filename: "cit0302.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit0202.pdf"
+    filename: "cit0202.pdf"
+
+  - report_type: monthly_forecast
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/cit0102.pdf"
+    filename: "cit0102.pdf"
+
+  - report_type: maturity_test
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2001-02/mat0901.pdf"
+    filename: "mat0901.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit91902.pdf"
+    filename: "cit91902.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2001-02"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2001-02/cs0102.pdf"
+    filename: "cs0102.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit1200.pdf"
+    filename: "cit1200.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit1100.pdf"
+    filename: "cit1100.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit1000.pdf"
+    filename: "cit1000.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit0701.pdf"
+    filename: "cit0701.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit0601.pdf"
+    filename: "cit0601.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: "20010510"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit0501.pdf"
+    filename: "cit0501.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit0401.pdf"
+    filename: "cit0401.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit0301.pdf"
+    filename: "cit0301.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit0201.pdf"
+    filename: "cit0201.pdf"
+
+  - report_type: monthly_forecast
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/cit0101.pdf"
+    filename: "cit0101.pdf"
+
+  - report_type: maturity_test
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/2000-01/mat0900.pdf"
+    filename: "mat0900.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92001.pdf"
+    filename: "cit92001.pdf"
+
+  - report_type: citrus_summary_final
+    season: "2000-01"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/2000-01/cs0001.pdf"
+    filename: "cs0001.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit1299.pdf"
+    filename: "cit1299.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit1199.pdf"
+    filename: "cit1199.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit1099.pdf"
+    filename: "cit1099.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit0700.pdf"
+    filename: "cit0700.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit0600.pdf"
+    filename: "cit0600.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: "20000512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit0500.pdf"
+    filename: "cit0500.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit0400.pdf"
+    filename: "cit0400.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit0300.pdf"
+    filename: "cit0300.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit0200.pdf"
+    filename: "cit0200.pdf"
+
+  - report_type: monthly_forecast
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/cit0100.pdf"
+    filename: "cit0100.pdf"
+
+  - report_type: maturity_test
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1999-00/mat0999.pdf"
+    filename: "mat0999.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92100.pdf"
+    filename: "cit92100.pdf"
+
+  - report_type: citrus_summary_final
+    season: "1999-00"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/1999-00/cs9900.pdf"
+    filename: "cs9900.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit1298.pdf"
+    filename: "cit1298.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit1198.pdf"
+    filename: "cit1198.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit1098.pdf"
+    filename: "cit1098.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit0799.pdf"
+    filename: "cit0799.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit0699.pdf"
+    filename: "cit0699.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: "19990512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit0599.pdf"
+    filename: "cit0599.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit0499.pdf"
+    filename: "cit0499.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit0399.pdf"
+    filename: "cit0399.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit0299.pdf"
+    filename: "cit0299.pdf"
+
+  - report_type: monthly_forecast
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/cit0199.pdf"
+    filename: "cit0199.pdf"
+
+  - report_type: maturity_test
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1998-99/mat0998.pdf"
+    filename: "mat0998.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92399.pdf"
+    filename: "cit92399.pdf"
+
+  - report_type: citrus_summary_final
+    season: "1998-99"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/1998-99/cs9899.pdf"
+    filename: "cs9899.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit1297.pdf"
+    filename: "cit1297.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit1197.pdf"
+    filename: "cit1197.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit1097.pdf"
+    filename: "cit1097.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit0798.pdf"
+    filename: "cit0798.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit0698.pdf"
+    filename: "cit0698.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: "19980512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit0598.pdf"
+    filename: "cit0598.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit0498.pdf"
+    filename: "cit0498.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit0398.pdf"
+    filename: "cit0398.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit0298.pdf"
+    filename: "cit0298.pdf"
+
+  - report_type: monthly_forecast
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/cit0198.pdf"
+    filename: "cit0198.pdf"
+
+  - report_type: maturity_test
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1997-98/mat0997.pdf"
+    filename: "mat0997.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "1997-98"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92398.pdf"
+    filename: "cit92398.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit1296.pdf"
+    filename: "cit1296.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit1196.pdf"
+    filename: "cit1196.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit1096.pdf"
+    filename: "cit1096.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit0797.pdf"
+    filename: "cit0797.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit0697.pdf"
+    filename: "cit0697.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: "19970512"
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit0597.pdf"
+    filename: "cit0597.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit0497.pdf"
+    filename: "cit0497.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit0397.pdf"
+    filename: "cit0397.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit0297.pdf"
+    filename: "cit0297.pdf"
+
+  - report_type: monthly_forecast
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Forecast/1996-97/cit0197.pdf"
+    filename: "cit0197.pdf"
+
+  - report_type: citrus_summary_prelim
+    season: "1996-97"
+    release_date: ""
+    pdf_url: "https://www.nass.usda.gov/Statistics_by_State/Florida/Publications/Citrus/Citrus_Summary/Citrus_Summary_Prelim/cit92397.pdf"
+    filename: "cit92397.pdf"
+

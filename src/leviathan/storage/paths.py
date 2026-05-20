@@ -199,6 +199,25 @@ def raw_cotton_annual_key(season_year: int, filename: str) -> str:
     )
 
 
+def raw_nass_citrus_key(season: str, report_type: str, filename: str) -> str:
+    """S3 key for a USDA NASS Florida Citrus PDF.
+
+    Args:
+        season: Season string in ``YYYY-YY`` format, e.g. ``"2024-25"``.
+        report_type: One of ``monthly_forecast``, ``maturity_test``,
+            ``freeze_damage``, ``annual_statistics``,
+            ``citrus_summary_prelim``, ``citrus_summary_final``.
+        filename: PDF filename, e.g. ``"cit0425.pdf"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_nass_citrus/"
+        f"report_type={report_type}/"
+        f"season={season}/"
+        f"{filename}"
+    )
+
+
 def raw_reference_key(
     source: str,
     domain: str,
