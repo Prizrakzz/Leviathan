@@ -1,0 +1,4 @@
+reports:
+- report_url: https://www.sagis.org.za/wp-content/uploads/2026/05/CEC_2026-05-07.pdf
+  filename: CEC_2026-05-07.pdf
+  s3_key: raw/production/source=sagis_cec/CEC_2026-05-07.pdf

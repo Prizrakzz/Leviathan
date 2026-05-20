@@ -506,3 +506,18 @@ def raw_sagis_weekly_key(dataset: str, crop: str, filename: str) -> str:
         f"crop={crop}/"
         f"{filename}"
     )
+
+
+def raw_sagis_cec_key(filename: str) -> str:
+    """S3 key for a SAGIS South Africa Crop Estimates Committee (CEC) report.
+
+    Flat layout — no upload_year/upload_month partition.  The WordPress upload
+    path is unreliable: SAGIS bulk-uploaded the historical archive (~170 files)
+    to ``/2026/05/`` in May 2026, so the upload path bears no relation to
+    document date for pre-2025 content.
+
+    Args:
+        filename: URL-decoded filename as-is, e.g. ``"CEC_2026-05-07.pdf"``
+                  or ``"CEC-2024-12.doc"``.
+    """
+    return f"raw/production/source=sagis_cec/{filename}"
