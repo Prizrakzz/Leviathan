@@ -103,7 +103,7 @@ _UA = (
 )
 
 _MANIFEST_PATH = (
-    Path(__file__).parent.parent / "configs" / "sources" / "sagis_swb_manifest.yaml"
+    Path(__file__).parent.parent.parent / "configs" / "sources" / "sagis_swb_manifest.yaml"
 )
 
 _DEFAULT_SLEEP = 1.0
@@ -278,12 +278,12 @@ def main() -> None:
 
         try:
             if pdf_url in known_urls:
-                logger.info("Skipping — in manifest: %s", filename)
+                logger.info("Skipping - in manifest: %s", filename)
                 skipped += 1
                 continue
 
             if args.skip_existing_s3 and s3_object_exists(bucket, s3_key, region):
-                logger.info("Skipping — already in S3: %s", s3_key)
+                logger.info("Skipping - already in S3: %s", s3_key)
                 skipped += 1
                 continue
 
