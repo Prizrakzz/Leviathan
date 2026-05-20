@@ -1,0 +1,22 @@
+# USDA AMS Cotton Annual Quality Report (MyMarketNews slug 1658) manifest
+#
+# Managed by: python jobs/ingest/fetch_usda_ams_cotton_annual.py --discover
+# Do NOT edit the reports list by hand; run --discover to extend it.
+#
+# Schema per entry:
+#   season_year       : beginning year of the marketing season (used in S3 key)
+#   report_begin_date : ISO date matching the URL path component in the filerepo URL
+#   pdf_url           : direct URL to the PDF file on mymarketnews.ams.usda.gov
+#   filename          : PDF filename extracted from pdf_url
+#
+# Source: https://mymarketnews.ams.usda.gov/viewReport/1658
+# MyMarketNews slug 1658 = "Annual Cotton Quality Report" (CNAACQ)
+# Published annually in late June/early July covering the July–June season.
+# ---------------------------------------------------------------------------
+
+reports:
+
+  - season_year: 2024
+    report_begin_date: "2024-07-01"
+    pdf_url: "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/1658/2024-07-01/1254489/ams_1658_00010.pdf"
+    filename: "ams_1658_00010.pdf"

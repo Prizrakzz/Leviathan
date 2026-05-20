@@ -181,6 +181,24 @@ def raw_fnc_report_key(
     )
 
 
+def raw_cotton_annual_key(season_year: int, filename: str) -> str:
+    """S3 key for a USDA AMS Cotton Annual Quality Report PDF.
+
+    Args:
+        season_year: Beginning year of the marketing season, e.g. ``2024``
+            for the 2024-25 season.  For archive PDFs (1986-2013) this equals
+            the year in the filename (e.g. ``1986`` for ``1986ACQ.pdf``).
+        filename: PDF filename, e.g. ``"2013ACQ.pdf"`` or ``"ams_1658_00010.pdf"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_ams_cotton_classing/"
+        f"report_type=annual_quality/"
+        f"season={season_year}/"
+        f"{filename}"
+    )
+
+
 def raw_reference_key(
     source: str,
     domain: str,

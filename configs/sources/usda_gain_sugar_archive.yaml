@@ -1,0 +1,4663 @@
+source: usda_gain_sugar
+generated: '2026-05-20'
+total_records: 581
+target_countries:
+- AU
+- BR
+- CO
+- EC
+- ID
+- IN
+- MX
+- PH
+- TH
+reports:
+- report_id: AS2026-0009
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Canberra_Australia_AS2026-0009.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_AS2026-0009.pdf
+- report_id: AS2025-0020
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Semi-annual
+  publication_date: '20250901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/09/Sugar%20Semi-annual_Canberra_Australia_AS2025-0020.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_AS2025-0020.pdf
+- report_id: AS2025-0008
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Sugar%20Annual_Canberra_Australia_AS2025-0008.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_AS2025-0008.pdf
+- report_id: AS2024-0021
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Semi-annual
+  publication_date: '20241001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/10/Sugar%20Semi-annual_Canberra_Australia_AS2024-0021.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_AS2024-0021.pdf
+- report_id: AS2024-0009
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Annual
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Sugar%20Annual_Canberra_Australia_AS2024-0009.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_AS2024-0009.pdf
+- report_id: AS2023-0017
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Semi-annual
+  publication_date: '20230901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/09/Sugar%20Semi-annual_Canberra_Australia_AS2023-0017.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_AS2023-0017.pdf
+- report_id: AS2023-0007
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Canberra_Australia_AS2023-0007.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_AS2023-0007.pdf
+- report_id: AS2022-0020
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Semi-annual
+  publication_date: '20220901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/09/Sugar%20Semi-annual_Canberra_Australia_AS2022-0020.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_AS2022-0020.pdf
+- report_id: AS2022-0009
+  country_iso2: AU
+  country_name: ''
+  post: Canberra
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_Canberra_Australia_AS2022-0009.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_AS2022-0009.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20211001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/10/Sugar%20Semi-annual_Canberra_Australia_10-01-2021.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_10-01-2021.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_Canberra_Australia_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_04-15-2021.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20200901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/09/Sugar%20Semi-annual_Canberra_Australia_10-01-2020.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_10-01-2020.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Annual_Canberra_Australia_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_04-15-2020.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20191001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/10/Sugar%20Semi-annual_Canberra_Australia_10-01-2019.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_10-01-2019.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/03/Sugar%20Annual_Canberra_Australia_3-29-2019.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_3-29-2019.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20181001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/10/Sugar%20Semi-annual_Canberra_Australia_10-2-2018.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_10-2-2018.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Sugar%20Annual_Canberra_Australia_4-5-2018.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-5-2018.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20170901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/09/Sugar%20Semi-annual_Canberra_Australia_9-28-2017.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_9-28-2017.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Canberra_Australia_4-11-2017.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-11-2017.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20160901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/09/Sugar%20Semi-annual_Canberra_Australia_9-30-2016.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_9-30-2016.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Canberra_Australia_4-22-2016.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-22-2016.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20151001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/10/Sugar%20Semi-annual_Canberra_Australia_10-1-2015.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_10-1-2015.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_Canberra_Australia_4-16-2015.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-16-2015.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20141001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/10/Sugar%20Semi-annual_Canberra_Australia_10-1-2014.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_10-1-2014.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Sugar%20Annual_Canberra_Australia_4-17-2014.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-17-2014.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Southern Cross Ag Outlook - Australia and New Zealand  October 2013
+  publication_date: '20131001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/10/Southern%20Cross%20Ag%20Outlook%20-%20Australia%20and%20New%20Zealand%20%20October%202013_Canberra_Australia_10-28-2013.pdf
+  filename_clean: Southern_Cross_Ag_Outlook_-_Australia_and_New_Zealand__October_2013_Canberra_Australia_10-28-2013.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20131001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/10/Sugar%20Semi-annual_Canberra_Australia_10-2-2013.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_10-2-2013.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Sugar%20Annual_Canberra_Australia_4-17-2013.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-17-2013.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20120901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/09/Sugar%20Semi-annual_Canberra_Australia_9-24-2012.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_9-24-2012.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Canberra_Australia_4-12-2012.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-12-2012.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20110901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/09/Sugar%20Semi-annual_Canberra_Australia_9-28-2011.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_9-28-2011.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Update
+  publication_date: '20110601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/06/Sugar%20Update_Canberra_Australia_6-21-2011.pdf
+  filename_clean: Sugar_Update_Canberra_Australia_6-21-2011.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Ag DownUnder June 2011
+  publication_date: '20110601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/06/Ag%20DownUnder%20June%202011_Canberra_Australia_6-7-2011.pdf
+  filename_clean: Ag_DownUnder_June_2011_Canberra_Australia_6-7-2011.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_Canberra_Australia_4-13-2011.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-13-2011.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Ag DownUnder   -  Issue 6  2010
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Ag%20DownUnder%20%20%20-%20%20Issue%206%20%202010_Canberra_Australia_10-19-2010.pdf
+  filename_clean: Ag_DownUnder___-__Issue_6__2010_Canberra_Australia_10-19-2010.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20100901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/09/Sugar%20Semi-annual_Canberra_Australia_9-29-2010.pdf
+  filename_clean: Sugar_Semi-annual_Canberra_Australia_9-29-2010.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/04/Sugar%20Annual_Canberra_Australia_4-15-2010.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_4-15-2010.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: SUGAR SEMI-ANNUAL
+  publication_date: '20091001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/10/SUGAR%20SEMI-ANNUAL_Canberra_Australia_9-30-2009.pdf
+  filename_clean: SUGAR_SEMI-ANNUAL_Canberra_Australia_9-30-2009.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20090401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/04/Annual_Canberra_Australia_04-02-2009.pdf
+  filename_clean: Annual_Canberra_Australia_04-02-2009.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20081001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/10/Semi-Annual_Canberra_Australia_09-26-2008.pdf
+  filename_clean: Semi-Annual_Canberra_Australia_09-26-2008.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_Canberra_Australia_04-03-2008.pdf
+  filename_clean: Annual_Canberra_Australia_04-03-2008.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20071001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/10/Semi-Annual_Canberra_Australia_10-10-2007.pdf
+  filename_clean: Semi-Annual_Canberra_Australia_10-10-2007.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual_Canberra_Australia_04-11-2007.pdf
+  filename_clean: Annual_Canberra_Australia_04-11-2007.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20061001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/10/Semi-Annual_Canberra_Australia_09-29-2006.pdf
+  filename_clean: Semi-Annual_Canberra_Australia_09-29-2006.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Smut Outbreak in Queensland
+  publication_date: '20060601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/06/Sugar%20Smut%20Outbreak%20in%20Queensland_Canberra_Australia_06-20-2006.pdf
+  filename_clean: Sugar_Smut_Outbreak_in_Queensland_Canberra_Australia_06-20-2006.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/04/Annual_Canberra_Australia_04-13-2006.pdf
+  filename_clean: Annual_Canberra_Australia_04-13-2006.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Cyclone Larry Affects Sugar Production
+  publication_date: '20060301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/03/Cyclone%20Larry%20Affects%20Sugar%20Production_Canberra_Australia_03-21-2006.pdf
+  filename_clean: Cyclone_Larry_Affects_Sugar_Production_Canberra_Australia_03-21-2006.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20050901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/09/Semi%20Annual_Canberra_Australia_09-29-2005.pdf
+  filename_clean: Semi_Annual_Canberra_Australia_09-29-2005.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/04/Annual_Canberra_Australia_04-14-2005.pdf
+  filename_clean: Annual_Canberra_Australia_04-14-2005.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20041001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/10/Semi%20Annual_Canberra_Australia_10-13-2004.pdf
+  filename_clean: Semi_Annual_Canberra_Australia_10-13-2004.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Canberra_Australia_04-15-2004.pdf
+  filename_clean: Annual_Canberra_Australia_04-15-2004.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20031001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/10/Sugar%20Semi-Annual_Canberra_Australia_10-20-2003.pdf
+  filename_clean: Sugar_Semi-Annual_Canberra_Australia_10-20-2003.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_Canberra_Australia_04-11-2003.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_04-11-2003.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20021001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/10/Sugar%20Semi-Annual_Canberra_Australia_10-16-2002.pdf
+  filename_clean: Sugar_Semi-Annual_Canberra_Australia_10-16-2002.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%20Annual_Canberra_Australia_04-09-2002.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_04-09-2002.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Sugar%20Semi-Annual_Canberra_Australia_10-01-2001.pdf
+  filename_clean: Sugar_Semi-Annual_Canberra_Australia_10-01-2001.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_Canberra_Australia_04-06-2001.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_04-06-2001.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20001001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/10/Sugar%20Semi-Annual_Canberra_Australia_09-27-2000.pdf
+  filename_clean: Sugar_Semi-Annual_Canberra_Australia_09-27-2000.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/04/Sugar%20Annual_Canberra_Australia_03-31-2000.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_03-31-2000.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi-Annual_Canberra_Australia_10-01-1999.pdf
+  filename_clean: Sugar_Semi-Annual_Canberra_Australia_10-01-1999.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_Canberra_Australia_04-12-1999.pdf
+  filename_clean: Sugar_Annual_Canberra_Australia_04-12-1999.pdf
+- report_id: ''
+  country_iso2: AU
+  country_name: ''
+  post: ''
+  category: Sugar Semi Annual
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Sugar%20Semi%20Annual_Canberra_Australia_10-01-1998.pdf
+  filename_clean: Sugar_Semi_Annual_Canberra_Australia_10-01-1998.pdf
+- report_id: BR2026-0020
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Brasilia_Brazil_BR2026-0020.pdf
+  filename_clean: Sugar_Annual_Brasilia_Brazil_BR2026-0020.pdf
+- report_id: BR2025-0039
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Sugar Semi-annual
+  publication_date: '20250901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/09/Sugar%20Semi-annual_Brasilia_Brazil_BR2025-0039.pdf
+  filename_clean: Sugar_Semi-annual_Brasilia_Brazil_BR2025-0039.pdf
+- report_id: BR2025-0011
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Sugar Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Sugar%20Annual_Brasilia_Brazil_BR2025-0011.pdf
+  filename_clean: Sugar_Annual_Brasilia_Brazil_BR2025-0011.pdf
+- report_id: BR2024-0026
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Sugar Semi-annual
+  publication_date: '20241001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/10/Sugar%20Semi-annual_Brasilia_Brazil_BR2024-0026.pdf
+  filename_clean: Sugar_Semi-annual_Brasilia_Brazil_BR2024-0026.pdf
+- report_id: BR2024-0008
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Sugar Annual
+  publication_date: '20240801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/08/Sugar%20Annual_Brasilia_Brazil_BR2024-0008.pdf
+  filename_clean: Sugar_Annual_Brasilia_Brazil_BR2024-0008.pdf
+- report_id: BR2023-0035
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Brazilian Sugar Production and the Logistical Bottlenecks for Exports - Marketing Year 2023-24
+  publication_date: '20231201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/12/Brazilian%20Sugar%20Production%20and%20the%20Logistical%20Bottlenecks%20for%20Exports%20-%20Marketing%20Year%202023-24_Brasilia_Brazil_BR2023-0035.pdf
+  filename_clean: Brazilian_Sugar_Production_and_the_Logistical_Bottlenecks_for_Exports_-_Marketing_Year_2023-24_Brasilia_Brazil_BR2023-0035.pdf
+- report_id: BR2023-0025
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Sugar Semi-annual
+  publication_date: '20231001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/10/Sugar%20Semi-annual_Brasilia_Brazil_BR2023-0025.pdf
+  filename_clean: Sugar_Semi-annual_Brasilia_Brazil_BR2023-0025.pdf
+- report_id: BR2023-0009
+  country_iso2: BR
+  country_name: ''
+  post: Sao Paulo ATO
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_BR2023-0009.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_BR2023-0009.pdf
+- report_id: BR2022-0052
+  country_iso2: BR
+  country_name: ''
+  post: Sao Paulo ATO
+  category: Sugar Semi-annual
+  publication_date: '20221001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_BR2022-0052.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_BR2022-0052.pdf
+- report_id: BR2022-0029
+  country_iso2: BR
+  country_name: ''
+  post: Sao Paulo ATO
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_BR2022-0029.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_BR2022-0029.pdf
+- report_id: BR2022-0017
+  country_iso2: BR
+  country_name: ''
+  post: Brasilia
+  category: Brazil Agriculture Seeks Remedies for Potential Fertilizer Disruptions
+  publication_date: '20220301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/03/Brazil%20Agriculture%20Seeks%20Remedies%20for%20Potential%20Fertilizer%20Disruptions_Brasilia_Brazil_BR2022-0017.pdf
+  filename_clean: Brazil_Agriculture_Seeks_Remedies_for_Potential_Fertilizer_Disruptions_Brasilia_Brazil_BR2022-0017.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20211001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-01-2021.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-01-2021.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_04-15-2021.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20201001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-01-2020.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-01-2020.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Exports - complement to the Sugar Annual Report
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Exports%20-%20complement%20to%20the%20Sugar%20Annual%20Report_Sao%20Paulo%20ATO_Brazil_04-19-2020.pdf
+  filename_clean: Sugar_Exports_-_complement_to_the_Sugar_Annual_Report_Sao_Paulo_ATO_Brazil_04-19-2020.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_04-15-2020.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20191001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-01-2019.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-01-2019.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-15-2019.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-15-2019.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20180901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/09/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_9-28-2018.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_9-28-2018.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-13-2018.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-13-2018.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20171001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-10-2017.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-10-2017.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-19-2017.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-19-2017.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20161001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-3-2016.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-3-2016.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-15-2016.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-15-2016.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20151001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-2-2015.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-2-2015.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-28-2015.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-28-2015.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20141001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-17-2014.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-17-2014.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20131001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-24-2013.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-24-2013.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: SUGAR ANNUAL
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/SUGAR%20ANNUAL_Sao%20Paulo%20ATO_Brazil_4-22-2013.pdf
+  filename_clean: SUGAR_ANNUAL_Sao_Paulo_ATO_Brazil_4-22-2013.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20121001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-1-2012.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-1-2012.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-13-2012.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-13-2012.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20111001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_10-3-2011.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_10-3-2011.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-14-2011.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-14-2011.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Sugar%20Semi-annual_Sao%20Paulo%20ATO_Brazil_1-10-2010.pdf
+  filename_clean: Sugar_Semi-annual_Sao_Paulo_ATO_Brazil_1-10-2010.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_4-12-2010.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_4-12-2010.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Update - November 2009
+  publication_date: '20091101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/11/Sugar%20Update%20-%20November%202009_Sao%20Paulo%20ATO_Brazil_11-4-2009.pdf
+  filename_clean: Sugar_Update_-_November_2009_Sao_Paulo_ATO_Brazil_11-4-2009.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: SUGAR SEMI-ANNUAL
+  publication_date: '20091001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/10/SUGAR%20SEMI-ANNUAL_Sao%20Paulo%20ATO_Brazil_10-14-2009.pdf
+  filename_clean: SUGAR_SEMI-ANNUAL_Sao_Paulo_ATO_Brazil_10-14-2009.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20090501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/05/Annual_Sao%20Paulo%20ATO_Brazil_04-30-2009.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_04-30-2009.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20080901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/09/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_09-25-2008.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_09-25-2008.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_Sao%20Paulo%20ATO_Brazil_04-14-2008.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_04-14-2008.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20071001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/10/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_10-15-2007.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_10-15-2007.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual_Sao%20Paulo%20ATO_Brazil_04-27-2007.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_04-27-2007.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20061001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/10/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_09-29-2006.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_09-29-2006.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/04/Annual_Sao%20Paulo%20ATO_Brazil_04-17-2006.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_04-17-2006.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Ethanol Update – February
+  publication_date: '20060201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/02/Ethanol%20Update%20%E2%80%93%20February_Sao%20Paulo%20ATO_Brazil_02-13-2006.pdf
+  filename_clean: Ethanol_Update_–_February_Sao_Paulo_ATO_Brazil_02-13-2006.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20051001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/10/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_10-07-2005.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_10-07-2005.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20050401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/04/Annual%20Report_Sao%20Paulo%20ATO_Brazil_04-28-2005.pdf
+  filename_clean: Annual_Report_Sao_Paulo_ATO_Brazil_04-28-2005.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20041001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/10/Semi%20Annual_Sao%20Paulo%20ATO_Brazil_10-13-2004.pdf
+  filename_clean: Semi_Annual_Sao_Paulo_ATO_Brazil_10-13-2004.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Sao%20Paulo%20ATO_Brazil_04-20-2004.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_04-20-2004.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20031001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/10/Sugar%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_10-06-2003.pdf
+  filename_clean: Sugar_Semi-Annual_Sao_Paulo_ATO_Brazil_10-06-2003.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_04-15-2003.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_04-15-2003.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20021001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/10/Sugar%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_10-02-2002.pdf
+  filename_clean: Sugar_Semi-Annual_Sao_Paulo_ATO_Brazil_10-02-2002.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_04-23-2002.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_04-23-2002.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Sugar%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_10-01-2001.pdf
+  filename_clean: Sugar_Semi-Annual_Sao_Paulo_ATO_Brazil_10-01-2001.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Update
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Update_Sao%20Paulo%20ATO_Brazil_04-27-2001.pdf
+  filename_clean: Sugar_Update_Sao_Paulo_ATO_Brazil_04-27-2001.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_04-06-2001.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_04-06-2001.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20000901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/09/Sugar%20Semi-Annual_Sao%20Paulo%20ATO_Brazil_09-11-2000.pdf
+  filename_clean: Sugar_Semi-Annual_Sao_Paulo_ATO_Brazil_09-11-2000.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Sugar%20Annual_Sao%20Paulo%20ATO_Brazil_05-17-2000.pdf
+  filename_clean: Sugar_Annual_Sao_Paulo_ATO_Brazil_05-17-2000.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi-Annual_Brasilia_Brazil_10-22-1999.pdf
+  filename_clean: Sugar_Semi-Annual_Brasilia_Brazil_10-22-1999.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: 'Sugar: Annual'
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%3A%20Annual_Sao%20Paulo%20ATO_Brazil_04-14-1999.pdf
+  filename_clean: Sugar:_Annual_Sao_Paulo_ATO_Brazil_04-14-1999.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '19990301'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/03/Annual_Sao%20Paulo%20ATO_Brazil_03-06-1999.pdf
+  filename_clean: Annual_Sao_Paulo_ATO_Brazil_03-06-1999.pdf
+- report_id: ''
+  country_iso2: BR
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual Report
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Sugar%20Semi-Annual%20Report_Sao%20Paulo%20ATO_Brazil_09-30-1998.pdf
+  filename_clean: Sugar_Semi-Annual_Report_Sao_Paulo_ATO_Brazil_09-30-1998.pdf
+- report_id: CO2026-0005
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Bogota_Colombia_CO2026-0005.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_CO2026-0005.pdf
+- report_id: CO2025-0007
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Sugar Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Sugar%20Annual_Bogota_Colombia_CO2025-0007.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_CO2025-0007.pdf
+- report_id: CO2024-0004
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Sugar Annual
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Sugar%20Annual_Bogota_Colombia_CO2024-0004.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_CO2024-0004.pdf
+- report_id: CO2023-0009
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Bogota_Colombia_CO2023-0009.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_CO2023-0009.pdf
+- report_id: CO2022-0003
+  country_iso2: CO
+  country_name: ''
+  post: Bogota
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_Bogota_Colombia_CO2022-0003.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_CO2022-0003.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_Bogota_Colombia_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_04-15-2021.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Annual_Bogota_Colombia_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_04-15-2020.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Sugar%20Annual_Bogota_Colombia_4-12-2019.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-12-2019.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Sugar%20Annual_Bogota_Colombia_4-13-2018.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-13-2018.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Bogota_Colombia_4-11-2017.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-11-2017.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Bogota_Colombia_4-15-2016.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-15-2016.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_Bogota_Colombia_4-14-2015.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-14-2015.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Sugar%20Annual_Bogota_Colombia_4-3-2014.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-3-2014.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Sugar%20Annual_Bogota_Colombia_4-16-2013.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-16-2013.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Bogota_Colombia_4-13-2012.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-13-2012.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_Bogota_Colombia_4-12-2011.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_4-12-2011.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20101201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/12/Sugar%20Annual_Bogota_Colombia_6-2-2010.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_6-2-2010.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Cane Workers Strike Reducing Production and Exports
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Cane%20Workers%20Strike%20Reducing%20Production%20and%20Exports_Bogota_Colombia_10-31-2008.pdf
+  filename_clean: Cane_Workers_Strike_Reducing_Production_and_Exports_Bogota_Colombia_10-31-2008.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_Bogota_Colombia_04-18-2008.pdf
+  filename_clean: Annual_Bogota_Colombia_04-18-2008.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual_Bogota_Colombia_04-11-2007.pdf
+  filename_clean: Annual_Bogota_Colombia_04-11-2007.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/05/Annual_Bogota_Colombia_04-28-2006.pdf
+  filename_clean: Annual_Bogota_Colombia_04-28-2006.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/04/Annual_Bogota_Colombia_04-11-2005.pdf
+  filename_clean: Annual_Bogota_Colombia_04-11-2005.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Bogota_Colombia_04-07-2004.pdf
+  filename_clean: Annual_Bogota_Colombia_04-07-2004.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_Bogota_Colombia_04-09-2003.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_04-09-2003.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%20Annual_Bogota_Colombia_04-11-2002.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_04-11-2002.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Sugar%20Semi-Annual_Bogota_Colombia_10-02-2001.pdf
+  filename_clean: Sugar_Semi-Annual_Bogota_Colombia_10-02-2001.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_Bogota_Colombia_04-16-2001.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_04-16-2001.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20001001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/10/Sugar%20Semi-Annual_Bogota_Colombia_10-06-2000.pdf
+  filename_clean: Sugar_Semi-Annual_Bogota_Colombia_10-06-2000.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Sugar%20Annual_Bogota_Colombia_04-28-2000.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_04-28-2000.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi-Annual_Bogota_Colombia_10-07-1999.pdf
+  filename_clean: Sugar_Semi-Annual_Bogota_Colombia_10-07-1999.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_Bogota_Colombia_04-15-1999.pdf
+  filename_clean: Sugar_Annual_Bogota_Colombia_04-15-1999.pdf
+- report_id: ''
+  country_iso2: CO
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Sugar%20Semi-Annual_Bogota_Colombia_10-26-1998.pdf
+  filename_clean: Sugar_Semi-Annual_Bogota_Colombia_10-26-1998.pdf
+- report_id: EC2026-0002
+  country_iso2: EC
+  country_name: ''
+  post: Quito
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Quito_Ecuador_EC2026-0002.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_EC2026-0002.pdf
+- report_id: EC2025-0005
+  country_iso2: EC
+  country_name: ''
+  post: Quito
+  category: Sugar Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Sugar%20Annual_Quito_Ecuador_EC2025-0005.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_EC2025-0005.pdf
+- report_id: EC2024-0003
+  country_iso2: EC
+  country_name: ''
+  post: Quito
+  category: Sugar Annual
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Sugar%20Annual_Quito_Ecuador_EC2024-0003.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_EC2024-0003.pdf
+- report_id: EC2023-0005
+  country_iso2: EC
+  country_name: ''
+  post: Quito
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Quito_Ecuador_EC2023-0005.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_EC2023-0005.pdf
+- report_id: EC2022-0007
+  country_iso2: EC
+  country_name: ''
+  post: Quito
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_Quito_Ecuador_EC2022-0007.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_EC2022-0007.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/05/Sugar%20Annual_Quito_Ecuador_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_04-15-2021.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Sugar%20Annual_Quito_Ecuador_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_04-15-2020.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Sugar%20Annual_Quito_Ecuador_4-4-2019.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_4-4-2019.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/03/Sugar%20Annual_Quito_Ecuador_3-19-2018.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_3-19-2018.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Quito_Ecuador_4-12-2017.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_4-12-2017.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Quito_Ecuador_4-13-2016.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_4-13-2016.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/03/Sugar%20Annual_Quito_Ecuador_3-23-2015.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_3-23-2015.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Sugar%20Annual_Quito_Ecuador_4-7-2014.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_4-7-2014.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Sugar%20Annual_Quito_Ecuador_4-15-2013.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_4-15-2013.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Quito_Ecuador_4-11-2012.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_4-11-2012.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_Quito_Ecuador_4-8-2011.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_4-8-2011.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/05/Sugar%20Annual_Quito_Ecuador_5-4-2010.pdf
+  filename_clean: Sugar_Annual_Quito_Ecuador_5-4-2010.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_Quito_Ecuador_04-22-2008.pdf
+  filename_clean: Annual_Quito_Ecuador_04-22-2008.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/08/Annual_Quito_Ecuador_08-17-2007.pdf
+  filename_clean: Annual_Quito_Ecuador_08-17-2007.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual_Quito_Ecuador_04-12-2007.pdf
+  filename_clean: Annual_Quito_Ecuador_04-12-2007.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/05/Annual_Quito_Ecuador_04-28-2004.pdf
+  filename_clean: Annual_Quito_Ecuador_04-28-2004.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_Lima_Ecuador_04-15-2003.pdf
+  filename_clean: Sugar_Annual_Lima_Ecuador_04-15-2003.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Sugar%20Annual_Lima_Ecuador_04-26-2002.pdf
+  filename_clean: Sugar_Annual_Lima_Ecuador_04-26-2002.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/05/Sugar%20Annual_Lima_Ecuador_04-30-2001.pdf
+  filename_clean: Sugar_Annual_Lima_Ecuador_04-30-2001.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/04/Sugar%20Annual_Lima_Ecuador_04-11-2000.pdf
+  filename_clean: Sugar_Annual_Lima_Ecuador_04-11-2000.pdf
+- report_id: ''
+  country_iso2: EC
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_Lima_Ecuador_04-12-1999.pdf
+  filename_clean: Sugar_Annual_Lima_Ecuador_04-12-1999.pdf
+- report_id: ID2026-0014
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Jakarta_Indonesia_ID2026-0014.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_ID2026-0014.pdf
+- report_id: ID2025-0024
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Indonesia Agricultural Biotechnology Showcase Piques Interest of Indonesian Government Officials
+  publication_date: '20250601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/06/Indonesia%20Agricultural%20Biotechnology%20Showcase%20Piques%20Interest%20of%20Indonesian%20Government%20Officials_Jakarta_Indonesia_ID2025-0024.pdf
+  filename_clean: Indonesia_Agricultural_Biotechnology_Showcase_Piques_Interest_of_Indonesian_Government_Officials_Jakarta_Indonesia_ID2025-0024.pdf
+- report_id: ID2025-0019
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Sugar Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Sugar%20Annual_Jakarta_Indonesia_ID2025-0019.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_ID2025-0019.pdf
+- report_id: ID2024-0015
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Sugar Annual
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Sugar%20Annual_Jakarta_Indonesia_ID2024-0015.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_ID2024-0015.pdf
+- report_id: ID2023-0013
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Pertamina Rolls Out E5 Blending in June 2023
+  publication_date: '20230601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/06/Pertamina%20Rolls%20Out%20E5%20Blending%20in%20June%202023_Jakarta_Indonesia_ID2023-0013.pdf
+  filename_clean: Pertamina_Rolls_Out_E5_Blending_in_June_2023_Jakarta_Indonesia_ID2023-0013.pdf
+- report_id: ID2023-0011
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Jakarta_Indonesia_ID2023-0011.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_ID2023-0011.pdf
+- report_id: ID2022-0012
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_Jakarta_Indonesia_ID2022-0012.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_ID2022-0012.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_Jakarta_Indonesia_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_04-15-2021.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Annual_Jakarta_Indonesia_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_04-15-2020.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Sugar%20Annual_Jakarta_Indonesia_4-11-2019.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-11-2019.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Jakarta_Indonesia_4-13-2017.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-13-2017.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Jakarta_Indonesia_4-21-2016.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-21-2016.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_Jakarta_Indonesia_4-16-2015.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-16-2015.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Sugar%20Annual_Jakarta_Indonesia_4-14-2014.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-14-2014.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/03/Sugar%20Annual_Jakarta_Indonesia_3-1-2013.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_3-1-2013.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Jakarta_Indonesia_4-13-2012.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-13-2012.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_Jakarta_Indonesia_4-28-2011.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-28-2011.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/04/Sugar%20Annual_Jakarta_Indonesia_4-30-2010.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_4-30-2010.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Update
+  publication_date: '20081001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/10/Update_Jakarta_Indonesia_10-08-2008.pdf
+  filename_clean: Update_Jakarta_Indonesia_10-08-2008.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_Jakarta_Indonesia_04-11-2008.pdf
+  filename_clean: Annual_Jakarta_Indonesia_04-11-2008.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual_Jakarta_Indonesia_04-18-2007.pdf
+  filename_clean: Annual_Jakarta_Indonesia_04-18-2007.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/04/Annual_Jakarta_Indonesia_04-12-2006.pdf
+  filename_clean: Annual_Jakarta_Indonesia_04-12-2006.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/04/Annual_Jakarta_Indonesia_04-19-2005.pdf
+  filename_clean: Annual_Jakarta_Indonesia_04-19-2005.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Jakarta_Indonesia_04-19-2004.pdf
+  filename_clean: Annual_Jakarta_Indonesia_04-19-2004.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/05/Sugar%20Annual_Jakarta_Indonesia_05-06-2003.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_05-06-2003.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20021101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/11/Sugar%20Semi-Annual_Jakarta_Indonesia_11-14-2002.pdf
+  filename_clean: Sugar_Semi-Annual_Jakarta_Indonesia_11-14-2002.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%20Annual_Jakarta_Indonesia_04-19-2002.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_04-19-2002.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Sugar%20Semi-Annual_Jakarta_Indonesia_10-01-2001.pdf
+  filename_clean: Sugar_Semi-Annual_Jakarta_Indonesia_10-01-2001.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_Jakarta_Indonesia_04-19-2001.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_04-19-2001.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20001001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/10/Sugar%20Semi-Annual_Jakarta_Indonesia_10-05-2000.pdf
+  filename_clean: Sugar_Semi-Annual_Jakarta_Indonesia_10-05-2000.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/04/Sugar%20Annual_Jakarta_Indonesia_04-18-2000.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_04-18-2000.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Indonesia Sets New Sugar Tariffs
+  publication_date: '20000101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/01/Indonesia%20Sets%20New%20Sugar%20Tariffs_Jakarta_Indonesia_01-03-2000.pdf
+  filename_clean: Indonesia_Sets_New_Sugar_Tariffs_Jakarta_Indonesia_01-03-2000.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi-Annual_Jakarta_Indonesia_10-05-1999.pdf
+  filename_clean: Sugar_Semi-Annual_Jakarta_Indonesia_10-05-1999.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_Jakarta_Indonesia_04-20-1999.pdf
+  filename_clean: Sugar_Annual_Jakarta_Indonesia_04-20-1999.pdf
+- report_id: ''
+  country_iso2: ID
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Sugar%20Semi-Annual_Jakarta_Indonesia_10-15-1998.pdf
+  filename_clean: Sugar_Semi-Annual_Jakarta_Indonesia_10-15-1998.pdf
+- report_id: IN2026-0024
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_New%20Delhi_India_IN2026-0024.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_IN2026-0024.pdf
+- report_id: IN2025-0052
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Semi-annual
+  publication_date: '20250901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/09/Sugar%20Semi-annual_New%20Delhi_India_IN2025-0052.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_IN2025-0052.pdf
+- report_id: IN2025-0027
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Annual
+  publication_date: '20250501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/05/Sugar%20Annual_New%20Delhi_India_IN2025-0027.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_IN2025-0027.pdf
+- report_id: IN2024-0045
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Semi-annual
+  publication_date: '20240901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/09/Sugar%20Semi-annual_New%20Delhi_India_IN2024-0045.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_IN2024-0045.pdf
+- report_id: IN2024-0020
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Annual
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Sugar%20Annual_New%20Delhi_India_IN2024-0020.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_IN2024-0020.pdf
+- report_id: IN2023-0083
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: India Restricts Sugar Exports Beyond October 31 for Indefinite Period
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/India%20Restricts%20Sugar%20Exports%20Beyond%20October%2031%20for%20Indefinite%20Period%20_New%20Delhi_India_IN2023-0083.pdf
+  filename_clean: India_Restricts_Sugar_Exports_Beyond_October_31_for_Indefinite_Period__New_Delhi_India_IN2023-0083.pdf
+- report_id: IN2023-0069
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Semi-annual
+  publication_date: '20231001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/10/Sugar%20Semi-annual_New%20Delhi_India_IN2023-0069.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_IN2023-0069.pdf
+- report_id: IN2023-0048
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: India Increases Fair and Remunerative Price for Sugarcane Marketing Year 2023-24
+  publication_date: '20230701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/07/India%20Increases%20Fair%20and%20Remunerative%20Price%20for%20Sugarcane%20Marketing%20Year%202023-24%20_New%20Delhi_India_IN2023-0048.pdf
+  filename_clean: India_Increases_Fair_and_Remunerative_Price_for_Sugarcane_Marketing_Year_2023-24__New_Delhi_India_IN2023-0048.pdf
+- report_id: IN2023-0035
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Annual
+  publication_date: '20230501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/05/Sugar%20Annual_New%20Delhi_India_IN2023-0035.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_IN2023-0035.pdf
+- report_id: IN2022-0084
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Semi-annual
+  publication_date: '20221001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/10/Sugar%20Semi-annual_New%20Delhi_India_IN2022-0084.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_IN2022-0084.pdf
+- report_id: IN2022-0050
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: India's Government Restricts Sugar Exports
+  publication_date: '20220501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/05/India%27s%20Government%20Restricts%20Sugar%20Exports_New%20Delhi_India_IN2022-0050.pdf
+  filename_clean: India's_Government_Restricts_Sugar_Exports_New_Delhi_India_IN2022-0050.pdf
+- report_id: IN2022-0041
+  country_iso2: IN
+  country_name: ''
+  post: New Delhi
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_New%20Delhi_India_IN2022-0041.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_IN2022-0041.pdf
+- report_id: IN2022-0038
+  country_iso2: IN
+  country_name: ''
+  post: Mumbai
+  category: Sweet Opportunities in the Indian Confectionary and Snacks Market
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sweet%20Opportunities%20in%20the%20Indian%20Confectionary%20and%20Snacks%20Market_Mumbai_India_IN2022-0038.pdf
+  filename_clean: Sweet_Opportunities_in_the_Indian_Confectionary_and_Snacks_Market_Mumbai_India_IN2022-0038.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Indian Government Withdraws Three Farm Laws Following Months of Protests
+  publication_date: '20211201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/12/Indian%20Government%20Withdraws%20Three%20Farm%20Laws%20Following%20Months%20of%20Protests_New%20Delhi_India_12-22-2021.pdf
+  filename_clean: Indian_Government_Withdraws_Three_Farm_Laws_Following_Months_of_Protests_New_Delhi_India_12-22-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: WTO Rules Against India's Sugar Export Subsidies and Domestic Price Support
+  publication_date: '20211201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/12/WTO%20Rules%20Against%20India%27s%20Sugar%20Export%20Subsidies%20and%20Domestic%20Price%20Support_New%20Delhi_India_12-19-2021.pdf
+  filename_clean: WTO_Rules_Against_India's_Sugar_Export_Subsidies_and_Domestic_Price_Support_New_Delhi_India_12-19-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Government of India Approves Ethanol Procurement Prices for Upcoming Supply Season
+  publication_date: '20211201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/12/Government%20of%20India%20Approves%20Ethanol%20Procurement%20Prices%20for%20Upcoming%20Supply%20Season_New%20Delhi_India_12-05-2021.pdf
+  filename_clean: Government_of_India_Approves_Ethanol_Procurement_Prices_for_Upcoming_Supply_Season_New_Delhi_India_12-05-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20211001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/10/Sugar%20Semi-annual_New%20Delhi_India_10-01-2021.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-01-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: India Announces Reduction in Sugar Export Subsidy for Market Year 2020-21
+  publication_date: '20210601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/06/India%20Announces%20Reduction%20in%20Sugar%20Export%20Subsidy%20for%20Market%20Year%202020-21_New%20Delhi_India_06-20-2021.pdf
+  filename_clean: India_Announces_Reduction_in_Sugar_Export_Subsidy_for_Market_Year_2020-21_New_Delhi_India_06-20-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_New%20Delhi_India_04-15-2021.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_04-15-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: India's FSSAI Clarifies Compliance Timeline for the Exclusion of High Fat Sugar Salt Foods from the Fortified
+    Processed Foods Category
+  publication_date: '20210201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/02/India%27s%20FSSAI%20Clarifies%20Compliance%20Timeline%20for%20the%20Exclusion%20of%20High%20Fat%20Sugar%20Salt%20Foods%20from%20the%20Fortified%20Processed%20Foods%20Category_New%20Delhi_India_02-14-2021.pdf
+  filename_clean: India's_FSSAI_Clarifies_Compliance_Timeline_for_the_Exclusion_of_High_Fat_Sugar_Salt_Foods_from_the_Fortified_Processed_Foods_Category_New_Delhi_India_02-14-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: New Budget Estimates for the Sugar Industry and a Revised Ethanol Import Duty
+  publication_date: '20210201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/02/New%20Budget%20Estimates%20for%20the%20Sugar%20Industry%20and%20a%20Revised%20Ethanol%20Import%20Duty_New%20Delhi_India_02-20-2021.pdf
+  filename_clean: New_Budget_Estimates_for_the_Sugar_Industry_and_a_Revised_Ethanol_Import_Duty_New_Delhi_India_02-20-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Indian Government Approves Interest Subvention Scheme for Ethanol Distilleries
+  publication_date: '20210101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/01/Indian%20Government%20Approves%20Interest%20Subvention%20Scheme%20for%20Ethanol%20Distilleries_New%20Delhi_India_01-03-2021.pdf
+  filename_clean: Indian_Government_Approves_Interest_Subvention_Scheme_for_Ethanol_Distilleries_New_Delhi_India_01-03-2021.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Government of India Publishes Draft Automotive Industry Standards as it Accelerates Ethanol Blending Mandate
+  publication_date: '20201201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/12/Government%20of%20India%20Publishes%20Draft%20Automotive%20Industry%20Standards%20as%20it%20Accelerates%20Ethanol%20Blending%20Mandate_New%20Delhi_India_12-25-2020.pdf
+  filename_clean: Government_of_India_Publishes_Draft_Automotive_Industry_Standards_as_it_Accelerates_Ethanol_Blending_Mandate_New_Delhi_India_12-25-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Government of India Announces Market Year 2020-21 Subsidy for Sugar Exports
+  publication_date: '20201201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/12/Government%20of%20India%20Announces%20Market%20Year%202020-21%20Subsidy%20for%20Sugar%20Exports_New%20Delhi_India_12-21-2020.pdf
+  filename_clean: Government_of_India_Announces_Market_Year_2020-21_Subsidy_for_Sugar_Exports_New_Delhi_India_12-21-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20201101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/11/Sugar%20Semi-annual_New%20Delhi_India_10-01-2020.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-01-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Record-setting Southwest Monsoon Season Ends
+  publication_date: '20201001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/10/Record-setting%20Southwest%20Monsoon%20Season%20Ends_Mumbai_India_10-06-2020.pdf
+  filename_clean: Record-setting_Southwest_Monsoon_Season_Ends_Mumbai_India_10-06-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Draft Amendments on Labeling for Packaged Foods Containing Sweeteners
+  publication_date: '20201001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/10/Draft%20Amendments%20on%20Labeling%20for%20Packaged%20Foods%20Containing%20Sweeteners_New%20Delhi_India_10-04-2020.pdf
+  filename_clean: Draft_Amendments_on_Labeling_for_Packaged_Foods_Containing_Sweeteners_New_Delhi_India_10-04-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Government of India Proposes Amendments in Contaminants Toxins and Residues Regulation
+  publication_date: '20200901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/09/Government%20of%20India%20Proposes%20Amendments%20in%20Contaminants%20Toxins%20and%20Residues%20Regulation_New%20Delhi_India_09-10-2020.pdf
+  filename_clean: Government_of_India_Proposes_Amendments_in_Contaminants_Toxins_and_Residues_Regulation_New_Delhi_India_09-10-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Update - August 2020
+  publication_date: '20200901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/09/Monsoon%20Update%20-%20August%202020_Mumbai_India_09-03-2020.pdf
+  filename_clean: Monsoon_Update_-_August_2020_Mumbai_India_09-03-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Update - July 2020
+  publication_date: '20200801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/08/Monsoon%20Update%20-%20July%202020_Mumbai_India_08-04-2020.pdf
+  filename_clean: Monsoon_Update_-_July_2020_Mumbai_India_08-04-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Early Onset of Southwest Monsoon Leads to Accelerated Kharif Planting
+  publication_date: '20200701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/07/Early%20Onset%20of%20Southwest%20Monsoon%20Leads%20to%20Accelerated%20Kharif%20Planting_Mumbai_India_07-05-2020.pdf
+  filename_clean: Early_Onset_of_Southwest_Monsoon_Leads_to_Accelerated_Kharif_Planting_Mumbai_India_07-05-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/05/Sugar%20Annual_New%20Delhi_India_04-15-2020.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_04-15-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Covid-19 Impact on the Indian Sugar Industry
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Covid-19%20Impact%20on%20the%20Indian%20Sugar%20Industry_New%20Delhi_India_04-19-2020.pdf
+  filename_clean: Covid-19_Impact_on_the_Indian_Sugar_Industry_New_Delhi_India_04-19-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: 2020-21 Budget Raises Tariffs on Several Agricultural Products
+  publication_date: '20200201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/02/2020-21%20Budget%20Raises%20Tariffs%20on%20Several%20Agricultural%20Products_New%20Delhi_India_02-05-2020.pdf
+  filename_clean: 2020-21_Budget_Raises_Tariffs_on_Several_Agricultural_Products_New_Delhi_India_02-05-2020.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20191001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/10/Sugar%20Semi-annual_New%20Delhi_India_10-01-2019.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-01-2019.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Erratic Southwest Monsoon Subsides as Output Concerns Rise
+  publication_date: '20181001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/10/Erratic%20Southwest%20Monsoon%20Subsides%20as%20Output%20Concerns%20Rise_New%20Delhi_India_10-24-2018.pdf
+  filename_clean: Erratic_Southwest_Monsoon_Subsides_as_Output_Concerns_Rise_New_Delhi_India_10-24-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20181001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/10/Sugar%20Semi-annual_New%20Delhi_India_10-18-2018.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-18-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: PQ Requirements and Clearance Waived for Some Processed Food Items
+  publication_date: '20181001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/10/PQ%20Requirements%20and%20Clearance%20Waived%20for%20Some%20Processed%20Food%20Items%20_New%20Delhi_India_10-3-2018.pdf
+  filename_clean: PQ_Requirements_and_Clearance_Waived_for_Some_Processed_Food_Items__New_Delhi_India_10-3-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Update August - September 2018
+  publication_date: '20181001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/10/Monsoon%20Update%20August%20-%20September%202018_New%20Delhi_India_10-1-2018.pdf
+  filename_clean: Monsoon_Update_August_-_September_2018_New_Delhi_India_10-1-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Sugar%20Annual_New%20Delhi_India_4-19-2018.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-19-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Draft Labeling and Display Regulations Invite WTO Member Comments
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Draft%20Labeling%20and%20Display%20Regulations%20Invite%20WTO%20Member%20Comments_New%20Delhi_India_4-17-2018.pdf
+  filename_clean: Draft_Labeling_and_Display_Regulations_Invite_WTO_Member_Comments_New_Delhi_India_4-17-2018.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20170901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/09/Sugar%20Semi-annual_New%20Delhi_India_9-29-2017.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_9-29-2017.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_New%20Delhi_India_4-10-2017.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-10-2017.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Revised Standards for Sweetening Agents Invite WTO Comments
+  publication_date: '20170201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/02/Revised%20Standards%20for%20Sweetening%20Agents%20Invite%20WTO%20Comments%20_New%20Delhi_India_2-3-2017.pdf
+  filename_clean: Revised_Standards_for_Sweetening_Agents_Invite_WTO_Comments__New_Delhi_India_2-3-2017.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20161001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/10/Sugar%20Semi-annual_New%20Delhi_India_9-27-2016.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_9-27-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Update - Optimism High yet Monsoon Below Expectation
+  publication_date: '20160901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/09/Monsoon%20Update%20-%20Optimism%20High%20yet%20Monsoon%20Below%20Expectation%20_New%20Delhi_India_9-6-2016.pdf
+  filename_clean: Monsoon_Update_-_Optimism_High_yet_Monsoon_Below_Expectation__New_Delhi_India_9-6-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: India Introduced a 20 Percent Export Tax on Sugar
+  publication_date: '20160601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/06/India%20Introduced%20a%2020%20Percent%20Export%20Tax%20on%20Sugar_New%20Delhi_India_6-23-2016.pdf
+  filename_clean: India_Introduced_a_20_Percent_Export_Tax_on_Sugar_New_Delhi_India_6-23-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_New%20Delhi_India_4-26-2016.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-26-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: WTO Notified Draft Amendments on Pharmacologically Active Substances
+  publication_date: '20160101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/01/WTO%20Notified%20Draft%20Amendments%20on%20Pharmacologically%20Active%20Substances_New%20Delhi_India_1-14-2016.pdf
+  filename_clean: WTO_Notified_Draft_Amendments_on_Pharmacologically_Active_Substances_New_Delhi_India_1-14-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Indian Cabinet Approves Sugarcane Production Subsidy
+  publication_date: '20160101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/01/Indian%20Cabinet%20Approves%20Sugarcane%20Production%20Subsidy_New%20Delhi_India_1-5-2016.pdf
+  filename_clean: Indian_Cabinet_Approves_Sugarcane_Production_Subsidy_New_Delhi_India_1-5-2016.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Final Amendment on Glazing Agents and Lubricants as Food Additives
+  publication_date: '20151201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/12/Final%20Amendment%20on%20Glazing%20Agents%20and%20Lubricants%20as%20Food%20Additives_New%20Delhi_India_12-1-2015.pdf
+  filename_clean: Final_Amendment_on_Glazing_Agents_and_Lubricants_as_Food_Additives_New_Delhi_India_12-1-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20151001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/10/Sugar%20Semi-annual_New%20Delhi_India_10-9-2015.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-9-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Report - 2
+  publication_date: '20150701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/07/Monsoon%20Report%20-%202_New%20Delhi_India_7-7-2015.pdf
+  filename_clean: Monsoon_Report_-_2_New_Delhi_India_7-7-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: FSSAI Publishes Guidelines on Product Approvals
+  publication_date: '20150601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/06/FSSAI%20Publishes%20Guidelines%20on%20Product%20Approvals_New%20Delhi_India_6-17-2015.pdf
+  filename_clean: FSSAI_Publishes_Guidelines_on_Product_Approvals_New_Delhi_India_6-17-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: FSSAI Publishes Draft Manuals on Sampling Methods and Analysis
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/FSSAI%20Publishes%20Draft%20Manuals%20on%20Sampling%20Methods%20and%20Analysis_New%20Delhi_India_4-29-2015.pdf
+  filename_clean: FSSAI_Publishes_Draft_Manuals_on_Sampling_Methods_and_Analysis_New_Delhi_India_4-29-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_New%20Delhi_India_4-21-2015.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-21-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Raw Sugar Export Subsidy Extended Through Marketing Year 2014-15
+  publication_date: '20150301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/03/Raw%20Sugar%20Export%20Subsidy%20Extended%20Through%20Marketing%20Year%202014-15_New%20Delhi_India_3-4-2015.pdf
+  filename_clean: Raw_Sugar_Export_Subsidy_Extended_Through_Marketing_Year_2014-15_New_Delhi_India_3-4-2015.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Government of India Raises Procurement Price of Fuel Ethanol
+  publication_date: '20141201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/12/Government%20of%20India%20Raises%20Procurement%20Price%20of%20Fuel%20Ethanol%20_New%20Delhi_India_12-22-2014.pdf
+  filename_clean: Government_of_India_Raises_Procurement_Price_of_Fuel_Ethanol__New_Delhi_India_12-22-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20141001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/10/Sugar%20Semi-annual_New%20Delhi_India_10-14-2014.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-14-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Raw Sugar Export Subsidy Changed
+  publication_date: '20140801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/08/Raw%20Sugar%20Export%20Subsidy%20Changed_New%20Delhi_India_8-22-2014.pdf
+  filename_clean: Raw_Sugar_Export_Subsidy_Changed_New_Delhi_India_8-22-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/05/Sugar%20Annual_New%20Delhi_India_4-25-2014.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-25-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: GOI Publishes and Implements Sugar Export Subsidy of USD 54 per Ton
+  publication_date: '20140301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/03/GOI%20Publishes%20and%20Implements%20Sugar%20Export%20Subsidy%20of%20USD%2054%20per%20Ton_New%20Delhi_India_3-4-2014.pdf
+  filename_clean: GOI_Publishes_and_Implements_Sugar_Export_Subsidy_of_USD_54_per_Ton_New_Delhi_India_3-4-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: India Approves Raw Sugar Export Subsidy
+  publication_date: '20140201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/02/India%20Approves%20Raw%20Sugar%20Export%20Subsidy_New%20Delhi_India_2-14-2014.pdf
+  filename_clean: India_Approves_Raw_Sugar_Export_Subsidy_New_Delhi_India_2-14-2014.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20131001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/10/Sugar%20Semi-annual_New%20Delhi_India_10-23-2013.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-23-2013.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/05/Sugar%20Annual_New%20Delhi_India_4-16-2013.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-16-2013.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Partial Decontrol of Sugar Industry
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Partial%20Decontrol%20of%20Sugar%20Industry_New%20Delhi_India_4-5-2013.pdf
+  filename_clean: Partial_Decontrol_of_Sugar_Industry_New_Delhi_India_4-5-2013.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon 2012 Wrap up Report
+  publication_date: '20121001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/10/Monsoon%202012%20Wrap%20up%20Report%20_New%20Delhi_India_10-19-2012.pdf
+  filename_clean: Monsoon_2012_Wrap_up_Report__New_Delhi_India_10-19-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20121001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/10/Sugar%20Semi-annual_New%20Delhi_India_10-15-2012.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-15-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Report 6
+  publication_date: '20120901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/09/Monsoon%20Report%206_New%20Delhi_India_9-18-2012.pdf
+  filename_clean: Monsoon_Report_6_New_Delhi_India_9-18-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Monsoon Report 4
+  publication_date: '20120801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/08/Monsoon%20Report%204_New%20Delhi_India_8-3-2012.pdf
+  filename_clean: Monsoon_Report_4_New_Delhi_India_8-3-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_New%20Delhi_India_4-19-2012.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-19-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Procurement of Sugarcane Harvesters in Maharashtra
+  publication_date: '20120301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/03/Procurement%20of%20Sugarcane%20Harvesters%20in%20Maharashtra_New%20Delhi_India_3-20-2012.pdf
+  filename_clean: Procurement_of_Sugarcane_Harvesters_in_Maharashtra_New_Delhi_India_3-20-2012.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20111001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/10/Sugar%20Semi-annual_New%20Delhi_India_10-19-2011.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_10-19-2011.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_New%20Delhi_India_4-14-2011.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-14-2011.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Sugar%20Semi-annual_New%20Delhi_India_9-30-2010.pdf
+  filename_clean: Sugar_Semi-annual_New_Delhi_India_9-30-2010.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/04/Sugar%20Annual_New%20Delhi_India_4-20-2010.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_4-20-2010.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: SUGAR SEMI-ANNUAL
+  publication_date: '20091001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/10/SUGAR%20SEMI-ANNUAL_New%20Delhi_India_10-5-2009.pdf
+  filename_clean: SUGAR_SEMI-ANNUAL_New_Delhi_India_10-5-2009.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20081001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/10/Semi-Annual_New%20Delhi_India_10-06-2008.pdf
+  filename_clean: Semi-Annual_New_Delhi_India_10-06-2008.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_New%20Delhi_India_04-11-2008.pdf
+  filename_clean: Annual_New_Delhi_India_04-11-2008.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20071001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/10/Semi-Annual_New%20Delhi_India_09-28-2007.pdf
+  filename_clean: Semi-Annual_New_Delhi_India_09-28-2007.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual%20Report_New%20Delhi_India_04-20-2007.pdf
+  filename_clean: Annual_Report_New_Delhi_India_04-20-2007.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20061001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/10/Semi-Annual_New%20Delhi_India_10-12-2006.pdf
+  filename_clean: Semi-Annual_New_Delhi_India_10-12-2006.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/04/Annual_New%20Delhi_India_04-10-2006.pdf
+  filename_clean: Annual_New_Delhi_India_04-10-2006.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20050901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/09/Semi-Annual_New%20Delhi_India_09-28-2005.pdf
+  filename_clean: Semi-Annual_New_Delhi_India_09-28-2005.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/04/Annual_New%20Delhi_India_04-07-2005.pdf
+  filename_clean: Annual_New_Delhi_India_04-07-2005.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20041001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/10/Semi-Annual_New%20Delhi_India_10-01-2004.pdf
+  filename_clean: Semi-Annual_New_Delhi_India_10-01-2004.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_New%20Delhi_India_04-12-2004.pdf
+  filename_clean: Annual_New_Delhi_India_04-12-2004.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20031001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/10/Sugar%20Semi-Annual_New%20Delhi_India_09-30-2003.pdf
+  filename_clean: Sugar_Semi-Annual_New_Delhi_India_09-30-2003.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_New%20Delhi_India_04-10-2003.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_04-10-2003.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20020901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/09/Sugar%20Semi-Annual_New%20Delhi_India_09-25-2002.pdf
+  filename_clean: Sugar_Semi-Annual_New_Delhi_India_09-25-2002.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%20Annual_New%20Delhi_India_04-09-2002.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_04-09-2002.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20010901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/09/Sugar%20Semi-Annual_New%20Delhi_India_09-24-2001.pdf
+  filename_clean: Sugar_Semi-Annual_New_Delhi_India_09-24-2001.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_New%20Delhi_India_04-10-2001.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_04-10-2001.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi Annual
+  publication_date: '20000901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/09/Sugar%20Semi%20Annual_New%20Delhi_India_09-26-2000.pdf
+  filename_clean: Sugar_Semi_Annual_New_Delhi_India_09-26-2000.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/04/Sugar%20Annual_New%20Delhi_India_04-10-2000.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_04-10-2000.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Import Duty Raised
+  publication_date: '20000101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/01/Sugar%20Import%20Duty%20Raised_New%20Delhi_India_01-07-2000.pdf
+  filename_clean: Sugar_Import_Duty_Raised_New_Delhi_India_01-07-2000.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi%20Annual_New%20Delhi_India_10-01-1999.pdf
+  filename_clean: Sugar_Semi_Annual_New_Delhi_India_10-01-1999.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_New%20Delhi_India_04-11-1999.pdf
+  filename_clean: Sugar_Annual_New_Delhi_India_04-11-1999.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Update - Sugar Import Duty Raised
+  publication_date: '19990201'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/02/Sugar%20Update%20-%20Sugar%20Import%20Duty%20Raised_New%20Delhi_India_02-01-1999.pdf
+  filename_clean: Sugar_Update_-_Sugar_Import_Duty_Raised_New_Delhi_India_02-01-1999.pdf
+- report_id: ''
+  country_iso2: IN
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19980901'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/09/Sugar%20Semi-Annual_New%20Delhi_India_09-22-1998.pdf
+  filename_clean: Sugar_Semi-Annual_New_Delhi_India_09-22-1998.pdf
+- report_id: MX2026-0025
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Mexico%20City_Mexico_MX2026-0025.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_MX2026-0025.pdf
+- report_id: MX2025-0057
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Semi-annual
+  publication_date: '20251201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/12/Sugar%20Semi-annual_Mexico%20City_Mexico_MX2025-0057.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_MX2025-0057.pdf
+- report_id: MX2025-0022
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Sugar%20Annual_Mexico%20City_Mexico_MX2025-0022.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_MX2025-0022.pdf
+- report_id: MX2024-0046
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Semi-annual
+  publication_date: '20241001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/10/Sugar%20Semi-annual_Mexico%20City_Mexico_MX2024-0046.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_MX2024-0046.pdf
+- report_id: MX2024-0020
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Annual
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Sugar%20Annual_Mexico%20City_Mexico_MX2024-0020.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_MX2024-0020.pdf
+- report_id: MX2023-0050
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Semi-annual
+  publication_date: '20231001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/10/Sugar%20Semi-annual_Mexico%20City_Mexico_MX2023-0050.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_MX2023-0050.pdf
+- report_id: MX2023-0018
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Mexico%20City_Mexico_MX2023-0018.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_MX2023-0018.pdf
+- report_id: MX2022-0050
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Semi-annual
+  publication_date: '20221001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/10/Sugar%20Semi-annual_Mexico%20City_Mexico_MX2022-0050.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_MX2022-0050.pdf
+- report_id: MX2022-0027
+  country_iso2: MX
+  country_name: ''
+  post: Mexico City
+  category: Sugar Annual
+  publication_date: '20220501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/05/Sugar%20Annual_Mexico%20City_Mexico_MX2022-0027.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_MX2022-0027.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20211001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/10/Sugar%20Semi-annual_Mexico%20City_Mexico_10-01-2021.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_10-01-2021.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_Mexico%20City_Mexico_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_04-15-2021.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20200901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/09/Sugar%20Semi-annual_Mexico%20City_Mexico_10-01-2020.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_10-01-2020.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Annual_Mexico%20City_Mexico_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_04-15-2020.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20191001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/10/Sugar%20Semi-annual_Mexico%20City_Mexico_10-01-2019.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_10-01-2019.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Sugar%20Annual_Mexico%20City_Mexico_4-15-2019.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-15-2019.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States
+  publication_date: '20190201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/02/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States_Mexico_Mexico_2-15-2019.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States_Mexico_Mexico_2-15-2019.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Sugarcane Reference Price
+  publication_date: '20181101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/11/Mexico%20Announces%20Sugarcane%20Reference%20Price%20_Mexico_Mexico_11-5-2018.pdf
+  filename_clean: Mexico_Announces_Sugarcane_Reference_Price__Mexico_Mexico_11-5-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20180901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/09/Sugar%20Semi-annual_Mexico%20City_Mexico_9-26-2018.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_9-26-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States
+  publication_date: '20180801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/08/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States_Mexico_Mexico_8-17-2018.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States_Mexico_Mexico_8-17-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Sugar%20Annual_Mexico%20City_Mexico_4-25-2018.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-25-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States 201
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States%20201_Mexico_Mexico_4-12-2018.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States_201_Mexico_Mexico_4-12-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States
+  publication_date: '20180101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/01/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States%20_Mexico_Mexico_1-23-2018.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States__Mexico_Mexico_1-23-2018.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States
+  publication_date: '20171001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/10/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States_Mexico_Mexico_10-13-2017.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States_Mexico_Mexico_10-13-2017.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20170901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/09/Sugar%20Semi-annual_Mexico%20City_Mexico_9-29-2017.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_9-29-2017.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Additional Sugar Export Quota to the United States
+  publication_date: '20170801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/08/Mexico%20Announces%20Additional%20Sugar%20Export%20Quota%20to%20the%20United%20States_Mexico_Mexico_8-18-2017.pdf
+  filename_clean: Mexico_Announces_Additional_Sugar_Export_Quota_to_the_United_States_Mexico_Mexico_8-18-2017.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Mexico%20City_Mexico_4-20-2017.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-20-2017.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Increase in the Maximum Sugar Export Quota
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Increase%20in%20the%20Maximum%20Sugar%20Export%20Quota%20_Mexico_Mexico_4-5-2017.pdf
+  filename_clean: Increase_in_the_Maximum_Sugar_Export_Quota__Mexico_Mexico_4-5-2017.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States
+  publication_date: '20170101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/01/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States%20_Mexico_Mexico_1-5-2017.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States__Mexico_Mexico_1-5-2017.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the U.S.
+  publication_date: '20161001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/10/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20U.S._Mexico_Mexico_10-21-2016.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_U.S._Mexico_Mexico_10-21-2016.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20160901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/09/Sugar%20Semi-annual_Mexico%20City_Mexico_9-29-2016.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_9-29-2016.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States
+  publication_date: '20160801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/08/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States%20_Mexico_Mexico_8-31-2016.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States__Mexico_Mexico_8-31-2016.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Mexico%20City_Mexico_4-15-2016.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-15-2016.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Increased Sugar Export Quota to the United States
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Mexico%20Announces%20Increased%20Sugar%20Export%20Quota%20to%20the%20United%20States_Mexico_Mexico_4-5-2016.pdf
+  filename_clean: Mexico_Announces_Increased_Sugar_Export_Quota_to_the_United_States_Mexico_Mexico_4-5-2016.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Prohibits Use of U.S. Re-Export Sugar in IMMEX Program
+  publication_date: '20160101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/01/Mexico%20Prohibits%20Use%20of%20U.S.%20Re-Export%20Sugar%20in%20IMMEX%20Program_Mexico_Mexico_1-11-2016.pdf
+  filename_clean: Mexico_Prohibits_Use_of_U.S._Re-Export_Sugar_in_IMMEX_Program_Mexico_Mexico_1-11-2016.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20151001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/10/Sugar%20Semi-annual_Mexico%20City_Mexico_10-9-2015.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_10-9-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Sugar Export Quota to the U.S. for Cycle 2015-16
+  publication_date: '20150801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/08/Mexico%20Announces%20Sugar%20Export%20Quota%20to%20the%20U.S.%20for%20Cycle%202015-16%20_Mexico_Mexico_8-3-2015.pdf
+  filename_clean: Mexico_Announces_Sugar_Export_Quota_to_the_U.S._for_Cycle_2015-16__Mexico_Mexico_8-3-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Four Mexican State-Owned Sugar Mills Sold
+  publication_date: '20150601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/06/Four%20Mexican%20State-Owned%20Sugar%20Mills%20Sold_Mexico_Mexico_6-15-2015.pdf
+  filename_clean: Four_Mexican_State-Owned_Sugar_Mills_Sold_Mexico_Mexico_6-15-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_Mexico%20City_Mexico_4-16-2015.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-16-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Increases Maximum Sugar Export Limit to the United States
+  publication_date: '20150301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/03/Mexico%20Increases%20Maximum%20Sugar%20Export%20Limit%20to%20the%20United%20States_Mexico_Mexico_3-30-2015.pdf
+  filename_clean: Mexico_Increases_Maximum_Sugar_Export_Limit_to_the_United_States_Mexico_Mexico_3-30-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Puts State-Owned Sugar Mills Up for Sale
+  publication_date: '20150301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/03/Mexico%20Puts%20State-Owned%20Sugar%20Mills%20Up%20for%20Sale_Mexico_Mexico_3-30-2015.pdf
+  filename_clean: Mexico_Puts_State-Owned_Sugar_Mills_Up_for_Sale_Mexico_Mexico_3-30-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Maximum Sugar Export Quota to the United States
+  publication_date: '20150201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/02/Mexico%20Announces%20Maximum%20Sugar%20Export%20Quota%20to%20the%20United%20States_Mexico_Mexico_2-11-2015.pdf
+  filename_clean: Mexico_Announces_Maximum_Sugar_Export_Quota_to_the_United_States_Mexico_Mexico_2-11-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announced Guidelines for Sugar Export Licenses
+  publication_date: '20150201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/02/Mexico%20Announced%20Guidelines%20for%20Sugar%20Export%20Licenses_Mexico_Mexico_2-9-2015.pdf
+  filename_clean: Mexico_Announced_Guidelines_for_Sugar_Export_Licenses_Mexico_Mexico_2-9-2015.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Sugar Cane Reference Price
+  publication_date: '20141101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/11/Mexico%20Announces%20Sugar%20Cane%20Reference%20Price_Mexico_Mexico_10-31-2014.pdf
+  filename_clean: Mexico_Announces_Sugar_Cane_Reference_Price_Mexico_Mexico_10-31-2014.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20140901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/09/Sugar%20Semi-annual_Mexico%20City_Mexico_9-30-2014.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_9-30-2014.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Sugar%20Annual_Mexico%20City_Mexico_4-15-2014.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-15-2014.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces Sugar Cane Reference Price
+  publication_date: '20131101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/11/Mexico%20Announces%20Sugar%20Cane%20Reference%20Price_Mexico_Mexico_11-5-2013.pdf
+  filename_clean: Mexico_Announces_Sugar_Cane_Reference_Price_Mexico_Mexico_11-5-2013.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20130901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/09/Sugar%20Semi-annual_Mexico%20City_Mexico_9-24-2013.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_9-24-2013.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Sugar%20Annual_Mexico%20City_Mexico_4-15-2013.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-15-2013.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: MY 2012-13 Sugarcane Reference Price Up Slightly
+  publication_date: '20121001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/10/MY%202012-13%20Sugarcane%20Reference%20Price%20Up%20Slightly_Mexico_Mexico_10-30-2012.pdf
+  filename_clean: MY_2012-13_Sugarcane_Reference_Price_Up_Slightly_Mexico_Mexico_10-30-2012.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20120901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/09/Sugar%20Semi-annual_Mexico%20City_Mexico_9-27-2012.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_9-27-2012.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Mexico%20City_Mexico_4-10-2012.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-10-2012.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Rolls Out Electronic Sugar Marketing Platform
+  publication_date: '20120101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/01/Mexico%20Rolls%20Out%20Electronic%20Sugar%20Marketing%20Platform_Mexico_Mexico_1-9-2012.pdf
+  filename_clean: Mexico_Rolls_Out_Electronic_Sugar_Marketing_Platform_Mexico_Mexico_1-9-2012.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Included in Mexico-Central America FTA
+  publication_date: '20111201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/12/Sugar%20Included%20in%20Mexico-Central%20America%20FTA_Mexico_Mexico_12-7-2011.pdf
+  filename_clean: Sugar_Included_in_Mexico-Central_America_FTA_Mexico_Mexico_12-7-2011.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Reference Price Up Slightly
+  publication_date: '20111101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/11/Sugar%20Reference%20Price%20Up%20Slightly%20_Mexico_Mexico_11-1-2011.pdf
+  filename_clean: Sugar_Reference_Price_Up_Slightly__Mexico_Mexico_11-1-2011.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20111001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/10/Sugar%20Semi-annual_Mexico%20City_Mexico_10-5-2011.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_10-5-2011.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_Mexico%20City_Mexico_4-15-2011.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-15-2011.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Formally Announces One Hundred Thousand Metric Ton Sugar TRQ
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Mexico%20Formally%20Announces%20One%20Hundred%20Thousand%20Metric%20Ton%20Sugar%20TRQ_Mexico_Mexico_10-13-2010.pdf
+  filename_clean: Mexico_Formally_Announces_One_Hundred_Thousand_Metric_Ton_Sugar_TRQ_Mexico_Mexico_10-13-2010.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Tariff Rate Quota for Sugar Expected
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Tariff%20Rate%20Quota%20for%20Sugar%20Expected_Mexico_Mexico_10-1-2010.pdf
+  filename_clean: Tariff_Rate_Quota_for_Sugar_Expected_Mexico_Mexico_10-1-2010.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Sugar%20Semi-annual_Mexico%20City_Mexico_10-1-2010.pdf
+  filename_clean: Sugar_Semi-annual_Mexico_City_Mexico_10-1-2010.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/04/Sugar%20Annual_Mexico%20City_Mexico_4-14-2010.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_4-14-2010.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: SUGAR SEMI-ANNUAL
+  publication_date: '20091101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/11/SUGAR%20SEMI-ANNUAL_Mexico_Mexico_11-6-2009.pdf
+  filename_clean: SUGAR_SEMI-ANNUAL_Mexico_Mexico_11-6-2009.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Reference Price to Pay Sugarcane for MY 2008/09
+  publication_date: '20081201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/12/Reference%20Price%20to%20Pay%20Sugarcane%20for%20MY%202008_09_Mexico%20City_Mexico_12-12-2008.pdf
+  filename_clean: Reference_Price_to_Pay_Sugarcane_for_MY_2008_09_Mexico_City_Mexico_12-12-2008.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Semi-Annual Report
+  publication_date: '20081001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/10/Semi-Annual%20Report_Mexico%20City_Mexico_09-30-2008.pdf
+  filename_clean: Semi-Annual_Report_Mexico_City_Mexico_09-30-2008.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Modifications to the Mexican Sugar Re-Export Program (IMMEX)
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Modifications%20to%20the%20Mexican%20Sugar%20Re-Export%20Program%20%28IMMEX%29_Mexico%20City_Mexico_05-21-2008.pdf
+  filename_clean: Modifications_to_the_Mexican_Sugar_Re-Export_Program_(IMMEX)_Mexico_City_Mexico_05-21-2008.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual%20Report_Mexico%20City_Mexico_04-16-2008.pdf
+  filename_clean: Annual_Report_Mexico_City_Mexico_04-16-2008.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Semi-Annual Report
+  publication_date: '20071001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/10/Semi-Annual%20Report_Mexico%20City_Mexico_10-02-2007.pdf
+  filename_clean: Semi-Annual_Report_Mexico_City_Mexico_10-02-2007.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: New Sugar import Tariffs
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/New%20Sugar%20import%20Tariffs_Mexico%20City_Mexico_05-09-2007.pdf
+  filename_clean: New_Sugar_import_Tariffs_Mexico_City_Mexico_05-09-2007.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces National Sugar Program
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Mexico%20Announces%20National%20Sugar%20Program_Mexico%20City_Mexico_05-08-2007.pdf
+  filename_clean: Mexico_Announces_National_Sugar_Program_Mexico_City_Mexico_05-08-2007.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20070501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/05/Sugar%20Annual_Mexico%20City_Mexico_05-03-2007.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_05-03-2007.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Tax on the use of HFCS on Beverages was Eliminated
+  publication_date: '20070101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/01/Tax%20on%20the%20use%20of%20HFCS%20on%20Beverages%20was%20Eliminated_Mexico%20City_Mexico_01-17-2007.pdf
+  filename_clean: Tax_on_the_use_of_HFCS_on_Beverages_was_Eliminated_Mexico_City_Mexico_01-17-2007.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces the Sugar & Sugar Syrup TRQ for MY 2005-2007
+  publication_date: '20061001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/10/Mexico%20Announces%20the%20Sugar%20and%20Sugar%20Syrup%20TRQ%20for%20MY%202005-2007_Mexico%20City_Mexico_10-16-2006.pdf
+  filename_clean: Mexico_Announces_the_Sugar_and_Sugar_Syrup_TRQ_for_MY_2005-2007_Mexico_City_Mexico_10-16-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Semi-Annual Report
+  publication_date: '20061001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/10/Semi-Annual%20Report_Mexico%20City_Mexico_10-18-2006.pdf
+  filename_clean: Semi-Annual_Report_Mexico_City_Mexico_10-18-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Secretariat of Economy Announces Sugar TRQ Amounts to be imported from Cost
+  publication_date: '20060901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/09/Secretariat%20of%20Economy%20Announces%20Sugar%20TRQ%20Amounts%20to%20be%20imported%20from%20Cost_Mexico%20City_Mexico_09-22-2006.pdf
+  filename_clean: Secretariat_of_Economy_Announces_Sugar_TRQ_Amounts_to_be_imported_from_Cost_Mexico_City_Mexico_09-22-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Grants Nicaragua a Sugar TRQ
+  publication_date: '20060901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/09/Mexico%20Grants%20Nicaragua%20a%20Sugar%20TRQ_Mexico%20City_Mexico_09-19-2006.pdf
+  filename_clean: Mexico_Grants_Nicaragua_a_Sugar_TRQ_Mexico_City_Mexico_09-19-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announced an Additional Sugar TRQ for 2006
+  publication_date: '20060901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/09/Mexico%20Announced%20an%20Additional%20Sugar%20TRQ%20for%202006_Mexico%20City_Mexico_09-14-2006.pdf
+  filename_clean: Mexico_Announced_an_Additional_Sugar_TRQ_for_2006_Mexico_City_Mexico_09-14-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces a Duty Free Sugar TRQ from the U.S.
+  publication_date: '20060901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/09/Mexico%20Announces%20a%20Duty%20Free%20Sugar%20TRQ%20from%20the%20U.S._Mexico%20City_Mexico_09-13-2006.pdf
+  filename_clean: Mexico_Announces_a_Duty_Free_Sugar_TRQ_from_the_U.S._Mexico_City_Mexico_09-13-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces a Sugar TRQ for 2006
+  publication_date: '20060901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/09/Mexico%20Announces%20a%20Sugar%20TRQ%20for%202006_Mexico%20City_Mexico_08-31-2006.pdf
+  filename_clean: Mexico_Announces_a_Sugar_TRQ_for_2006_Mexico_City_Mexico_08-31-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20060401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/04/Annual%20Report_Mexico%20City_Mexico_04-10-2006.pdf
+  filename_clean: Annual_Report_Mexico_City_Mexico_04-10-2006.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar TRQ Officially Announced
+  publication_date: '20051101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/11/Sugar%20TRQ%20Officially%20Announced_Mexico%20City_Mexico_11-16-2005.pdf
+  filename_clean: Sugar_TRQ_Officially_Announced_Mexico_City_Mexico_11-16-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: U.S. Fructose under Import Permit Requirements
+  publication_date: '20051101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/11/U.S.%20Fructose%20under%20Import%20Permit%20Requirements_Mexico%20City_Mexico_11-16-2005.pdf
+  filename_clean: U.S._Fructose_under_Import_Permit_Requirements_Mexico_City_Mexico_11-16-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico to Issue Import Permits for U.S. Fructose
+  publication_date: '20051001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/10/Mexico%20to%20Issue%20Import%20Permits%20for%20U.S.%20Fructose_Mexico%20City_Mexico_10-04-2005.pdf
+  filename_clean: Mexico_to_Issue_Import_Permits_for_U.S._Fructose_Mexico_City_Mexico_10-04-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Semi-Annual Report
+  publication_date: '20050901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/09/Semi-Annual%20Report_Mexico%20City_Mexico_09-26-2005.pdf
+  filename_clean: Semi-Annual_Report_Mexico_City_Mexico_09-26-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual Report
+  publication_date: '20050301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/03/Annual%20Report_Mexico%20City_Mexico_03-30-2005.pdf
+  filename_clean: Annual_Report_Mexico_City_Mexico_03-30-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Reduces MFN Import tariff for Sugar
+  publication_date: '20050301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/03/Mexico%20Reduces%20MFN%20Import%20tariff%20for%20Sugar_Mexico%20City_Mexico_03-15-2005.pdf
+  filename_clean: Mexico_Reduces_MFN_Import_tariff_for_Sugar_Mexico_City_Mexico_03-15-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Legal Framework for Sugar Agroindustry to be Rewritten
+  publication_date: '20050101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/01/Legal%20Framework%20for%20Sugar%20Agroindustry%20to%20be%20Rewritten_Mexico%20City_Mexico_01-21-2005.pdf
+  filename_clean: Legal_Framework_for_Sugar_Agroindustry_to_be_Rewritten_Mexico_City_Mexico_01-21-2005.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces a Sugar TRQ for 2004
+  publication_date: '20041101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/11/Mexico%20Announces%20a%20Sugar%20TRQ%20for%202004_Mexico%20City_Mexico_11-19-2004.pdf
+  filename_clean: Mexico_Announces_a_Sugar_TRQ_for_2004_Mexico_City_Mexico_11-19-2004.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Semi-Annual Report
+  publication_date: '20041001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/10/Semi-Annual%20Report_Mexico%20City_Mexico_10-01-2004.pdf
+  filename_clean: Semi-Annual_Report_Mexico_City_Mexico_10-01-2004.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Mexico%20City_Mexico_04-06-2004.pdf
+  filename_clean: Annual_Mexico_City_Mexico_04-06-2004.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Reference Prices to Pay Sugarcane for MY 2003/04
+  publication_date: '20040201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/02/Sugar%20Reference%20Prices%20to%20Pay%20Sugarcane%20for%20MY%202003_04_Mexico%20City_Mexico_02-09-2004.pdf
+  filename_clean: Sugar_Reference_Prices_to_Pay_Sugarcane_for_MY_2003_04_Mexico_City_Mexico_02-09-2004.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Tax for Beverages Using HFCS Continues
+  publication_date: '20040101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/01/Tax%20for%20Beverages%20Using%20HFCS%20Continues_Mexico%20City_Mexico_01-20-2004.pdf
+  filename_clean: Tax_for_Beverages_Using_HFCS_Continues_Mexico_City_Mexico_01-20-2004.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico’s Lower Chamber Opposes Proposal to Eliminate HFCS Tax
+  publication_date: '20031101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/11/Mexico%E2%80%99s%20Lower%20Chamber%20Opposes%20Proposal%20to%20Eliminate%20HFCS%20Tax_Mexico%20City_Mexico_11-19-2003.pdf
+  filename_clean: Mexico’s_Lower_Chamber_Opposes_Proposal_to_Eliminate_HFCS_Tax_Mexico_City_Mexico_11-19-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Update on Refined Sugar Prices and Imports Under the TRQ
+  publication_date: '20031101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/11/Update%20on%20Refined%20Sugar%20Prices%20and%20Imports%20Under%20the%20TRQ_Mexico%20City_Mexico_10-29-2003.pdf
+  filename_clean: Update_on_Refined_Sugar_Prices_and_Imports_Under_the_TRQ_Mexico_City_Mexico_10-29-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20031001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/10/Sugar%20Semi-Annual_Mexico%20City_Mexico_10-10-2003.pdf
+  filename_clean: Sugar_Semi-Annual_Mexico_City_Mexico_10-10-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Announces TRQ for Refined Sugar for 2003
+  publication_date: '20031001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/10/Mexico%20Announces%20TRQ%20for%20Refined%20Sugar%20for%202003_Mexico%20City_Mexico_10-01-2003.pdf
+  filename_clean: Mexico_Announces_TRQ_for_Refined_Sugar_for_2003_Mexico_City_Mexico_10-01-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Production Update for MY 2002/03
+  publication_date: '20030601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/06/Sugar%20Production%20Update%20for%20MY%202002_03_Mexico%20City_Mexico_06-20-2003.pdf
+  filename_clean: Sugar_Production_Update_for_MY_2002_03_Mexico_City_Mexico_06-20-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Reference Price to pay Sugarcane for MY 2002/03
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Reference%20Price%20to%20pay%20Sugarcane%20for%20MY%202002_03_Mexico%20City_Mexico_04-15-2003.pdf
+  filename_clean: Sugar_Reference_Price_to_pay_Sugarcane_for_MY_2002_03_Mexico_City_Mexico_04-15-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_Mexico%20City_Mexico_04-10-2003.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_04-10-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Import Criteria to Import HFCS into Mexico
+  publication_date: '20030301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/03/Import%20Criteria%20to%20Import%20HFCS%20into%20Mexico_Mexico%20City_Mexico_03-25-2003.pdf
+  filename_clean: Import_Criteria_to_Import_HFCS_into_Mexico_Mexico_City_Mexico_03-25-2003.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20020901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/09/Sugar%20Semi-Annual_Mexico%20City_Mexico_09-20-2002.pdf
+  filename_clean: Sugar_Semi-Annual_Mexico_City_Mexico_09-20-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Tax for Beverages Containing HFCS Reinstated
+  publication_date: '20020701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/07/Tax%20for%20Beverages%20Containing%20HFCS%20Reinstated_Mexico%20City_Mexico_07-24-2002.pdf
+  filename_clean: Tax_for_Beverages_Containing_HFCS_Reinstated_Mexico_City_Mexico_07-24-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Imported U.S. HFCS Compensatory Duties Lifted
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Imported%20U.S.%20HFCS%20Compensatory%20Duties%20Lifted_Mexico%20City_Mexico_05-21-2002.pdf
+  filename_clean: Imported_U.S._HFCS_Compensatory_Duties_Lifted_Mexico_City_Mexico_05-21-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Announcement on HFCS Antidumping Case
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Announcement%20on%20HFCS%20Antidumping%20Case_Mexico%20City_Mexico_05-08-2002.pdf
+  filename_clean: Announcement_on_HFCS_Antidumping_Case_Mexico_City_Mexico_05-08-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: 'Sugar: New Tariff Rate Quota Established for HFCS'
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%3A%20New%20Tariff%20Rate%20Quota%20Established%20for%20HFCS_Mexico%20City_Mexico_04-22-2002.pdf
+  filename_clean: Sugar:_New_Tariff_Rate_Quota_Established_for_HFCS_Mexico_City_Mexico_04-22-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%20Annual_Mexico%20City_Mexico_04-10-2002.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_04-10-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Tax Lifted for Beverages Containing HFCS
+  publication_date: '20020301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/03/Tax%20Lifted%20for%20Beverages%20Containing%20HFCS_Mexico%20City_Mexico_03-05-2002.pdf
+  filename_clean: Tax_Lifted_for_Beverages_Containing_HFCS_Mexico_City_Mexico_03-05-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: 'Sugar: New Requirement to Import U.S. HFCS (Cont.)'
+  publication_date: '20020301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/03/Sugar%3A%20New%20Requirement%20to%20Import%20U.S.%20HFCS%20%28Cont.%29_Mexico%20City_Mexico_03-04-2002.pdf
+  filename_clean: Sugar:_New_Requirement_to_Import_U.S._HFCS_(Cont.)_Mexico_City_Mexico_03-04-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: New National Sugar Policy
+  publication_date: '20020301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/03/New%20National%20Sugar%20Policy_Mexico%20City_Mexico_02-28-2002.pdf
+  filename_clean: New_National_Sugar_Policy_Mexico_City_Mexico_02-28-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: New Requirement to Import U.S. HFCS
+  publication_date: '20020201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/02/New%20Requirement%20to%20Import%20U.S.%20HFCS_Mexico%20City_Mexico_01-29-2002.pdf
+  filename_clean: New_Requirement_to_Import_U.S._HFCS_Mexico_City_Mexico_01-29-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: New Tax for Beverages Containing HFCS
+  publication_date: '20020101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/01/New%20Tax%20for%20Beverages%20Containing%20HFCS_Mexico%20City_Mexico_01-07-2002.pdf
+  filename_clean: New_Tax_for_Beverages_Containing_HFCS_Mexico_City_Mexico_01-07-2002.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Reevaluation of HFCS Antidumping Case
+  publication_date: '20011201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/12/Reevaluation%20of%20HFCS%20Antidumping%20Case_Mexico%20City_Mexico_11-28-2001.pdf
+  filename_clean: Reevaluation_of_HFCS_Antidumping_Case_Mexico_City_Mexico_11-28-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Sugar%20Semi-Annual_Mexico%20City_Mexico_10-01-2001.pdf
+  filename_clean: Sugar_Semi-Annual_Mexico_City_Mexico_10-01-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Centrifugal Sugar Production Update
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Centrifugal%20Sugar%20Production%20Update_Mexico%20City_Mexico_08-17-2001.pdf
+  filename_clean: Centrifugal_Sugar_Production_Update_Mexico_City_Mexico_08-17-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Modification of HFCS  MFN Import Duties
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Modification%20of%20HFCS%20%20MFN%20Import%20Duties_Mexico%20City_Mexico_10-12-2001.pdf
+  filename_clean: Modification_of_HFCS__MFN_Import_Duties_Mexico_City_Mexico_10-12-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Announcement on U.S. HFCS Antidumping Case
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Announcement%20on%20U.S.%20HFCS%20Antidumping%20Case_Mexico%20City_Mexico_10-12-2001.pdf
+  filename_clean: Announcement_on_U.S._HFCS_Antidumping_Case_Mexico_City_Mexico_10-12-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Expropriated 27 Sugar Mills
+  publication_date: '20010901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/09/Mexico%20Expropriated%2027%20Sugar%20Mills_Mexico%20City_Mexico_09-11-2001.pdf
+  filename_clean: Mexico_Expropriated_27_Sugar_Mills_Mexico_City_Mexico_09-11-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Financing Program for the Sugar Industry
+  publication_date: '20010801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/08/Financing%20Program%20for%20the%20Sugar%20Industry_Mexico%20City_Mexico_07-31-2001.pdf
+  filename_clean: Financing_Program_for_the_Sugar_Industry_Mexico_City_Mexico_07-31-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_Mexico%20City_Mexico_04-06-2001.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_04-06-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Agroindustry Law Proposal
+  publication_date: '20010101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/01/Sugar%20Agroindustry%20Law%20Proposal_Mexico%20City_Mexico_01-09-2001.pdf
+  filename_clean: Sugar_Agroindustry_Law_Proposal_Mexico_City_Mexico_01-09-2001.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20001001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/10/Sugar%20Semi-Annual_Mexico%20City_Mexico_10-13-2000.pdf
+  filename_clean: Sugar_Semi-Annual_Mexico_City_Mexico_10-13-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Revised Final Resolution of the Antidumping Investigation on Imported HFCS
+  publication_date: '20000901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/09/Revised%20Final%20Resolution%20of%20the%20Antidumping%20Investigation%20on%20Imported%20HFCS_Mexico%20City_Mexico_09-22-2000.pdf
+  filename_clean: Revised_Final_Resolution_of_the_Antidumping_Investigation_on_Imported_HFCS_Mexico_City_Mexico_09-22-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: FINASA, the Sugar Financing Bank is under Liquidation
+  publication_date: '20000801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/08/FINASA%2C%20the%20Sugar%20Financing%20Bank%20is%20under%20Liquidation_Mexico%20City_Mexico_08-23-2000.pdf
+  filename_clean: FINASA,_the_Sugar_Financing_Bank_is_under_Liquidation_Mexico_City_Mexico_08-23-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico To Revise Its Final Antidumping Resolution
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Mexico%20To%20Revise%20Its%20Final%20Antidumping%20Resolution_Mexico%20City_Mexico_05-16-2000.pdf
+  filename_clean: Mexico_To_Revise_Its_Final_Antidumping_Resolution_Mexico_City_Mexico_05-16-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/04/Sugar%20Annual_Mexico%20City_Mexico_04-12-2000.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_04-12-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico's Sugar Production Down to 5 MMT
+  publication_date: '20000201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/02/Mexico%27s%20Sugar%20Production%20Down%20to%205%20MMT_Mexico%20City_Mexico_02-14-2000.pdf
+  filename_clean: Mexico's_Sugar_Production_Down_to_5_MMT_Mexico_City_Mexico_02-14-2000.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi-Annual_Mexico%20City_Mexico_09-29-1999.pdf
+  filename_clean: Sugar_Semi-Annual_Mexico_City_Mexico_09-29-1999.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_Mexico%20City_Mexico_04-13-1999.pdf
+  filename_clean: Sugar_Annual_Mexico_City_Mexico_04-13-1999.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexican Sugar Exports Increased for MY 1997/98
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Mexican%20Sugar%20Exports%20Increased%20for%20MY%201997_98_Mexico%20City_Mexico_10-02-1998.pdf
+  filename_clean: Mexican_Sugar_Exports_Increased_for_MY_1997_98_Mexico_City_Mexico_10-02-1998.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexico Clarifies Compensatory Duties for U.S. HFCS
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Mexico%20Clarifies%20Compensatory%20Duties%20for%20U.S.%20HFCS_Mexico%20City_Mexico_10-02-1998.pdf
+  filename_clean: Mexico_Clarifies_Compensatory_Duties_for_U.S._HFCS_Mexico_City_Mexico_10-02-1998.pdf
+- report_id: ''
+  country_iso2: MX
+  country_name: ''
+  post: ''
+  category: Mexican Compensatory Duties for U.S. HFCS imports
+  publication_date: '19980901'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/09/Mexican%20Compensatory%20Duties%20for%20U.S.%20HFCS%20imports_Mexico%20City_Mexico_09-14-1998.pdf
+  filename_clean: Mexican_Compensatory_Duties_for_U.S._HFCS_imports_Mexico_City_Mexico_09-14-1998.pdf
+- report_id: RP2026-0013
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Manila_Philippines_RP2026-0013.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_RP2026-0013.pdf
+- report_id: RP2026-0002
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: The Philippines Released Guidelines on Sugar Import and Export Program
+  publication_date: '20260101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/01/The%20Philippines%20Released%20Guidelines%20on%20Sugar%20Import%20and%20Export%20Program%20_Manila_Philippines_RP2026-0002.pdf
+  filename_clean: The_Philippines_Released_Guidelines_on_Sugar_Import_and_Export_Program__Manila_Philippines_RP2026-0002.pdf
+- report_id: RP2025-0043
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Semi-annual
+  publication_date: '20251101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/11/Sugar%20Semi-annual_Manila_Philippines_RP2025-0043.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_RP2025-0043.pdf
+- report_id: RP2025-0051
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Philippines Issued Moratorium on Molasses Imports
+  publication_date: '20251101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/11/Philippines%20Issued%20Moratorium%20on%20Molasses%20Imports_Manila_Philippines_RP2025-0051.pdf
+  filename_clean: Philippines_Issued_Moratorium_on_Molasses_Imports_Manila_Philippines_RP2025-0051.pdf
+- report_id: RP2025-0031
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Philippines issued the first sugar import program                   for MY 2024-2025
+  publication_date: '20250701'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/07/Philippines%20issued%20the%20first%20sugar%20import%20program%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20for%20MY%202024-2025_Manila_Philippines_RP2025-0031.pdf
+  filename_clean: Philippines_issued_the_first_sugar_import_program___________________for_MY_2024-2025_Manila_Philippines_RP2025-0031.pdf
+- report_id: RP2025-0023
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Annual
+  publication_date: '20250401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/04/Sugar%20Annual_Manila_Philippines_RP2025-0023.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_RP2025-0023.pdf
+- report_id: RP2025-0009
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: The Philippines Announces the 2nd Voluntary Sugar Purchase Program for MY 2024-2025
+  publication_date: '20250201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/02/The%20Philippines%20Announces%20the%202nd%20Voluntary%20Sugar%20Purchase%20Program%20for%20MY%202024-2025_Manila_Philippines_RP2025-0009.pdf
+  filename_clean: The_Philippines_Announces_the_2nd_Voluntary_Sugar_Purchase_Program_for_MY_2024-2025_Manila_Philippines_RP2025-0009.pdf
+- report_id: RP2025-0010
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: The Philippines Amends Policy and Allows Expansion of Fuel Ethanol Capacity
+  publication_date: '20250201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/02/The%20Philippines%20Amends%20Policy%20and%20Allows%20Expansion%20of%20Fuel%20Ethanol%20Capacity_Manila_Philippines_RP2025-0010.pdf
+  filename_clean: The_Philippines_Amends_Policy_and_Allows_Expansion_of_Fuel_Ethanol_Capacity_Manila_Philippines_RP2025-0010.pdf
+- report_id: RP2024-0034
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Semi-annual
+  publication_date: '20241001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/10/Sugar%20Semi-annual_Manila_Philippines_RP2024-0034.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_RP2024-0034.pdf
+- report_id: RP2024-0028
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: The Philippines Announces the First Sugar Import Program for MY 2024-2025
+  publication_date: '20240801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/08/The%20Philippines%20Announces%20the%20First%20Sugar%20Import%20Program%20for%20MY%202024-2025_Manila_Philippines_RP2024-0028.pdf
+  filename_clean: The_Philippines_Announces_the_First_Sugar_Import_Program_for_MY_2024-2025_Manila_Philippines_RP2024-0028.pdf
+- report_id: RP2024-0026
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: The Philippines Announces Renewed Sugar Exports to the United States
+  publication_date: '20240801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/08/The%20Philippines%20Announces%20Renewed%20Sugar%20Exports%20to%20the%20United%20States_Manila_Philippines_RP2024-0026.pdf
+  filename_clean: The_Philippines_Announces_Renewed_Sugar_Exports_to_the_United_States_Manila_Philippines_RP2024-0026.pdf
+- report_id: RP2024-0016
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Philippine Department of Agriculture Directed to Ease Agri-Food Importation Procedures
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Philippine%20Department%20of%20Agriculture%20Directed%20to%20Ease%20Agri-Food%20Importation%20Procedures_Manila_Philippines_RP2024-0016.pdf
+  filename_clean: Philippine_Department_of_Agriculture_Directed_to_Ease_Agri-Food_Importation_Procedures_Manila_Philippines_RP2024-0016.pdf
+- report_id: RP2024-0014
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Annual
+  publication_date: '20240401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/04/Sugar%20Annual_Manila_Philippines_RP2024-0014.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_RP2024-0014.pdf
+- report_id: RP2023-0056
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: The Philippines Expands Premix Commodities List for SRA Inspection
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/The%20Philippines%20Expands%20Premix%20Commodities%20List%20for%20SRA%20Inspection_Manila_Philippines_RP2023-0056.pdf
+  filename_clean: The_Philippines_Expands_Premix_Commodities_List_for_SRA_Inspection_Manila_Philippines_RP2023-0056.pdf
+- report_id: RP2023-0057
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Philippines Sugar Policy  - 100 percent for the domestic market for MY 2023-2024
+  publication_date: '20231101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/11/Philippines%20Sugar%20Policy%20%20-%20100%20percent%20for%20the%20domestic%20market%20for%20MY%202023-2024_Manila_Philippines_RP2023-0057.pdf
+  filename_clean: Philippines_Sugar_Policy__-_100_percent_for_the_domestic_market_for_MY_2023-2024_Manila_Philippines_RP2023-0057.pdf
+- report_id: RP2023-0061
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Semi-annual
+  publication_date: '20230901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/09/Sugar%20Semi-annual_Manila_Philippines_RP2023-0061.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_RP2023-0061.pdf
+- report_id: RP2023-0035
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Manila_Philippines_RP2023-0035.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_RP2023-0035.pdf
+- report_id: RP2023-0021
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: MFN Tariff Schedule Opens for Public Comment
+  publication_date: '20230201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/02/MFN%20Tariff%20Schedule%20Opens%20for%20Public%20Comment_Manila_Philippines_RP2023-0021.pdf
+  filename_clean: MFN_Tariff_Schedule_Opens_for_Public_Comment_Manila_Philippines_RP2023-0021.pdf
+- report_id: RP2023-0019
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: TRQ Administration Rules and Regulations
+  publication_date: '20230201'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/02/TRQ%20Administration%20Rules%20and%20Regulations_Manila_Philippines_RP2023-0019.pdf
+  filename_clean: TRQ_Administration_Rules_and_Regulations_Manila_Philippines_RP2023-0019.pdf
+- report_id: RP2023-0002
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar MAV Importation and the Philippine WTO Obligation
+  publication_date: '20230101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/01/Sugar%20MAV%20Importation%20and%20the%20Philippine%20WTO%20Obligation_Manila_Philippines_RP2023-0002.pdf
+  filename_clean: Sugar_MAV_Importation_and_the_Philippine_WTO_Obligation_Manila_Philippines_RP2023-0002.pdf
+- report_id: RP2022-0052
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Semi-annual
+  publication_date: '20221001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/10/Sugar%20Semi-annual_Manila_Philippines_RP2022-0052.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_RP2022-0052.pdf
+- report_id: RP2022-0022
+  country_iso2: PH
+  country_name: ''
+  post: Manila
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_Manila_Philippines_RP2022-0022.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_RP2022-0022.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20211001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/10/Sugar%20Semi-annual_Manila_Philippines_10-01-2021.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_10-01-2021.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_Manila_Philippines_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_04-15-2021.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20201001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/10/Sugar%20Semi-annual_Manila_Philippines_10-01-2020.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_10-01-2020.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Annual_Manila_Philippines_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_04-15-2020.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20191001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/10/Sugar%20Semi-annual_Manila_Philippines_10-01-2019.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_10-01-2019.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Sugar%20Annual_Manila_Philippines_4-15-2019.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-15-2019.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20180901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/09/Sugar%20Semi-annual_Manila_Philippines_9-26-2018.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_9-26-2018.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Sugar%20Annual_Manila_Philippines_4-6-2018.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-6-2018.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20170901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/09/Sugar%20Semi-annual_Manila_Philippines_9-26-2017.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_9-26-2017.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Manila_Philippines_4-6-2017.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-6-2017.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20160901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/09/Sugar%20Semi-annual_Manila_Philippines_9-23-2016.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_9-23-2016.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Manila_Philippines_4-21-2016.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-21-2016.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20151001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/10/Sugar%20Semi-annual_Manila_Philippines_9-28-2015.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_9-28-2015.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_Manila_Philippines_4-16-2015.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-16-2015.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20141001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/10/Sugar%20Semi-annual_Manila_Philippines_10-16-2014.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_10-16-2014.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Sugar%20Annual_Manila_Philippines_4-8-2014.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-8-2014.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20131001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/10/Sugar%20Semi-annual_Manila_Philippines_9-27-2013.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_9-27-2013.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Sugar%20Annual_Manila_Philippines_4-26-2013.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-26-2013.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20121001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/10/Sugar%20Semi-annual_Manila_Philippines_10-9-2012.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_10-9-2012.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Manila_Philippines_4-12-2012.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-12-2012.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20111001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/10/Sugar%20Semi-annual_Manila_Philippines_10-7-2011.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_10-7-2011.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/06/Sugar%20Annual_Manila_Philippines_4-11-2011.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-11-2011.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Sugar%20Semi-annual_Manila_Philippines_10-4-2010.pdf
+  filename_clean: Sugar_Semi-annual_Manila_Philippines_10-4-2010.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/04/Sugar%20Annual_Manila_Philippines_4-12-2010.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_4-12-2010.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: SUGAR SEMI-ANNUAL
+  publication_date: '20091101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/11/SUGAR%20SEMI-ANNUAL_Manila_Philippines_11-4-2009.pdf
+  filename_clean: SUGAR_SEMI-ANNUAL_Manila_Philippines_11-4-2009.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20081101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/11/Semi-Annual_Manila_Philippines_11-09-2008.pdf
+  filename_clean: Semi-Annual_Manila_Philippines_11-09-2008.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_Manila_Philippines_04-14-2008.pdf
+  filename_clean: Annual_Manila_Philippines_04-14-2008.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20071001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/10/Semi-Annual_Manila_Philippines_10-11-2007.pdf
+  filename_clean: Semi-Annual_Manila_Philippines_10-11-2007.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20071001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/10/Semi-Annual_Manila_Philippines_10-01-2007.pdf
+  filename_clean: Semi-Annual_Manila_Philippines_10-01-2007.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual_Manila_Philippines_04-13-2007.pdf
+  filename_clean: Annual_Manila_Philippines_04-13-2007.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20061001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/10/Semi-Annual_Manila_Philippines_10-02-2006.pdf
+  filename_clean: Semi-Annual_Manila_Philippines_10-02-2006.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/04/Annual_Manila_Philippines_04-10-2006.pdf
+  filename_clean: Annual_Manila_Philippines_04-10-2006.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20051001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/10/Sugar%20Semi-Annual_Manila_Philippines_10-03-2005.pdf
+  filename_clean: Sugar_Semi-Annual_Manila_Philippines_10-03-2005.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/04/Annual_Manila_Philippines_04-11-2005.pdf
+  filename_clean: Annual_Manila_Philippines_04-11-2005.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Manila_Philippines_04-12-2004.pdf
+  filename_clean: Annual_Manila_Philippines_04-12-2004.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Duty on Powdered Sugar-containing Premix Concentrates Raised
+  publication_date: '20040301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/03/Duty%20on%20Powdered%20Sugar-containing%20Premix%20Concentrates%20Raised_Manila_Philippines_03-16-2004.pdf
+  filename_clean: Duty_on_Powdered_Sugar-containing_Premix_Concentrates_Raised_Manila_Philippines_03-16-2004.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Philippines to Export Excess Sugar at a Loss
+  publication_date: '20031101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/11/Philippines%20to%20Export%20Excess%20Sugar%20at%20a%20Loss_Manila_Philippines_11-25-2003.pdf
+  filename_clean: Philippines_to_Export_Excess_Sugar_at_a_Loss_Manila_Philippines_11-25-2003.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20031001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/10/Sugar%20Semi-Annual_Manila_Philippines_10-01-2003.pdf
+  filename_clean: Sugar_Semi-Annual_Manila_Philippines_10-01-2003.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: RP Maintains High Tariff on ASEAN Sugar
+  publication_date: '20030801'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/08/RP%20Maintains%20High%20Tariff%20on%20ASEAN%20Sugar_Manila_Philippines_08-18-2003.pdf
+  filename_clean: RP_Maintains_High_Tariff_on_ASEAN_Sugar_Manila_Philippines_08-18-2003.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_Manila_Philippines_04-11-2003.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_04-11-2003.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20021001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/10/Sugar%20Semi-Annual_Manila_Philippines_09-30-2002.pdf
+  filename_clean: Sugar_Semi-Annual_Manila_Philippines_09-30-2002.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Tariffs for Lactose and Lactose Syrup Reduced
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Tariffs%20for%20Lactose%20and%20Lactose%20Syrup%20Reduced_Manila_Philippines_05-21-2002.pdf
+  filename_clean: Tariffs_for_Lactose_and_Lactose_Syrup_Reduced_Manila_Philippines_05-21-2002.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Out-Quota Tariffs for Cane and Beet Sugar Set
+  publication_date: '20020501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/05/Out-Quota%20Tariffs%20for%20Cane%20and%20Beet%20Sugar%20Set_Manila_Philippines_05-20-2002.pdf
+  filename_clean: Out-Quota_Tariffs_for_Cane_and_Beet_Sugar_Set_Manila_Philippines_05-20-2002.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Sugar%20Semi-Annual_Manila_Philippines_10-02-2001.pdf
+  filename_clean: Sugar_Semi-Annual_Manila_Philippines_10-02-2001.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_Manila_Philippines_04-11-2001.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_04-11-2001.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20001001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/10/Sugar%20Semi-Annual_Manila_Philippines_10-23-2000.pdf
+  filename_clean: Sugar_Semi-Annual_Manila_Philippines_10-23-2000.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/04/Sugar%20Annual_Manila_Philippines_04-11-2000.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_04-11-2000.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi-Annual_Manila_Philippines_10-12-1999.pdf
+  filename_clean: Sugar_Semi-Annual_Manila_Philippines_10-12-1999.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_Manila_Philippines_04-26-1999.pdf
+  filename_clean: Sugar_Annual_Manila_Philippines_04-26-1999.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Sugar%20Semi-Annual_Manila_Philippines_10-13-1998.pdf
+  filename_clean: Sugar_Semi-Annual_Manila_Philippines_10-13-1998.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Tariffs Reduced
+  publication_date: '19980801'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/08/Sugar%20Tariffs%20Reduced_Manila_Philippines_08-21-1998.pdf
+  filename_clean: Sugar_Tariffs_Reduced_Manila_Philippines_08-21-1998.pdf
+- report_id: ''
+  country_iso2: PH
+  country_name: ''
+  post: ''
+  category: Sugar Update
+  publication_date: '19980801'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/08/Sugar%20Update_Manila_Philippines_08-13-1998.pdf
+  filename_clean: Sugar_Update_Manila_Philippines_08-13-1998.pdf
+- report_id: TH2026-0011
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Sugar%20Annual_Bangkok_Thailand_TH2026-0011.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_TH2026-0011.pdf
+- report_id: TH2025-0015
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Annual
+  publication_date: '20250601'
+  pdf_url: https://fas.usda.gov/data/gain-report/2025/06/Sugar%20Annual_Bangkok_Thailand_TH2025-0015.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_TH2025-0015.pdf
+- report_id: TH2024-0060
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Semi-annual
+  publication_date: '20241001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/10/Sugar%20Semi-annual_Bangkok_Thailand_TH2024-0060.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_TH2024-0060.pdf
+- report_id: TH2024-0026
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Annual
+  publication_date: '20240501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2024/05/Sugar%20Annual_Bangkok_Thailand_TH2024-0026.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_TH2024-0026.pdf
+- report_id: TH2023-0059
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Semi-annual
+  publication_date: '20231001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/10/Sugar%20Semi-annual_Bangkok_Thailand_TH2023-0059.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_TH2023-0059.pdf
+- report_id: TH2023-0024
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Annual
+  publication_date: '20230401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2023/04/Sugar%20Annual_Bangkok_Thailand_TH2023-0024.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_TH2023-0024.pdf
+- report_id: TH2022-0064
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Semi-annual
+  publication_date: '20221001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/10/Sugar%20Semi-annual_Bangkok_Thailand_TH2022-0064.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_TH2022-0064.pdf
+- report_id: TH2022-0030
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Sugar Annual
+  publication_date: '20220401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/04/Sugar%20Annual_Bangkok_Thailand_TH2022-0030.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_TH2022-0030.pdf
+- report_id: TH2022-0017
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: The Impact of Russian Invasion of Ukraine on Thai Agricultural Sector
+  publication_date: '20220301'
+  pdf_url: https://fas.usda.gov/data/gain-report/2022/03/The%20Impact%20of%20Russian%20Invasion%20of%20Ukraine%20on%20Thai%20Agricultural%20Sector_Bangkok_Thailand_TH2022-0017.pdf
+  filename_clean: The_Impact_of_Russian_Invasion_of_Ukraine_on_Thai_Agricultural_Sector_Bangkok_Thailand_TH2022-0017.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20211001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/10/Sugar%20Semi-annual_Bangkok_Thailand_10-01-2021.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_10-01-2021.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20210401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2021/04/Sugar%20Annual_Bangkok_Thailand_04-15-2021.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_04-15-2021.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: China Imports Sugar Syrup from Thailand
+  publication_date: '20201101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/11/China%20Imports%20Sugar%20Syrup%20from%20Thailand_Bangkok_Thailand_11-03-2020.pdf
+  filename_clean: China_Imports_Sugar_Syrup_from_Thailand_Bangkok_Thailand_11-03-2020.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20201001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/10/Sugar%20Semi-annual_Bangkok_Thailand_10-01-2020.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_10-01-2020.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20200401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2020/04/Sugar%20Annual_Bangkok_Thailand_04-15-2020.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_04-15-2020.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20191001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/10/Sugar%20Semi-annual_Bangkok_Thailand_10-01-2019.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_10-01-2019.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20190401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2019/04/Sugar%20Annual_Bangkok_Thailand_4-11-2019.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-11-2019.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20180901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/09/Sugar%20Semi-annual_Bangkok_Thailand_9-27-2018.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_9-27-2018.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20180401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2018/04/Sugar%20Annual_Bangkok_Thailand_4-12-2018.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-12-2018.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20170901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/09/Sugar%20Semi-annual_Bangkok_Thailand_9-25-2017.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_9-25-2017.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20170401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2017/04/Sugar%20Annual_Bangkok_Thailand_4-12-2017.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-12-2017.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20160901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/09/Sugar%20Semi-annual_Bangkok_Thailand_9-30-2016.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_9-30-2016.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20160401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2016/04/Sugar%20Annual_Bangkok_Thailand_4-12-2016.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-12-2016.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20151001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/10/Sugar%20Semi-annual_Bangkok_Thailand_10-1-2015.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_10-1-2015.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20150401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2015/04/Sugar%20Annual_Bangkok_Thailand_4-9-2015.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-9-2015.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20141001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/10/Sugar%20Semi-annual_Bangkok_Thailand_10-1-2014.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_10-1-2014.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20140401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2014/04/Sugar%20Annual_Bangkok_Thailand_4-10-2014.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-10-2014.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20131001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/10/Sugar%20Semi-annual_Bangkok_Thailand_10-1-2013.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_10-1-2013.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20130401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2013/04/Sugar%20Annual_Bangkok_Thailand_4-17-2013.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-17-2013.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20121001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/10/Sugar%20Semi-annual_Bangkok_Thailand_10-1-2012.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_10-1-2012.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20120401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2012/04/Sugar%20Annual_Bangkok_Thailand_4-12-2012.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-12-2012.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20110901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/09/Sugar%20Semi-annual_Bangkok_Thailand_9-27-2011.pdf
+  filename_clean: Sugar_Semi-annual_Bangkok_Thailand_9-27-2011.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20110401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2011/04/Sugar%20Annual_Bangkok_Thailand_4-21-2011.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-21-2011.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-annual
+  publication_date: '20101001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/10/Sugar%20Semi-annual%20_Bangkok_Thailand_10-21-2010.pdf
+  filename_clean: Sugar_Semi-annual__Bangkok_Thailand_10-21-2010.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20100401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2010/04/Sugar%20Annual_Bangkok_Thailand_4-9-2010.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_4-9-2010.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: SUGAR SEMI-ANNUAL
+  publication_date: '20091001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/10/SUGAR%20SEMI-ANNUAL_Bangkok_Thailand_9-30-2009.pdf
+  filename_clean: SUGAR_SEMI-ANNUAL_Bangkok_Thailand_9-30-2009.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20090401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2009/04/Annual_Bangkok_Thailand_04-08-2009.pdf
+  filename_clean: Annual_Bangkok_Thailand_04-08-2009.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Semi Annual
+  publication_date: '20081001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/10/Semi%20Annual_Bangkok_Thailand_10-01-2008.pdf
+  filename_clean: Semi_Annual_Bangkok_Thailand_10-01-2008.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Cabinet Approves Sugar Price Increases
+  publication_date: '20080501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/05/Cabinet%20Approves%20Sugar%20Price%20Increases_Bangkok_Thailand_05-06-2008.pdf
+  filename_clean: Cabinet_Approves_Sugar_Price_Increases_Bangkok_Thailand_05-06-2008.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20080401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2008/04/Annual_Bangkok_Thailand_04-10-2008.pdf
+  filename_clean: Annual_Bangkok_Thailand_04-10-2008.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20071001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/10/Semi-Annual_Bangkok_Thailand_09-27-2007.pdf
+  filename_clean: Semi-Annual_Bangkok_Thailand_09-27-2007.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20070401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2007/04/Annual_Bangkok_Thailand_04-10-2007.pdf
+  filename_clean: Annual_Bangkok_Thailand_04-10-2007.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20061001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/10/Semi-Annual_Bangkok_Thailand_09-29-2006.pdf
+  filename_clean: Semi-Annual_Bangkok_Thailand_09-29-2006.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20060401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/04/Annual_Bangkok_Thailand_04-18-2006.pdf
+  filename_clean: Annual_Bangkok_Thailand_04-18-2006.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Situation and Outlook of Organic Sugar
+  publication_date: '20060101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/01/Situation%20and%20Outlook%20of%20Organic%20Sugar_Bangkok_Thailand_01-24-2006.pdf
+  filename_clean: Situation_and_Outlook_of_Organic_Sugar_Bangkok_Thailand_01-24-2006.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Shortage Situation
+  publication_date: '20060101'
+  pdf_url: https://fas.usda.gov/data/gain-report/2006/01/Sugar%20Shortage%20Situation_Bangkok_Thailand_01-25-2006.pdf
+  filename_clean: Sugar_Shortage_Situation_Bangkok_Thailand_01-25-2006.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20050901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/09/Semi-Annual_Bangkok_Thailand_09-30-2005.pdf
+  filename_clean: Semi-Annual_Bangkok_Thailand_09-30-2005.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20050401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2005/04/Annual_Bangkok_Thailand_04-08-2005.pdf
+  filename_clean: Annual_Bangkok_Thailand_04-08-2005.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Semi-Annual
+  publication_date: '20040901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/09/Semi-Annual_Bangkok_Thailand_09-21-2004.pdf
+  filename_clean: Semi-Annual_Bangkok_Thailand_09-21-2004.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Annual
+  publication_date: '20040401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2004/04/Annual_Bangkok_Thailand_04-07-2004.pdf
+  filename_clean: Annual_Bangkok_Thailand_04-07-2004.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20031001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/10/Sugar%20Semi-Annual_Bangkok_Thailand_10-01-2003.pdf
+  filename_clean: Sugar_Semi-Annual_Bangkok_Thailand_10-01-2003.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20030401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2003/04/Sugar%20Annual_Bangkok_Thailand_04-24-2003.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_04-24-2003.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20021001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/10/Sugar%20Semi-Annual_Bangkok_Thailand_10-04-2002.pdf
+  filename_clean: Sugar_Semi-Annual_Bangkok_Thailand_10-04-2002.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20020401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2002/04/Sugar%20Annual_Bangkok_Thailand_04-10-2002.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_04-10-2002.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20011001'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/10/Sugar%20Semi-Annual_Bangkok_Thailand_09-28-2001.pdf
+  filename_clean: Sugar_Semi-Annual_Bangkok_Thailand_09-28-2001.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Update
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Update_Bangkok_Thailand_04-10-2001.pdf
+  filename_clean: Sugar_Update_Bangkok_Thailand_04-10-2001.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20010401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2001/04/Sugar%20Annual_Bangkok_Thailand_04-04-2001.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_04-04-2001.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '20000901'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/09/Sugar%20Semi-Annual_Bangkok_Thailand_09-26-2000.pdf
+  filename_clean: Sugar_Semi-Annual_Bangkok_Thailand_09-26-2000.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '20000501'
+  pdf_url: https://fas.usda.gov/data/gain-report/2000/05/Sugar%20Annual_Bangkok_Thailand_05-16-2000.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_05-16-2000.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual
+  publication_date: '19991001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/10/Sugar%20Semi-Annual_Bangkok_Thailand_09-29-1999.pdf
+  filename_clean: Sugar_Semi-Annual_Bangkok_Thailand_09-29-1999.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Annual
+  publication_date: '19990401'
+  pdf_url: https://fas.usda.gov/data/gain-report/1999/04/Sugar%20Annual_Bangkok_Thailand_04-10-1999.pdf
+  filename_clean: Sugar_Annual_Bangkok_Thailand_04-10-1999.pdf
+- report_id: ''
+  country_iso2: TH
+  country_name: ''
+  post: ''
+  category: Sugar Semi-Annual Report
+  publication_date: '19981001'
+  pdf_url: https://fas.usda.gov/data/gain-report/1998/10/Sugar%20Semi-Annual%20Report_Bangkok_Thailand_09-30-1998.pdf
+  filename_clean: Sugar_Semi-Annual_Report_Bangkok_Thailand_09-30-1998.pdf

@@ -1,0 +1,30 @@
+source: usda_ams_cotton_classing_annual
+
+notes: >
+  USDA AMS Cotton Division Annual Cotton Quality Report (CNAACQ / slug 1658).
+  Covers US upland and extra-long staple cotton quality characteristics for a
+  full marketing season (July–June): micronaire, staple length, uniformity,
+  strength, colour grade, leaf grade, and extraneous matter by region.
+  Published annually in late June / early July.
+
+  Source A — Archive 1986–2013:
+    https://apps.ams.usda.gov/Cotton/AnnualCNMarketNewsReports/Quality/
+    Static IIS directory listing; files are named {YEAR}ACQ.pdf.
+    All files were bulk-uploaded 2014-03-18; 2014+ years redirect to AMS homepage.
+
+  Source B — MyMarketNews slug 1658 (~2013–present):
+    https://mymarketnews.ams.usda.gov/viewReport/1658
+    Historical releases are behind JavaScript accordion; discovered via Playwright.
+    Manifest: configs/sources/usda_ams_cotton_annual_manifest.yaml
+    Live current-season PDF: https://www.ams.usda.gov/mnreports/cnaacq.pdf
+
+publication_cadence: annual
+coverage_start_year: 1986
+
+target_commodities:
+  - cotton
+
+report_types:
+  - annual_quality
+
+ingest_script: jobs/ingest/fetch_usda_ams_cotton_annual.py
