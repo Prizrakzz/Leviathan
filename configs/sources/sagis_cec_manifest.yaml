@@ -2,3 +2,9 @@ reports:
 - report_url: https://www.sagis.org.za/wp-content/uploads/2026/05/CEC_2026-05-07.pdf
   filename: CEC_2026-05-07.pdf
   s3_key: raw/production/source=sagis_cec/CEC_2026-05-07.pdf
+- report_url: https://www.sagis.org.za/wp-content/uploads/2026/04/CEC_2026-04-23.pdf
+  filename: CEC_2026-04-23.pdf
+  s3_key: raw/production/source=sagis_cec/CEC_2026-04-23.pdf
+- report_url: https://www.sagis.org.za/wp-content/uploads/2026/03/CEC_2026-03-26.pdf
+  filename: CEC_2026-03-26.pdf
+  s3_key: raw/production/source=sagis_cec/CEC_2026-03-26.pdf

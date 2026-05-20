@@ -301,6 +301,66 @@ resource "aws_batch_job_definition" "chirps_bronze_to_silver" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Job definition: SAGIS CEC raw backfill
+# Single Fargate task runs fetch_sagis_cec.py --skip-existing-s3, which
+# sequentially downloads ~436 report files (PDF/DOC/XLS, 1999-present) to
+# raw S3.  Expected runtime: ~30-60 min at 1 s/file.  Timeout ceiling: 2 h.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "sagis_cec_raw_backfill" {
+  name = "${var.project_name}-${var.environment}-sagis-cec-raw-backfill"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/ingest/fetch_sagis_cec.py",
+      "--skip-existing-s3"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.25" },
+      { type = "MEMORY", value = "512" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "sagis-cec-raw-backfill"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 7200  # 2 h ceiling; expected runtime ~30-60 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 resource "aws_cloudwatch_log_group" "batch" {
   name              = "/aws/batch/${var.project_name}-${var.environment}"
   retention_in_days = 30
