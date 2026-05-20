@@ -417,3 +417,41 @@ def raw_psd_bulk_key(release_date: str) -> str:
         f"release_date={release_date}/"
         f"psd_alldata.zip"
     )
+
+
+# ---------------------------------------------------------------------------
+# USDA NASS QuickStats — U.S. domestic crop survey & Crop Progress
+# ---------------------------------------------------------------------------
+
+def raw_nass_crops_key(download_date: str) -> str:
+    """S3 key for a USDA NASS QuickStats bulk crops sector .gz download.
+
+    One .gz file per download event; contains the full QuickStats CROPS sector
+    as a tab-delimited CSV covering all U.S. commodities (corn, soybeans, wheat,
+    cotton, rice, sugar cane, ...), all geographies (national, state, county),
+    and all time periods from the 1860s through the present day.
+
+    Critically, this file includes the weekly **Crop Progress** series
+    (``statisticcat_desc = 'PROGRESS'``, ``unit_desc = 'PCT'``) alongside the
+    standard annual AREA PLANTED / AREA HARVESTED / YIELD / PRODUCTION stats.
+    The Crop Progress Good/Excellent % is the most-watched leading indicator for
+    U.S. corn and soybean futures during the growing season.
+
+    Downloaded without authentication from:
+        https://www.nass.usda.gov/datasets/qs.crops_{YYYYMMDD}.txt.gz
+
+    The filename is date-stamped and regenerated nightly (~3 am ET); the
+    ``download_date`` is discovered by scraping the datasets page and parsing
+    the filename, not from wall-clock time.
+
+    Args:
+        download_date: Date embedded in the discovered filename, in
+            ``YYYY-MM-DD`` format, e.g. ``"2026-05-20"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_nass/"
+        f"sector=crops/"
+        f"download_date={download_date}/"
+        f"qs.crops.txt.gz"
+    )
