@@ -481,3 +481,28 @@ def raw_sagis_swb_key(upload_year: int, upload_month: int, filename: str) -> str
         f"upload_month={upload_month:02d}/"
         f"{filename}"
     )
+
+
+def raw_sagis_weekly_key(dataset: str, crop: str, filename: str) -> str:
+    """S3 key for a SAGIS South Africa Weekly Data Excel file.
+
+    SAGIS publishes one cumulative Excel/XLS file per marketing season per
+    crop, updated weekly with a new filename (new week number).  Both the
+    current-season weekly snapshots and historical season-end files are stored
+    under the same flat ``dataset/crop/`` prefix.
+
+    Args:
+        dataset:  One of ``"producer_deliveries"``, ``"imp_exp_intentions"``,
+                  ``"imp_exp_progressive"``, ``"imp_exp_historic"``.
+        crop:     One of ``"maize"``, ``"maize_grade"``, ``"wheat"``,
+                  ``"soybeans"``, ``"sunflower"``.
+        filename: URL-decoded Excel filename as-is, e.g.
+                  ``"ProdProgressive-Mielies_2026-2027_03.xlsx"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=sagis_weekly/"
+        f"dataset={dataset}/"
+        f"crop={crop}/"
+        f"{filename}"
+    )

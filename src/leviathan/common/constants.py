@@ -18,6 +18,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "usda_psd": 10_000_000,            # 10 MB — bulk ZIP is ~50-80 MB compressed in practice
     "usda_nass_crops": 800_000_000,    # 800 MB — qs.crops bulk .gz is ~1.05 GB in practice
     "sagis_swb": 50_000,               # 50 KB — SWB bulletins are multi-page with charts
+    "sagis_weekly": 5_000,             # 5 KB — oldest .xls files (2005/06) may be small
 }
 
 ALL_COMMODITIES: list[str] = [
