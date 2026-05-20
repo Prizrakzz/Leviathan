@@ -1,0 +1,52 @@
+source: usda_gain_soybean_meal
+
+commodity_id: 13021  # FAS taxonomy: "Soybean Meal"
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A13021"
+
+notes: >
+  USDA FAS GAIN country-level Soybean Meal Annual attaché intelligence reports.
+  Covers the CBOT/DCE soybean meal origins. Primary intelligence on crush capacity
+  and margins, domestic feed demand (swine/poultry sectors), export competitiveness,
+  Argentina differential export tax structure on soy complex products, and
+  biodiesel-driven meal output dynamics in Brazil.
+
+publication_cadence: annual
+
+target_commodities:
+  - soybean_meal_cbot
+  - soybean_meal_dce
+
+report_categories:
+  - Oilseeds and Products Annual
+  - Oilseeds and Products Update
+
+target_countries:
+  - US   # United States    (CBOT; major exporter)
+  - BR   # Brazil           (largest exporter; biodiesel-crush nexus)
+  - AR   # Argentina        (differential export tax on soy complex)
+  - CN   # China            (DCE; dominant importer and crusher)
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_soybean_meal/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 13021
+    --target-countries US,BR,AR,CN
+    --output scratch/gain/crawl_soybean_meal.jsonl
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_soybean_meal
+    --input scratch/gain/crawl_soybean_meal.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_soybean_meal
+    --skip-existing-s3
+    --sleep-seconds 2

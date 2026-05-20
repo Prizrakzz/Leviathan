@@ -36,9 +36,12 @@ COMMODITIES: list[dict] = [
     {"name": "cotton",      "commodity_id": "6",     "countries": "US,IN,CN,BR,AU,PK,UZ"},
     {"name": "rapeseed",    "commodity_id": "28",    "countries": "CA,AU,FR,CN,DE,UA,PL"},
     {"name": "rice",        "commodity_id": "16",    "countries": "TH,VN,IN,CN,US,PK"},
-    {"name": "soybean_oil", "commodity_id": "13022", "countries": "BR,US,AR,CN"},
+    {"name": "soybean_oil",  "commodity_id": "13022", "countries": "BR,US,AR,CN"},
+    {"name": "soybean_meal", "commodity_id": "13021", "countries": "US,BR,AR,CN"},
+    # Processed Fruit (13014) is the closest GAIN category for FCOJ — no dedicated OJ ID
+    {"name": "orange_juice", "commodity_id": "13014", "countries": "BR,US,MX", "title_filter": "orange"},
     # Cocoa has no FAS taxonomy ID — uses title-filter on all GAIN reports
-    {"name": "cocoa",       "commodity_id": None,    "countries": "CI,GH,CM,ID,NG,EC,PE", "title_filter": "cocoa"},
+    {"name": "cocoa",        "commodity_id": None,    "countries": "CI,GH,CM,ID,NG,EC,PE", "title_filter": "cocoa"},
 ]
 
 

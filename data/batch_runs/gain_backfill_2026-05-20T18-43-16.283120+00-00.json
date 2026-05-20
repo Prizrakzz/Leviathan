@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-20T18-43-16.283120+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "soybean_meal",
+    "orange_juice"
+  ],
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-soybean-meal",
+      "job_id": null,
+      "commodity": "soybean_meal"
+    },
+    {
+      "job_name": "gain-backfill-orange-juice",
+      "job_id": null,
+      "commodity": "orange_juice"
+    }
+  ]
+}

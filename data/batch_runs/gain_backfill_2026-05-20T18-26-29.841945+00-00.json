@@ -1,0 +1,69 @@
+{
+  "run_id": "2026-05-20T18-26-29.841945+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "wheat",
+    "corn",
+    "soybeans",
+    "palm_oil",
+    "sugar",
+    "cotton",
+    "rapeseed",
+    "rice",
+    "soybean_oil",
+    "cocoa"
+  ],
+  "task_count": 10,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-wheat",
+      "job_id": "ad845577-2bb2-4632-ac06-4bd04fde5c3c",
+      "commodity": "wheat"
+    },
+    {
+      "job_name": "gain-backfill-corn",
+      "job_id": "f081457e-d935-4fdc-a906-d3cbd675537f",
+      "commodity": "corn"
+    },
+    {
+      "job_name": "gain-backfill-soybeans",
+      "job_id": "e62a40ad-c138-4d1f-b86a-4d88f768e5de",
+      "commodity": "soybeans"
+    },
+    {
+      "job_name": "gain-backfill-palm-oil",
+      "job_id": "545cbeb1-18fc-4a9b-868f-630717f12f7c",
+      "commodity": "palm_oil"
+    },
+    {
+      "job_name": "gain-backfill-sugar",
+      "job_id": "8ac43f6e-fe5e-42a9-be1d-6b4f644b5a8a",
+      "commodity": "sugar"
+    },
+    {
+      "job_name": "gain-backfill-cotton",
+      "job_id": "6da365c2-28eb-4c15-a353-308decd64beb",
+      "commodity": "cotton"
+    },
+    {
+      "job_name": "gain-backfill-rapeseed",
+      "job_id": "ff68523a-5a8c-4752-8515-734bbef68244",
+      "commodity": "rapeseed"
+    },
+    {
+      "job_name": "gain-backfill-rice",
+      "job_id": "808f0577-6c35-404c-b9dd-0a7d020c805a",
+      "commodity": "rice"
+    },
+    {
+      "job_name": "gain-backfill-soybean-oil",
+      "job_id": "acfb944e-56b2-425a-8258-9a56481d46d8",
+      "commodity": "soybean_oil"
+    },
+    {
+      "job_name": "gain-backfill-cocoa",
+      "job_id": "097f69d8-5e3c-4766-9f54-a60df2e42abe",
+      "commodity": "cocoa"
+    }
+  ]
+}

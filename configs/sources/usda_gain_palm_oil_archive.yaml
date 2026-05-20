@@ -1,0 +1,23 @@
+source: usda_gain_palm_oil
+generated: '2026-05-20'
+total_records: 2
+target_countries:
+- ID
+- TH
+reports:
+- report_id: ID2026-0013
+  country_iso2: ID
+  country_name: ''
+  post: Jakarta
+  category: Oilseeds and Products Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Oilseeds%20and%20Products%20Annual_Jakarta_Indonesia_ID2026-0013.pdf
+  filename_clean: Oilseeds_and_Products_Annual_Jakarta_Indonesia_ID2026-0013.pdf
+- report_id: TH2026-0008
+  country_iso2: TH
+  country_name: ''
+  post: Bangkok
+  category: Oilseeds and Products Annual
+  publication_date: '20260401'
+  pdf_url: https://fas.usda.gov/data/gain-report/2026/04/Oilseeds%20and%20Products%20Annual_Bangkok_Thailand_TH2026-0008.pdf
+  filename_clean: Oilseeds_and_Products_Annual_Bangkok_Thailand_TH2026-0008.pdf

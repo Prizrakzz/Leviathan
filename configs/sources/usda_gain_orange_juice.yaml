@@ -1,0 +1,59 @@
+source: usda_gain_orange_juice
+
+commodity_id: 13014  # FAS taxonomy: "Processed Fruit"
+# No dedicated "Orange Juice" or "Citrus" GAIN taxonomy ID exists.
+# "Processed Fruit" (13014) is the correct category — covers juice concentrates,
+# pulp, and processed citrus products. Crawl uses title_filter="orange" to
+# exclude unrelated processed fruit reports (apple, berry, etc.).
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251&reports%5B1%5D=report_commodities%3A13014"
+
+notes: >
+  USDA FAS GAIN country-level Frozen Concentrated Orange Juice (FCOJ) attaché
+  intelligence reports, sourced via the "Processed Fruit" GAIN taxonomy with a
+  title filter on "orange". FCOJ is traded on ICE Futures U.S. (FCOJ-A, 15,000 lb
+  contracts). Brazil (~70% of global supply) and Florida (US) dominate production.
+  Primary intelligence on grove conditions, frost/freeze risk (Florida), greening
+  disease (HLB) spread, São Paulo state crop estimates, processor inventory,
+  and export quota/tariff dynamics.
+
+publication_cadence: annual
+
+target_commodities:
+  - frozen_orange_juice
+
+report_categories:
+  - Citrus Annual
+  - Citrus Semi-Annual
+  - Processed Fruit Annual
+
+target_countries:
+  - BR   # Brazil           (dominant origin; ~70% global FCOJ supply)
+  - US   # United States    (Florida; FCOJ-A benchmark delivery point)
+  - MX   # Mexico           (growing origin; supplies US domestic market)
+
+historical_depth: 1998
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_orange_juice/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python scratch/gain/probe_gain_http.py
+    --commodity-id 13014
+    --title-filter orange
+    --target-countries BR,US,MX
+    --output scratch/gain/crawl_orange_juice.jsonl
+  # Title filter narrows "Processed Fruit" reports to orange/citrus only.
+
+manifest_command: >
+  python scratch/gain/build_manifest.py
+    --source-name usda_gain_orange_juice
+    --input scratch/gain/crawl_orange_juice.jsonl
+
+backfill_command: >
+  python jobs/ingest/fetch_gain.py
+    --source usda_gain_orange_juice
+    --skip-existing-s3
+    --sleep-seconds 2
