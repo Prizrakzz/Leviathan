@@ -1,0 +1,163 @@
+[
+  {
+    "release_type": "annual_summary",
+    "year": 2017,
+    "month": null,
+    "val": "201784",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=201784"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2018,
+    "month": null,
+    "val": "201884",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=201884"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2019,
+    "month": null,
+    "val": "201984",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=201984"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2020,
+    "month": null,
+    "val": "202084",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202084"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 1,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=01"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 2,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=02"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 3,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=03"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 4,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=04"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 5,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=05"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 6,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=06"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 7,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=07"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 8,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=08"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 9,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=09"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 10,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=10"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 11,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=11"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2020,
+    "month": 12,
+    "val": "202075",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202075&amp;val1=12"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2021,
+    "month": null,
+    "val": "202184",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202184"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2022,
+    "month": null,
+    "val": "202284",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202284"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2023,
+    "month": null,
+    "val": "202384",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202384"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2024,
+    "month": null,
+    "val": "202484",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202484"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2025,
+    "month": null,
+    "val": "202584",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202584"
+  },
+  {
+    "release_type": "annual_summary",
+    "year": 2026,
+    "month": null,
+    "val": "202684",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202684"
+  },
+  {
+    "release_type": "monthly_release",
+    "year": 2026,
+    "month": 4,
+    "val": "202675",
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202675&amp;val1=04"
+  }
+]

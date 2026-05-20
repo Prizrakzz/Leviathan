@@ -233,6 +233,46 @@ def silver_weather_key(
     )
 
 
+def raw_mpob_monthly_key(year: int, month: int) -> str:
+    """S3 key for an MPOB BEPI monthly release HTML page.
+
+    One HTML file per calendar month; contains national + regional CPO
+    production, closing stocks, exports, imports, and FFB price data.
+
+    Args:
+        year:  Calendar year, e.g. ``2026``.
+        month: Calendar month (1–12).
+    """
+    filename = f"mpob_monthly_{year}_{month:02d}.html"
+    return (
+        f"raw/production/"
+        f"source=mpob/"
+        f"release_type=monthly_release/"
+        f"year={year}/"
+        f"month={month:02d}/"
+        f"{filename}"
+    )
+
+
+def raw_mpob_annual_key(year: int) -> str:
+    """S3 key for an MPOB BEPI annual summary HTML page.
+
+    One HTML file per calendar year; contains national CPO production,
+    closing stocks, exports, imports, and FFB price for all 12 months.
+
+    Args:
+        year: Calendar year, e.g. ``2026``.
+    """
+    filename = f"mpob_annual_summary_{year}.html"
+    return (
+        f"raw/production/"
+        f"source=mpob/"
+        f"release_type=annual_summary/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
 def unica_raw_key(harvest_year: str) -> str:
     """S3 key for a UNICA production-and-milling HTML page.
 

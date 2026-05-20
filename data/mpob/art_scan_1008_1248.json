@@ -1,0 +1,638 @@
+[
+  {
+    "artid": 1008,
+    "val": "202084",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202084"
+  },
+  {
+    "artid": 1010,
+    "val": "202069",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202069"
+  },
+  {
+    "artid": 1011,
+    "val": "2020101",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2020101"
+  },
+  {
+    "artid": 1012,
+    "val": "202022",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202022"
+  },
+  {
+    "artid": 1013,
+    "val": "202023",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202023"
+  },
+  {
+    "artid": 1034,
+    "val": "202184",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202184"
+  },
+  {
+    "artid": 1047,
+    "val": "202113",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202113"
+  },
+  {
+    "artid": 1049,
+    "val": "202166",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202166"
+  },
+  {
+    "artid": 1051,
+    "val": "202127",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202127"
+  },
+  {
+    "artid": 1054,
+    "val": "202141",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202141"
+  },
+  {
+    "artid": 1055,
+    "val": "202134",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202134"
+  },
+  {
+    "artid": 1059,
+    "val": "202150",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202150"
+  },
+  {
+    "artid": 1061,
+    "val": "202171",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my//stat/web_report1.php?val=202171"
+  },
+  {
+    "artid": 1062,
+    "val": "202123",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202123"
+  },
+  {
+    "artid": 1063,
+    "val": "202122",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202122"
+  },
+  {
+    "artid": 1064,
+    "val": "2021101",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2021101"
+  },
+  {
+    "artid": 1065,
+    "val": "202169",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202169"
+  },
+  {
+    "artid": 1092,
+    "val": "202244",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202244"
+  },
+  {
+    "artid": 1093,
+    "val": "202265",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202265"
+  },
+  {
+    "artid": 1094,
+    "val": "202206",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202206"
+  },
+  {
+    "artid": 1095,
+    "val": "202207",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202207"
+  },
+  {
+    "artid": 1096,
+    "val": "202208",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202208"
+  },
+  {
+    "artid": 1098,
+    "val": "202211",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202211"
+  },
+  {
+    "artid": 1099,
+    "val": "202218",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202218"
+  },
+  {
+    "artid": 1100,
+    "val": "202227",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202227"
+  },
+  {
+    "artid": 1101,
+    "val": "202266",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202266"
+  },
+  {
+    "artid": 1102,
+    "val": "202213",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202213"
+  },
+  {
+    "artid": 1104,
+    "val": "202234",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202234"
+  },
+  {
+    "artid": 1105,
+    "val": "202241",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202241"
+  },
+  {
+    "artid": 1107,
+    "val": "202271",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my//stat/web_report1.php?val=202271"
+  },
+  {
+    "artid": 1108,
+    "val": "202269",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202269"
+  },
+  {
+    "artid": 1109,
+    "val": "2022101",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2022101"
+  },
+  {
+    "artid": 1110,
+    "val": "202222",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202222"
+  },
+  {
+    "artid": 1111,
+    "val": "202223",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202223"
+  },
+  {
+    "artid": 1117,
+    "val": "2021103",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my//stat/web_report1.php?val=2021103"
+  },
+  {
+    "artid": 1118,
+    "val": "2022103",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my//stat/web_report1.php?val=2022103"
+  },
+  {
+    "artid": 1134,
+    "val": "202308",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202308"
+  },
+  {
+    "artid": 1135,
+    "val": "202307",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202307"
+  },
+  {
+    "artid": 1136,
+    "val": "202306",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202306"
+  },
+  {
+    "artid": 1137,
+    "val": "202365",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202365"
+  },
+  {
+    "artid": 1138,
+    "val": "202344",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202344"
+  },
+  {
+    "artid": 1139,
+    "val": "202318",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202318"
+  },
+  {
+    "artid": 1140,
+    "val": "202311",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202311"
+  },
+  {
+    "artid": 1141,
+    "val": "202313",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202313"
+  },
+  {
+    "artid": 1142,
+    "val": "202366",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202366"
+  },
+  {
+    "artid": 1143,
+    "val": "202327",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202327"
+  },
+  {
+    "artid": 1144,
+    "val": "202341",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202341"
+  },
+  {
+    "artid": 1145,
+    "val": "202334",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202334"
+  },
+  {
+    "artid": 1148,
+    "val": "202323",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202323"
+  },
+  {
+    "artid": 1149,
+    "val": "202322",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202322"
+  },
+  {
+    "artid": 1150,
+    "val": "2023101",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2023101"
+  },
+  {
+    "artid": 1151,
+    "val": "202369",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202369"
+  },
+  {
+    "artid": 1152,
+    "val": "2023103",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my//stat/web_report1.php?val=2023103"
+  },
+  {
+    "artid": 1167,
+    "val": "202444",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202444"
+  },
+  {
+    "artid": 1168,
+    "val": "202465",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202465"
+  },
+  {
+    "artid": 1169,
+    "val": "202406",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202406"
+  },
+  {
+    "artid": 1170,
+    "val": "202407",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202407"
+  },
+  {
+    "artid": 1171,
+    "val": "202408",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202408"
+  },
+  {
+    "artid": 1173,
+    "val": "202411",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202411"
+  },
+  {
+    "artid": 1174,
+    "val": "202418",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202418"
+  },
+  {
+    "artid": 1175,
+    "val": "202427",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202427"
+  },
+  {
+    "artid": 1176,
+    "val": "202466",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202466"
+  },
+  {
+    "artid": 1177,
+    "val": "202413",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202413"
+  },
+  {
+    "artid": 1178,
+    "val": "202434",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202434"
+  },
+  {
+    "artid": 1179,
+    "val": "202441",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202441"
+  },
+  {
+    "artid": 1181,
+    "val": "202469",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202469"
+  },
+  {
+    "artid": 1182,
+    "val": "2024101",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2024101"
+  },
+  {
+    "artid": 1183,
+    "val": "202422",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202422"
+  },
+  {
+    "artid": 1184,
+    "val": "202423",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202423"
+  },
+  {
+    "artid": 1186,
+    "val": "2024103",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my//stat/web_report1.php?val=2024103"
+  },
+  {
+    "artid": 1187,
+    "val": "202484",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202484"
+  },
+  {
+    "artid": 1191,
+    "val": "202544",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202544"
+  },
+  {
+    "artid": 1192,
+    "val": "202565",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202565"
+  },
+  {
+    "artid": 1193,
+    "val": "202506",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202506"
+  },
+  {
+    "artid": 1194,
+    "val": "202507",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202507"
+  },
+  {
+    "artid": 1195,
+    "val": "202508",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202508"
+  },
+  {
+    "artid": 1197,
+    "val": "202511",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202511"
+  },
+  {
+    "artid": 1198,
+    "val": "202518",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202518"
+  },
+  {
+    "artid": 1199,
+    "val": "202527",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202527"
+  },
+  {
+    "artid": 1200,
+    "val": "202566",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202566"
+  },
+  {
+    "artid": 1201,
+    "val": "202513",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202513"
+  },
+  {
+    "artid": 1202,
+    "val": "202534",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202534"
+  },
+  {
+    "artid": 1203,
+    "val": "202541",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202541"
+  },
+  {
+    "artid": 1205,
+    "val": "202569",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202569"
+  },
+  {
+    "artid": 1206,
+    "val": "2025101",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2025101"
+  },
+  {
+    "artid": 1207,
+    "val": "202522",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202522"
+  },
+  {
+    "artid": 1208,
+    "val": "202523",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202523"
+  },
+  {
+    "artid": 1221,
+    "val": "2025114",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2025114"
+  },
+  {
+    "artid": 1222,
+    "val": "202584",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202584"
+  },
+  {
+    "artid": 1223,
+    "val": "2025103",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2025103"
+  },
+  {
+    "artid": 1229,
+    "val": "202608",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202608"
+  },
+  {
+    "artid": 1230,
+    "val": "202607",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202607"
+  },
+  {
+    "artid": 1231,
+    "val": "202606",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202606"
+  },
+  {
+    "artid": 1232,
+    "val": "202665",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202665"
+  },
+  {
+    "artid": 1233,
+    "val": "202644",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202644"
+  },
+  {
+    "artid": 1234,
+    "val": "202618",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202618"
+  },
+  {
+    "artid": 1235,
+    "val": "202611",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202611"
+  },
+  {
+    "artid": 1236,
+    "val": "202627",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202627"
+  },
+  {
+    "artid": 1237,
+    "val": "202666",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202666"
+  },
+  {
+    "artid": 1238,
+    "val": "202613",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202613"
+  },
+  {
+    "artid": 1239,
+    "val": "202634",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202634"
+  },
+  {
+    "artid": 1240,
+    "val": "202641",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202641"
+  },
+  {
+    "artid": 1242,
+    "val": "202669",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202669"
+  },
+  {
+    "artid": 1243,
+    "val": "2026101",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=2026101"
+  },
+  {
+    "artid": 1244,
+    "val": "202622",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202622"
+  },
+  {
+    "artid": 1245,
+    "val": "202623",
+    "val1": null,
+    "stat_url": "https://bepi.mpob.gov.my/stat/web_report1.php?val=202623"
+  }
+]

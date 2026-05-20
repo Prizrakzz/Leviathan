@@ -9,6 +9,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "faostat_qcl": 10_000_000,        # 10 MB — the FAOSTAT QCL ZIP is ~50 MB in practice
     "conab": 500_000,                 # 500 KB — CONAB coffee bulletins are typically 1–3 MB
     "usda_fas_coffee_wmt": 100_000,   # 100 KB — WMT circulars are typically 1–2 MB
+    "mpob": 5_000,                    # 5 KB — MPOB BEPI HTML table pages are typically 20–80 KB
 }
 
 ALL_COMMODITIES: list[str] = [
