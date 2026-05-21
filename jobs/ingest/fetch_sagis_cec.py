@@ -96,8 +96,9 @@ _WP_API_URL = (
 _FILE_LINK_RE = re.compile(
     r'(https://www\.sagis\.org\.za/wp-content/uploads/[^"]+/CEC(?!_Dates_)[^"]+\.(?:pdf|doc|xls))',
     re.IGNORECASE,
-)
-
+)# Extracts the calendar year (YYYY) from any CEC filename style:
+#   CEC_2026-05-07.pdf, CEC-2024-12.doc, CEC_2005_-_1905S.doc
+_YEAR_RE = re.compile(r"CEC[_-](\d{4})", re.IGNORECASE)
 _PDF_MAGIC = b"%PDF"
 _OLE_MAGIC = b"\xd0\xcf\x11\xe0"  # OLE compound file — both .doc and .xls
 
@@ -265,6 +266,20 @@ def main() -> None:
         default=_DEFAULT_SLEEP,
         help=f"Polite delay between downloads in seconds (default: {_DEFAULT_SLEEP}).",
     )
+    parser.add_argument(
+        "--year-from",
+        type=int,
+        default=None,
+        metavar="YYYY",
+        help="Only process reports from this year onward (inclusive).",
+    )
+    parser.add_argument(
+        "--year-to",
+        type=int,
+        default=None,
+        metavar="YYYY",
+        help="Only process reports up to and including this year.",
+    )
     args = parser.parse_args()
 
     session = requests.Session()
@@ -279,6 +294,22 @@ def main() -> None:
     # CEC_YYYY or CEC-YYYY, so lexicographic descending approximates
     # chronological descending order across the full archive.
     urls.sort(key=lambda u: _filename_from_url(u).lower(), reverse=args.newest_first)
+
+    if args.year_from is not None or args.year_to is not None:
+        def _url_year(url: str) -> int | None:
+            m = _YEAR_RE.search(_filename_from_url(url))
+            return int(m.group(1)) if m else None
+
+        urls = [
+            u for u in urls
+            if (y := _url_year(u)) is not None
+            and (args.year_from is None or y >= args.year_from)
+            and (args.year_to is None or y <= args.year_to)
+        ]
+        logger.info(
+            "Year filter %s\u2013%s: %d URLs remaining.",
+            args.year_from or "*", args.year_to or "*", len(urls),
+        )
 
     # -----------------------------------------------------------------------
     # Dry run

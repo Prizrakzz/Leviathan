@@ -1,12 +1,12 @@
-"""Submit SAGIS CEC raw backfill as 4 parallel AWS Batch Fargate tasks.
+"""Submit USDA WASDE raw backfill as 6 parallel AWS Batch Fargate tasks.
 
-Each task covers a non-overlapping year range of the ~358-file archive
-(PDF/DOC/XLS, 1999-present).  All 4 tasks run concurrently.
+Each task covers a non-overlapping year range of the 625-entry manifest.
+All 6 tasks run concurrently — fetch + S3 upload inside each container.
 
 Usage
 -----
-    python jobs/submit/submit_batch_backfill_sagis_cec.py --dry-run
-    python jobs/submit/submit_batch_backfill_sagis_cec.py
+    python jobs/submit/submit_batch_backfill_wasde.py --dry-run
+    python jobs/submit/submit_batch_backfill_wasde.py
 """
 from __future__ import annotations
 
@@ -21,19 +21,20 @@ from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.metadata import utc_now_iso
 
-logger = get_logger("submit_batch_backfill_sagis_cec")
+logger = get_logger("submit_batch_backfill_wasde")
 
 # ---------------------------------------------------------------------------
-# Year-range task definitions — 4 parallel jobs
-# Splits approximate equal file counts (~80-120 per chunk).
-# year_from=None means no lower bound; year_to=None means no upper bound.
+# Year-range task definitions — 6 parallel jobs
+# Splits chosen to keep each task ≤ ~132 manifest entries (~5-8 min each).
 # ---------------------------------------------------------------------------
 
 YEAR_RANGES: list[dict] = [
-    {"name": "sagis-cec-backfill-pre-2009",  "year_from": None, "year_to": 2008},
-    {"name": "sagis-cec-backfill-2009-2014", "year_from": 2009, "year_to": 2014},
-    {"name": "sagis-cec-backfill-2015-2019", "year_from": 2015, "year_to": 2019},
-    {"name": "sagis-cec-backfill-2020-plus", "year_from": 2020, "year_to": None},
+    {"name": "wasde-backfill-1973-1983", "year_from": 1973, "year_to": 1983},
+    {"name": "wasde-backfill-1984-1994", "year_from": 1984, "year_to": 1994},
+    {"name": "wasde-backfill-1995-1999", "year_from": 1995, "year_to": 1999},
+    {"name": "wasde-backfill-2000-2009", "year_from": 2000, "year_to": 2009},
+    {"name": "wasde-backfill-2010-2019", "year_from": 2010, "year_to": 2019},
+    {"name": "wasde-backfill-2020-2026", "year_from": 2020, "year_to": 2026},
 ]
 
 
@@ -53,11 +54,12 @@ def submit_tasks(
 
     for yr in year_ranges:
         job_name = yr["name"]
-        command = ["jobs/ingest/fetch_sagis_cec.py", "--skip-existing-s3"]
-        if yr["year_from"] is not None:
-            command += ["--year-from", str(yr["year_from"])]
-        if yr["year_to"] is not None:
-            command += ["--year-to", str(yr["year_to"])]
+        command = [
+            "jobs/ingest/fetch_usda_wasde.py",
+            "--skip-existing-s3",
+            "--year-from", str(yr["year_from"]),
+            "--year-to",   str(yr["year_to"]),
+        ]
 
         if dry_run:
             logger.info("[DRY RUN] Would submit: %s  cmd=%s", job_name, command)
@@ -81,10 +83,10 @@ def save_run_record(submitted: list[dict]) -> None:
     run_id = utc_now_iso().replace(":", "-")
     output_dir = Path("data/batch_runs")
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"sagis_cec_backfill_{run_id}.json"
+    output_path = output_dir / f"wasde_backfill_{run_id}.json"
     payload = {
         "run_id": run_id,
-        "source": "sagis_cec",
+        "source": "usda_wasde",
         "task_count": len(submitted),
         "tasks": submitted,
     }
@@ -102,10 +104,10 @@ def main() -> None:
     env     = os.environ.get("LEVIATHAN_ENV", "dev")
     project = os.environ.get("LEVIATHAN_PROJECT", "leviathan")
     job_queue      = f"{project}-{env}-queue"
-    job_definition = f"{project}-{env}-sagis-cec-raw-backfill"
+    job_definition = f"{project}-{env}-usda-wasde-raw-backfill"
 
     parser = argparse.ArgumentParser(
-        description="Submit SAGIS CEC raw backfill as 4 parallel Batch Fargate tasks."
+        description="Submit USDA WASDE raw backfill as 6 parallel Batch Fargate tasks."
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -113,7 +115,7 @@ def main() -> None:
     aws_region = get_required_env("AWS_REGION")
 
     logger.info(
-        "Submitting %d SAGIS CEC backfill tasks to queue=%s  job_def=%s",
+        "Submitting %d WASDE backfill tasks to queue=%s  job_def=%s",
         len(YEAR_RANGES), job_queue, job_definition,
     )
 
@@ -134,4 +136,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
