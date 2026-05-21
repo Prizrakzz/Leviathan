@@ -36,10 +36,10 @@ COMMODITIES: list[dict] = [
     {"name": "cotton",      "commodity_id": "6",     "countries": "US,IN,CN,BR,AU,PK,UZ"},
     {"name": "rapeseed",    "commodity_id": "28",    "countries": "CA,AU,FR,CN,DE,UA,PL"},
     {"name": "rice",        "commodity_id": "16",    "countries": "TH,VN,IN,CN,US,PK"},
-    # Soybean oil: major producers, processors, and importers globally
-    {"name": "soybean_oil",  "commodity_id": "13022", "countries": "AR,BR,US,CN,IN,ID,PH,VN,PY,MY,MX,TH,DE,NL,BD,PK,EG,CO,PE"},
-    # Soybean meal: major producers and importing/consuming countries
-    {"name": "soybean_meal", "commodity_id": "13021", "countries": "US,AR,BR,CN,IN,ID,PH,VN,TH,MX,DE,NL,PY,BD,KR,JP,EG,CO"},
+    # Soybean oil: commodity_id 13022 is too granular (rarely tagged); use general oilseeds ID 27 + title filter
+    {"name": "soybean_oil",  "commodity_id": "27", "countries": "AR,BR,US,CN,IN,ID,PH,VN,PY,MY,MX,TH,DE,NL,BD,PK,EG,CO,PE", "title_filter": "oilseeds"},
+    # Soybean meal: commodity_id 13021 is too granular (rarely tagged); use general oilseeds ID 27 + title filter
+    {"name": "soybean_meal", "commodity_id": "27", "countries": "US,AR,BR,CN,IN,ID,PH,VN,TH,MX,DE,NL,PY,BD,KR,JP,EG,CO",   "title_filter": "oilseeds"},
     # OJ / citrus: 13014 is wrong (generic catchall) — use title-filter on all GAIN reports
     {"name": "orange_juice", "commodity_id": None,    "countries": "BR,US,MX,ZA,AR,TR,EG,IN,CN,ES,NG,AU,PK", "title_filter": "citrus", "max_empty_pages": 200},
     # Cocoa has no FAS taxonomy ID — uses title-filter; needs many pages to find scattered reports

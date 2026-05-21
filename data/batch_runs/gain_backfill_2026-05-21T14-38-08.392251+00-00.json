@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-21T14-38-08.392251+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "soybean_oil",
+    "soybean_meal"
+  ],
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-soybean-oil",
+      "job_id": null,
+      "commodity": "soybean_oil"
+    },
+    {
+      "job_name": "gain-backfill-soybean-meal",
+      "job_id": null,
+      "commodity": "soybean_meal"
+    }
+  ]
+}
