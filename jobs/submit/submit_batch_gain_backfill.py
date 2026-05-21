@@ -28,14 +28,16 @@ logger = get_logger("submit_batch_gain_backfill")
 # ---------------------------------------------------------------------------
 
 COMMODITIES: list[dict] = [
-    {"name": "wheat",       "commodity_id": "15",    "countries": "US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR"},
-    {"name": "corn",        "commodity_id": "14",    "countries": "US,BR,AR,CN,UA,FR,ZA,MX,PH,NG"},
-    {"name": "soybeans",    "commodity_id": "27",    "countries": "BR,US,AR,CN,PY,BO,IN,UA"},
-    {"name": "palm_oil",    "commodity_id": "13023", "countries": "MY,ID,TH,CO,NG,CM,GH"},
+    {"name": "wheat",       "commodity_id": "15",    "countries": "FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR"},
+    {"name": "corn",        "commodity_id": "14",    "countries": "BR,AR,CN,UA,FR,ZA,MX,PH,NG"},
+    {"name": "soybeans",    "commodity_id": "27",    "countries": "BR,AR,CN,PY,BO,IN,UA"},
+    {"name": "palm_oil",    "commodity_id": "13023", "countries": "ID,TH,CO,NG,CM,GH"},
+    # Malaysia KL post files under commodity_id=27 (oilseeds) — NOT under 13023; probe confirmed this
+    {"name": "palm_oil",    "commodity_id": "27",    "countries": "MY", "title_filter": "oilseeds"},
     {"name": "sugar",       "commodity_id": "34",    "countries": "BR,IN,TH,AU,CO,MX,ID,PH,EC"},
     {"name": "cotton",      "commodity_id": "6",     "countries": "US,IN,CN,BR,AU,PK,UZ"},
     {"name": "rapeseed",    "commodity_id": "28",    "countries": "CA,AU,FR,CN,DE,UA,PL"},
-    {"name": "rice",        "commodity_id": "16",    "countries": "TH,VN,IN,CN,US,PK"},
+    {"name": "rice",        "commodity_id": "16",    "countries": "TH,VN,IN,CN,ID,PK"},
     # Soybean oil: commodity_id 13022 is too granular (rarely tagged); use general oilseeds ID 27 + title filter
     {"name": "soybean_oil",  "commodity_id": "27", "countries": "AR,BR,US,CN,IN,ID,PH,VN,PY,MY,MX,TH,DE,NL,BD,PK,EG,CO,PE", "title_filter": "oilseeds"},
     # Soybean meal: commodity_id 13021 is too granular (rarely tagged); use general oilseeds ID 27 + title filter

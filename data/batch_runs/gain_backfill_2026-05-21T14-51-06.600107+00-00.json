@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-21T14-51-06.600107+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "palm_oil",
+    "palm_oil"
+  ],
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-palm-oil",
+      "job_id": "b77a9a11-cd1c-4bf3-9fa3-d6e98fd60b3c",
+      "commodity": "palm_oil"
+    },
+    {
+      "job_name": "gain-backfill-palm-oil",
+      "job_id": "4d0c74ac-d51d-4050-8fb7-18d2cf34cebe",
+      "commodity": "palm_oil"
+    }
+  ]
+}

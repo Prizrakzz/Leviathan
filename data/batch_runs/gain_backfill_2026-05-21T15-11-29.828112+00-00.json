@@ -1,0 +1,33 @@
+{
+  "run_id": "2026-05-21T15-11-29.828112+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "wheat",
+    "corn",
+    "soybeans",
+    "rice"
+  ],
+  "task_count": 4,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-wheat",
+      "job_id": "b073e4da-3ede-4d0d-80d3-9148559d796f",
+      "commodity": "wheat"
+    },
+    {
+      "job_name": "gain-backfill-corn",
+      "job_id": "fbf403c6-7547-4ea0-9c88-87df750d835e",
+      "commodity": "corn"
+    },
+    {
+      "job_name": "gain-backfill-soybeans",
+      "job_id": "e6fcef22-09aa-44de-820d-dbd6de00508b",
+      "commodity": "soybeans"
+    },
+    {
+      "job_name": "gain-backfill-rice",
+      "job_id": "e04140ae-955f-48d8-941e-e46cd4b78b01",
+      "commodity": "rice"
+    }
+  ]
+}

@@ -41,6 +41,9 @@ configs/sources/unica_biweekly_classified.json
 currentstate.md
 desiredstate.md
 
+# Claude working files
+.claude/
+
 # Terraform
 **/.terraform/
 *.tfstate
