@@ -131,14 +131,17 @@ def _discover(session: requests.Session, sleep_seconds: float) -> list[dict]:
     for ym in candidates:
         url = _cdn_url(ym)
         try:
-            r = session.head(url, timeout=_REQUEST_TIMEOUT_S, allow_redirects=True)
-            if r.status_code == 200:
-                logger.info("  ✓  %s", ym)
+            # Use GET with stream=True — many CDN/Drupal nodes reject HEAD.
+            # We read no body bytes; just the status line is enough.
+            with session.get(url, timeout=15, allow_redirects=True, stream=True) as r:
+                status = r.status_code
+            if status == 200:
+                logger.info("  FOUND  %s", ym)
                 confirmed.append({"release_month": ym, "url": url})
             else:
-                logger.debug("  ✗  %s  HTTP %s", ym, r.status_code)
+                logger.debug("  MISS   %s  HTTP %s", ym, status)
         except Exception as exc:
-            logger.warning("  ✗  %s  error: %s", ym, exc)
+            logger.warning("  ERROR  %s  %s", ym, exc)
         time.sleep(sleep_seconds)
 
     logger.info("Discovery complete: %d/%d months confirmed", len(confirmed), len(candidates))
