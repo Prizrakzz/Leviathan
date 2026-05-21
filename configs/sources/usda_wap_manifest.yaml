@@ -4,3 +4,75 @@
 
 releases:
 
+  - release_month: "2024-04"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-04/production.pdf"
+
+  - release_month: "2024-05"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-05/production.pdf"
+
+  - release_month: "2024-06"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-06/production.pdf"
+
+  - release_month: "2024-07"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-07/production.pdf"
+
+  - release_month: "2024-08"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-08/production.pdf"
+
+  - release_month: "2024-09"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-09/production.pdf"
+
+  - release_month: "2024-10"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-10/production.pdf"
+
+  - release_month: "2024-11"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-11/production.pdf"
+
+  - release_month: "2024-12"
+    url: "https://www.fas.usda.gov/sites/default/files/2024-12/production.pdf"
+
+  - release_month: "2025-01"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-01/production.pdf"
+
+  - release_month: "2025-02"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-02/production.pdf"
+
+  - release_month: "2025-03"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-03/production.pdf"
+
+  - release_month: "2025-04"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-04/production.pdf"
+
+  - release_month: "2025-05"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-05/production.pdf"
+
+  - release_month: "2025-06"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-06/production.pdf"
+
+  - release_month: "2025-07"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-07/production.pdf"
+
+  - release_month: "2025-08"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-08/production.pdf"
+
+  - release_month: "2025-09"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-09/production.pdf"
+
+  - release_month: "2025-12"
+    url: "https://www.fas.usda.gov/sites/default/files/2025-12/production.pdf"
+
+  - release_month: "2026-01"
+    url: "https://www.fas.usda.gov/sites/default/files/2026-01/production.pdf"
+
+  - release_month: "2026-02"
+    url: "https://www.fas.usda.gov/sites/default/files/2026-02/production.pdf"
+
+  - release_month: "2026-03"
+    url: "https://www.fas.usda.gov/sites/default/files/2026-03/production.pdf"
+
+  - release_month: "2026-04"
+    url: "https://www.fas.usda.gov/sites/default/files/2026-04/production.pdf"
+
+  - release_month: "2026-05"
+    url: "https://www.fas.usda.gov/sites/default/files/2026-05/production.pdf"
+
