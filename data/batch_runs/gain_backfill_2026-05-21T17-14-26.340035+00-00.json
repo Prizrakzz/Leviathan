@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-05-21T17-14-26.340035+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "rice_historical"
+  ],
+  "task_count": 1,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-rice-historical",
+      "job_id": "805210a6-0c23-4fad-a703-3e6f676fb776",
+      "commodity": "rice_historical"
+    }
+  ]
+}

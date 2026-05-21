@@ -30,14 +30,25 @@ logger = get_logger("submit_batch_gain_backfill")
 COMMODITIES: list[dict] = [
     {"name": "wheat",       "commodity_id": "15",    "countries": "FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR"},
     {"name": "corn",        "commodity_id": "14",    "countries": "BR,AR,CN,UA,FR,ZA,MX,PH,NG"},
+    # Historical depth: commodity IDs 15/14 only tag recent uploads; title-filter crawl recovers 2005-2025
+    {"name": "wheat_historical", "source_name": "wheat", "commodity_id": None, "countries": "FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR", "title_filter": "grain and feed annual", "start_year": 2000, "end_year": 2026},
+    {"name": "corn_historical",  "source_name": "corn",  "commodity_id": None, "countries": "BR,AR,CN,UA,FR,ZA,MX,PH,NG",           "title_filter": "grain and feed annual", "start_year": 2000, "end_year": 2026},
     {"name": "soybeans",    "commodity_id": "27",    "countries": "BR,AR,CN,PY,BO,IN,UA"},
+    # Historical depth: date-scoped crawl 2000-2026 recovers all years
+    {"name": "soybeans_historical",     "source_name": "soybeans",    "commodity_id": None, "countries": "BR,AR,CN,PY,BO,IN,UA",                            "title_filter": "oilseeds and products annual", "start_year": 2000, "end_year": 2026},
+    {"name": "soybean_oil_historical",  "source_name": "soybean_oil", "commodity_id": None, "countries": "AR,BR,US,CN,IN,ID,PH,VN,PY,MY,MX,TH,DE,NL",     "title_filter": "oilseeds and products annual", "start_year": 2000, "end_year": 2026},
+    {"name": "soybean_meal_historical", "source_name": "soybean_meal","commodity_id": None, "countries": "US,AR,BR,CN,IN,ID,PH,VN,TH,MX,DE,NL,PY,BD,KR,JP","title_filter": "oilseeds and products annual", "start_year": 2000, "end_year": 2026},
     {"name": "palm_oil",    "commodity_id": "13023", "countries": "ID,TH,CO,NG,CM,GH"},
     # Malaysia KL post files under commodity_id=27 (oilseeds) — NOT under 13023; probe confirmed this
     {"name": "palm_oil",    "commodity_id": "27",    "countries": "MY", "title_filter": "oilseeds"},
     {"name": "sugar",       "commodity_id": "34",    "countries": "BR,IN,TH,AU,CO,MX,ID,PH,EC"},
     {"name": "cotton",      "commodity_id": "6",     "countries": "US,IN,CN,BR,AU,PK,UZ"},
     {"name": "rapeseed",    "commodity_id": "28",    "countries": "CA,AU,FR,CN,DE,UA,PL"},
+    # Historical depth: date-scoped crawl 2000-2026 recovers all years
+    {"name": "rapeseed_historical", "source_name": "rapeseed", "commodity_id": None, "countries": "CA,AU,FR,CN,DE,UA,PL", "title_filter": "oilseeds and products annual", "start_year": 2000, "end_year": 2026},
     {"name": "rice",        "commodity_id": "16",    "countries": "TH,VN,IN,CN,ID,PK"},
+    # Historical depth: date-scoped crawl 2000-2026 recovers all years
+    {"name": "rice_historical", "source_name": "rice", "commodity_id": None, "countries": "TH,VN,IN,CN,ID,PK", "title_filter": "grain and feed annual", "start_year": 2000, "end_year": 2026},
     # Soybean oil: commodity_id 13022 is too granular (rarely tagged); use general oilseeds ID 27 + title filter
     {"name": "soybean_oil",  "commodity_id": "27", "countries": "AR,BR,US,CN,IN,ID,PH,VN,PY,MY,MX,TH,DE,NL,BD,PK,EG,CO,PE", "title_filter": "oilseeds"},
     # Soybean meal: commodity_id 13021 is too granular (rarely tagged); use general oilseeds ID 27 + title filter
@@ -72,7 +83,7 @@ def submit_tasks(
         # so we use containerOverrides.command to pass the full arg list.
         command = [
             "jobs/batch/gain_backfill_task.py",
-            "--commodity-name", c["name"],
+            "--commodity-name", c.get("source_name", c["name"]),
             "--target-countries", c["countries"],
             "--bucket", bucket,
             "--aws-region", aws_region,
@@ -85,6 +96,10 @@ def submit_tasks(
             command += ["--title-filter", c["title_filter"]]
         if c.get("max_empty_pages"):
             command += ["--max-empty-pages", str(c["max_empty_pages"])]
+        if c.get("start_year") is not None:
+            command += ["--start-year", str(c["start_year"])]
+        if c.get("end_year") is not None:
+            command += ["--end-year", str(c["end_year"])]
 
         if dry_run:
             logger.info("[DRY RUN] Would submit: %s  cmd=%s", job_name, command)

@@ -1,0 +1,27 @@
+{
+  "run_id": "2026-05-21T16-20-21.551277+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "soybeans_historical",
+    "soybean_oil_historical",
+    "soybean_meal_historical"
+  ],
+  "task_count": 3,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-soybeans-historical",
+      "job_id": "39a7976f-ec8e-401c-bd00-ba9ced9bc548",
+      "commodity": "soybeans_historical"
+    },
+    {
+      "job_name": "gain-backfill-soybean-oil-historical",
+      "job_id": "11b03f54-597f-468f-9b9a-8703a5f1aa8b",
+      "commodity": "soybean_oil_historical"
+    },
+    {
+      "job_name": "gain-backfill-soybean-meal-historical",
+      "job_id": "be581cf1-28b4-4944-bbc4-b7f59a1b6297",
+      "commodity": "soybean_meal_historical"
+    }
+  ]
+}

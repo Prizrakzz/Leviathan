@@ -23,6 +23,7 @@ Optional:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import re
 import time
@@ -55,6 +56,13 @@ _SEARCH_BASE = (
 _SEARCH_NO_COMMODITY = (
     "https://fas.usda.gov/data/search"
     "?reports%5B0%5D=report_type%3A10251"
+)
+# Date-scoped search: one URL per calendar month — avoids hammering the
+# global endpoint and keeps each page small (~35 results).
+_SEARCH_DATE = (
+    "https://fas.usda.gov/data/search"
+    "?reports%5B0%5D=report_type%3A10251"
+    "&reports%5B1%5D=report_datetime%3A{year}-{month:02d}"
 )
 
 # Stop cocoa crawl after this many consecutive empty pages
@@ -109,14 +117,19 @@ _REPORT_ID_RE = re.compile(r"\b([A-Z]{2})(\d{4})-(\d{4})\b")
 # Crawl
 # ---------------------------------------------------------------------------
 
-def _get_html(sess: cr.Session, url: str, retries: int = 2) -> str | None:
+def _get_html(sess: cr.Session, url: str, retries: int = 3) -> str | None:
     for attempt in range(retries + 1):
         try:
             r = sess.get(url, impersonate=_IMPERSONATE, timeout=30, allow_redirects=True)
             if r.status_code == 200:
                 return r.text
-            logger.warning("HTTP %s for %s", r.status_code, url)
-            return None
+            logger.warning("HTTP %s for %s (attempt %d/%d)", r.status_code, url, attempt + 1, retries + 1)
+            if attempt < retries:
+                backoff = 30 * (2 ** attempt)  # 30s, 60s, 120s
+                logger.info("Retrying in %ds...", backoff)
+                time.sleep(backoff)
+            else:
+                return None
         except Exception as exc:
             if attempt == retries:
                 logger.error("Failed %s: %s", url, exc)
@@ -198,12 +211,38 @@ def crawl(
     sleep_listing: float = 1.5,
     sleep_landing: float = 1.0,
     max_empty_pages: int = _MAX_EMPTY_PAGES,
+    start_year: int | None = None,
+    end_year: int | None = None,
 ) -> list[dict]:
-    """Return list of raw record dicts (one per report PDF found)."""
+    """Return list of raw record dicts (one per report PDF found).
+
+    When start_year is provided the crawl uses date-scoped URLs
+    (one per calendar month) instead of the single global search endpoint.
+    This spreads requests across hundreds of distinct CDN cache keys,
+    avoids triggering per-URL rate limits when multiple containers run in
+    parallel, and keeps each paginated result set small (~35 cards/month).
+    """
+    # Build the ordered list of base URLs to iterate.
+    if start_year is not None:
+        today = datetime.date.today()
+        stop_year = end_year if end_year is not None else today.year
+        stop_month = today.month if stop_year == today.year else 12
+        search_urls: list[str] = [
+            _SEARCH_DATE.format(year=y, month=m)
+            for y in range(start_year, stop_year + 1)
+            for m in range(1, (stop_month if y == stop_year else 12) + 1)
+        ]
+        logger.info(
+            "Date-scoped crawl: %d month URLs  (%d-01 → %d-%02d)",
+            len(search_urls), start_year, stop_year, stop_month,
+        )
+    else:
+        search_urls = [search_url]
+
     records: list[dict] = []
-    page_num = 0
     empty_run = 0
-    max_empty = max_empty_pages if title_filter else 0  # only applies to title-filter path
+    # max_empty early-stop only makes sense for the global no-filter search.
+    max_empty = max_empty_pages if (title_filter and start_year is None) else 0
 
     with cr.Session() as sess:
         sess.headers.update({
@@ -211,81 +250,87 @@ def crawl(
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://fas.usda.gov/",
         })
-        while True:
-            page_url = search_url if page_num == 0 else f"{search_url}&page={page_num}"
-            logger.info("[Page %d] %s", page_num + 1, page_url)
+        # Warm-up: fetch the FAS homepage so the session has cookies before
+        # hitting the search endpoint, reducing bot-detection false positives.
+        _get_html(sess, _BASE_URL)
 
-            html = _get_html(sess, page_url)
-            if not html:
-                break
+        for base_url in search_urls:
+            page_num = 0
+            while True:
+                page_url = base_url if page_num == 0 else f"{base_url}&page={page_num}"
+                logger.info("[Page %d] %s", page_num + 1, page_url)
 
-            cards = _parse_listing(html)
-            logger.info("  Cards: %d", len(cards))
-            if not cards:
-                break
+                html = _get_html(sess, page_url)
+                if not html:
+                    break
 
-            page_hits = 0
-            for card in cards:
-                title = card["title"]
+                cards = _parse_listing(html)
+                logger.info("  Cards: %d", len(cards))
+                if not cards:
+                    break
 
-                if title_filter and title_filter.lower() not in title.lower():
-                    continue
+                page_hits = 0
+                for card in cards:
+                    title = card["title"]
 
-                iso2 = _iso2_from_title(title)
-                if not iso2 or iso2 not in target_iso2:
-                    continue
+                    if title_filter and title_filter.lower() not in title.lower():
+                        continue
 
-                dt_str = card["datetime_str"]
-                pub_date = dt_str[:10].replace("-", "") if dt_str else ""
-                category = title.split(":", 1)[1].strip() if ":" in title else title
+                    iso2 = _iso2_from_title(title)
+                    if not iso2 or iso2 not in target_iso2:
+                        continue
 
-                record: dict = {
-                    "landing_url": card["landing_url"],
-                    "title": title,
-                    "country_iso2": iso2,
-                    "category": category,
-                    "publication_date": pub_date,
-                    "pdf_url": "",
-                    "filename_clean": "",
-                    "report_id": "",
-                    "post": "",
-                }
+                    dt_str = card["datetime_str"]
+                    pub_date = dt_str[:10].replace("-", "") if dt_str else ""
+                    category = title.split(":", 1)[1].strip() if ":" in title else title
 
-                lp_html = _get_html(sess, card["landing_url"])
-                if lp_html:
-                    lp = _parse_landing(lp_html)
-                    if lp:
-                        record.update(lp)
-                        if lp.get("category_from_file"):
-                            record["category"] = lp["category_from_file"]
+                    record: dict = {
+                        "landing_url": card["landing_url"],
+                        "title": title,
+                        "country_iso2": iso2,
+                        "category": category,
+                        "publication_date": pub_date,
+                        "pdf_url": "",
+                        "filename_clean": "",
+                        "report_id": "",
+                        "post": "",
+                    }
 
-                if record["pdf_url"]:
-                    records.append(record)
-                    page_hits += 1
-                    logger.info(
-                        "  [OK] %s  %s  %s",
-                        iso2, pub_date, record.get("report_id") or title,
-                    )
-                else:
-                    logger.warning("  [NO PDF] %s (%s)", title, card["landing_url"])
+                    lp_html = _get_html(sess, card["landing_url"])
+                    if lp_html:
+                        lp = _parse_landing(lp_html)
+                        if lp:
+                            record.update(lp)
+                            if lp.get("category_from_file"):
+                                record["category"] = lp["category_from_file"]
 
-                time.sleep(sleep_landing)
+                    if record["pdf_url"]:
+                        records.append(record)
+                        page_hits += 1
+                        logger.info(
+                            "  [OK] %s  %s  %s",
+                            iso2, pub_date, record.get("report_id") or title,
+                        )
+                    else:
+                        logger.warning("  [NO PDF] %s (%s)", title, card["landing_url"])
 
-            if max_empty > 0:
-                if page_hits == 0:
-                    empty_run += 1
-                    logger.info("  (no matches - empty run %d/%d)", empty_run, max_empty)
-                    if empty_run >= max_empty:
-                        logger.info("Early stop: %d consecutive empty pages.", max_empty)
-                        break
-                else:
-                    empty_run = 0
+                    time.sleep(sleep_landing)
 
-            if not _has_next_page(html):
-                break
+                if max_empty > 0:
+                    if page_hits == 0:
+                        empty_run += 1
+                        logger.info("  (no matches - empty run %d/%d)", empty_run, max_empty)
+                        if empty_run >= max_empty:
+                            logger.info("Early stop: %d consecutive empty pages.", max_empty)
+                            break
+                    else:
+                        empty_run = 0
 
-            page_num += 1
-            time.sleep(sleep_listing)
+                if not _has_next_page(html):
+                    break
+
+                page_num += 1
+                time.sleep(sleep_listing)
 
     logger.info("Crawl complete: %d records", len(records))
     return records
@@ -423,6 +468,8 @@ def main() -> None:
     parser.add_argument("--aws-region", required=True)
     parser.add_argument("--title-filter", default=None)
     parser.add_argument("--max-empty-pages", type=int, default=_MAX_EMPTY_PAGES)
+    parser.add_argument("--start-year", type=int, default=None)
+    parser.add_argument("--end-year", type=int, default=None)
     parser.add_argument("--sleep-seconds", type=float, default=2.0)
     parser.add_argument("--skip-existing-s3", action="store_true", default=True)
     parser.add_argument("--dry-run", action="store_true")
@@ -447,6 +494,8 @@ def main() -> None:
         target_iso2=target_iso2,
         title_filter=args.title_filter,
         max_empty_pages=args.max_empty_pages,
+        start_year=args.start_year,
+        end_year=args.end_year,
     )
     if not records:
         logger.warning("No records found for %s — exiting cleanly.", source_name)

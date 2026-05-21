@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-21T16-05-56.685127+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "wheat_historical",
+    "corn_historical"
+  ],
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-wheat-historical",
+      "job_id": "13ce419e-9a56-40f2-9692-015f98788423",
+      "commodity": "wheat_historical"
+    },
+    {
+      "job_name": "gain-backfill-corn-historical",
+      "job_id": "87858fe9-e5f9-4de6-a68c-80306828252b",
+      "commodity": "corn_historical"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-05-21T17-12-17.315882+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "rapeseed_historical"
+  ],
+  "task_count": 1,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-rapeseed-historical",
+      "job_id": null,
+      "commodity": "rapeseed_historical"
+    }
+  ]
+}
