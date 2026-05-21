@@ -66,7 +66,7 @@ def write_dead_letter(
             ContentType="application/json",
         )
         logger.warning("Dead-lettered %s → %s", original_key, dl_key)
-    except Exception:
+    except Exception:  # noqa: BLE001 — any S3 failure writing the dead-letter record is caught and logged; original error is preserved
         logger.exception(
             "Failed to write dead-letter record for %s (original error: %s)",
             original_key,

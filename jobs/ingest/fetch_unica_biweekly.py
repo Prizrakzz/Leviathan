@@ -196,7 +196,7 @@ async def _discover_bulletins_async(
                     except PlaywrightTimeout:
                         pass  # no submit button — likely auto-refreshes
                     await page.wait_for_load_state("networkidle", timeout=15_000)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001 — Playwright interactions can raise diverse exceptions; log and continue to next year
                     logger.warning("Playwright: failed to select year %s: %s", year, exc)
                     continue
 
@@ -239,7 +239,6 @@ async def _extract_current_bulletin(
         iframe_el = page.locator("iframe.iframe-doc, iframe[id^='iframe_doc']").first
         await iframe_el.wait_for(state="attached", timeout=8_000)
         iframe_src = await iframe_el.get_attribute("src") or ""
-        iframe_id = await iframe_el.get_attribute("id") or ""
     except PlaywrightTimeout:
         return None
 
@@ -249,8 +248,8 @@ async def _extract_current_bulletin(
         dl_href = (
             await page.locator("a[href*='download_media.php']").first.get_attribute("href")
         ) or ""
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception:  # noqa: BLE001 — download button may not exist; idM falls back to None
+        logger.debug("download_media.php link not found — idM will be None")
 
     idm_match = re.search(r"idM=(\d+)", dl_href)
     idm = idm_match.group(1) if idm_match else None
@@ -339,8 +338,8 @@ async def _extract_all_bulletins(
             try:
                 await bulletin_select.select_option(value=val)
                 await page.wait_for_load_state("networkidle", timeout=10_000)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception:  # noqa: BLE001 — option navigation may stall; extraction proceeds regardless
+                logger.debug("select_option/wait_for_load_state failed for val=%s year=%s", val, year)
             b = await _extract_current_bulletin(page, year)
             if b and b.get("idm"):
                 bulletins.append(b)
@@ -647,7 +646,7 @@ def main() -> None:
         except RuntimeError as exc:
             logger.error("Validation error for idm=%s: %s", idm, exc)
             errors += 1
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — unexpected error counted and logged; loop continues to remaining bulletins
             logger.error("Unexpected error for idm=%s: %s", idm, exc)
             errors += 1
 

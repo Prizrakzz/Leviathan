@@ -104,17 +104,6 @@ def transform_faostat_qcl_zip_to_bronze(
     fao_item_name: str,
     chunksize: int = 100_000,
 ) -> list[Path]:
-    """
-    Convert raw FAOSTAT QCL ZIP into bronze Parquet files.
-
-    Bronze rules:
-    - preserve source-shaped rows
-    - normalize column names
-    - keep source identifiers
-    - filter to the specified FAO item (fao_item_name)
-    - partition by year
-    """
-
     zip_path = Path(zip_path)
     output_dir = Path(output_dir)
 

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import NasaPowerPayload
 
 
 logger = get_logger(__name__)
@@ -26,12 +27,8 @@ def fetch_nasa_power_daily(
     parameters: list[str],
     community: str = "AG",
     output_format: str = "JSON",
-) -> dict[str, Any]:
-    """
-    Fetch daily NASA POWER point data.
-
-    start_date and end_date format: YYYYMMDD
-    """
+) -> NasaPowerPayload:
+    """start_date and end_date must be in YYYYMMDD format."""
 
     query_params = {
         "parameters": ",".join(parameters),
@@ -54,10 +51,10 @@ def fetch_nasa_power_daily(
     response = requests.get(base_url, params=query_params, timeout=60)
     response.raise_for_status()
 
-    return response.json()
+    return cast(NasaPowerPayload, response.json())
 
 
-def save_raw_json(payload: dict[str, Any], output_path: str | Path) -> None:
+def save_raw_json(payload: NasaPowerPayload, output_path: str | Path) -> None:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 

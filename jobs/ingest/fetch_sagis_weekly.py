@@ -68,6 +68,7 @@ Idempotency
 from __future__ import annotations
 
 import argparse
+import re
 import time
 from pathlib import Path
 from urllib.parse import unquote
@@ -93,7 +94,6 @@ _WP_API_URL = (
 )
 
 # Matches .xlsx and .xls links in the WordPress-rendered HTML.
-import re
 _EXCEL_LINK_RE = re.compile(
     r'(https://www\.sagis\.org\.za/wp-content/uploads/[^"]+\.xlsx?)',
     re.IGNORECASE,
@@ -377,7 +377,7 @@ def main() -> None:
             )
             uploaded += 1
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — any download, validation, or S3 error is logged; loop continues
             logger.error("Failed %s: %s", filename, exc)
             errors += 1
 

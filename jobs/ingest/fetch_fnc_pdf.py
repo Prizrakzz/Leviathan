@@ -66,7 +66,6 @@ import unicodedata
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Optional
 from urllib.parse import unquote
 
 import requests
@@ -216,7 +215,7 @@ def _cdx_scan(prefix: str, limit: int = 500) -> list[tuple[str, str]]:
         req = urllib.request.Request(api_url, headers={"User-Agent": _CDX_UA})
         with urllib.request.urlopen(req, context=_SSL_CTX, timeout=30) as resp:
             rows = json.loads(resp.read())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — any network error returns empty list; CDX scan is best-effort
         logger.warning("CDX scan failed for prefix %s: %s", prefix, exc)
         return []
 
@@ -235,7 +234,7 @@ def _cdx_scan(prefix: str, limit: int = 500) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 
-def _direct_get(url: str, session: requests.Session, timeout: int = 60) -> Optional[bytes]:
+def _direct_get(url: str, session: requests.Session, timeout: int = 60) -> bytes | None:
     """Attempt direct download from FNC server.
 
     WordPress on macOS-style filesystems stores filenames in NFD Unicode
@@ -251,12 +250,12 @@ def _direct_get(url: str, session: requests.Session, timeout: int = 60) -> Optio
         if resp.status_code == 200 and len(resp.content) > _MIN_PDF_BYTES:
             return resp.content
         logger.debug("Direct GET %s → HTTP %d", encoded_url[-60:], resp.status_code)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — any network error returns None; caller tries the next strategy
         logger.debug("Direct GET failed %s: %s", encoded_url[-60:], exc)
     return None
 
 
-def _wayback_get(original_url: str, ts: str, timeout: int = 60) -> Optional[bytes]:
+def _wayback_get(original_url: str, ts: str, timeout: int = 60) -> bytes | None:
     """Fetch via Wayback Machine using the `if_` modifier (raw response)."""
     wb_url = f"https://web.archive.org/web/{ts}if_/{original_url}"
     try:
@@ -265,7 +264,7 @@ def _wayback_get(original_url: str, ts: str, timeout: int = 60) -> Optional[byte
             data = resp.read()
             if data and len(data) > _MIN_PDF_BYTES:
                 return data
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — any network error returns None; caller tries the next strategy
         logger.debug("Wayback GET failed %s: %s", wb_url[-70:], exc)
     return None
 
@@ -348,7 +347,7 @@ def main() -> None:
     # -----------------------------------------------------------------------
 
     # candidates: list of (report_type, pdf_url, wayback_ts_or_None)
-    candidates: list[tuple[str, str, Optional[str]]] = []
+    candidates: list[tuple[str, str, str | None]] = []
     seen_originals: set[str] = set()
 
     # 1. Live pages
@@ -358,7 +357,7 @@ def main() -> None:
                 if url not in seen_originals:
                     seen_originals.add(url)
                     candidates.append((rtype, url, None))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — any scrape failure is logged; loop continues to the next page
             logger.error("Failed to scrape %s (%s): %s", page_key, page_url, exc)
         time.sleep(args.sleep_seconds)
 
@@ -408,7 +407,7 @@ def main() -> None:
                 continue
 
             # Prefer direct download; fall back to Wayback for historical.
-            pdf_bytes: Optional[bytes] = None
+            pdf_bytes: bytes | None = None
             if wayback_ts:
                 # Historical CDX entry — use Wayback first.
                 pdf_bytes = _wayback_get(pdf_url, wayback_ts)

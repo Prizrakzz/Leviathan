@@ -9,10 +9,7 @@ from __future__ import annotations
 import sys
 from unittest.mock import patch
 
-import pandas as pd
-import pytest
-
-from leviathan.common.base_jobs import _BaseGlueJob
+from leviathan.storage.base_jobs import _BaseGlueJob
 
 
 class _ConcreteJob(_BaseGlueJob):

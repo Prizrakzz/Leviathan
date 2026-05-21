@@ -183,7 +183,7 @@ def main() -> None:
             )
             uploaded += 1
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — any download or S3 upload failure is logged and counted; loop continues to the next entry
             logger.error(
                 "FAILED %do Safra %d (%s): %s", survey_no, safra_year, filename, exc
             )

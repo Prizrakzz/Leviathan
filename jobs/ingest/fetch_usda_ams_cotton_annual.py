@@ -380,7 +380,7 @@ def _upload_report(
         time.sleep(sleep_seconds)
         return "uploaded"
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — any download, validation, or S3 error is logged; caller checks return value
         logger.error("Failed season=%d (%s): %s", season_year, download_url, exc)
         time.sleep(sleep_seconds)
         return "error"

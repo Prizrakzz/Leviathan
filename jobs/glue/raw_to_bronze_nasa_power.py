@@ -10,25 +10,14 @@ Optional args: --ingest_date (default: today), --force_overwrite (default: false
 from __future__ import annotations
 
 import json
-import sys
 from datetime import date
 
-_bucket = next(
-    (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
-    None,
-)
-if _bucket is None:
-    raise RuntimeError("--bucket argument required for leviathan bootstrap")
-try:
-    from bootstrap import ensure_leviathan_installed
-    ensure_leviathan_installed(_bucket)
-except Exception as _exc:
-    print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
-    raise
+from bootstrap import run_bootstrap
+run_bootstrap()
 
 import pandas as pd
 
-from leviathan.common.base_jobs import BaseRawToBronzeJob
+from leviathan.storage.base_jobs import BaseRawToBronzeJob
 from leviathan.common.validation import load_schema, validate_raw_json
 from leviathan.storage.paths import bronze_weather_key, parse_hive_key
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe

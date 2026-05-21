@@ -49,7 +49,6 @@ import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from curl_cffi import requests as curl_requests
@@ -105,7 +104,7 @@ def _safra_to_crop_year(safra_year: int) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _detect_format(data: bytes) -> Optional[tuple[str, str]]:
+def _detect_format(data: bytes) -> tuple[str, str] | None:
     """Return (content_type, ext) if data starts with a known valid magic, else None."""
     for magic, fmt in _VALID_MAGICS.items():
         if data[:len(magic)] == magic:
@@ -118,7 +117,7 @@ def _detect_format(data: bytes) -> Optional[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 
-def _cdx_lookup(original_url: str, timeout: int = 20) -> Optional[str]:
+def _cdx_lookup(original_url: str, timeout: int = 20) -> str | None:
     """Return the best Wayback capture timestamp for an OlalaCMS file URL.
 
     Unlike the Joomla job we do NOT filter by mimetype:application/pdf because
@@ -137,7 +136,7 @@ def _cdx_lookup(original_url: str, timeout: int = 20) -> Optional[str]:
                 ts = row[0] if row else None
                 if ts and len(ts) >= 14 and ts[:14].isdigit():
                     return ts[:14]
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — any network/HTTP error returns None; caller tries the next strategy
         logger.debug("CDX lookup failed %s: %s", original_url[-60:], exc)
     return None
 
@@ -147,7 +146,7 @@ def _cdx_lookup(original_url: str, timeout: int = 20) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def _wayback_get(url: str, timeout: int = 90) -> Optional[bytes]:
+def _wayback_get(url: str, timeout: int = 90) -> bytes | None:
     """Fetch raw bytes from Wayback Machine via urllib."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": _UA})
@@ -155,14 +154,14 @@ def _wayback_get(url: str, timeout: int = 90) -> Optional[bytes]:
             data = resp.read()
             if data and len(data) > 512:
                 return data
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — any network/HTTP error returns None; caller tries the next strategy
         logger.debug("Wayback GET failed %s: %s", url[-70:], exc)
     return None
 
 
 def _direct_get(
     url: str, session: curl_requests.Session, timeout: int = 90
-) -> Optional[bytes]:
+) -> bytes | None:
     """Fetch directly from conab.gov.br using curl_cffi (TLS impersonation)."""
     try:
         resp = session.get(
@@ -170,16 +169,16 @@ def _direct_get(
         )
         if resp.status_code == 200 and len(resp.content) > 512:
             return resp.content
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — any network/HTTP error returns None; caller tries the next strategy
         logger.debug("Direct GET failed %s: %s", url[-70:], exc)
     return None
 
 
 def _download_bulletin(
     olalacms_url: str,
-    snap_ts: Optional[str],
+    snap_ts: str | None,
     session: curl_requests.Session,
-) -> tuple[Optional[bytes], Optional[str], Optional[str]]:
+) -> tuple[bytes | None, str | None, str | None]:
     """Try all download strategies for one OlalaCMS file.
 
     Returns (file_bytes, source_url, file_ext) on success, or
@@ -375,9 +374,6 @@ def main() -> None:
             olalacms_url  = entry["olalacms_url"]
             snap_ts       = entry.get("wayback_snap_ts")
             label         = f"safra {safra_year} month {pub_month:02d} ({crop_year})"
-
-            # Use .pdf as the default key to check S3 existence; actual ext may differ
-            s3_key_base = raw_conab_key(crop_year, survey_number)
 
             try:
                 if args.skip_existing_s3:

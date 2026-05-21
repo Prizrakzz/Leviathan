@@ -10,25 +10,14 @@ Optional args: --force_overwrite (default: false)
 """
 from __future__ import annotations
 
-import sys
 from typing import Iterable
 
-_bucket = next(
-    (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
-    None,
-)
-if _bucket is None:
-    raise RuntimeError("--bucket argument required for leviathan bootstrap")
-try:
-    from bootstrap import ensure_leviathan_installed
-    ensure_leviathan_installed(_bucket)
-except Exception as _exc:
-    print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
-    raise
+from bootstrap import run_bootstrap
+run_bootstrap()
 
 import pandas as pd
 
-from leviathan.common.base_jobs import BaseBronzeToSilverJob
+from leviathan.storage.base_jobs import BaseBronzeToSilverJob
 from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_weather_df
 
 

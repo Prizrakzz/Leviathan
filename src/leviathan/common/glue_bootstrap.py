@@ -38,7 +38,7 @@ def ensure_leviathan_installed(bucket: str) -> None:
                 [sys.executable, "-m", "pip", "install", whl, "--no-deps", "--quiet"]
             )
             return
-        except (subprocess.CalledProcessError, OSError, Exception):
+        except Exception:  # noqa: BLE001 — retry loop; raises on the third consecutive failure
             if attempt == 2:
                 raise
             if os.path.exists(whl):

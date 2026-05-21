@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import NasaPowerPayload
 
 
 logger = get_logger(__name__)
@@ -18,13 +18,8 @@ def parse_nasa_power_date(date_value: str) -> str:
     return datetime.strptime(date_value, "%Y%m%d").date().isoformat()
 
 
-def extract_parameter_data(payload: dict[str, Any]) -> dict[str, dict[str, float | int | None]]:
-    """
-    Extract NASA POWER parameter block.
-
-    Expected structure:
-    properties.parameter.<PARAMETER>.<YYYYMMDD> = value
-    """
+def extract_parameter_data(payload: NasaPowerPayload) -> dict[str, dict[str, float | int | None]]:
+    """Expected shape: ``properties.parameter.<PARAM>.<YYYYMMDD> = value``."""
     try:
         return payload["properties"]["parameter"]
     except KeyError as exc:
@@ -32,7 +27,7 @@ def extract_parameter_data(payload: dict[str, Any]) -> dict[str, dict[str, float
 
 
 def nasa_power_payload_to_daily_dataframe(
-    payload: dict[str, Any],
+    payload: NasaPowerPayload,
     source_file_name: str,
     commodity: str,
     country: str,
@@ -46,10 +41,10 @@ def nasa_power_payload_to_daily_dataframe(
     for values_by_date in parameter_data.values():
         all_dates.update(values_by_date.keys())
 
-    records: list[dict[str, Any]] = []
+    records: list[dict[str, str | int | float | None]] = []
 
     for raw_date in sorted(all_dates):
-        record: dict[str, Any] = {
+        record: dict[str, str | int | float | None] = {
             "date": parse_nasa_power_date(raw_date),
             "year": int(raw_date[:4]),
             "month": int(raw_date[4:6]),
@@ -84,15 +79,7 @@ def transform_nasa_power_json_to_bronze(
     region: str,
     ingest_date: str,
 ) -> Path:
-    """
-    Convert one raw NASA POWER JSON file into one bronze Parquet file.
-
-    Bronze rules:
-    - keep one row per region-date
-    - preserve source variable names as lowercase columns
-    - add metadata columns
-    - partition outside this function by country/region/year/month
-    """
+    """Partitioning by country/region/year/month is the caller's responsibility."""
     raw_json_path = Path(raw_json_path)
     output_base_dir = Path(output_base_dir)
 

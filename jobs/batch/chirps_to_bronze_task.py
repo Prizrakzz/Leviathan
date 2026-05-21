@@ -69,7 +69,7 @@ def _process_month(
     def _fetch_day(day: int) -> tuple[int, dict]:
         try:
             return day, fetch_chirps_daily_values(year, month, day, locations)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — any rasterio or network error skips this day; batch continues
             logger.warning(
                 "Failed to fetch %d-%02d-%02d: %s — skipping day",
                 year, month, day, exc,

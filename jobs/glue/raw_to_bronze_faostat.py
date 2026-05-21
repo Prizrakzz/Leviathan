@@ -20,18 +20,8 @@ from pathlib import Path
 
 from awsglue.utils import getResolvedOptions
 
-_bucket = next(
-    (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
-    None,
-)
-if _bucket is None:
-    raise RuntimeError("--bucket argument required for leviathan bootstrap")
-try:
-    from bootstrap import ensure_leviathan_installed
-    ensure_leviathan_installed(_bucket)
-except Exception as _exc:
-    print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
-    raise
+from bootstrap import run_bootstrap
+run_bootstrap()
 
 from leviathan.common.logging import get_logger
 from leviathan.storage.s3 import upload_file_to_s3

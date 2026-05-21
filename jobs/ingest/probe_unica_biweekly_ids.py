@@ -35,7 +35,7 @@ import urllib.parse
 import urllib.request
 
 from pathlib import Path
-from typing import Any
+from typing import TypedDict, cast
 
 import pdfplumber
 import yaml
@@ -43,6 +43,56 @@ import yaml
 from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Local TypedDicts
+# ---------------------------------------------------------------------------
+
+class _HeadCheckBase(TypedDict):
+    ok: bool
+    content_length: int
+
+
+class _HeadCheckResult(_HeadCheckBase, total=False):
+    content_type: str
+    content_disposition: str
+    error: str
+
+
+class _ClassifyResult(TypedDict):
+    is_bulletin: bool
+    harvest_year: str | None
+    bulletin_num: int | None
+    text_snippet: str
+
+
+class _ClassifiedEntryBase(TypedDict):
+    idm: str
+    wm_ts: str | None        # None for gap-fill entries
+    confirmed: bool
+    content_length: int
+    harvest_year: str | None
+    bulletin_num: int | None
+    published_ym: str | None  # None for gap-fill entries
+    download_url: str | None  # None for direct-PDF entries (no download_media.php idm)
+    pdf_url: str | None
+
+
+class _ClassifiedEntry(_ClassifiedEntryBase, total=False):
+    skip_reason: str
+    text_snippet: str
+    source: str  # "gap_fill" or "cdx_pdf" for non-CDX-download-media entries
+
+
+class _ManifestBulletin(TypedDict, total=False):
+    harvest_year: str | None
+    idm: str
+    bulletin_num: int | None
+    published_ym: str | None
+    pdf_url: str | None
+    download_url: str | None
+
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -132,7 +182,7 @@ def _cdx_query(limit: int = 500) -> list[dict[str, str]]:
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
-def _head_check(idm: str) -> dict[str, Any]:
+def _head_check(idm: str) -> _HeadCheckResult:
     """HEAD request to download_media.php.  Returns size info or error."""
     url = _DOWNLOAD_BASE + idm
     req = urllib.request.Request(url, headers={"User-Agent": _UA}, method="HEAD")
@@ -146,7 +196,7 @@ def _head_check(idm: str) -> dict[str, Any]:
                 "content_type": resp.headers.get("Content-Type", ""),
                 "content_disposition": resp.headers.get("Content-Disposition", ""),
             }
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — any HTTP error; returns structured error dict so caller can log and continue
         return {"ok": False, "error": str(exc), "content_length": 0}
 
 
@@ -158,7 +208,7 @@ def _download(idm: str) -> bytes | None:
         with urllib.request.urlopen(req, context=_SSL_CTX, timeout=60) as resp:
             data = resp.read()
         return data if data[:4] == b"%PDF" else None
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — any urllib/SSL error; returns None so caller skips this idm
         logger.debug("Download failed idm=%s: %s", idm, exc)
         return None
 
@@ -167,7 +217,7 @@ def _download(idm: str) -> bytes | None:
 # PDF classification
 # ---------------------------------------------------------------------------
 
-def _classify_pdf(pdf_bytes: bytes) -> dict[str, Any]:
+def _classify_pdf(pdf_bytes: bytes) -> _ClassifyResult:
     """Inspect page 1 of a PDF and determine if it is a UNICA bi-weekly bulletin.
 
     Returns a dict with:
@@ -182,7 +232,7 @@ def _classify_pdf(pdf_bytes: bytes) -> dict[str, Any]:
             for pg in pdf.pages[:2]:  # check cover + first data page
                 t = pg.extract_text() or ""
                 text += t + "\n"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — pdfplumber can raise diverse exceptions; returns structured error result
         return {
             "is_bulletin": False,
             "harvest_year": None,
@@ -212,13 +262,13 @@ def _classify_pdf(pdf_bytes: bytes) -> dict[str, Any]:
 # Classified JSON helpers
 # ---------------------------------------------------------------------------
 
-def _load_classified() -> list[dict[str, Any]]:
+def _load_classified() -> list[_ClassifiedEntry]:
     if not _CLASSIFIED_PATH.exists():
         return []
     return json.loads(_CLASSIFIED_PATH.read_text(encoding="utf-8"))
 
 
-def _save_classified(entries: list[dict[str, Any]]) -> None:
+def _save_classified(entries: list[_ClassifiedEntry]) -> None:
     _CLASSIFIED_PATH.write_text(
         json.dumps(entries, indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -229,12 +279,12 @@ def _save_classified(entries: list[dict[str, Any]]) -> None:
 # Manifest helpers (mirrors fetch_unica_biweekly._save_manifest)
 # ---------------------------------------------------------------------------
 
-def _load_manifest() -> list[dict[str, Any]]:
+def _load_manifest() -> list[_ManifestBulletin]:
     raw = yaml.safe_load(_MANIFEST_PATH.read_text(encoding="utf-8"))
     return (raw.get("bulletins") or []) if raw else []
 
 
-def _save_manifest(bulletins: list[dict[str, Any]]) -> None:
+def _save_manifest(bulletins: list[_ManifestBulletin]) -> None:
     original = _MANIFEST_PATH.read_text(encoding="utf-8")
     header_end = original.find("\nbulletins:")
     header = original[:header_end] if header_end != -1 else original
@@ -255,9 +305,9 @@ def _save_manifest(bulletins: list[dict[str, Any]]) -> None:
 
 
 def _merge_manifest(
-    existing: list[dict[str, Any]],
-    new_entries: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    existing: list[_ManifestBulletin],
+    new_entries: list[_ManifestBulletin],
+) -> list[_ManifestBulletin]:
     seen = {b["idm"] for b in existing if b.get("idm")}
     merged = list(existing)
     for b in new_entries:
@@ -458,7 +508,7 @@ def cmd_fill_gaps(sleep_s: float, step: int) -> None:
                 meta.get("harvest_year"), meta.get("bulletin_num"),
             )
 
-            entry: dict[str, Any] = {
+            entry: _ClassifiedEntry = {
                 "idm": idm_str,
                 "wm_ts": None,
                 "confirmed": meta["is_bulletin"],
@@ -576,7 +626,7 @@ def cmd_cdx_pdfs(sleep_s: float, cdx_limit: int = 500) -> None:
         try:
             with urllib.request.urlopen(req, context=_SSL_CTX, timeout=60) as resp:
                 pdf_bytes = resp.read()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — CDX download error; logged and loop continues to next entry
             logger.debug("CDX-PDF download failed %s: %s", pdf_url, exc)
             results.append({
                 "idm": idm_key,
@@ -676,7 +726,7 @@ def _harvest_year_from_published_ym(published_ym: str | None) -> str | None:
     return f"{yr}/{yr + 1}" if mo >= 4 else f"{yr - 1}/{yr}"
 
 
-def _resolve_harvest_year(entry: dict[str, Any]) -> str | None:
+def _resolve_harvest_year(entry: _ClassifiedEntry) -> str | None:
     """Return the best harvest_year for a classified entry.
 
     Priority:
@@ -715,7 +765,7 @@ def cmd_export() -> None:
         return
 
     # Resolve harvest_year using title-text then stored value then published_ym.
-    resolved: list[dict[str, Any]] = []
+    resolved: list[_ClassifiedEntry] = []
     for e in confirmed:
         hy = _resolve_harvest_year(e)
         if not hy:
@@ -726,7 +776,7 @@ def cmd_export() -> None:
                 "harvest_year corrected: idm=%s  %s → %s  (published_ym=%s)",
                 e.get("idm"), e.get("harvest_year"), hy, e.get("published_ym"),
             )
-        resolved.append({**e, "harvest_year": hy})
+        resolved.append(cast(_ClassifiedEntry, {**e, "harvest_year": hy}))
 
     manifest = _load_manifest()
     existing_idms = {b["idm"] for b in manifest if b.get("idm")}

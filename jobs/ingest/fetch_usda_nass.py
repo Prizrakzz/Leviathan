@@ -52,10 +52,10 @@ downloading anything.
 from __future__ import annotations
 
 import argparse
-import datetime
 import gzip
 import io
 import re
+import zlib
 
 import requests
 
@@ -154,7 +154,7 @@ def _validate_gz(data: bytes, source_url: str) -> None:
     try:
         with gzip.open(io.BytesIO(data)) as gz:
             head = gz.read(4096)
-    except Exception as exc:
+    except (OSError, EOFError, zlib.error) as exc:
         raise RuntimeError(
             f"Validation failed: could not decompress gzip header from {source_url}: {exc}"
         ) from exc
@@ -173,8 +173,6 @@ def _validate_gz(data: bytes, source_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    today = datetime.date.today().isoformat()
-
     parser = argparse.ArgumentParser(
         description=(
             "Download the USDA NASS QuickStats bulk crops .gz to raw S3. "

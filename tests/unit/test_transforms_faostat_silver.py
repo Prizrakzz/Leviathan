@@ -5,7 +5,6 @@ import pandas as pd
 import pytest
 
 from leviathan.transforms.bronze_to_silver.faostat_production import (
-    ELEMENT_TO_METRIC,
     transform_faostat_production_silver_df,
 )
 

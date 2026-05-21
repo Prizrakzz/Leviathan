@@ -6,15 +6,8 @@ without leviathan being installed first.
 
 Usage at the top of every Glue job script (before any leviathan imports):
 
-    import sys
-    _bucket = next(
-        (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
-        None,
-    )
-    if _bucket is None:
-        raise RuntimeError("--bucket argument required for leviathan bootstrap")
-    from bootstrap import ensure_leviathan_installed
-    ensure_leviathan_installed(_bucket)
+    from bootstrap import run_bootstrap
+    run_bootstrap()
 """
 from __future__ import annotations
 
@@ -54,3 +47,23 @@ def ensure_leviathan_installed(bucket: str) -> None:
             if os.path.exists(whl):
                 os.remove(whl)
             time.sleep(5 * (attempt + 1))
+
+
+def run_bootstrap() -> None:
+    """Extract ``--bucket`` from sys.argv, install the leviathan wheel, and return.
+
+    Call this at the top of every Glue job script before importing any
+    leviathan code.  On error, prints a ``[BOOTSTRAP ERROR]`` diagnostic
+    and re-raises so the Glue job fails with a non-zero exit status.
+    """
+    bucket = next(
+        (sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--bucket" and i + 1 < len(sys.argv)),
+        None,
+    )
+    if bucket is None:
+        raise RuntimeError("--bucket argument required for leviathan bootstrap")
+    try:
+        ensure_leviathan_installed(bucket)
+    except Exception as _exc:  # noqa: BLE001 — catch-log-reraise: print diagnostic before re-raising any installation failure
+        print(f"[BOOTSTRAP ERROR] {type(_exc).__name__}: {_exc}", flush=True)
+        raise

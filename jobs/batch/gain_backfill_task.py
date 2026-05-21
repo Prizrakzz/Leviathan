@@ -24,16 +24,12 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import json
 import random
 import re
 import time
-from io import BytesIO
-from pathlib import Path
 from urllib.parse import unquote, urljoin
 
 import boto3
-import yaml
 from bs4 import BeautifulSoup
 from curl_cffi import requests as cr
 
@@ -85,7 +81,7 @@ COUNTRY_NAME_TO_ISO2: dict[str, str] = {
     "germany": "DE", "poland": "PL", "turkey": "TR", "türkiye": "TR",
     "turkiye": "TR", "south africa": "ZA", "nigeria": "NG", "thailand": "TH",
     "ghana": "GH", "paraguay": "PY", "bolivia": "BO", "ecuador": "EC",
-    "uzbekistan": "UZ", "vietnam": "VN",
+    "uzbekistan": "UZ",
     # Oilseeds / palm oil
     "malaysia": "MY",
     # Additional
@@ -131,7 +127,7 @@ def _get_html(sess: cr.Session, url: str, retries: int = 3) -> str | None:
                 time.sleep(backoff)
             else:
                 return None
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — retry loop: any HTTP or parse error retried up to max retries
             if attempt == retries:
                 logger.error("Failed %s: %s", url, exc)
                 return None
@@ -447,7 +443,7 @@ def upload_pdfs(
                 )
                 uploaded += 1
                 logger.info("Uploaded s3://%s/%s", bucket, key)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — any download, size-check or S3 upload error is logged; loop continues
                 logger.error("Failed %s: %s", pdf_url, exc)
                 failed += 1
 

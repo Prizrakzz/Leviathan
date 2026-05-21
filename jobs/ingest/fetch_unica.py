@@ -204,7 +204,7 @@ def main() -> None:
             )
             uploaded += 1
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — any download, validation, or S3 error is logged; loop continues
             logger.error("Failed harvest_year=%s: %s", harvest_year, exc)
             errors += 1
 

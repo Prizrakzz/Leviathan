@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import os
-from typing import Any
 
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import Region
 
 # GDAL/vsicurl settings — must be applied before rasterio is imported.
 # These tell the GDAL HTTP driver to skip directory enumeration (expensive on
@@ -34,7 +34,7 @@ def fetch_chirps_daily_values(
     year: int,
     month: int,
     day: int,
-    locations: list[dict[str, Any]],
+    locations: list[Region],
 ) -> dict[str, float | None]:
     """Extract daily CHIRPS precipitation (mm) for each named location.
 
@@ -71,7 +71,7 @@ def fetch_chirps_daily_values(
 )
 def _read_cog_values(
     url: str,
-    locations: list[dict[str, Any]],
+    locations: list[Region],
 ) -> dict[str, float | None]:
     """Open one COG URL and read one pixel per location via HTTP range requests."""
     logger.info("CHIRPS COG range-read: %s (%d locations)", url, len(locations))
@@ -90,7 +90,7 @@ def _read_cog_values(
                     continue
                 value = float(src.read(1, window=Window(col, row, 1, 1))[0, 0])
                 result[region] = None if value == nodata else value
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — rasterio pixel read can raise diverse exceptions; log and set None
                 logger.warning("Pixel read failed for region=%s: %s", region, exc)
                 result[region] = None
 

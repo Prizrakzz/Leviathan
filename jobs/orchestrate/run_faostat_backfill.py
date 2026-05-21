@@ -109,7 +109,6 @@ def poll_stage(
 def run_stage(
     glue,
     job_name: str,
-    start_fn,
     commodities: list[str],
     dry_run: bool,
     force_overwrite: bool = False,
@@ -191,7 +190,7 @@ def main() -> None:
         r2b_results = {c: "SKIPPED" for c in commodities}
         b2s_commodities = list(commodities)
     else:
-        r2b_results = run_stage(glue, R2B_JOB, _start_r2b, commodities, args.dry_run)
+        r2b_results = run_stage(glue, R2B_JOB, commodities, args.dry_run)
         r2b_failed = [c for c, s in r2b_results.items() if s != "SUCCEEDED"]
         if r2b_failed:
             print(f"\nWARNING: {len(r2b_failed)} raw→bronze jobs failed: {r2b_failed}")
@@ -200,7 +199,7 @@ def main() -> None:
 
     # Stage 2: bronze → silver
     b2s_results = run_stage(
-        glue, B2S_JOB, _start_b2s, b2s_commodities, args.dry_run,
+        glue, B2S_JOB, b2s_commodities, args.dry_run,
         force_overwrite=args.force_overwrite,
     )
     # Summary

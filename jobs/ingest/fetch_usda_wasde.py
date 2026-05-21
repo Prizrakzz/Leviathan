@@ -211,7 +211,7 @@ def _build_manifest_entries(
                 len(page_entries),
                 len(all_entries),
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — per-page scrape error; loop continues to remaining pages
             logger.warning("Failed to scrape page %d: %s — continuing", page_num, exc)
         if page_num < _ESMIS_PAGE_COUNT - 1:
             time.sleep(sleep_seconds)
@@ -303,12 +303,7 @@ def _validate_txt(data: bytes, url: str) -> None:
         raise RuntimeError(
             f"TXT response too short ({len(data)} bytes) from {url}"
         )
-    try:
-        head = data[:16384].decode("latin-1")
-    except Exception as exc:
-        raise RuntimeError(
-            f"TXT response is not decodable as text from {url}: {exc}"
-        ) from exc
+    head = data[:16384].decode("latin-1")
 
     markers = ("WORLD AGRICULTURAL", "OUTLOOK FOR", "SUPPLY AND DEMAND", "WASDE")
     if not any(marker in head.upper() for marker in markers):
@@ -385,7 +380,7 @@ def _upload_entry(
         time.sleep(sleep_seconds)
         return "uploaded"
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — any download, validation, or S3 error is logged; caller accumulates failures
         logger.error("Failed %s (%s): %s", release_date, url, exc)
         time.sleep(sleep_seconds)
         return "error"

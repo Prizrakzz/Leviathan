@@ -28,11 +28,16 @@ from __future__ import annotations
 
 import datetime
 import json
-from typing import Any
 
 import pandas as pd
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import (
+    QualityReport,
+    QualityReportHardFailures,
+    QualityReportWarnings,
+    RangeViolation,
+)
 
 logger = get_logger(__name__)
 
@@ -124,7 +129,7 @@ def check_deduplication(df: pd.DataFrame) -> int:
     return int(df.duplicated(subset=key_cols).sum())
 
 
-def check_value_ranges(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
+def check_value_ranges(df: pd.DataFrame) -> dict[str, RangeViolation]:
     """Return per-variable range-violation summaries for the silver long format.
 
     Only variables that have out-of-range rows are included in the result.
@@ -133,7 +138,7 @@ def check_value_ranges(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     """
     if "variable" not in df.columns or "value" not in df.columns:
         return {}
-    violations: dict[str, dict[str, Any]] = {}
+    violations: dict[str, RangeViolation] = {}
     for variable, (low, high) in SILVER_VARIABLE_RANGES.items():
         subset = df.loc[df["variable"] == variable, "value"].dropna()
         if subset.empty:
@@ -175,7 +180,7 @@ def run_silver_quality_checks(
     commodity: str,
     source: str,
     expected_countries: list[str] | None = None,
-) -> dict[str, Any]:
+) -> QualityReport:
     """Run all silver quality checks and return a structured quality report dict.
 
     The report is always returned (even on failure) so the caller can persist it
@@ -192,41 +197,43 @@ def run_silver_quality_checks(
     Returns:
         Quality report dict suitable for JSON serialisation.
     """
-    report: dict[str, Any] = {
+    hard_failures: QualityReportHardFailures = {}
+    warnings_dict: QualityReportWarnings = {}
+    report: QualityReport = {
         "commodity": commodity,
         "source": source,
         "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "row_count": len(df),
         "passed": True,
-        "hard_failures": {},
-        "warnings": {},
+        "hard_failures": hard_failures,
+        "warnings": warnings_dict,
     }
 
     # ---- Hard checks --------------------------------------------------------
     missing_cols = check_required_columns(df)
     if missing_cols:
-        report["hard_failures"]["missing_columns"] = missing_cols
+        hard_failures["missing_columns"] = missing_cols
         report["passed"] = False
 
     null_counts = check_required_nulls(df)
     if null_counts:
-        report["hard_failures"]["required_nulls"] = null_counts
+        hard_failures["required_nulls"] = null_counts
         report["passed"] = False
 
     dtype_issues = check_data_types(df)
     if dtype_issues:
-        report["hard_failures"]["dtype_mismatch"] = dtype_issues
+        hard_failures["dtype_mismatch"] = dtype_issues
         report["passed"] = False
 
     dup_count = check_deduplication(df)
     if dup_count > 0:
-        report["hard_failures"]["duplicate_natural_keys"] = dup_count
+        hard_failures["duplicate_natural_keys"] = dup_count
         report["passed"] = False
 
     # ---- Soft checks --------------------------------------------------------
     range_violations = check_value_ranges(df)
     if range_violations:
-        report["warnings"]["range_violations"] = range_violations
+        warnings_dict["range_violations"] = range_violations
         for var, info in range_violations.items():
             logger.warning(
                 "[%s/%s] Range violation: '%s' has %d out-of-range values "
@@ -240,7 +247,7 @@ def run_silver_quality_checks(
     if expected_countries:
         missing_entities = check_expected_entities(df, expected_countries)
         if missing_entities:
-            report["warnings"]["missing_countries"] = missing_entities
+            warnings_dict["missing_countries"] = missing_entities
             logger.warning(
                 "[%s/%s] Expected countries absent from silver output: %s",
                 source, commodity, missing_entities,
@@ -254,7 +261,7 @@ def run_silver_quality_checks(
 # ---------------------------------------------------------------------------
 
 def write_quality_report_to_s3(
-    report: dict[str, Any],
+    report: QualityReport,
     bucket: str,
     source: str,
     commodity: str,
@@ -289,6 +296,6 @@ def write_quality_report_to_s3(
             ContentType="application/json",
         )
         logger.info("Wrote silver quality report: s3://%s/%s", bucket, key)
-    except Exception:
+    except Exception:  # noqa: BLE001 — non-critical S3 write; any failure is logged but does not abort the job
         logger.exception("Failed to write silver quality report for %s/%s — continuing", source, commodity)
     return key

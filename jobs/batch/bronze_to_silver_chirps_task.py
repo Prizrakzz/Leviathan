@@ -16,7 +16,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from leviathan.common.base_jobs import BaseBronzeToSilverJob
+from leviathan.storage.base_jobs import BaseBronzeToSilverJob
 from leviathan.transforms.bronze_to_silver.chirps_weather import chirps_bronze_to_silver
 
 

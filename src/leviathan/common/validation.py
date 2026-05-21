@@ -16,22 +16,15 @@ Usage
 from __future__ import annotations
 
 import importlib.resources as pkg_resources
-import sys
-from typing import Any
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
+from typing import cast
 
 import pandas as pd
 import yaml
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import SchemaDict
 
 logger = get_logger(__name__)
-
-SchemaDict: TypeAlias = dict[str, Any]
 
 
 class SchemaValidationError(Exception):
@@ -57,7 +50,7 @@ def load_schema(source: str) -> SchemaDict:
             .joinpath(schema_file)
             .read_text(encoding="utf-8")
         )
-        return yaml.safe_load(text)
+        return cast(SchemaDict, yaml.safe_load(text))
     except (FileNotFoundError, TypeError) as exc:
         raise SchemaValidationError(
             f"No schema defined for source '{source}' — expected file: {schema_file}"
@@ -65,7 +58,7 @@ def load_schema(source: str) -> SchemaDict:
 
 
 def validate_raw_json(
-    payload: SchemaDict,
+    payload: dict[str, object],
     schema: SchemaDict,
     context: str = "",
 ) -> None:

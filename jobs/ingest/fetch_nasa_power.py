@@ -228,7 +228,7 @@ def main() -> None:
                     if args.sleep_seconds > 0:
                         sleep(args.sleep_seconds)
 
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — any download or upload error is logged; loop continues to the next station
                     failure_count += 1
                     record["status"] = "failed"
                     record["error"] = str(exc)
