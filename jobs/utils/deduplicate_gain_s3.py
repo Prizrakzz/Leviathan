@@ -57,8 +57,9 @@ ALL_GAIN_COMMODITIES = [
     "coffee",
 ]
 
-# e.g. "AR2026-0006" in a PDF filename
-_REPORT_ID_RE = re.compile(r"\b([A-Z]{2}\d{4}-\d{4})\b")
+# e.g. "AR2026-0006" in a PDF filename.
+# Note: no \b anchors — underscore is \w so \b doesn't trigger after "_AR..."
+_REPORT_ID_RE = re.compile(r"([A-Z]{2}\d{4}-\d{4})")
 # e.g. "publication_date=20260401" in an S3 key path
 _PUB_DATE_RE = re.compile(r"publication_date=(\d{8})")
 
