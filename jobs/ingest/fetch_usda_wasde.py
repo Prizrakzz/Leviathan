@@ -310,7 +310,7 @@ def _validate_txt(data: bytes, url: str) -> None:
             f"TXT response is not decodable as text from {url}: {exc}"
         ) from exc
 
-    markers = ("WORLD AGRICULTURAL", "OUTLOOK FOR", "SUPPLY AND DEMAND")
+    markers = ("WORLD AGRICULTURAL", "OUTLOOK FOR", "SUPPLY AND DEMAND", "WASDE")
     if not any(marker in head.upper() for marker in markers):
         raise RuntimeError(
             f"TXT response from {url} missing expected WASDE header markers. "

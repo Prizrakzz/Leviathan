@@ -1,0 +1,49 @@
+{
+  "run_id": "2026-05-21T10-58-17.726602+00-00",
+  "source": "usda_wasde",
+  "task_count": 6,
+  "tasks": [
+    {
+      "job_name": "wasde-backfill-1973-1983",
+      "job_id": "a4239ab4-291c-499c-8546-12f239b2e2c3",
+      "name": "wasde-backfill-1973-1983",
+      "year_from": 1973,
+      "year_to": 1983
+    },
+    {
+      "job_name": "wasde-backfill-1984-1994",
+      "job_id": "c93823e8-28b5-42b0-abdf-91534c4c98b5",
+      "name": "wasde-backfill-1984-1994",
+      "year_from": 1984,
+      "year_to": 1994
+    },
+    {
+      "job_name": "wasde-backfill-1995-1999",
+      "job_id": "20122604-3399-4baf-bda2-1c01c1a68c57",
+      "name": "wasde-backfill-1995-1999",
+      "year_from": 1995,
+      "year_to": 1999
+    },
+    {
+      "job_name": "wasde-backfill-2000-2009",
+      "job_id": "c809c2de-3fe4-4d69-b0cd-7f3d92a01553",
+      "name": "wasde-backfill-2000-2009",
+      "year_from": 2000,
+      "year_to": 2009
+    },
+    {
+      "job_name": "wasde-backfill-2010-2019",
+      "job_id": "35455447-0663-4f1b-99e7-2bd5925174ac",
+      "name": "wasde-backfill-2010-2019",
+      "year_from": 2010,
+      "year_to": 2019
+    },
+    {
+      "job_name": "wasde-backfill-2020-2026",
+      "job_id": "a7f873c8-2dd0-455a-b428-f099d8314352",
+      "name": "wasde-backfill-2020-2026",
+      "year_from": 2020,
+      "year_to": 2026
+    }
+  ]
+}
