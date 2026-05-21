@@ -1,6 +1,12 @@
 [
   {
     "safra_year": 2026,
+    "survey_no": 2,
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2026/site_previsao-de-safra-cafe-mai-2026.xls",
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2026/2o-levantamento-de-cafe-safra-2026"
+  },
+  {
+    "safra_year": 2026,
     "survey_no": 1,
     "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2026/site_previsao-de-safra-cafe-fev-2026.xls",
     "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2026/1o-levantamento-de-cafe-safra-2026"

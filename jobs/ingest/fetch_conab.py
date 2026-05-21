@@ -44,7 +44,7 @@ _PDF_MAGIC = b"%PDF"
 _IMPERSONATE = "chrome124"
 
 _MANIFEST_PATH = (
-    Path(__file__).parent.parent / "configs" / "sources" / "conab_archive.yaml"
+    Path(__file__).parent.parent.parent / "configs" / "sources" / "conab_archive.yaml"
 )
 
 
