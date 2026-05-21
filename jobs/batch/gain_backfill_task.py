@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import random
 import re
 import time
 from io import BytesIO
@@ -46,7 +47,7 @@ logger = get_logger("gain_backfill_task")
 # Constants
 # ---------------------------------------------------------------------------
 
-_IMPERSONATE = "chrome124"
+_IMPERSONATE = "chrome136"
 _BASE_URL = "https://fas.usda.gov"
 _SEARCH_BASE = (
     "https://fas.usda.gov/data/search"
@@ -460,6 +461,12 @@ def upload_pdfs(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    # Stagger concurrent container startups so they don't all hit the same
+    # Akamai-protected endpoint at the exact same moment.
+    _jitter = random.uniform(30, 180)
+    logger.info("Startup jitter: sleeping %.0fs before first request", _jitter)
+    time.sleep(_jitter)
+
     parser = argparse.ArgumentParser(description="GAIN Fargate backfill task.")
     parser.add_argument("--commodity-name", required=True)
     parser.add_argument("--commodity-id", type=int, default=None)

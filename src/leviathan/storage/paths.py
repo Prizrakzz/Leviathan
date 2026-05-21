@@ -527,6 +527,27 @@ def raw_nass_crops_key(download_date: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# USDA WAP (World Agricultural Production)
+# ---------------------------------------------------------------------------
+
+def raw_wap_key(release_month: str) -> str:
+    """S3 key for a USDA FAS World Agricultural Production monthly PDF.
+
+    One file per calendar month; the filename is always ``production.pdf``
+    (matching the CDN source).
+
+    Args:
+        release_month: ``YYYY-MM``, e.g. ``"2026-05"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_wap/"
+        f"release_month={release_month}/"
+        f"production.pdf"
+    )
+
+
+# ---------------------------------------------------------------------------
 # USDA WASDE
 # ---------------------------------------------------------------------------
 

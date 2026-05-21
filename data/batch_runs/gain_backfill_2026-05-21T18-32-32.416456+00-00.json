@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-05-21T18-32-32.416456+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "corn_historical"
+  ],
+  "task_count": 1,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-corn-historical",
+      "job_id": "9bd19013-0817-43ba-99ab-121c1ae37ceb",
+      "commodity": "corn_historical"
+    }
+  ]
+}
