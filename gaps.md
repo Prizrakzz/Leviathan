@@ -247,27 +247,20 @@ foreach ($yr in @("2021_2022","2022_2023","2023_2024","2024_2025","2025_2026")) 
 
 ---
 
-### P1-E · UNICA Biweekly — 2021/22 Season
+### P1-E · UNICA Biweekly — 2021/22 Season ✅ CLOSED — Permanently Unavailable
 
-**Gap**: 2021/2022 season in config but absent from S3.
+**Finding**: Exhaustive search confirmed 2021/22 biweekly bulletins are inaccessible from all sources:
+- Wayback Machine CDX has **zero** `arquivos/pdfs/2021/` or `2022/01-03/` entries.
+- The two `download_media.php` IDs captured by Wayback during the 2021/22 window (2022-01-20)
+  both return empty responses — the files were deleted from the live server.
+- The UNICADATA listing page (`listagem.php?idMn=63`) now shows only the most recent bulletin
+  with **no harvest-year dropdown** — no historical navigation exists at all.
 
-**Commands**:
-```bash
-# Discover bulletin URLs for the missing season (requires Playwright)
-python jobs/ingest/fetch_unica_biweekly.py --discover --harvest-years "2021/2022"
+**Resolution**: Removed `"2021/2022"` from `configs/sources/unica_biweekly_sources.yaml`.
+The Playwright timeout was improved (30s networkidle → 60s domcontentloaded + 5s settle)
+as a side-effect fix.
 
-# Upload discovered PDFs
-python jobs/ingest/fetch_unica_biweekly.py --skip-existing-s3
-```
-
-**Expected outcome**: ~20 fortnightly bulletins for 2021/22 (April–November 2021 milling season).
-
-**Verification**:
-```powershell
-$bw = aws s3 ls "s3://leviathan-dev-shahem-001/raw/production/source=unica_biweekly/harvest_year=2021_2022/" --recursive --region us-east-1 2>&1
-Write-Host "2021/22 biweekly bulletins: $($bw.Count)  (expect ~20)"
-$bw | ForEach-Object { Write-Host "  $_" }
-```
+**Note**: `unica_biweekly_sources.yaml` note updated; manifest unchanged (no 2021/22 entries).
 
 ---
 

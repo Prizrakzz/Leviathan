@@ -73,7 +73,7 @@ _PDF_MAGIC = b"%PDF"
 _MIN_PDF_BYTES = 50_000  # real bulletins are ~2.8 MB; require at least 50 KB
 
 _REQUEST_TIMEOUT_S = 60
-_PLAYWRIGHT_TIMEOUT_MS = 30_000
+_PLAYWRIGHT_TIMEOUT_MS = 60_000
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +138,9 @@ async def _discover_bulletins_async(
         page = await browser.new_page()
 
         logger.info("Playwright: navigating to %s", _LISTING_URL)
-        await page.goto(_LISTING_URL, wait_until="networkidle", timeout=_PLAYWRIGHT_TIMEOUT_MS)
+        await page.goto(_LISTING_URL, wait_until="domcontentloaded", timeout=_PLAYWRIGHT_TIMEOUT_MS)
+        # Give JS-rendered content extra time to settle after initial load
+        await page.wait_for_timeout(5_000)
 
         # ------------------------------------------------------------------
         # Attempt to find a harvest-year filter <select> element.
