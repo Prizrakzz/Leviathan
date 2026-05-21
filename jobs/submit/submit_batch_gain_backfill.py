@@ -43,9 +43,9 @@ COMMODITIES: list[dict] = [
     # Soybean meal: commodity_id 13021 is too granular (rarely tagged); use general oilseeds ID 27 + title filter
     {"name": "soybean_meal", "commodity_id": "27", "countries": "US,AR,BR,CN,IN,ID,PH,VN,TH,MX,DE,NL,PY,BD,KR,JP,EG,CO",   "title_filter": "oilseeds"},
     # OJ / citrus: 13014 is wrong (generic catchall) — use title-filter on all GAIN reports
-    {"name": "orange_juice", "commodity_id": None,    "countries": "BR,US,MX,ZA,AR,TR,EG,IN,CN,ES,NG,AU,PK", "title_filter": "citrus", "max_empty_pages": 200},
+    {"name": "orange_juice", "commodity_id": None,    "countries": "BR,US,MX,ZA,AR,TR,EG,IN,CN,ES,NG,AU,PK", "title_filter": "citrus", "max_empty_pages": 2000},
     # Cocoa has no FAS taxonomy ID — uses title-filter; needs many pages to find scattered reports
-    {"name": "cocoa",        "commodity_id": None,    "countries": "CI,GH,CM,NG,ID,EC,PE,BR,DO,MX,IN,DE,NL", "title_filter": "cocoa", "max_empty_pages": 200},
+    {"name": "cocoa",        "commodity_id": None,    "countries": "CI,GH,CM,NG,ID,EC,PE,BR,DO,MX,IN,DE,NL", "title_filter": "cocoa", "max_empty_pages": 2000},
 ]
 
 
