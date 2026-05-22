@@ -505,6 +505,15 @@ resource "aws_batch_job_definition" "gain_backfill" {
     attempt_duration_seconds = 21600  # 6 h ceiling
   }
 
+  retry_strategy {
+    attempts = 3
+
+    evaluate_on_exit {
+      on_exit_code = "137"
+      action       = "RETRY"
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
