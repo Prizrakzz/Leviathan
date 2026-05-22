@@ -1,0 +1,49 @@
+{
+  "run_id": "2026-05-22T00-52-06.703711+00-00",
+  "source": "usda_wap",
+  "task_count": 6,
+  "tasks": [
+    {
+      "job_name": "wap-backfill-2002-2006",
+      "job_id": "6157f603-b88b-401b-9e99-3276b28aaec5",
+      "name": "wap-backfill-2002-2006",
+      "year_from": 2002,
+      "year_to": 2006
+    },
+    {
+      "job_name": "wap-backfill-2007-2010",
+      "job_id": "da69f175-ec80-4f5d-8168-894547c062b8",
+      "name": "wap-backfill-2007-2010",
+      "year_from": 2007,
+      "year_to": 2010
+    },
+    {
+      "job_name": "wap-backfill-2011-2014",
+      "job_id": "a37ddaaa-640e-41df-9f76-b92adf0508eb",
+      "name": "wap-backfill-2011-2014",
+      "year_from": 2011,
+      "year_to": 2014
+    },
+    {
+      "job_name": "wap-backfill-2015-2018",
+      "job_id": "0a5a035e-92ee-4624-baf1-e8c4f3c6d4e5",
+      "name": "wap-backfill-2015-2018",
+      "year_from": 2015,
+      "year_to": 2018
+    },
+    {
+      "job_name": "wap-backfill-2019-2022",
+      "job_id": "d88aa08f-9759-4333-8d95-777f1e61c62a",
+      "name": "wap-backfill-2019-2022",
+      "year_from": 2019,
+      "year_to": 2022
+    },
+    {
+      "job_name": "wap-backfill-2023-2026",
+      "job_id": "f90768f2-ce8a-4e40-b206-b5a22a200a81",
+      "name": "wap-backfill-2023-2026",
+      "year_from": 2023,
+      "year_to": 2026
+    }
+  ]
+}

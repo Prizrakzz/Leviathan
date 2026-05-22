@@ -1,0 +1,75 @@
+{
+  "run_id": "2026-05-22T09-24-10.092707+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "corn",
+    "corn_historical",
+    "soybean_oil_historical",
+    "soybean_meal_historical",
+    "palm_oil",
+    "palm_oil_my",
+    "rapeseed_historical",
+    "rice_historical",
+    "cocoa",
+    "coffee",
+    "coffee_historical"
+  ],
+  "task_count": 11,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-corn",
+      "job_id": "83336584-b7a1-4017-a2cc-c6688c312bdb",
+      "commodity": "corn"
+    },
+    {
+      "job_name": "gain-backfill-corn-historical",
+      "job_id": "70605513-d94f-410a-afae-df755d56b046",
+      "commodity": "corn_historical"
+    },
+    {
+      "job_name": "gain-backfill-soybean-oil-historical",
+      "job_id": "615532e1-b0ba-4ff6-a49d-f1d2bd5b5e50",
+      "commodity": "soybean_oil_historical"
+    },
+    {
+      "job_name": "gain-backfill-soybean-meal-historical",
+      "job_id": "74c4eb52-1dbe-4787-9ad5-abc56c8d5965",
+      "commodity": "soybean_meal_historical"
+    },
+    {
+      "job_name": "gain-backfill-palm-oil",
+      "job_id": "307c5ce1-75c8-4d32-b35c-67e571f873cd",
+      "commodity": "palm_oil"
+    },
+    {
+      "job_name": "gain-backfill-palm-oil-my",
+      "job_id": "9641e2aa-544b-4adb-a62d-269be9568c8c",
+      "commodity": "palm_oil_my"
+    },
+    {
+      "job_name": "gain-backfill-rapeseed-historical",
+      "job_id": "5710b344-ca6f-44a2-a86a-f272e59da02f",
+      "commodity": "rapeseed_historical"
+    },
+    {
+      "job_name": "gain-backfill-rice-historical",
+      "job_id": "bead591a-30a8-4ee2-8864-9b22066f66fd",
+      "commodity": "rice_historical"
+    },
+    {
+      "job_name": "gain-backfill-cocoa",
+      "job_id": "8147d6e3-476a-4cf1-82fa-88d9303ef543",
+      "commodity": "cocoa"
+    },
+    {
+      "job_name": "gain-backfill-coffee",
+      "job_id": "ac9541e0-b295-4c39-b821-c2af91e89245",
+      "commodity": "coffee"
+    },
+    {
+      "job_name": "gain-backfill-coffee-historical",
+      "job_id": "2d319073-e8b0-4278-b15f-64af241f6715",
+      "commodity": "coffee_historical"
+    }
+  ]
+}

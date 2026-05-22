@@ -39,8 +39,8 @@ COMMODITIES: list[dict] = [
     {"name": "soybean_oil_historical",  "source_name": "soybean_oil", "commodity_id": None, "countries": "AR,BR,US,CN,IN,ID,PH,VN,PY,MY,MX,TH,DE,NL",     "title_filter": "oilseeds and products annual", "start_year": 2000, "end_year": 2026},
     {"name": "soybean_meal_historical", "source_name": "soybean_meal","commodity_id": None, "countries": "US,AR,BR,CN,IN,ID,PH,VN,TH,MX,DE,NL,PY,BD,KR,JP","title_filter": "oilseeds and products annual", "start_year": 2000, "end_year": 2026},
     {"name": "palm_oil",    "commodity_id": "13023", "countries": "ID,TH,CO,NG,CM,GH"},
-    # Malaysia KL post files under commodity_id=27 (oilseeds) — NOT under 13023; probe confirmed this
-    {"name": "palm_oil",    "commodity_id": "27",    "countries": "MY", "title_filter": "oilseeds"},
+    # Malaysia KL posts under commodity_id=27 (oilseeds) — NOT under 13023; probe confirmed this
+    {"name": "palm_oil_my", "source_name": "palm_oil", "commodity_id": "27", "countries": "MY", "title_filter": "oilseeds"},
     {"name": "sugar",       "commodity_id": "34",    "countries": "BR,IN,TH,AU,CO,MX,ID,PH,EC"},
     {"name": "cotton",      "commodity_id": "6",     "countries": "US,IN,CN,BR,AU,PK,UZ"},
     {"name": "rapeseed",    "commodity_id": "28",    "countries": "CA,AU,FR,CN,DE,UA,PL"},
@@ -57,6 +57,9 @@ COMMODITIES: list[dict] = [
     {"name": "orange_juice", "commodity_id": None,    "countries": "BR,US,MX,ZA,AR,TR,EG,IN,CN,ES,NG,AU,PK", "title_filter": "citrus", "max_empty_pages": 2000},
     # Cocoa has no FAS taxonomy ID — uses title-filter; needs many pages to find scattered reports
     {"name": "cocoa",        "commodity_id": None,    "countries": "CI,GH,CM,NG,ID,EC,PE,BR,DO,MX,IN,DE,NL", "title_filter": "cocoa", "max_empty_pages": 2000},
+    # Coffee: no FAS taxonomy ID — title-filter across 14 origin countries (matches fetch_gain_coffee.py)
+    {"name": "coffee",            "commodity_id": None, "countries": "BR,CO,VN,ET,ID,HN,GT,PE,MX,UG,IN,TZ,KE,CI", "title_filter": "coffee annual", "max_empty_pages": 2000},
+    {"name": "coffee_historical", "source_name": "coffee", "commodity_id": None, "countries": "BR,CO,VN,ET,ID,HN,GT,PE,MX,UG,IN,TZ,KE,CI", "title_filter": "coffee annual", "start_year": 2000, "end_year": 2026},
 ]
 
 
