@@ -1,0 +1,158 @@
+source: world_bank_pink_sheet
+
+notes: >
+  World Bank Commodity Markets ("Pink Sheet") — the canonical free source for
+  long-run monthly commodity price benchmarks, covering energy, fertilizers, food,
+  beverages, raw materials, metals, and precious metals.
+
+  Published by the World Bank Prospects Group (Development Economics) and updated
+  on the first Tuesday of each month, approximately 4–5 business days after
+  month-end. The release covers the prior calendar month.
+
+  Two XLS downloads per release:
+    - Monthly Prices: full history from January 1960 to current month (~2–3 MB)
+    - Annual Prices:  full history from 1960 to current year
+
+  Both files contain the complete historical backfill in a single download.
+  Monthly Prices is the authoritative raw file for this pipeline — store it in
+  full per release (see raw layer note below).
+
+  URL structure:
+    The document ID in thedocs.worldbank.org is opaque and changes every month.
+    The stable entry point is the commodity-markets page:
+      https://www.worldbank.org/en/research/commodity-markets
+    The ingest script scrapes this page to locate the current XLS href.
+
+  Raw layer note:
+    Store the full XLS file unmodified per release. Do NOT filter to the target
+    series at ingest time. Series filtering happens at the bronze/silver layer,
+    driven by the series_of_interest list in this config. This preserves the
+    ability to add new series retroactively and to detect retroactive WB revisions
+    by diffing sequential releases.
+
+  Point-in-time note:
+    Each monthly release may include retroactive revisions to prior months.
+    Storing one raw file per release_month enables exact point-in-time reconstruction
+    of what was known at any given date — critical for avoiding lookahead bias in
+    feature engineering.
+
+  Relevance to the trading system:
+    Fertilizer/energy input costs are a leading indicator for farmer planting
+    decisions and therefore area harvested, which is the primary structural driver
+    of production quantity — the variable the ML models target.
+
+    Signal chain (approximate lags):
+      Nat gas spot spike (t=0)
+        → Urea/DAP spot follows +1–2 months (production cost pass-through)
+          → USDA NASS Prospective Plantings surveys capture intent +4–6 months
+            → Final planted area set +6–8 months
+              → Harvest outcome realized +11–14 months
+
+    Most actionable for: corn (N-intensive), wheat (N-intensive), rapeseed/canola
+    (highest N/ha of any oilseed), soybean (N-fixing — less exposed, but P and K
+    costs still matter for area allocation relative to corn).
+
+    The input cost index feature (`input_cost_index_{fertilizer}`) is a Tier 2
+    feature computed from this source at the feature engineering layer.
+
+publication_cadence: monthly
+
+# First ~Tuesday of each month
+update_schedule: "0 14 1-7 * 2"
+
+entry_point_url: "https://www.worldbank.org/en/research/commodity-markets"
+
+# XLS href regex to locate the monthly download on the page
+xls_href_pattern: "CMO-Pink-Sheet-[A-Za-z]+-[0-9]{4}\\.xlsx"
+
+historical_depth: 1960
+
+s3_key_pattern: "raw/production/source=world_bank_pink_sheet/release={YYYY}M{MM}/CMO-Pink-Sheet-{Month}-{YYYY}.xlsx"
+
+ml_priority: P2
+graphrag_priority: P5
+
+# ---------------------------------------------------------------------------
+# Series extracted at bronze/silver layer from the Monthly Prices sheet.
+# column_name must match the exact header string in the XLS (row 5 of the
+# Monthly Prices tab). These names are stable across recent releases but
+# should be verified each year.
+# ---------------------------------------------------------------------------
+series_of_interest:
+  - column_name: "Urea, E. Europe, bulk, spot"
+    series_id: urea_eastern_europe_bulk
+    unit: USD/mt
+    history_start: "1992M01"
+    notes: >
+      Most widely traded nitrogen fertilizer benchmark. Eastern European price
+      reflects global marginal cost of urea production (Russian/Ukrainian gas-
+      to-ammonia-to-urea). Key cost driver for corn, wheat, and rapeseed area.
+
+  - column_name: "DAP, spot"
+    series_id: dap_us_gulf_bulk
+    unit: USD/mt
+    history_start: "1980M01"
+    notes: >
+      Diammonium phosphate — the dominant phosphate fertilizer. US Gulf bulk
+      price reflects North American grain belt application cost. Relevant for
+      corn, soy, wheat.
+
+  - column_name: "Potassium chloride, standard"
+    series_id: potassium_chloride_mop
+    unit: USD/mt
+    history_start: "1980M01"
+    notes: >
+      Muriate of potash (MOP) standard grade. K-fertilizer cost input.
+      Less volatile than N-fertilizers but relevant for completing the
+      NPK cost basket for corn/soy area allocation decisions.
+
+  - column_name: "Natural gas, US"
+    series_id: natural_gas_henry_hub
+    unit: USD/mmbtu
+    history_start: "1991M01"
+    notes: >
+      Henry Hub spot price. ~70–80% of US urea production cost. A 1–2 month
+      leading indicator for US domestic urea/DAP price pass-through. Use
+      as upstream leading feature for US fertilizer cost pressure.
+
+  - column_name: "Natural gas, Europe"
+    series_id: natural_gas_europe
+    unit: USD/mmbtu
+    history_start: "1991M01"
+    notes: >
+      European border price (Germany). Yara and other European producers
+      use this as their ammonia production cost reference. Spike in EU gas
+      prices (e.g., 2022) flows directly into European urea prices and then
+      into French wheat/rapeseed planting cost. 1–2 month leading indicator
+      for European urea prices.
+
+  - column_name: "Phosphate rock"
+    series_id: phosphate_rock_morocco
+    unit: USD/mt
+    history_start: "1960M01"
+    notes: >
+      Morocco (OCP) reference price. Upstream input for DAP/TSP production.
+      Longest series in the fertilizer set (back to 1960). Less volatile than
+      finished fertilizers but provides multi-decade baseline for structural
+      cost studies.
+
+# ---------------------------------------------------------------------------
+# Bronze sheet parsing configuration
+# ---------------------------------------------------------------------------
+bronze_parse:
+  sheet_name: "Monthly Prices"
+  # Row index (0-based) where commodity headers appear
+  header_row: 4
+  # Row index where data begins
+  data_start_row: 5
+  # Column A format: "1960M01" → parse to date YYYY-MM-01
+  date_column: 0
+  date_format: "%YM%m"
+  # Output long-format columns
+  output_columns:
+    - release_month   # from S3 key partition
+    - price_date      # parsed from column A (YYYY-MM-01)
+    - series_id       # from series_of_interest mapping
+    - value           # float, USD per unit
+    - unit            # USD/mt or USD/mmbtu
+    - source          # "world_bank_pink_sheet"
