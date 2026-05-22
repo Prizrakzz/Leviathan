@@ -9,72 +9,72 @@ reports:
   - release_date: "1994-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/475131464184948121-0050022016/original/CMO1994November.pdf"
     filename: "CMO-Outlook-1994-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1994-11/CMO-Outlook-1994-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1995-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/523561462903116114-0050022016/original/CMO1995February.pdf"
     filename: "CMO-Outlook-1995-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1995-02/CMO-Outlook-1995-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1995-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/471501462903118485-0050022016/original/CMO1995May.pdf"
     filename: "CMO-Outlook-1995-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1995-05/CMO-Outlook-1995-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1995-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/827461462903112415-0050022016/original/CMO1995August.pdf"
     filename: "CMO-Outlook-1995-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1995-08/CMO-Outlook-1995-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1996-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/945601462903204754-0050022016/original/CMO1996February.pdf"
     filename: "CMO-Outlook-1996-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1996-02/CMO-Outlook-1996-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1996-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/256151462903206358-0050022016/original/CMO1996May.pdf"
     filename: "CMO-Outlook-1996-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1996-05/CMO-Outlook-1996-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1996-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/74681462903202939-0050022016/original/CMO1996August.pdf"
     filename: "CMO-Outlook-1996-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1996-08/CMO-Outlook-1996-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1996-11"
     release_type: monthly-quarterly
@@ -89,1092 +89,1092 @@ reports:
   - release_date: "1997-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/609821462903309948-0050022016/original/CMO1997February.pdf"
     filename: "CMO-Outlook-1997-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1997-02/CMO-Outlook-1997-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1997-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/486991462903312067-0050022016/original/CMO1997May.pdf"
     filename: "CMO-Outlook-1997-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1997-05/CMO-Outlook-1997-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1997-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/799351462903307918-0050022016/original/CMO1997August.pdf"
     filename: "CMO-Outlook-1997-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1997-08/CMO-Outlook-1997-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1997-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/38931462903313626-0050022016/original/CMO1997November.pdf"
     filename: "CMO-Outlook-1997-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1997-11/CMO-Outlook-1997-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1998-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/804731462910421266-0050022016/original/CMO1998February.pdf"
     filename: "CMO-Outlook-1998-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1998-02/CMO-Outlook-1998-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1998-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/456121462910422964-0050022016/original/CMO1998May.pdf"
     filename: "CMO-Outlook-1998-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1998-05/CMO-Outlook-1998-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1998-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/141991462910419153-0050022016/original/CMO1998August.pdf"
     filename: "CMO-Outlook-1998-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1998-08/CMO-Outlook-1998-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1998-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/959121462910424617-0050022016/original/CMO1998November.pdf"
     filename: "CMO-Outlook-1998-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1998-11/CMO-Outlook-1998-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/97881462911425315-0050022016/original/CMO1999January.pdf"
     filename: "CMO-Outlook-1999-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-01/CMO-Outlook-1999-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/584781462911428977-0050022016/original/CMO1999March.pdf"
     filename: "CMO-Outlook-1999-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-03/CMO-Outlook-1999-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/28931462911421276-0050022016/original/CMO1999April.pdf"
     filename: "CMO-Outlook-1999-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-04/CMO-Outlook-1999-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/705421462911429600-0050022016/original/CMO1999May.pdf"
     filename: "CMO-Outlook-1999-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-05/CMO-Outlook-1999-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/783661462911428594-0050022016/original/CMO1999June.pdf"
     filename: "CMO-Outlook-1999-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-06/CMO-Outlook-1999-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-07"
     release_type: monthly-quarterly
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/380351462911427393-0050022016/original/CMO1999July.pdf"
     filename: "CMO-Outlook-1999-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-07/CMO-Outlook-1999-July.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/365481462911422391-0050022016/original/CMO1999August.pdf"
     filename: "CMO-Outlook-1999-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-08/CMO-Outlook-1999-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/953741462911432987-0050022016/original/CMO1999September.pdf"
     filename: "CMO-Outlook-1999-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-09/CMO-Outlook-1999-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/855161462911432288-0050022016/original/CMO1999October.pdf"
     filename: "CMO-Outlook-1999-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-10/CMO-Outlook-1999-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/893651462911430046-0050022016/original/CMO1999November.pdf"
     filename: "CMO-Outlook-1999-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-11/CMO-Outlook-1999-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "1999-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/516331462911422803-0050022016/original/CMO1999December.pdf"
     filename: "CMO-Outlook-1999-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=1999-12/CMO-Outlook-1999-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2000-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/818701462978487714-0050022016/original/CMO2000January.pdf"
     filename: "CMO-Outlook-2000-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2000-01/CMO-Outlook-2000-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2000-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/694711462978483882-0050022016/original/CMO2000April.pdf"
     filename: "CMO-Outlook-2000-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2000-04/CMO-Outlook-2000-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2001-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/403741462978605639-0050022016/original/CMO2001December.pdf"
     filename: "CMO-Outlook-2001-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2001-12/CMO-Outlook-2001-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/753751462978742959-0050022016/original/CMO2002January.pdf"
     filename: "CMO-Outlook-2002-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-01/CMO-Outlook-2002-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/229011462978741813-0050022016/original/CMO2002February.pdf"
     filename: "CMO-Outlook-2002-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-02/CMO-Outlook-2002-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/400381462978744411-0050022016/original/CMO2002March.pdf"
     filename: "CMO-Outlook-2002-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-03/CMO-Outlook-2002-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/799571462978740452-0050022016/original/CMO2002April.pdf"
     filename: "CMO-Outlook-2002-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-04/CMO-Outlook-2002-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/90811462978744858-0050022016/original/CMO2002May.pdf"
     filename: "CMO-Outlook-2002-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-05/CMO-Outlook-2002-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/983341462978743867-0050022016/original/CMO2002June.pdf"
     filename: "CMO-Outlook-2002-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-06/CMO-Outlook-2002-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-07"
     release_type: monthly-quarterly
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/741421462978743438-0050022016/original/CMO2002July.pdf"
     filename: "CMO-Outlook-2002-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-07/CMO-Outlook-2002-July.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/84071462978746341-0050022016/original/CMO2002September.pdf"
     filename: "CMO-Outlook-2002-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-09/CMO-Outlook-2002-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/427201462978745642-0050022016/original/CMO2002October.pdf"
     filename: "CMO-Outlook-2002-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-10/CMO-Outlook-2002-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/59721462978745246-0050022016/original/CMO2002November.pdf"
     filename: "CMO-Outlook-2002-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-11/CMO-Outlook-2002-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2002-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/945371462978741165-0050022016/original/CMO2002December.pdf"
     filename: "CMO-Outlook-2002-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2002-12/CMO-Outlook-2002-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/467491462979029634-0050022016/original/CMO2003January.pdf"
     filename: "CMO-Outlook-2003-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-01/CMO-Outlook-2003-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/138341462979028111-0050022016/original/CMO2003February.pdf"
     filename: "CMO-Outlook-2003-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-02/CMO-Outlook-2003-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/932911462979026871-0050022016/original/CMO2003April.pdf"
     filename: "CMO-Outlook-2003-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-04/CMO-Outlook-2003-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/18761462979031111-0050022016/original/CMO2003May.pdf"
     filename: "CMO-Outlook-2003-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-05/CMO-Outlook-2003-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/483511462979030630-0050022016/original/CMO2003June.pdf"
     filename: "CMO-Outlook-2003-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-06/CMO-Outlook-2003-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-07"
     release_type: monthly-quarterly
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/652501462979030168-0050022016/original/CMO2003July.pdf"
     filename: "CMO-Outlook-2003-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-07/CMO-Outlook-2003-July.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/423521462979032331-0050022016/original/CMO2003September.pdf"
     filename: "CMO-Outlook-2003-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-09/CMO-Outlook-2003-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/752001462979031728-0050022016/original/CMO2003November.pdf"
     filename: "CMO-Outlook-2003-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-11/CMO-Outlook-2003-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2003-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/198931462979027560-0050022016/original/CMO2003December.pdf"
     filename: "CMO-Outlook-2003-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2003-12/CMO-Outlook-2003-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/14681462980192314-0050022016/original/CMO2005January.pdf"
     filename: "CMO-Outlook-2005-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-01/CMO-Outlook-2005-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/182321462980193679-0050022016/original/CMO2005March.pdf"
     filename: "CMO-Outlook-2005-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-03/CMO-Outlook-2005-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/660901462980189778-0050022016/original/CMO2005April.pdf"
     filename: "CMO-Outlook-2005-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-04/CMO-Outlook-2005-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/518241462980190630-0050022016/original/CMO2005August.pdf"
     filename: "CMO-Outlook-2005-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-08/CMO-Outlook-2005-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/47561462980195172-0050022016/original/CMO2005September.pdf"
     filename: "CMO-Outlook-2005-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-09/CMO-Outlook-2005-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/421861462980194750-0050022016/original/CMO2005October.pdf"
     filename: "CMO-Outlook-2005-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-10/CMO-Outlook-2005-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/684251462980194314-0050022016/original/CMO2005November.pdf"
     filename: "CMO-Outlook-2005-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-11/CMO-Outlook-2005-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2005-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/434891462980191718-0050022016/original/CMO2005December.pdf"
     filename: "CMO-Outlook-2005-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2005-12/CMO-Outlook-2005-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/12771462980442748-0050022016/original/CMO2006February.pdf"
     filename: "CMO-Outlook-2006-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-02/CMO-Outlook-2006-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/756461462980445063-0050022016/original/CMO2006March.pdf"
     filename: "CMO-Outlook-2006-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-03/CMO-Outlook-2006-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/940731462980441136-0050022016/original/CMO2006April.pdf"
     filename: "CMO-Outlook-2006-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-04/CMO-Outlook-2006-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/250791462980445532-0050022016/original/CMO2006May.pdf"
     filename: "CMO-Outlook-2006-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-05/CMO-Outlook-2006-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/61041462980444539-0050022016/original/CMO2006June.pdf"
     filename: "CMO-Outlook-2006-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-06/CMO-Outlook-2006-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-07"
     release_type: monthly-quarterly
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/383511462980444080-0050022016/original/CMO2006July.pdf"
     filename: "CMO-Outlook-2006-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-07/CMO-Outlook-2006-July.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/642841462980447452-0050022016/original/CMO2006September.pdf"
     filename: "CMO-Outlook-2006-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-09/CMO-Outlook-2006-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/311021462980446575-0050022016/original/CMO2006October.pdf"
     filename: "CMO-Outlook-2006-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-10/CMO-Outlook-2006-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/164381462980446041-0050022016/original/CMO2006November.pdf"
     filename: "CMO-Outlook-2006-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-11/CMO-Outlook-2006-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2006-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/185731462980442259-0050022016/original/CMO2006December.pdf"
     filename: "CMO-Outlook-2006-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2006-12/CMO-Outlook-2006-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/489501462981402659-0050022016/original/CMO2007March.pdf"
     filename: "CMO-Outlook-2007-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-03/CMO-Outlook-2007-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/110821462981399483-0050022016/original/CMO2007April.pdf"
     filename: "CMO-Outlook-2007-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-04/CMO-Outlook-2007-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/170011462981402208-0050022016/original/CMO2007June.pdf"
     filename: "CMO-Outlook-2007-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-06/CMO-Outlook-2007-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/933371462981400433-0050022016/original/CMO2007August.pdf"
     filename: "CMO-Outlook-2007-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-08/CMO-Outlook-2007-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/120131462981404487-0050022016/original/CMO2007September.pdf"
     filename: "CMO-Outlook-2007-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-09/CMO-Outlook-2007-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/669591462981403865-0050022016/original/CMO2007October.pdf"
     filename: "CMO-Outlook-2007-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-10/CMO-Outlook-2007-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/390411462981403173-0050022016/original/CMO2007November.pdf"
     filename: "CMO-Outlook-2007-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-11/CMO-Outlook-2007-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2007-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/324111462981400952-0050022016/original/CMO2007December.pdf"
     filename: "CMO-Outlook-2007-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2007-12/CMO-Outlook-2007-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/79521462997099628-0050022016/original/CMO2008January.pdf"
     filename: "CMO-Outlook-2008-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-01/CMO-Outlook-2008-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/732131462997099027-0050022016/original/CMO2008February.pdf"
     filename: "CMO-Outlook-2008-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-02/CMO-Outlook-2008-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/965881462997096698-0050022016/original/CMO2008April.pdf"
     filename: "CMO-Outlook-2008-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-04/CMO-Outlook-2008-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-07"
     release_type: monthly-quarterly
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/285841462997100295-0050022016/original/CMO2008July.pdf"
     filename: "CMO-Outlook-2008-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-07/CMO-Outlook-2008-July.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/49771462997097618-0050022016/original/CMO2008August.pdf"
     filename: "CMO-Outlook-2008-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-08/CMO-Outlook-2008-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/147451462997102813-0050022016/original/CMO2008September.pdf"
     filename: "CMO-Outlook-2008-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-09/CMO-Outlook-2008-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/198501462997102293-0050022016/original/CMO2008October.pdf"
     filename: "CMO-Outlook-2008-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-10/CMO-Outlook-2008-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/607431462997101311-0050022016/original/CMO2008November.pdf"
     filename: "CMO-Outlook-2008-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-11/CMO-Outlook-2008-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2008-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/336421462997098373-0050022016/original/CMO2008December.pdf"
     filename: "CMO-Outlook-2008-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2008-12/CMO-Outlook-2008-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/406871462307046301-0050022016/original/CMO2009January.pdf"
     filename: "CMO-Outlook-2009-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-01/CMO-Outlook-2009-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/405891462307044025-0050022016/original/CMO2009February.pdf"
     filename: "CMO-Outlook-2009-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-02/CMO-Outlook-2009-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/180411462307047216-0050022016/original/CMO2009March.pdf"
     filename: "CMO-Outlook-2009-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-03/CMO-Outlook-2009-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/357071462307042606-0050022016/original/CMO2009April.pdf"
     filename: "CMO-Outlook-2009-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-04/CMO-Outlook-2009-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/214541462307047642-0050022016/original/CMO2009May.pdf"
     filename: "CMO-Outlook-2009-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-05/CMO-Outlook-2009-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/881491462307046777-0050022016/original/CMO2009June.pdf"
     filename: "CMO-Outlook-2009-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-06/CMO-Outlook-2009-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/929271462307049049-0050022016/original/CMO2009September.pdf"
     filename: "CMO-Outlook-2009-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-09/CMO-Outlook-2009-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/284101462307048579-0050022016/original/CMO2009October.pdf"
     filename: "CMO-Outlook-2009-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-10/CMO-Outlook-2009-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/894961462307048156-0050022016/original/CMO2009November.pdf"
     filename: "CMO-Outlook-2009-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-11/CMO-Outlook-2009-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2009-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/211831462307043401-0050022016/original/CMO2009December.pdf"
     filename: "CMO-Outlook-2009-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2009-12/CMO-Outlook-2009-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/147071462306212954-0050022016/original/CMO2010January.pdf"
     filename: "CMO-Outlook-2010-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-01/CMO-Outlook-2010-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/972201462306210436-0050022016/original/CMO2010February.pdf"
     filename: "CMO-Outlook-2010-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-02/CMO-Outlook-2010-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/98761462306213502-0050022016/original/CMO2010March.pdf"
     filename: "CMO-Outlook-2010-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-03/CMO-Outlook-2010-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/658231462306140575-0050022016/original/CMO2010April.pdf"
     filename: "CMO-Outlook-2010-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-04/CMO-Outlook-2010-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/17651462306214098-0050022016/original/CMO2010May.pdf"
     filename: "CMO-Outlook-2010-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-05/CMO-Outlook-2010-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-08"
     release_type: monthly-quarterly
     label: "August"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/350281462306208794-0050022016/original/CMO2010August.pdf"
     filename: "CMO-Outlook-2010-August.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-08/CMO-Outlook-2010-August.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-09"
     release_type: monthly-quarterly
     label: "September"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/778421462306216031-0050022016/original/CMO2010September.pdf"
     filename: "CMO-Outlook-2010-September.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-09/CMO-Outlook-2010-September.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/174941462306215543-0050022016/original/CMO2010October.pdf"
     filename: "CMO-Outlook-2010-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-10/CMO-Outlook-2010-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/959961462306214825-0050022016/original/CMO2010November.pdf"
     filename: "CMO-Outlook-2010-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-11/CMO-Outlook-2010-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2010-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/405811462306209809-0050022016/original/CMO2010December.pdf"
     filename: "CMO-Outlook-2010-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2010-12/CMO-Outlook-2010-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/654351462215862519-0050022016/original/CMO2011February.pdf"
     filename: "CMO-Outlook-2011-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-02/CMO-Outlook-2011-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-03"
     release_type: monthly-quarterly
     label: "March"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/364081462215866233-0050022016/original/CMO2011March.pdf"
     filename: "CMO-Outlook-2011-March.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-03/CMO-Outlook-2011-March.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-04"
     release_type: monthly-quarterly
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/410781462215860600-0050022016/original/CMO2011April.pdf"
     filename: "CMO-Outlook-2011-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-04/CMO-Outlook-2011-April.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-05"
     release_type: monthly-quarterly
     label: "May"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/316581462215867147-0050022016/original/CMO2011May.pdf"
     filename: "CMO-Outlook-2011-May.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-05/CMO-Outlook-2011-May.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/729191462215864799-0050022016/original/CMO2011June.pdf"
     filename: "CMO-Outlook-2011-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-06/CMO-Outlook-2011-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-07"
     release_type: monthly-quarterly
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/868561462215864147-0050022016/original/CMO2011July.pdf"
     filename: "CMO-Outlook-2011-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-07/CMO-Outlook-2011-July.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-10"
     release_type: monthly-quarterly
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/599261462215868899-0050022016/original/CMO2011October.pdf"
     filename: "CMO-Outlook-2011-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-10/CMO-Outlook-2011-October.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-11"
     release_type: monthly-quarterly
     label: "November"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/55211462215868160-0050022016/original/CMO2011November.pdf"
     filename: "CMO-Outlook-2011-November.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-11/CMO-Outlook-2011-November.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2011-12"
     release_type: monthly-quarterly
     label: "December"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/983811462215861764-0050022016/original/CMO2011December.pdf"
     filename: "CMO-Outlook-2011-December.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2011-12/CMO-Outlook-2011-December.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2012-01"
     release_type: monthly-quarterly
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/167541462308752776-0050022016/original/CMO2012JanuaryGEPanalysis.pdf"
     filename: "CMO-Outlook-2012-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2012-01/CMO-Outlook-2012-January.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2012-02"
     release_type: monthly-quarterly
     label: "February"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/423231462215767356-0050022016/original/CMO2012February.pdf"
     filename: "CMO-Outlook-2012-February.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2012-02/CMO-Outlook-2012-February.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2012-06"
     release_type: monthly-quarterly
     label: "June"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/916441462308754042-0050022016/original/CMO2012JuneGEPanalysis.pdf"
     filename: "CMO-Outlook-2012-June.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2012-06/CMO-Outlook-2012-June.pdf"
     special_focus: ""
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2014-01"
     release_type: semi-annual
