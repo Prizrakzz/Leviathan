@@ -663,6 +663,61 @@ def raw_fgis_weekly_key(year: int, as_of_date: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# CFTC Commitments of Traders (COT) — Disaggregated
+# ---------------------------------------------------------------------------
+
+def raw_cot_backfill_key(report_type: str, year_label: str) -> str:
+    """S3 key for a CFTC COT historical file (bulk or annual).
+
+    Two report types are stored under separate prefixes:
+      - ``disagg_futures``  — Disaggregated Futures Only
+      - ``disagg_combined`` — Disaggregated Futures-and-Options Combined
+
+    Year label is either ``"2006_2016"`` (the CFTC-supplied bulk covering
+    the full disaggregated history through 2016) or a single year string
+    such as ``"2017"`` for the per-year files from 2017 onwards.
+
+    Args:
+        report_type: ``"disagg_futures"`` or ``"disagg_combined"``.
+        year_label:  ``"2006_2016"`` for the bulk file, or ``"YYYY"`` for
+                     an individual year, e.g. ``"2024"``.
+    """
+    prefix = "fut_disagg" if report_type == "disagg_futures" else "com_disagg"
+    return (
+        f"raw/production/"
+        f"source=cftc_cot/"
+        f"{report_type}/"
+        f"backfill/"
+        f"{prefix}_{year_label}.txt"
+    )
+
+
+def raw_cot_weekly_key(report_type: str, year: int, as_of_date: str) -> str:
+    """S3 key for a weekly point-in-time COT snapshot.
+
+    CFTC publishes updated files every Friday.  Storing an immutable snapshot
+    partitioned by ``as_of_date`` (the Friday publication date) preserves
+    exact point-in-time correctness for backtested ML features and allows
+    detection of retrospective CFTC corrections.
+
+    Args:
+        report_type: ``"disagg_futures"`` or ``"disagg_combined"``.
+        year:        Calendar year of the as_of date, e.g. ``2026``.
+        as_of_date:  Friday publication date in ``YYYYMMDD`` format,
+                     e.g. ``"20260523"``.
+    """
+    prefix = "fut_disagg" if report_type == "disagg_futures" else "com_disagg"
+    return (
+        f"raw/production/"
+        f"source=cftc_cot/"
+        f"{report_type}/"
+        f"year={year}/"
+        f"as_of={as_of_date}/"
+        f"{prefix}_{as_of_date}.txt"
+    )
+
+
+# ---------------------------------------------------------------------------
 # World Bank Pink Sheet
 # ---------------------------------------------------------------------------
 

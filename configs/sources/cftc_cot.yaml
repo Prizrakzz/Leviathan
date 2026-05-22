@@ -1,0 +1,132 @@
+source: cftc_cot
+
+notes: >
+  CFTC Commitments of Traders (COT) — Disaggregated weekly position reports.
+
+  The CFTC publishes COT data every Friday (positions as-of Tuesday close, 3-day lag).
+  The Disaggregated format (introduced September 2006) breaks reportable traders into
+  four categories: Producer/Merchant, Swap Dealer, Managed Money, and Other Reportables.
+  Managed Money net position is the primary signal — it captures the directional stance
+  of trend-following hedge funds, CTAs, and commodity pool operators.
+
+  Two report types are ingested:
+    disagg_futures  — Disaggregated Futures Only.  The pure futures book.
+    disagg_combined — Disaggregated Futures-and-Options Combined.  CFTC delta-adjusts
+                      options positions and adds them to the futures totals before
+                      publishing, so positions remain in futures-equivalent contracts.
+
+  Rationale for ingesting both:
+    The difference (combined minus futures-only) isolates options-based directional
+    exposure (mm_options_equiv = mm_net_combined - mm_net_futures_only).  This detects
+    when managed money is expressing views through options rather than outright futures —
+    a strategy common when implied vol is cheap or they want defined-risk exposure.
+    Both inputs are free from CFTC; computing mm_options_equiv requires no vendor data.
+
+  Coverage:
+    14 of Leviathan's 30 commodity contracts are covered by CFTC disaggregated data
+    (all CBOT, ICE US, MGE, and CME-listed contracts).  The remaining 15 contracts
+    (MATIF, ICE Canada, DCE, ZCE, JSE, BMF) are not covered by the CFTC.
+
+  Staleness note:
+    3-day lag (Tuesday positions published on Friday) is acceptable for annual-horizon
+    ML forecasting.  Intraweek flow is not observable — use mm_net_change (weekly delta)
+    as a flow-momentum supplement to the level signal.
+
+  Pipeline maintenance risk:
+    CFTC occasionally publishes corrections to prior weeks. Contract codes may be
+    retired or renumbered when exchanges relist.  Null tokens (".") appear for thin
+    contracts in some periods.  The validation layer must check for header integrity
+    and presence of key contract codes on every download.
+
+historical_depth: 2006
+
+publication_cadence: weekly
+
+update_schedule: >
+  CFTC publishes every Friday (0 18 * * 5 UTC).
+  Run --mode weekly on Friday after 18:00 UTC to capture the release.
+  Positions are as-of the prior Tuesday close.
+
+report_types:
+  disagg_futures:
+    description: "Disaggregated Commitments of Traders — Futures Only"
+    bulk_zip_url: "https://www.cftc.gov/files/dea/history/fut_disagg_txt_hist_2006_2016.zip"
+    annual_zip_url_pattern: "https://www.cftc.gov/files/dea/history/fut_disagg_txt_{year}.zip"
+    weekly_txt_url: "https://www.cftc.gov/dea/newcot/f_disagg.txt"
+    bulk_year_label: "2006_2016"
+    annual_start_year: 2017
+
+  disagg_combined:
+    description: "Disaggregated Commitments of Traders — Futures and Options Combined"
+    bulk_zip_url: "https://www.cftc.gov/files/dea/history/com_disagg_txt_hist_2006_2016.zip"
+    annual_zip_url_pattern: "https://www.cftc.gov/files/dea/history/com_disagg_txt_{year}.zip"
+    weekly_txt_url: "https://www.cftc.gov/dea/newcot/c_disagg.txt"
+    bulk_year_label: "2006_2016"
+    annual_start_year: 2017
+
+s3_key_patterns:
+  backfill_bulk:  "raw/production/source=cftc_cot/{report_type}/backfill/{prefix}_{bulk_label}.txt"
+  backfill_annual: "raw/production/source=cftc_cot/{report_type}/backfill/{prefix}_{year}.txt"
+  weekly: "raw/production/source=cftc_cot/{report_type}/year={year}/as_of={YYYYMMDD}/{prefix}_{YYYYMMDD}.txt"
+
+# Contracts covered by CFTC disaggregated data.
+# Codes are the CFTC contract_market_code field (column 4 in the CSV).
+# Source: verified from live f_disagg.txt as of May 2026.
+target_contracts:
+  corn_cbot:                    {code: "002602", exchange: CBOT,  oi_approx: "1.88M"}
+  soybeans_cbot:                {code: "005602", exchange: CBOT,  oi_approx: "1.02M"}
+  soybean_oil_cbot:             {code: "007601", exchange: CBOT,  oi_approx: "716K"}
+  soybean_meal_cbot:            {code: "026603", exchange: CBOT,  oi_approx: "620K"}
+  soft_red_winter_wheat_cbot:   {code: "001602", exchange: CBOT,  oi_approx: "475K"}
+  cotton:                       {code: "033661", exchange: ICUS,  oi_approx: "329K"}
+  hard_red_winter_wheat_kcbt:   {code: "001612", exchange: CBOT,  oi_approx: "308K"}
+  cocoa:                        {code: "073732", exchange: ICUS,  oi_approx: "194K"}
+  arabica_coffee:               {code: "083731", exchange: ICUS,  oi_approx: "190K"}
+  hard_red_spring_wheat_mgex:   {code: "001626", exchange: MGE,   oi_approx: "82K"}
+  malaysian_crude_palm_oil_cme: {code: "037021", exchange: CME,   oi_approx: "48K"}
+  rough_rice_cbot:              {code: "039601", exchange: CBOT,  oi_approx: "13K",  note: "thin — expect null tokens"}
+  raw_sugar:                    {code: "080732", exchange: ICUS,  oi_approx: "verify"}
+  frozen_orange_juice:          {code: "040701", exchange: ICUS,  oi_approx: "verify"}
+
+# Contracts NOT covered by CFTC (non-US/non-CME exchanges).
+# Relevant for documentation — no COT signal available for these.
+not_covered:
+  - french_wheat_matif           # Euronext MATIF
+  - french_rapeseed_matif        # Euronext MATIF
+  - french_maize_matif           # Euronext MATIF
+  - canola_ice                   # ICE Futures Canada
+  - soybeans_no_1_dce            # DCE (China)
+  - soybeans_no_2_dce            # DCE (China)
+  - soybean_meal_dce             # DCE (China)
+  - soybean_oil_dce              # DCE (China)
+  - palm_olein_dce               # DCE (China)
+  - rapeseed_meal_zce            # ZCE (China)
+  - rapeseed_oil_zce             # ZCE (China)
+  - south_african_white_maize_jse  # JSE (South Africa)
+  - south_african_yellow_maize_jse # JSE (South Africa)
+  - campinas_corn_reference_bmf  # BMF (Brazil)
+  - brazilian_arabica_coffee     # BMF (Brazil)
+
+ml_priority: P8
+graphrag_priority: P5
+
+schema:
+  format: CSV (comma-delimited, UTF-8, with header row)
+  null_token: "."
+  key_columns:
+    Market_and_Exchange_Names: {type: str,   description: "Contract name + exchange, e.g. 'CORN - CHICAGO BOARD OF TRADE'"}
+    As_of_Date_In_Form_YYMMDD: {type: str,   description: "Report date (as-of Tuesday) in YYMMDD format"}
+    CFTC_Contract_Market_Code: {type: str,   description: "6-digit CFTC contract code; use to join to target_contracts"}
+    Open_Interest_All:         {type: int,   description: "Total open interest across all trader categories"}
+    M_Money_Positions_Long_All:  {type: int, description: "Managed Money gross long futures (core ML signal)"}
+    M_Money_Positions_Short_All: {type: int, description: "Managed Money gross short futures (core ML signal)"}
+    M_Money_Positions_Spread_All:{type: int, description: "Managed Money spread positions"}
+    Change_in_M_Money_Long_All:  {type: int, description: "Week-over-week change in MM long (flow signal)"}
+    Change_in_M_Money_Short_All: {type: int, description: "Week-over-week change in MM short (flow signal)"}
+    Pct_of_OI_M_Money_Long_All:  {type: float, description: "MM long as % of OI"}
+    Pct_of_OI_M_Money_Short_All: {type: float, description: "MM short as % of OI"}
+    Conc_Gross_LE_4_TDR_Long_All: {type: float, description: "Concentration — top 4 traders, long side (crowding proxy)"}
+    Conc_Gross_LE_4_TDR_Short_All:{type: float, description: "Concentration — top 4 traders, short side"}
+    Conc_Gross_LE_8_TDR_Long_All: {type: float, description: "Concentration — top 8 traders, long side"}
+    Conc_Gross_LE_8_TDR_Short_All:{type: float, description: "Concentration — top 8 traders, short side"}
+  total_columns: 64

@@ -28,6 +28,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "usda_wasde_pdf": 40_000,                     # 40 KB — early digital PDFs (2000–2003) observed at 75–87 KB; magic-bytes check handles truncation
     "world_bank_pink_sheet": 500_000,             # 500 KB — actual file is ~783 KB; guards against error-page HTML responses
     "wb_cmo_outlook": 15_000,                      # 15 KB — modern reports are 3–8 MB; 1999 monthly data-table PDFs can be as small as 36 KB; catches HTML error pages
+    "cftc_cot": 100_000,                            # 100 KB — weekly TXT is ~200-400 KB; annual extracted TXT is ~3-5 MB; catches HTML error pages
 }
 
 ALL_COMMODITIES: list[str] = [
