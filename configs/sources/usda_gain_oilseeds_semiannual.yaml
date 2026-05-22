@@ -1,0 +1,64 @@
+source: usda_gain_oilseeds_semiannual
+
+commodity_id: null  # No FAS taxonomy filter; title-filter selects "Oilseeds and Products Semi-Annual"
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251"
+
+notes: >
+  USDA FAS GAIN "Oilseeds and Products Semi-Annual" mid-year reports. Published
+  approximately May and November per-country by attaché officers; covers soybean,
+  soy oil/meal, rapeseed/canola, and palm oil crop condition revisions and trade
+  flow updates between annual reports. Captured via title_filter="oilseeds and
+  products semi-annual". Note: FAS publication of this specific semi-annual
+  cadence may be sparse or limited to certain post-2005 years. Spans ~2005–present.
+
+publication_cadence: semi-annual
+
+target_commodities:
+  - soybeans
+  - soybean_oil
+  - soybean_meal
+  - rapeseed
+  - palm_oil
+
+report_categories:
+  - Oilseeds and Products Semi-Annual
+
+target_countries:
+  - BR   # Brazil         (largest soy producer)
+  - AR   # Argentina      (major exporter)
+  - US   # United States
+  - CN   # China          (largest importer)
+  - IN   # India
+  - ID   # Indonesia      (palm oil)
+  - MY   # Malaysia       (palm oil)
+  - TH   # Thailand
+  - PY   # Paraguay
+  - BO   # Bolivia
+  - UA   # Ukraine
+  - CA   # Canada         (canola)
+  - AU   # Australia      (canola)
+  - FR   # France         (rapeseed)
+  - DE   # Germany
+  - NL   # Netherlands    (major processing hub)
+
+historical_depth: 2005
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_oilseeds_semiannual/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P2
+
+crawl_command: >
+  python jobs/batch/gain_backfill_task.py
+    --commodity-name oilseeds_semiannual
+    --target-countries BR,AR,US,CN,IN,ID,MY,TH,PY,BO,UA,CA,AU,FR,DE,NL
+    --title-filter "oilseeds and products semi-annual"
+    --start-year 2005 --end-year 2026
+    --bucket leviathan-dev-shahem-001 --aws-region us-east-1
+
+manifest_command: null
+
+backfill_command: >
+  python jobs/submit/submit_batch_gain_backfill.py
+    --commodities oilseeds_semiannual

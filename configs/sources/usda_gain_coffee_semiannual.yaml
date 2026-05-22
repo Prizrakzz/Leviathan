@@ -1,0 +1,61 @@
+source: usda_gain_coffee_semiannual
+
+commodity_id: null  # No FAS taxonomy filter; title-filter selects "Coffee Semi-annual" reports
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251"
+
+notes: >
+  USDA FAS GAIN "Coffee Semi-annual" mid-year reports. Published approximately
+  May and November per-country by attaché officers; covers arabica and robusta
+  production condition updates, harvest outlook, and export trade revisions
+  between annual reports. Title confirmed in S3 and probe: "Coffee Semi-annual"
+  (also "COFFEE SEMI-ANNUAL" pre-2010). Published continuously back to 1998.
+  Distinct from "Coffee Annual" which is captured by usda_gain_coffee. Spans
+  ~2000–present.
+
+publication_cadence: semi-annual
+
+target_commodities:
+  - arabica_coffee
+  - robusta_coffee
+
+report_categories:
+  - Coffee Semi-annual
+
+target_countries:
+  - BR   # Brazil            (largest arabica producer, confirmed in S3 back to 1998)
+  - CO   # Colombia
+  - VN   # Vietnam           (largest robusta producer)
+  - ET   # Ethiopia
+  - ID   # Indonesia
+  - HN   # Honduras
+  - GT   # Guatemala
+  - PE   # Peru
+  - MX   # Mexico
+  - UG   # Uganda
+  - IN   # India
+  - TZ   # Tanzania
+  - KE   # Kenya
+  - CI   # Côte d'Ivoire
+  - CM   # Cameroon
+
+historical_depth: 2000
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_coffee_semiannual/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P1
+
+crawl_command: >
+  python jobs/batch/gain_backfill_task.py
+    --commodity-name coffee_semiannual
+    --target-countries BR,CO,VN,ET,ID,HN,GT,PE,MX,UG,IN,TZ,KE,CI,CM
+    --title-filter "coffee semi-annual"
+    --start-year 2000 --end-year 2026
+    --bucket leviathan-dev-shahem-001 --aws-region us-east-1
+
+manifest_command: null
+
+backfill_command: >
+  python jobs/submit/submit_batch_gain_backfill.py
+    --commodities coffee_semiannual

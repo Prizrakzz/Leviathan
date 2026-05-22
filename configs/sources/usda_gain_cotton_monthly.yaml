@@ -1,0 +1,52 @@
+source: usda_gain_cotton_monthly
+
+commodity_id: null  # No FAS taxonomy filter; title-filter selects "Cotton and Products Update" reports
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251"
+
+notes: >
+  USDA FAS GAIN "Cotton and Products Update" within-year reports. Published
+  monthly or quarterly per-country by attaché officers; covers crop condition
+  revisions, weather impacts, planting/harvest progress, and trade flow updates
+  between annual reports. Title confirmed in probe and S3: "Cotton and Products
+  Update" (not "Monthly"). Distinct from "Cotton and Products Annual" (year-end
+  summary). Spans ~2000–present.
+
+publication_cadence: monthly
+
+target_commodities:
+  - cotton
+
+report_categories:
+  - Cotton and Products Update
+
+target_countries:
+  - US   # United States    (largest exporter)
+  - IN   # India            (largest producer)
+  - CN   # China            (largest consumer)
+  - BR   # Brazil           (major exporter)
+  - AU   # Australia        (confirmed quarterly update in S3)
+  - PK   # Pakistan
+  - UZ   # Uzbekistan
+  - TR   # Turkey (Türkiye)
+
+historical_depth: 2000
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_cotton_monthly/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P1
+
+crawl_command: >
+  python jobs/batch/gain_backfill_task.py
+    --commodity-name cotton_monthly
+    --target-countries US,IN,CN,BR,AU,PK,UZ,TR
+    --title-filter "cotton and products update"
+    --start-year 2000 --end-year 2026
+    --bucket leviathan-dev-shahem-001 --aws-region us-east-1
+
+manifest_command: null
+
+backfill_command: >
+  python jobs/submit/submit_batch_gain_backfill.py
+    --commodities cotton_monthly_a cotton_monthly_b

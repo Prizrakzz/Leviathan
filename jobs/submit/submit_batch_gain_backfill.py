@@ -71,6 +71,38 @@ COMMODITIES: list[dict] = [
     {"name": "orange_juice_historical", "source_name": "orange_juice", "commodity_id": None,
      "countries": "BR,US,MX,ZA,AR,TR,EG,IN,CN,ES,NG,AU,PK",
      "title_filter": "citrus annual", "start_year": 2000, "end_year": 2026},
+    # Phase 4: Grain and Feed Update — within-year monthly/quarterly grain updates
+    # Year-split into two jobs (2000–2012 / 2013–2026) to halve crawl time (~33 min each)
+    {"name": "grain_monthly_a", "source_name": "grain_monthly", "commodity_id": None,
+     "countries": "US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR,BR,ZA,TH,VN,PH,NG",
+     "title_filter": "grain and feed update", "start_year": 2000, "end_year": 2012, "workers": 8},
+    {"name": "grain_monthly_b", "source_name": "grain_monthly", "commodity_id": None,
+     "countries": "US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR,BR,ZA,TH,VN,PH,NG",
+     "title_filter": "grain and feed update", "start_year": 2013, "end_year": 2026, "workers": 8},
+    # Phase 4: Oilseeds and Products Semi-Annual
+    {"name": "oilseeds_semiannual", "source_name": "oilseeds_semiannual", "commodity_id": None,
+     "countries": "BR,AR,US,CN,IN,ID,MY,TH,PY,BO,UA,CA,AU,FR,DE,NL",
+     "title_filter": "oilseeds and products semi-annual", "start_year": 2005, "end_year": 2026, "workers": 8},
+    # Phase 4: Sugar Semi-Annual (confirmed in S3: SUGAR_SEMI-ANNUAL_...)
+    {"name": "sugar_semiannual", "source_name": "sugar_semiannual", "commodity_id": None,
+     "countries": "BR,IN,TH,AU,CO,MX,ID,PH,EC,PK,ZA,CN",
+     "title_filter": "sugar semi-annual", "start_year": 2000, "end_year": 2026, "workers": 4},
+    # Phase 4: Cotton and Products Update — within-year monthly/quarterly cotton updates
+    # Year-split into two jobs to halve crawl time
+    {"name": "cotton_monthly_a", "source_name": "cotton_monthly", "commodity_id": None,
+     "countries": "US,IN,CN,BR,AU,PK,UZ,TR",
+     "title_filter": "cotton and products update", "start_year": 2000, "end_year": 2012, "workers": 8},
+    {"name": "cotton_monthly_b", "source_name": "cotton_monthly", "commodity_id": None,
+     "countries": "US,IN,CN,BR,AU,PK,UZ,TR",
+     "title_filter": "cotton and products update", "start_year": 2013, "end_year": 2026, "workers": 8},
+    # Phase 4: Coffee Semi-Annual (confirmed: Coffee_Semi-annual_... in S3)
+    {"name": "coffee_semiannual", "source_name": "coffee_semiannual", "commodity_id": None,
+     "countries": "BR,CO,VN,ET,ID,HN,GT,PE,MX,UG,IN,TZ,KE,CI,CM",
+     "title_filter": "coffee semi-annual", "start_year": 2000, "end_year": 2026, "workers": 4},
+    # Phase 4: Cocoa Semi-Annual (confirmed: Cocoa_Semi-Annual_... in S3)
+    {"name": "cocoa_semiannual", "source_name": "cocoa_semiannual", "commodity_id": None,
+     "countries": "CI,GH,CM,NG,ID,EC,PE,BR,DO",
+     "title_filter": "cocoa semi-annual", "start_year": 2000, "end_year": 2026, "workers": 4},
 ]
 
 
@@ -114,6 +146,8 @@ def submit_tasks(
             command += ["--start-year", str(c["start_year"])]
         if c.get("end_year") is not None:
             command += ["--end-year", str(c["end_year"])]
+        if c.get("workers", 1) > 1:
+            command += ["--upload-workers", str(c["workers"])]
 
         if dry_run:
             logger.info("[DRY RUN] Would submit: %s  cmd=%s", job_name, command)

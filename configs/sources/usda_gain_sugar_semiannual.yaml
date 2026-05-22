@@ -1,0 +1,56 @@
+source: usda_gain_sugar_semiannual
+
+commodity_id: null  # No FAS taxonomy filter; title-filter selects "Sugar Semi-Annual" reports
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251"
+
+notes: >
+  USDA FAS GAIN "Sugar Semi-Annual" mid-year reports. Published approximately
+  September–October per-country by attaché officers; covers raw and white sugar
+  crop condition updates, production revisions, and trade flow changes between
+  annual reports. Title confirmed in S3: SUGAR_SEMI-ANNUAL_... filenames back
+  to 2004. Spans ~2000–present.
+
+publication_cadence: semi-annual
+
+target_commodities:
+  - raw_sugar
+  - white_sugar
+
+report_categories:
+  - Sugar Semi-Annual
+
+target_countries:
+  - BR   # Brazil          (largest exporter, ~45% world exports)
+  - IN   # India
+  - TH   # Thailand        (3rd largest exporter)
+  - AU   # Australia       (confirmed semi-annual in S3)
+  - CO   # Colombia
+  - MX   # Mexico
+  - ID   # Indonesia
+  - PH   # Philippines
+  - EC   # Ecuador
+  - PK   # Pakistan
+  - ZA   # South Africa
+  - CN   # China
+
+historical_depth: 2000
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_sugar_semiannual/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P1
+
+crawl_command: >
+  python jobs/batch/gain_backfill_task.py
+    --commodity-name sugar_semiannual
+    --target-countries BR,IN,TH,AU,CO,MX,ID,PH,EC,PK,ZA,CN
+    --title-filter "sugar semi-annual"
+    --start-year 2000 --end-year 2026
+    --bucket leviathan-dev-shahem-001 --aws-region us-east-1
+
+manifest_command: null
+
+backfill_command: >
+  python jobs/submit/submit_batch_gain_backfill.py
+    --commodities sugar_semiannual

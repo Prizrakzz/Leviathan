@@ -1,0 +1,54 @@
+source: usda_gain_cocoa_semiannual
+
+commodity_id: null  # No FAS taxonomy filter; title-filter selects "Cocoa Semi-Annual" reports
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251"
+
+notes: >
+  USDA FAS GAIN "Cocoa Semi-Annual" mid-year reports. Published approximately
+  April–May per-country by attaché officers; covers main and mid-crop production
+  condition updates, weather assessments, and trade flow revisions between annual
+  reports. Title confirmed in S3: "Cocoa_Semi-Annual_..." and
+  "Cocoa_Beans_and_Cocoa_Products_Semi-Annual_..." (historical naming variant).
+  Distinct from "Cocoa Annual" (captured by usda_gain_cocoa and
+  usda_gain_cocoa_historical). Spans ~2000–present.
+
+publication_cadence: semi-annual
+
+target_commodities:
+  - cocoa
+
+report_categories:
+  - Cocoa Semi-Annual
+
+target_countries:
+  - CI   # Côte d'Ivoire   (largest producer, ~40% world supply)
+  - GH   # Ghana            (2nd largest)
+  - CM   # Cameroon
+  - NG   # Nigeria
+  - ID   # Indonesia        (largest Asian producer)
+  - EC   # Ecuador
+  - PE   # Peru
+  - BR   # Brazil
+  - DO   # Dominican Republic
+
+historical_depth: 2000
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_cocoa_semiannual/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P1
+
+crawl_command: >
+  python jobs/batch/gain_backfill_task.py
+    --commodity-name cocoa_semiannual
+    --target-countries CI,GH,CM,NG,ID,EC,PE,BR,DO
+    --title-filter "cocoa semi-annual"
+    --start-year 2000 --end-year 2026
+    --bucket leviathan-dev-shahem-001 --aws-region us-east-1
+
+manifest_command: null
+
+backfill_command: >
+  python jobs/submit/submit_batch_gain_backfill.py
+    --commodities cocoa_semiannual

@@ -1,0 +1,65 @@
+source: usda_gain_grain_monthly
+
+commodity_id: null  # No FAS taxonomy filter; title-filter selects "Grain and Feed Update" reports
+
+browse_url: "https://fas.usda.gov/data/search?reports%5B0%5D=report_type%3A10251"
+
+notes: >
+  USDA FAS GAIN "Grain and Feed Update" within-year reports. Published monthly or
+  quarterly per-country by attaché officers; covers crop condition revisions, weather
+  impacts, policy changes, and trade flow updates between annual reports. Captured
+  via title_filter="grain and feed update" across all wheat, corn, and rice origin
+  countries. Distinct from "Grain and Feed Annual" (year-end summary). Spans ~2000–present.
+
+publication_cadence: monthly
+
+target_commodities:
+  - wheat
+  - corn
+  - rice
+
+report_categories:
+  - Grain and Feed Update
+
+target_countries:
+  - US   # United States
+  - FR   # France
+  - AU   # Australia
+  - CA   # Canada
+  - UA   # Ukraine
+  - RU   # Russia
+  - IN   # India
+  - PK   # Pakistan
+  - EG   # Egypt
+  - AR   # Argentina
+  - CN   # China
+  - DE   # Germany
+  - PL   # Poland
+  - TR   # Turkey (Türkiye)
+  - BR   # Brazil
+  - ZA   # South Africa
+  - TH   # Thailand
+  - VN   # Vietnam
+  - PH   # Philippines
+  - NG   # Nigeria
+
+historical_depth: 2000
+
+s3_key_pattern: >
+  raw/production/source=usda_gain_grain_monthly/country={iso2}/publication_date={YYYYMMDD}/{filename}.pdf
+
+graphrag_priority: P1
+
+crawl_command: >
+  python jobs/batch/gain_backfill_task.py
+    --commodity-name grain_monthly
+    --target-countries US,FR,AU,CA,UA,RU,IN,PK,EG,AR,CN,DE,PL,TR,BR,ZA,TH,VN,PH,NG
+    --title-filter "grain and feed update"
+    --start-year 2000 --end-year 2026
+    --bucket leviathan-dev-shahem-001 --aws-region us-east-1
+
+manifest_command: null
+
+backfill_command: >
+  python jobs/submit/submit_batch_gain_backfill.py
+    --commodities grain_monthly_a grain_monthly_b
