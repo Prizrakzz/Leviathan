@@ -30,6 +30,7 @@ import time
 from pathlib import Path
 
 import requests
+from requests.exceptions import ConnectionError as RequestsConnectionError
 import yaml
 
 from leviathan.common.config import get_required_env, load_env
@@ -64,11 +65,24 @@ _MIN_HTML_BYTES = 2_000
 # ---------------------------------------------------------------------------
 
 
+_BACKOFF_DELAYS = (30, 60, 120)  # seconds to wait on connection-refused retries
+
+
 def _fetch(url: str) -> requests.Response:
-    r = requests.get(url, headers=_HEADERS, timeout=_REQUEST_TIMEOUT_S,
-                     allow_redirects=True)
-    r.raise_for_status()
-    return r
+    for attempt, delay in enumerate((*_BACKOFF_DELAYS, None), start=1):
+        try:
+            r = requests.get(url, headers=_HEADERS, timeout=_REQUEST_TIMEOUT_S,
+                             allow_redirects=True)
+            r.raise_for_status()
+            return r
+        except RequestsConnectionError as exc:
+            # WinError 10061 / ECONNREFUSED: Wayback rate-limit — back off and retry.
+            if delay is None:
+                raise
+            logger.warning(
+                "Connection refused on attempt %d — backing off %ds: %s", attempt, delay, exc
+            )
+            time.sleep(delay)
 
 
 def _validate_html(data: bytes, url: str) -> None:

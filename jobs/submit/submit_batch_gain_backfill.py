@@ -62,6 +62,15 @@ COMMODITIES: list[dict] = [
     # Coffee: no FAS taxonomy ID — title-filter across 14 origin countries (matches fetch_gain_coffee.py)
     {"name": "coffee",            "commodity_id": None, "countries": "BR,CO,VN,ET,ID,HN,GT,PE,MX,UG,IN,TZ,KE,CI", "title_filter": "coffee annual", "max_empty_pages": 2000},
     {"name": "coffee_historical", "source_name": "coffee", "commodity_id": None, "countries": "BR,CO,VN,ET,ID,HN,GT,PE,MX,UG,IN,TZ,KE,CI", "title_filter": "coffee annual", "start_year": 2000, "end_year": 2026},
+    # Phase 3: cocoa historical — title-filter date-scoped crawl 2000–2026
+    # countries match the regular cocoa job; DE/NL omitted (processors, not origin attachés)
+    {"name": "cocoa_historical", "source_name": "cocoa", "commodity_id": None,
+     "countries": "CI,GH,CM,NG,ID,EC,PE,BR,DO,MX,IN",
+     "title_filter": "cocoa annual", "start_year": 2000, "end_year": 2026},
+    # Phase 3: orange juice (citrus) historical — title-filter date-scoped crawl 2000–2026
+    {"name": "orange_juice_historical", "source_name": "orange_juice", "commodity_id": None,
+     "countries": "BR,US,MX,ZA,AR,TR,EG,IN,CN,ES,NG,AU,PK",
+     "title_filter": "citrus annual", "start_year": 2000, "end_year": 2026},
 ]
 
 

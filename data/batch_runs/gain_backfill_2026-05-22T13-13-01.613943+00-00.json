@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-22T13-13-01.613943+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "soybean_meal_historical",
+    "palm_oil_historical"
+  ],
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-soybean-meal-historical",
+      "job_id": "5200fe56-69ae-4e3b-8ff5-7f3db7ea86fb",
+      "commodity": "soybean_meal_historical"
+    },
+    {
+      "job_name": "gain-backfill-palm-oil-historical",
+      "job_id": "bb810533-0910-44a7-bade-0ddfd39212c9",
+      "commodity": "palm_oil_historical"
+    }
+  ]
+}

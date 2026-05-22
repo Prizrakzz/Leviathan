@@ -219,7 +219,7 @@ releases:
     wayback_url:   "https://web.archive.org/web/20050408224441/http://www.fas.usda.gov:80/WAP/circular/1999/99-09/cotton.pdf"
     original_url:  "http://www.fas.usda.gov:80/WAP/circular/1999/99-09/cotton.pdf"
     timestamp:     "20050408224441"
-    format:        "html"
+    format:        "pdf"
 
   - release_month: "2000-01"
     wayback_url:   "https://web.archive.org/web/20000302235645/http://www.fas.usda.gov:80/WAP/circular/2000/00-01/tables.html"

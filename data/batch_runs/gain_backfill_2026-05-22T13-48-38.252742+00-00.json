@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-22T13-48-38.252742+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "cocoa_historical",
+    "orange_juice_historical"
+  ],
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-cocoa-historical",
+      "job_id": "d7eeb689-d56d-4bb1-b811-2ac57fa36e4f",
+      "commodity": "cocoa_historical"
+    },
+    {
+      "job_name": "gain-backfill-orange-juice-historical",
+      "job_id": "ca559810-3577-458f-b7c4-a297d3e4e86f",
+      "commodity": "orange_juice_historical"
+    }
+  ]
+}

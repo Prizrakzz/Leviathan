@@ -209,7 +209,7 @@ def discover(sleep_seconds: float) -> list[dict]:
             fmt = "pdf"
         else:
             release_month = _release_month_from_url(original)
-            fmt = "html"
+            fmt = "pdf" if original.lower().endswith(".pdf") else "html"
 
         if not release_month:
             continue
