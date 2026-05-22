@@ -621,6 +621,48 @@ def raw_wasde_key(release_date: str, mmyy: str, fmt: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# USDA FGIS Export Inspections — per-shipment grain inspection records
+# ---------------------------------------------------------------------------
+
+def raw_fgis_backfill_key(year: int) -> str:
+    """S3 key for a USDA FGIS Export Inspections historical annual CSV.
+
+    Prior-year files (1983–previous year) are static and never revised once
+    a calendar year closes.  One file per calendar year.  Downloaded from:
+        https://fgisonline.ams.usda.gov/ExportGrainReport/CY{year}.csv
+
+    Args:
+        year: Calendar year, e.g. ``2024``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_fgis_export_inspections/"
+        f"backfill/"
+        f"CY{year}.csv"
+    )
+
+
+def raw_fgis_weekly_key(year: int, as_of_date: str) -> str:
+    """S3 key for a weekly point-in-time snapshot of the current-year FGIS CSV.
+
+    FGIS updates ``CY{year}.csv`` in-place every week.  Storing an immutable
+    snapshot partitioned by ``as_of_date`` preserves what was knowable on each
+    publication date, preventing lookahead bias in backtested ML features.
+
+    Args:
+        year: Calendar year of the current FGIS file, e.g. ``2026``.
+        as_of_date: Snapshot date in ``YYYYMMDD`` format, e.g. ``"20260522"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_fgis_export_inspections/"
+        f"year={year}/"
+        f"as_of={as_of_date}/"
+        f"CY{year}.csv"
+    )
+
+
+# ---------------------------------------------------------------------------
 # SAGIS (South African Grain Information Service) — Weekly Bulletin
 # ---------------------------------------------------------------------------
 

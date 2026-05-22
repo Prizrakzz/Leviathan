@@ -1,0 +1,102 @@
+source: usda_fgis_export_inspections
+
+notes: >
+  USDA Federal Grain Inspection Service (FGIS) per-shipment export inspection records.
+  Every grain shipment inspected and weighed at official U.S. export points under the
+  U.S. Grain Standards Act is recorded here as an individual certification row.
+  This is a legal record — not a survey or estimate — making it the gold standard for
+  actual physical export volume out of U.S. ports.
+
+  Coverage: corn (YC), soybeans (YSB), wheat (HRW/HRS/SRW), sorghum, barley, oats.
+  Port regions: Pacific (Columbia R., Puget Sound), Gulf (Mississippi R., Texas Gulf),
+  Interior, Atlantic, Great Lakes.
+
+  Primary use: construct export_pace_z_{commodity} — cumulative season-to-date
+  inspections vs. seasonal norm → z-score input to corn/soy/wheat spread models.
+
+  Point-in-time note: the current-year file (CY{year}.csv) is updated in-place
+  every week. Store a fresh weekly snapshot (as_of partition) rather than
+  downloading once at year-end. Prior-year files (1983–last year) are static and
+  safe to download once.
+
+  Not covered by this source: soybean meal, soybean oil, canola, palm oil
+  (processed products; not subject to Grain Standards Act inspection).
+
+historical_depth: 1983
+
+publication_cadence: weekly
+
+update_schedule: >
+  FGIS publishes new certifications Monday–Wednesday each week.
+  Snapshot the current-year CSV on Thursday (0 12 * * 4) to capture the
+  full week of new records before the next publication cycle.
+
+base_url: "https://fgisonline.ams.usda.gov/ExportGrainReport"
+
+backfill_url_pattern: "https://fgisonline.ams.usda.gov/ExportGrainReport/CY{year}.csv"
+
+weekly_url_pattern: "https://fgisonline.ams.usda.gov/ExportGrainReport/CY{current_year}.csv"
+
+s3_key_patterns:
+  backfill: "raw/production/source=usda_fgis_export_inspections/backfill/CY{year}.csv"
+  weekly:   "raw/production/source=usda_fgis_export_inspections/year={year}/as_of={YYYYMMDD}/CY{year}.csv"
+
+target_commodities:
+  - corn_cbot
+  - soybeans_cbot
+  - hard_red_winter_wheat_kcbt
+  - hard_red_spring_wheat_mgex
+  - soft_red_winter_wheat_cbot
+
+grain_class_mapping:
+  corn_cbot:
+    grain: CORN
+    classes: [YC]
+  soybeans_cbot:
+    grain: SOYBEANS
+    classes: [YSB]
+  hard_red_winter_wheat_kcbt:
+    grain: WHEAT
+    classes: [HRW]
+  hard_red_spring_wheat_mgex:
+    grain: WHEAT
+    classes: [HRS]
+  soft_red_winter_wheat_cbot:
+    grain: WHEAT
+    classes: [SRW]
+
+marketing_year_start:
+  # (month, day) of first day of the marketing year
+  CORN:     [9, 1]   # Sep 1 – Aug 31
+  SOYBEANS: [9, 1]   # Sep 1 – Aug 31
+  WHEAT:    [6, 1]   # Jun 1 – May 31 (all wheat classes)
+  SORGHUM:  [9, 1]   # Sep 1 – Aug 31
+  BARLEY:   [6, 1]   # Jun 1 – May 31
+
+ml_priority: P1
+graphrag_priority: P5
+
+schema:
+  columns:
+    date:             {type: date,   description: "Week ending date"}
+    cert_date:        {type: date,   description: "Certification date"}
+    week:             {type: int,    description: "Week number (1–52/53)"}
+    month:            {type: int,    description: "Month from cert_date"}
+    quarter:          {type: int,    description: "Quarter from cert_date"}
+    year:             {type: int,    description: "Year from cert_date"}
+    type_shipm:       {type: str,    description: "Shipment type (BU = bushels)"}
+    type_carrier:     {type: str,    description: "Carrier code (1=SHIP, 4=TRUCK, 5=BARGE, 8=RAIL)"}
+    type_carrier_text:{type: str,    description: "SHIP / RAIL / TRUCK / BARGE / CONTAINER"}
+    carrier_name:     {type: str,    description: "Vessel or carrier name"}
+    grain:            {type: str,    description: "CORN / SOYBEANS / WHEAT / SORGHUM / BARLEY / ..."}
+    grade:            {type: str,    description: "e.g. '2 O/B'"}
+    class:            {type: str,    description: "YC / YSB / HRW / HRS / SRW / ..."}
+    subclass:         {type: str,    description: "e.g. 'NS' (nonsticky wheat)"}
+    destination:      {type: str,    description: "Destination country name"}
+    port:             {type: str,    description: "COLUMBIA R. / MISSISSIPPI R. / INTERIOR / ..."}
+    ams_reg:          {type: str,    description: "AMS region: PACIFIC / GULF / INTERIOR / ATLANTIC / GREAT LAKES"}
+    fgis_reg:         {type: str,    description: "FGIS region: WEST COAST / EAST GULF / TEXAS GULF / ..."}
+    state:            {type: str,    description: "State abbreviation (Interior routes only)"}
+    mt:               {type: float,  description: "Metric tons (cast from string)"}
+    pounds:           {type: float,  description: "Pounds (cast from string)"}
+    field_office:     {type: str,    description: "FGIS field office: PACIFICNW / NEW ORLEANS / DIOO / ..."}
