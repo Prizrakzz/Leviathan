@@ -36,8 +36,8 @@ import yaml
 
 _SEARCH_URL = (
     "https://archive.org/advancedsearch.php"
-    "?q=collection%3Ausda-foreignagricultureservice"
-    "+title%3A%22world+agricultural+production%22"
+    "?q=collection:usda-foreignagriculturecircularsugar"
+    "+AND+title:%22World+agricultural+production%22"
     "&fl=identifier,title,date,description"
     "&output=json"
     "&rows=500"
@@ -45,6 +45,7 @@ _SEARCH_URL = (
 )
 
 _FILES_URL = "https://archive.org/metadata/{identifier}/files"
+_DJVU_TEXT_URL = "https://archive.org/download/{identifier}/{identifier}_djvu.txt"
 _DOWNLOAD_BASE = "https://archive.org/download"
 
 _MANIFEST_PATH = (
@@ -57,27 +58,26 @@ _MANIFEST_PATH = (
 _REQUEST_TIMEOUT_S = 30
 _HEADERS = {"User-Agent": "Leviathan-WAP-Discover/1.0 (research; non-commercial)"}
 
-# Patterns used to extract release_month from item date / title.
-# Archive.org dates are ISO 8601 (YYYY-MM-DD) or YYYY-MM or YYYY.
-_DATE_RE = re.compile(r"(\d{4})-(\d{2})")
-
-# Month abbreviation → number (for titles like "World Agricultural Production - May 1987")
+# Patterns used to extract release_month from OCR cover page text.
+# Cover text format: "WAP 1-88 January 1988" or "WAP  5-95  May  1995"
 _MONTH_ABBR: dict[str, str] = {
     "january": "01", "february": "02", "march": "03", "april": "04",
     "may": "05", "june": "06", "july": "07", "august": "08",
     "september": "09", "october": "10", "november": "11", "december": "12",
-    # abbreviations
     "jan": "01", "feb": "02", "mar": "03", "apr": "04",
     "jun": "06", "jul": "07", "aug": "08", "sep": "09",
     "oct": "10", "nov": "11", "dec": "12",
 }
 
-_TITLE_MONTH_RE = re.compile(
-    r"(\b(?:january|february|march|april|may|june|july|august|september|"
-    r"october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b)"
-    r"[,\s]+(\d{4})",
+# Matches "January 1988", "Jan 88", "JUNE 1997" etc. in OCR text
+_OCR_MONTH_YEAR_RE = re.compile(
+    r"\b(january|february|march|april|may|june|july|august|september|"
+    r"october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b"
+    r"[\s,]+(\d{4})",
     re.IGNORECASE,
 )
+# Fallback: ISO date in metadata (YYYY-MM or YYYY-MM-DD)
+_DATE_RE = re.compile(r"(\d{4})-(\d{2})")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -90,16 +90,21 @@ def _get(url: str, timeout: int = _REQUEST_TIMEOUT_S) -> requests.Response:
     return r
 
 
-def _extract_release_month(date_str: str, title: str) -> str | None:
-    """Return YYYY-MM derived from item date or title, or None if not parseable."""
-    # Try the item date field first (most reliable)
-    if date_str:
-        m = _DATE_RE.search(date_str)
-        if m:
-            return f"{m.group(1)}-{m.group(2)}"
-        # Year-only date — skip (ambiguous which month)
-    # Fall back to title pattern, e.g. "World Agricultural Production - July 1984"
-    m = _TITLE_MONTH_RE.search(title)
+def _extract_month_from_ocr(identifier: str, sleep_seconds: float) -> str | None:
+    """Download the DjVu OCR text and parse 'Month YYYY' from the cover page."""
+    url = _DJVU_TEXT_URL.format(identifier=identifier)
+    try:
+        r = requests.get(url, headers=_HEADERS, timeout=_REQUEST_TIMEOUT_S)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        text = r.text[:2000]  # only need the cover page
+    except Exception as exc:
+        print(f"    [ocr] ERROR {identifier}: {exc}")
+        return None
+    finally:
+        time.sleep(sleep_seconds * 0.5)  # lighter than full PDF metadata call
+    m = _OCR_MONTH_YEAR_RE.search(text)
     if m:
         month_word = m.group(1).lower()
         year = m.group(2)
@@ -178,9 +183,10 @@ def discover(sleep_seconds: float) -> list[dict]:
     for item in items:
         identifier: str = item.get("identifier", "")
         title: str = item.get("title", "")
-        date_str: str = item.get("date", "") or ""
 
-        release_month = _extract_release_month(date_str, title)
+        # Month is not in the metadata date (year-only for this collection).
+        # Read the first ~2KB of OCR text from the cover page instead.
+        release_month = _extract_month_from_ocr(identifier, sleep_seconds)
         if not release_month:
             print(f"  SKIP (no date)  {identifier}  title={title!r}")
             skipped_no_date += 1
@@ -204,7 +210,7 @@ def discover(sleep_seconds: float) -> list[dict]:
             "identifier": identifier,
             "title": title,
         })
-        print(f"  FOUND  {release_month}  {identifier}  →  {pdf_url}")
+        print(f"  FOUND  {release_month}  {identifier}  ->  {pdf_url}")
 
     # Sort chronologically and deduplicate (keep first encountered per month)
     confirmed.sort(key=lambda e: e["release_month"])
@@ -212,7 +218,7 @@ def discover(sleep_seconds: float) -> list[dict]:
     seen_months: set[str] = set()
     for entry in confirmed:
         if entry["release_month"] in seen_months:
-            print(f"  DUP   {entry['release_month']}  {entry['identifier']} — keeping first")
+            print(f"  DUP   {entry['release_month']}  {entry['identifier']} - keeping first")
             continue
         seen_months.add(entry["release_month"])
         deduped.append(entry)
@@ -234,7 +240,7 @@ def _save_manifest(entries: list[dict]) -> None:
     with _MANIFEST_PATH.open("w", encoding="utf-8") as fh:
         fh.write("# USDA FAS World Agricultural Production — Archive.org historical PDFs\n")
         fh.write("# Generated by: python jobs/ingest/discover_wap_archiveorg.py\n")
-        fh.write("# Source: Internet Archive usda-foreignagricultureservice collection\n")
+        fh.write("# Source: Internet Archive usda-foreignagriculturecircularsugar collection\n")
         fh.write("# Coverage: pre-2002-08 (modern FAS manifest covers 2002-08 onward)\n\n")
         fh.write("releases:\n\n")
         for e in entries:
@@ -243,7 +249,7 @@ def _save_manifest(entries: list[dict]) -> None:
             fh.write(f'    identifier:    "{e["identifier"]}"\n')
             fh.write(f'    title:         "{e["title"]}"\n')
             fh.write("\n")
-    print(f"\nManifest saved: {len(entries)} entries → {_MANIFEST_PATH}")
+    print(f"\nManifest saved: {len(entries)} entries -> {_MANIFEST_PATH}")
 
 
 # ---------------------------------------------------------------------------

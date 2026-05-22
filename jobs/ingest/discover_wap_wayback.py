@@ -58,6 +58,14 @@ _PROBE_PATTERNS = [
     "fas.usda.gov/wap/circular*",
     "www.fas.usda.gov/WAP/circular/*",
     "www.fas.usda.gov/wap/circular*",
+    # Year-scoped probes to work around the 2000-row CDX limit.
+    # Without these the 2000-row cap is exhausted by 1999 due to ~55 files per issue.
+    "fas.usda.gov/WAP/circular/2000/*",
+    "fas.usda.gov/WAP/circular/2001/*",
+    "fas.usda.gov/WAP/circular/2002/*",
+    "www.fas.usda.gov/WAP/circular/2000/*",
+    "www.fas.usda.gov/WAP/circular/2001/*",
+    "www.fas.usda.gov/WAP/circular/2002/*",
     # 2002 gap: the psdonline/circulars path was used before the modern portal
     "fas.usda.gov/psdonline/circulars/production.pdf",
     "www.fas.usda.gov/psdonline/circulars/production.pdf",
@@ -229,11 +237,25 @@ def discover(sleep_seconds: float) -> list[dict]:
         # Ideal capture timestamp: YYYYMM10 (10th of month)
         ideal_ts = f"{year_s}{month_s}10000000"
 
-        # Sort: HTML first, then by proximity to ideal_ts
-        def _sort_key(r: dict) -> tuple[int, int]:
+        def _score_url(url: str) -> int:
+            """Lower score = better. Prefer HTML, penalise binary/attachment files."""
+            lower = url.lower()
+            if lower.endswith(".html") or lower.endswith(".htm"):
+                return 0
+            if lower.endswith(".wk3") or lower.endswith(".wk4") or lower.endswith(".xls"):
+                return 10  # spreadsheet attachments — worst
+            if lower.endswith(".gif") or lower.endswith(".jpg") or lower.endswith(".png"):
+                return 9   # image files — very bad
+            if lower.endswith(".pdf"):
+                return 5   # PDF attachment — acceptable but not preferred
+            return 3       # other (text, unknown)
+
+        # Sort: HTML first by URL score, then by proximity to ideal_ts
+        def _sort_key(r: dict) -> tuple[int, int, int]:
             fmt_pref = 0 if r["_format"] == "html" else 1
+            url_pref = _score_url(r.get("original", ""))
             ts_diff = abs(int(r.get("timestamp", "0")[:8]) - int(ideal_ts[:8]))
-            return (fmt_pref, ts_diff)
+            return (fmt_pref, url_pref, ts_diff)
 
         candidates.sort(key=_sort_key)
         best = candidates[0]
@@ -273,7 +295,7 @@ def _save_manifest(entries: list[dict]) -> None:
             fh.write(f'    timestamp:     "{e["timestamp"]}"\n')
             fh.write(f'    format:        "{e["format"]}"\n')
             fh.write("\n")
-    print(f"\nManifest saved: {len(entries)} entries → {_MANIFEST_PATH}")
+    print(f"\nManifest saved: {len(entries)} entries -> {_MANIFEST_PATH}")
 
 
 # ---------------------------------------------------------------------------
