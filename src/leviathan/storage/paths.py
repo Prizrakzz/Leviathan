@@ -218,6 +218,38 @@ def raw_nass_citrus_key(season: str, report_type: str, filename: str) -> str:
     )
 
 
+def raw_icco_qbcs_summary_key(release_date: str, filename: str) -> str:
+    """S3 key for a parsed ICCO QBCS quarterly bulletin summary JSON or raw HTML.
+
+    Args:
+        release_date: ISO 8601 release date, e.g. ``"2024-11-29"``.
+        filename: File name, e.g. ``"icco_qbcs_summary_20241129.json"`` or
+            ``"page.html"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=icco_qbcs_summary/"
+        f"release_date={release_date}/"
+        f"{filename}"
+    )
+
+
+def raw_icco_ewg_stocks_key(season: str, filename: str) -> str:
+    """S3 key for a parsed ICCO EWG annual cocoa bean stocks report JSON or raw HTML.
+
+    Args:
+        season: Cocoa season in ``YYYY-YY`` format, e.g. ``"2024-25"``.
+        filename: File name, e.g. ``"icco_ewg_stocks_2024-25.json"`` or
+            ``"page.html"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=icco_ewg_stocks/"
+        f"season={season}/"
+        f"{filename}"
+    )
+
+
 def raw_reference_key(
     source: str,
     domain: str,
@@ -534,7 +566,8 @@ def raw_wap_key(release_month: str) -> str:
     """S3 key for a USDA FAS World Agricultural Production monthly PDF.
 
     One file per calendar month; the filename is always ``production.pdf``
-    (matching the CDN source).
+    (matching the CDN source).  Used for both the modern FAS portal
+    (2002-08 → present) and the Archive.org historical PDFs (pre-2002).
 
     Args:
         release_month: ``YYYY-MM``, e.g. ``"2026-05"``.
@@ -544,6 +577,25 @@ def raw_wap_key(release_month: str) -> str:
         f"source=usda_wap/"
         f"release_month={release_month}/"
         f"production.pdf"
+    )
+
+
+def raw_wap_html_key(release_month: str) -> str:
+    """S3 key for a pre-2002 USDA FAS WAP circular in original HTML format.
+
+    The 1996–2001 WAP circulars were published as HTML on fas.usda.gov and
+    are only available via the Wayback Machine.  They are stored under a
+    separate source prefix because bronze extraction uses BeautifulSoup
+    table parsing rather than pdfplumber.
+
+    Args:
+        release_month: ``YYYY-MM``, e.g. ``"1999-03"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_wap_html/"
+        f"release_month={release_month}/"
+        f"wap.html"
     )
 
 

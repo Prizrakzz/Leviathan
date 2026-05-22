@@ -41,6 +41,8 @@ COMMODITIES: list[dict] = [
     {"name": "palm_oil",    "commodity_id": "13023", "countries": "ID,TH,CO,NG,CM,GH"},
     # Malaysia KL posts under commodity_id=27 (oilseeds) — NOT under 13023; probe confirmed this
     {"name": "palm_oil_my", "source_name": "palm_oil", "commodity_id": "27", "countries": "MY", "title_filter": "oilseeds"},
+    # Historical depth: commodity_id=13023 only tags recent uploads; title-filter crawl recovers 2000-2026
+    {"name": "palm_oil_historical", "source_name": "palm_oil", "commodity_id": None, "countries": "ID,MY,TH,CO,NG,CM,GH", "title_filter": "oilseeds and products annual", "start_year": 2000, "end_year": 2026},
     {"name": "sugar",       "commodity_id": "34",    "countries": "BR,IN,TH,AU,CO,MX,ID,PH,EC"},
     {"name": "cotton",      "commodity_id": "6",     "countries": "US,IN,CN,BR,AU,PK,UZ"},
     {"name": "rapeseed",    "commodity_id": "28",    "countries": "CA,AU,FR,CN,DE,UA,PL"},
