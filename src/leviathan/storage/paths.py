@@ -663,6 +663,31 @@ def raw_fgis_weekly_key(year: int, as_of_date: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# World Bank Pink Sheet
+# ---------------------------------------------------------------------------
+
+def raw_pink_sheet_key(release_ym: str, filename: str) -> str:
+    """S3 key for a World Bank Commodity Markets (Pink Sheet) monthly XLS release.
+
+    The full monthly price history back to 1960 is included in every release,
+    so one download per calendar month is the complete backfill strategy.  Each
+    monthly snapshot is stored as an immutable versioned object; downstream
+    bronze jobs can diff sequential releases to detect retroactive WB revisions.
+
+    Args:
+        release_ym: Release year-month in ``YYYYMmm`` format, e.g. ``"2026M05"``.
+        filename:   Original XLS filename from the WB download URL, e.g.
+                    ``"CMO-Pink-Sheet-May-2026.xlsx"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=world_bank_pink_sheet/"
+        f"release={release_ym}/"
+        f"{filename}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # SAGIS (South African Grain Information Service) — Weekly Bulletin
 # ---------------------------------------------------------------------------
 

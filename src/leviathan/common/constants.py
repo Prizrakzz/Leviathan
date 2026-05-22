@@ -26,6 +26,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "usda_nass_citrus": 30_000,                  # 30 KB — conservative floor; smallest observed monthly PDFs are ~80 KB
     "usda_wasde_txt": 10_000,                     # 10 KB — some early 1995 TXT reports are ~15 KB
     "usda_wasde_pdf": 40_000,                     # 40 KB — early digital PDFs (2000–2003) observed at 75–87 KB; magic-bytes check handles truncation
+    "world_bank_pink_sheet": 500_000,             # 500 KB — actual file is ~783 KB; guards against error-page HTML responses
 }
 
 ALL_COMMODITIES: list[str] = [

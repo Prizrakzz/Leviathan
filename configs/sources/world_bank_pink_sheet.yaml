@@ -62,12 +62,17 @@ update_schedule: "0 14 1-7 * 2"
 
 entry_point_url: "https://www.worldbank.org/en/research/commodity-markets"
 
-# XLS href regex to locate the monthly download on the page
-xls_href_pattern: "CMO-Pink-Sheet-[A-Za-z]+-[0-9]{4}\\.xlsx"
+# The monthly historical data XLSX filename is static (no date in filename).
+# The release month is inferred from the accompanying PDF href on the page:
+#   CMO-Pink-Sheet-<MonthName>-<YYYY>.pdf
+# This PDF href reliably encodes the release date and appears next to the XLSX link.
+xls_filename: "CMO-Historical-Data-Monthly.xlsx"
+xls_href_pattern: "CMO-Historical-Data-Monthly\.xlsx"
+release_month_from_pdf_pattern: "CMO-Pink-Sheet-([A-Za-z]+)-(\\d{4})\.pdf"
 
 historical_depth: 1960
 
-s3_key_pattern: "raw/production/source=world_bank_pink_sheet/release={YYYY}M{MM}/CMO-Pink-Sheet-{Month}-{YYYY}.xlsx"
+s3_key_pattern: "raw/production/source=world_bank_pink_sheet/release={YYYY}M{MM}/CMO-Historical-Data-Monthly.xlsx"
 
 ml_priority: P2
 graphrag_priority: P5
