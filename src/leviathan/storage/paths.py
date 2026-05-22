@@ -688,6 +688,32 @@ def raw_pink_sheet_key(release_ym: str, filename: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# World Bank Commodity Markets Outlook (CMO Outlook)
+# ---------------------------------------------------------------------------
+
+def raw_cmo_outlook_key(release_ym: str, filename: str) -> str:
+    """S3 key for a World Bank Commodity Markets Outlook PDF.
+
+    Published semi-annually (April + October) since 2018; monthly/quarterly
+    in earlier eras back to 1994.  The ``release_ym`` partition normalises
+    all frequencies to ``YYYY-MM`` (e.g. H1 → ``2022-04``, H2 → ``2022-10``,
+    Q1 → ``2013-01``, monthly → actual month).
+
+    Args:
+        release_ym: Publication year-month in ``YYYY-MM`` format,
+                    e.g. ``"2022-04"``.
+        filename:   Normalised PDF filename, e.g.
+                    ``"CMO-Outlook-2022-April.pdf"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=wb_cmo_outlook/"
+        f"release={release_ym}/"
+        f"{filename}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # SAGIS (South African Grain Information Service) — Weekly Bulletin
 # ---------------------------------------------------------------------------
 
