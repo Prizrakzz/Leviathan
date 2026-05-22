@@ -27,6 +27,7 @@ import datetime
 import random
 import re
 import time
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import unquote, urljoin
 
@@ -211,7 +212,7 @@ def crawl(
     max_empty_pages: int = _MAX_EMPTY_PAGES,
     start_year: int | None = None,
     end_year: int | None = None,
-) -> list[dict]:
+) -> Generator[dict, None, None]:
     """Return list of raw record dicts (one per report PDF found).
 
     When start_year is provided the crawl uses date-scoped URLs
@@ -237,7 +238,6 @@ def crawl(
     else:
         search_urls = [search_url]
 
-    records: list[dict] = []
     empty_run = 0
     # max_empty early-stop only makes sense for the global no-filter search.
     max_empty = max_empty_pages if (title_filter and start_year is None) else 0
@@ -303,12 +303,12 @@ def crawl(
                                 record["category"] = lp["category_from_file"]
 
                     if record["pdf_url"]:
-                        records.append(record)
                         page_hits += 1
                         logger.info(
                             "  [OK] %s  %s  %s",
                             iso2, pub_date, record.get("report_id") or title,
                         )
+                        yield record
                     else:
                         logger.warning("  [NO PDF] %s (%s)", title, card["landing_url"])
 
@@ -330,8 +330,6 @@ def crawl(
                 page_num += 1
                 time.sleep(sleep_listing)
 
-    logger.info("Crawl complete: %d records", len(records))
-    return records
 
 
 # ---------------------------------------------------------------------------
@@ -390,89 +388,6 @@ def _s3_key_exists(s3, bucket: str, key: str) -> bool:
         return False
 
 
-def upload_pdfs(
-    manifest: dict,
-    source_name: str,
-    bucket: str,
-    aws_region: str,
-    skip_existing: bool,
-    sleep_seconds: float,
-    workers: int = 1,
-) -> tuple[int, int, int]:
-    """Download PDFs and upload to S3. Returns (uploaded, skipped, failed)."""
-    min_size = MIN_RAW_FILE_SIZES.get("usda_gain", 30_000)
-    # boto3 S3 client is thread-safe; create once and share across threads.
-    s3 = boto3.client("s3", region_name=aws_region)
-    uploaded = skipped = failed = 0
-
-    def _upload_one(entry: dict) -> str:
-        pdf_url = entry.get("pdf_url", "")
-        filename = entry.get("filename_clean", "")
-        country = entry.get("country_iso2", "")
-        pub_date = entry.get("publication_date", "")
-
-        if not pdf_url or not filename or not country or not pub_date:
-            return "failed"
-
-        key = raw_gain_key(source_name, country, pub_date, filename)
-
-        if skip_existing and _s3_key_exists(s3, bucket, key):
-            return "skipped"
-
-        # cr.Session() is NOT thread-safe — each worker creates its own.
-        try:
-            with cr.Session() as sess:
-                sess.headers.update({
-                    "Accept": "application/pdf,*/*",
-                    "Referer": "https://fas.usda.gov/",
-                })
-                r = sess.get(pdf_url, impersonate=_IMPERSONATE, timeout=60)
-            if r.status_code != 200:
-                logger.warning("HTTP %s for %s", r.status_code, pdf_url)
-                return "failed"
-            body = r.content
-            if len(body) < min_size:
-                logger.warning("Too small (%d B): %s", len(body), filename)
-                return "failed"
-            s3.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=body,
-                ContentType="application/pdf",
-            )
-            logger.info("Uploaded s3://%s/%s", bucket, key)
-            return "uploaded"
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed %s: %s", pdf_url, exc)
-            return "failed"
-
-    if workers <= 1:
-        # Sequential path — rate-limit sleep preserved, zero regression.
-        for entry in manifest["records"]:
-            result = _upload_one(entry)
-            if result == "uploaded":
-                uploaded += 1
-            elif result == "skipped":
-                skipped += 1
-            else:
-                failed += 1
-            time.sleep(sleep_seconds)
-    else:
-        # Threaded path — no per-entry sleep (PDF CDN handles concurrency fine).
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(_upload_one, e): e for e in manifest["records"]}
-            for fut in as_completed(futures):
-                result = fut.result()
-                if result == "uploaded":
-                    uploaded += 1
-                elif result == "skipped":
-                    skipped += 1
-                else:
-                    failed += 1
-
-    return uploaded, skipped, failed
-
-
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -513,8 +428,43 @@ def main() -> None:
         source_name, args.commodity_id, sorted(target_iso2),
     )
 
-    # 1. Crawl
-    records = crawl(
+    # ---------------------------------------------------------------------------
+    # Crawl + upload concurrently: each record is submitted to S3 as soon as
+    # its landing page is resolved — no waiting for the full crawl to finish.
+    # ---------------------------------------------------------------------------
+    min_size = MIN_RAW_FILE_SIZES.get("usda_gain", 30_000)
+    s3 = boto3.client("s3", region_name=args.aws_region)
+
+    def _upload_one(entry: dict) -> str:
+        pdf_url = entry.get("pdf_url", "")
+        filename = entry.get("filename_clean", "")
+        country = entry.get("country_iso2", "")
+        pub_date = entry.get("publication_date", "")
+        if not pdf_url or not filename or not country or not pub_date:
+            return "failed"
+        key = raw_gain_key(source_name, country, pub_date, filename)
+        if args.skip_existing_s3 and _s3_key_exists(s3, args.bucket, key):
+            return "skipped"
+        # cr.Session() is NOT thread-safe — each worker creates its own.
+        try:
+            with cr.Session() as sess:
+                sess.headers.update({"Accept": "application/pdf,*/*", "Referer": "https://fas.usda.gov/"})
+                r = sess.get(pdf_url, impersonate=_IMPERSONATE, timeout=60)
+            if r.status_code != 200:
+                logger.warning("HTTP %s for %s", r.status_code, pdf_url)
+                return "failed"
+            body = r.content
+            if len(body) < min_size:
+                logger.warning("Too small (%d B): %s", len(body), filename)
+                return "failed"
+            s3.put_object(Bucket=args.bucket, Key=key, Body=body, ContentType="application/pdf")
+            logger.info("Uploaded s3://%s/%s", args.bucket, key)
+            return "uploaded"
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed %s: %s", pdf_url, exc)
+            return "failed"
+
+    crawl_gen = crawl(
         search_url=search_url,
         target_iso2=target_iso2,
         title_filter=args.title_filter,
@@ -522,37 +472,60 @@ def main() -> None:
         start_year=args.start_year,
         end_year=args.end_year,
     )
+
+    records: list[dict] = []
+    uploaded = skipped = failed = 0
+
+    if args.dry_run:
+        for record in crawl_gen:
+            records.append(record)
+        logger.info("--dry-run: crawled %d records, skipping S3 upload.", len(records))
+    elif args.upload_workers <= 1:
+        # Sequential: upload each record immediately after crawl finds it.
+        for record in crawl_gen:
+            records.append(record)
+            result = _upload_one(record)
+            if result == "uploaded":
+                uploaded += 1
+            elif result == "skipped":
+                skipped += 1
+            else:
+                failed += 1
+            time.sleep(args.sleep_seconds)
+    else:
+        # Threaded: submit each record to the pool as crawl finds it.
+        # Uploads run in parallel with the ongoing crawl.
+        with ThreadPoolExecutor(max_workers=args.upload_workers) as pool:
+            future_to_entry: dict = {}
+            for record in crawl_gen:
+                records.append(record)
+                fut = pool.submit(_upload_one, record)
+                future_to_entry[fut] = record
+            for fut in as_completed(future_to_entry):
+                result = fut.result()
+                if result == "uploaded":
+                    uploaded += 1
+                elif result == "skipped":
+                    skipped += 1
+                else:
+                    failed += 1
+
+    logger.info("Crawl complete: %d records found.", len(records))
+
     if not records:
         logger.warning("No records found for %s — exiting cleanly.", source_name)
         raise SystemExit(0)
 
-    # 2. Build manifest
     manifest = build_manifest(records, source_name)
     logger.info(
         "Manifest: %d records across %s",
         manifest["record_count"], manifest["target_countries"],
     )
 
-    if args.dry_run:
-        logger.info("--dry-run: skipping S3 upload.")
-        return
-
-    # 3. Upload PDFs
-    uploaded, skipped, failed = upload_pdfs(
-        manifest=manifest,
-        source_name=source_name,
-        bucket=args.bucket,
-        aws_region=args.aws_region,
-        skip_existing=args.skip_existing_s3,
-        sleep_seconds=args.sleep_seconds,
-        workers=args.upload_workers,
-    )
-    logger.info(
-        "Done. uploaded=%d  skipped=%d  failed=%d",
-        uploaded, skipped, failed,
-    )
-    if failed > 0 and uploaded == 0:
-        raise SystemExit(1)
+    if not args.dry_run:
+        logger.info("Done. uploaded=%d  skipped=%d  failed=%d", uploaded, skipped, failed)
+        if failed > 0 and uploaded == 0:
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":
