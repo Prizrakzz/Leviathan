@@ -84,7 +84,7 @@ reports:
     s3_key: "raw/production/source=wb_cmo_outlook/release=1996-11/CMO-Outlook-1996-November.pdf"
     special_focus: ""
     wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    notes: "Not found on WB archive page or Wayback Machine; likely irrecoverable"
 
   - release_date: "1997-02"
     release_type: monthly-quarterly
@@ -505,6 +505,16 @@ reports:
     special_focus: ""
     wayback_needed: false
     notes: "thedocs.worldbank.org PDF via WB archive page"
+
+  - release_date: "2004-04"
+    release_type: monthly-quarterly
+    label: "April"
+    url: "https://thedocs.worldbank.org/en/doc/57951462979255003-0050022016/original/CMO2004GEP.pdf"
+    filename: "CMO-Outlook-2004-April.pdf"
+    s3_key: "raw/production/source=wb_cmo_outlook/release=2004-04/CMO-Outlook-2004-April.pdf"
+    special_focus: ""
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page (GEP analysis edition)"
 
   - release_date: "2005-01"
     release_type: monthly-quarterly
@@ -1176,25 +1186,55 @@ reports:
     wayback_needed: false
     notes: "thedocs.worldbank.org PDF via WB archive page"
 
+  - release_date: "2013-01"
+    release_type: monthly-quarterly
+    label: "January"
+    url: "https://thedocs.worldbank.org/en/doc/450001461935833268-0050022016/original/CMO2013January.pdf"
+    filename: "CMO-Outlook-2013-January.pdf"
+    s3_key: "raw/production/source=wb_cmo_outlook/release=2013-01/CMO-Outlook-2013-January.pdf"
+    special_focus: ""
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
+
+  - release_date: "2013-07"
+    release_type: monthly-quarterly
+    label: "July"
+    url: "https://thedocs.worldbank.org/en/doc/632561461935834019-0050022016/original/CMO2013July.pdf"
+    filename: "CMO-Outlook-2013-July.pdf"
+    s3_key: "raw/production/source=wb_cmo_outlook/release=2013-07/CMO-Outlook-2013-July.pdf"
+    special_focus: ""
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
+
+  - release_date: "2013-10"
+    release_type: monthly-quarterly
+    label: "October"
+    url: "https://thedocs.worldbank.org/en/doc/99931461935834550-0050022016/original/CMO2013October.pdf"
+    filename: "CMO-Outlook-2013-October.pdf"
+    s3_key: "raw/production/source=wb_cmo_outlook/release=2013-10/CMO-Outlook-2013-October.pdf"
+    special_focus: ""
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
+
   - release_date: "2014-01"
     release_type: semi-annual
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/121871461938592832-0050022016/original/CMO2014Januaryanalysis.pdf"
     filename: "CMO-Outlook-2014-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2014-01/CMO-Outlook-2014-January.pdf"
     special_focus: ">The nature and causes of oil price volatility"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2014-10"
     release_type: semi-annual
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/536291461938594172-0050022016/original/CMO2014Octoberanalysis.pdf"
     filename: "CMO-Outlook-2014-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2014-10/CMO-Outlook-2014-October.pdf"
     special_focus: ">The role of income growth in commodities"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2015-01"
     release_type: semi-annual
@@ -1204,77 +1244,77 @@ reports:
     s3_key: "raw/production/source=wb_cmo_outlook/release=2015-01/CMO-Outlook-2015-January.pdf"
     special_focus: ""
     wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    notes: "Data-only release (Excel supplement only); no analytical PDF published this quarter"
 
   - release_date: "2015-07"
     release_type: semi-annual
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/716291444853736301-0050022015/original/CMOJuly2015FeatureChinaIndia.pdf"
     filename: "CMO-Outlook-2015-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2015-07/CMO-Outlook-2015-July.pdf"
     special_focus: ">How important are China and India in global commodity consumption"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2015-10"
     release_type: semi-annual
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/276141444853736953-0050022015/original/CMOOct2015FeatureElNino.pdf"
     filename: "CMO-Outlook-2015-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2015-10/CMO-Outlook-2015-October.pdf"
     special_focus: ">Understanding El Niño: What does it mean for commodity markets?>Iran Nuclear Agreement: A game changer for energy markets?"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2016-01"
     release_type: semi-annual
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/874761453766994105-0050022016/original/CMOJan2016SpecialFocus.pdf"
     filename: "CMO-Outlook-2016-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2016-01/CMO-Outlook-2016-January.pdf"
     special_focus: ">Weak growth in emerging market economies: What does it imply for commodity markets?"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2016-04"
     release_type: semi-annual
     label: "April"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/520771461694380642-0050022016/original/CMOApril2016SpecialFocus.pdf"
     filename: "CMO-Outlook-2016-April.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2016-04/CMO-Outlook-2016-April.pdf"
     special_focus: ">Resource development in era of cheap commodities"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2016-07"
     release_type: semi-annual
     label: "July"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/642011469546341568-0050022016/original/CMOJuly2016SpecialFocus.pdf"
     filename: "CMO-Outlook-2016-July.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2016-07/CMO-Outlook-2016-July.pdf"
     special_focus: ">From energy prices to food prices: Moving in tandem?"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2016-10"
     release_type: semi-annual
     label: "October"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/153961476804665187-0050022016/original/CMOOctober2016SpecialFocus.pdf"
     filename: "CMO-Outlook-2016-October.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2016-10/CMO-Outlook-2016-October.pdf"
     special_focus: ">OPEC in historical context: Commodity agreements and market fundamentals"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2017-01"
     release_type: semi-annual
     label: "January"
-    url: ""
+    url: "https://thedocs.worldbank.org/en/doc/709321485188876498-0050022017/original/CMOJanuary2017SpecialFocus.pdf"
     filename: "CMO-Outlook-2017-January.pdf"
     s3_key: "raw/production/source=wb_cmo_outlook/release=2017-01/CMO-Outlook-2017-January.pdf"
     special_focus: ">Investment weakness in commodity exporters"
-    wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    wayback_needed: false
+    notes: "thedocs.worldbank.org PDF via WB archive page"
 
   - release_date: "2017-04"
     release_type: semi-annual
@@ -1284,7 +1324,7 @@ reports:
     s3_key: "raw/production/source=wb_cmo_outlook/release=2017-04/CMO-Outlook-2017-April.pdf"
     special_focus: ""
     wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    notes: "Data-only release (Excel supplement only); no analytical PDF published this quarter"
 
   - release_date: "2017-10"
     release_type: semi-annual
@@ -1294,7 +1334,7 @@ reports:
     s3_key: "raw/production/source=wb_cmo_outlook/release=2017-10/CMO-Outlook-2017-October.pdf"
     special_focus: ""
     wayback_needed: true
-    notes: "No Wayback snapshot found; manual intervention needed"
+    notes: "Data-only release (Excel supplement only); no analytical PDF published this quarter"
 
   - release_date: "2018-04"
     release_type: semi-annual
