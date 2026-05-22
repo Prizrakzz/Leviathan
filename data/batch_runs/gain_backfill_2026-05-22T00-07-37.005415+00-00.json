@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-22T00-07-37.005415+00-00",
+  "source": "usda_gain",
+  "commodities": [
+    "wheat_historical",
+    "soybeans_historical"
+  ],
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "gain-backfill-wheat-historical",
+      "job_id": null,
+      "commodity": "wheat_historical"
+    },
+    {
+      "job_name": "gain-backfill-soybeans-historical",
+      "job_id": null,
+      "commodity": "soybeans_historical"
+    }
+  ]
+}

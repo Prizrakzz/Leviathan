@@ -511,3 +511,69 @@ resource "aws_batch_job_definition" "gain_backfill" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: USDA WAP raw backfill
+# 6 parallel tasks submitted by jobs/submit/submit_batch_wap_backfill.py,
+# each covering a non-overlapping year range of the 287-entry manifest.
+# command is overridden per-task via containerOverrides at submission time.
+# Sizing: 0.25 vCPU / 512 MB — direct CDN PDF download; single-threaded.
+# Timeout: 1 h ceiling — each year-range chunk (~48 PDFs × 1.5 s sleep) ≈ 3 min.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "usda_wap_raw_backfill" {
+  name = "${var.project_name}-${var.environment}-usda-wap-raw-backfill"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    # Default command — overridden per-task via containerOverrides at submit time.
+    command = [
+      "jobs/ingest/fetch_usda_wap.py",
+      "--skip-existing-s3",
+      "--year-from", "2002",
+      "--year-to",   "2026",
+      "--sleep-seconds", "1.5"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.25" },
+      { type = "MEMORY", value = "512" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "usda-wap-raw-backfill"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600  # 1 h ceiling; each chunk ≈ 3 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
