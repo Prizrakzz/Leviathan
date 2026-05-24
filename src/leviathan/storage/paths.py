@@ -1,6 +1,23 @@
 from __future__ import annotations
 
 
+def raw_cpc_tif_key(variable: str, date_str: str, filename: str) -> str:
+    """S3 key for a CPC Leaky Bucket daily GeoTIFF file.
+
+    Args:
+        variable: Variable prefix, e.g. ``"w"`` (soil moisture).
+        date_str: Date in ``YYYYMMDD`` format, e.g. ``"20240115"``.
+        filename: Original filename, e.g. ``"w.20240115.tif"``.
+    """
+    return (
+        f"raw/weather/"
+        f"source=cpc_soil/"
+        f"variable={variable}/"
+        f"date={date_str}/"
+        f"{filename}"
+    )
+
+
 def parse_hive_key(key: str, field: str) -> str:
     """Extract the value of a hive-partition field from an S3 key.
 

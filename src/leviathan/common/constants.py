@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 CHIRPS_START_YEAR: int = 1981
+CPC_SOIL_MOISTURE_START_YEAR: int = 2000
 
 # Minimum expected raw file sizes in bytes, keyed by source identifier.
 # Files below these thresholds indicate a truncated/empty download.
