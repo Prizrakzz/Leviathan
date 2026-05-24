@@ -37,3 +37,8 @@ output "cpc_soil_raw_to_bronze_job_definition_arn" {
   value       = aws_batch_job_definition.cpc_soil_raw_to_bronze.arn
   description = "ARN of the CPC Soil Moisture raw S3 → bronze job definition."
 }
+
+output "cpc_soil_bronze_to_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.cpc_soil_bronze_to_silver.arn
+  description = "ARN of the CPC Soil Moisture bronze → silver job definition."
+}

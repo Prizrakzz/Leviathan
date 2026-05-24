@@ -731,3 +731,67 @@ resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: CPC Soil Moisture bronze → silver
+# 31 commodity tasks run in parallel by jobs/submit/submit_batch_b2s_cpc_soil.py,
+# one per commodity.  Each task reads all bronze Parquet for that commodity,
+# transforms to long/tidy silver format, and writes partitioned silver Parquet.
+# Sizing: 2 vCPU / 4096 MB — same as CHIRPS b2s.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "cpc_soil_bronze_to_silver" {
+  name = "${var.project_name}-${var.environment}-cpc-soil-bronze-to-silver"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    commodity  = "corn_cbot"
+    bucket     = var.leviathan_bucket
+    aws_region = var.aws_region
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/cpc_bronze_to_silver_task.py",
+      "--commodity",  "Ref::commodity",
+      "--bucket",     "Ref::bucket",
+      "--aws_region", "Ref::aws_region"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "2" },
+      { type = "MEMORY", value = "4096" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "cpc-soil-bronze-to-silver"
+      }
+    }
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
