@@ -8,7 +8,6 @@ from leviathan.transforms.bronze_to_silver.faostat_production import (
     transform_faostat_production_silver_df,
 )
 
-
 EXPECTED_COLS = {
     "commodity", "source", "country", "variable",
     "year", "unit", "value", "flag", "is_official", "ingest_date",

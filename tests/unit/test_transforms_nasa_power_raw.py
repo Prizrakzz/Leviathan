@@ -8,7 +8,6 @@ from leviathan.transforms.raw_to_bronze.nasa_power import (
     parse_nasa_power_date,
 )
 
-
 EXPECTED_COLS = {
     "date", "year", "month", "day",
     "source", "commodity", "country", "region",

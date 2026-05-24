@@ -90,46 +90,6 @@ module "bronze_to_silver_faostat" {
 }
 
 # ---------------------------------------------------------------------------
-# COG → bronze: CHIRPS
-# ---------------------------------------------------------------------------
-
-module "chirps_to_bronze" {
-  source = "../glue_job"
-
-  job_name          = "${var.project_name}-${var.environment}-chirps-to-bronze"
-  script_local_path = "${local.scripts_dir}/chirps_to_bronze.py"
-  bucket_name       = var.bucket_name
-  glue_role_arn     = var.glue_job_role_arn
-  aws_region        = var.aws_region
-  project_name      = var.project_name
-  environment       = var.environment
-
-  extra_default_args = {
-    # Pin to 1.3.x: rasterio >=1.4 wheels are compiled against numpy 2.x ABI
-    # (dtype size 96) but Glue 3.0 pre-installs numpy 1.24.x (dtype size 88).
-    # 1.3.10 is compiled against numpy 1.x and is the last release before 1.4.
-    "--additional-python-modules" = "rasterio==1.3.10"
-    "--ingest_date"               = formatdate("YYYY-MM-DD", timestamp())
-  }
-}
-
-# ---------------------------------------------------------------------------
-# bronze → silver: CHIRPS
-# ---------------------------------------------------------------------------
-
-module "bronze_to_silver_chirps" {
-  source = "../glue_job"
-
-  job_name          = "${var.project_name}-${var.environment}-bronze-to-silver-chirps"
-  script_local_path = "${local.scripts_dir}/bronze_to_silver_chirps.py"
-  bucket_name       = var.bucket_name
-  glue_role_arn     = var.glue_job_role_arn
-  aws_region        = var.aws_region
-  project_name      = var.project_name
-  environment       = var.environment
-}
-
-# ---------------------------------------------------------------------------
 # raw → bronze: USDA FAS ESR
 # ---------------------------------------------------------------------------
 

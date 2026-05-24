@@ -11,11 +11,19 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, TypedDict
 
 import boto3
 
 logger = logging.getLogger(__name__)
+
+
+class BatchJobRecord(TypedDict):
+    """Record returned by :func:`submit_batch_jobs` for each submitted task."""
+
+    job_name: str
+    parameters: dict[str, str]
+    job_id: str | None
 
 
 def submit_batch_jobs(
@@ -25,7 +33,7 @@ def submit_batch_jobs(
     build_job_name: Callable[[dict[str, str]], str],
     aws_region: str,
     dry_run: bool = False,
-) -> list[dict[str, Any]]:
+) -> list[BatchJobRecord]:
     """Submit *tasks* to AWS Batch via the ``parameters`` field.
 
     Each task dict is passed as-is to ``submit_job(parameters=...)``.
@@ -45,7 +53,7 @@ def submit_batch_jobs(
         ``"job_id"`` is ``None`` in dry-run mode.
     """
     client = boto3.client("batch", region_name=aws_region)
-    submitted: list[dict[str, Any]] = []
+    submitted: list[BatchJobRecord] = []
 
     for task in tasks:
         job_name = build_job_name(task)

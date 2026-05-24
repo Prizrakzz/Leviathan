@@ -22,7 +22,6 @@ import pytest
 
 from leviathan.transforms.bronze_to_silver.usda_esr import transform_esr_bronze_to_silver
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

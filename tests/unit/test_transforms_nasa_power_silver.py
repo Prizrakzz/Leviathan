@@ -9,7 +9,6 @@ from leviathan.transforms.bronze_to_silver.nasa_power_weather import (
     clean_one_weather_df,
 )
 
-
 EXPECTED_LONG_COLS = {
     "date", "year", "month", "day",
     "country", "region", "commodity", "source",

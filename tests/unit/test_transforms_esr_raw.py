@@ -12,7 +12,6 @@ import pytest
 
 from leviathan.transforms.raw_to_bronze.usda_esr import transform_esr_json_to_bronze
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

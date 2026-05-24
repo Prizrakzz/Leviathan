@@ -20,7 +20,6 @@ from leviathan.ingestion.weather.cpc_soil_moisture import (
 )
 from leviathan.storage.paths import raw_cpc_tif_key
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

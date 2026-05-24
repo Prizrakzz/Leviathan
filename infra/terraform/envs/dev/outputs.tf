@@ -50,12 +50,4 @@ output "glue_bronze_to_silver_faostat_job" {
   description = "Glue job: bronze → silver FAOSTAT."
 }
 
-output "glue_chirps_to_bronze_job" {
-  value       = module.glue.chirps_to_bronze_job_name
-  description = "Glue job: COG → bronze CHIRPS."
-}
 
-output "glue_bronze_to_silver_chirps_job" {
-  value       = module.glue.bronze_to_silver_chirps_job_name
-  description = "Glue job: bronze → silver CHIRPS."
-}

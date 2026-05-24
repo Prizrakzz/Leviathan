@@ -1,3 +1,8 @@
+"""Thin AWS S3 wrappers used across batch tasks and Glue jobs.
+
+Provides upload, existence checks, download, and listing helpers built on
+boto3, with a shared retry configuration for transient S3 errors.
+"""
 from __future__ import annotations
 
 import json

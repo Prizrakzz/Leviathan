@@ -1,3 +1,8 @@
+"""Pipeline-wide constants shared across batch tasks, Glue jobs, and submit scripts.
+
+All commodity lists are derived from the canonical :data:`CommodityName` Literal
+defined in :mod:`leviathan.common.types` to guarantee a single source of truth.
+"""
 from __future__ import annotations
 
 from typing import get_args

@@ -10,7 +10,6 @@ from moto import mock_aws
 from leviathan.common.validation import SchemaValidationError
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
 
-
 BUCKET = "test-leviathan-bucket"
 REGION = "us-east-1"
 
