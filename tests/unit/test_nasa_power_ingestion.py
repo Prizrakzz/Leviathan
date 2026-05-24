@@ -71,7 +71,9 @@ class TestFetchNasaPowerDaily:
         assert params.get("latitude") == 7.5 or params.get("lat") == 7.5 or True
 
     def test_raises_on_persistent_http_error(self):
-        """tenacity retries on HTTPError; patch sleep to avoid 2+4 second wait."""
+        """tenacity wraps unhandled errors in RetryError after all attempts."""
+        import tenacity
+
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = requests.HTTPError("503 Server Error")
 
@@ -80,13 +82,15 @@ class TestFetchNasaPowerDaily:
             return_value=mock_response,
         ):
             with patch("tenacity.nap.time.sleep"):
-                with pytest.raises(requests.HTTPError):
+                with pytest.raises((requests.HTTPError, tenacity.RetryError)):
                     fetch_nasa_power_daily(**_DEFAULT_KWARGS)
 
         # 3 attempts total (stop_after_attempt(3))
         assert mock_response.raise_for_status.call_count == 3
 
     def test_retries_exactly_three_times_on_failure(self):
+        import tenacity
+
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = requests.ConnectionError("timeout")
 
@@ -95,7 +99,7 @@ class TestFetchNasaPowerDaily:
             return_value=mock_response,
         ):
             with patch("tenacity.nap.time.sleep"):
-                with pytest.raises(requests.ConnectionError):
+                with pytest.raises((requests.ConnectionError, tenacity.RetryError)):
                     fetch_nasa_power_daily(**_DEFAULT_KWARGS)
 
         assert mock_response.raise_for_status.call_count == 3

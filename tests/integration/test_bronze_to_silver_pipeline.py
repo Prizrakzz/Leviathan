@@ -86,7 +86,11 @@ class TestNasaPowerRawToBronzeToSilver:
 
 class TestChirpsBronzeToSilver:
     def _make_chirps_bronze(self) -> pd.DataFrame:
-        """Minimal CHIRPS bronze DataFrame in wide format."""
+        """Minimal CHIRPS bronze DataFrame in wide format.
+
+        chirps_bronze_to_silver expects 'precipitation_mm' (already renamed
+        from raw 'prectotcorr') plus all SILVER_WEATHER_ID_COLS.
+        """
         return pd.DataFrame({
             "date": ["2020-01-01", "2020-01-02"],
             "year": [2020, 2020],
@@ -97,7 +101,7 @@ class TestChirpsBronzeToSilver:
             "country": ["ghana", "ghana"],
             "region": ["gh_main", "gh_main"],
             "ingest_date": ["2024-01-01", "2024-01-01"],
-            "prectotcorr": [3.2, 0.0],
+            "precipitation_mm": [3.2, 0.0],
         })
 
     def test_returns_dataframe(self):

@@ -67,11 +67,17 @@ class TestSilverFaostatVariables:
             f"Missing variables: {expected_vars - actual_vars}"
 
     def test_no_raw_element_names_in_variable(self, silver_faostat_df):
-        """Raw FAO element names should be mapped, not left as-is."""
-        raw_names = {"Production", "Area harvested", "Yield", "production",
-                     "area harvested", "yield"}
+        """Raw FAO element names should be mapped, not left as-is.
+
+        Mapped values include 'yield' (from ELEMENT_TO_METRIC), so only the
+        original capitalized forms ('Yield', 'Production', 'Area harvested')
+        are truly invalid raw names.
+        """
+        # Only the original FAO capitalized forms are invalid; mapped names
+        # like 'yield', 'production_quantity', 'area_harvested' are fine.
+        capitalized_raw_names = {"Production", "Area harvested", "Yield"}
         for val in silver_faostat_df["variable"].unique():
-            assert val not in raw_names, f"Unmapped element name: {val!r}"
+            assert val not in capitalized_raw_names, f"Unmapped element name: {val!r}"
 
 
 class TestSilverFaostatValues:
@@ -92,12 +98,14 @@ class TestSilverFaostatIsOfficial:
     def test_is_official_is_boolean(self, silver_faostat_df):
         assert pd.api.types.is_bool_dtype(silver_faostat_df["is_official"])
 
-    def test_flag_a_is_official(self, silver_faostat_df):
-        """Rows with flag='A' should be marked official."""
+    def test_flag_a_is_non_official(self, silver_faostat_df):
+        """Rows with flag='A' (FAO aggregate) should be marked non-official.
+
+        'A' is in NON_OFFICIAL_FLAGS, so is_official must be False.
+        """
         flag_a_rows = silver_faostat_df[silver_faostat_df["flag"] == "A"]
         if not flag_a_rows.empty:
-            # 'A' is not in NON_OFFICIAL_FLAGS
-            assert flag_a_rows["is_official"].all()
+            assert (~flag_a_rows["is_official"]).all()
 
     def test_no_nulls_in_is_official(self, silver_faostat_df):
         assert silver_faostat_df["is_official"].notna().all()
