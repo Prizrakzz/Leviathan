@@ -30,6 +30,11 @@ import re
 import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# ---------------------------------------------------------------------------
+# Local TypedDicts
+# ---------------------------------------------------------------------------
+from typing import TypedDict
 from urllib.parse import unquote, urljoin
 
 import boto3
@@ -39,12 +44,6 @@ from curl_cffi import requests as cr
 from leviathan.common.constants import MIN_RAW_FILE_SIZES
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_gain_key
-
-# ---------------------------------------------------------------------------
-# Local TypedDicts
-# ---------------------------------------------------------------------------
-
-from typing import TypedDict
 
 
 class GainDocument(TypedDict):

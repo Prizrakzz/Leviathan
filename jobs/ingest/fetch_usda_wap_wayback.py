@@ -31,8 +31,8 @@ import time
 from pathlib import Path
 
 import requests
-from requests.exceptions import ConnectionError as RequestsConnectionError
 import yaml
+from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger

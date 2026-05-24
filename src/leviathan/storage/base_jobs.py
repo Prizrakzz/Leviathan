@@ -24,8 +24,8 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import ClassVar, Iterable
 
-import yaml
 import pandas as pd
+import yaml
 
 from leviathan.common.logging import get_logger
 from leviathan.common.types import ProcessResult
@@ -198,7 +198,7 @@ class BaseRawToBronzeJob(_BaseGlueJob, ABC):
             s3_client.put_object(Body=buf.getvalue(), Bucket=self.bucket, Key=bkey)
             return ("success", bkey)
 
-        except Exception as exc:  # noqa: BLE001 — any per-file error is dead-lettered; loop continues
+        except Exception as exc:  # noqa: BLE001 — intentional: dead-letter gateway — per-file failure must not abort the batch run
             write_dead_letter(
                 self.bucket, self.source, self.commodity, raw_key, str(exc), self.aws_region
             )
@@ -423,6 +423,7 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
             logger.debug(
                 "Could not load geography config for %s/%s — country validation skipped",
                 self.source, self.commodity,
+                exc_info=True,
             )
             return []
 

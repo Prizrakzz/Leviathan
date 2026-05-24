@@ -97,5 +97,5 @@ def write_raw_s3_metadata(
             ContentType="application/json",
         )
         logger.debug("Wrote raw metadata: %s", meta_key)
-    except Exception:  # noqa: BLE001 — non-critical metadata write; any S3 failure is logged but does not abort the ingest
+    except Exception:  # noqa: BLE001 — intentional: metadata write is best-effort; failure must not abort the raw download
         logger.exception("Failed to write raw metadata for %s — continuing", raw_key)

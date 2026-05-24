@@ -12,6 +12,9 @@ TERMINAL_GLUE_STATES = frozenset({"SUCCEEDED", "FAILED", "ERROR", "TIMEOUT", "ST
 TERMINAL_BATCH_STATES = frozenset({"SUCCEEDED", "FAILED"})
 
 
+# --- Glue polling ---
+
+
 def poll_glue_runs(
     client: GlueClient,
     run_ids: dict[str, str],
@@ -43,6 +46,9 @@ def poll_glue_runs(
             logger.info("Glue: %d runs still in progress...", len(remaining))
             time.sleep(poll_interval)
     return results
+
+
+# --- Batch polling ---
 
 
 def poll_batch_jobs(

@@ -38,3 +38,15 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
 }
 
 ALL_COMMODITIES: tuple[CommodityName, ...] = get_args(CommodityName)
+
+SILVER_WEATHER_ID_COLS: list[str] = [
+    "date",
+    "year",
+    "month",
+    "day",
+    "country",
+    "region",
+    "commodity",
+    "source",
+    "ingest_date",
+]

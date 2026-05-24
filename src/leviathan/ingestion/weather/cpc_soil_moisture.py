@@ -25,13 +25,12 @@ import tarfile
 from datetime import datetime
 from typing import cast
 
+import rasterio  # noqa: E402
 import requests
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from leviathan.common.logging import get_logger
 from leviathan.common.types import Region
-
-import rasterio  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -183,7 +182,7 @@ def extract_region_values(
                     continue
                 value = float(band[row, col])
                 result[region] = None if value == actual_nodata else value
-            except Exception as exc:  # noqa: BLE001 — rasterio index can raise for edge cases
+            except Exception as exc:  # noqa: BLE001 — intentional: rasterio index raises diverse errors (numpy/GDAL); set None and continue
                 logger.warning("Pixel read failed for region=%s: %s — None", region, exc)
                 result[region] = None
 

@@ -61,9 +61,9 @@ Pass ``--dry-run`` to print S3 keys without downloading anything.
 from __future__ import annotations
 
 import argparse
-import logging
 import datetime
 import io
+import logging
 import time
 import zipfile
 

@@ -45,11 +45,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 
 import requests
 import yaml
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger

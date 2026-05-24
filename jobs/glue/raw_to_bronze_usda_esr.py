@@ -36,8 +36,8 @@ import sys
 from pathlib import Path
 
 from awsglue.utils import getResolvedOptions
-
 from bootstrap import run_bootstrap
+
 run_bootstrap()
 
 import boto3

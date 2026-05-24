@@ -13,12 +13,13 @@ import json
 from datetime import date
 
 from bootstrap import run_bootstrap
+
 run_bootstrap()
 
 import pandas as pd
 
-from leviathan.storage.base_jobs import BaseRawToBronzeJob
 from leviathan.common.validation import load_schema, validate_raw_json
+from leviathan.storage.base_jobs import BaseRawToBronzeJob
 from leviathan.storage.paths import bronze_weather_key, parse_hive_key
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe
 

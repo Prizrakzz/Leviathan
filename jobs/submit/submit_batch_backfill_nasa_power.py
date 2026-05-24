@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from pathlib import Path
 
-import boto3
-
+from leviathan.common.batch_submit import submit_batch_jobs, write_run_record
 from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.logging import get_logger
 from leviathan.storage.metadata import utc_now_iso
-
 
 logger = get_logger("submit_batch_backfill_nasa_power")
 
@@ -53,68 +50,41 @@ def submit_tasks(
     aws_region: str,
     dry_run: bool,
 ) -> list[dict]:
-    client = boto3.client("batch", region_name=aws_region)
-
-    submitted = []
-
-    for task in tasks:
-        job_name = (
-            f"nasa-power-backfill-{task['country']}-{task['region']}-{task['year']}"
-            .replace("_", "-")
-        )
-
-        parameters = {
-            "commodity": task["commodity"],
-            "country": task["country"],
-            "region": task["region"],
-            "start_year": str(task["year"]),
-            "end_year": str(task["year"]),
+    enriched = [
+        {
+            "commodity":  t["commodity"],
+            "country":    t["country"],
+            "region":     t["region"],
+            "start_year": str(t["year"]),
+            "end_year":   str(t["year"]),
         }
-
-        if dry_run:
-            logger.info("[DRY RUN] Would submit: %s params=%s", job_name, parameters)
-            submitted.append({"job_name": job_name, "parameters": parameters, "job_id": None})
-            continue
-
-        response = client.submit_job(
-            jobName=job_name,
-            jobQueue=job_queue,
-            jobDefinition=job_definition,
-            parameters=parameters,
-        )
-
-        job_id = response["jobId"]
-        logger.info("Submitted job_name=%s job_id=%s", job_name, job_id)
-
-        submitted.append(
-            {
-                "job_name": job_name,
-                "parameters": parameters,
-                "job_id": job_id,
-            }
-        )
-
-    return submitted
+        for t in tasks
+    ]
+    return submit_batch_jobs(
+        tasks=enriched,
+        job_queue=job_queue,
+        job_definition=job_definition,
+        build_job_name=lambda t: (
+            f"nasa-power-backfill-{t['country']}-{t['region']}-{t['start_year']}"
+            .replace("_", "-")
+        ),
+        aws_region=aws_region,
+        dry_run=dry_run,
+    )
 
 
 def save_run_record(submitted: list[dict], commodity: str, start_year: int, end_year: int) -> None:
-    run_id = utc_now_iso().replace(":", "-")
-    output_dir = Path("data/batch_runs")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"nasa_power_backfill_{run_id}.json"
-
+    run_id  = utc_now_iso().replace(":", "-")
     payload = {
-        "run_id": run_id,
-        "source": "nasa_power",
-        "commodity": commodity,
+        "run_id":     run_id,
+        "source":     "nasa_power",
+        "commodity":  commodity,
         "start_year": start_year,
-        "end_year": end_year,
+        "end_year":   end_year,
         "task_count": len(submitted),
-        "tasks": submitted,
+        "tasks":      submitted,
     }
-
-    output_path.write_text(json.dumps(payload, indent=2))
-    logger.info("Run record saved to %s", output_path)
+    write_run_record(Path("data/batch_runs") / f"nasa_power_backfill_{run_id}.json", payload)
 
 
 def main() -> None:

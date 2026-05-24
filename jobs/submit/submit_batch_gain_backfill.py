@@ -11,13 +11,13 @@ Usage
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 from pathlib import Path
 
 import boto3
 
+from leviathan.common.batch_submit import write_run_record
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.metadata import utc_now_iso
@@ -169,19 +169,15 @@ def submit_tasks(
 
 
 def save_run_record(submitted: list[dict], commodities: list[dict]) -> None:
-    run_id = utc_now_iso().replace(":", "-")
-    output_dir = Path("data/batch_runs")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"gain_backfill_{run_id}.json"
+    run_id  = utc_now_iso().replace(":", "-")
     payload = {
-        "run_id": run_id,
-        "source": "usda_gain",
+        "run_id":      run_id,
+        "source":      "usda_gain",
         "commodities": [c["name"] for c in commodities],
-        "task_count": len(submitted),
-        "tasks": submitted,
+        "task_count":  len(submitted),
+        "tasks":       submitted,
     }
-    output_path.write_text(json.dumps(payload, indent=2))
-    logger.info("Run record saved to %s", output_path)
+    write_run_record(Path("data/batch_runs") / f"gain_backfill_{run_id}.json", payload)
 
 
 # ---------------------------------------------------------------------------

@@ -43,7 +43,8 @@ from submit_batch_backfill_nasa_power import build_tasks, submit_tasks
 from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
-from leviathan.common.polling import poll_batch_jobs as _poll_batch_jobs, poll_glue_runs as _poll_glue_runs
+from leviathan.common.polling import poll_batch_jobs as _poll_batch_jobs
+from leviathan.common.polling import poll_glue_runs as _poll_glue_runs
 
 logger = get_logger("orchestrate_backfill")
 

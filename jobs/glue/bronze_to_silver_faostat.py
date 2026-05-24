@@ -12,12 +12,15 @@ from __future__ import annotations
 from typing import Iterable
 
 from bootstrap import run_bootstrap
+
 run_bootstrap()
 
 import pandas as pd
 
 from leviathan.storage.base_jobs import BaseBronzeToSilverJob
-from leviathan.transforms.bronze_to_silver.faostat_production import transform_faostat_production_silver_df
+from leviathan.transforms.bronze_to_silver.faostat_production import (
+    transform_faostat_production_silver_df,
+)
 
 
 class FaostatBronzeToSilver(BaseBronzeToSilverJob):

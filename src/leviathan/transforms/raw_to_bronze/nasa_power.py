@@ -9,7 +9,6 @@ import pandas as pd
 from leviathan.common.logging import get_logger
 from leviathan.common.types import NasaPowerPayload
 
-
 logger = get_logger(__name__)
 
 

@@ -52,9 +52,9 @@ downloading anything.
 from __future__ import annotations
 
 import argparse
-import logging
 import gzip
 import io
+import logging
 import re
 import zlib
 

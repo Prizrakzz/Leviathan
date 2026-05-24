@@ -130,7 +130,8 @@ async def _discover_bulletins_async(
     harvest_years: list[str],
     existing_idms: set[str],
 ) -> list[dict[str, Any]]:
-    from playwright.async_api import TimeoutError as PlaywrightTimeout, async_playwright
+    from playwright.async_api import TimeoutError as PlaywrightTimeout
+    from playwright.async_api import async_playwright
 
     found: list[dict[str, Any]] = []
 

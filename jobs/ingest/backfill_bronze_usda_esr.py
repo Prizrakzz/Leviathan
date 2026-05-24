@@ -12,14 +12,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import logging
 import datetime
 import io
+import logging
 import sys
 from pathlib import Path
 
 import boto3
-import pyarrow.parquet as pq
 
 # Ensure the src package is importable when run from the project root.
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import logging
 import datetime
 import hashlib
+import logging
 import time
 from pathlib import Path
 from time import sleep
@@ -16,7 +16,6 @@ from leviathan.storage.metadata import utc_now_iso, write_json_metadata
 from leviathan.storage.paths import raw_weather_key
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
 from leviathan.storage.s3 import s3_object_exists, upload_file_to_s3
-
 
 logger = get_logger("backfill_raw_nasa_power")
 

@@ -19,7 +19,6 @@ import boto3
 
 from leviathan.common.polling import poll_glue_runs
 
-
 POLL_INTERVAL_SECONDS = 15
 
 

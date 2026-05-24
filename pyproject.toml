@@ -58,6 +58,9 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint]
+select = ["I"]
+
 [tool.ruff.lint.per-file-ignores]
 # Glue scripts run a bootstrap block before importing leviathan/pandas.
 # The post-bootstrap imports are intentionally below module level.

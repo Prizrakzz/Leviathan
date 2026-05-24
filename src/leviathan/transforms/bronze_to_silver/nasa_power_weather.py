@@ -4,7 +4,6 @@ import pandas as pd
 
 from leviathan.common.logging import get_logger
 
-
 logger = get_logger(__name__)
 
 

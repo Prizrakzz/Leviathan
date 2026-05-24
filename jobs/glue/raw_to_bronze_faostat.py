@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 
 from awsglue.utils import getResolvedOptions
-
 from bootstrap import run_bootstrap
+
 run_bootstrap()
 
 from leviathan.common.logging import get_logger

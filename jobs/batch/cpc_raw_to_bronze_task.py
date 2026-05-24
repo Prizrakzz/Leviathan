@@ -28,36 +28,15 @@ from datetime import date, datetime, timezone
 
 import boto3
 import pandas as pd
-import yaml
 
 from leviathan.common.logging import get_logger
 from leviathan.common.types import Region
 from leviathan.ingestion.weather.cpc_soil_moisture import extract_region_values
+from leviathan.storage.configs import load_commodity_regions
 from leviathan.storage.paths import bronze_weather_key, raw_cpc_tif_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 
 logger = get_logger("cpc_raw_to_bronze_task")
-
-
-# ---------------------------------------------------------------------------
-# Region config loaders
-# ---------------------------------------------------------------------------
-
-def _load_regions(s3_client, bucket: str, commodity: str) -> list[Region]:
-    key = f"configs/geographies/{commodity}_regions.yaml"
-    body = s3_client.get_object(Bucket=bucket, Key=key)["Body"].read()
-    config = yaml.safe_load(body)
-    locations: list[Region] = []
-    for region_block in config["regions"]:
-        country = region_block["country"]
-        for loc in region_block["locations"]:
-            locations.append({
-                "country":   country,
-                "region":    loc["region"],
-                "latitude":  loc["latitude"],
-                "longitude": loc["longitude"],
-            })
-    return locations
 
 
 def _discover_commodities(bucket: str, aws_region: str) -> list[str]:
@@ -304,7 +283,7 @@ def main() -> None:
     )
 
     all_commodity_locations = {
-        c: _load_regions(s3_client, args.bucket, c) for c in commodities
+        c: load_commodity_regions(s3_client, args.bucket, c) for c in commodities
     }
     total_locations = sum(len(v) for v in all_commodity_locations.values())
     logger.info("Loaded %d locations across %d commodities", total_locations, len(commodities))

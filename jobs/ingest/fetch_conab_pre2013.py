@@ -43,8 +43,8 @@ Idempotency
 from __future__ import annotations
 
 import argparse
-import logging
 import json
+import logging
 import ssl
 import time
 import urllib.parse

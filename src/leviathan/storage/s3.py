@@ -11,7 +11,6 @@ from botocore.exceptions import BotoCoreError, ClientError
 from mypy_boto3_s3 import S3Client
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
 
-
 # ---------------------------------------------------------------------------
 # Module-level boto3 retry configuration
 # ---------------------------------------------------------------------------

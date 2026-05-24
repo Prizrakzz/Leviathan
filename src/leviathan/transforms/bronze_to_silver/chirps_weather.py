@@ -2,22 +2,12 @@ from __future__ import annotations
 
 import pandas as pd
 
+from leviathan.common.constants import SILVER_WEATHER_ID_COLS
 from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
 
-_ID_COLS = [
-    "date",
-    "year",
-    "month",
-    "day",
-    "country",
-    "region",
-    "commodity",
-    "source",
-    "ingest_date",
-]
-_REQUIRED_BRONZE_COLS = set(_ID_COLS) | {"precipitation_mm"}
+_REQUIRED_BRONZE_COLS = set(SILVER_WEATHER_ID_COLS) | {"precipitation_mm"}
 
 
 def chirps_bronze_to_silver(df: pd.DataFrame, source_label: str = "dataframe") -> pd.DataFrame:
@@ -49,10 +39,10 @@ def chirps_bronze_to_silver(df: pd.DataFrame, source_label: str = "dataframe") -
         keep="last",
     )
 
-    silver = df[list(_ID_COLS) + ["precipitation_mm"]].copy()
+    silver = df[list(SILVER_WEATHER_ID_COLS) + ["precipitation_mm"]].copy()
 
     silver = silver.melt(
-        id_vars=_ID_COLS,
+        id_vars=SILVER_WEATHER_ID_COLS,
         value_vars=["precipitation_mm"],
         var_name="variable",
         value_name="value",

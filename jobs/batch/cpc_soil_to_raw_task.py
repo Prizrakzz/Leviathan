@@ -17,21 +17,19 @@ from __future__ import annotations
 
 import argparse
 import calendar
-import io
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
-import boto3
 import requests
 
 from leviathan.common.logging import get_logger
 from leviathan.ingestion.weather.cpc_soil_moisture import (
+    CPC_FTP_BASE,
     download_cpc_annual_tarball,
     download_cpc_daily_tif,
     extract_tifs_from_tarball,
-    CPC_FTP_BASE,
 )
 from leviathan.storage.paths import raw_cpc_tif_key
 from leviathan.storage.s3 import get_thread_local_s3_client

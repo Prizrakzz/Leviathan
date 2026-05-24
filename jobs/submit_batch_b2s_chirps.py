@@ -15,13 +15,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 from pathlib import Path
 
-import boto3
-
+from leviathan.common.batch_submit import submit_batch_jobs, write_run_record
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
@@ -41,33 +39,18 @@ def submit_tasks(
     aws_region: str,
     dry_run: bool,
 ) -> list[dict]:
-    client = boto3.client("batch", region_name=aws_region)
-    submitted: list[dict] = []
-
-    for commodity in commodities:
-        job_name = f"chirps-b2s-{commodity}".replace("_", "-")
-        parameters = {
-            "commodity":  commodity,
-            "bucket":     bucket,
-            "aws_region": aws_region,
-        }
-
-        if dry_run:
-            logger.info("[DRY RUN] Would submit: %s  params=%s", job_name, parameters)
-            submitted.append({"job_name": job_name, "parameters": parameters, "job_id": None})
-            continue
-
-        response = client.submit_job(
-            jobName=job_name,
-            jobQueue=job_queue,
-            jobDefinition=job_definition,
-            parameters=parameters,
-        )
-        job_id = response["jobId"]
-        logger.info("Submitted  job_name=%s  job_id=%s", job_name, job_id)
-        submitted.append({"job_name": job_name, "parameters": parameters, "job_id": job_id})
-
-    return submitted
+    tasks = [
+        {"commodity": c, "bucket": bucket, "aws_region": aws_region}
+        for c in commodities
+    ]
+    return submit_batch_jobs(
+        tasks=tasks,
+        job_queue=job_queue,
+        job_definition=job_definition,
+        build_job_name=lambda t: f"chirps-b2s-{t['commodity']}".replace("_", "-"),
+        aws_region=aws_region,
+        dry_run=dry_run,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -75,10 +58,7 @@ def submit_tasks(
 # ---------------------------------------------------------------------------
 
 def save_run_record(submitted: list[dict], commodities: list[str]) -> None:
-    run_id     = utc_now_iso().replace(":", "-")
-    output_dir = Path("data/batch_runs")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"chirps_b2s_{run_id}.json"
+    run_id  = utc_now_iso().replace(":", "-")
     payload = {
         "run_id":      run_id,
         "source":      "chirps",
@@ -87,8 +67,7 @@ def save_run_record(submitted: list[dict], commodities: list[str]) -> None:
         "task_count":  len(submitted),
         "tasks":       submitted,
     }
-    output_path.write_text(json.dumps(payload, indent=2))
-    logger.info("Run record saved to %s", output_path)
+    write_run_record(Path("data/batch_runs") / f"chirps_b2s_{run_id}.json", payload)
 
 
 # ---------------------------------------------------------------------------

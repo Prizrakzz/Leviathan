@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from bootstrap import run_bootstrap
+
 run_bootstrap()
 
 import pandas as pd

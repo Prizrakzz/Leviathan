@@ -8,51 +8,25 @@ Optional args: --ingest_date (default: today), --force_overwrite (default: false
 """
 from __future__ import annotations
 
-# GDAL env vars must be set before rasterio is imported anywhere in the process.
-import os
-
-os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-os.environ.setdefault("GDAL_HTTP_MAX_RETRY", "3")
-os.environ.setdefault("GDAL_HTTP_RETRY_DELAY", "1")
-os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
-os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "200000000")
-
 import argparse
 import calendar
-import logging
 import io
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
 import boto3
 import pandas as pd
-import yaml
 
 from leviathan.common.logging import get_logger
 from leviathan.common.types import Region
 from leviathan.ingestion.weather.chirps import fetch_chirps_daily_values
+from leviathan.storage.configs import load_commodity_regions
 from leviathan.storage.paths import bronze_weather_key
 from leviathan.storage.s3 import get_thread_local_s3_client
 
 logger = get_logger("chirps_to_bronze_task")
-
-
-def _load_regions(s3_client, bucket: str, commodity: str) -> list[Region]:
-    key = f"configs/geographies/{commodity}_regions.yaml"
-    body = s3_client.get_object(Bucket=bucket, Key=key)["Body"].read()
-    config = yaml.safe_load(body)
-    locations: list[Region] = []
-    for region_block in config["regions"]:
-        country = region_block["country"]
-        for loc in region_block["locations"]:
-            locations.append({
-                "country": country,
-                "region": loc["region"],
-                "latitude": loc["latitude"],
-                "longitude": loc["longitude"],
-            })
-    return locations
 
 
 def _process_month(
@@ -71,10 +45,11 @@ def _process_month(
     def _fetch_day(day: int) -> tuple[int, dict]:
         try:
             return day, fetch_chirps_daily_values(year, month, day, locations)
-        except Exception as exc:  # noqa: BLE001 — any rasterio or network error skips this day; batch continues
+        except Exception:  # noqa: BLE001 — intentional: rasterio/network failure skips one day; batch continues
             logger.warning(
-                "Failed to fetch %d-%02d-%02d: %s — skipping day",
-                year, month, day, exc,
+                "Failed to fetch %d-%02d-%02d — skipping day",
+                year, month, day,
+                exc_info=True,
             )
             return day, {}
 
@@ -181,7 +156,7 @@ def main() -> None:
     )
 
     s3_client = boto3.client("s3", region_name=args.aws_region)
-    locations = _load_regions(s3_client, args.bucket, args.commodity)
+    locations = load_commodity_regions(s3_client, args.bucket, args.commodity)
     logger.info("Loaded %d locations for commodity=%s", len(locations), args.commodity)
 
     with ThreadPoolExecutor(max_workers=12) as pool:

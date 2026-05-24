@@ -90,7 +90,7 @@ def _read_cog_values(
                     continue
                 value = float(src.read(1, window=Window(col, row, 1, 1))[0, 0])
                 result[region] = None if value == nodata else value
-            except Exception as exc:  # noqa: BLE001 — rasterio pixel read can raise diverse exceptions; log and set None
+            except Exception as exc:  # noqa: BLE001 — intentional: rasterio pixel read raises diverse errors (numpy/GDAL); set None and continue
                 logger.warning("Pixel read failed for region=%s: %s", region, exc)
                 result[region] = None
 

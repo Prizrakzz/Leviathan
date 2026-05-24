@@ -296,6 +296,6 @@ def write_quality_report_to_s3(
             ContentType="application/json",
         )
         logger.info("Wrote silver quality report: s3://%s/%s", bucket, key)
-    except Exception:  # noqa: BLE001 — non-critical S3 write; any failure is logged but does not abort the job
+    except Exception:  # noqa: BLE001 — intentional: quality report S3 write must not abort the silver transform
         logger.exception("Failed to write silver quality report for %s/%s — continuing", source, commodity)
     return key

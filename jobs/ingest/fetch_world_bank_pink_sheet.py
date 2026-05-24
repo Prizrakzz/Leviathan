@@ -47,9 +47,9 @@ release but you need to ingest the prior month's data from a cached URL).
 from __future__ import annotations
 
 import argparse
-import logging
 import datetime
 import io
+import logging
 import re
 import zipfile
 

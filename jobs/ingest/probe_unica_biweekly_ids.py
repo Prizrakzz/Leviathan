@@ -26,15 +26,14 @@ Four sub-commands
 from __future__ import annotations
 
 import argparse
-import logging
 import io
 import json
+import logging
 import re
 import ssl
 import time
 import urllib.parse
 import urllib.request
-
 from pathlib import Path
 from typing import TypedDict, cast
 

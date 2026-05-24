@@ -53,9 +53,9 @@ Pass ``--dry-run`` to print S3 keys without making any API calls.
 from __future__ import annotations
 
 import argparse
-import logging
 import datetime
 import json
+import logging
 import time
 
 import requests

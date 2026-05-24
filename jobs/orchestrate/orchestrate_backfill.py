@@ -45,6 +45,8 @@ from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 from leviathan.common.polling import (
     poll_batch_jobs as _poll_batch_jobs,
+)
+from leviathan.common.polling import (
     poll_glue_runs as _poll_glue_runs,
 )
 

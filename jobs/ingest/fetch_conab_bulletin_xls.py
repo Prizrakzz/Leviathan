@@ -28,8 +28,8 @@ Run
 from __future__ import annotations
 
 import argparse
-import logging
 import json
+import logging
 import time
 from pathlib import Path
 
