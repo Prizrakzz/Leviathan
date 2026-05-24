@@ -39,6 +39,7 @@ Add ``--dry-run`` to print URLs without downloading anything.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import time
 from datetime import date
@@ -391,6 +392,7 @@ def _upload_report(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download USDA AMS Cotton Annual Quality Report PDFs to raw S3. "

@@ -39,6 +39,7 @@ Add --dry-run to print S3 keys without downloading anything.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import time
 from datetime import datetime
@@ -528,6 +529,7 @@ def _upload_report(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download USDA NASS Florida Citrus PDFs to raw S3. "

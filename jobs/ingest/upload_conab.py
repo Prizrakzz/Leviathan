@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from leviathan.common.config import get_required_env, load_env
@@ -15,6 +16,7 @@ _PDF_MAGIC = b"%PDF"
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description="Upload a CONAB Boletim da Safra de Café PDF to raw S3."
     )

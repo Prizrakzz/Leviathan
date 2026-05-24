@@ -19,6 +19,7 @@ os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "200000000")
 
 import argparse
 import calendar
+import logging
 import io
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -29,6 +30,7 @@ import pandas as pd
 import yaml
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import Region
 from leviathan.ingestion.weather.chirps import fetch_chirps_daily_values
 from leviathan.storage.paths import bronze_weather_key
 from leviathan.storage.s3 import get_thread_local_s3_client
@@ -36,11 +38,11 @@ from leviathan.storage.s3 import get_thread_local_s3_client
 logger = get_logger("chirps_to_bronze_task")
 
 
-def _load_regions(s3_client, bucket: str, commodity: str) -> list[dict]:
+def _load_regions(s3_client, bucket: str, commodity: str) -> list[Region]:
     key = f"configs/geographies/{commodity}_regions.yaml"
     body = s3_client.get_object(Bucket=bucket, Key=key)["Body"].read()
     config = yaml.safe_load(body)
-    locations: list[dict] = []
+    locations: list[Region] = []
     for region_block in config["regions"]:
         country = region_block["country"]
         for loc in region_block["locations"]:
@@ -59,7 +61,7 @@ def _process_month(
     commodity: str,
     year: int,
     month: int,
-    locations: list[dict],
+    locations: list[Region],
     ingest_date: str,
     force_overwrite: bool,
 ) -> None:
@@ -161,6 +163,7 @@ def _process_month(
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="CHIRPS COG → bronze (Batch task)")
     parser.add_argument("--commodity",      required=True)
     parser.add_argument("--year",           required=True, type=int)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import io
 import zipfile
 from pathlib import Path
@@ -14,6 +15,7 @@ logger = get_logger(__name__)
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", required=True, help="Local FAOSTAT QCL ZIP path")
     args = parser.parse_args()

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 from datetime import date
 from pathlib import Path
@@ -102,6 +103,7 @@ def save_run_record(
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     load_env()
 
     env     = os.environ.get("LEVIATHAN_ENV", "dev")

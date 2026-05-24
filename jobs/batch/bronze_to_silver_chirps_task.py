@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
+import logging
+
 import pandas as pd
 
 from leviathan.storage.base_jobs import BaseBronzeToSilverJob
@@ -43,4 +45,5 @@ class ChirpsBronzeToSilver(BaseBronzeToSilverJob):
         )
 
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 ChirpsBronzeToSilver().run()

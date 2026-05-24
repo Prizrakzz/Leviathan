@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import cast
 
 import requests
@@ -52,13 +50,3 @@ def fetch_nasa_power_daily(
     response.raise_for_status()
 
     return cast(NasaPowerPayload, response.json())
-
-
-def save_raw_json(payload: NasaPowerPayload, output_path: str | Path) -> None:
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    with path.open("w", encoding="utf-8") as file:
-        json.dump(payload, file, indent=2)
-
-    logger.info("Saved raw JSON: %s", path)

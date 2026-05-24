@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import datetime
 import io
 import sys
@@ -48,6 +49,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     load_env()
     args = parse_args()
     s3 = boto3.client("s3", region_name=AWS_REGION)

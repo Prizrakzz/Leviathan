@@ -13,15 +13,12 @@ The first commodity is **cocoa** — 14 growing regions across 5 countries (Côt
 ## Architecture
 
 ```
-NASA POWER API ──┐
-                 ├─► AWS Batch Fargate ──► S3 raw/ ──► Glue (raw→bronze) ──► S3 bronze/
-FAOSTAT bulk ───┘                                                                  │
-                                                                                   ▼
-                                                                     Glue (bronze→silver)
-                                                                                   │
-                                                                                   ▼
-                                                                           S3 silver/
-                                                                     (Athena / DuckDB ready)
+NASA POWER API ──┐                                         ┌─► Glue (raw→bronze) ──► S3 bronze/ ──► Glue (bronze→silver) ──┐
+FAOSTAT bulk ───┘──► S3 raw/  ─────────────────────────────┤                                                               ▼
+                                                            │                                                         S3 silver/
+CHIRPS COG ──────────────────────────────────────────────────► Batch Fargate (→bronze) ──► S3 bronze/ ──► Batch (→silver) ──┘
+                                                                                        (Athena / DuckDB ready)
+CPC Soil Moisture ──► S3 raw/ ─────────────────────────────────► Batch Fargate (→bronze) ──► S3 bronze/
 ```
 
 | Layer | Format | Partitioning | Contents |
@@ -31,8 +28,8 @@ FAOSTAT bulk ───┘                                                       
 | `silver/` | Parquet (Snappy) | `source/commodity/country/region/year/month/` | Cleaned, validated, ML-ready |
 
 **Compute:**
-- **Ingestion** — AWS Batch Fargate (parallel fan-out per region/year/month via SQS)
-- **Transformation** — AWS Glue Python Shell (GlueVersion 3.0, 1 DPU, parallel S3 I/O via `ThreadPoolExecutor`)
+- **Ingestion** — AWS Batch Fargate (parallel fan-out per region/year/month)
+- **Transformation** — AWS Glue Python Shell (NASA POWER, FAOSTAT) and AWS Batch Fargate (CHIRPS, CPC Soil Moisture)
 - **Querying** — Amazon Athena with Hive partitions registered in Glue Data Catalog
 
 **Infrastructure** is fully managed by Terraform (`infra/terraform/`). Environments: `dev`, `prod`.
@@ -55,10 +52,12 @@ infra/terraform/
   modules/            # batch, cloudwatch, ecr, glue, iam, s3, secrets, step_functions
 
 jobs/
-  glue/               # Glue Python Shell scripts (raw→bronze, bronze→silver)
-  backfill_*.py       # One-time historical backfill runners
-  check_*.py          # Pipeline validation scripts
-  submit_batch_*.py   # Batch job submission helpers
+  batch/              # AWS Batch Fargate task entrypoints (CHIRPS, CPC Soil Moisture)
+  glue/               # Glue Python Shell scripts (NASA POWER, FAOSTAT; legacy for CHIRPS)
+  ingest/             # Local ingestion scripts (NASA POWER, CONAB, FAOSTAT, etc.)
+  orchestrate/        # Pipeline orchestration scripts
+  submit/             # Batch job submission helpers
+  submit_batch_*.py   # Top-level Batch submission scripts (CPC, CHIRPS)
 
 src/leviathan/
   common/             # Logging, config loading
@@ -174,16 +173,16 @@ Run the generic Glue job checks or query the silver layer via Athena to validate
 
 ---
 
-## Current data state (cocoa)
+## Current data state
 
-| Layer | Files | Rows | Coverage |
-|---|---|---|---|
-| Raw weather | 7,392 | — | 14 regions × 44 years × 12 months |
-| Bronze weather | 7,392 | — | same |
-| Silver weather | 7,392 | 224,994 | 1981-01-01 → 2024-12-31, 0 duplicates |
-| Silver production | — | 14,957 | 83 country keys, 1961–2023, 0 duplicates |
+Full data state is tracked in `currentstate.md` (gitignored). Summary as of May 2026:
 
-ML overlap window: **1981–2023** — all 5 config countries have complete coverage in both datasets.
+- **31 commodities** across grains, oilseeds, and softs
+- **NASA POWER** weather: backfilled 1981–present for all 31 commodities
+- **CHIRPS v3** weather: backfilled 1981–present for all 31 commodities (bronze + silver complete)
+- **CPC Soil Moisture**: raw backfilled 2000–2026; bronze backfill in progress
+- **FAOSTAT QCL**: bronze + silver complete for all 31 commodities
+- **Production sources** (CONAB, UNICA, MPOB, MPOC, FNC, USDA PSD/NASS/WASDE/WAP/GAIN): raw backfilled; bronze not yet built
 
 ---
 

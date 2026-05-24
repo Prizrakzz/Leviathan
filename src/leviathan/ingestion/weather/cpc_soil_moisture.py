@@ -23,6 +23,7 @@ from __future__ import annotations
 import io
 import tarfile
 from datetime import datetime
+from typing import cast
 
 import requests
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -68,7 +69,7 @@ def download_cpc_daily_tif(date_str: str, variable: str = "w") -> bytes:
     logger.info("Downloading CPC daily TIF: %s", url)
     resp = requests.get(url, timeout=_REQUEST_TIMEOUT)
     resp.raise_for_status()
-    return resp.content
+    return cast(bytes, resp.content)
 
 
 @retry(
@@ -94,7 +95,7 @@ def download_cpc_annual_tarball(year: int, variable: str = "w") -> bytes:
     resp = requests.get(url, timeout=_TARBALL_TIMEOUT)
     resp.raise_for_status()
     logger.info("Downloaded %d bytes for %s %d tarball", len(resp.content), variable, year)
-    return resp.content
+    return cast(bytes, resp.content)
 
 
 # ---------------------------------------------------------------------------

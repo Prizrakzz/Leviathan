@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import logging
 import random
 import re
 import time
@@ -38,6 +39,18 @@ from curl_cffi import requests as cr
 from leviathan.common.constants import MIN_RAW_FILE_SIZES
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_gain_key
+
+# ---------------------------------------------------------------------------
+# Local TypedDicts
+# ---------------------------------------------------------------------------
+
+from typing import TypedDict
+
+
+class GainDocument(TypedDict):
+    landing_url: str
+    title: str
+    datetime_str: str
 
 logger = get_logger("gain_backfill_task")
 
@@ -137,9 +150,9 @@ def _get_html(sess: cr.Session, url: str, retries: int = 3) -> str | None:
     return None
 
 
-def _parse_listing(html: str) -> list[dict]:
+def _parse_listing(html: str) -> list[GainDocument]:
     soup = BeautifulSoup(html, "html.parser")
-    results = []
+    results: list[GainDocument] = []
     for card in soup.select(".c-card"):
         link_el = card.select_one(".c-card__url")
         title_el = card.select_one(".c-card__title")
@@ -393,6 +406,7 @@ def _s3_key_exists(s3, bucket: str, key: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     # Stagger concurrent container startups so they don't all hit the same
     # Akamai-protected endpoint at the exact same moment.
     _jitter = random.uniform(30, 180)

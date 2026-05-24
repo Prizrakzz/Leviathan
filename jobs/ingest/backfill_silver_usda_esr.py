@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import datetime
 import io
 import sys
@@ -71,6 +72,7 @@ def _s3_key_exists(s3, bucket: str, key: str) -> bool:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     import pandas as pd
 
     load_env()

@@ -32,6 +32,7 @@ S3 key already exists.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import time
 import urllib.error
@@ -455,6 +456,7 @@ def _merge_bulletins(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download UNICA bi-weekly (quinzenal) production report PDFs to raw S3. "

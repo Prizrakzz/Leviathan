@@ -50,6 +50,7 @@ Idempotency
 from __future__ import annotations
 
 import argparse
+import logging
 import json
 import ssl
 import time
@@ -285,6 +286,7 @@ def _append_to_manifest(new_entries: list[dict], manifest_path: Path) -> None:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Fetch historical CONAB coffee bulletin PDFs from Wayback Machine -> S3. "

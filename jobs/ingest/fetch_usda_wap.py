@@ -45,6 +45,7 @@ Pass ``--dry-run`` to print S3 keys without downloading anything.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import time
 from pathlib import Path
@@ -271,6 +272,7 @@ def _upload_entry(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download USDA FAS World Agricultural Production monthly PDFs to raw S3. "

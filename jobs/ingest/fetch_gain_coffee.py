@@ -24,6 +24,7 @@ Pass ``--limit 5 --country-codes BR`` for a quick smoke test.
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 from pathlib import Path
 
@@ -69,6 +70,7 @@ def _download_pdf(url: str, session: curl_requests.Session, timeout: int = 60) -
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download USDA FAS GAIN Coffee Annual / Semi-annual report PDFs to raw S3. "

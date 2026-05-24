@@ -26,6 +26,7 @@ Four sub-commands
 from __future__ import annotations
 
 import argparse
+import logging
 import io
 import json
 import re
@@ -818,6 +819,7 @@ def cmd_export() -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -42,6 +42,7 @@ Pass ``--dry-run`` to print S3 keys without downloading anything.
 from __future__ import annotations
 
 import argparse
+import logging
 import datetime
 import time
 
@@ -210,6 +211,7 @@ def run_weekly(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     today = datetime.date.today()
     current_year = today.year
     default_as_of = today.strftime("%Y%m%d")

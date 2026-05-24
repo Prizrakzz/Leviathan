@@ -24,6 +24,7 @@ S3 key:        raw/production/source=fnc/bulk/{filename}
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 from pathlib import Path
 
@@ -76,6 +77,7 @@ def _download_excel(url: str, session: requests.Session, timeout: int = 60) -> b
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download FNC Colombia bulk Excel files to raw S3. "

@@ -38,6 +38,7 @@ Pass ``--dry-run`` to print S3 keys without fetching or uploading anything.
 from __future__ import annotations
 
 import argparse
+import logging
 import json
 import re
 import time
@@ -594,6 +595,7 @@ def _process_ewg(
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Fetch ICCO QBCS quarterly bulletin press releases and annual EWG stocks "

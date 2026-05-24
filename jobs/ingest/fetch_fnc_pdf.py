@@ -58,6 +58,7 @@ sequential to respect the server.
 from __future__ import annotations
 
 import argparse
+import logging
 import json
 import re
 import ssl
@@ -300,6 +301,7 @@ def _append_manifest(entry: dict) -> None:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Fetch FNC Colombia monthly report PDFs to raw S3. "

@@ -19,6 +19,7 @@ import argparse
 import calendar
 import io
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
@@ -233,6 +234,7 @@ def _process_year_via_daily_files(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="CPC Soil Moisture → raw S3 (Batch task)")
     parser.add_argument("--year",           required=True, type=int)
     parser.add_argument("--bucket",         required=True)

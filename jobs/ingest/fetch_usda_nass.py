@@ -52,6 +52,7 @@ downloading anything.
 from __future__ import annotations
 
 import argparse
+import logging
 import gzip
 import io
 import re
@@ -173,6 +174,7 @@ def _validate_gz(data: bytes, source_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download the USDA NASS QuickStats bulk crops .gz to raw S3. "

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import datetime
 import hashlib
 import time
@@ -10,7 +11,7 @@ from time import sleep
 from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.dates import month_windows
 from leviathan.common.logging import get_logger
-from leviathan.ingestion.weather.nasa_power import fetch_nasa_power_daily, save_raw_json
+from leviathan.ingestion.weather.nasa_power import fetch_nasa_power_daily
 from leviathan.storage.metadata import utc_now_iso, write_json_metadata
 from leviathan.storage.paths import raw_weather_key
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
@@ -44,6 +45,7 @@ def build_metadata_key(commodity: str, run_id: str, filename: str) -> str:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--commodity", required=True)
@@ -203,7 +205,7 @@ def main() -> None:
                         output_format=output_format,
                     )
 
-                    save_raw_json(payload=payload, output_path=local_path)
+                    write_json_metadata(payload=payload, output_path=local_path)
 
                     if args.upload:
                         upload_file_to_s3(

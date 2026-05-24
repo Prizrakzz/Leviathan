@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
 
 import boto3
@@ -117,6 +118,7 @@ def save_run_record(submitted: list[dict], commodity: str, start_year: int, end_
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description="Submit NASA POWER backfill tasks to AWS Batch as individual jobs."
     )

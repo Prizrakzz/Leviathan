@@ -28,6 +28,7 @@ Run
 from __future__ import annotations
 
 import argparse
+import logging
 import json
 import time
 from pathlib import Path
@@ -77,6 +78,7 @@ def _download_xls(url: str, session: curl_requests.Session, timeout: int = 60) -
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download CONAB per-bulletin Excel files to raw S3. "

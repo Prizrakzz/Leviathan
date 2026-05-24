@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import logging
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
@@ -30,6 +31,7 @@ import pandas as pd
 import yaml
 
 from leviathan.common.logging import get_logger
+from leviathan.common.types import Region
 from leviathan.ingestion.weather.cpc_soil_moisture import extract_region_values
 from leviathan.storage.paths import bronze_weather_key, raw_cpc_tif_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
@@ -41,11 +43,11 @@ logger = get_logger("cpc_raw_to_bronze_task")
 # Region config loaders
 # ---------------------------------------------------------------------------
 
-def _load_regions(s3_client, bucket: str, commodity: str) -> list[dict]:
+def _load_regions(s3_client, bucket: str, commodity: str) -> list[Region]:
     key = f"configs/geographies/{commodity}_regions.yaml"
     body = s3_client.get_object(Bucket=bucket, Key=key)["Body"].read()
     config = yaml.safe_load(body)
-    locations: list[dict] = []
+    locations: list[Region] = []
     for region_block in config["regions"]:
         country = region_block["country"]
         for loc in region_block["locations"]:
@@ -153,7 +155,7 @@ def _write_bronze_partition(
 def _process_year(
     aws_region: str,
     bucket: str,
-    all_commodity_locations: dict[str, list[dict]],
+    all_commodity_locations: dict[str, list[Region]],
     variable: str,
     year: int,
     ingest_date: str,
@@ -273,6 +275,7 @@ def _process_year(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="CPC raw S3 → bronze Parquet (Batch task)")
     parser.add_argument("--commodity",       default=None,
                         help="Single commodity to process (default: all discovered from S3).")

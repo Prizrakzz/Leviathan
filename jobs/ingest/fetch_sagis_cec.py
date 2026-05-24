@@ -64,6 +64,7 @@ Rate limiting
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import time
 from pathlib import Path
@@ -228,6 +229,7 @@ def _validate_magic(data: bytes, filename: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Fetch SAGIS Crop Estimates Committee (CEC) reports to raw S3. "

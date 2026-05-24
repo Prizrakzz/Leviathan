@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+
+from mypy_boto3_batch import BatchClient
+from mypy_boto3_glue import GlueClient
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +13,7 @@ TERMINAL_BATCH_STATES = frozenset({"SUCCEEDED", "FAILED"})
 
 
 def poll_glue_runs(
-    client: Any,
+    client: GlueClient,
     run_ids: dict[str, str],
     poll_interval: int = 30,
 ) -> dict[str, str]:
@@ -44,7 +46,7 @@ def poll_glue_runs(
 
 
 def poll_batch_jobs(
-    client: Any,
+    client: BatchClient,
     job_ids: list[str],
     poll_interval: int = 30,
 ) -> dict[str, str]:

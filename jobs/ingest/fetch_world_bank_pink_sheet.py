@@ -47,6 +47,7 @@ release but you need to ingest the prior month's data from a cached URL).
 from __future__ import annotations
 
 import argparse
+import logging
 import datetime
 import io
 import re
@@ -219,6 +220,7 @@ def _validate_xlsx(data: bytes, source_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download the World Bank Commodity Markets Pink Sheet XLSX to raw S3. "

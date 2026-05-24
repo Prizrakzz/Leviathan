@@ -43,6 +43,7 @@ this flag is safe and fast.  Use ``--limit 1`` for a quick smoke-test.
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 from pathlib import Path
 
@@ -93,6 +94,7 @@ def _download_html(url: str, session: requests.Session, timeout: int = 30) -> st
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download MPOB BEPI palm oil HTML table pages to raw S3. "

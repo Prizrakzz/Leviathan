@@ -28,6 +28,7 @@ Run locally:
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -168,6 +169,7 @@ def print_summary(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Orchestrate full NASA POWER backfill: "

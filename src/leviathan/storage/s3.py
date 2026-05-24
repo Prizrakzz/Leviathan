@@ -8,6 +8,7 @@ from typing import Any, cast
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from mypy_boto3_s3 import S3Client
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
 
 
@@ -93,11 +94,11 @@ def download_s3_json(
     bucket: str,
     key: str,
     aws_region: str = "us-east-1",
-) -> object:
+) -> dict[str, Any]:
     """Download an S3 object and parse it as JSON. No local file is written."""
     s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
     response = s3.get_object(Bucket=bucket, Key=key)
-    return json.loads(response["Body"].read())
+    return cast(dict[str, Any], json.loads(response["Body"].read()))
 
 
 def upload_bytes_to_s3(
@@ -114,7 +115,7 @@ def upload_bytes_to_s3(
 _s3_local = threading.local()
 
 
-def get_thread_local_s3_client(aws_region: str) -> Any:  # Any: boto3-stubs not installed; boto3.client() returns untyped client
+def get_thread_local_s3_client(aws_region: str) -> S3Client:
     """Return a thread-local boto3 S3 client for use in ThreadPoolExecutor workers.
 
     Creates a new client on first access per thread, then reuses it.
@@ -126,7 +127,7 @@ def get_thread_local_s3_client(aws_region: str) -> Any:  # Any: boto3-stubs not 
         _s3_local.clients[aws_region] = boto3.client(
             "s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG
         )
-    return _s3_local.clients[aws_region]
+    return cast(S3Client, _s3_local.clients[aws_region])
 
 
 @retry(
@@ -135,7 +136,7 @@ def get_thread_local_s3_client(aws_region: str) -> Any:  # Any: boto3-stubs not 
     retry=retry_if_exception(_is_retryable),
     reraise=True,
 )
-def s3_download_with_retry(bucket: str, key: str, s3_client: Any) -> bytes:  # s3_client Any: boto3-stubs not installed
+def s3_download_with_retry(bucket: str, key: str, s3_client: S3Client) -> bytes:
     """Download an S3 object with exponential-backoff retry on transient errors.
 
     Retries up to 5 times on SlowDown / InternalError / network-level failures.

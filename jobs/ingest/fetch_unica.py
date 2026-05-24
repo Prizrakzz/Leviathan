@@ -26,6 +26,7 @@ Pass ``--skip-existing-s3`` to skip harvest years already uploaded.
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 import urllib.parse
 import urllib.request
@@ -109,6 +110,7 @@ def _fetch_harvest_year(harvest_year: str) -> bytes:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download UNICA production-and-milling HTML pages to raw S3. "

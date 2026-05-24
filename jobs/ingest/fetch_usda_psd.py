@@ -35,6 +35,7 @@ Pass ``--dry-run`` to print the S3 key without downloading anything.
 from __future__ import annotations
 
 import argparse
+import logging
 import datetime
 import io
 import zipfile
@@ -116,6 +117,7 @@ def _validate_zip(data: bytes, source_url: str) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     today = datetime.date.today().isoformat()  # e.g. "2026-05-20"
 
     parser = argparse.ArgumentParser(

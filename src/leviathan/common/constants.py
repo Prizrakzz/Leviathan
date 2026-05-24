@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from typing import get_args
+
+from leviathan.common.types import CommodityName
+
 CHIRPS_START_YEAR: int = 1981
 CPC_SOIL_MOISTURE_START_YEAR: int = 2000
 
@@ -33,36 +37,4 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "usda_esr": 500,                                  # 500 B — ESR JSON arrays for sparse early years can be small; catches HTML error pages from api.data.gov
 }
 
-ALL_COMMODITIES: list[str] = [
-    "cocoa",
-    "corn_cbot",
-    "campinas_corn_reference_bmf",
-    "french_wheat_matif",
-    "french_maize_matif",
-    "hard_red_winter_wheat_kcbt",
-    "hard_red_spring_wheat_mgex",
-    "soft_red_winter_wheat_cbot",
-    "rough_rice_cbot",
-    "south_african_white_maize_jse",
-    "south_african_yellow_maize_jse",
-    "soybeans_cbot",
-    "soybean_meal_cbot",
-    "soybean_oil_cbot",
-    "soybeans_no_1_dce",
-    "soybeans_no_2_dce",
-    "soybean_meal_dce",
-    "soybean_oil_dce",
-    "french_rapeseed_matif",
-    "canola_ice",
-    "rapeseed_oil_zce",
-    "rapeseed_meal_zce",
-    "malaysian_crude_palm_oil_cme",
-    "palm_olein_dce",
-    "brazilian_arabica_coffee",
-    "arabica_coffee",
-    "robusta_coffee",
-    "cotton",
-    "raw_sugar",
-    "white_sugar",
-    "frozen_orange_juice",
-]
+ALL_COMMODITIES: tuple[CommodityName, ...] = get_args(CommodityName)
