@@ -586,3 +586,149 @@ resource "aws_batch_job_definition" "usda_wap_raw_backfill" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: CPC Soil Moisture → raw S3
+# One task per year.  Downloads the annual tarball (~85MB) for prior years and
+# extracts 365/366 daily GeoTIFFs into S3 raw.  For the current year, downloads
+# individual daily files from the live GeoTIFF directory.
+# Sizing: 1 vCPU / 1024 MB — must hold full tarball in memory during extraction.
+# Timeout: 2 h ceiling; normal tarball runs complete in ~5–10 min.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "cpc_soil_to_raw" {
+  name = "${var.project_name}-${var.environment}-cpc-soil-to-raw"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    year       = "2000"
+    variable   = "w"
+    bucket     = var.leviathan_bucket
+    aws_region = var.aws_region
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/cpc_soil_to_raw_task.py",
+      "--year",       "Ref::year",
+      "--variable",   "Ref::variable",
+      "--bucket",     "Ref::bucket",
+      "--aws_region", "Ref::aws_region"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "cpc-soil-to-raw"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 7200  # 2 h ceiling; normal run ~5–10 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: CPC Soil Moisture raw S3 → bronze
+# One task per (commodity, year).  Reads raw GeoTIFFs from S3, extracts
+# per-region pixel values, and writes bronze Parquet partitioned by
+# (country, region, year, month).  Raw files must exist before this runs.
+# Sizing: 1 vCPU / 1024 MB — 365 TIFs × ~854KB = ~300MB peak S3 download,
+#   plus rasterio band arrays and Parquet write buffers.
+# ---------------------------------------------------------------------------
+
+resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
+  name = "${var.project_name}-${var.environment}-cpc-soil-raw-to-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    commodity  = "corn_cbot"
+    year       = "2000"
+    variable   = "w"
+    bucket     = var.leviathan_bucket
+    aws_region = var.aws_region
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/cpc_raw_to_bronze_task.py",
+      "--commodity",  "Ref::commodity",
+      "--year",       "Ref::year",
+      "--variable",   "Ref::variable",
+      "--bucket",     "Ref::bucket",
+      "--aws_region", "Ref::aws_region"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "cpc-soil-raw-to-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 7200  # 2 h ceiling; normal run ~5–15 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

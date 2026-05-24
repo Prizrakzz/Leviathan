@@ -27,3 +27,13 @@ output "log_group_name" {
   value       = aws_cloudwatch_log_group.batch.name
   description = "CloudWatch log group for Batch jobs."
 }
+
+output "cpc_soil_to_raw_job_definition_arn" {
+  value       = aws_batch_job_definition.cpc_soil_to_raw.arn
+  description = "ARN of the CPC Soil Moisture → raw S3 job definition."
+}
+
+output "cpc_soil_raw_to_bronze_job_definition_arn" {
+  value       = aws_batch_job_definition.cpc_soil_raw_to_bronze.arn
+  description = "ARN of the CPC Soil Moisture raw S3 → bronze job definition."
+}

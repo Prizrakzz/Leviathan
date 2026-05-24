@@ -1,0 +1,20 @@
+{
+  "run_id": "2026-05-24T10-28-26.872505+00-00",
+  "source": "cpc_soil",
+  "variable": "w",
+  "start_year": 2024,
+  "end_year": 2024,
+  "task_count": 1,
+  "tasks": [
+    {
+      "job_name": "cpc-soil-to-raw-w-2024",
+      "parameters": {
+        "year": "2024",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": null
+    }
+  ]
+}

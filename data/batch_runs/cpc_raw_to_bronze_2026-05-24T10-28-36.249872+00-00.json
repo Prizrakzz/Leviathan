@@ -1,0 +1,24 @@
+{
+  "run_id": "2026-05-24T10-28-36.249872+00-00",
+  "source": "cpc_soil",
+  "variable": "w",
+  "commodities": [
+    "corn_cbot"
+  ],
+  "start_year": 2024,
+  "end_year": 2024,
+  "task_count": 1,
+  "tasks": [
+    {
+      "job_name": "cpc-soil-bronze-corn-cbot-w-2024",
+      "parameters": {
+        "commodity": "corn_cbot",
+        "year": "2024",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": null
+    }
+  ]
+}
