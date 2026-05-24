@@ -130,6 +130,26 @@ module "bronze_to_silver_chirps" {
 }
 
 # ---------------------------------------------------------------------------
+# raw → bronze: USDA FAS ESR
+# ---------------------------------------------------------------------------
+
+module "raw_to_bronze_usda_esr" {
+  source = "../glue_job"
+
+  job_name          = "${var.project_name}-${var.environment}-raw-to-bronze-usda-esr"
+  script_local_path = "${local.scripts_dir}/raw_to_bronze_usda_esr.py"
+  bucket_name       = var.bucket_name
+  glue_role_arn     = var.glue_job_role_arn
+  aws_region        = var.aws_region
+  project_name      = var.project_name
+  environment       = var.environment
+
+  extra_default_args = {
+    "--ingest_date" = formatdate("YYYY-MM-DD", timestamp())
+  }
+}
+
+# ---------------------------------------------------------------------------
 # S3: leviathan wheel and bootstrap helper
 # (script uploads handled inside each glue_job module)
 # ---------------------------------------------------------------------------
