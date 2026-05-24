@@ -592,7 +592,8 @@ resource "aws_batch_job_definition" "usda_wap_raw_backfill" {
 # One task per year.  Downloads the annual tarball (~85MB) for prior years and
 # extracts 365/366 daily GeoTIFFs into S3 raw.  For the current year, downloads
 # individual daily files from the live GeoTIFF directory.
-# Sizing: 1 vCPU / 1024 MB — must hold full tarball in memory during extraction.
+# Sizing: 0.5 vCPU / 1024 MB — peak memory ~500 MB (85 MB compressed tarball +
+#   extracted TIF bytes).  Valid Fargate pairing.
 # Timeout: 2 h ceiling; normal tarball runs complete in ~5–10 min.
 # ---------------------------------------------------------------------------
 
@@ -627,7 +628,7 @@ resource "aws_batch_job_definition" "cpc_soil_to_raw" {
     ]
 
     resourceRequirements = [
-      { type = "VCPU",   value = "1" },
+      { type = "VCPU",   value = "0.5" },
       { type = "MEMORY", value = "1024" }
     ]
 
@@ -664,8 +665,8 @@ resource "aws_batch_job_definition" "cpc_soil_to_raw" {
 # One task per (commodity, year).  Reads raw GeoTIFFs from S3, extracts
 # per-region pixel values, and writes bronze Parquet partitioned by
 # (country, region, year, month).  Raw files must exist before this runs.
-# Sizing: 1 vCPU / 1024 MB — 365 TIFs × ~854KB = ~300MB peak S3 download,
-#   plus rasterio band arrays and Parquet write buffers.
+# Sizing: 0.5 vCPU / 1024 MB — 20 concurrent TIF downloads at 854KB each
+#   ≈ 17 MB peak in-flight, plus rasterio arrays.  Valid Fargate pairing.
 # ---------------------------------------------------------------------------
 
 resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
@@ -675,7 +676,6 @@ resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
   platform_capabilities = ["FARGATE"]
 
   parameters = {
-    commodity  = "corn_cbot"
     year       = "2000"
     variable   = "w"
     bucket     = var.leviathan_bucket
@@ -687,7 +687,6 @@ resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
 
     command = [
       "jobs/batch/cpc_raw_to_bronze_task.py",
-      "--commodity",  "Ref::commodity",
       "--year",       "Ref::year",
       "--variable",   "Ref::variable",
       "--bucket",     "Ref::bucket",
@@ -701,7 +700,7 @@ resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
     ]
 
     resourceRequirements = [
-      { type = "VCPU",   value = "1" },
+      { type = "VCPU",   value = "0.5" },
       { type = "MEMORY", value = "1024" }
     ]
 

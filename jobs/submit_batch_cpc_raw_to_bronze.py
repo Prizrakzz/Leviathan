@@ -1,15 +1,16 @@
 """Submit CPC Soil Moisture raw → bronze as AWS Batch Fargate tasks.
 
-One task per (commodity × year).  Each job reads raw CPC GeoTIFF files from S3
-for that year and extracts per-region pixel values into bronze Parquet.
+One task per year.  Each job reads ALL commodity region configs from S3 and
+extracts per-region pixel values into bronze Parquet for all commodities,
+reading each raw TIF only once.
 
 Raw S3 files must already exist (run submit_batch_cpc_to_raw.py first).
 
 Usage:
     python jobs/submit_batch_cpc_raw_to_bronze.py
-    python jobs/submit_batch_cpc_raw_to_bronze.py --commodities corn_cbot,soybeans_cbot
-    python jobs/submit_batch_cpc_raw_to_bronze.py --commodities all --start-year 2020
+    python jobs/submit_batch_cpc_raw_to_bronze.py --start-year 2020
     python jobs/submit_batch_cpc_raw_to_bronze.py --dry-run
+    python jobs/submit_batch_cpc_raw_to_bronze.py --start-year 2024 --end-year 2024  # single-year smoke test
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from pathlib import Path
 import boto3
 
 from leviathan.common.config import get_required_env, load_env
-from leviathan.common.constants import ALL_COMMODITIES, CPC_SOIL_MOISTURE_START_YEAR
+from leviathan.common.constants import CPC_SOIL_MOISTURE_START_YEAR
 from leviathan.common.logging import get_logger
 from leviathan.storage.metadata import utc_now_iso
 
@@ -30,14 +31,12 @@ logger = get_logger("submit_batch_cpc_raw_to_bronze")
 
 
 def build_tasks(
-    commodities: list[str],
     start_year: int,
     end_year: int,
     variable: str,
 ) -> list[dict]:
     return [
-        {"commodity": c, "year": str(y), "variable": variable}
-        for c in commodities
+        {"year": str(y), "variable": variable}
         for y in range(start_year, end_year + 1)
     ]
 
@@ -54,12 +53,8 @@ def submit_tasks(
     submitted: list[dict] = []
 
     for task in tasks:
-        job_name = (
-            f"cpc-soil-bronze-{task['commodity']}-{task['variable']}-{task['year']}"
-            .replace("_", "-")
-        )
+        job_name = f"cpc-soil-bronze-{task['variable']}-{task['year']}"
         parameters = {
-            "commodity":  task["commodity"],
             "year":       task["year"],
             "variable":   task["variable"],
             "bucket":     bucket,
@@ -85,7 +80,6 @@ def submit_tasks(
 
 def save_run_record(
     submitted: list[dict],
-    commodities: list[str],
     start_year: int,
     end_year: int,
     variable: str,
@@ -95,14 +89,13 @@ def save_run_record(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"cpc_raw_to_bronze_{run_id}.json"
     payload = {
-        "run_id":      run_id,
-        "source":      "cpc_soil",
-        "variable":    variable,
-        "commodities": commodities,
-        "start_year":  start_year,
-        "end_year":    end_year,
-        "task_count":  len(submitted),
-        "tasks":       submitted,
+        "run_id":     run_id,
+        "source":     "cpc_soil",
+        "variable":   variable,
+        "start_year": start_year,
+        "end_year":   end_year,
+        "task_count": len(submitted),
+        "tasks":      submitted,
     }
     output_path.write_text(json.dumps(payload, indent=2))
     logger.info("Run record saved to %s", output_path)
@@ -117,12 +110,7 @@ def main() -> None:
     job_def     = f"{project}-{env}-cpc-soil-raw-to-bronze"
 
     parser = argparse.ArgumentParser(
-        description="Submit CPC raw → bronze as AWS Batch tasks (one per commodity × year)."
-    )
-    parser.add_argument(
-        "--commodities",
-        default="all",
-        help='Comma-separated list or "all" (default).',
+        description="Submit CPC raw → bronze as AWS Batch tasks (one per year, all commodities)."
     )
     parser.add_argument(
         "--start-year",
@@ -147,17 +135,8 @@ def main() -> None:
     bucket     = get_required_env("LEVIATHAN_BUCKET")
     aws_region = get_required_env("AWS_REGION")
 
-    commodities: list[str] = (
-        list(ALL_COMMODITIES)
-        if args.commodities.strip().lower() == "all"
-        else [c.strip() for c in args.commodities.split(",")]
-    )
-    unknown = [c for c in commodities if c not in ALL_COMMODITIES]
-    if unknown:
-        raise SystemExit(f"ERROR: Unknown commodities: {unknown}")
-
     end_year = args.end_year if args.end_year is not None else date.today().year
-    tasks = build_tasks(commodities, args.start_year, end_year, args.variable)
+    tasks = build_tasks(args.start_year, end_year, args.variable)
 
     logger.info(
         "Submitting %d tasks  queue=%s  definition=%s  variable=%s  dry_run=%s",
@@ -173,10 +152,10 @@ def main() -> None:
         dry_run=args.dry_run,
     )
 
-    save_run_record(submitted, commodities, args.start_year, end_year, args.variable)
+    save_run_record(submitted, args.start_year, end_year, args.variable)
     logger.info(
-        "Done  submitted=%d  commodities=%d  start_year=%d  end_year=%d",
-        len(submitted), len(commodities), args.start_year, end_year,
+        "Done  submitted=%d  start_year=%d  end_year=%d",
+        len(submitted), args.start_year, end_year,
     )
 
 

@@ -166,10 +166,16 @@ def extract_region_values(
     with rasterio.open(io.BytesIO(tif_bytes)) as src:
         actual_nodata = float(src.nodata) if src.nodata is not None else nodata
         band = src.read(1)  # read full array once; reuse for all locations
+        # CPC rasters use 0–360° longitude convention (bounds ≈ -0.5 → 360.5).
+        # Convert Western-Hemisphere negative longitudes before pixel lookup.
+        lon_offset = 360.0 if src.bounds.right > 180.0 else 0.0
         for loc in locations:
             region: str = loc["region"]
             try:
-                row, col = src.index(loc["longitude"], loc["latitude"])
+                lon = loc["longitude"]
+                if lon < src.bounds.left:
+                    lon += lon_offset
+                row, col = src.index(lon, loc["latitude"])
                 if not (0 <= row < src.height and 0 <= col < src.width):
                     logger.debug("Location %s outside CPC raster extent — None", region)
                     result[region] = None

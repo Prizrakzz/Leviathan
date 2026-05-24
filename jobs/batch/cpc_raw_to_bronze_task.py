@@ -9,11 +9,12 @@ Reads raw CPC GeoTIFF files stored at:
 For each date, extracts one pixel value per commodity region defined in:
   configs/geographies/{commodity}_regions.yaml (identical format to CHIRPS)
 
-Writes one bronze Parquet per (country, region, year, month):
+Writes one bronze Parquet per (commodity, country, region, year, month):
   bronze/weather/source=cpc_soil/commodity={c}/country={co}/region={r}/year={y}/month={mm}/part-000.parquet
 
-Required args: --commodity, --year, --bucket, --aws_region
-Optional args: --variable (default: w), --ingest_date, --force_overwrite
+Required args: --year, --bucket, --aws_region
+Optional args: --commodity (default: all commodities discovered from S3),
+               --variable (default: w), --ingest_date, --force_overwrite
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ logger = get_logger("cpc_raw_to_bronze_task")
 
 
 # ---------------------------------------------------------------------------
-# Region config loader (identical to CHIRPS pattern)
+# Region config loaders
 # ---------------------------------------------------------------------------
 
 def _load_regions(s3_client, bucket: str, commodity: str) -> list[dict]:
@@ -49,42 +50,42 @@ def _load_regions(s3_client, bucket: str, commodity: str) -> list[dict]:
         country = region_block["country"]
         for loc in region_block["locations"]:
             locations.append({
-                "country": country,
-                "region": loc["region"],
-                "latitude": loc["latitude"],
+                "country":   country,
+                "region":    loc["region"],
+                "latitude":  loc["latitude"],
                 "longitude": loc["longitude"],
             })
     return locations
+
+
+def _discover_commodities(bucket: str, aws_region: str) -> list[str]:
+    """Return commodity names discovered from configs/geographies/*_regions.yaml keys in S3."""
+    keys = list_s3_keys(bucket, "configs/geographies/", suffix="_regions.yaml", aws_region=aws_region)
+    return sorted(k.split("/")[-1][: -len("_regions.yaml")] for k in keys)
 
 
 # ---------------------------------------------------------------------------
 # Per-day processing
 # ---------------------------------------------------------------------------
 
-def _fetch_and_extract(
+def _fetch_tif(
     aws_region: str,
     bucket: str,
     variable: str,
     date_str: str,
-    locations: list[dict],
-) -> tuple[str, dict[str, float | None]]:
-    """Download one raw TIF from S3 and extract region pixel values.
-
-    Returns:
-        (date_str, {region_name: value_or_None})
-    """
+) -> tuple[str, bytes | None]:
+    """Download one raw TIF from S3.  Returns (date_str, bytes) or (date_str, None) if missing."""
     filename = f"{variable}.{date_str}.tif"
     key = raw_cpc_tif_key(variable, date_str, filename)
     s3_client = get_thread_local_s3_client(aws_region)
     try:
         body = s3_client.get_object(Bucket=bucket, Key=key)["Body"].read()
+        return date_str, body
     except s3_client.exceptions.ClientError as exc:
         if exc.response["Error"]["Code"] in ("404", "NoSuchKey"):
             logger.warning("Raw TIF not found in S3: %s — skipping day", key)
-            return date_str, {}
+            return date_str, None
         raise
-    values = extract_region_values(body, locations)
-    return date_str, values
 
 
 # ---------------------------------------------------------------------------
@@ -152,15 +153,12 @@ def _write_bronze_partition(
 def _process_year(
     aws_region: str,
     bucket: str,
-    commodity: str,
+    all_commodity_locations: dict[str, list[dict]],
     variable: str,
     year: int,
-    locations: list[dict],
     ingest_date: str,
     force_overwrite: bool,
 ) -> None:
-    # List all raw TIF keys for this year/variable
-    prefix = f"raw/weather/source=cpc_soil/variable={variable}/"
     year_prefix = f"raw/weather/source=cpc_soil/variable={variable}/date={year}"
     all_keys = list_s3_keys(bucket, year_prefix, suffix=".tif", aws_region=aws_region)
 
@@ -179,63 +177,71 @@ def _process_year(
                 date_strings.append(part[5:])
                 break
 
+    n_commodities = len(all_commodity_locations)
     logger.info(
-        "Processing %d raw TIFs → bronze  commodity=%s variable=%s year=%d",
-        len(date_strings), commodity, variable, year,
+        "Processing %d raw TIFs → bronze  commodities=%d variable=%s year=%d",
+        len(date_strings), n_commodities, variable, year,
     )
 
-    # Fetch and extract all days concurrently (S3 reads, cap at 20 workers)
-    # rows_by_partition: {(country, region, year, month) -> [row, ...]}
-    rows_by_partition: dict[tuple[str, str, int, int], list[dict]] = defaultdict(list)
+    # rows_by_partition: {(commodity, country, region, year, month) -> [row, ...]}
+    rows_by_partition: dict[tuple[str, str, str, int, int], list[dict]] = defaultdict(list)
 
-    def _extract(ds: str) -> tuple[str, dict]:
-        return _fetch_and_extract(aws_region, bucket, variable, ds, locations)
+    def _extract_all(ds: str) -> tuple[str, dict[str, dict[str, float | None]]]:
+        """Download TIF once; extract values for every commodity."""
+        date_str, body = _fetch_tif(aws_region, bucket, variable, ds)
+        if body is None:
+            return date_str, {}
+        return date_str, {
+            commodity: extract_region_values(body, locations)
+            for commodity, locations in all_commodity_locations.items()
+        }
 
     with ThreadPoolExecutor(max_workers=20) as pool:
-        futures = {pool.submit(_extract, ds): ds for ds in date_strings}
+        futures = {pool.submit(_extract_all, ds): ds for ds in date_strings}
         for future in as_completed(futures):
-            date_str, values = future.result()
-            if not values:
+            date_str, commodity_values = future.result()
+            if not commodity_values:
                 continue
             try:
                 dt = datetime.strptime(date_str, "%Y%m%d")
             except ValueError:
                 logger.warning("Unparseable date_str from S3 key: %s — skipping", date_str)
                 continue
-            for loc in locations:
-                region = loc["region"]
-                country = loc["country"]
-                rows_by_partition[(country, region, dt.year, dt.month)].append({
-                    "commodity":          commodity,
-                    "source":             "cpc_soil",
-                    "variable":           variable,
-                    "country":            country,
-                    "region":             region,
-                    "date":               date_str[:4] + "-" + date_str[4:6] + "-" + date_str[6:],
-                    "year":               dt.year,
-                    "month":              dt.month,
-                    "day":                dt.day,
-                    "latitude":           loc["latitude"],
-                    "longitude":          loc["longitude"],
-                    "soil_moisture_mm":   values.get(region),
-                    "ingest_date":        ingest_date,
-                })
+            formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+            for commodity, values in commodity_values.items():
+                for loc in all_commodity_locations[commodity]:
+                    country = loc["country"]
+                    region = loc["region"]
+                    rows_by_partition[(commodity, country, region, dt.year, dt.month)].append({
+                        "commodity":        commodity,
+                        "source":           "cpc_soil",
+                        "variable":         variable,
+                        "country":          country,
+                        "region":           region,
+                        "date":             formatted_date,
+                        "year":             dt.year,
+                        "month":            dt.month,
+                        "day":              dt.day,
+                        "latitude":         loc["latitude"],
+                        "longitude":        loc["longitude"],
+                        "soil_moisture_mm": values.get(region),
+                        "ingest_date":      ingest_date,
+                    })
 
     if not rows_by_partition:
-        logger.warning("No rows collected for commodity=%s variable=%s year=%d", commodity, variable, year)
+        logger.warning("No rows collected for variable=%s year=%d", variable, year)
         return
 
     # Write one Parquet per partition
     access_timestamp = datetime.now(timezone.utc).isoformat()
     s3_client = boto3.client("s3", region_name=aws_region)
     written = skipped = 0
-    for (country, region, yr, month), rows in rows_by_partition.items():
-        # Warn if all soil_moisture_mm are None
+    for (commodity, country, region, yr, month), rows in rows_by_partition.items():
         null_count = sum(1 for r in rows if r["soil_moisture_mm"] is None)
         if null_count == len(rows):
             logger.warning(
-                "All-null soil_moisture_mm: country=%s region=%s %d-%02d",
-                country, region, yr, month,
+                "All-null soil_moisture_mm: commodity=%s country=%s region=%s %d-%02d",
+                commodity, country, region, yr, month,
             )
         result = _write_bronze_partition(
             s3_client=s3_client,
@@ -257,8 +263,8 @@ def _process_year(
             skipped += 1
 
     logger.info(
-        "Bronze write complete  commodity=%s variable=%s year=%d  written=%d skipped=%d",
-        commodity, variable, year, written, skipped,
+        "Bronze write complete  commodities=%d variable=%s year=%d  written=%d skipped=%d",
+        n_commodities, variable, year, written, skipped,
     )
 
 
@@ -268,33 +274,44 @@ def _process_year(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="CPC raw S3 → bronze Parquet (Batch task)")
-    parser.add_argument("--commodity",      required=True)
-    parser.add_argument("--year",           required=True, type=int)
-    parser.add_argument("--bucket",         required=True)
-    parser.add_argument("--aws_region",     required=True)
-    parser.add_argument("--variable",       default="w")
-    parser.add_argument("--ingest_date",    default=date.today().isoformat())
+    parser.add_argument("--commodity",       default=None,
+                        help="Single commodity to process (default: all discovered from S3).")
+    parser.add_argument("--year",            required=True, type=int)
+    parser.add_argument("--bucket",          required=True)
+    parser.add_argument("--aws_region",      required=True)
+    parser.add_argument("--variable",        default="w")
+    parser.add_argument("--ingest_date",     default=date.today().isoformat())
     parser.add_argument("--force_overwrite", default="false")
     args = parser.parse_args()
 
     force_overwrite = args.force_overwrite.lower() == "true"
 
+    s3_client = boto3.client("s3", region_name=args.aws_region)
+
+    if args.commodity:
+        commodities = [args.commodity]
+    else:
+        commodities = _discover_commodities(args.bucket, args.aws_region)
+        if not commodities:
+            raise SystemExit("ERROR: No commodity region configs found in S3 under configs/geographies/")
+
     logger.info(
-        "CPC raw → bronze  commodity=%s  variable=%s  year=%d  force_overwrite=%s",
-        args.commodity, args.variable, args.year, force_overwrite,
+        "CPC raw → bronze  commodities=%d  variable=%s  year=%d  force_overwrite=%s",
+        len(commodities), args.variable, args.year, force_overwrite,
     )
 
-    s3_client = boto3.client("s3", region_name=args.aws_region)
-    locations = _load_regions(s3_client, args.bucket, args.commodity)
-    logger.info("Loaded %d locations for commodity=%s", len(locations), args.commodity)
+    all_commodity_locations = {
+        c: _load_regions(s3_client, args.bucket, c) for c in commodities
+    }
+    total_locations = sum(len(v) for v in all_commodity_locations.values())
+    logger.info("Loaded %d locations across %d commodities", total_locations, len(commodities))
 
     _process_year(
         aws_region=args.aws_region,
         bucket=args.bucket,
-        commodity=args.commodity,
+        all_commodity_locations=all_commodity_locations,
         variable=args.variable,
         year=args.year,
-        locations=locations,
         ingest_date=args.ingest_date,
         force_overwrite=force_overwrite,
     )

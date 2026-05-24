@@ -1,0 +1,280 @@
+{
+  "run_id": "2026-05-24T11-09-20.877068+00-00",
+  "source": "cpc_soil",
+  "variable": "w",
+  "start_year": 2000,
+  "end_year": 2026,
+  "task_count": 27,
+  "tasks": [
+    {
+      "job_name": "cpc-soil-to-raw-w-2000",
+      "parameters": {
+        "year": "2000",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "0b5e1fb9-e4f8-4160-9568-ff20d3bf0b17"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2001",
+      "parameters": {
+        "year": "2001",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "9b326f4b-9da7-4e12-bef2-f2fa9c220c2d"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2002",
+      "parameters": {
+        "year": "2002",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "588814eb-f92b-47fa-bcbd-d33c744c6153"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2003",
+      "parameters": {
+        "year": "2003",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "e7b95bf8-0835-4920-a7a4-48fc6b6c7c6f"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2004",
+      "parameters": {
+        "year": "2004",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "d3638f96-ac15-42b7-a45d-e54f3f110c35"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2005",
+      "parameters": {
+        "year": "2005",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "0fe81bab-a251-451f-b2a7-4a364559132a"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2006",
+      "parameters": {
+        "year": "2006",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "f1c775fe-0302-42fd-9204-cecc7bec3355"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2007",
+      "parameters": {
+        "year": "2007",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "fbc1d8a0-eb1c-4f11-9086-d52cb9d8c719"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2008",
+      "parameters": {
+        "year": "2008",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "0a1e9000-72ca-403f-8056-f9089b4bc58f"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2009",
+      "parameters": {
+        "year": "2009",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "6efcb746-445c-4660-a252-9ee9fb6b22b2"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2010",
+      "parameters": {
+        "year": "2010",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "b8d79f71-e76d-4586-9ea9-d622cb076b25"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2011",
+      "parameters": {
+        "year": "2011",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "510a9696-faae-4867-a07a-e10b8db4cc97"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2012",
+      "parameters": {
+        "year": "2012",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "f12ec4c8-7ef6-41c2-a80a-9f83415e3477"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2013",
+      "parameters": {
+        "year": "2013",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "9d973b79-3e29-4a9e-aa39-09e89b22a5fa"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2014",
+      "parameters": {
+        "year": "2014",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "242700a2-5a09-4fc9-91c7-9b4b6c01fbb7"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2015",
+      "parameters": {
+        "year": "2015",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "f13f8329-c1d8-485c-b20c-212b59217781"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2016",
+      "parameters": {
+        "year": "2016",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "dd3c0778-00f2-45e5-b718-dfd41c419b99"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2017",
+      "parameters": {
+        "year": "2017",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "edd352ea-0602-4af5-bd35-2d22c74b797c"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2018",
+      "parameters": {
+        "year": "2018",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "9e5e948e-f532-44d5-bfff-119983afe8af"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2019",
+      "parameters": {
+        "year": "2019",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "92a538e0-7fd3-4292-9dd8-c88f567c7b9d"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2020",
+      "parameters": {
+        "year": "2020",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "874736a3-7d23-4d2a-ab12-c34ae760bc68"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2021",
+      "parameters": {
+        "year": "2021",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "7fe5bbd9-e371-4cef-912c-27262bc0ddb6"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2022",
+      "parameters": {
+        "year": "2022",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "519bbf0a-3895-4051-a355-b029f2b2e0b9"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2023",
+      "parameters": {
+        "year": "2023",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "8ecb5e7c-4b27-4e10-a211-42319a20eb12"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2024",
+      "parameters": {
+        "year": "2024",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "1fc784d9-9ba3-4fd3-9fbb-3c980e4d1046"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2025",
+      "parameters": {
+        "year": "2025",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "21ddab24-3342-4f6e-8146-e847d729667c"
+    },
+    {
+      "job_name": "cpc-soil-to-raw-w-2026",
+      "parameters": {
+        "year": "2026",
+        "variable": "w",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "1db50fa5-e806-4cff-8106-cb2e587b8764"
+    }
+  ]
+}
