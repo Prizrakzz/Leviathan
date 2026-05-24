@@ -738,6 +738,28 @@ def bronze_esr_key(commodity_code: int, market_year: int, as_of_date: str) -> st
     )
 
 
+def silver_esr_key(commodity_code: int, market_year: int, as_of_date: str) -> str:
+    """S3 key for a silver ESR Parquet file.
+
+    Mirrors ``bronze_esr_key`` but lives under ``silver/``.  Each bronze
+    Parquet produces exactly one silver Parquet at the same partition
+    coordinates (commodity_code, market_year, as_of_date).
+
+    Args:
+        commodity_code: ESR commodity code, e.g. ``401`` for corn.
+        market_year:    Marketing year start, e.g. ``2024``.
+        as_of_date:     Snapshot date in ``YYYYMMDD`` format.
+    """
+    return (
+        f"silver/production/"
+        f"source=usda_esr/"
+        f"commodity_code={commodity_code}/"
+        f"market_year={market_year}/"
+        f"as_of={as_of_date}/"
+        f"part-000.parquet"
+    )
+
+
 # ---------------------------------------------------------------------------
 # CFTC Commitments of Traders (COT) — Disaggregated
 # ---------------------------------------------------------------------------
