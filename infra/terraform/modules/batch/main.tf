@@ -795,3 +795,149 @@ resource "aws_batch_job_definition" "cpc_soil_bronze_to_silver" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: MODIS NDVI raw CSV → bronze Parquet
+# 5 tasks run in parallel (one per commodity group) submitted by
+# jobs/submit/submit_batch_modis_ndvi_r2b.py.
+# Each task downloads one AppEEARS results CSV from S3 raw, parses it into
+# per-region DataFrames, and writes bronze Parquet partitioned by
+# (commodity, country, region, year).
+# Sizing: 1 vCPU / 2048 MB — each CSV is ~26 years × up to 131 points
+#   × 23 periods = ~78k rows; pandas + pyarrow in-memory.
+# Timeout: 2 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "modis_ndvi_raw_to_bronze" {
+  name = "${var.project_name}-${var.environment}-modis-ndvi-raw-to-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    run_id     = "placeholder_run_id"
+    group      = "grains"
+    bucket     = var.leviathan_bucket
+    aws_region = var.aws_region
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/modis_ndvi_raw_to_bronze_task.py",
+      "--run_id",     "Ref::run_id",
+      "--group",      "Ref::group",
+      "--bucket",     "Ref::bucket",
+      "--aws_region", "Ref::aws_region"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "modis-ndvi-raw-to-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 7200  # 2 h ceiling; normal run < 5 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: MODIS NDVI bronze Parquet → silver Parquet (z-scores)
+# 31 commodity tasks run in parallel submitted by
+# jobs/submit/submit_batch_modis_ndvi_b2s.py, one per commodity.
+# Each task loads all bronze for the commodity, filters to quality ∈ {0,1},
+# computes per-(region, period) z-scores against the 2000–2020 baseline,
+# and writes silver Parquet partitioned by (commodity, country, region, year).
+# Sizing: 1 vCPU / 2048 MB — full-commodity bronze concat up to ~18k rows +
+#   pandas groupby; modest memory footprint.
+# Timeout: 1 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "modis_ndvi_bronze_to_silver" {
+  name = "${var.project_name}-${var.environment}-modis-ndvi-bronze-to-silver"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    commodity  = "corn_cbot"
+    bucket     = var.leviathan_bucket
+    aws_region = var.aws_region
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/modis_ndvi_bronze_to_silver_task.py",
+      "--commodity",  "Ref::commodity",
+      "--bucket",     "Ref::bucket",
+      "--aws_region", "Ref::aws_region"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "modis-ndvi-bronze-to-silver"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600  # 1 h ceiling; normal run < 5 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

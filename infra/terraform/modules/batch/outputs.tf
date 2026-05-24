@@ -42,3 +42,13 @@ output "cpc_soil_bronze_to_silver_job_definition_arn" {
   value       = aws_batch_job_definition.cpc_soil_bronze_to_silver.arn
   description = "ARN of the CPC Soil Moisture bronze → silver job definition."
 }
+
+output "modis_ndvi_raw_to_bronze_job_definition_arn" {
+  value       = aws_batch_job_definition.modis_ndvi_raw_to_bronze.arn
+  description = "ARN of the MODIS NDVI raw CSV → bronze Parquet job definition."
+}
+
+output "modis_ndvi_bronze_to_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.modis_ndvi_bronze_to_silver.arn
+  description = "ARN of the MODIS NDVI bronze Parquet → silver Parquet (z-scores) job definition."
+}
