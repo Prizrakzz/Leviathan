@@ -1,0 +1,70 @@
+[
+  {
+    "commodityCode": 401,
+    "countryCode": 351,
+    "marketYear": 2025,
+    "weekEndingDate": "2025-10-02",
+    "netSales": 125000.5,
+    "outstandingSales": 3200000.0,
+    "weeklyExports": 85000.25,
+    "cumulativeExports": 250000.0,
+    "grossNewSales": 140000.5,
+    "cancelations": 15000.0,
+    "changes": 500.0,
+    "unitId": 1
+  },
+  {
+    "commodityCode": 401,
+    "countryCode": 351,
+    "marketYear": 2025,
+    "weekEndingDate": "2025-10-09",
+    "netSales": 210000.0,
+    "outstandingSales": 3380000.0,
+    "weeklyExports": 92000.0,
+    "cumulativeExports": 342000.0,
+    "grossNewSales": 220000.0,
+    "cancelations": 10000.0,
+    "changes": -500.0,
+    "unitId": 1
+  },
+  {
+    "commodityCode": 401,
+    "countryCode": 218,
+    "marketYear": 2025,
+    "weekEndingDate": "2025-10-02",
+    "netSales": 55000.0,
+    "outstandingSales": 800000.0,
+    "weeklyExports": 30000.0,
+    "cumulativeExports": 90000.0,
+    "grossNewSales": 55000.0,
+    "cancelations": 0.0,
+    "unitId": 1
+  },
+  {
+    "commodityCode": 401,
+    "countryCode": 218,
+    "marketYear": 2025,
+    "weekEndingDate": "2025-10-09",
+    "netSales": 60000.0,
+    "outstandingSales": 845000.0,
+    "weeklyExports": 32000.0,
+    "cumulativeExports": 122000.0,
+    "grossNewSales": 65000.0,
+    "cancelations": 5000.0,
+    "unitId": 1
+  },
+  {
+    "commodityCode": 401,
+    "countryCode": 489,
+    "marketYear": 2025,
+    "weekEndingDate": "2025-10-02",
+    "netSales": 10000.0,
+    "outstandingSales": 150000.0,
+    "weeklyExports": 8000.0,
+    "cumulativeExports": 25000.0,
+    "grossNewSales": 10000.0,
+    "cancelations": 0.0,
+    "changes": null,
+    "unitId": 1
+  }
+]

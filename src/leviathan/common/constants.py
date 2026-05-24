@@ -29,6 +29,7 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "world_bank_pink_sheet": 500_000,             # 500 KB — actual file is ~783 KB; guards against error-page HTML responses
     "wb_cmo_outlook": 15_000,                      # 15 KB — modern reports are 3–8 MB; 1999 monthly data-table PDFs can be as small as 36 KB; catches HTML error pages
     "cftc_cot": 100_000,                            # 100 KB — weekly TXT is ~200-400 KB; annual extracted TXT is ~3-5 MB; catches HTML error pages
+    "usda_esr": 500,                                  # 500 B — ESR JSON arrays for sparse early years can be small; catches HTML error pages from api.data.gov
 }
 
 ALL_COMMODITIES: list[str] = [

@@ -663,6 +663,82 @@ def raw_fgis_weekly_key(year: int, as_of_date: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# USDA FAS Export Sales Reporting (ESR) — weekly forward export commitments
+# ---------------------------------------------------------------------------
+
+def raw_esr_backfill_key(commodity_code: int, market_year: int) -> str:
+    """S3 key for a historical ESR JSON file (all countries, one marketing year).
+
+    Historical marketing years are fetched once via the FAS API and stored as
+    static JSON arrays.  One file per (commodity_code, market_year) pair.
+    Fetched from:
+        https://api.fas.usda.gov/api/esr/exports/commodityCode/{code}/allCountries/marketYear/{year}
+
+    Args:
+        commodity_code: ESR commodity code, e.g. ``401`` for corn.
+        market_year:    Marketing year start, e.g. ``2024`` for the 2024/25 season.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_esr/"
+        f"commodity_code={commodity_code}/"
+        f"market_year={market_year}/"
+        f"all_countries.json"
+    )
+
+
+def raw_esr_weekly_key(commodity_code: int, market_year: int, as_of_date: str) -> str:
+    """S3 key for a weekly point-in-time ESR snapshot.
+
+    ESR is updated every Thursday.  Storing an immutable snapshot partitioned
+    by ``as_of_date`` preserves what was knowable on each publication date,
+    preventing lookahead bias in backtested ML features.
+
+    Both current and new-crop marketing years are snapshotted each Thursday
+    (ESR publishes new-crop forward sales before the season starts).
+
+    Args:
+        commodity_code: ESR commodity code, e.g. ``401`` for corn.
+        market_year:    Marketing year start, e.g. ``2025`` for the 2025/26 season.
+        as_of_date:     Snapshot date in ``YYYYMMDD`` format, e.g. ``"20260522"``.
+    """
+    return (
+        f"raw/production/"
+        f"source=usda_esr/"
+        f"commodity_code={commodity_code}/"
+        f"market_year={market_year}/"
+        f"as_of={as_of_date}/"
+        f"all_countries.json"
+    )
+
+
+def bronze_esr_key(commodity_code: int, market_year: int, as_of_date: str) -> str:
+    """S3 key for a bronze ESR Parquet file.
+
+    ``as_of_date`` is always present so the partition schema is consistent
+    across both backfill and weekly runs:
+    - Backfill: ``as_of_date`` is the date the backfill Glue job ran.
+    - Weekly:   ``as_of_date`` is the Thursday publication date.
+
+    Athena queries use ``WHERE as_of_date = MAX(as_of_date)`` for the current
+    view, or a specific date for point-in-time backtesting.
+
+    Args:
+        commodity_code: ESR commodity code, e.g. ``401`` for corn.
+        market_year:    Marketing year start, e.g. ``2024``.
+        as_of_date:     Snapshot date in ``YYYYMMDD`` format.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_esr/"
+        f"commodity_code={commodity_code}/"
+        f"market_year={market_year}/"
+        f"as_of={as_of_date}/"
+        f"part-000.parquet"
+    )
+
+
+# ---------------------------------------------------------------------------
 # CFTC Commitments of Traders (COT) — Disaggregated
 # ---------------------------------------------------------------------------
 

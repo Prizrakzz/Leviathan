@@ -1,0 +1,153 @@
+source: usda_esr
+
+notes: >
+  USDA FAS Export Sales Reporting (ESR) — weekly forward export commitment data.
+  Records US exporters' net sales, outstanding (unshipped) sales, and physical
+  export inspections for major grains and oilseeds, broken out by destination
+  country and marketing year.
+
+  This is a leading indicator of physical export demand.  Outstanding sales
+  represent contracted but unshipped volumes — typically 4–8 weeks ahead of
+  physical movement confirmed by FGIS.  A surge in outstanding_sales for China
+  in ESR precedes the corresponding FGIS shipment confirmation by weeks.
+
+  Primary use: construct esr_commitments_pace_z_{commodity} (cumulative
+  outstanding sales vs seasonal norm) and esr_new_crop_sales_z (new-crop
+  forward sales at the start of the marketing year window) for corn/soy/wheat
+  spread models.
+
+  API notes:
+  - Requires a free API key from https://api.data.gov/signup.
+  - Rate limit: 1,000 requests/hour (sliding window per API key).
+  - Full backfill (~360 requests) completes in ~6 min at 1.0s sleep — well
+    under the rate limit.  Do NOT use threading on this endpoint; it is a
+    government server, not a CDN.
+  - Legacy system (apps.fas.usda.gov/esrquery) retired June 2, 2026.
+    This source targets the replacement API exclusively.
+
+historical_depth: 1990
+
+publication_cadence: weekly
+
+update_schedule: >
+  ESR publishes every Thursday ~08:00 ET (13:00 UTC).
+  Snapshot current and new-crop marketing year on Thursday (0 14 * * 4)
+  to capture the full week of new data.
+
+api_base_url: "https://api.fas.usda.gov"
+api_key_env_var: FAS_API_KEY
+
+# Endpoint template:
+# GET {api_base_url}/api/esr/exports/commodityCode/{code}/allCountries/marketYear/{year}
+# Header: X-Api-Key: {FAS_API_KEY}
+exports_endpoint: "/api/esr/exports/commodityCode/{commodity_code}/allCountries/marketYear/{market_year}"
+
+s3_key_patterns:
+  backfill: "raw/production/source=usda_esr/commodity_code={commodity_code}/market_year={market_year}/all_countries.json"
+  weekly:   "raw/production/source=usda_esr/commodity_code={commodity_code}/market_year={market_year}/as_of={YYYYMMDD}/all_countries.json"
+  bronze:   "bronze/production/source=usda_esr/commodity_code={commodity_code}/market_year={market_year}/as_of={YYYYMMDD}/part-000.parquet"
+
+# ESR commodity codes → Leviathan commodity slugs.
+# Codes verified from https://apps.fas.usda.gov/esrqs/#/esr-query
+# Cotton and rice codes (1301, 1302, 3202) to be confirmed from
+# /api/esr/commodities once API key is obtained.
+target_commodity_codes:
+  - 101   # WHEAT - HARD RED WINTER
+  - 102   # WHEAT - SOFT RED WINTER
+  - 103   # WHEAT - HARD RED SPRING
+  - 104   # WHEAT - WHITE
+  - 107   # ALL WHEAT (aggregate)
+  - 401   # CORN - UNMILLED
+  - 701   # GRAIN SORGHUMS - UNMILLED
+  - 801   # SOYBEANS
+  - 901   # SOYBEAN CAKE AND MEAL
+  - 902   # SOYBEAN OIL
+
+esr_commodity_to_leviathan:
+  101: [hard_red_winter_wheat_kcbt]
+  102: [soft_red_winter_wheat_cbot]
+  103: [hard_red_spring_wheat_mgex]
+  104: []   # white wheat — context only, no direct futures contract in scope
+  107: []   # all-wheat aggregate — cross-check only
+  401: [corn_cbot, campinas_corn_reference_bmf]
+  701: []   # sorghum — demand context for corn models
+  801: [soybeans_cbot, soybeans_no_1_dce, soybeans_no_2_dce]
+  901: [soybean_meal_cbot, soybean_meal_dce]
+  902: [soybean_oil_cbot, soybean_oil_dce]
+
+marketing_year_start:
+  # (month, day) of the first day of the marketing year.
+  # Wheat codes 101–107: Jun 1 – May 31
+  WHEAT:    [6, 1]
+  # All others default to Sep 1 – Aug 31
+  CORN:     [9, 1]
+  SOYBEANS: [9, 1]
+  SORGHUM:  [9, 1]
+  COTTON:   [8, 1]   # Aug 1 – Jul 31 (for cotton codes when added)
+  RICE:     [8, 1]   # Aug 1 – Jul 31 (for rice codes when added)
+
+# Map commodity_code → marketing_year_start key above.
+commodity_code_to_grain:
+  101: WHEAT
+  102: WHEAT
+  103: WHEAT
+  104: WHEAT
+  105: WHEAT
+  106: WHEAT
+  107: WHEAT
+  401: CORN
+  701: SORGHUM
+  801: SOYBEANS
+  901: SOYBEANS
+  902: SOYBEANS
+
+schema:
+  columns:
+    - name: commodity_code
+      type: int16
+      description: ESR commodity code (e.g. 401 = corn)
+    - name: country_code
+      type: int16
+      description: ESR country code for the destination
+    - name: market_year
+      type: int16
+      description: Marketing year start year (e.g. 2025 = Sep 2025 – Aug 2026 for corn)
+    - name: week_ending_date
+      type: date
+      description: Thursday close date for this weekly record
+    - name: net_sales
+      type: float32
+      description: Gross new sales minus cancelations for the week (new demand)
+    - name: outstanding_sales
+      type: float32
+      description: Accumulated forward commitments not yet shipped (leading indicator)
+    - name: weekly_exports
+      type: float32
+      description: Physical shipments during the week (overlaps FGIS)
+    - name: cumulative_exports
+      type: float32
+      description: Season-to-date physical shipments
+    - name: gross_new_sales
+      type: float32
+      description: New contracts signed this week
+    - name: cancelations
+      type: float32
+      description: Contracts cancelled this week
+    - name: changes
+      type: float32
+      description: Revisions to previously reported sales (absent in some historical records; stored as 0.0)
+    - name: unit_id
+      type: int16
+      description: ESR unit code. Bronze stores native units; silver normalises to MT.
+    - name: as_of_date
+      type: str
+      description: YYYYMMDD snapshot date (Thursday for weekly; backfill run date for historical)
+    - name: ingest_date
+      type: str
+      description: ISO date when the bronze row was written
+    - name: source
+      type: str
+      description: Always "usda_esr"
+
+ml_priority: P1
+graphrag_priority: P5
