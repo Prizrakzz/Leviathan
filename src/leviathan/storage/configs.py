@@ -1,8 +1,12 @@
 """S3-backed configuration loaders for the leviathan pipeline."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import yaml
-from mypy_boto3_s3 import S3Client
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 from leviathan.common.types import Region
 

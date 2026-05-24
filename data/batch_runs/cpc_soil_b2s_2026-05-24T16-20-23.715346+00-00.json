@@ -1,0 +1,320 @@
+{
+  "run_id": "2026-05-24T16-20-23.715346+00-00",
+  "source": "cpc_soil",
+  "stage": "bronze_to_silver",
+  "commodities": [
+    "cocoa",
+    "corn_cbot",
+    "campinas_corn_reference_bmf",
+    "french_wheat_matif",
+    "french_maize_matif",
+    "hard_red_winter_wheat_kcbt",
+    "hard_red_spring_wheat_mgex",
+    "soft_red_winter_wheat_cbot",
+    "rough_rice_cbot",
+    "south_african_white_maize_jse",
+    "south_african_yellow_maize_jse",
+    "soybeans_cbot",
+    "soybean_meal_cbot",
+    "soybean_oil_cbot",
+    "soybeans_no_1_dce",
+    "soybeans_no_2_dce",
+    "soybean_meal_dce",
+    "soybean_oil_dce",
+    "french_rapeseed_matif",
+    "canola_ice",
+    "rapeseed_oil_zce",
+    "rapeseed_meal_zce",
+    "malaysian_crude_palm_oil_cme",
+    "palm_olein_dce",
+    "brazilian_arabica_coffee",
+    "arabica_coffee",
+    "robusta_coffee",
+    "cotton",
+    "raw_sugar",
+    "white_sugar",
+    "frozen_orange_juice"
+  ],
+  "task_count": 31,
+  "tasks": [
+    {
+      "job_name": "cpc-soil-b2s-cocoa",
+      "parameters": {
+        "commodity": "cocoa",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "e16c7f64-7017-4771-99a1-aa38940f9048"
+    },
+    {
+      "job_name": "cpc-soil-b2s-corn-cbot",
+      "parameters": {
+        "commodity": "corn_cbot",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "c1d1bd87-cc8c-4449-9807-751d8fe093da"
+    },
+    {
+      "job_name": "cpc-soil-b2s-campinas-corn-reference-bmf",
+      "parameters": {
+        "commodity": "campinas_corn_reference_bmf",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "3373a4eb-b6e1-4141-8725-5f89a52a4e91"
+    },
+    {
+      "job_name": "cpc-soil-b2s-french-wheat-matif",
+      "parameters": {
+        "commodity": "french_wheat_matif",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "a99b27a0-8a53-4a18-bbcd-31a8c078974e"
+    },
+    {
+      "job_name": "cpc-soil-b2s-french-maize-matif",
+      "parameters": {
+        "commodity": "french_maize_matif",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "1aeb2a9f-051d-4cb9-bd55-44d439060357"
+    },
+    {
+      "job_name": "cpc-soil-b2s-hard-red-winter-wheat-kcbt",
+      "parameters": {
+        "commodity": "hard_red_winter_wheat_kcbt",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "aad3c9fe-ee49-47a2-b0b7-cb25ab4c0a64"
+    },
+    {
+      "job_name": "cpc-soil-b2s-hard-red-spring-wheat-mgex",
+      "parameters": {
+        "commodity": "hard_red_spring_wheat_mgex",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "8590cd9a-11ea-4bb3-8ace-420cf69d58a0"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soft-red-winter-wheat-cbot",
+      "parameters": {
+        "commodity": "soft_red_winter_wheat_cbot",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "d7774b93-6a98-4c3e-ae92-84aa9e818500"
+    },
+    {
+      "job_name": "cpc-soil-b2s-rough-rice-cbot",
+      "parameters": {
+        "commodity": "rough_rice_cbot",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "4664b3de-6ab7-4537-a71d-9a341dfd45f6"
+    },
+    {
+      "job_name": "cpc-soil-b2s-south-african-white-maize-jse",
+      "parameters": {
+        "commodity": "south_african_white_maize_jse",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "2a6134f9-4736-47e4-b1cc-b7aac3de8e1b"
+    },
+    {
+      "job_name": "cpc-soil-b2s-south-african-yellow-maize-jse",
+      "parameters": {
+        "commodity": "south_african_yellow_maize_jse",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "bcd6608f-6dce-4fa8-9d0a-a99a0d6a6cd8"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soybeans-cbot",
+      "parameters": {
+        "commodity": "soybeans_cbot",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "33e781d7-4170-4b1d-abd3-f7ef65dfcd8c"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soybean-meal-cbot",
+      "parameters": {
+        "commodity": "soybean_meal_cbot",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "82b862d3-6fe2-4cb1-bf86-f890c412efdd"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soybean-oil-cbot",
+      "parameters": {
+        "commodity": "soybean_oil_cbot",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "00af1b80-296a-4571-b33c-bb6b37e1a9f9"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soybeans-no-1-dce",
+      "parameters": {
+        "commodity": "soybeans_no_1_dce",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "d9cbb54e-f640-440b-bc1c-872317035eb3"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soybeans-no-2-dce",
+      "parameters": {
+        "commodity": "soybeans_no_2_dce",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "7dd6fe08-97f7-418e-b864-9529c559cab0"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soybean-meal-dce",
+      "parameters": {
+        "commodity": "soybean_meal_dce",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "cb95f322-0321-4efc-9883-e268706e7491"
+    },
+    {
+      "job_name": "cpc-soil-b2s-soybean-oil-dce",
+      "parameters": {
+        "commodity": "soybean_oil_dce",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "f3ce6d94-b784-4b16-b5f1-43bb3b229868"
+    },
+    {
+      "job_name": "cpc-soil-b2s-french-rapeseed-matif",
+      "parameters": {
+        "commodity": "french_rapeseed_matif",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "d1cc9577-e892-467d-9b18-c4bcc06327ac"
+    },
+    {
+      "job_name": "cpc-soil-b2s-canola-ice",
+      "parameters": {
+        "commodity": "canola_ice",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "b62f1ea5-ffb2-4692-a597-a2b4c954aea9"
+    },
+    {
+      "job_name": "cpc-soil-b2s-rapeseed-oil-zce",
+      "parameters": {
+        "commodity": "rapeseed_oil_zce",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "263f2142-58f2-4576-ab2b-37218204c639"
+    },
+    {
+      "job_name": "cpc-soil-b2s-rapeseed-meal-zce",
+      "parameters": {
+        "commodity": "rapeseed_meal_zce",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "61525b5b-9a84-4fdd-8acf-22d9a6e1a3db"
+    },
+    {
+      "job_name": "cpc-soil-b2s-malaysian-crude-palm-oil-cme",
+      "parameters": {
+        "commodity": "malaysian_crude_palm_oil_cme",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "e28e0dbc-2597-4a57-8d55-a890469c98c0"
+    },
+    {
+      "job_name": "cpc-soil-b2s-palm-olein-dce",
+      "parameters": {
+        "commodity": "palm_olein_dce",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "45b0d04f-d13e-49f3-946c-9940b65332b3"
+    },
+    {
+      "job_name": "cpc-soil-b2s-brazilian-arabica-coffee",
+      "parameters": {
+        "commodity": "brazilian_arabica_coffee",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "898bf018-a2d8-4c7f-aa46-72ddb7c23de7"
+    },
+    {
+      "job_name": "cpc-soil-b2s-arabica-coffee",
+      "parameters": {
+        "commodity": "arabica_coffee",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "692e2f4c-3b3c-449d-a15d-aade7fc114f0"
+    },
+    {
+      "job_name": "cpc-soil-b2s-robusta-coffee",
+      "parameters": {
+        "commodity": "robusta_coffee",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "f97d7011-e51a-4a66-8727-b52945eb7050"
+    },
+    {
+      "job_name": "cpc-soil-b2s-cotton",
+      "parameters": {
+        "commodity": "cotton",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "9c9b692a-b6f8-4ae0-8955-e9c0087d35eb"
+    },
+    {
+      "job_name": "cpc-soil-b2s-raw-sugar",
+      "parameters": {
+        "commodity": "raw_sugar",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "159938ee-0e1a-49ba-ad14-0db3bf15b552"
+    },
+    {
+      "job_name": "cpc-soil-b2s-white-sugar",
+      "parameters": {
+        "commodity": "white_sugar",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "f7b47493-3908-4a63-bc5a-cb151e285a08"
+    },
+    {
+      "job_name": "cpc-soil-b2s-frozen-orange-juice",
+      "parameters": {
+        "commodity": "frozen_orange_juice",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "0f00ef82-8d6f-460f-a769-fd33b232a5d0"
+    }
+  ]
+}

@@ -8,13 +8,15 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from mypy_boto3_s3 import S3Client
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 # ---------------------------------------------------------------------------
 # Module-level boto3 retry configuration
@@ -131,7 +133,7 @@ def get_thread_local_s3_client(aws_region: str) -> S3Client:
         _s3_local.clients[aws_region] = boto3.client(
             "s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG
         )
-    return cast(S3Client, _s3_local.clients[aws_region])
+    return _s3_local.clients[aws_region]
 
 
 @retry(
