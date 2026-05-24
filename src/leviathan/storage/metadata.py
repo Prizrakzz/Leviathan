@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 
 def utc_now_iso() -> str:
@@ -11,7 +11,7 @@ def utc_now_iso() -> str:
 
 
 def write_json_metadata(
-    payload: dict[str, Any],
+    payload: Mapping[str, object],
     output_path: str | Path,
 ) -> Path:
     output_path = Path(output_path)

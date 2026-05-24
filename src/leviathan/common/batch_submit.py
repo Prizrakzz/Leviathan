@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Callable, TypedDict
+from typing import Callable, TypedDict
 
 import boto3
 
@@ -76,7 +77,7 @@ def submit_batch_jobs(
     return submitted
 
 
-def write_run_record(path: Path, payload: dict[str, Any]) -> None:
+def write_run_record(path: Path, payload: Mapping[str, object]) -> None:
     """Write a JSON run record to *path*, creating parent directories as needed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2))

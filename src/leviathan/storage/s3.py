@@ -102,7 +102,7 @@ def download_s3_json(
     """Download an S3 object and parse it as JSON. No local file is written."""
     s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
     response = s3.get_object(Bucket=bucket, Key=key)
-    return cast(dict[str, Any], json.loads(response["Body"].read()))
+    return json.loads(response["Body"].read())  # type: ignore[no-any-return]
 
 
 def upload_bytes_to_s3(
@@ -147,4 +147,4 @@ def s3_download_with_retry(bucket: str, key: str, s3_client: S3Client) -> bytes:
     Raises immediately on non-retryable errors (e.g. 404 NoSuchKey).
     """
     response = s3_client.get_object(Bucket=bucket, Key=key)
-    return cast(bytes, response["Body"].read())
+    return response["Body"].read()
