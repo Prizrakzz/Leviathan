@@ -38,8 +38,9 @@ from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 
 from leviathan.common.logging import get_logger
-from leviathan.storage.paths import bronze_esr_key, raw_esr_weekly_key
+from leviathan.storage.paths import bronze_esr_key, raw_esr_weekly_key, silver_esr_key
 from leviathan.transforms.raw_to_bronze.usda_esr import transform_esr_json_to_bronze
+from leviathan.transforms.bronze_to_silver.usda_esr import transform_esr_bronze_to_silver
 
 # ---------------------------------------------------------------------------
 # Config
@@ -297,15 +298,81 @@ def esr_weekly_ingest_dag() -> None:
         return success
 
     @task()
-    def log_completion(bronze_count: int) -> None:
+    def transform_all_to_silver(uploaded: list[dict]) -> int:
+        """Transform all bronze Parquet files to silver in-place.
+
+        Downloads each bronze Parquet from S3, runs transform_esr_bronze_to_silver,
+        writes silver Parquet, and uploads to the silver S3 key.  Runs inline —
+        same as the bronze task.
+
+        Returns the number of silver files written.
+        """
+        import pandas as pd  # noqa: F401 — local import keeps top-level clean
+
+        s3 = boto3.client("s3", region_name=AWS_REGION)
+        success = 0
+        failed  = 0
+
+        for item in uploaded:
+            code  = item["commodity_code"]
+            year  = item["market_year"]
+            as_of = item["as_of"]
+
+            b_key = bronze_esr_key(code, year, as_of)
+            s_key = silver_esr_key(code, year, as_of)
+
+            try:
+                bronze_bytes = s3.get_object(Bucket=BUCKET, Key=b_key)["Body"].read()
+                df_bronze = pd.read_parquet(io.BytesIO(bronze_bytes))
+
+                df_silver = transform_esr_bronze_to_silver(df_bronze, market_year=year)
+
+                buf = io.BytesIO()
+                df_silver.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
+                buf.seek(0)
+
+                s3.put_object(
+                    Bucket=BUCKET,
+                    Key=s_key,
+                    Body=buf.read(),
+                    ContentType="application/octet-stream",
+                )
+                logger.info(
+                    "  Silver → s3://%s/%s  rows=%d",
+                    BUCKET, s_key, len(df_silver),
+                )
+                success += 1
+
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "  FAILED silver for code=%d year=%d — %s", code, year, exc
+                )
+                failed += 1
+
         logger.info(
-            "ESR weekly pipeline complete. bronze_files_written=%d  bucket=%s",
-            bronze_count, BUCKET,
+            "transform_all_to_silver complete. success=%d  failed=%d",
+            success, failed,
+        )
+
+        if failed:
+            raise RuntimeError(
+                f"{failed} silver transform(s) failed — see task log."
+            )
+
+        return success
+
+    @task()
+    def log_completion(bronze_count: int, silver_count: int) -> None:
+        logger.info(
+            "ESR weekly pipeline complete. "
+            "bronze_files_written=%d  silver_files_written=%d  bucket=%s",
+            bronze_count, silver_count, BUCKET,
         )
 
     uploaded     = fetch_all_snapshots()
     bronze_count = transform_all_to_bronze(uploaded)
-    log_completion(bronze_count)
+    silver_count = transform_all_to_silver(uploaded)
+    log_completion(bronze_count, silver_count)
 
 
 esr_weekly_ingest_dag()
