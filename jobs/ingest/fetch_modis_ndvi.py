@@ -2,16 +2,16 @@
 
 Reads all 31 geography configs in parallel, splits coordinates into 5 commodity
 groups, submits 5 AppEEARS point-sample tasks (saturating the per-account
-concurrency limit), polls until all tasks are done, then downloads the result
-CSVs in parallel and uploads them to the S3 raw tier.
+concurrency limit), then polls and streams: each group is downloaded and
+uploaded to S3 immediately as it reaches ``done`` — no group waits for slower
+ones.
 
 Processing timeline
 -------------------
   Phase 1  Setup + parallel config reads     < 5 s
   Phase 2  Sequential task submission        < 30 s
-  Phase 3  Polling (NASA server-side work)   15–45 min
-  Phase 4  Parallel CSV download             < 5 min
-  Phase 5  Parallel S3 upload               < 2 min
+  Phase 3–5  Polling + streaming download    15–45 min
+             (groups stream to S3 as they complete)
 
 A crash-resilient checkpoint is written to data/batch_runs/ immediately after
 task submission so that task IDs are never lost.
@@ -212,51 +212,106 @@ def _submit_one_task(
 
 # ── polling ───────────────────────────────────────────────────────────────────
 
-def _poll_until_done(
+def _poll_and_stream(
     task_ids: dict[str, str],
     user: str,
     password: str,
-) -> None:
-    """Block until every task reaches a terminal state (done / error).
+    run_id: str,
+    bucket: str,
+    aws_region: str,
+) -> dict[str, str]:
+    """Poll all tasks and immediately download+upload each group as it completes.
 
-    Uses GET /task/{task_id} which always returns JSON with a 'status' field.
-    Checks all pending tasks once per round, sleeping 60 s between rounds.
-    Within a round, waits 0.5 s between individual task requests to stay well
-    under any undocumented rate limit.
+    Uses producer-consumer parallelism: the poll loop is the producer; a
+    ThreadPoolExecutor is the consumer.  As soon as a group transitions to
+    ``done`` its download+upload is submitted to the pool, so no group sits
+    idle waiting for slower groups to finish.
+
+    Returns {group: s3_key} for all groups.
     """
     pending: dict[str, str] = dict(task_ids)  # group → task_id
     round_num = 0
+    s3_keys: dict[str, str] = {}
 
-    while pending:
-        round_num += 1
-        logger.info("─── Poll round %d (%d groups pending) ───", round_num, len(pending))
-        done_this_round: list[str] = []
+    # Up to 5 concurrent download+upload workers (one per group)
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        upload_futures: dict = {}  # future → group
 
-        for group, task_id in list(pending.items()):
-            r = _api_get(f"/task/{task_id}", user, password)
-            r.raise_for_status()
-            task = r.json()
-            status: str = task.get("status", "unknown")
-
-            if status == "done":
-                logger.info("  ✓ %-22s DONE", group)
-                done_this_round.append(group)
-            elif status == "error":
-                err = task.get("error") or task.get("params", {})
-                raise RuntimeError(
-                    f"AppEEARS task failed: group={group} task_id={task_id} error={err}"
+        while pending or upload_futures:
+            # ── poll remaining tasks ──────────────────────────────────────────
+            if pending:
+                round_num += 1
+                logger.info(
+                    "─── Poll round %d (%d groups pending) ───",
+                    round_num, len(pending),
                 )
-            else:
-                logger.info("  · %-22s %s", group, status)
+                done_this_round: list[str] = []
 
-            time.sleep(0.5)  # 0.5 s gap between per-task requests
+                for group, task_id in list(pending.items()):
+                    r = _api_get(f"/task/{task_id}", user, password)
+                    r.raise_for_status()
+                    task = r.json()
+                    status: str = task.get("status", "unknown")
 
-        for group in done_this_round:
-            del pending[group]
+                    if status == "done":
+                        logger.info("  ✓ %-22s DONE — queuing download+upload", group)
+                        done_this_round.append(group)
+                    elif status == "error":
+                        err = task.get("error") or task.get("params", {})
+                        raise RuntimeError(
+                            f"AppEEARS task failed: group={group} "
+                            f"task_id={task_id} error={err}"
+                        )
+                    else:
+                        logger.info("  · %-22s %s", group, status)
 
-        if pending:
-            logger.info("Sleeping 60 s…  (%d groups still processing)", len(pending))
-            time.sleep(60)
+                    time.sleep(0.5)  # gap between per-task status requests
+
+                for group in done_this_round:
+                    task_id = pending.pop(group)
+                    fut = pool.submit(
+                        _download_and_upload_one,
+                        group, task_id, user, password, run_id, bucket, aws_region,
+                    )
+                    upload_futures[fut] = group
+
+            # ── collect any finished upload futures ───────────────────────────
+            finished = [f for f in upload_futures if f.done()]
+            for fut in finished:
+                group = upload_futures.pop(fut)
+                s3_keys[group] = fut.result()
+
+            if pending:
+                n_uploading = len(upload_futures)
+                suffix = f" ({n_uploading} group(s) uploading in background)" if n_uploading else ""
+                logger.info("Sleeping 60 s…  (%d groups still processing)%s", len(pending), suffix)
+                time.sleep(60)
+            elif upload_futures:
+                # All tasks done; wait briefly for uploads to finish
+                logger.info("All tasks done — waiting for %d upload(s) to finish…", len(upload_futures))
+                time.sleep(5)
+
+    return s3_keys
+
+
+def _download_and_upload_one(
+    group: str,
+    task_id: str,
+    user: str,
+    password: str,
+    run_id: str,
+    bucket: str,
+    aws_region: str,
+) -> str:
+    """Download the results CSV for *group* and immediately upload to S3.
+
+    Returns the S3 key.
+    """
+    group_name, file_name, csv_bytes = _download_one_csv(group, task_id, user, password)
+    key = f"raw/weather/source=modis_ndvi/run_id={run_id}/group={group}/{file_name}"
+    upload_bytes_to_s3(csv_bytes, bucket, key, aws_region)
+    logger.info("✓ Uploaded group=%-22s → s3://%s/%s", group, bucket, key)
+    return key
 
 
 # ── CSV download (parallel) ───────────────────────────────────────────────────
@@ -336,62 +391,6 @@ def _download_one_csv(
 
     logger.info("✓ Downloaded %-50s (%d bytes, checksum OK)", file_name, len(csv_bytes))
     return group, file_name, csv_bytes
-
-
-def _download_all_csvs(
-    task_ids: dict[str, str],
-    user: str,
-    password: str,
-) -> dict[str, tuple[str, bytes]]:
-    """Download all 5 result CSVs concurrently.  Returns {group: (file_name, bytes)}."""
-    results: dict[str, tuple[str, bytes]] = {}
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        futures = {
-            pool.submit(_download_one_csv, group, task_id, user, password): group
-            for group, task_id in task_ids.items()
-        }
-        for fut in as_completed(futures):
-            group, file_name, csv_bytes = fut.result()
-            results[group] = (file_name, csv_bytes)
-    return results
-
-
-# ── S3 upload (parallel) ──────────────────────────────────────────────────────
-
-def _upload_one_csv(
-    group: str,
-    file_name: str,
-    csv_bytes: bytes,
-    run_id: str,
-    bucket: str,
-    aws_region: str,
-) -> tuple[str, str]:
-    """Upload one CSV to the S3 raw tier.  Returns (group, s3_key)."""
-    key = f"raw/weather/source=modis_ndvi/run_id={run_id}/group={group}/{file_name}"
-    upload_bytes_to_s3(csv_bytes, bucket, key, aws_region)
-    logger.info("✓ Uploaded group=%-22s → s3://%s/%s", group, bucket, key)
-    return group, key
-
-
-def _upload_all_csvs(
-    downloads: dict[str, tuple[str, bytes]],
-    run_id: str,
-    bucket: str,
-    aws_region: str,
-) -> dict[str, str]:
-    """Upload all 5 CSVs to S3 concurrently.  Returns {group: s3_key}."""
-    s3_keys: dict[str, str] = {}
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        futures = {
-            pool.submit(
-                _upload_one_csv, group, file_name, csv_bytes, run_id, bucket, aws_region
-            ): group
-            for group, (file_name, csv_bytes) in downloads.items()
-        }
-        for fut in as_completed(futures):
-            group, key = fut.result()
-            s3_keys[group] = key
-    return s3_keys
 
 
 # ── run record ────────────────────────────────────────────────────────────────
@@ -494,17 +493,10 @@ def main() -> None:
         submit_record,
     )
 
-    # ── Phase 3: poll until all tasks are done ────────────────────────────────
+    # ── Phase 3–5: poll + stream download+upload as each group completes ──────
     logger.info("Polling AppEEARS for task completion (15–45 min expected)…")
-    _poll_until_done(task_ids, user, password)
-
-    # ── Phase 4: download CSVs in parallel ───────────────────────────────────
-    logger.info("All tasks done — downloading CSVs in parallel…")
-    downloads = _download_all_csvs(task_ids, user, password)
-
-    # ── Phase 5: upload to S3 in parallel ────────────────────────────────────
-    logger.info("Uploading CSVs to S3 in parallel…")
-    s3_keys = _upload_all_csvs(downloads, run_id, bucket, aws_region)
+    logger.info("Each group will be downloaded and uploaded to S3 as soon as it is ready.")
+    s3_keys = _poll_and_stream(task_ids, user, password, run_id, bucket, aws_region)
 
     # ── Phase 6: final run record ─────────────────────────────────────────────
     final_record: dict = {
