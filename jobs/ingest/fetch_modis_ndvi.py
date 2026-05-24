@@ -1,0 +1,527 @@
+"""Fetch MODIS NDVI data via the NASA AppEEARS API.
+
+Reads all 31 geography configs in parallel, splits coordinates into 5 commodity
+groups, submits 5 AppEEARS point-sample tasks (saturating the per-account
+concurrency limit), polls until all tasks are done, then downloads the result
+CSVs in parallel and uploads them to the S3 raw tier.
+
+Processing timeline
+-------------------
+  Phase 1  Setup + parallel config reads     < 5 s
+  Phase 2  Sequential task submission        < 30 s
+  Phase 3  Polling (NASA server-side work)   15–45 min
+  Phase 4  Parallel CSV download             < 5 min
+  Phase 5  Parallel S3 upload               < 2 min
+
+A crash-resilient checkpoint is written to data/batch_runs/ immediately after
+task submission so that task IDs are never lost.
+
+Usage
+-----
+    python jobs/ingest/fetch_modis_ndvi.py
+    python jobs/ingest/fetch_modis_ndvi.py --dry-run
+    python jobs/ingest/fetch_modis_ndvi.py --end-date 2020-12-31
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import logging
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+import requests
+
+from leviathan.common.config import get_required_env, load_env, load_yaml
+from leviathan.common.logging import get_logger
+from leviathan.storage.metadata import utc_now_iso
+from leviathan.storage.s3 import upload_bytes_to_s3
+
+logger = get_logger("fetch_modis_ndvi")
+
+_BASE_URL = "https://appeears.earthdatacloud.nasa.gov/api"
+
+# ── module-level token state ──────────────────────────────────────────────────
+
+_token: str = ""
+
+
+def _login(user: str, password: str) -> None:
+    """POST /login (Basic Auth) → store bearer token in module state."""
+    global _token
+    logger.info("Logging in to AppEEARS…")
+    r = requests.post(
+        f"{_BASE_URL}/login",
+        auth=(user, password),
+        headers={"Content-Length": "0"},
+        timeout=20,
+    )
+    r.raise_for_status()
+    data = r.json()
+    _token = data["token"]
+    logger.info("Token acquired, expires %s", data["expiration"])
+
+
+def _auth_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {_token}"}
+
+
+# ── rate-limit-aware GET ──────────────────────────────────────────────────────
+
+def _api_get(path: str, user: str, password: str, **kwargs) -> requests.Response:
+    """GET an AppEEARS API endpoint with automatic 403-refresh and 429-backoff."""
+    backoff = 60
+    for attempt in range(5):
+        r = requests.get(
+            f"{_BASE_URL}{path}",
+            headers=_auth_headers(),
+            timeout=30,
+            **kwargs,
+        )
+        if r.status_code in (401, 403):
+            logger.warning("Token rejected (HTTP %d), refreshing…", r.status_code)
+            _login(user, password)
+            continue
+        if r.status_code == 429:
+            logger.warning("Rate-limited (HTTP 429), sleeping %ds before retry…", backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+            continue
+        return r
+    r.raise_for_status()
+    return r  # unreachable but satisfies type checker
+
+
+# ── geography loading (parallel) ─────────────────────────────────────────────
+
+def _load_one_geography(commodity: str) -> tuple[str, list[dict]]:
+    """Return (commodity, [{region, country, latitude, longitude}])."""
+    cfg = load_yaml(f"configs/geographies/{commodity}_regions.yaml")
+    rows: list[dict] = []
+    for region_block in cfg.get("regions", []):
+        country = region_block["country"]
+        for loc in region_block.get("locations", []):
+            rows.append({
+                "region": loc["region"],
+                "country": country,
+                "latitude": float(loc["latitude"]),
+                "longitude": float(loc["longitude"]),
+            })
+    return commodity, rows
+
+
+def _load_all_geographies(commodities: list[str]) -> dict[str, list[dict]]:
+    """Load all 31 geography configs concurrently."""
+    result: dict[str, list[dict]] = {}
+    with ThreadPoolExecutor(max_workers=32) as pool:
+        futures = {pool.submit(_load_one_geography, c): c for c in commodities}
+        for fut in as_completed(futures):
+            commodity, rows = fut.result()
+            result[commodity] = rows
+            logger.debug("Loaded %d locations for %s", len(rows), commodity)
+    return result
+
+
+# ── coordinate assembly ───────────────────────────────────────────────────────
+
+def _build_group_coords(
+    commodity_groups: dict[str, list[str]],
+    geo_data: dict[str, list[dict]],
+) -> dict[str, list[dict]]:
+    """Assemble AppEEARS coordinate objects per group.
+
+    Each coordinate: {id, category, latitude, longitude}
+    id=region_name, category=commodity — these are echoed back in the CSV so
+    the raw-to-bronze task can reconstruct the full mapping without any extra
+    lookup at download time.
+    """
+    group_coords: dict[str, list[dict]] = {}
+    for group, commodities in commodity_groups.items():
+        coords: list[dict] = []
+        for commodity in commodities:
+            for loc in geo_data.get(commodity, []):
+                coords.append({
+                    "id": loc["region"],
+                    "category": commodity,
+                    "latitude": loc["latitude"],
+                    "longitude": loc["longitude"],
+                })
+        group_coords[group] = coords
+        logger.info(
+            "Group %-22s → %3d coordinates (%d commodities)",
+            group, len(coords), len(commodities),
+        )
+    return group_coords
+
+
+# ── task submission ───────────────────────────────────────────────────────────
+
+def _submit_one_task(
+    group: str,
+    coords: list[dict],
+    end_date_appeears: str,
+    product: str,
+    layers: dict[str, str],
+    run_id: str,
+    user: str,
+    password: str,
+) -> str:
+    """Submit one AppEEARS point task; return task_id."""
+    payload = {
+        "task_type": "point",
+        "task_name": f"leviathan_modis_ndvi_{group}_{run_id}",
+        "params": {
+            "dates": [{"startDate": "02-18-2000", "endDate": end_date_appeears}],
+            "layers": [
+                {"product": product, "layer": layers["ndvi"]},
+                {"product": product, "layer": layers["quality"]},
+            ],
+            "coordinates": coords,
+            "output": {
+                "format": {"type": "csv"},
+                "projection": {"type": "geographic"},
+            },
+        },
+    }
+    backoff = 60
+    for attempt in range(3):
+        r = requests.post(
+            f"{_BASE_URL}/task",
+            json=payload,
+            headers=_auth_headers(),
+            timeout=30,
+        )
+        if r.status_code == 429:
+            logger.warning("Rate-limited on submit, sleeping %ds…", backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+            continue
+        if r.status_code in (401, 403):
+            logger.warning("Token rejected on submit (HTTP %d), refreshing…", r.status_code)
+            _login(user, password)
+            continue
+        r.raise_for_status()
+        task_id: str = r.json()["task_id"]
+        logger.info("Submitted group=%-22s → task_id=%s", group, task_id)
+        return task_id
+    raise RuntimeError(f"Failed to submit task for group={group} after retries")
+
+
+# ── polling ───────────────────────────────────────────────────────────────────
+
+def _poll_until_done(
+    task_ids: dict[str, str],
+    user: str,
+    password: str,
+) -> None:
+    """Block until every task reaches a terminal state (done / error).
+
+    Uses GET /task/{task_id} which always returns JSON with a 'status' field.
+    Checks all pending tasks once per round, sleeping 60 s between rounds.
+    Within a round, waits 0.5 s between individual task requests to stay well
+    under any undocumented rate limit.
+    """
+    pending: dict[str, str] = dict(task_ids)  # group → task_id
+    round_num = 0
+
+    while pending:
+        round_num += 1
+        logger.info("─── Poll round %d (%d groups pending) ───", round_num, len(pending))
+        done_this_round: list[str] = []
+
+        for group, task_id in list(pending.items()):
+            r = _api_get(f"/task/{task_id}", user, password)
+            r.raise_for_status()
+            task = r.json()
+            status: str = task.get("status", "unknown")
+
+            if status == "done":
+                logger.info("  ✓ %-22s DONE", group)
+                done_this_round.append(group)
+            elif status == "error":
+                err = task.get("error") or task.get("params", {})
+                raise RuntimeError(
+                    f"AppEEARS task failed: group={group} task_id={task_id} error={err}"
+                )
+            else:
+                logger.info("  · %-22s %s", group, status)
+
+            time.sleep(0.5)  # 0.5 s gap between per-task requests
+
+        for group in done_this_round:
+            del pending[group]
+
+        if pending:
+            logger.info("Sleeping 60 s…  (%d groups still processing)", len(pending))
+            time.sleep(60)
+
+
+# ── CSV download (parallel) ───────────────────────────────────────────────────
+
+def _download_one_csv(
+    group: str,
+    task_id: str,
+    user: str,
+    password: str,
+) -> tuple[str, str, bytes]:
+    """Download the results CSV for one completed task.
+
+    Returns (group, file_name, csv_bytes).
+
+    GET /bundle/{task_id}         — list files, find the results CSV
+    GET /bundle/{task_id}/{file_id} — 302 → presigned S3 URL → bytes
+    The actual data transfer goes directly to/from AWS S3, so there is
+    no AppEEARS rate limit on the download itself.
+    """
+    # List bundle files
+    r = _api_get(f"/bundle/{task_id}", user, password)
+    r.raise_for_status()
+    files: list[dict] = r.json()["files"]
+
+    # Pick the results CSV (one per task)
+    csv_meta = next(
+        (f for f in files if f["file_type"] == "csv" and "results" in f["file_name"]),
+        None,
+    )
+    if csv_meta is None:
+        names = [f["file_name"] for f in files]
+        raise RuntimeError(
+            f"No results CSV in bundle for group={group} task_id={task_id}. "
+            f"Files present: {names}"
+        )
+
+    file_id: str = csv_meta["file_id"]
+    file_name: str = csv_meta["file_name"]
+    expected_sha256: str = csv_meta["sha256"]
+    size_mb: float = csv_meta["file_size"] / 1_000_000
+
+    logger.info("Downloading %-50s (%.1f MB)…", file_name, size_mb)
+
+    # Download: AppEEARS endpoint redirects (302) to a presigned S3 URL.
+    # requests follows the redirect automatically; the actual bytes come from S3.
+    backoff = 30
+    for attempt in range(3):
+        dl = requests.get(
+            f"{_BASE_URL}/bundle/{task_id}/{file_id}",
+            headers=_auth_headers(),
+            allow_redirects=True,
+            timeout=300,
+        )
+        if dl.status_code == 429:
+            logger.warning("Rate-limited on download, sleeping %ds…", backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 120)
+            continue
+        if dl.status_code in (401, 403):
+            logger.warning("Token rejected on download, refreshing…")
+            _login(user, password)
+            continue
+        dl.raise_for_status()
+        break
+    else:
+        raise RuntimeError(f"Download failed for group={group} after retries")
+
+    csv_bytes: bytes = dl.content
+
+    # Verify SHA-256 checksum
+    actual_sha256 = hashlib.sha256(csv_bytes).hexdigest()
+    if actual_sha256 != expected_sha256:
+        raise RuntimeError(
+            f"SHA-256 mismatch for {file_name}: "
+            f"expected={expected_sha256} actual={actual_sha256}"
+        )
+
+    logger.info("✓ Downloaded %-50s (%d bytes, checksum OK)", file_name, len(csv_bytes))
+    return group, file_name, csv_bytes
+
+
+def _download_all_csvs(
+    task_ids: dict[str, str],
+    user: str,
+    password: str,
+) -> dict[str, tuple[str, bytes]]:
+    """Download all 5 result CSVs concurrently.  Returns {group: (file_name, bytes)}."""
+    results: dict[str, tuple[str, bytes]] = {}
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {
+            pool.submit(_download_one_csv, group, task_id, user, password): group
+            for group, task_id in task_ids.items()
+        }
+        for fut in as_completed(futures):
+            group, file_name, csv_bytes = fut.result()
+            results[group] = (file_name, csv_bytes)
+    return results
+
+
+# ── S3 upload (parallel) ──────────────────────────────────────────────────────
+
+def _upload_one_csv(
+    group: str,
+    file_name: str,
+    csv_bytes: bytes,
+    run_id: str,
+    bucket: str,
+    aws_region: str,
+) -> tuple[str, str]:
+    """Upload one CSV to the S3 raw tier.  Returns (group, s3_key)."""
+    key = f"raw/weather/source=modis_ndvi/run_id={run_id}/group={group}/{file_name}"
+    upload_bytes_to_s3(csv_bytes, bucket, key, aws_region)
+    logger.info("✓ Uploaded group=%-22s → s3://%s/%s", group, bucket, key)
+    return group, key
+
+
+def _upload_all_csvs(
+    downloads: dict[str, tuple[str, bytes]],
+    run_id: str,
+    bucket: str,
+    aws_region: str,
+) -> dict[str, str]:
+    """Upload all 5 CSVs to S3 concurrently.  Returns {group: s3_key}."""
+    s3_keys: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {
+            pool.submit(
+                _upload_one_csv, group, file_name, csv_bytes, run_id, bucket, aws_region
+            ): group
+            for group, (file_name, csv_bytes) in downloads.items()
+        }
+        for fut in as_completed(futures):
+            group, key = fut.result()
+            s3_keys[group] = key
+    return s3_keys
+
+
+# ── run record ────────────────────────────────────────────────────────────────
+
+def _save_run_record(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2))
+    logger.info("Run record saved → %s", path)
+
+
+# ── entry point ───────────────────────────────────────────────────────────────
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    parser = argparse.ArgumentParser(
+        description="Fetch MODIS NDVI via AppEEARS and upload raw CSVs to S3."
+    )
+    parser.add_argument(
+        "--end-date",
+        default=date.today().strftime("%Y-%m-%d"),
+        help="Latest observation date in YYYY-MM-DD format (default: today)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print group coordinate counts without submitting anything",
+    )
+    args = parser.parse_args()
+
+    load_env()
+    user = get_required_env("EARTHDATA_USER")
+    password = get_required_env("EARTHDATA_PASSWORD")
+
+    if not args.dry_run:
+        bucket = get_required_env("LEVIATHAN_BUCKET")
+        aws_region = get_required_env("AWS_REGION")
+
+    # Convert end date from YYYY-MM-DD to MM-DD-YYYY (AppEEARS format)
+    end_dt = datetime.strptime(args.end_date, "%Y-%m-%d").date()
+    end_date_appeears = end_dt.strftime("%m-%d-%Y")
+
+    # Load source config and geography data
+    source_cfg = load_yaml("configs/sources/modis_ndvi.yaml")
+    product: str = source_cfg["product"]
+    layers: dict[str, str] = source_cfg["layers"]
+    commodity_groups: dict[str, list[str]] = source_cfg["commodity_groups"]
+
+    all_commodities = [c for group in commodity_groups.values() for c in group]
+    logger.info("Loading geographies for %d commodities in parallel…", len(all_commodities))
+    geo_data = _load_all_geographies(all_commodities)
+
+    group_coords = _build_group_coords(commodity_groups, geo_data)
+    total_coords = sum(len(v) for v in group_coords.values())
+    logger.info("Total coordinates across all groups: %d", total_coords)
+
+    if args.dry_run:
+        logger.info("[DRY-RUN] Would submit %d AppEEARS tasks:", len(group_coords))
+        for group, coords in group_coords.items():
+            logger.info("  group=%-22s  %d coordinates", group, len(coords))
+        logger.info("[DRY-RUN] Date range: 02-18-2000 → %s", end_date_appeears)
+        return
+
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    logger.info("run_id=%s", run_id)
+
+    # ── Phase 2: submit tasks sequentially (2 s gap to avoid 429 burst) ──────
+    _login(user, password)
+    task_ids: dict[str, str] = {}
+    for i, (group, coords) in enumerate(group_coords.items()):
+        task_id = _submit_one_task(
+            group=group,
+            coords=coords,
+            end_date_appeears=end_date_appeears,
+            product=product,
+            layers=layers,
+            run_id=run_id,
+            user=user,
+            password=password,
+        )
+        task_ids[group] = task_id
+        if i < len(group_coords) - 1:
+            time.sleep(2)  # rate-limit guard between POSTs
+
+    # Checkpoint — write task IDs immediately so a crash doesn't lose them
+    submit_record: dict = {
+        "run_id": run_id,
+        "source": "modis_ndvi",
+        "stage": "fetch",
+        "submitted_at": utc_now_iso(),
+        "end_date": args.end_date,
+        "total_coordinates": total_coords,
+        "task_ids_by_group": task_ids,
+    }
+    _save_run_record(
+        Path("data/batch_runs") / f"modis_ndvi_submit_{run_id}.json",
+        submit_record,
+    )
+
+    # ── Phase 3: poll until all tasks are done ────────────────────────────────
+    logger.info("Polling AppEEARS for task completion (15–45 min expected)…")
+    _poll_until_done(task_ids, user, password)
+
+    # ── Phase 4: download CSVs in parallel ───────────────────────────────────
+    logger.info("All tasks done — downloading CSVs in parallel…")
+    downloads = _download_all_csvs(task_ids, user, password)
+
+    # ── Phase 5: upload to S3 in parallel ────────────────────────────────────
+    logger.info("Uploading CSVs to S3 in parallel…")
+    s3_keys = _upload_all_csvs(downloads, run_id, bucket, aws_region)
+
+    # ── Phase 6: final run record ─────────────────────────────────────────────
+    final_record: dict = {
+        **submit_record,
+        "completed_at": utc_now_iso(),
+        "s3_keys_by_group": s3_keys,
+    }
+    _save_run_record(
+        Path("data/batch_runs") / f"modis_ndvi_fetch_{run_id}.json",
+        final_record,
+    )
+
+    logger.info(
+        "Done. run_id=%s | %d CSVs uploaded to s3://%s/raw/weather/source=modis_ndvi/run_id=%s/",
+        run_id, len(s3_keys), bucket, run_id,
+    )
+
+
+if __name__ == "__main__":
+    main()

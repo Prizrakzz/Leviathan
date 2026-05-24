@@ -1,0 +1,61 @@
+source: modis_ndvi
+product: MOD13Q1.061
+base_url: "https://appeears.earthdatacloud.nasa.gov/api"
+
+# The two layers we request in every AppEEARS task.
+layers:
+  ndvi: _250m_16_days_NDVI
+  quality: _250m_16_days_pixel_reliability
+
+# AppEEARS start date (MM-DD-YYYY) — first available Terra MODIS composite.
+start_date: "02-18-2000"
+
+# Baseline window used for z-score normalisation in the bronze→silver step.
+baseline_years: [2000, 2020]
+
+# pixel_reliability values to keep: 0 = good, 1 = marginal.
+quality_keep: [0, 1]
+
+# 31 commodities split into 5 groups — one AppEEARS task per group.
+# AppEEARS enforces a limit of 5 concurrent tasks per account.
+commodity_groups:
+  grains:
+    - corn_cbot
+    - campinas_corn_reference_bmf
+    - french_maize_matif
+    - soft_red_winter_wheat_cbot
+    - hard_red_spring_wheat_mgex
+    - hard_red_winter_wheat_kcbt
+    - french_wheat_matif
+    - rough_rice_cbot
+
+  oilseeds:
+    - soybeans_cbot
+    - soybeans_no_1_dce
+    - soybeans_no_2_dce
+    - soybean_meal_cbot
+    - soybean_meal_dce
+    - soybean_oil_cbot
+    - soybean_oil_dce
+    - canola_ice
+    - french_rapeseed_matif
+
+  rapeseed_softs:
+    - rapeseed_meal_zce
+    - rapeseed_oil_zce
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+    - cocoa
+    - cotton
+
+  sugar_oj:
+    - raw_sugar
+    - white_sugar
+    - frozen_orange_juice
+    - palm_olein_dce
+
+  palm_africa:
+    - malaysian_crude_palm_oil_cme
+    - south_african_white_maize_jse
+    - south_african_yellow_maize_jse

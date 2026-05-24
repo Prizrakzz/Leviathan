@@ -1,6 +1,57 @@
 from __future__ import annotations
 
 
+def raw_modis_ndvi_key(run_id: str, group: str, filename: str) -> str:
+    """S3 key for a raw MODIS NDVI results CSV downloaded from AppEEARS.
+
+    Args:
+        run_id:   Fetch run identifier, e.g. ``"20260524T203000Z"``.
+        group:    Commodity group name, e.g. ``"grains"``.
+        filename: Original AppEEARS CSV filename.
+    """
+    return f"raw/weather/source=modis_ndvi/run_id={run_id}/group={group}/{filename}"
+
+
+def bronze_modis_ndvi_key(
+    commodity: str,
+    country: str,
+    region: str,
+    year: int,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for a MODIS NDVI bronze Parquet file.
+
+    One file per (commodity, country, region, year); each file contains
+    up to 23 rows — one per 16-day composite period within the year.
+    """
+    return (
+        f"bronze/weather/source=modis_ndvi/"
+        f"commodity={commodity}/"
+        f"country={country}/"
+        f"region={region}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
+def silver_modis_ndvi_key(
+    commodity: str,
+    country: str,
+    region: str,
+    year: int,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for a MODIS NDVI silver Parquet file (includes z-scores)."""
+    return (
+        f"silver/weather/source=modis_ndvi/"
+        f"commodity={commodity}/"
+        f"country={country}/"
+        f"region={region}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
 def raw_cpc_tif_key(variable: str, date_str: str, filename: str) -> str:
     """S3 key for a CPC Leaky Bucket daily GeoTIFF file.
 
