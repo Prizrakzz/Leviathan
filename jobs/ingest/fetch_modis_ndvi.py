@@ -72,15 +72,26 @@ def _auth_headers() -> dict[str, str]:
 # ── rate-limit-aware GET ──────────────────────────────────────────────────────
 
 def _api_get(path: str, user: str, password: str, **kwargs) -> requests.Response:
-    """GET an AppEEARS API endpoint with automatic 403-refresh and 429-backoff."""
+    """GET an AppEEARS API endpoint with automatic 403-refresh, 429-backoff,
+    and transient network-error retry."""
     backoff = 60
-    for attempt in range(5):
-        r = requests.get(
-            f"{_BASE_URL}{path}",
-            headers=_auth_headers(),
-            timeout=30,
-            **kwargs,
-        )
+    for attempt in range(8):
+        try:
+            r = requests.get(
+                f"{_BASE_URL}{path}",
+                headers=_auth_headers(),
+                timeout=30,
+                **kwargs,
+            )
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as exc:
+            wait = min(30 * 2 ** attempt, 300)
+            logger.warning(
+                "Network error on attempt %d (%s), retrying in %ds…",
+                attempt + 1, exc, wait,
+            )
+            time.sleep(wait)
+            continue
         if r.status_code in (401, 403):
             logger.warning("Token rejected (HTTP %d), refreshing…", r.status_code)
             _login(user, password)
@@ -91,8 +102,7 @@ def _api_get(path: str, user: str, password: str, **kwargs) -> requests.Response
             backoff = min(backoff * 2, 300)
             continue
         return r
-    r.raise_for_status()
-    return r  # unreachable but satisfies type checker
+    raise RuntimeError(f"_api_get: exhausted retries for {path}")
 
 
 # ── geography loading (parallel) ─────────────────────────────────────────────
@@ -422,6 +432,11 @@ def main() -> None:
         action="store_true",
         help="Print group coordinate counts without submitting anything",
     )
+    parser.add_argument(
+        "--resume",
+        metavar="RUN_ID",
+        help="Resume a previous run by reading its checkpoint JSON; skips task submission",
+    )
     args = parser.parse_args()
 
     load_env()
@@ -457,41 +472,55 @@ def main() -> None:
         logger.info("[DRY-RUN] Date range: 02-18-2000 → %s", end_date_appeears)
         return
 
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    logger.info("run_id=%s", run_id)
+    if args.resume:
+        # ── Resume mode: load task IDs from checkpoint, skip submission ─────
+        checkpoint_path = Path("data/batch_runs") / f"modis_ndvi_submit_{args.resume}.json"
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+        checkpoint = json.loads(checkpoint_path.read_text())
+        run_id = checkpoint["run_id"]
+        task_ids = checkpoint["task_ids_by_group"]
+        submit_record = checkpoint
+        logger.info("Resuming run_id=%s with %d existing tasks", run_id, len(task_ids))
+        for group, tid in task_ids.items():
+            logger.info("  %-22s → %s", group, tid)
+        _login(user, password)
+    else:
+        run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        logger.info("run_id=%s", run_id)
 
-    # ── Phase 2: submit tasks sequentially (2 s gap to avoid 429 burst) ──────
-    _login(user, password)
-    task_ids: dict[str, str] = {}
-    for i, (group, coords) in enumerate(group_coords.items()):
-        task_id = _submit_one_task(
-            group=group,
-            coords=coords,
-            end_date_appeears=end_date_appeears,
-            product=product,
-            layers=layers,
-            run_id=run_id,
-            user=user,
-            password=password,
+        # ── Phase 2: submit tasks sequentially (2 s gap to avoid 429 burst) ─
+        _login(user, password)
+        task_ids = {}
+        for i, (group, coords) in enumerate(group_coords.items()):
+            task_id = _submit_one_task(
+                group=group,
+                coords=coords,
+                end_date_appeears=end_date_appeears,
+                product=product,
+                layers=layers,
+                run_id=run_id,
+                user=user,
+                password=password,
+            )
+            task_ids[group] = task_id
+            if i < len(group_coords) - 1:
+                time.sleep(2)  # rate-limit guard between POSTs
+
+        # Checkpoint — write task IDs immediately so a crash doesn't lose them
+        submit_record: dict = {
+            "run_id": run_id,
+            "source": "modis_ndvi",
+            "stage": "fetch",
+            "submitted_at": utc_now_iso(),
+            "end_date": args.end_date,
+            "total_coordinates": total_coords,
+            "task_ids_by_group": task_ids,
+        }
+        _save_run_record(
+            Path("data/batch_runs") / f"modis_ndvi_submit_{run_id}.json",
+            submit_record,
         )
-        task_ids[group] = task_id
-        if i < len(group_coords) - 1:
-            time.sleep(2)  # rate-limit guard between POSTs
-
-    # Checkpoint — write task IDs immediately so a crash doesn't lose them
-    submit_record: dict = {
-        "run_id": run_id,
-        "source": "modis_ndvi",
-        "stage": "fetch",
-        "submitted_at": utc_now_iso(),
-        "end_date": args.end_date,
-        "total_coordinates": total_coords,
-        "task_ids_by_group": task_ids,
-    }
-    _save_run_record(
-        Path("data/batch_runs") / f"modis_ndvi_submit_{run_id}.json",
-        submit_record,
-    )
 
     # ── Phase 3–5: poll + stream download+upload as each group completes ──────
     logger.info("Polling AppEEARS for task completion (15–45 min expected)…")
