@@ -1,0 +1,66 @@
+{
+  "run_id": "2026-05-26T17-50-16.174995+00-00",
+  "source": "modis_ndvi",
+  "stage": "raw_to_bronze",
+  "fetch_run_id": "20260524T183717Z",
+  "groups": [
+    "grains",
+    "oilseeds",
+    "rapeseed_softs",
+    "sugar_oj",
+    "palm_africa"
+  ],
+  "task_count": 5,
+  "tasks": [
+    {
+      "job_name": "modis-ndvi-r2b-grains",
+      "parameters": {
+        "run_id": "20260524T183717Z",
+        "group": "grains",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "faa2de7e-c944-42c8-8f85-d552bc89952e"
+    },
+    {
+      "job_name": "modis-ndvi-r2b-oilseeds",
+      "parameters": {
+        "run_id": "20260524T183717Z",
+        "group": "oilseeds",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "5c818f24-2c8f-47d3-a341-f0d818afbae0"
+    },
+    {
+      "job_name": "modis-ndvi-r2b-rapeseed-softs",
+      "parameters": {
+        "run_id": "20260524T183717Z",
+        "group": "rapeseed_softs",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "92c091aa-ffe3-4fc8-b2ae-8a67ebfd4f23"
+    },
+    {
+      "job_name": "modis-ndvi-r2b-sugar-oj",
+      "parameters": {
+        "run_id": "20260524T183717Z",
+        "group": "sugar_oj",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "7e4b1196-ddc4-4f47-bba0-2182f3b2509f"
+    },
+    {
+      "job_name": "modis-ndvi-r2b-palm-africa",
+      "parameters": {
+        "run_id": "20260524T183717Z",
+        "group": "palm_africa",
+        "bucket": "leviathan-dev-shahem-001",
+        "aws_region": "us-east-1"
+      },
+      "job_id": "2a77a570-e4af-41cd-a055-d57c0531bcb9"
+    }
+  ]
+}

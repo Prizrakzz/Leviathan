@@ -100,11 +100,15 @@ def parse_appeears_csv(
     if missing:
         raise ValueError(f"AppEEARS CSV missing expected columns after rename: {missing}")
 
-    # Deduplicate: AppEEARS may emit the same (region, date) more than once
+    # Deduplicate: AppEEARS may emit the same (commodity, region, date) more than once.
+    # NOTE: must include "commodity" in the key — a single CSV can contain multiple
+    # commodities that share region IDs (e.g. soybean_oil_cbot and soybeans_cbot both
+    # use ar_soy_buenos_aires).  Deduplicating on (region, date) alone would silently
+    # discard all but the first commodity's rows for shared regions.
     before_dedup = len(df)
-    df = df.drop_duplicates(subset=["region", "date"])
+    df = df.drop_duplicates(subset=["commodity", "region", "date"])
     if len(df) < before_dedup:
-        logger.warning("Dropped %d duplicate (region, date) rows", before_dedup - len(df))
+        logger.warning("Dropped %d duplicate (commodity, region, date) rows", before_dedup - len(df))
 
     # Parse date and derive year + MODIS period
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date

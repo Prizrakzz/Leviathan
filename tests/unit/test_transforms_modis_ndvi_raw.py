@@ -105,13 +105,24 @@ class TestUpperBound:
 
 class TestDeduplication:
     def test_duplicate_region_date_kept_once(self):
-        """Two rows with the same (region, date) → one row in output."""
+        """Two rows with the same (commodity, region, date) → one row in output."""
         rows = [
             _row(date_="2020-01-01", ndvi=0.6),
-            _row(date_="2020-01-01", ndvi=0.7),  # duplicate
+            _row(date_="2020-01-01", ndvi=0.7),  # duplicate same commodity
         ]
         result = parse_appeears_csv(_csv(rows), REGION_TO_COUNTRY, INGEST_DATE)
         assert len(result) == 1
+
+    def test_different_commodities_same_region_date_both_kept(self):
+        """Two commodities sharing a region+date must NOT be deduplicated."""
+        region_to_country = {**REGION_TO_COUNTRY, "us_midwest_iowa": "united_states"}
+        rows = [
+            _row(category="corn_cbot",     id_="us_midwest_iowa", date_="2020-01-01", ndvi=0.6),
+            _row(category="soybean_cbot",  id_="us_midwest_iowa", date_="2020-01-01", ndvi=0.7),
+        ]
+        result = parse_appeears_csv(_csv(rows), region_to_country, INGEST_DATE)
+        assert len(result) == 2
+        assert set(result["commodity"]) == {"corn_cbot", "soybean_cbot"}
 
 
 class TestPeriodCalculation:

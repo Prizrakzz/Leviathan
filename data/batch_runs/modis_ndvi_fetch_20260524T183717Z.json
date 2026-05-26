@@ -1,0 +1,23 @@
+{
+  "run_id": "20260524T183717Z",
+  "source": "modis_ndvi",
+  "stage": "fetch",
+  "submitted_at": "2026-05-24T18:37:40.674151+00:00",
+  "end_date": "2026-05-24",
+  "total_coordinates": 422,
+  "task_ids_by_group": {
+    "grains": "7ae00d5c-9856-44ab-b92c-ca6de66fdef8",
+    "oilseeds": "193dce70-6467-4bca-ba32-687e8cd43552",
+    "rapeseed_softs": "0d92a06f-6948-4de4-8fb3-88a689c12627",
+    "sugar_oj": "123181e0-ac03-4e8c-9543-0c29bb87a7e7",
+    "palm_africa": "1e372ba2-8b0c-490d-9ffa-af97367f5dbc"
+  },
+  "completed_at": "2026-05-26T15:39:57.668056+00:00",
+  "s3_keys_by_group": {
+    "palm_africa": "raw/weather/source=modis_ndvi/run_id=20260524T183717Z/group=palm_africa/leviathan-modis-ndvi-palm-africa-20260524T183717Z-MOD13Q1-061-results.csv",
+    "sugar_oj": "raw/weather/source=modis_ndvi/run_id=20260524T183717Z/group=sugar_oj/leviathan-modis-ndvi-sugar-oj-20260524T183717Z-MOD13Q1-061-results.csv",
+    "grains": "raw/weather/source=modis_ndvi/run_id=20260524T183717Z/group=grains/leviathan-modis-ndvi-grains-20260524T183717Z-MOD13Q1-061-results.csv",
+    "rapeseed_softs": "raw/weather/source=modis_ndvi/run_id=20260524T183717Z/group=rapeseed_softs/leviathan-modis-ndvi-rapeseed-softs-20260524T183717Z-MOD13Q1-061-results.csv",
+    "oilseeds": "raw/weather/source=modis_ndvi/run_id=20260524T183717Z/group=oilseeds/leviathan-modis-ndvi-oilseeds-20260524T183717Z-MOD13Q1-061-results.csv"
+  }
+}
