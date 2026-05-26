@@ -58,12 +58,21 @@ def modis_ndvi_bronze_to_silver(
 
     df = df.copy()
 
+    # Deduplicate: guard against duplicate (region, date) rows inflating the baseline
+    before_dedup = len(df)
+    df = df.drop_duplicates(subset=["region", "date"])
+    if len(df) < before_dedup:
+        logger.warning(
+            "%s: dropped %d duplicate (region, date) rows before baseline computation",
+            source_label, before_dedup - len(df),
+        )
+
     # Cast to expected types
     df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int16")
     df["period"] = pd.to_numeric(df["period"], errors="coerce").astype("Int8")
     df["pixel_reliability"] = pd.to_numeric(df["pixel_reliability"], errors="coerce").astype("Int8")
     df["ndvi"] = pd.to_numeric(df["ndvi"], errors="coerce").astype("float32")
-    df["ndvi_raw"] = pd.to_numeric(df["ndvi_raw"], errors="coerce").astype("Int32")
+    df["ndvi_raw"] = pd.to_numeric(df["ndvi_raw"], errors="coerce").astype("float32")
 
     # Quality filter: keep only good + marginal pixels
     before = len(df)

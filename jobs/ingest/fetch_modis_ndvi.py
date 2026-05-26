@@ -229,6 +229,7 @@ def _poll_and_stream(
     run_id: str,
     bucket: str,
     aws_region: str,
+    already_done: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Poll all tasks and immediately download+upload each group as it completes.
 
@@ -237,11 +238,24 @@ def _poll_and_stream(
     ``done`` its download+upload is submitted to the pool, so no group sits
     idle waiting for slower groups to finish.
 
+    ``already_done`` maps group → s3_key for groups whose upload was confirmed
+    in a previous run.  Those groups are skipped entirely (no re-download).
+
     Returns {group: s3_key} for all groups.
     """
-    pending: dict[str, str] = dict(task_ids)  # group → task_id
+    progress_path = Path("data/batch_runs") / f"modis_ndvi_progress_{run_id}.json"
+
+    # Seed with any groups already uploaded in a prior (crashed) run
+    s3_keys: dict[str, str] = dict(already_done or {})
+    pending: dict[str, str] = {
+        g: tid for g, tid in task_ids.items() if g not in s3_keys
+    }
+    if s3_keys:
+        logger.info(
+            "Skipping %d already-uploaded group(s): %s",
+            len(s3_keys), ", ".join(s3_keys),
+        )
     round_num = 0
-    s3_keys: dict[str, str] = {}
 
     # Up to 5 concurrent download+upload workers (one per group)
     with ThreadPoolExecutor(max_workers=5) as pool:
@@ -290,6 +304,13 @@ def _poll_and_stream(
             for fut in finished:
                 group = upload_futures.pop(fut)
                 s3_keys[group] = fut.result()
+                # ── microbatch checkpoint: persist after every successful upload ──
+                progress_path.parent.mkdir(parents=True, exist_ok=True)
+                progress_path.write_text(json.dumps(s3_keys, indent=2))
+                logger.info(
+                    "Progress saved (%d/%d groups done) → %s",
+                    len(s3_keys), len(task_ids), progress_path,
+                )
 
             if pending:
                 n_uploading = len(upload_futures)
@@ -484,6 +505,15 @@ def main() -> None:
         logger.info("Resuming run_id=%s with %d existing tasks", run_id, len(task_ids))
         for group, tid in task_ids.items():
             logger.info("  %-22s → %s", group, tid)
+        # Load per-group upload progress if a previous run completed some groups
+        progress_path = Path("data/batch_runs") / f"modis_ndvi_progress_{run_id}.json"
+        already_done: dict[str, str] = {}
+        if progress_path.exists():
+            already_done = json.loads(progress_path.read_text())
+            logger.info(
+                "Found progress file: %d group(s) already uploaded — %s",
+                len(already_done), ", ".join(already_done),
+            )
         _login(user, password)
     else:
         run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -525,7 +555,8 @@ def main() -> None:
     # ── Phase 3–5: poll + stream download+upload as each group completes ──────
     logger.info("Polling AppEEARS for task completion (15–45 min expected)…")
     logger.info("Each group will be downloaded and uploaded to S3 as soon as it is ready.")
-    s3_keys = _poll_and_stream(task_ids, user, password, run_id, bucket, aws_region)
+    _already_done = already_done if args.resume else {}
+    s3_keys = _poll_and_stream(task_ids, user, password, run_id, bucket, aws_region, _already_done)
 
     # ── Phase 6: final run record ─────────────────────────────────────────────
     final_record: dict = {

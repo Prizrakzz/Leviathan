@@ -12,8 +12,11 @@ Column names vary slightly by task name, but always contain:
     MOD13Q1_061__250m_16_days_NDVI
     MOD13Q1_061__250m_16_days_pixel_reliability
 
-The NDVI int16 fill value is -28672 (outside valid range -2000..10000);
-rows with fill values are dropped.
+AppEEARS applies the product scale factor to valid pixels before exporting
+to CSV, so NDVI values arrive as physical floats (range ~-0.2 to 1.0) rather
+than raw int16.  Fill pixels are output with their raw fill sentinel:
+- NDVI fill   : -3000.0  (raw int16 fill = -3000, physical equivalent -0.3)
+- Quality fill: -1.0     (raw int8 fill  = -1)
 
 MODIS 16-day period number
 --------------------------
@@ -35,9 +38,9 @@ from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
 
-_NDVI_FILL_VALUE = -28672
-_NDVI_VALID_MIN = -2000
-_NDVI_SCALE_FACTOR = 0.0001
+# AppEEARS returns physical float values; fill pixels keep their raw sentinel.
+_NDVI_PHYSICAL_MIN = -0.3  # slightly below valid min (-0.2) to catch fill sentinel -3000.0
+_NDVI_PHYSICAL_MAX = 1.0   # valid MODIS NDVI physical max
 
 
 def _find_column(df: pd.DataFrame, substring: str) -> str:
@@ -97,8 +100,17 @@ def parse_appeears_csv(
     if missing:
         raise ValueError(f"AppEEARS CSV missing expected columns after rename: {missing}")
 
+    # Deduplicate: AppEEARS may emit the same (region, date) more than once
+    before_dedup = len(df)
+    df = df.drop_duplicates(subset=["region", "date"])
+    if len(df) < before_dedup:
+        logger.warning("Dropped %d duplicate (region, date) rows", before_dedup - len(df))
+
     # Parse date and derive year + MODIS period
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+    bad_dates = df["date"].isna().sum()
+    if bad_dates:
+        logger.warning("Dropped %d rows with unparseable dates", bad_dates)
     df = df.dropna(subset=["date"])
     df["year"] = df["date"].apply(lambda d: d.year).astype("int16")
     df["period"] = df["date"].apply(
@@ -106,20 +118,26 @@ def parse_appeears_csv(
     ).astype("int8")
 
     # Cast numeric columns
-    df["ndvi_raw"] = pd.to_numeric(df["ndvi_raw"], errors="coerce").astype("Int32")
+    # ndvi_raw: AppEEARS delivers pre-scaled physical floats (valid range -0.2..1.0)
+    df["ndvi_raw"] = pd.to_numeric(df["ndvi_raw"], errors="coerce").astype("float32")
+    # pixel_reliability: integer quality code 0-3; fill = -1 (fits in Int8)
     df["pixel_reliability"] = pd.to_numeric(df["pixel_reliability"], errors="coerce").astype("Int8")
     df["latitude"] = df["latitude"].astype("float32")
     df["longitude"] = df["longitude"].astype("float32")
 
-    # Drop fill values (int16 fill = -28672, outside valid range -2000..10000)
+    # Drop fill / out-of-range values (fill sentinel = -3000.0; valid physical range -0.2..1.0)
     before = len(df)
-    df = df[df["ndvi_raw"].notna() & (df["ndvi_raw"] >= _NDVI_VALID_MIN)]
+    df = df[
+        df["ndvi_raw"].notna()
+        & (df["ndvi_raw"] >= _NDVI_PHYSICAL_MIN)
+        & (df["ndvi_raw"] <= _NDVI_PHYSICAL_MAX)
+    ]
     dropped = before - len(df)
     if dropped:
-        logger.debug("Dropped %d fill-value rows", dropped)
+        logger.debug("Dropped %d fill/out-of-range NDVI rows", dropped)
 
-    # Scale NDVI: int16 raw → float32 physical value (range ~-0.2 to 1.0)
-    df["ndvi"] = (df["ndvi_raw"].astype("float32") * _NDVI_SCALE_FACTOR).astype("float32")
+    # ndvi mirrors ndvi_raw (AppEEARS already applied the scale factor)
+    df["ndvi"] = df["ndvi_raw"]
 
     # Add country from region lookup
     df["country"] = df["region"].map(region_to_country)

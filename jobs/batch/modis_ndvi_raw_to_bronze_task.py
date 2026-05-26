@@ -190,6 +190,11 @@ def main() -> None:
 
     # Build region→country mapping from geography configs in S3
     region_to_country = _build_region_to_country(args.bucket, args.aws_region)
+    if not region_to_country:
+        raise RuntimeError(
+            "region_to_country mapping is empty — geography configs not found in S3 at "
+            f"s3://{args.bucket}/configs/geographies/. Deploy configs before running R2B."
+        )
 
     # Parse CSV → bronze DataFrame
     ingest_date = date.today().isoformat()
