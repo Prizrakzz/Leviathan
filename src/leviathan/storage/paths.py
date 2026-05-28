@@ -706,6 +706,42 @@ def text_wasde_key(release_date: str) -> str:
     )
 
 
+def text_wap_key(release_month: str) -> str:
+    """S3 key for the extracted text document for a single USDA WAP release.
+
+    One file per calendar month, regardless of source era (A: FAS portal PDF,
+    B: Archive.org PDF, C: Wayback HTML).  Written by the WAP text extraction
+    pipeline; idempotency check uses head_object on this key.
+
+    Args:
+        release_month: YYYY-MM, e.g. "2026-05".
+    """
+    return (
+        f"text/"
+        f"source=usda_wap/"
+        f"release_month={release_month}/"
+        f"document.json"
+    )
+
+
+def bronze_wap_key(release_month: str) -> str:
+    """S3 key for the bronze Parquet table for a single USDA WAP release.
+
+    Contains Table 01 (World Agricultural Production) in long/tidy format —
+    one row per (release_month, commodity, row_label, country).  Written by
+    the WAP bronze extraction pipeline.
+
+    Args:
+        release_month: YYYY-MM, e.g. "2026-05".
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_wap/"
+        f"release_month={release_month}/"
+        f"table01.parquet"
+    )
+
+
 # ---------------------------------------------------------------------------
 # USDA FGIS Export Inspections — per-shipment grain inspection records
 # ---------------------------------------------------------------------------
