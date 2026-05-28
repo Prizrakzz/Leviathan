@@ -303,7 +303,7 @@ def section_a(s3_client: Any) -> None:
     with open(manifest_path) as f:
         releases = yaml.safe_load(f)["releases"]
     print(f"  Manifest entries: {len(releases)}")
-    print(f"  Range: {releases[0]['release_month']} → {releases[-1]['release_month']}")
+    print(f"  Range: {releases[0]['release_month']} to {releases[-1]['release_month']}")
     samples = _quintile_sample(releases)
 
     for r in samples:
@@ -328,7 +328,7 @@ def section_b() -> None:
     with open(manifest_path) as f:
         releases = yaml.safe_load(f)["releases"]
     print(f"  Manifest entries: {len(releases)}")
-    print(f"  Range: {releases[0]['release_month']} → {releases[-1]['release_month']}")
+    print(f"  Range: {releases[0]['release_month']} to {releases[-1]['release_month']}")
     samples = _quintile_sample(releases)
 
     for r in samples:
@@ -356,7 +356,7 @@ def section_c() -> None:
     with open(manifest_path) as f:
         releases = yaml.safe_load(f)["releases"]
     print(f"  Manifest entries: {len(releases)}")
-    print(f"  Range: {releases[0]['release_month']} → {releases[-1]['release_month']}")
+    print(f"  Range: {releases[0]['release_month']} to {releases[-1]['release_month']}")
     samples = _quintile_sample(releases)
 
     for r in samples:
@@ -395,7 +395,7 @@ def section_d(s3_client: Any) -> None:
         if r["fmt"] == "pdf" and str(r["release_date"]) >= "2000-01-01"
     ]
     print(f"  Digital PDF reports (2000+): {len(digital)}")
-    print(f"  Range: {digital[0]['release_date']} → {digital[-1]['release_date']}")
+    print(f"  Range: {digital[0]['release_date']} to {digital[-1]['release_date']}")
     samples = _quintile_sample(digital)
 
     for r in samples:
@@ -423,7 +423,7 @@ def section_e(s3_client: Any) -> None:
 
     txt_reports = [r for r in all_reports if r["fmt"] == "txt"]
     print(f"  TXT reports: {len(txt_reports)}")
-    print(f"  Range: {txt_reports[0]['release_date']} → {txt_reports[-1]['release_date']}")
+    print(f"  Range: {txt_reports[0]['release_date']} to {txt_reports[-1]['release_date']}")
     samples = _quintile_sample(txt_reports)
 
     for r in samples:
@@ -459,7 +459,7 @@ def section_f(s3_client: Any) -> None:
         if r["fmt"] == "pdf" and str(r["release_date"]) < "1995-01-01"
     ]
     print(f"  Scanned PDF reports (pre-1995): {len(scanned)}")
-    print(f"  Range: {scanned[0]['release_date']} → {scanned[-1]['release_date']}")
+    print(f"  Range: {scanned[0]['release_date']} to {scanned[-1]['release_date']}")
     samples = _quintile_sample(scanned)
 
     for r in samples:
