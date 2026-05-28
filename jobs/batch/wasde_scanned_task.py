@@ -22,14 +22,12 @@ Full run (~$4):
 from __future__ import annotations
 
 import argparse
-import io
 import logging
 import sys
 import time
 from datetime import datetime, timezone
 
 import boto3
-import pypdf
 
 from leviathan.storage.paths import parse_hive_key, text_wasde_key
 from leviathan.storage.s3 import (
@@ -37,48 +35,20 @@ from leviathan.storage.s3 import (
     list_s3_keys,
     s3_download_with_retry,
 )
-from leviathan.transforms.raw_to_text.wasde_scanned import extract_wasde_scanned
+from leviathan.transforms.raw_to_text.wasde_scanned import (
+    _MAX_NARRATIVE_PAGES,
+    _is_scanned_key,
+    _truncate_pdf,
+    extract_wasde_scanned,
+)
 from leviathan.transforms.raw_to_text.writer import document_exists, write_document
 
 logger = logging.getLogger("wasde_scanned_task")
 
 _RAW_PREFIX = "raw/production/source=usda_wasde/"
-_SCANNED_YEAR_MAX = 1999  # .pdf + year < 2000 = scanned era
 _TMP_PREFIX = "text/tmp/usda_wasde/"
-_MAX_NARRATIVE_PAGES = 8
 _POLL_INTERVAL_SECONDS = 5
 _TEXTRACT_BATCH_SIZE = 100  # Textract soft limit: 100 concurrent async jobs
-
-
-def _is_scanned_key(key: str) -> bool:
-    """Return True if *key* points to a scanned-era WASDE PDF (1973–1994)."""
-    if not key.endswith(".pdf"):
-        return False
-    release_date = parse_hive_key(key, "release_date")
-    if not release_date:
-        return False
-    try:
-        year = int(release_date[:4])
-    except ValueError:
-        return False
-    return year < _SCANNED_YEAR_MAX  # < 1999 → scanned; 1995–1998 .pdf would be scanned
-
-
-def _truncate_pdf(pdf_bytes: bytes, max_pages: int) -> bytes:
-    """Return a new PDF containing only the first *max_pages* pages.
-
-    Uses ``pypdf`` in-memory — no disk I/O.  If the source has fewer pages
-    than *max_pages*, the original bytes are returned unchanged.
-    """
-    reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
-    if len(reader.pages) <= max_pages:
-        return pdf_bytes
-    writer = pypdf.PdfWriter()
-    for page in reader.pages[:max_pages]:
-        writer.add_page(page)
-    buf = io.BytesIO()
-    writer.write(buf)
-    return buf.getvalue()
 
 
 def _upload_tmp(s3_client, bucket: str, release_date: str, pdf_bytes: bytes) -> str:
@@ -267,12 +237,7 @@ def main() -> None:
                 )
                 job_id = resp["JobId"]
                 in_flight[job_id] = (release_date, raw_key, tmp_key)
-                logger.info(
-                    "submitted  %s  pages=%d  job=%s",
-                    raw_key,
-                    min(_MAX_NARRATIVE_PAGES, pypdf.PdfReader(io.BytesIO(pdf_bytes)).get_num_pages()),
-                    job_id,
-                )
+                logger.info("submitted  %s  job=%s", raw_key, job_id)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Submit failed  key=%s: %s", raw_key, exc)
                 total_errors += 1
