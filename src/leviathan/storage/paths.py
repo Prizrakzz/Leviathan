@@ -1039,6 +1039,154 @@ def raw_sagis_weekly_key(dataset: str, crop: str, filename: str) -> str:
     )
 
 
+def bronze_psd_key(release_date: str) -> str:
+    """S3 key for a USDA PSD bronze Parquet (all commodities, one release date).
+
+    Args:
+        release_date: Download date in ``YYYY-MM-DD`` format, e.g. ``"2026-05-20"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_psd/"
+        f"release_date={release_date}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_fgis_key(year: int) -> str:
+    """S3 key for a USDA FGIS Export Inspections bronze Parquet (one calendar year).
+
+    Args:
+        year: Calendar year, e.g. ``2024``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_fgis_export_inspections/"
+        f"year={year}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_pink_sheet_key(release_ym: str) -> str:
+    """S3 key for a World Bank Pink Sheet bronze Parquet (one monthly release).
+
+    Args:
+        release_ym: Release year-month in ``YYYYMmm`` format, e.g. ``"2026M05"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=world_bank_pink_sheet/"
+        f"release={release_ym}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_nass_key(series: str, commodity: str, year: int) -> str:
+    """S3 key for a USDA NASS bronze Parquet (one series/commodity/year shard).
+
+    Args:
+        series:    ``"annual"`` or ``"crop_progress"``.
+        commodity: Leviathan commodity slug, e.g. ``"corn_cbot"``.
+        year:      Calendar year of the data, e.g. ``2024``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_nass/"
+        f"series={series}/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_conab_xls_key(safra_year: int, survey: int) -> str:
+    """S3 key for a CONAB bulletin XLS bronze Parquet (one survey per safra year).
+
+    Args:
+        safra_year: Marketing year the survey covers, e.g. ``2026``.
+        survey:     Survey number within the season (1–5).
+    """
+    return (
+        f"bronze/production/"
+        f"source=conab_xls/"
+        f"safra_year={safra_year}/"
+        f"survey={survey:02d}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_fnc_key(series: str) -> str:
+    """S3 key for a FNC Colombia Excel bronze Parquet (one named series).
+
+    Each series corresponds to one sheet extracted from one of the two FNC
+    bulk Excel files.
+
+    Args:
+        series: Series identifier, e.g. ``"produccion_mensual"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=fnc_excel/"
+        f"series={series}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_mpob_annual_key(year: int) -> str:
+    """S3 key for an MPOB BEPI annual summary bronze Parquet.
+
+    Contains 12 rows (one per month) of national CPO production, stocks,
+    exports, imports, and FFB price extracted from the annual summary HTML.
+
+    Args:
+        year: Calendar year, e.g. ``2026``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=mpob/"
+        f"release_type=annual_summary/"
+        f"year={year}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_mpob_monthly_key(year: int, month: int) -> str:
+    """S3 key for an MPOB BEPI monthly release bronze Parquet.
+
+    Contains national + regional CPO data for one specific calendar month.
+
+    Args:
+        year:  Calendar year, e.g. ``2026``.
+        month: Calendar month (1–12).
+    """
+    return (
+        f"bronze/production/"
+        f"source=mpob/"
+        f"release_type=monthly_release/"
+        f"year={year}/"
+        f"month={month:02d}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_unica_key(harvest_year: str) -> str:
+    """S3 key for a UNICA Center-South production bronze Parquet (one harvest year).
+
+    Contains fortnightly cumulative cane crushed, sugar and ethanol produced.
+
+    Args:
+        harvest_year: Harvest year in slash or underscore format,
+                      e.g. ``"2024/25"`` or ``"2024_25"``.
+    """
+    hy = harvest_year.replace("/", "_")
+    return (
+        f"bronze/production/"
+        f"source=unica/"
+        f"harvest_year={hy}/"
+        f"part-000.parquet"
+    )
+
+
 def raw_sagis_cec_key(filename: str) -> str:
     """S3 key for a SAGIS South Africa Crop Estimates Committee (CEC) report.
 
