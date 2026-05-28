@@ -688,6 +688,24 @@ def raw_wasde_key(release_date: str, mmyy: str, fmt: str) -> str:
     )
 
 
+def text_wasde_key(release_date: str) -> str:
+    """S3 key for the extracted text document for a single USDA WASDE release.
+
+    One file per release regardless of format era (digital PDF, TXT, or scanned).
+    Written by the text extraction pipeline; idempotency check uses head_object
+    on this key before any extraction is attempted.
+
+    Args:
+        release_date: YYYY-MM-DD, e.g. "2026-05-12".
+    """
+    return (
+        f"text/"
+        f"source=usda_wasde/"
+        f"release_date={release_date}/"
+        f"document.json"
+    )
+
+
 # ---------------------------------------------------------------------------
 # USDA FGIS Export Inspections — per-shipment grain inspection records
 # ---------------------------------------------------------------------------
