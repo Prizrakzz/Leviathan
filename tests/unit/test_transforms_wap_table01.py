@@ -58,10 +58,10 @@ def test_unreverse_table_text_single_line() -> None:
 # ---------------------------------------------------------------------------
 
 def test_unreverse_table_cells() -> None:
-    raw = [["TAEHW", "001,1", None], ["lebal", "5.001"]]
+    raw = [["TAEHW", "100,1", None], ["lebal", "5.001"]]
     result = _unreverse_table(raw)
     assert result[0][0] == "WHEAT"
-    assert result[0][1] == "1,001"
+    assert result[0][1] == "1,001"  # "100,1" reversed = "1,001"
     assert result[0][2] is None  # None preserved
     assert result[1][0] == "label"
     assert result[1][1] == "100.5"

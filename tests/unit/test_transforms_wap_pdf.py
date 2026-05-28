@@ -8,11 +8,7 @@ All tests use static in-memory data (no S3, no real PDFs).
 """
 from __future__ import annotations
 
-import io
-
-import pdfplumber
 import pytest
-from pypdf import PdfWriter
 
 from leviathan.transforms.raw_to_text.wap_pdf import (
     _is_archiveorg_era,
@@ -38,26 +34,6 @@ def test_archiveorg_era_2002() -> None:
 
 def test_archiveorg_era_2026() -> None:
     assert _is_archiveorg_era("2026-05") is False
-
-
-# ---------------------------------------------------------------------------
-# Helpers: build a minimal in-memory PDF with text pages
-# ---------------------------------------------------------------------------
-
-def _make_pdf_bytes(page_texts: list[str]) -> bytes:
-    """Return bytes for a minimal PDF with one text layer per page.
-
-    Uses pypdf PdfWriter with blank pages; the text content is not embedded
-    as a searchable text layer (pypdf doesn't support adding text streams to
-    blank pages in this API).  For tests that rely on pdfplumber text
-    extraction we use a different approach: patch ``pdfplumber.open``.
-    """
-    writer = PdfWriter()
-    for _ in page_texts:
-        writer.add_blank_page(width=612, height=792)
-    buf = io.BytesIO()
-    writer.write(buf)
-    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------

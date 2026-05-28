@@ -37,6 +37,7 @@ _COMMODITY_SLUG: dict[str, str] = {
     "WHEAT": "wheat",
     "COARSE GRAINS": "coarse_grains",
     "RICE": "rice",
+    "RICE, MILLED": "rice",
     "TOTAL GRAINS": "total_grains",
     "OILSEEDS": "oilseeds",
     "COTTON": "cotton",
@@ -119,6 +120,105 @@ def _try_float(value: str) -> float | None:
         return None
 
 
+def _is_year_label(label: str) -> bool:
+    """Return True if *label* looks like a crop-year or month label.
+
+    Matches patterns like '2008/09', '2009/10 prel.', '2010/11 proj.', 'May',
+    'Jun', 'Est.', 'Proj.' etc — anything that is NOT a commodity header.
+    """
+    return not _is_commodity_header(label) and bool(label)
+
+
+def _parse_packed_table01(
+    col0_text: str,
+    col1_text: str,
+    release_month: str,
+    raw_key: str,
+) -> pd.DataFrame | None:
+    """Parse the 'packed' Table 01 layout produced by modern WAP PDFs.
+
+    pdfplumber collapses all commodity rows into col 0 (newline-separated
+    labels) and col 1 (newline-separated space-delimited value rows).  The
+    header line '---Million metric tons---' in col 1 is skipped.
+
+    For each commodity block, the label column may contain one more label than
+    value lines (an oldest historical year shown as a comparison reference
+    without a corresponding numeric row).  When labels > values within a block,
+    the *first* data label is skipped so the remaining labels align with values.
+    """
+    labels = [l.strip() for l in col0_text.splitlines() if l.strip()]
+    value_lines = [
+        l.strip()
+        for l in col1_text.splitlines()
+        if l.strip() and not l.strip().startswith("---")
+    ]
+
+    # Split labels into commodity blocks: each block starts at a commodity header.
+    blocks: list[tuple[str, list[str]]] = []  # (commodity_slug, [data_labels])
+    current_commodity: str | None = None
+    current_labels: list[str] = []
+
+    for label in labels:
+        if _is_commodity_header(label):
+            if current_commodity is not None:
+                blocks.append((current_commodity, current_labels))
+            current_commodity = _COMMODITY_SLUG[label.upper().strip()]
+            current_labels = []
+        elif current_commodity is not None:
+            current_labels.append(label)
+
+    if current_commodity is not None:
+        blocks.append((current_commodity, current_labels))
+
+    if not blocks:
+        return None
+
+    # Allocate value lines evenly across commodity blocks.
+    n_commodities = len(blocks)
+    n_values = len(value_lines)
+    rows_per_commodity = n_values // n_commodities if n_commodities else 0
+
+    if rows_per_commodity == 0:
+        return None
+
+    records: list[dict] = []
+    value_idx = 0
+
+    for commodity_slug, data_labels in blocks:
+        # If block has more labels than value rows, skip leading (oldest) labels.
+        if len(data_labels) > rows_per_commodity:
+            data_labels = data_labels[len(data_labels) - rows_per_commodity:]
+
+        for row_label in data_labels:
+            if value_idx >= len(value_lines):
+                break
+            tokens = value_lines[value_idx].split()
+            value_idx += 1
+
+            if len(tokens) != len(COUNTRY_COLUMNS):
+                continue
+
+            record: dict = {
+                "release_month": release_month,
+                "raw_key": raw_key,
+                "commodity": commodity_slug,
+                "row_label": row_label,
+            }
+            for col, val in zip(COUNTRY_COLUMNS, tokens):
+                record[col] = _try_float(val)
+
+            records.append(record)
+
+    if not records:
+        return None
+
+    df = pd.DataFrame(records)
+    for col in COUNTRY_COLUMNS:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    return df
+
+
 def _parse_table01_rows(
     raw_table: list[list[str | None]],
     release_month: str,
@@ -126,14 +226,32 @@ def _parse_table01_rows(
 ) -> pd.DataFrame | None:
     """Convert a pdfplumber 2D table array into a long/tidy DataFrame.
 
-    Each output row represents one ``(commodity, row_label)`` pair with 19
-    country columns.  Returns None when no parseable data rows are found.
+    Handles two table layouts produced by different PDF generations:
 
-    Args:
-        raw_table:     2D list from ``pdfplumber.Page.extract_table()``.
-        release_month: YYYY-MM string written to every output row.
-        raw_key:       S3 source key written to every output row for lineage.
+    1. **Packed layout** (modern, 2003+): pdfplumber returns ~3 rows where
+       col 0 contains all commodity/year labels stacked and col 1 contains all
+       numeric values stacked.  Delegated to ``_parse_packed_table01``.
+
+    2. **Row-per-row layout** (legacy / archive.org era): each data row is its
+       own row in the 2D array with 20 cells (commodity/label + 19 countries).
+
+    Returns None when no parseable data rows are found.
     """
+    if not raw_table:
+        return None
+
+    # Detect packed layout: a data row where col 0 is multi-line and cols 2+
+    # are all None indicates the packed format.
+    for row in raw_table:
+        if not row or len(row) < 2:
+            continue
+        col0 = _clean_cell(row[0])
+        col1 = _clean_cell(row[1])
+        rest_none = all(c is None for c in row[2:]) if len(row) > 2 else False
+        if col0 and col1 and "\n" in col0 and rest_none:
+            return _parse_packed_table01(col0, col1, release_month, raw_key)
+
+    # Fall through to row-per-row parser (legacy layout)
     records: list[dict] = []
     current_commodity: str | None = None
 
