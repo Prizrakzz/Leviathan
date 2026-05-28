@@ -941,3 +941,516 @@ resource "aws_batch_job_definition" "modis_ndvi_bronze_to_silver" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: USDA PSD raw → bronze
+# Single task reads all .zip keys under raw/production/source=usda_psd/,
+# extracts the embedded CSV, and writes per-release-date Parquet shards.
+# Sizing: 0.5 vCPU / 1024 MB — sequential zip extraction, modest CSV sizes.
+# Timeout: 1 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "usda_psd_bronze" {
+  name = "${var.project_name}-${var.environment}-usda-psd-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/psd_task.py"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "usda-psd-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: USDA FGIS raw → bronze
+# Single task reads per-year grain inspection CSVs under
+# raw/production/source=usda_fgis/ and writes per-year Parquet shards.
+# Sizing: 0.5 vCPU / 1024 MB — 43 CSV files, ~400 MB total uncompressed.
+# Timeout: 1 h ceiling; normal run < 10 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "usda_fgis_bronze" {
+  name = "${var.project_name}-${var.environment}-usda-fgis-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/fgis_task.py"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "usda-fgis-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: World Bank Pink Sheet raw → bronze
+# Single task reads all .xlsx/.xls keys under
+# raw/production/source=world_bank_pink_sheet/ and writes per-release Parquet.
+# Sizing: 0.25 vCPU / 512 MB — single multi-sheet Excel file per release.
+# Timeout: 1 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "world_bank_pink_sheet_bronze" {
+  name = "${var.project_name}-${var.environment}-world-bank-pink-sheet-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/pink_sheet_task.py"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.25" },
+      { type = "MEMORY", value = "512" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "world-bank-pink-sheet-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: USDA NASS raw → bronze
+# Single task streams the large .gz CSV under raw/production/source=usda_nass/
+# in 100k-row chunks and writes per-(series, year) Parquet shards.
+# Sizing: 1 vCPU / 4096 MB — gz CSV expands to ~3 GB in-memory at peak.
+# Timeout: 1 h ceiling; normal run ~10-20 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "usda_nass_bronze" {
+  name = "${var.project_name}-${var.environment}-usda-nass-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/nass_task.py", "--series", "all"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "4096" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "usda-nass-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: CONAB bulletin XLS raw → bronze
+# Single task reads all .xls/.xlsx keys under
+# raw/production/source=conab/bulletin_xls/ and writes per-safra Parquet.
+# Sizing: 0.5 vCPU / 1024 MB — xlrd/openpyxl XLS parsing, small files.
+# Timeout: 1 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "conab_xls_bronze" {
+  name = "${var.project_name}-${var.environment}-conab-xls-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/conab_xls_task.py"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "conab-xls-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: FNC Colombia Excel raw → bronze
+# Single task reads all .xlsx keys under raw/production/source=fnc/bulk/
+# and writes one Parquet per series (7 series per file).
+# Sizing: 0.25 vCPU / 512 MB — small Excel files, sequential processing.
+# Timeout: 1 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "fnc_excel_bronze" {
+  name = "${var.project_name}-${var.environment}-fnc-excel-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/fnc_excel_task.py"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.25" },
+      { type = "MEMORY", value = "512" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "fnc-excel-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: MPOB BEPI HTML raw → bronze
+# Single task reads all HTML keys under raw/production/source=mpob/ and
+# writes per-release Parquet (annual summary + monthly tables).
+# Sizing: 0.5 vCPU / 512 MB — BeautifulSoup HTML parsing, small payloads.
+# Timeout: 1 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "mpob_bronze" {
+  name = "${var.project_name}-${var.environment}-mpob-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/mpob_task.py", "--release-type", "all"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "512" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "mpob-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: UNICA sugarcane HTML raw → bronze
+# Single task reads all HTML keys under raw/production/source=unica/ and
+# writes per-harvest-year Parquet shards.
+# Sizing: 0.5 vCPU / 512 MB — BeautifulSoup HTML parsing, small payloads.
+# Timeout: 1 h ceiling; normal run < 5 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "unica_bronze" {
+  name = "${var.project_name}-${var.environment}-unica-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/unica_task.py"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "512" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "unica-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: USDA ESR raw → bronze
+# Single task reads all .json keys under raw/production/source=usda_esr/
+# (370 files across commodity × market_year) and writes per-key Parquet.
+# Sizing: 1 vCPU / 2048 MB — 16-thread pool, 370 JSON files up to ~10 MB each.
+# Timeout: 2 h ceiling; normal run ~10-20 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "usda_esr_bronze" {
+  name = "${var.project_name}-${var.environment}-usda-esr-bronze"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = ["jobs/batch/esr_task.py"]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "usda-esr-bronze"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 7200  # 2 h ceiling; 370 JSON files
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
