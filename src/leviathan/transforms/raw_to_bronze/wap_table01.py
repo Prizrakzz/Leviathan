@@ -70,6 +70,33 @@ COUNTRY_COLUMNS: list[str] = [
     "all_others",
 ]
 
+# 2002–2006 era: pdfplumber merges sub-column headers, so the dynamic header
+# scanner returns the wrong count.  The column order for this era is fixed:
+# Europe is split into EU / Oth. W. Europe / Eastern Europe, and the Former
+# Soviet Union appears as a single aggregate (FSU-12) with no sub-breakdown.
+_COUNTRY_COLUMNS_2002_2006: list[str] = [
+    "world",
+    "total_foreign",
+    "us",
+    "canada",
+    "mexico",
+    "eu",
+    "oth_w_europe",
+    "eastern_europe",
+    "fsu12",
+    "china",
+    "india",
+    "indonesia",
+    "pakistan",
+    "thailand",
+    "argentina",
+    "brazil",
+    "australia",
+    "south_africa",
+    "turkey",
+    "all_others",
+]
+
 
 # ---------------------------------------------------------------------------
 # Text un-reversal helpers
@@ -199,6 +226,12 @@ def _build_column_names(raw_table: list[list[str | None]]) -> list[str]:
     re-added as 'European').  Reading the actual headers makes the parser
     self-describing rather than relying on a hardcoded column list.
 
+    Some PDFs (e.g. March 2012, April 2014) produce a 4-row header where rows
+    0+1 carry regional group labels and rows 2+3 carry the per-country names.
+    When the standard 2-row scan yields fewer than 5 recognisable columns the
+    function retries using rows 2+3 as the country source and rows 0+1 as the
+    region context.
+
     Returns an empty list when the table has fewer than 2 rows or when no
     recognisable country columns are found.
     """
@@ -213,7 +246,34 @@ def _build_column_names(raw_table: list[list[str | None]]) -> list[str]:
         name = _cell_to_canonical(r0, r1)
         if name is not None:
             cols.append(name)
-    return cols
+
+    if len(cols) >= 5:
+        return cols
+
+    # 4-row header fallback: country names live in rows 2 and 3.
+    # Guard: row 2 must exist and must not be the packed data row (which has
+    # '\n' in cell 0).
+    if len(raw_table) < 4:
+        return cols
+    row2, row3 = raw_table[2], raw_table[3]
+    if "\n" in _clean_cell(row2[0] if row2 else None):
+        return cols  # row 2 is the data blob, not a header row
+
+    n4 = max(len(row0), len(row1), len(row2), len(row3))
+    cols4: list[str] = []
+    for ci in range(1, n4):
+        r0 = row0[ci] if ci < len(row0) else None
+        r1 = row1[ci] if ci < len(row1) else None
+        r2 = row2[ci] if ci < len(row2) else None
+        r3 = row3[ci] if ci < len(row3) else None
+        # Combine rows 0+1 as region context, rows 2+3 as country text.
+        region = ((r0 or "") + "\n" + (r1 or "")).strip() or None
+        country = ((r2 or "") + "\n" + (r3 or "")).strip() or None
+        name = _cell_to_canonical(region, country)
+        if name is not None:
+            cols4.append(name)
+
+    return cols4 if len(cols4) >= 5 else cols
 
 
 def _parse_packed_table01(
@@ -343,13 +403,19 @@ def _parse_table01_rows(
         col1 = _clean_cell(row[1])
         rest_none = all(c is None for c in row[2:]) if len(row) > 2 else False
         if col0 and col1 and "\n" in col0 and rest_none:
-            col_names = _build_column_names(raw_table)
-            if not col_names:
-                logger.warning(
-                    "packed layout detected but headers yielded no columns  key=%s",
-                    raw_key,
-                )
-                col_names = list(COUNTRY_COLUMNS)  # fallback
+            year = int(release_month[:4])
+            if 2002 <= year <= 2006:
+                # This era packs multiple sub-headers into a single pdfplumber
+                # cell, so dynamic header detection yields wrong counts.
+                col_names = list(_COUNTRY_COLUMNS_2002_2006)
+            else:
+                col_names = _build_column_names(raw_table)
+                if not col_names:
+                    logger.warning(
+                        "packed layout detected but headers yielded no columns  key=%s",
+                        raw_key,
+                    )
+                    col_names = list(COUNTRY_COLUMNS)  # fallback
             return _parse_packed_table01(col0, col1, col_names, release_month, raw_key)
 
     # Fall through to row-per-row parser (legacy layout)
