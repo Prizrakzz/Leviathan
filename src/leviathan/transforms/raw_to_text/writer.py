@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from botocore.exceptions import ClientError
+
 from leviathan.transforms.raw_to_text.schema import DocumentJson
 
 if TYPE_CHECKING:
@@ -18,7 +20,7 @@ def document_exists(s3_client: S3Client, bucket: str, key: str) -> bool:
     try:
         s3_client.head_object(Bucket=bucket, Key=key)
         return True
-    except s3_client.exceptions.ClientError as exc:
+    except ClientError as exc:
         if exc.response["Error"]["Code"] == "404":
             return False
         raise
