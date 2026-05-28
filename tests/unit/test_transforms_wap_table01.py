@@ -179,6 +179,11 @@ def test_parse_table01_rows_none_when_no_commodities() -> None:
 
 def test_extract_table01_returns_none_when_pdfplumber_finds_no_table(monkeypatch) -> None:
     class _FakePage:
+        def extract_text(self):
+            # Return text that contains all TABLE01_MARKERS so the page is found,
+            # then extract_table returns None → function must return None.
+            return "Wheat Coarse Grains Oilseeds Cotton World Production"
+
         def extract_table(self):
             return None
 

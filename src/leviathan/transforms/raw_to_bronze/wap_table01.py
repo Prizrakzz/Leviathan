@@ -30,7 +30,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Page index (0-based) that contains Table 01 in WAP PDFs.
+# Used as a starting hint; the actual page is found by scanning.
 _TABLE01_PAGE_IDX = 6
+
+# Minimum text markers that identify the Table 01 page.
+_TABLE01_MARKERS = frozenset({"Wheat", "Oilseeds", "Cotton"})
 
 # Canonical commodity names in the table, mapped to snake_case slugs.
 _COMMODITY_SLUG: dict[str, str] = {
@@ -129,9 +133,93 @@ def _is_year_label(label: str) -> bool:
     return not _is_commodity_header(label) and bool(label)
 
 
+def _cell_to_canonical(r0_raw: str | None, r1_raw: str | None) -> str | None:
+    """Map a pair of (row0_region, row1_country) header cells to a canonical name.
+
+    Row 1 holds the specific country name (possibly hyphenated across lines).
+    Row 0 holds the regional group header, used as a fallback when row 1 is
+    'none'.  Returns None for unrecognised or trailing-padding columns.
+    """
+
+    def _c(s: str | None) -> str:
+        return (s or "").replace("\n", " ").replace("-", "").strip().lower()
+
+    r1 = _c(r1_raw)
+    r0 = _c(r0_raw)
+
+    # --- Row-1 country matching (check Indonesia before India) ---
+    if "nesia" in r1 or "indonesi" in r1:
+        return "indonesia"
+    if "united states" in r1:
+        return "us"
+    if "canada" in r1:
+        return "canada"
+    if "mexico" in r1:
+        return "mexico"
+    if "russia" in r1:
+        return "russia"
+    if "ukraine" in r1:
+        return "ukraine"
+    if "china" in r1:
+        return "china"
+    if "india" in r1:
+        return "india"
+    if "stan" in r1 or "paki" in r1:
+        return "pakistan"
+    if "thai" in r1:
+        return "thailand"
+    if "argen" in r1 or "tina" in r1:
+        return "argentina"
+    if "brazil" in r1:
+        return "brazil"
+    if "tralia" in r1:
+        return "australia"
+    if "south africa" in r1 or ("south" in r1 and "africa" in r1):
+        return "south_africa"
+    if "turkey" in r1:
+        return "turkey"
+
+    # --- Row-0 fallback for aggregate / no-country columns ---
+    if "world" in r0:
+        return "world"
+    if "total" in r0 and "foreign" in r0:
+        return "total_foreign"
+    if "european" in r0 or r0.startswith("eu"):
+        return "eu27"
+    if "all" in r0 and "other" in r0:
+        return "all_others"
+
+    return None
+
+
+def _build_column_names(raw_table: list[list[str | None]]) -> list[str]:
+    """Derive ordered country-column names from pdfplumber header rows 0 and 1.
+
+    Each PDF era has a different column layout (EU-25 moved, then removed, then
+    re-added as 'European').  Reading the actual headers makes the parser
+    self-describing rather than relying on a hardcoded column list.
+
+    Returns an empty list when the table has fewer than 2 rows or when no
+    recognisable country columns are found.
+    """
+    if len(raw_table) < 2:
+        return []
+    row0, row1 = raw_table[0], raw_table[1]
+    n = max(len(row0), len(row1))
+    cols: list[str] = []
+    for ci in range(1, n):  # col 0 is the label column — skip it
+        r0 = row0[ci] if ci < len(row0) else None
+        r1 = row1[ci] if ci < len(row1) else None
+        name = _cell_to_canonical(r0, r1)
+        if name is not None:
+            cols.append(name)
+    return cols
+
+
 def _parse_packed_table01(
     col0_text: str,
     col1_text: str,
+    col_names: list[str],
     release_month: str,
     raw_key: str,
 ) -> pd.DataFrame | None:
@@ -195,7 +283,13 @@ def _parse_packed_table01(
             tokens = value_lines[value_idx].split()
             value_idx += 1
 
-            if len(tokens) != len(COUNTRY_COLUMNS):
+            if len(tokens) != len(col_names):
+                logger.warning(
+                    "token count mismatch: got %d expected %d  key=%s",
+                    len(tokens),
+                    len(col_names),
+                    raw_key,
+                )
                 continue
 
             record: dict = {
@@ -204,7 +298,7 @@ def _parse_packed_table01(
                 "commodity": commodity_slug,
                 "row_label": row_label,
             }
-            for col, val in zip(COUNTRY_COLUMNS, tokens):
+            for col, val in zip(col_names, tokens):
                 record[col] = _try_float(val)
 
             records.append(record)
@@ -213,7 +307,7 @@ def _parse_packed_table01(
         return None
 
     df = pd.DataFrame(records)
-    for col in COUNTRY_COLUMNS:
+    for col in col_names:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     return df
@@ -249,7 +343,14 @@ def _parse_table01_rows(
         col1 = _clean_cell(row[1])
         rest_none = all(c is None for c in row[2:]) if len(row) > 2 else False
         if col0 and col1 and "\n" in col0 and rest_none:
-            return _parse_packed_table01(col0, col1, release_month, raw_key)
+            col_names = _build_column_names(raw_table)
+            if not col_names:
+                logger.warning(
+                    "packed layout detected but headers yielded no columns  key=%s",
+                    raw_key,
+                )
+                col_names = list(COUNTRY_COLUMNS)  # fallback
+            return _parse_packed_table01(col0, col1, col_names, release_month, raw_key)
 
     # Fall through to row-per-row parser (legacy layout)
     records: list[dict] = []
@@ -330,23 +431,49 @@ def extract_table01(
 
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            if len(pdf.pages) <= _TABLE01_PAGE_IDX:
+            n_pages = len(pdf.pages)
+            if n_pages <= _TABLE01_PAGE_IDX:
                 logger.warning(
-                    "Table01 skip — fewer than %d pages  key=%s",
-                    _TABLE01_PAGE_IDX + 1,
+                    "Table01 skip — only %d pages  key=%s",
+                    n_pages,
                     raw_key,
                 )
                 return None
 
-            page = pdf.pages[_TABLE01_PAGE_IDX]
+            if archiveorg_era:
+                # Pre-2002 archive.org PDFs: Table 01 is always on page 6 and
+                # the text is reversed, so marker-based scanning won't work.
+                page = pdf.pages[_TABLE01_PAGE_IDX]
+            else:
+                # Modern PDFs: Table 01 page index varies (6 → 7 → 9 → 15+).
+                # Scan every page starting at _TABLE01_PAGE_IDX for the markers.
+                page = None
+                search_order = list(range(_TABLE01_PAGE_IDX, n_pages)) + list(
+                    range(0, _TABLE01_PAGE_IDX)
+                )
+                for idx in search_order:
+                    candidate = pdf.pages[idx]
+                    text = candidate.extract_text() or ""
+                    if all(m in text for m in _TABLE01_MARKERS):
+                        page = candidate
+                        break
+
+                if page is None:
+                    logger.warning(
+                        "Table01 not found in any of %d pages  key=%s",
+                        n_pages,
+                        raw_key,
+                    )
+                    return None
+
             raw_table = page.extract_table()
 
     except Exception as exc:  # noqa: BLE001
-        logger.warning("pdfplumber failed on page 6  key=%s: %s", raw_key, exc)
+        logger.warning("pdfplumber failed  key=%s: %s", raw_key, exc)
         return None
 
     if not raw_table:
-        logger.warning("Table01 not found on page 6  key=%s", raw_key)
+        logger.warning("Table01 page found but no table extracted  key=%s", raw_key)
         return None
 
     if archiveorg_era:
