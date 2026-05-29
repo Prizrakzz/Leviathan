@@ -185,6 +185,13 @@ def extract_usda_nass(
             )
         if "year" in df.columns:
             df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+        if "county_code" in df.columns:
+            # Chunked read_csv infers float64 for all-blank county chunks and
+            # object for county-level chunks.  After concat the column holds
+            # Python float NaN mixed with str values (e.g. '033').  Normalise
+            # so PyArrow infers utf8 with nulls instead of trying DOUBLE.
+            notna_mask = df["county_code"].notna()
+            df["county_code"] = df["county_code"].astype(str).where(notna_mask, None)
         df["download_date"] = download_date
         df["source"] = "usda_nass"
         return df

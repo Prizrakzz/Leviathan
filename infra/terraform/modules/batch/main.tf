@@ -1137,9 +1137,12 @@ resource "aws_batch_job_definition" "usda_nass_bronze" {
       { name = "LEVIATHAN_ENV",    value = var.environment }
     ]
 
+    # 8.9 M annual rows + 793 K progress rows loaded into object-dtype pandas
+    # DataFrames, then 16 concurrent pyarrow Arrow conversions for shard writes.
+    # Peak RSS exceeds 8 GiB at 1 vCPU; 2 vCPU + 16 GiB is the next Fargate tier.
     resourceRequirements = [
-      { type = "VCPU",   value = "1" },
-      { type = "MEMORY", value = "4096" }
+      { type = "VCPU",   value = "2" },
+      { type = "MEMORY", value = "16384" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn
@@ -1252,9 +1255,12 @@ resource "aws_batch_job_definition" "fnc_excel_bronze" {
       { name = "LEVIATHAN_ENV",    value = var.environment }
     ]
 
+    # openpyxl loads the entire workbook object graph at ExcelFile() open
+    # time; 1024 MiB is insufficient for the larger FNC bulk Excel files.
+    # 0.25 vCPU supports up to 2048 MiB on Fargate.
     resourceRequirements = [
       { type = "VCPU",   value = "0.25" },
-      { type = "MEMORY", value = "1024" }
+      { type = "MEMORY", value = "2048" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn

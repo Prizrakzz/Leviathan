@@ -148,31 +148,139 @@ def _is_data_table(df: pd.DataFrame) -> bool:
         return True
     # Also scan cell content — catches layouts where keyword-bearing column
     # labels appear as data-row values rather than pandas column headers.
-    cell_text = " ".join(df.astype(str).values.flatten()).lower()
+    cell_text = " ".join(str(v) for v in df.values.flatten()).lower()
     return any(kw in cell_text for kw in _KEYWORDS)
+
+
+def _parse_col_month_year(col_label: str, base_year: int) -> "tuple[int, int] | None":
+    """Return ``(month, year)`` from a month-column header.
+
+    Handles formats like ``'Jan 19'``, ``'Feb'``, ``'Nov (r)'``, ``'Dec (p)'``.
+    When no two-digit year suffix is present the ``base_year`` is used.
+    Returns ``None`` if the label does not contain a recognisable month name.
+    """
+    # Strip parenthetical annotations: (r), (p), (e), …
+    col_clean = re.sub(r"\s*\([^)]*\)", "", str(col_label)).strip()
+    # Remove non-alphanumeric chars except spaces
+    col_clean = re.sub(r"[^A-Za-z0-9 ]", " ", col_clean).strip().lower()
+    parts = col_clean.split()
+    if not parts:
+        return None
+    month = _MONTH_NAMES.get(parts[0][:3])
+    if month is None:
+        return None
+    if len(parts) >= 2:
+        try:
+            yr = int(parts[1])
+            year = yr + 2000 if yr < 100 else yr
+        except ValueError:
+            year = base_year
+    else:
+        year = base_year
+    return month, year
 
 
 def _normalize_annual_table(
     df: pd.DataFrame,
     year: int,
 ) -> pd.DataFrame:
-    """Normalise an annual summary table to long format."""
-    # Map column names
+    """Normalise an annual summary table to long format.
+
+    Dispatches between two orientations:
+
+    * **Month-as-columns** (current MPOB annual summary HTML): col 0 holds
+      commodity / section labels; remaining columns are month-year headers
+      such as ``'Dec 18'``, ``'Jan 19'``, ``'Feb'``, …  Section-header rows
+      (colspan cells like *"PRODUCTION (TONNES)"*) appear as rows where all
+      value columns are NaN.
+
+    * **Month-as-rows** (legacy fallback): col 0 holds month labels;
+      remaining columns hold variable names.
+    """
+    if df.empty or df.shape[1] < 3:
+        return pd.DataFrame()
+
+    # Count how many non-label column headers parse as month abbreviations.
+    col_month_map: dict[str, tuple[int, int]] = {}
+    for c in df.columns[1:]:
+        parsed = _parse_col_month_year(str(c), year)
+        if parsed is not None:
+            col_month_map[c] = parsed
+
+    if len(col_month_map) >= 3:
+        return _normalize_annual_table_wide(df, year, col_month_map)
+    else:
+        return _normalize_annual_table_long(df, year)
+
+
+def _normalize_annual_table_wide(
+    df: pd.DataFrame,
+    year: int,
+    col_month_map: dict[str, "tuple[int, int]"],
+) -> pd.DataFrame:
+    """Normalise MPOB annual summary where months are *columns*.
+
+    Rows are either section-header rows (all value columns NaN, first cell is
+    e.g. ``'PRODUCTION (TONNES)'``) or commodity data rows.  Output schema:
+    ``(year, month, variable, value)`` where ``variable`` encodes
+    ``<section>__<commodity>`` (e.g. ``'production__crude_palm_oil'``).
+    """
+    value_col_names = list(col_month_map.keys())
+    records: list[dict] = []
+    current_section = "unknown"
+
+    for _, row in df.iterrows():
+        label = str(row.iloc[0]).strip()
+        if not label or label.lower() in ("nan", "\xa0", "", "none"):
+            continue
+
+        has_values = row[value_col_names].notna().any()
+        if not has_values:
+            # Section-header colspan row — extract clean section name
+            section_clean = re.sub(r"\s*\([^)]*\)", "", label).strip().lower()
+            current_section = re.sub(r"[^a-z0-9]+", "_", section_clean).strip("_") or "unknown"
+            continue
+
+        # Data row: commodity label + per-month numeric values
+        commodity = re.sub(r"\s*\([^)]*\)", "", label).strip()
+        commodity_key = re.sub(r"[^a-z0-9]+", "_", commodity.lower()).strip("_")
+        var_name = (
+            f"{current_section}__{commodity_key}"
+            if current_section != "unknown"
+            else commodity_key
+        )
+
+        for col_name, (m, y) in col_month_map.items():
+            val = row[col_name]
+            if pd.isna(val):
+                continue
+            try:
+                val_float = float(
+                    str(val).replace(",", "").replace("\u00a0", "").strip()
+                )
+            except (ValueError, TypeError):
+                continue
+            records.append({"year": y, "month": m, "variable": var_name, "value": val_float})
+
+    if not records:
+        return pd.DataFrame()
+    return pd.DataFrame(records)
+
+
+def _normalize_annual_table_long(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Normalise legacy MPOB annual format where months are *rows*."""
     rename = {c: _canonicalize_col(str(c)) for c in df.columns}
     df = df.rename(columns=rename)
 
-    # First column should be month label
     first_col = df.columns[0]
     df = df.rename(columns={first_col: "month_label"})
     df["month_label"] = df["month_label"].astype(str).str.strip()
 
-    # Extract month number
     df["month"] = df["month_label"].apply(_parse_month_number)
     df = df.dropna(subset=["month"])
     df["month"] = df["month"].astype(int)
     df["year"] = year
 
-    # Melt to long format
     value_cols = [c for c in df.columns if c not in ("month_label", "month", "year")]
     df_long = df.melt(
         id_vars=["year", "month"],
