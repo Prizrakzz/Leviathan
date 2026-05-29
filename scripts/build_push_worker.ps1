@@ -51,12 +51,16 @@ Write-Host "ECR login succeeded." -ForegroundColor Green
 # Step 2: Build — must target linux/amd64 for Fargate (build host may differ)
 # ---------------------------------------------------------------------------
 Write-Host "==> Building image: $LatestImage" -ForegroundColor Cyan
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
 docker build `
     --platform linux/amd64 `
     --tag $LatestImage `
     --file docker/leviathan_worker/Dockerfile `
-    .
-if ($LASTEXITCODE -ne 0) { throw "docker build failed (exit $LASTEXITCODE)" }
+    . 2>&1
+$buildExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($buildExit -ne 0) { throw "docker build failed (exit $buildExit)" }
 
 # ---------------------------------------------------------------------------
 # Step 3: Tag with the extra label if one was requested
@@ -71,13 +75,21 @@ if ($Tag -ne "latest") {
 # Step 4: Push
 # ---------------------------------------------------------------------------
 Write-Host "==> Pushing $LatestImage" -ForegroundColor Cyan
-docker push $LatestImage
-if ($LASTEXITCODE -ne 0) { throw "docker push :latest failed (exit $LASTEXITCODE)" }
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+docker push $LatestImage 2>&1
+$pushExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($pushExit -ne 0) { throw "docker push :latest failed (exit $pushExit)" }
 
 if ($Tag -ne "latest") {
     Write-Host "==> Pushing $TaggedImage" -ForegroundColor Cyan
-    docker push $TaggedImage
-    if ($LASTEXITCODE -ne 0) { throw "docker push :$Tag failed (exit $LASTEXITCODE)" }
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    docker push $TaggedImage 2>&1
+    $pushTagExit = $LASTEXITCODE
+    $ErrorActionPreference = $prevEAP
+    if ($pushTagExit -ne 0) { throw "docker push :$Tag failed (exit $pushTagExit)" }
 }
 
 Write-Host ""
