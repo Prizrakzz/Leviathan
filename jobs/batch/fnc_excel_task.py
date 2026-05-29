@@ -80,7 +80,7 @@ def _process_file(
     try:
         series_map = extract_fnc_excel(raw_bytes, filename, ingest_date)
     except Exception as exc:  # noqa: BLE001
-        logger.error("FNC Excel transform failed  key=%s: %s", raw_key, exc)
+        logger.error("FNC Excel transform failed  key=%s: %s", raw_key, exc, exc_info=True)
         return 0, 0, 1
 
     written = skipped = errors = 0

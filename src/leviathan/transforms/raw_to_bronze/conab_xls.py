@@ -150,6 +150,18 @@ def _parse_sheet(
 
     df.columns = mapped_headers[: len(df.columns)]
 
+    # Deduplicate column names (e.g. multiple NaN → "unknown_col") by suffixing
+    seen: dict[str, int] = {}
+    deduped: list[str] = []
+    for col in df.columns:
+        if col in seen:
+            seen[col] += 1
+            deduped.append(f"{col}_{seen[col]}")
+        else:
+            seen[col] = 0
+            deduped.append(col)
+    df.columns = deduped
+
     # First column is the region/state name
     region_col = df.columns[0]
     df = df.rename(columns={region_col: "region"})

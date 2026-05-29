@@ -1288,7 +1288,7 @@ resource "aws_batch_job_definition" "fnc_excel_bronze" {
 # Job definition: MPOB BEPI HTML raw → bronze
 # Single task reads all HTML keys under raw/production/source=mpob/ and
 # writes per-release Parquet (annual summary + monthly tables).
-# Sizing: 0.5 vCPU / 512 MB — BeautifulSoup HTML parsing, small payloads.
+# Sizing: 0.5 vCPU / 1024 MB — Fargate minimum for 0.5 vCPU.
 # Timeout: 1 h ceiling; normal run < 5 min.
 # ---------------------------------------------------------------------------
 resource "aws_batch_job_definition" "mpob_bronze" {
@@ -1310,7 +1310,7 @@ resource "aws_batch_job_definition" "mpob_bronze" {
 
     resourceRequirements = [
       { type = "VCPU",   value = "0.5" },
-      { type = "MEMORY", value = "512" }
+      { type = "MEMORY", value = "1024" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn
@@ -1345,7 +1345,7 @@ resource "aws_batch_job_definition" "mpob_bronze" {
 # Job definition: UNICA sugarcane HTML raw → bronze
 # Single task reads all HTML keys under raw/production/source=unica/ and
 # writes per-harvest-year Parquet shards.
-# Sizing: 0.5 vCPU / 512 MB — BeautifulSoup HTML parsing, small payloads.
+# Sizing: 0.5 vCPU / 1024 MB — Fargate minimum for 0.5 vCPU.
 # Timeout: 1 h ceiling; normal run < 5 min.
 # ---------------------------------------------------------------------------
 resource "aws_batch_job_definition" "unica_bronze" {
@@ -1367,7 +1367,7 @@ resource "aws_batch_job_definition" "unica_bronze" {
 
     resourceRequirements = [
       { type = "VCPU",   value = "0.5" },
-      { type = "MEMORY", value = "512" }
+      { type = "MEMORY", value = "1024" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn

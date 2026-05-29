@@ -87,7 +87,7 @@ def _process(
     try:
         df = extract_conab_xls(raw_bytes, safra_year, survey, ingest_date)
     except Exception as exc:  # noqa: BLE001
-        logger.error("CONAB XLS transform failed  key=%s: %s", raw_key, exc)
+        logger.error("CONAB XLS transform failed  key=%s: %s", raw_key, exc, exc_info=True)
         return "error", raw_key
 
     if df.empty:

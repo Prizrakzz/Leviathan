@@ -34,8 +34,11 @@ $TaggedImage = "${EcrBase}/${RepoName}:${Tag}"
 # Step 1: Authenticate to ECR
 # ---------------------------------------------------------------------------
 Write-Host "==> Authenticating to ECR ($EcrBase)..." -ForegroundColor Cyan
-aws ecr get-login-password --region $Region |
-    docker login --username AWS --password-stdin $EcrBase
+# Note: --password-stdin via PowerShell pipe is unreliable on Windows;
+# capture the token first and pass it directly instead.
+$EcrToken = aws ecr get-login-password --region $Region
+if ($LASTEXITCODE -ne 0) { throw "ecr get-login-password failed (exit $LASTEXITCODE)" }
+docker login --username AWS --password $EcrToken $EcrBase 2>&1 | Where-Object { $_ -notmatch "WARNING" }
 if ($LASTEXITCODE -ne 0) { throw "ECR login failed (exit $LASTEXITCODE)" }
 
 # ---------------------------------------------------------------------------

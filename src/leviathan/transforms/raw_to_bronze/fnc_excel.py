@@ -62,8 +62,8 @@ def _snake(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", s).strip("_")
 
 
-def _infer_series(sheet_name: str) -> str | None:
-    low = sheet_name.strip().lower()
+def _infer_series(sheet_name: object) -> str | None:
+    low = str(sheet_name).strip().lower()
     for pattern, canonical in _SHEET_SERIES_MAP.items():
         if pattern in low:
             return canonical
@@ -75,7 +75,8 @@ def _find_header_row(df_raw: pd.DataFrame) -> int:
     for i in range(min(10, len(df_raw))):
         row_vals = df_raw.iloc[i].astype(str)
         # A data row starts when column 0 looks like a 4-digit year
-        if re.match(r"^\d{4}$", row_vals.iloc[0].strip()):
+        first_val = str(row_vals.iloc[0]).strip()
+        if re.match(r"^\d{4}$", first_val):
             return i
     return 0
 
