@@ -187,8 +187,13 @@ def main() -> None:
     logger.info("Download complete  bytes=%d  Parsing...", len(raw_bytes))
     start = datetime.now(timezone.utc)
 
+    # Convert to BytesIO immediately and release the raw bytes so the
+    # 1-GiB+ compressed buffer is only held once during parsing.
+    raw_buf = io.BytesIO(raw_bytes)
+    del raw_bytes
+
     try:
-        series_dfs = extract_usda_nass(raw_bytes, download_date)
+        series_dfs = extract_usda_nass(raw_buf, download_date)
     except Exception as exc:
         logger.error("NASS transform failed: %s", exc)
         sys.exit(1)

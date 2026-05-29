@@ -98,22 +98,58 @@ def _extract_tables_from_html(html: str) -> list[pd.DataFrame]:
 
     frames: list[pd.DataFrame] = []
     for tbl in tables:
-        try:
-            # Use pandas to parse the table HTML
-            df_list = pd.read_html(io.StringIO(str(tbl)), header=0)
-            frames.extend(df_list)
-        except Exception:  # noqa: BLE001
-            continue
+        tbl_str = str(tbl)
+        parsed: list[pd.DataFrame] | None = None
+        for hdr_row in (0, 1):
+            try:
+                df_list = pd.read_html(io.StringIO(tbl_str), header=hdr_row)
+                if not df_list:
+                    continue
+                # Use header=1 only when header=0 puts a label word in the
+                # first cell, indicating the actual header row is row 1
+                # (common in MPOB pages that have a title row above the header).
+                if hdr_row == 0 and _looks_like_misaligned_header(df_list[0]):
+                    logger.debug(
+                        "MPOB: header row looks misaligned (%s), retrying with header=1",
+                        df_list[0].columns.tolist()[:3],
+                    )
+                    continue  # try hdr_row=1
+                parsed = df_list
+                break
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("MPOB: read_html header=%d failed: %s", hdr_row, exc)
+                continue
+        if parsed:
+            frames.extend(parsed)
 
     return frames
+
+
+def _looks_like_misaligned_header(df: pd.DataFrame) -> bool:
+    """Return True when the first data row appears to be the real header row.
+
+    This happens on MPOB pages where an outer title row (e.g. "Palm Oil
+    Statistics") is parsed by pandas as the column names while the actual
+    column labels ("Month", "CPO Production", …) end up as the first data row.
+    """
+    if df.empty or df.shape[1] < 2:
+        return False
+    first_cell = str(df.iloc[0, 0]).strip().lower()
+    return first_cell in ("month", "year", "date", "period", "item", "description")
 
 
 def _is_data_table(df: pd.DataFrame) -> bool:
     """Return True if the DataFrame looks like an MPOB production data table."""
     if df.shape[0] < 3 or df.shape[1] < 3:
         return False
+    _KEYWORDS = ("production", "export", "stock", "ffb", "cpo", "pko", "palm")
     col_text = " ".join(str(c).lower() for c in df.columns)
-    return any(kw in col_text for kw in ("production", "export", "stock", "ffb"))
+    if any(kw in col_text for kw in _KEYWORDS):
+        return True
+    # Also scan cell content — catches layouts where keyword-bearing column
+    # labels appear as data-row values rather than pandas column headers.
+    cell_text = " ".join(df.astype(str).values.flatten()).lower()
+    return any(kw in cell_text for kw in _KEYWORDS)
 
 
 def _normalize_annual_table(

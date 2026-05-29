@@ -165,7 +165,14 @@ def extract_fnc_excel(
             logger.warning("FNC: could not parse sheet '%s': %s", sheet, exc)
             continue
 
-        df = _parse_series_sheet(df_raw, series_name, filename)
+        try:
+            df = _parse_series_sheet(df_raw, series_name, filename)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "FNC: _parse_series_sheet failed sheet='%s': %s", sheet, exc,
+                exc_info=True,
+            )
+            continue
         if df.empty:
             logger.warning("FNC: sheet '%s' parsed to empty DataFrame", sheet)
             continue

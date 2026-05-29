@@ -1231,7 +1231,8 @@ resource "aws_batch_job_definition" "conab_xls_bronze" {
 # Job definition: FNC Colombia Excel raw → bronze
 # Single task reads all .xlsx keys under raw/production/source=fnc/bulk/
 # and writes one Parquet per series (7 series per file).
-# Sizing: 0.25 vCPU / 512 MB — small Excel files, sequential processing.
+# Sizing: 0.25 vCPU / 1024 MB — openpyxl loads the entire workbook object
+# graph at ExcelFile() open time; 512 MB is insufficient.
 # Timeout: 1 h ceiling; normal run < 5 min.
 # ---------------------------------------------------------------------------
 resource "aws_batch_job_definition" "fnc_excel_bronze" {
@@ -1253,7 +1254,7 @@ resource "aws_batch_job_definition" "fnc_excel_bronze" {
 
     resourceRequirements = [
       { type = "VCPU",   value = "0.25" },
-      { type = "MEMORY", value = "512" }
+      { type = "MEMORY", value = "1024" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn

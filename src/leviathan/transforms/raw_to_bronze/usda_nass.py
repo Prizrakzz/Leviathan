@@ -106,13 +106,16 @@ def _normalize_col(c: str) -> str:
 
 
 def extract_usda_nass(
-    raw_bytes: bytes,
+    raw_source: "bytes | IO[bytes]",
     download_date: str,
 ) -> dict[str, pd.DataFrame]:
     """Stream-parse the NASS QuickStats .gz and return two series DataFrames.
 
     Args:
-        raw_bytes:     Raw bytes of the .gz file as stored in S3.
+        raw_source:    Either raw bytes of the .gz file, or a file-like object
+                       (e.g. a boto3 StreamingBody or an ``io.BytesIO``).
+                       Passing a file-like avoids an in-memory copy of the
+                       compressed file.
         download_date: Download date in ``YYYY-MM-DD`` format (metadata column).
 
     Returns:
@@ -123,8 +126,12 @@ def extract_usda_nass(
     annual_frames: list[pd.DataFrame] = []
     progress_frames: list[pd.DataFrame] = []
 
+    source: "bytes | IO[bytes]" = (
+        io.BytesIO(raw_source) if isinstance(raw_source, bytes) else raw_source
+    )
+
     reader = pd.read_csv(
-        io.BytesIO(raw_bytes),
+        source,
         sep="\t",
         compression="gzip",
         low_memory=False,
