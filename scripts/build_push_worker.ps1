@@ -38,8 +38,14 @@ Write-Host "==> Authenticating to ECR ($EcrBase)..." -ForegroundColor Cyan
 # capture the token first and pass it directly instead.
 $EcrToken = aws ecr get-login-password --region $Region
 if ($LASTEXITCODE -ne 0) { throw "ecr get-login-password failed (exit $LASTEXITCODE)" }
-docker login --username AWS --password $EcrToken $EcrBase 2>&1 | Where-Object { $_ -notmatch "WARNING" }
-if ($LASTEXITCODE -ne 0) { throw "ECR login failed (exit $LASTEXITCODE)" }
+# Suppress stderr (docker --password warning) without tripping PowerShell NativeCommandError
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+$null = docker login --username AWS --password $EcrToken $EcrBase 2>&1
+$loginExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($loginExit -ne 0) { throw "ECR login failed (exit $loginExit)" }
+Write-Host "ECR login succeeded." -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
 # Step 2: Build — must target linux/amd64 for Fargate (build host may differ)
