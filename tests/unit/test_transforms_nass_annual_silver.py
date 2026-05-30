@@ -154,6 +154,13 @@ class TestNassAnnualSilverTransform:
         assert silver.iloc[0]["leviathan_slug"] == "soybeans_cbot"
         assert silver.iloc[0]["production_mt"] == pytest.approx(1_000.0 * 60.0 * LB_TO_MT)
 
+    def test_supports_soybean_yield_per_net_planted_acre(self) -> None:
+        rows = _corn_rows(commodity_desc="SOYBEANS")
+        rows[2]["unit_desc"] = "BU / NET PLANTED ACRE"
+        rows[2]["value"] = 30.0
+        silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
+        assert silver.iloc[0]["yield_t_ha"] == pytest.approx(30.0 * 60.0 * LB_PER_ACRE_TO_T_HA)
+
     def test_excludes_aggregate_wheat(self) -> None:
         rows = _corn_rows(commodity_desc="WHEAT", class_desc="ALL CLASSES")
         silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))

@@ -195,7 +195,7 @@ def _convert_value(row: pd.Series) -> float:
         raise ValueError(f"Unsupported NASS area unit {unit!r} for {slug!r}")
 
     if stat == "YIELD":
-        if unit == "BU / ACRE":
+        if unit in {"BU / ACRE", "BU / NET PLANTED ACRE"}:
             return numeric * _bushel_weight(slug, unit) * LB_PER_ACRE_TO_T_HA
         if unit == "LB / ACRE":
             return numeric * LB_PER_ACRE_TO_T_HA
