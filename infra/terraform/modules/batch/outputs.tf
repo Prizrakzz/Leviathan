@@ -52,3 +52,8 @@ output "modis_ndvi_bronze_to_silver_job_definition_arn" {
   value       = aws_batch_job_definition.modis_ndvi_bronze_to_silver.arn
   description = "ARN of the MODIS NDVI bronze Parquet → silver Parquet (z-scores) job definition."
 }
+
+output "usda_nass_annual_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.usda_nass_annual_silver.arn
+  description = "ARN of the USDA NASS annual bronze Parquet -> silver Parquet job definition."
+}

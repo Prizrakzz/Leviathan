@@ -1099,6 +1099,25 @@ def bronze_nass_key(series: str, commodity: str, year: int) -> str:
     )
 
 
+def silver_nass_annual_key(
+    commodity: str,
+    year: int,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for a USDA NASS annual silver Parquet partition.
+
+    This intentionally lives outside ``silver/production/`` because the
+    existing ``silver_production`` Athena table projects that prefix with a
+    long FAOSTAT-shaped schema.
+    """
+    return (
+        f"silver/nass_annual/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
 def bronze_conab_xls_key(safra_year: int, survey: int) -> str:
     """S3 key for a CONAB bulletin XLS bronze Parquet (one survey per safra year).
 
