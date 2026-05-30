@@ -135,6 +135,18 @@ class TestNassAnnualSilverTransform:
         assert len(silver) == 1
         assert silver.iloc[0]["production_mt"] == pytest.approx(16_200.0 * 56.0 * LB_TO_MT)
 
+    def test_reference_period_year_filter_excludes_forecast_duplicates(self) -> None:
+        rows = [
+            *_corn_rows(),
+            {
+                **_row(statisticcat_desc="PRODUCTION", unit_desc="BU", value=99_999.0),
+                "reference_period_desc": "YEAR - AUG FORECAST",
+            },
+        ]
+        silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
+        assert len(silver) == 1
+        assert silver.iloc[0]["production_mt"] == pytest.approx(16_200.0 * 56.0 * LB_TO_MT)
+
     def test_soybeans_recanonicalizes_to_existing_soybeans_slug(self) -> None:
         rows = _corn_rows(commodity_desc="SOYBEANS")
         rows[3]["value"] = 1_000.0

@@ -152,6 +152,11 @@ def _filter_primary_rows(df: pd.DataFrame) -> pd.DataFrame:
         if (domaincat == "NOT SPECIFIED").any():
             result = result.loc[domaincat == "NOT SPECIFIED"].copy()
 
+    if "reference_period_desc" in result.columns:
+        reference_period = result["reference_period_desc"].map(_clean_text)
+        if (reference_period == "YEAR").any():
+            result = result.loc[reference_period == "YEAR"].copy()
+
     if "prodn_practice_desc" in result.columns:
         prodn = result["prodn_practice_desc"].map(_clean_text)
         result = result.loc[prodn.isin({"", "ALL PRODUCTION PRACTICES"})].copy()
