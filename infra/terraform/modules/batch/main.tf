@@ -1461,3 +1461,75 @@ resource "aws_batch_job_definition" "usda_esr_bronze" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: text/ layer → GraphRAG Parquet extraction
+# Reads document.json files from text/source={source}/ and calls Claude Haiku
+# via Bedrock to extract entities, causal edges, forecasts, and sentiment into
+# 4 Parquet tables under graphrag/ on S3.
+# One task per (source, year_range): --source usda_wasde --year_from 2000 --year_to 2006
+# Sizing: 1 vCPU / 2048 MiB — Bedrock calls are network-bound, not CPU-bound.
+# Timeout: 4 h ceiling; a full source backfill (~600 docs) takes ~60 min.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "text_to_graphrag" {
+  name = "${var.project_name}-${var.environment}-text-to-graphrag"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    source         = "usda_wasde"
+    year_from      = "2000"
+    year_to        = "2026"
+    force_overwrite = "false"
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/text_to_graphrag_task.py",
+      "--source",          "Ref::source",
+      "--year_from",       "Ref::year_from",
+      "--year_to",         "Ref::year_to",
+      "--force_overwrite", "Ref::force_overwrite"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "text-to-graphrag"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 14400  # 4 h ceiling
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

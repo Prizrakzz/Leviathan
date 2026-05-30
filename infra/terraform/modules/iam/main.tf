@@ -132,6 +132,32 @@ resource "aws_iam_role_policy_attachment" "batch_job_role_orchestrator" {
 }
 
 # ---------------------------------------------------------------------------
+# Bedrock invoke policy — allows Batch containers to call Claude Haiku via
+# Amazon Bedrock for the text_to_graphrag extraction pipeline.
+# Scoped to the Haiku foundation model in us-east-1 only.
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "batch_job_bedrock" {
+  statement {
+    sid     = "BedrockInvokeHaiku"
+    actions = ["bedrock:InvokeModel"]
+    resources = [
+      "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "batch_job_bedrock" {
+  name        = "${var.project_name}-${var.environment}-batch-job-bedrock"
+  description = "Allows Batch job containers to invoke Claude Haiku via Bedrock (text_to_graphrag)."
+  policy      = data.aws_iam_policy_document.batch_job_bedrock.json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_job_role_bedrock" {
+  role       = aws_iam_role.batch_job_role.name
+  policy_arn = aws_iam_policy.batch_job_bedrock.arn
+}
+
+# ---------------------------------------------------------------------------
 # Glue job role — assumed by Glue Python Shell jobs to read/write S3
 # ---------------------------------------------------------------------------
 

@@ -1,0 +1,601 @@
+# entity_vocabulary.yaml
+# Canonical entity names for GraphRAG extraction.
+# The extractor passes this to Claude Haiku as a constraint — all extracted
+# entity names must resolve to one of the canonical forms listed here.
+# Update when new commodities, countries, or stress types are added to the corpus.
+
+# ---------------------------------------------------------------------------
+# Commodities
+# Maps common aliases (including WASDE/WAP section-level groupings) to the
+# canonical leviathan slug. The extractor resolves aliases before writing.
+# ---------------------------------------------------------------------------
+commodities:
+
+  # Grains
+  wheat:
+    canonical: soft_red_winter_wheat_cbot
+    aliases:
+      - wheat
+      - winter wheat
+      - soft wheat
+      - SRW wheat
+      - U.S. wheat
+      - all wheat
+  hard_red_winter_wheat:
+    canonical: hard_red_winter_wheat_kcbt
+    aliases:
+      - HRW wheat
+      - hard red winter
+      - hard winter wheat
+  hard_red_spring_wheat:
+    canonical: hard_red_spring_wheat_mgex
+    aliases:
+      - HRS wheat
+      - hard red spring
+      - spring wheat
+  french_wheat:
+    canonical: french_wheat_matif
+    aliases:
+      - milling wheat
+      - French wheat
+      - EU wheat
+      - European wheat
+      - blé tendre
+  corn:
+    canonical: corn_cbot
+    aliases:
+      - corn
+      - maize
+      - U.S. corn
+      - yellow corn
+      - milho
+      - maíz
+  french_maize:
+    canonical: french_maize_matif
+    aliases:
+      - French maize
+      - EU maize
+      - European corn
+      - maïs
+  campinas_corn:
+    canonical: campinas_corn_reference_bmf
+    aliases:
+      - Brazilian corn
+      - Brazil corn
+      - milho Brasil
+  rough_rice:
+    canonical: rough_rice_cbot
+    aliases:
+      - rice
+      - rough rice
+      - paddy rice
+      - milled rice
+      - long grain rice
+  south_african_white_maize:
+    canonical: south_african_white_maize_jse
+    aliases:
+      - white maize
+      - South African white maize
+      - SA white maize
+  south_african_yellow_maize:
+    canonical: south_african_yellow_maize_jse
+    aliases:
+      - yellow maize
+      - South African yellow maize
+      - SA yellow maize
+
+  # Oilseeds
+  soybeans:
+    canonical: soybeans_cbot
+    aliases:
+      - soybeans
+      - soy
+      - soja
+      - soybean
+      - U.S. soybeans
+      - US soy
+  soybean_meal:
+    canonical: soybean_meal_cbot
+    aliases:
+      - soybean meal
+      - soy meal
+      - soymeal
+      - meal
+      - farelo de soja
+  soybean_oil:
+    canonical: soybean_oil_cbot
+    aliases:
+      - soybean oil
+      - soy oil
+      - soya oil
+      - óleo de soja
+  palm_oil:
+    canonical: malaysian_crude_palm_oil_cme
+    aliases:
+      - palm oil
+      - CPO
+      - crude palm oil
+      - Malaysian palm oil
+      - MPOB
+      - minyak sawit
+  palm_olein:
+    canonical: palm_olein_dce
+    aliases:
+      - palm olein
+      - RBD palm olein
+      - refined palm olein
+  canola:
+    canonical: canola_ice
+    aliases:
+      - canola
+      - Canadian canola
+  rapeseed:
+    canonical: french_rapeseed_matif
+    aliases:
+      - rapeseed
+      - colza
+      - French rapeseed
+      - EU rapeseed
+      - canola (EU context)
+      - colza graine
+  rapeseed_oil:
+    canonical: rapeseed_oil_zce
+    aliases:
+      - rapeseed oil
+      - colza oil
+      - canola oil (Chinese context)
+  rapeseed_meal:
+    canonical: rapeseed_meal_zce
+    aliases:
+      - rapeseed meal
+      - canola meal
+
+  # Softs
+  arabica_coffee:
+    canonical: arabica_coffee
+    aliases:
+      - arabica
+      - arabica coffee
+      - green coffee
+      - café arábica
+      - coffee arabica
+      - mild arabica
+      - Colombian mild
+      - other mild arabica
+  brazilian_arabica:
+    canonical: brazilian_arabica_coffee
+    aliases:
+      - Brazilian arabica
+      - Brazil arabica
+      - Brazilian naturals
+      - unwashed arabica
+      - café arábica brasileiro
+  robusta_coffee:
+    canonical: robusta_coffee
+    aliases:
+      - robusta
+      - robusta coffee
+      - café robusta
+      - Vietnamese robusta
+      - coffee robusta
+  cocoa:
+    canonical: cocoa
+    aliases:
+      - cocoa
+      - cacao
+      - cocoa beans
+      - cocoa pod
+  cotton:
+    canonical: cotton
+    aliases:
+      - cotton
+      - upland cotton
+      - extra long staple cotton
+      - ELS cotton
+      - fibra de algodão
+  raw_sugar:
+    canonical: raw_sugar
+    aliases:
+      - raw sugar
+      - world raw sugar
+      - No. 11
+      - cane sugar
+      - açúcar bruto
+  white_sugar:
+    canonical: white_sugar
+    aliases:
+      - white sugar
+      - refined sugar
+      - No. 5
+      - açúcar branco
+  frozen_orange_juice:
+    canonical: frozen_orange_juice
+    aliases:
+      - orange juice
+      - OJ
+      - FCOJ
+      - frozen concentrated orange juice
+      - suco de laranja
+
+# ---------------------------------------------------------------------------
+# Section → commodity group mapping (WASDE and WAP section headers)
+# Used by the chunker to annotate each section chunk with candidate slugs.
+# The extractor can then narrow to the specific commodity from context.
+# ---------------------------------------------------------------------------
+section_commodity_groups:
+  WHEAT:
+    - soft_red_winter_wheat_cbot
+    - hard_red_winter_wheat_kcbt
+    - hard_red_spring_wheat_mgex
+    - french_wheat_matif
+    - french_maize_matif
+  COARSE GRAINS:
+    - corn_cbot
+    - campinas_corn_reference_bmf
+    - french_maize_matif
+    - rough_rice_cbot
+    - south_african_white_maize_jse
+    - south_african_yellow_maize_jse
+  RICE:
+    - rough_rice_cbot
+  OILSEEDS:
+    - soybeans_cbot
+    - soybean_meal_cbot
+    - soybean_oil_cbot
+    - french_rapeseed_matif
+    - canola_ice
+    - rapeseed_oil_zce
+    - rapeseed_meal_zce
+    - malaysian_crude_palm_oil_cme
+    - palm_olein_dce
+  COTTON:
+    - cotton
+  SUGAR:
+    - raw_sugar
+    - white_sugar
+  COFFEE:
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+  COCOA:
+    - cocoa
+  TROPICAL OILS:
+    - malaysian_crude_palm_oil_cme
+    - palm_olein_dce
+    - soybean_oil_cbot
+
+# ---------------------------------------------------------------------------
+# Countries / origins
+# Canonical names follow FAOSTAT country naming convention.
+# ---------------------------------------------------------------------------
+countries:
+  Brazil:
+    aliases:
+      - Brazil
+      - Brasil
+      - BRA
+      - Brazilian
+      - Minas Gerais
+      - São Paulo
+      - Paraná
+      - Mato Grosso
+      - center-south
+      - Centre-South
+      - CS Brazil
+      - Brazil CS
+      - Brazil NE
+      - Cerrado
+      - Sul de Minas
+  Colombia:
+    aliases:
+      - Colombia
+      - Colombian
+      - COL
+  Vietnam:
+    aliases:
+      - Vietnam
+      - Viet Nam
+      - Vietnamese
+      - VNM
+      - Tay Nguyen
+      - Central Highlands
+  Indonesia:
+    aliases:
+      - Indonesia
+      - Indonesian
+      - IDN
+      - Sumatra
+      - North Sumatra
+      - Sulawesi
+      - Kalimantan
+  "Côte d'Ivoire":
+    aliases:
+      - Côte d'Ivoire
+      - Ivory Coast
+      - Cote d'Ivoire
+      - CIV
+      - COTE D'IVOIRE
+  Ghana:
+    aliases:
+      - Ghana
+      - GHA
+      - Ghanaian
+  India:
+    aliases:
+      - India
+      - IND
+      - Indian
+      - Maharashtra
+      - Uttar Pradesh
+      - Karnataka
+      - Punjab
+  China:
+    aliases:
+      - China
+      - CHN
+      - Chinese
+      - PRC
+      - Xinjiang
+      - Heilongjiang
+  United States:
+    aliases:
+      - United States
+      - USA
+      - U.S.
+      - US
+      - American
+      - Corn Belt
+      - Great Plains
+      - Delta
+      - Southeast
+      - Southern Plains
+  Argentina:
+    aliases:
+      - Argentina
+      - ARG
+      - Argentine
+      - Pampas
+  Australia:
+    aliases:
+      - Australia
+      - AUS
+      - Australian
+      - Queensland
+  Thailand:
+    aliases:
+      - Thailand
+      - THA
+      - Thai
+  Malaysia:
+    aliases:
+      - Malaysia
+      - MYS
+      - Malaysian
+      - Sabah
+      - Sarawak
+      - Peninsular Malaysia
+  France:
+    aliases:
+      - France
+      - FRA
+      - French
+  Ukraine:
+    aliases:
+      - Ukraine
+      - UKR
+      - Ukrainian
+  Russia:
+    aliases:
+      - Russia
+      - RUS
+      - Russian Federation
+  Ethiopia:
+    aliases:
+      - Ethiopia
+      - ETH
+      - Ethiopian
+      - Sidama
+      - Yirgacheffe
+      - Kaffa
+  Honduras:
+    aliases:
+      - Honduras
+      - HND
+  Guatemala:
+    aliases:
+      - Guatemala
+      - GTM
+  Uganda:
+    aliases:
+      - Uganda
+      - UGA
+  Mexico:
+    aliases:
+      - Mexico
+      - MEX
+      - Mexican
+  Pakistan:
+    aliases:
+      - Pakistan
+      - PAK
+  South Africa:
+    aliases:
+      - South Africa
+      - ZAF
+      - South African
+  "European Union":
+    aliases:
+      - European Union
+      - EU
+      - EU-27
+      - EU-28
+      - Europe
+      - European
+  Canada:
+    aliases:
+      - Canada
+      - CAN
+      - Canadian
+  Kazakhstan:
+    aliases:
+      - Kazakhstan
+      - KAZ
+
+# ---------------------------------------------------------------------------
+# Stress types
+# Canonical taxonomy for supply-side stress events extracted from text.
+# ---------------------------------------------------------------------------
+stress_types:
+  drought:
+    aliases:
+      - drought
+      - dry
+      - dryness
+      - moisture deficit
+      - below-normal rainfall
+      - insufficient rainfall
+      - dry spell
+      - low soil moisture
+      - water stress
+      - dry conditions
+  frost:
+    aliases:
+      - frost
+      - freeze
+      - freezing
+      - cold snap
+      - cold damage
+      - sub-zero
+      - geada
+      - black frost
+  flood:
+    aliases:
+      - flood
+      - flooding
+      - excess rain
+      - waterlogging
+      - inundation
+      - heavy rainfall
+      - excessive moisture
+  disease:
+    aliases:
+      - disease
+      - leaf rust
+      - coffee leaf rust
+      - CLR
+      - hemileia vastatrix
+      - black pod
+      - Phytophthora
+      - witches' broom
+      - CBD
+      - coffee berry disease
+      - fusarium
+      - blast
+      - gray leaf spot
+  pest:
+    aliases:
+      - pest
+      - borer
+      - worm
+      - aphid
+      - mite
+      - whitefly
+      - locust
+      - armyworm
+  wind:
+    aliases:
+      - wind damage
+      - tropical cyclone
+      - typhoon
+      - hurricane
+      - cyclone
+      - tornado
+      - strong winds
+  heat_stress:
+    aliases:
+      - heat stress
+      - heat wave
+      - high temperature
+      - excessive heat
+      - extreme heat
+      - hot dry
+      - canicular
+      - harmattan
+  biennial_cycle:
+    aliases:
+      - biennial
+      - on year
+      - off year
+      - alternate bearing
+      - biennial bearing
+      - on-year
+      - off-year
+  planting_delay:
+    aliases:
+      - planting delay
+      - late planting
+      - delayed planting
+      - late start
+      - behind schedule
+      - planting pace
+
+# ---------------------------------------------------------------------------
+# Causal linguistic markers
+# Phrases used by Claude Haiku to identify causal_link relationships.
+# Only extract links anchored by one of these markers — reduces false positives.
+# ---------------------------------------------------------------------------
+causal_markers:
+  - "as a result of"
+  - "as a result"
+  - "due to"
+  - "because of"
+  - "in response to"
+  - "following"
+  - "consequently"
+  - "triggered by"
+  - "led to"
+  - "resulted in"
+  - "driven by"
+  - "attributed to"
+  - "stemming from"
+  - "owing to"
+  - "in the wake of"
+  - "prompted by"
+  - "caused by"
+  - "as a consequence of"
+  - "this led to"
+  - "which led to"
+  - "which resulted in"
+  - "expected to lead to"
+  - "likely to result in"
+
+# ---------------------------------------------------------------------------
+# Organizations
+# Canonical names for bodies mentioned in analyst reports.
+# Used for source attribution in causal links.
+# ---------------------------------------------------------------------------
+organizations:
+  - USDA
+  - USDA FAS
+  - USDA NASS
+  - USDA ERS
+  - USDA WAOB
+  - CONAB
+  - ICO
+  - ICCO
+  - MPOB
+  - MPOC
+  - FNC
+  - Fedecafé
+  - ABIC
+  - Cecafé
+  - Cocobod
+  - SAGIS
+  - SAAFF
+  - UNICA
+  - CNA
+  - FAO
+  - World Bank
+  - IMF
+  - ISO Sugar
+  - LMC International
