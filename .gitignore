@@ -36,6 +36,7 @@ Thumbs.db
 
 # Ephemeral pipeline artefacts (not for version control)
 configs/sources/unica_biweekly_classified.json
+data/batch_runs/
 
 # Copilot working memory
 currentstate.md
