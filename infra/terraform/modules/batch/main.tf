@@ -1193,6 +1193,7 @@ resource "aws_batch_job_definition" "usda_nass_annual_silver" {
     force_overwrite    = "false"
     bronze_commodities = "all"
     years              = "all"
+    workers            = "8"
   }
 
   container_properties = jsonencode({
@@ -1204,7 +1205,8 @@ resource "aws_batch_job_definition" "usda_nass_annual_silver" {
       "--aws-region",         "Ref::aws_region",
       "--force-overwrite",    "Ref::force_overwrite",
       "--bronze-commodities", "Ref::bronze_commodities",
-      "--years",              "Ref::years"
+      "--years",              "Ref::years",
+      "--workers",            "Ref::workers"
     ]
 
     environment = [

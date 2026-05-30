@@ -51,9 +51,17 @@ def main() -> None:
     )
     parser.add_argument("--bronze-commodities", default="all")
     parser.add_argument("--years", default="all")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Concurrent S3/parquet workers for the Batch task.",
+    )
     parser.add_argument("--force-overwrite", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if args.workers < 1:
+        parser.error("--workers must be >= 1")
 
     bucket = get_required_env("LEVIATHAN_BUCKET")
     aws_region = get_required_env("AWS_REGION")
@@ -64,6 +72,7 @@ def main() -> None:
         "force_overwrite": "true" if args.force_overwrite else "false",
         "bronze_commodities": args.bronze_commodities,
         "years": args.years,
+        "workers": str(args.workers),
     }
 
     logger.info(
