@@ -1,0 +1,28 @@
+{
+  "run_id": "2026-05-30T10-27-12.464285+00-00",
+  "label": "full",
+  "task_count": 3,
+  "tasks": [
+    {
+      "job_name": "graphrag-usda-wasde-2000-2010",
+      "job_id": "b017f8e0-819e-4ef2-8251-fb14ab744530",
+      "source": "usda_wasde",
+      "year_from": 2000,
+      "year_to": 2010
+    },
+    {
+      "job_name": "graphrag-usda-wasde-2011-2018",
+      "job_id": "498207a6-6030-4101-b509-2a40f2ee9a28",
+      "source": "usda_wasde",
+      "year_from": 2011,
+      "year_to": 2018
+    },
+    {
+      "job_name": "graphrag-usda-wasde-2019-2025",
+      "job_id": "f75a8a55-2b7b-4fef-95e7-3d7c459f38a0",
+      "source": "usda_wasde",
+      "year_from": 2019,
+      "year_to": 2025
+    }
+  ]
+}

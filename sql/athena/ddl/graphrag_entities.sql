@@ -17,7 +17,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS leviathan_dev.graphrag_entities (
     stress_type    STRING    COMMENT 'drought | frost | flood | disease | pest | wind | heat_stress | biennial_cycle | planting_delay',
     severity       INT       COMMENT '-1 mild | 0 neutral | 1 severe',
     crop_year      STRING    COMMENT 'Crop year (e.g. 2021/22) if stated',
-    window         STRING    COMMENT 'Seasonal/monthly window if stated'
+    time_window    STRING    COMMENT 'Seasonal/monthly window if stated'
 )
 PARTITIONED BY (source STRING, year INT, month INT)
 STORED AS PARQUET

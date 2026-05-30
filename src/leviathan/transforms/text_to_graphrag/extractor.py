@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Model configuration
 # ---------------------------------------------------------------------------
-_HAIKU_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+_HAIKU_MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0"
 _MAX_TOKENS = 1024
 
 
@@ -118,7 +118,7 @@ OUTPUT SCHEMA (JSON):
       "stress_type": "<drought|frost|flood|disease|pest|wind|heat_stress|biennial_cycle|planting_delay>",
       "severity": <-1 or 0 or 1>,
       "crop_year": "<YYYY/YY or null>",
-      "window": "<season/month window or null>"
+      "time_window": "<season/month window or null>"
     }}
   ],
   "causal_links": [

@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-05-30T00-55-49.341734+00-00",
+  "label": "smoke",
+  "task_count": 2,
+  "tasks": [
+    {
+      "job_name": "graphrag-usda-wasde-2021-2021",
+      "job_id": "53f616df-5a02-4482-bd48-6a685ba52f4a",
+      "source": "usda_wasde",
+      "year_from": 2021,
+      "year_to": 2021
+    },
+    {
+      "job_name": "graphrag-usda-wap-2021-2021",
+      "job_id": "25a4540e-da41-4ea3-bc71-d15b1741fc75",
+      "source": "usda_wap",
+      "year_from": 2021,
+      "year_to": 2021
+    }
+  ]
+}

@@ -43,7 +43,7 @@ _ENTITY_SCHEMA = pa.schema([
     ("stress_type", pa.string()),
     ("severity", pa.int8()),
     ("crop_year", pa.string()),
-    ("window", pa.string()),
+    ("time_window", pa.string()),
 ])
 
 _CAUSAL_EDGE_SCHEMA = pa.schema([
@@ -164,7 +164,7 @@ def write_partition(
                 "stress_type": ev.get("stress_type") or "",
                 "severity": int(ev.get("severity") or 0),
                 "crop_year": ev.get("crop_year") or "",
-                "window": ev.get("window") or "",
+                "time_window": ev.get("time_window") or "",
             })
 
         for lk in r.get("causal_links") or []:

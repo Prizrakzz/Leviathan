@@ -141,8 +141,19 @@ data "aws_iam_policy_document" "batch_job_bedrock" {
     sid     = "BedrockInvokeHaiku"
     actions = ["bedrock:InvokeModel"]
     resources = [
-      "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
+      "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
     ]
+  }
+
+  # Required for Bedrock to auto-subscribe the role to the Anthropic model
+  # on first use (resolves AccessDeniedException for aws-marketplace actions).
+  statement {
+    sid     = "BedrockMarketplaceSubscribe"
+    actions = [
+      "aws-marketplace:ViewSubscriptions",
+      "aws-marketplace:Subscribe",
+    ]
+    resources = ["*"]
   }
 }
 

@@ -24,7 +24,7 @@ class StressEvent(TypedDict):
                               #          heat_stress biennial_cycle planting_delay
     severity: int             # -1 mild  |  0 neutral/ambiguous  |  1 severe
     crop_year: Optional[str]  # "2021/22" format if stated; null if not mentioned
-    window: Optional[str]     # "Aug-Oct", "flowering window", etc.
+    time_window: Optional[str]  # "Aug-Oct", "flowering window", etc.
 
 
 class CausalLink(TypedDict):
