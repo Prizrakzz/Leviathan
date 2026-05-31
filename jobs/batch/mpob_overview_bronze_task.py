@@ -164,8 +164,10 @@ def main() -> int:
             df = extract_mpob_overview_annual(pdf_bytes, year, ingest_date)
 
             if df.empty:
-                logger.error("year=%d: extraction returned empty DataFrame", year)
-                errors += 1
+                logger.warning(
+                    "year=%d: extraction returned empty DataFrame — skipping", year
+                )
+                skipped += 1
                 continue
 
             buf = io.BytesIO()

@@ -1,26 +1,29 @@
 """Bronze extraction for MPOB Overview of the Malaysian Oil Palm Industry PDFs.
 
-Parses the two statistics table pages (0-indexed pages 5–6) from the annual
-PDF and returns a long/EAV bronze DataFrame with national annual totals.
+Parses the two statistics table pages (last 2 pages of each PDF) and returns
+a long/EAV bronze DataFrame with national annual totals.
+
+PDF layout varies by year:
+- 2010: 4 pages; pdfplumber cannot extract data rows → skipped.
+- 2011: 4 pages; single table on last page, current year is 2nd numeric column.
+- 2012: 5 pages; supply/demand on page 3, price table on page 4 (split-row
+  format); current year is 2nd numeric column.
+- 2013: 6 pages; current year is 2nd numeric column.
+- 2014–2016: current year is 1st numeric column.
 
 Variable mapping (national totals only)
 ----------------------------------------
-Page 6 (idx 5) — supply/demand table:
+Supply/demand table:
 
-    Section "CPO PRODUCTION (TONNES)"  / row "MALAYSIA"          → production__crude_palm_oil
-    Section "CLOSING STOCKS (TONNES)"  / row "TOTAL PALM OIL"    → closing_stocks__palm_oil
+    Section "CPO PRODUCTION"           / row "MALAYSIA"          → production__crude_palm_oil
+    Section "PRODUCTION" (early years) / row "CRUDE PALM OIL"    → production__crude_palm_oil
+    Section "CLOSING STOCKS"           / row "TOTAL PALM OIL"    → closing_stocks__palm_oil
     Section "EXPORT (TONNES)"          / row "PALM OIL"          → exports__palm_oil
     Section "IMPORT (TONNES)"          / row "PALM OIL"          → imports__palm_oil
 
-Page 7 (idx 6) — price/yield table:
+Price table:
 
-    Section "PRICE (RM/TONNE)"         / row "FFB (MILL GATE)"   → ffb_price__ffb
-
-Only the current-year column is extracted; the prior-year comparison column
-is ignored (it will appear as the current-year value in the previous year's
-PDF).  Tables use a multi-column layout where each variable spans several
-sub-columns; the current-year value is always the *first* numeric value found
-in columns 2+ of a data row.
+    Section "PRICE"                    / row "FFB (MILL GATE)"   → ffb_price__ffb
 
 No S3 or AWS dependencies — pure data transformation.
 """
@@ -35,14 +38,14 @@ from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Stats table pages (0-indexed): page 5 = supply/demand, page 6 = price/yield.
-_STATS_PAGES = (5, 6)
-
 # Each entry: (section_keyword_upper, row_label_upper, bronze_variable_name).
 # section_keyword: substring that must appear in the section header (uppercased).
 # row_label_upper: must exactly equal the row's primary label (uppercased, stripped).
+# Two production rules: post-2012 PDFs use "CPO PRODUCTION" / "MALAYSIA";
+# 2011-2012 PDFs use "PRODUCTION" (no CPO prefix) / "CRUDE PALM OIL".
 _VAR_TARGETS: list[tuple[str, str, str]] = [
     ("CPO PRODUCTION",    "MALAYSIA",        "production__crude_palm_oil"),
+    ("PRODUCTION",        "CRUDE PALM OIL",  "production__crude_palm_oil"),
     ("CLOSING STOCKS",    "TOTAL PALM OIL",  "closing_stocks__palm_oil"),
     ("EXPORT (TONNES)",   "PALM OIL",        "exports__palm_oil"),
     ("IMPORT (TONNES)",   "PALM OIL",        "imports__palm_oil"),
@@ -71,13 +74,39 @@ def extract_mpob_overview_annual(
     rows: list[dict] = []
 
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for pg_idx in _STATS_PAGES:
-            if pg_idx >= len(pdf.pages):
-                logger.warning("MPOB overview PDF year=%d: page index %d not found", year, pg_idx)
+        n = len(pdf.pages)
+
+        # Collect all tables from the last 2 pages.
+        all_tables: list[list[list[str | None]]] = []
+        for pg_idx in [n - 2, n - 1]:
+            if pg_idx < 0 or pg_idx >= n:
                 continue
-            tables = pdf.pages[pg_idx].extract_tables()
-            for table in tables:
-                rows.extend(_parse_stats_table(table, year))
+            for table in pdf.pages[pg_idx].extract_tables():
+                if table:
+                    all_tables.append(table)
+
+        # Determine year-column order once for the whole PDF by scanning all
+        # tables.  Some tables (e.g. the price table) lack a year header row;
+        # the supply/demand table always has one, so first-found wins.
+        use_second = False
+        for table in all_tables:
+            detected = _current_year_is_second(table, year)
+            if detected is not None:
+                use_second = detected
+                break
+
+        for table in all_tables:
+            rows.extend(_parse_stats_table(table, year, use_second=use_second))
+
+    # Deduplicate: keep first extracted value per variable (multiple tables may
+    # match the same section keyword across pages).
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for r in rows:
+        if r["variable"] not in seen:
+            seen.add(r["variable"])
+            deduped.append(r)
+    rows = deduped
 
     if not rows:
         logger.warning("MPOB overview PDF year=%d: no statistics extracted", year)
@@ -91,19 +120,53 @@ def extract_mpob_overview_annual(
     return df
 
 
+def _current_year_is_second(
+    table: list[list[str | None]], year: int
+) -> bool | None:
+    """Return True if the current year column appears *after* the prior year.
+
+    Scans the first four rows for a cell equal to ``str(year)``.  If a
+    four-digit year string appears before that position the current year is
+    the second column; otherwise it is the first.  Returns ``None`` when the
+    year string cannot be found in the table header (e.g. price tables in
+    some early PDFs that lack an explicit year row).
+    """
+    year_str = str(year)
+    for row in table[:4]:
+        for i, cell in enumerate(row):
+            if not cell or str(cell).strip() != year_str:
+                continue
+            # Check whether a 4-digit year appears before position i.
+            for j in range(i):
+                c = row[j]
+                if c and str(c).strip().isdigit() and len(str(c).strip()) == 4:
+                    return True
+            return False
+    return None  # year not found in this table's header
+
+
 def _parse_stats_table(
     table: list[list[str | None]],
     year: int,
+    use_second: bool = False,
 ) -> list[dict]:
     """Extract target EAV records from one pdfplumber table.
 
     Iterates rows, tracks the current section header, and emits a record
     whenever a (section, row_label) pair matches a ``_VAR_TARGETS`` entry.
+    When ``use_second`` is True the second numeric in each data row is taken
+    (for PDFs where the prior year is listed first).  A look-ahead to the
+    following row is performed when the current row yields no value (handles
+    split-row price tables in some early PDFs).
     """
     records: list[dict] = []
     current_section = ""
+    n_col = 2 if use_second else 1
 
-    for raw_row in table:
+    i = 0
+    while i < len(table):
+        raw_row = table[i]
+        i += 1
         if not raw_row:
             continue
 
@@ -121,7 +184,17 @@ def _parse_stats_table(
                 continue
             if row_kw != label_upper:
                 continue
-            val = _first_numeric(raw_row)
+
+            val = _nth_numeric(raw_row, n_col)
+
+            # Split-row format: value may be on the next row (label row has
+            # only a percentage-change figure, actual values on the next row).
+            if val is None and i < len(table):
+                next_row = table[i]
+                next_label, _ = _row_label(next_row)
+                if not next_label:  # continuation row — no label
+                    val = _nth_numeric(next_row, n_col)
+
             if val is None:
                 logger.warning(
                     "MPOB PDF year=%d: no numeric for section=%r label=%r",
@@ -129,8 +202,8 @@ def _parse_stats_table(
                     current_section,
                     label,
                 )
-                break
-            records.append({"year": year, "variable": var_name, "value": val})
+            else:
+                records.append({"year": year, "variable": var_name, "value": val})
             break  # matched; move to next row
 
     return records
@@ -172,15 +245,12 @@ def _row_label(row: list[str | None]) -> tuple[str, bool]:
     return "", False
 
 
-def _first_numeric(row: list[str | None]) -> float | None:
-    """Return the first numeric value found in columns 2 onward.
+def _nth_numeric(row: list[str | None], n: int = 1) -> float | None:
+    """Return the *n*-th numeric value found in columns 2 onward (1-indexed).
 
-    The multi-column layout places the current-year value before the
-    prior-year comparison; taking the first numeric in col[2+] always
-    yields the current-year figure regardless of row type.
-
-    Returns ``None`` if no numeric value is found in the row.
+    Returns ``None`` if fewer than *n* numerics are found.
     """
+    count = 0
     for cell in row[2:]:
         if cell is None:
             continue
@@ -189,8 +259,19 @@ def _first_numeric(row: list[str | None]) -> float | None:
             continue
         val = _parse_num(s)
         if val is not None:
-            return val
+            count += 1
+            if count == n:
+                return val
     return None
+
+
+def _first_numeric(row: list[str | None]) -> float | None:
+    """Return the first numeric value found in columns 2 onward.
+
+    Used by :func:`_row_label` to distinguish section headers from sub-total
+    rows.  For value extraction use :func:`_nth_numeric` instead.
+    """
+    return _nth_numeric(row, 1)
 
 
 def _parse_num(s: str) -> float | None:
