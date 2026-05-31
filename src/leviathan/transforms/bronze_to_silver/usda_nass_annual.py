@@ -201,7 +201,7 @@ def _convert_value(row: pd.Series) -> float:
     if stat == "YIELD":
         if unit in {"BU / ACRE", "BU / NET PLANTED ACRE"}:
             return numeric * _bushel_weight(slug, unit) * LB_PER_ACRE_TO_T_HA
-        if unit == "LB / ACRE":
+        if unit in {"LB / ACRE", "LB / NET PLANTED ACRE"}:
             return numeric * LB_PER_ACRE_TO_T_HA
         if unit == "CWT / ACRE":
             return numeric * 100.0 * LB_PER_ACRE_TO_T_HA
@@ -230,7 +230,7 @@ def _convert_value(row: pd.Series) -> float:
 def _metric_preference_rank(row: pd.Series) -> int:
     stat = row["statisticcat_desc_norm"]
     unit = row["unit_desc_norm"]
-    if stat == "YIELD" and unit in {"BU / NET PLANTED ACRE"}:
+    if stat == "YIELD" and unit in {"BU / NET PLANTED ACRE", "LB / NET PLANTED ACRE"}:
         return 1
     return 0
 
