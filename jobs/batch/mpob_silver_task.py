@@ -165,6 +165,11 @@ def _write_silver(
 
 
 def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+        stream=sys.stderr,
+    )
     t0 = datetime.now(tz=timezone.utc)
     load_env()
     args = _parse_args()

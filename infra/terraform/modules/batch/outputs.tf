@@ -57,3 +57,8 @@ output "fgis_silver_job_definition_arn" {
   value       = aws_batch_job_definition.fgis_silver.arn
   description = "ARN of the USDA FGIS bronze -> silver job definition."
 }
+
+output "mpob_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.mpob_silver.arn
+  description = "ARN of the MPOB bronze -> silver job definition."
+}

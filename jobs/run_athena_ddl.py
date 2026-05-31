@@ -31,6 +31,7 @@ _GRAPHRAG_DDLS = [
     "graphrag_sentiment.sql",
     "silver_nass_annual.sql",
     "silver_fgis.sql",
+    "silver_mpob.sql",
 ]
 
 
