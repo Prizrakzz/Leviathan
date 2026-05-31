@@ -29,6 +29,8 @@ _GRAPHRAG_DDLS = [
     "graphrag_causal_edges.sql",
     "graphrag_forecasts.sql",
     "graphrag_sentiment.sql",
+    "silver_nass_annual.sql",
+    "silver_fgis.sql",
 ]
 
 
