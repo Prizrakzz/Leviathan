@@ -161,6 +161,33 @@ class TestNassAnnualSilverTransform:
         silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
         assert silver.iloc[0]["yield_t_ha"] == pytest.approx(30.0 * 60.0 * LB_PER_ACRE_TO_T_HA)
 
+    def test_prefers_standard_yield_when_net_planted_acre_duplicate_exists(self) -> None:
+        rows = [
+            *_corn_rows(commodity_desc="SOYBEANS"),
+            _row(
+                commodity_desc="SOYBEANS",
+                statisticcat_desc="YIELD",
+                unit_desc="BU / NET PLANTED ACRE",
+                value=23.3,
+            ),
+        ]
+        rows[2]["value"] = 23.5
+        silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
+        assert silver.iloc[0]["yield_t_ha"] == pytest.approx(23.5 * 60.0 * LB_PER_ACRE_TO_T_HA)
+
+    def test_excludes_non_all_class_rice_and_cottonseed_rows(self) -> None:
+        rows = [
+            _row(commodity_desc="RICE", statisticcat_desc="AREA PLANTED", unit_desc="ACRES", value=100.0),
+            _row(commodity_desc="RICE", statisticcat_desc="AREA HARVESTED", unit_desc="ACRES", value=90.0),
+            _row(commodity_desc="RICE", statisticcat_desc="YIELD", unit_desc="LB / ACRE", value=7_640.0),
+            _row(commodity_desc="RICE", statisticcat_desc="PRODUCTION", unit_desc="CWT", value=6_876.0),
+            _row(commodity_desc="RICE", class_desc="LONG GRAIN", statisticcat_desc="YIELD", unit_desc="LB / ACRE", value=7_670.0),
+            _row(commodity_desc="COTTON", class_desc="COTTONSEED", statisticcat_desc="PRODUCTION", unit_desc="TONS", value=109_000.0),
+        ]
+        silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
+        assert len(silver) == 1
+        assert silver.iloc[0]["leviathan_slug"] == "rough_rice_cbot"
+
     def test_excludes_aggregate_wheat(self) -> None:
         rows = _corn_rows(commodity_desc="WHEAT", class_desc="ALL CLASSES")
         silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))

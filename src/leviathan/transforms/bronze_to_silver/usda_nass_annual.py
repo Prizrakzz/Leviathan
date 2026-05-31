@@ -89,6 +89,10 @@ _NON_FEATURE_UNITS = frozenset({
 })
 
 
+def _is_all_class(class_name: str) -> bool:
+    return class_name in {"", "ALL CLASSES"}
+
+
 def _empty_output() -> pd.DataFrame:
     return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
@@ -107,15 +111,15 @@ def _canonical_slug(commodity_desc: object, class_desc: object) -> str | None:
     class_name = _clean_text(class_desc)
 
     if commodity == "CORN":
-        return "corn_cbot"
+        return "corn_cbot" if _is_all_class(class_name) else None
     if commodity == "SOYBEANS":
-        return "soybeans_cbot"
+        return "soybeans_cbot" if _is_all_class(class_name) else None
     if commodity == "COTTON":
-        return "cotton"
+        return "cotton" if _is_all_class(class_name) else None
     if commodity == "RICE":
-        return "rough_rice_cbot"
+        return "rough_rice_cbot" if _is_all_class(class_name) else None
     if commodity == "CANOLA":
-        return "canola_ice"
+        return "canola_ice" if _is_all_class(class_name) else None
 
     if commodity == "WHEAT, SPRING":
         if class_name in {"", "ALL CLASSES", "HARD RED SPRING"}:
@@ -223,6 +227,27 @@ def _convert_value(row: pd.Series) -> float:
     raise ValueError(f"Unsupported NASS statistic category {stat!r}")
 
 
+def _metric_preference_rank(row: pd.Series) -> int:
+    stat = row["statisticcat_desc_norm"]
+    unit = row["unit_desc_norm"]
+    if stat == "YIELD" and unit in {"BU / NET PLANTED ACRE"}:
+        return 1
+    return 0
+
+
+def _prefer_metric_rows(df: pd.DataFrame) -> pd.DataFrame:
+    key_cols = ["leviathan_slug", "state", "year", "statisticcat_desc_norm"]
+    duplicate_mask = df.duplicated(subset=key_cols, keep=False)
+    if not duplicate_mask.any():
+        return df
+
+    work = df.copy()
+    work["_metric_preference_rank"] = work.apply(_metric_preference_rank, axis=1)
+    best_rank = work.groupby(key_cols, dropna=False)["_metric_preference_rank"].transform("min")
+    work = work.loc[work["_metric_preference_rank"] == best_rank].copy()
+    return work.drop(columns=["_metric_preference_rank"])
+
+
 def _validate_metric_uniqueness(df: pd.DataFrame) -> pd.DataFrame:
     key_cols = ["leviathan_slug", "state", "year", "statisticcat_desc_norm"]
     duplicate_mask = df.duplicated(subset=key_cols, keep=False)
@@ -310,6 +335,7 @@ def transform_nass_annual_bronze_to_silver(df: pd.DataFrame) -> pd.DataFrame:
     work["source"] = "usda_nass"
 
     work["converted_value"] = work.apply(_convert_value, axis=1)
+    work = _prefer_metric_rows(work)
     work = _validate_metric_uniqueness(work)
 
     index_cols = [
