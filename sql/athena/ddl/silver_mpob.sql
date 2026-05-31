@@ -5,14 +5,14 @@
 -- Data layer:  silver (pivoted from annual_summary bronze EAV rows).
 -- Granularity: one row per calendar month (YYYY-MM-01).
 -- Source:      MPOB BEPI annual summary HTML tables (annual_summary bronze).
--- Units:       metric tonnes (MT) for production/stocks/exports/imports;
---              RM/MT for FFB price; dimensionless ratio for su_ratio.
+-- Units:       metric tonnes (MT) for production/stocks/exports/imports,
+--              RM/MT for FFB price, dimensionless ratio for su_ratio.
 --
 -- su_ratio:    closing_stocks_palm_oil_mt / exports_palm_oil_mt (same month).
 --              Proxy for "months of supply at current export pace".
 --              Null when exports are zero or either component is missing.
 --
--- Coverage:    December 2016 – latest published month (~113 rows as of 2026-05).
+-- Coverage:    December 2016 - latest published month (~113 rows as of 2026-05).
 --              Grows by 1 row each month as MPOB publishes new data and
 --              the bronze + silver pipelines are re-run.
 
