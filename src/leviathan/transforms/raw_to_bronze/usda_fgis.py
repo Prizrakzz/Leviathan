@@ -52,7 +52,12 @@ _INT_COLS = frozenset({"week", "month", "quarter", "year"})
 
 def _add_marketing_year(df: pd.DataFrame) -> pd.DataFrame:
     """Add a vectorised ``marketing_year`` column derived from grain and date."""
-    date_ser = pd.to_datetime(df.get("date", pd.Series(dtype="object")), errors="coerce")
+    # Prefer cert_date (post-2018 FGIS format); fall back to date (legacy format).
+    if "cert_date" in df.columns:
+        raw_date = df["cert_date"]
+    else:
+        raw_date = df.get("date", pd.Series(dtype="object"))
+    date_ser = pd.to_datetime(raw_date, errors="coerce")
     grain_upper = df.get("grain", pd.Series(dtype="object")).astype(str).str.strip().str.upper()
 
     is_wheat = grain_upper.isin(_WHEAT_GRAINS)

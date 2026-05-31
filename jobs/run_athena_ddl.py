@@ -29,6 +29,8 @@ _GRAPHRAG_DDLS = [
     "graphrag_causal_edges.sql",
     "graphrag_forecasts.sql",
     "graphrag_sentiment.sql",
+    "silver_nass_annual.sql",
+    "silver_fgis.sql",
 ]
 
 
@@ -88,7 +90,7 @@ def main() -> None:
         log.error("%d table(s) failed.", errors)
         raise SystemExit(1)
 
-    log.info("All 4 graphrag tables created in %s.", _DATABASE)
+    log.info("All %d tables created in %s.", len(_GRAPHRAG_DDLS), _DATABASE)
     log.info("Verify with:")
     log.info(
         "  aws glue get-tables --database-name %s "

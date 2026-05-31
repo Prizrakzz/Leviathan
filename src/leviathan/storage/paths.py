@@ -784,6 +784,44 @@ def raw_fgis_weekly_key(year: int, as_of_date: str) -> str:
     )
 
 
+def bronze_fgis_key(year: int) -> str:
+    """S3 key for a USDA FGIS Export Inspections bronze Parquet (one calendar year).
+
+    Args:
+        year: Calendar year, e.g. ``2024``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_fgis_export_inspections/"
+        f"year={year}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_fgis_key(
+    leviathan_slug: str,
+    marketing_year: int,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for a USDA FGIS Export Inspections silver Parquet partition.
+
+    One file per (leviathan_slug, marketing_year).  Lives under
+    ``silver/fgis/`` rather than ``silver/production/`` to avoid schema
+    collision with the long-form silver_production Athena table.
+
+    Args:
+        leviathan_slug: Commodity slug, e.g. ``"corn_cbot"``.
+        marketing_year: Marketing year start, e.g. ``2024``.
+        filename:       Parquet filename (default ``"part-000.parquet"``).
+    """
+    return (
+        f"silver/fgis/"
+        f"leviathan_slug={leviathan_slug}/"
+        f"marketing_year={marketing_year}/"
+        f"{filename}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # USDA FAS Export Sales Reporting (ESR) — weekly forward export commitments
 # ---------------------------------------------------------------------------
