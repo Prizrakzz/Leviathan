@@ -63,6 +63,17 @@ _MONTH_NAMES: dict[str, int] = {
     "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 
+# Section header labels that appear in MPOB annual summary HTML tables.
+# Each entry maps a substring of the section header text to a canonical prefix
+# used in variable names, e.g. ``'production__crude_palm_oil'``.
+_SECTION_KEYWORDS: list[tuple[str, str]] = [
+    ("production", "production"),
+    ("closing stock", "closing_stocks"),
+    ("export", "exports"),
+    ("import", "imports"),
+    ("price", "ffb_price"),
+]
+
 
 def _canonicalize_col(header: str) -> str:
     low = header.strip().lower()
@@ -77,6 +88,19 @@ def _parse_month_number(text: str) -> int | None:
     for name, num in _MONTH_NAMES.items():
         if name in low:
             return num
+    return None
+
+
+def _is_section_header_label(label: str) -> str | None:
+    """Return the canonical section name if *label* is a section-header row.
+
+    Matches against ``_SECTION_KEYWORDS``.  Returns ``None`` when the label is
+    a regular commodity row.
+    """
+    low = label.strip().lower()
+    for keyword, canonical in _SECTION_KEYWORDS:
+        if keyword in low:
+            return canonical
     return None
 
 
@@ -135,7 +159,20 @@ def _looks_like_misaligned_header(df: pd.DataFrame) -> bool:
     if df.empty or df.shape[1] < 2:
         return False
     first_cell = str(df.iloc[0, 0]).strip().lower()
-    return first_cell in ("month", "year", "date", "period", "item", "description")
+    if first_cell in ("month", "year", "date", "period", "item", "description"):
+        return True
+    # Also detect tables where the HTML's first <tr> is entirely empty (pandas
+    # assigns integer column names 0, 1, 2, …) and the *second* <tr> contains
+    # the real month-name column headers.  In that case the first data row
+    # (df.iloc[0]) holds month abbreviations in every non-label cell.
+    if first_cell in ("nan", ""):
+        month_hits = sum(
+            1 for v in df.iloc[0, 1:]
+            if _parse_col_month_year(str(v), 2000) is not None
+        )
+        if month_hits >= 3:
+            return True
+    return False
 
 
 def _is_data_table(df: pd.DataFrame) -> bool:
@@ -234,9 +271,18 @@ def _normalize_annual_table_wide(
         if not label or label.lower() in ("nan", "\xa0", "", "none"):
             continue
 
+        # Detect section-header rows by keyword first.  Current MPOB HTML uses
+        # colspan so the section label is duplicated across every value column
+        # rather than being the only non-NaN cell; keyword matching is more
+        # robust than checking for all-NaN value columns.
+        section_name = _is_section_header_label(label)
+        if section_name is not None:
+            current_section = section_name
+            continue
+
         has_values = row[value_col_names].notna().any()
         if not has_values:
-            # Section-header colspan row — extract clean section name
+            # Legacy fallback: section header row where all value cols are NaN.
             section_clean = re.sub(r"\s*\([^)]*\)", "", label).strip().lower()
             current_section = re.sub(r"[^a-z0-9]+", "_", section_clean).strip("_") or "unknown"
             continue

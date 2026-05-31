@@ -1207,6 +1207,18 @@ def bronze_mpob_monthly_key(year: int, month: int) -> str:
     )
 
 
+def silver_mpob_key() -> str:
+    """S3 key for the MPOB silver Parquet.
+
+    Single flat file containing all years of monthly CPO supply/demand
+    metrics, derived from the annual_summary bronze.
+
+    Returns:
+        ``"silver/mpob/part-000.parquet"``
+    """
+    return "silver/mpob/part-000.parquet"
+
+
 def bronze_unica_key(harvest_year: str) -> str:
     """S3 key for a UNICA Center-South production bronze Parquet (one harvest year).
 
