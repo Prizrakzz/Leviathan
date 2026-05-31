@@ -32,6 +32,7 @@ _GRAPHRAG_DDLS = [
     "silver_nass_annual.sql",
     "silver_fgis.sql",
     "silver_mpob.sql",
+    "silver_mpob_annual.sql",
 ]
 
 

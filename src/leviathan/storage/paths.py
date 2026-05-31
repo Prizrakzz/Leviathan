@@ -724,6 +724,24 @@ def text_wap_key(release_month: str) -> str:
     )
 
 
+def text_mpob_overview_key(year: int) -> str:
+    """S3 key for the extracted text document for an MPOB Overview of Industry PDF.
+
+    One file per calendar year, covering 2010–2016 (pre-BEPI-HTML era).
+    Written by the MPOB overview text extraction pipeline.
+
+    Args:
+        year: Calendar year, e.g. ``2015``.
+    """
+    return (
+        f"text/"
+        f"source=mpob/"
+        f"release_type=overview_pdf/"
+        f"year={year}/"
+        f"document.json"
+    )
+
+
 def bronze_wap_key(release_month: str) -> str:
     """S3 key for the bronze Parquet table for a single USDA WAP release.
 
@@ -1188,6 +1206,25 @@ def bronze_mpob_annual_key(year: int) -> str:
     )
 
 
+def bronze_mpob_overview_key(year: int) -> str:
+    """S3 key for an MPOB Overview-PDF annual bronze Parquet.
+
+    Contains annual national totals (CPO production, closing stocks,
+    exports, imports, FFB price) extracted from the overview PDF stats pages.
+    Covers 2010–2016, complementing the annual_summary HTML series (2017+).
+
+    Args:
+        year: Calendar year, e.g. ``2015``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=mpob/"
+        f"release_type=overview_pdf/"
+        f"year={year}/"
+        f"part-000.parquet"
+    )
+
+
 def bronze_mpob_monthly_key(year: int, month: int) -> str:
     """S3 key for an MPOB BEPI monthly release bronze Parquet.
 
@@ -1217,6 +1254,18 @@ def silver_mpob_key() -> str:
         ``"silver/mpob/part-000.parquet"``
     """
     return "silver/mpob/part-000.parquet"
+
+
+def silver_mpob_annual_key() -> str:
+    """S3 key for the MPOB overview-PDF annual silver Parquet.
+
+    Single flat file containing annual CPO supply/demand metrics derived
+    from the overview_pdf bronze (2010–2016, pre-BEPI-HTML era).
+
+    Returns:
+        ``"silver/mpob_annual/part-000.parquet"``
+    """
+    return "silver/mpob_annual/part-000.parquet"
 
 
 def bronze_unica_key(harvest_year: str) -> str:

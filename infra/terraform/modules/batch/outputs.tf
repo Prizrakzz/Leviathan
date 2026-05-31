@@ -62,3 +62,18 @@ output "mpob_silver_job_definition_arn" {
   value       = aws_batch_job_definition.mpob_silver.arn
   description = "ARN of the MPOB bronze -> silver job definition."
 }
+
+output "mpob_overview_text_job_definition_arn" {
+  value       = aws_batch_job_definition.mpob_overview_text.arn
+  description = "ARN of the MPOB overview PDFs -> text/ job definition."
+}
+
+output "mpob_overview_bronze_job_definition_arn" {
+  value       = aws_batch_job_definition.mpob_overview_bronze.arn
+  description = "ARN of the MPOB overview PDFs -> bronze/ job definition."
+}
+
+output "mpob_annual_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.mpob_annual_silver.arn
+  description = "ARN of the MPOB overview_pdf bronze -> annual silver job definition."
+}
