@@ -135,7 +135,7 @@ def main() -> int:
         raw_key = raw_mpob_overview_pdf_key(year)
         text_key = text_mpob_overview_key(year)
 
-        if not args.force_overwrite and document_exists(bucket, text_key, aws_region):
+        if not args.force_overwrite and document_exists(s3_client, bucket, text_key):
             logger.info("skipping year=%d (already exists): %s", year, text_key)
             skipped += 1
             continue
@@ -148,7 +148,7 @@ def main() -> int:
         try:
             pdf_bytes = s3_download_with_retry(bucket, raw_key, s3_client)
             doc = extract_mpob_overview(pdf_bytes, raw_key)
-            write_document(bucket, text_key, doc, aws_region)
+            write_document(s3_client, bucket, text_key, doc)
             logger.info(
                 "wrote year=%d  key=%s  sections=%d  chars=%d",
                 year,
