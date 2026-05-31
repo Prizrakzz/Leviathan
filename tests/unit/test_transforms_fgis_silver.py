@@ -28,8 +28,8 @@ def _make_bronze(rows: list[dict]) -> pd.DataFrame:
     """Build a minimal FGIS bronze DataFrame from a list of row dicts."""
     defaults = {
         "class": "YC",
-        "date": datetime.date(2024, 9, 7),
-        "mt": 1000.0,
+        "cert_date": datetime.date(2024, 9, 7),
+        "metric_ton": 1000.0,
         "destination": "CHINA",
         "marketing_year": 2024,
         "source": "usda_fgis_export_inspections",
@@ -40,8 +40,8 @@ def _make_bronze(rows: list[dict]) -> pd.DataFrame:
 def _minimal_bronze() -> pd.DataFrame:
     """Two corn shipments to CHINA in the first two weeks of MY2024."""
     return _make_bronze([
-        {"class": "YC", "date": datetime.date(2024, 9, 3), "mt": 5000.0},
-        {"class": "YC", "date": datetime.date(2024, 9, 10), "mt": 3000.0},
+        {"class": "YC", "cert_date": datetime.date(2024, 9, 3), "metric_ton": 5000.0},
+        {"class": "YC", "cert_date": datetime.date(2024, 9, 10), "metric_ton": 3000.0},
     ])
 
 
@@ -154,8 +154,8 @@ class TestTransformHappyPath:
     def test_weekly_sum_aggregation(self) -> None:
         """Two same-week shipments to the same destination → summed."""
         df = _make_bronze([
-            {"date": datetime.date(2024, 9, 3), "mt": 4000.0},
-            {"date": datetime.date(2024, 9, 5), "mt": 6000.0},
+            {"cert_date": datetime.date(2024, 9, 3), "metric_ton": 4000.0},
+            {"cert_date": datetime.date(2024, 9, 5), "metric_ton": 6000.0},
         ])
         result = transform_fgis_bronze_to_silver(df)
         assert len(result) == 1
@@ -177,8 +177,8 @@ class TestTransformHappyPath:
     def test_ctd_resets_across_marketing_years(self) -> None:
         """MY2024 and MY2025 CTD should each start from zero."""
         df = _make_bronze([
-            {"date": datetime.date(2024, 9, 3), "mt": 5000.0, "marketing_year": 2024},
-            {"date": datetime.date(2025, 9, 3), "mt": 3000.0, "marketing_year": 2025},
+            {"cert_date": datetime.date(2024, 9, 3), "metric_ton": 5000.0, "marketing_year": 2024},
+            {"cert_date": datetime.date(2025, 9, 3), "metric_ton": 3000.0, "marketing_year": 2025},
         ])
         result = transform_fgis_bronze_to_silver(df)
         by_my = result.set_index("marketing_year")["exports_mt_ctd"]
@@ -188,8 +188,8 @@ class TestTransformHappyPath:
     def test_ctd_resets_across_destination_countries(self) -> None:
         """CTD for JAPAN should be independent of CTD for CHINA."""
         df = _make_bronze([
-            {"date": datetime.date(2024, 9, 3), "mt": 5000.0, "destination": "CHINA"},
-            {"date": datetime.date(2024, 9, 3), "mt": 2000.0, "destination": "JAPAN"},
+            {"cert_date": datetime.date(2024, 9, 3), "metric_ton": 5000.0, "destination": "CHINA"},
+            {"cert_date": datetime.date(2024, 9, 3), "metric_ton": 2000.0, "destination": "JAPAN"},
         ])
         result = transform_fgis_bronze_to_silver(df)
         china = result[result["destination_country"] == "CHINA"]["exports_mt_ctd"].iloc[0]
@@ -199,7 +199,7 @@ class TestTransformHappyPath:
 
     def test_week_ending_date_deterministic(self) -> None:
         """week_ending_date is based on MY start, not on the shipment date."""
-        df = _make_bronze([{"date": datetime.date(2024, 9, 3), "mt": 1000.0}])
+        df = _make_bronze([{"cert_date": datetime.date(2024, 9, 3), "metric_ton": 1000.0}])
         result = transform_fgis_bronze_to_silver(df)
         # Week 1 of corn MY2024 ends Sep 7
         assert result["week_ending_date"].iloc[0] == datetime.date(2024, 9, 7)
@@ -207,8 +207,8 @@ class TestTransformHappyPath:
     def test_multiple_slugs_in_same_dataframe(self) -> None:
         """Corn and wheat rows coexist; each gets the correct slug and MY start."""
         df = _make_bronze([
-            {"class": "YC",  "date": datetime.date(2024, 9, 3), "mt": 1000.0},
-            {"class": "HRW", "date": datetime.date(2024, 6, 5), "mt": 2000.0},
+            {"class": "YC",  "cert_date": datetime.date(2024, 9, 3), "metric_ton": 1000.0},
+            {"class": "HRW", "cert_date": datetime.date(2024, 6, 5), "metric_ton": 2000.0},
         ])
         result = transform_fgis_bronze_to_silver(df)
         slugs = set(result["leviathan_slug"])
@@ -217,7 +217,7 @@ class TestTransformHappyPath:
 
     def test_wheat_week1_starts_june(self) -> None:
         df = _make_bronze([
-            {"class": "HRW", "date": datetime.date(2024, 6, 2), "mt": 1000.0},
+            {"class": "HRW", "cert_date": datetime.date(2024, 6, 2), "metric_ton": 1000.0},
         ])
         result = transform_fgis_bronze_to_silver(df)
         assert result["week_of_marketing_year"].iloc[0] == 1
@@ -235,26 +235,26 @@ class TestTransformHappyPath:
 class TestUnmappedGrains:
     def test_sorghum_silently_excluded(self) -> None:
         df = _make_bronze([
-            {"class": "YC",      "mt": 1000.0},
-            {"class": "SORGHUM", "mt": 500.0},
+            {"class": "YC",      "metric_ton": 1000.0},
+            {"class": "SORGHUM", "metric_ton": 500.0},
         ])
         result = transform_fgis_bronze_to_silver(df)
         assert "corn_cbot" in result["leviathan_slug"].values
         assert len(result[result["leviathan_slug"] == "SORGHUM"]) == 0
 
     def test_barley_silently_excluded(self) -> None:
-        df = _make_bronze([{"class": "BARLEY", "mt": 100.0}])
+        df = _make_bronze([{"class": "BARLEY", "metric_ton": 100.0}])
         result = transform_fgis_bronze_to_silver(df)
         assert result.empty
 
     def test_empty_result_has_correct_schema(self) -> None:
-        df = _make_bronze([{"class": "BARLEY", "mt": 100.0}])
+        df = _make_bronze([{"class": "BARLEY", "metric_ton": 100.0}])
         result = transform_fgis_bronze_to_silver(df)
         assert list(result.columns) == OUTPUT_COLUMNS
 
     def test_class_matching_is_case_insensitive(self) -> None:
         """Bronze class values are normalised to uppercase before mapping."""
-        df = _make_bronze([{"class": "yc", "mt": 500.0}])
+        df = _make_bronze([{"class": "yc", "metric_ton": 500.0}])
         result = transform_fgis_bronze_to_silver(df)
         assert len(result) == 1
         assert result["leviathan_slug"].iloc[0] == "corn_cbot"
@@ -271,8 +271,8 @@ class TestValidation:
             transform_fgis_bronze_to_silver(df)
 
     def test_missing_mt_column_raises(self) -> None:
-        df = _minimal_bronze().drop(columns=["mt"])
-        with pytest.raises(ValueError, match="mt"):
+        df = _minimal_bronze().drop(columns=["metric_ton"])
+        with pytest.raises(ValueError, match="metric_ton"):
             transform_fgis_bronze_to_silver(df)
 
     def test_missing_destination_column_raises(self) -> None:
@@ -286,17 +286,17 @@ class TestValidation:
             transform_fgis_bronze_to_silver(df)
 
     def test_error_message_lists_missing_columns(self) -> None:
-        df = _minimal_bronze().drop(columns=["class", "mt"])
+        df = _minimal_bronze().drop(columns=["class", "metric_ton"])
         with pytest.raises(ValueError) as exc_info:
             transform_fgis_bronze_to_silver(df)
         msg = str(exc_info.value)
         assert "class" in msg
-        assert "mt" in msg
+        assert "metric_ton" in msg
 
     def test_null_dates_dropped_with_warning(self) -> None:
         df = _make_bronze([
-            {"date": None, "mt": 999.0},
-            {"date": datetime.date(2024, 9, 3), "mt": 1000.0},
+            {"cert_date": None, "metric_ton": 999.0},
+            {"cert_date": datetime.date(2024, 9, 3), "metric_ton": 1000.0},
         ])
         result = transform_fgis_bronze_to_silver(df)
         # Only the valid-date row survives

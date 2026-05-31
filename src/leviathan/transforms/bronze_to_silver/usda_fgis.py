@@ -69,8 +69,8 @@ _SLUG_MY_START_MONTH: dict[str, int] = {
 # Columns that must be present in the bronze DataFrame.
 _REQUIRED_COLS: frozenset[str] = frozenset({
     "class",
-    "date",
-    "mt",
+    "cert_date",
+    "metric_ton",
     "destination",
     "marketing_year",
     "source",
@@ -166,7 +166,7 @@ def transform_fgis_bronze_to_silver(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # --- Parse date ---
-    df["_date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+    df["_date"] = pd.to_datetime(df["cert_date"], errors="coerce").dt.date
     null_dates = df["_date"].isna().sum()
     if null_dates:
         logger.warning(
@@ -214,7 +214,7 @@ def transform_fgis_bronze_to_silver(df: pd.DataFrame) -> pd.DataFrame:
             dropna=False,
         )
         .agg(
-            exports_mt_weekly=("mt", "sum"),
+            exports_mt_weekly=("metric_ton", "sum"),
             source=("source", "first"),
         )
     )
