@@ -27,14 +27,22 @@ listing_url: "https://unicadata.com.br/listagem.php?idMn=63&idioma=2"
 # Add newer seasons here as they become available.
 #
 # NOTE — 2021/2022 is permanently unavailable and has been removed:
-#   - Wayback Machine CDX has no /arquivos/pdfs/2021/ or /2022/01-03/ entries.
-#   - The two download_media.php IDs captured during the 2021/22 window (Jan 2022)
-#     return empty responses (files deleted from the server).
-#   - The listing page no longer has a harvest-year dropdown; it shows only the
-#     most recent bulletin. UNICADATA did not archive 2021/22 bulletins accessibly.
+#   - Wayback Machine CDX has 2 hash-URL PDFs for /arquivos/pdfs/2021/ captured
+#     by Wayback; these ARE included below and will be fetched via Wayback replay.
+#   - The original download_media.php entries for 2021/22 return empty responses
+#     (files deleted from server) — those are not in this list.
+# NOTE — 2019/2020 has zero CDX archive coverage and is omitted.
 harvest_years:
+  - "2011/2012"
   - "2012/2013"
+  - "2013/2014"
+  - "2014/2015"
+  - "2015/2016"
+  - "2016/2017"
+  - "2017/2018"
+  - "2018/2019"
   - "2020/2021"
+  - "2021/2022"
   - "2022/2023"
   - "2023/2024"
   - "2024/2025"

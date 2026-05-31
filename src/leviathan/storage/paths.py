@@ -1268,6 +1268,18 @@ def silver_mpob_annual_key() -> str:
     return "silver/mpob_annual/part-000.parquet"
 
 
+def silver_unica_annual_state_key() -> str:
+    """S3 key for the UNICA annual-by-state silver Parquet.
+
+    Single flat file containing annual production totals per Brazilian state
+    and regional aggregate for Brazil Centre-South sugarcane (1980/1981–2020/2021).
+
+    Returns:
+        ``"silver/unica_annual_state/part-000.parquet"``
+    """
+    return "silver/unica_annual_state/part-000.parquet"
+
+
 def bronze_unica_key(harvest_year: str) -> str:
     """S3 key for a UNICA Center-South production bronze Parquet (one harvest year).
 

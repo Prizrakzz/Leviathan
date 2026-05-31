@@ -1863,3 +1863,64 @@ resource "aws_batch_job_definition" "mpob_annual_silver" {
     ManagedBy   = "terraform"
   }
 }
+
+resource "aws_batch_job_definition" "unica_annual_state" {
+  name = "${var.project_name}-${var.environment}-unica-annual-state"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    bucket          = var.leviathan_bucket
+    aws_region      = var.aws_region
+    force_overwrite = "false"
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/unica_annual_state_task.py",
+      "--bucket",          "Ref::bucket",
+      "--aws-region",      "Ref::aws_region",
+      "--force-overwrite", "Ref::force_overwrite"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.5" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "unica-annual-state"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 900
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

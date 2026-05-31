@@ -1,0 +1,70 @@
+﻿{
+    "NextToken": "UFQCQUFBQUFBRUNBZ0I0Yk1zU1ZqUzR4VXg5U09MWnpoVXV3ZmxKMTVPd3FVU1pua0Z6R2Z3bEVPc0JFYTBUSjY5K0N2Z1pYM1ZYdjdlMGZRQUFBcVV3Z2dLaEJna3Foa2lHOXcwQkJ3YWdnZ0tTTUlJQ2pnSUJBRENDQW9jR0NTcUdTSWIzRFFFSEFUQWVCZ2xnaGtnQlpRTUVBUzR3RVFRTWtCcWRhR1J3VkMvZWdLYWpBZ0VRZ0lJQ1dCVTJubEs4SnN5dHZkbmpvYmZ2L0xEV1hObi9mSUhFejhFMWFrQVRFR0JNZVFCWkZHbGdHbXNGSkZKNjhoa2IyVlNGRGI2ZWZOSXViNm9JUGhtMy85aUgzWmRNS0h6bFFoQmROejZLbjQzWG9yTGw4Uit0Q1VqendFZ2NFUWhkTVU1ajFjcjMyZ2tLaUJCSmg2dE1WUzJJMldEVVNEM2M4RGNlSnFrcEk3MnA3RHppQWVib0dXRTBDTUVPU2ZkUUpSdXRsT3E0bGNoV3BwU3dQZ0IySUtRTzNIMU50UGtJNmV6WjZUNldQdTFaNmpxMGVMVHZ3UElMMUNkZ0tqNCtvcm5XcjlmMHl4MzBLRUprMkZIQy93QUZhWEZvaHYrU09weFBId0RrbUdvckNGbis2Z21lcjNCMmlPL3d4eSsvbFFKTUR0b21BZXVSMmF2eVJ5VUxpcEVHUWFtRXQ5MEdJZlVqWTkvZFE3aHd4WWRCR3NuWVA0bEdQc2xpR2h0YmRFSmRXQlRDN0NEOFBaNVF0OFdZUHdITnlaRC9EN3A2YVJ1bnBOQjRqaGtGdnVDYWF4RHRIalhYQVdzeW5UdmdGTzQxOVdVUVJBUlFXZ1N2YVhsOXozdWxuMGd3SUlrRXhDWmYwMGlhZ3JGSExCM1ZjYUdVMDhqUEdpeVN4dGFqbEhsTVUwc3F6RW8wSlRRS1E2WXFiZWFjenZtcDRoeE9KWXRpMXE3Y1dwVjNQcWpIVlNyOStrT2NvMTQxL3BQVlByUVFUVENCNGliYjVqNE1nVVZOeWxOM2NEekdyWENmTVg5WVF4bnYydmhtWkR1bVlOell3SXgwczlkeTlvU3VLQ2ZUTkpya3JmY1gvcG1SUFd2Q0hiVE41RTgzZzg4OUZxRktvQ1RVc3JKdHh2MkZybFJWNUh0aUY3aVlNbEJWamhxbmdHNTJpTkxUcDBsRXJKSnMyMmova2ZwRWREeFlPMC9oQm1mbHhWTW5IT3FkanZuNmQ2UE1RaGd2TU43cXlzVnZuMmFQYzlLdXpiQXBWVEVLWWprdWE0NnBWOE1KSHc9PQ==",
+    "Quotas": [
+        {
+            "ServiceCode": "bedrock",
+            "ServiceName": "Amazon Bedrock",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:668891723125:bedrock/L-5B274E24",
+            "QuotaCode": "L-5B274E24",
+            "QuotaName": "On-demand model inference requests per minute for Mistral Large 3",
+            "Value": 0.0,
+            "Unit": "None",
+            "Adjustable": false,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The maximum number of on-demand requests that you can submit for model inference in one minute for Mistral Large 3. This quota represents the total number of requests to the Converse, ConverseStream, InvokeModel and InvokeModelWithResponseStream actions."
+        },
+        {
+            "ServiceCode": "bedrock",
+            "ServiceName": "Amazon Bedrock",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:668891723125:bedrock/L-0AD9BBE8",
+            "QuotaCode": "L-0AD9BBE8",
+            "QuotaName": "Cross-region model inference tokens per minute for Anthropic Claude Opus 4.6 V1",
+            "Value": 0.0,
+            "Unit": "None",
+            "Adjustable": true,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The maximum number of cross-region tokens that you can submit for model inference in one minute for Anthropic Claude Opus 4.6 V1. The quota considers the combined sum of input and output tokens across all requests to Converse, ConverseStream, InvokeModel and InvokeModelWithResponseStream."
+        },
+        {
+            "ServiceCode": "bedrock",
+            "ServiceName": "Amazon Bedrock",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:668891723125:bedrock/L-44FD86CF",
+            "QuotaCode": "L-44FD86CF",
+            "QuotaName": "Minimum number of records per batch inference job for GLM 4.7 Flash",
+            "Value": 100.0,
+            "Unit": "None",
+            "Adjustable": false,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The minimum number of records across all input files in a batch inference job for GLM 4.7 Flash."
+        },
+        {
+            "ServiceCode": "bedrock",
+            "ServiceName": "Amazon Bedrock",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:668891723125:bedrock/L-2767B9A9",
+            "QuotaCode": "L-2767B9A9",
+            "QuotaName": "Records per batch inference job for Claude Opus 4.5",
+            "Value": 100000.0,
+            "Unit": "None",
+            "Adjustable": true,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The maximum number of records across all input files in a batch inference job for Claude Opus 4.5."
+        },
+        {
+            "ServiceCode": "bedrock",
+            "ServiceName": "Amazon Bedrock",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:668891723125:bedrock/L-CB5B847D",
+            "QuotaCode": "L-CB5B847D",
+            "QuotaName": "(Model customization) Custom models per account",
+            "Value": 100.0,
+            "Unit": "None",
+            "Adjustable": true,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The maximum number of custom models in an account."
+        }
+    ]
+}

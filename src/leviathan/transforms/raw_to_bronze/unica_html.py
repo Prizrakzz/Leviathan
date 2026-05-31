@@ -84,7 +84,9 @@ def extract_unica(
         logger.warning("UNICA: no <table> found for harvest_year=%s", hy_canonical)
         return pd.DataFrame()
 
-    # Find the production table: the largest table with numeric data
+    # Find the fortnightly production table: prefer a table whose first column
+    # contains "quinzena" row labels; fall back to the largest numeric table.
+    fortnightly_df: pd.DataFrame | None = None
     best_df: pd.DataFrame | None = None
     for tbl in tables:
         try:
@@ -93,8 +95,13 @@ def extract_unica(
             continue
         for df in df_list:
             if df.shape[0] > 5 and df.shape[1] >= 3:
+                first_col_vals = df.iloc[:, 0].astype(str).str.lower()
+                has_fortnights = first_col_vals.str.contains("quinzena", na=False).any()
+                if has_fortnights and fortnightly_df is None:
+                    fortnightly_df = df
                 if best_df is None or df.shape[0] * df.shape[1] > best_df.shape[0] * best_df.shape[1]:
                     best_df = df
+    best_df = fortnightly_df if fortnightly_df is not None else best_df
 
     if best_df is None or best_df.empty:
         logger.warning("UNICA: no suitable data table found for harvest_year=%s", hy_canonical)
