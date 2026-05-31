@@ -107,20 +107,10 @@ class TestWeekHelpers:
         assert _week_of_my(datetime.date(2024, 9, 8), my_start) == 2
 
     def test_week_straddling_dec_jan_boundary(self) -> None:
-        """Corn MY2024 week 18 should span into January 2025."""
+        """Corn MY2024: 2025-01-05 is day 126 from Sep 1, 2024 → week 19."""
         my_start = datetime.date(2024, 9, 1)
         jan_date = datetime.date(2025, 1, 5)
-        week = _week_of_my(jan_date, my_start)
-        assert week == 18  # (2025-01-05 - 2024-09-01).days = 126 → 126//7+1 = 18+1=19?
-        # (2025-01-05 - 2024-09-01) = 126 days, 126//7=18, 18+1=19
-        # Let me recalculate: Sep has 30 days, Oct 31, Nov 30, Dec 31 = 122 days
-        # 2024-09-01 + 122 = 2024-12-31. Jan 5 = day 127 from Sep 1 (0-indexed).
-        # Actually: (2025-01-05 - 2024-09-01).days = ?
-        # Sep: 29 remaining days (Sep 1 is day 0), Oct: 31, Nov: 30, Dec: 31 → 121 days to end of Dec
-        # Jan 5 = 121 + 5 = 126 days from Sep 1
-        # 126 // 7 + 1 = 18 + 1 = 19
-        # Fix the assertion:
-        assert week == 19
+        assert _week_of_my(jan_date, my_start) == 19
 
     def test_week_straddling_dec_jan_boundary_correct(self) -> None:
         """Explicit check: 2025-01-05 is day 126 from 2024-09-01 → week 19."""
