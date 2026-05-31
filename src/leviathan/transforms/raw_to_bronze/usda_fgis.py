@@ -102,9 +102,19 @@ def extract_fgis(
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
 
     # Parse date columns
+    # Modern FGIS CSVs (post-2018) store cert_date as YYYYMMDD integers (e.g.
+    # 20240115).  pd.to_datetime() treats bare integers as nanoseconds, which
+    # would silently produce 1970-01-01 for every row.  Convert to string first
+    # so the format can be applied explicitly.
     for col in _DATE_COLS:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
+            series = df[col]
+            if pd.api.types.is_numeric_dtype(series):
+                df[col] = pd.to_datetime(
+                    series.astype(str), format="%Y%m%d", errors="coerce"
+                ).dt.date
+            else:
+                df[col] = pd.to_datetime(series, errors="coerce").dt.date
 
     # Numeric type casts
     for col in _INT_COLS:
