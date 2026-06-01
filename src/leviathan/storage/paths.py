@@ -1391,6 +1391,19 @@ def silver_wap_table01_revisions_key() -> str:
     return "silver/wap_table01_revisions/part-000.parquet"
 
 
+def silver_pink_sheet_key() -> str:
+    """S3 key for the World Bank Pink Sheet silver Parquet.
+
+    One row per calendar month (1960-01 onward).  Includes wide-format
+    fertilizer/energy price columns, ``blended_npk_index``, rolling 5-year
+    z-scores for each series, and ``latest_release_ym`` provenance.
+
+    Returns:
+        ``"silver/pink_sheet/part-000.parquet"``
+    """
+    return "silver/pink_sheet/part-000.parquet"
+
+
 def bronze_unica_key(harvest_year: str) -> str:
     """S3 key for a UNICA Center-South production bronze Parquet (one harvest year).
 
