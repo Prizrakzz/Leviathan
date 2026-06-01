@@ -68,6 +68,7 @@ _ATTRIBUTE_ALIASES: dict[str, str] = {
     "use, total":           "total_use",
     "use total":            "total_use",
     "total use":            "total_use",
+    "total supply":         "total_supply",
     "exports":              "exports",
     "trade 2/":             "trade",
     "trade":                "trade",
@@ -108,7 +109,7 @@ _PROJ_MONTH_RE = re.compile(
 _DATA_ROW_RE = re.compile(r"[\d,]+\.\d+|[\d,]{2,}")
 
 # Separator line in Format A / TXT
-_SEP_RE = re.compile(r"^={5,}")
+_SEP_RE = re.compile(r"^={5,}", re.MULTILINE)
 
 # Unit extraction from table heading
 _UNIT_RE = re.compile(
@@ -203,172 +204,455 @@ def _parse_number(s: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Format A / TXT parser (colon-delimited)
+# Format A / TXT parser (colon-delimited) — heading-based table detection
 # ---------------------------------------------------------------------------
 
-def _parse_colon_table_block(
+def _extract_attrs_from_header(header_lines: list[str]) -> list[str]:
+    """Extract ordered attribute column names from colon-format header lines.
+
+    Strategy: take the last two "candidate" header lines (those with ':' and
+    at least two non-separator, non-empty parts), accumulate tokens column by
+    column, normalize via ``_normalise_attr``, then append ``ending_stocks``
+    if the word "Ending" appears anywhere in the header but isn't yet present.
+    """
+    candidate_lines: list[str] = []
+    for line in header_lines:
+        if ":" not in line or _SEP_RE.match(line.strip()):
+            continue
+        parts = line.split(":")
+        non_empty = [
+            p.strip() for p in parts
+            if p.strip() and not re.match(r"^=+$", p.strip())
+        ]
+        if len(non_empty) >= 2:
+            candidate_lines.append(line)
+
+    if not candidate_lines:
+        return []
+
+    last_lines = candidate_lines[-2:] if len(candidate_lines) >= 2 else candidate_lines
+
+    col_tokens: list[list[str]] = []
+    for line in last_lines:
+        parts = line.split(":")
+        value_parts = parts[1:] if len(parts) > 1 else []
+        while len(col_tokens) < len(value_parts):
+            col_tokens.append([])
+        for i, part in enumerate(value_parts):
+            s = part.strip()
+            if s and not re.match(r"^=+$", s):
+                col_tokens[i].append(s)
+
+    attrs: list[str] = []
+    for tokens in col_tokens:
+        if not tokens:
+            continue
+        joined = " ".join(tokens)
+        joined = re.sub(r"-\s*", "", joined)           # "Produc- tion" → "Production"
+        joined = re.sub(r"\s*\d+/\s*", " ", joined)   # strip footnote refs "2/"
+        joined = re.sub(r"\s+", " ", joined).strip()
+        attr = _normalise_attr(joined)
+        if attr:
+            attrs.append(attr)
+
+    header_flat = " ".join(header_lines).lower()
+    if "ending" in header_flat and "ending_stocks" not in attrs:
+        attrs.append("ending_stocks")
+
+    return attrs
+
+
+def _extract_us_year_cols(header_lines: list[str]) -> list[tuple[str, str, str]]:
+    """Extract (market_year, status, projection_month) for each US-table value column.
+
+    US tables have years as column headers, items as row labels.  The header
+    may span several lines and the last projected year may carry two months
+    (December, January) as space-separated tokens in a single colon cell.
+    """
+    year_by_col: dict[int, tuple[str, str]] = {}
+    month_by_col: dict[int, list[str]] = {}
+
+    for line in header_lines:
+        if ":" not in line or _SEP_RE.match(line.strip()):
+            continue
+        parts = line.split(":")
+        for col_idx, part in enumerate(parts[1:]):   # skip col 0 (Item label)
+            s = part.strip()
+            if not s or re.match(r"^=+$", s):
+                continue
+            # Year pattern: "1992/93", "1993/94 (Est.)", "1994/95 Projections"
+            my_m = re.match(
+                r"(\d{4}/\d{2,4})\s*"
+                r"(?:\(?(Est(?:imated)?\.?|Proj(?:ected)?\.?)\)?|Proj(?:ections?)?)?",
+                s, re.IGNORECASE,
+            )
+            if my_m:
+                raw = my_m.group(0)
+                my, st = _parse_market_year_and_status(raw)
+                if re.search(r"Proj", raw, re.IGNORECASE) and not st:
+                    st = "Proj."
+                year_by_col[col_idx] = (my, st)
+                continue
+            # Standalone status: "Est." alone
+            if re.match(r"^Est", s, re.IGNORECASE):
+                if col_idx in year_by_col:
+                    year_by_col[col_idx] = (year_by_col[col_idx][0], "Est.")
+                continue
+            # Month names (may be multiple space-separated in one colon cell)
+            months = re.findall(
+                r"(January|February|March|April|May|June|July|August"
+                r"|September|October|November|December)",
+                s, re.IGNORECASE,
+            )
+            if months:
+                month_by_col[col_idx] = [m.capitalize() for m in months]
+
+    if not year_by_col:
+        return []
+
+    max_col = max(
+        max(year_by_col),
+        max(month_by_col) if month_by_col else 0,
+    )
+    result: list[tuple[str, str, str]] = []
+    for i in range(max_col + 1):
+        my, st = year_by_col.get(i, ("", ""))
+        months = month_by_col.get(i, [])
+        if months:
+            for m in months:
+                result.append((my, st, m))
+        else:
+            result.append((my, st, ""))
+    return result
+
+
+def _parse_world_table_data(
+    data_lines: list[str],
+    release_date: str,
+    table_name: str,
+    unit: str,
+    attrs: list[str],
+) -> list[dict]:
+    """Parse a World-table data section into row dicts.
+
+    Handles two sub-layouts found in WASDE Format A / TXT:
+
+    * **Year-as-banner** (standard): ``: 1998/99`` banner lines appear before
+      each group of region rows (``Region : v1 v2 ...``).
+    * **Year-as-row** (summary tables): ``: World`` region banners appear before
+      groups of year rows (``1998/99 : v1 v2 ...``), with commodity sub-headers
+      like ``Oilseeds :`` setting context between groups.
+
+    Both layouts are also compatible with plain standalone year lines (no
+    leading ``:``) that appear in test fixtures and some scanned-era output.
+    """
+    rows: list[dict] = []
+    market_year = ""
+    status = ""
+    projection_month = ""
+    region_context = ""     # set by ': World' / ': United States' banners
+    commodity_context = ""  # set by 'Oilseeds :' / 'Oilmeals :' sub-headers
+
+    for line in data_lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # ------------------------------------------------------------------
+        # Lines starting with ':' are context banners
+        # ------------------------------------------------------------------
+        if stripped.startswith(":"):
+            content = stripped.lstrip(":").strip()
+            if not content:
+                continue
+
+            # Year banner: ': 1998/99', ': 1999/00 (Est.)', ': 2000/01 (Proj.)'
+            my_m = re.match(
+                r"(\d{4}/\d{2,4})\s*"
+                r"(?:\(?(Est(?:imated)?\.?|Proj(?:ected)?\.?)\)?)?\s*$",
+                content, re.IGNORECASE,
+            )
+            if my_m:
+                market_year, status = _parse_market_year_and_status(content)
+                projection_month = ""
+                continue
+
+            # Month banner: ': December', ': January'
+            pm_m = _PROJ_MONTH_RE.match(content)
+            if pm_m:
+                projection_month = pm_m.group(1).capitalize()
+                continue
+
+            # Region banner: ': World', ': United States' (no digits → region name)
+            if not re.search(r"\d", content):
+                region_context = re.sub(r"\s*\d+/?\s*$", "", content).strip()
+                commodity_context = ""  # reset commodity on new region
+            continue
+
+        # ------------------------------------------------------------------
+        # Lines without ':' may be standalone year banners or footnotes
+        # ------------------------------------------------------------------
+        if ":" not in line:
+            my_m = re.match(
+                r"^\s*(\d{4}/\d{2,4})\s*"
+                r"(?:\(?(Est(?:imated)?\.?|Proj(?:ected)?\.?)\)?)?\s*$",
+                stripped, re.IGNORECASE,
+            )
+            if my_m:
+                market_year, status = _parse_market_year_and_status(my_m.group(0).strip())
+                projection_month = ""
+            continue
+
+        # ------------------------------------------------------------------
+        # Data rows: "Label : val1  val2  ..."
+        # ------------------------------------------------------------------
+        parts = line.split(":", 1)
+        label_raw = parts[0].strip()
+        values_raw = parts[1].strip() if len(parts) > 1 else ""
+
+        if not label_raw:
+            continue
+
+        # Strip trailing footnote superscripts like " 3/" or " 5/"
+        label = re.sub(r"\s+\d+/?\s*$", "", label_raw).strip()
+        if not label:
+            continue
+
+        # Detect embedded projection-month suffix in region label before other
+        # checks — e.g. "Argentina Dec" → region="Argentina", pm="December".
+        # This pattern occurs on WASDE continuation pages where countries with
+        # off-season harvests carry their own December/January marker.
+        _MONTH_ABBREVS = {
+            "jan": "January", "feb": "February", "mar": "March",
+            "apr": "April",   "may": "May",       "jun": "June",
+            "jul": "July",    "aug": "August",    "sep": "September",
+            "oct": "October", "nov": "November",  "dec": "December",
+        }
+        embedded_m = re.search(
+            r"\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*$",
+            label, re.IGNORECASE,
+        )
+        if embedded_m:
+            abbrev = embedded_m.group(1)[:3].lower()
+            projection_month = _MONTH_ABBREVS.get(abbrev, embedded_m.group(1))
+            label = label[: embedded_m.start()].strip()
+
+        # Check whether the label is a year (year-as-row format)
+        year_m = re.match(
+            r"(\d{4}/\d{2,4})\s*"
+            r"(?:\(?(Est(?:imated)?\.?|Proj(?:ected)?\.?)\)?)?\s*$",
+            label, re.IGNORECASE,
+        )
+        # Check whether the label is a projection month (month-as-row format)
+        month_m = _PROJ_MONTH_RE.match(label) if not year_m else None
+
+        if year_m:
+            market_year, status = _parse_market_year_and_status(label)
+            projection_month = ""
+            region = region_context
+        elif month_m:
+            projection_month = month_m.group(1).capitalize()
+            region = region_context
+        else:
+            region = label
+
+        # Extract numeric values from values_raw
+        vals = [
+            _parse_number(n)
+            for n in re.findall(r"[\d,]+\.?\d*|-{1,2}", values_raw)
+        ]
+
+        if not vals:
+            # No values → could be a commodity sub-header like "Oilseeds :"
+            if not year_m and not month_m:
+                commodity_context = label
+            continue
+
+        if not region or not market_year:
+            continue
+
+        full_table_name = (
+            f"{table_name} - {commodity_context}"
+            if commodity_context else table_name
+        )
+
+        for idx, val in enumerate(vals):
+            attr = attrs[idx] if idx < len(attrs) else f"col_{idx}"
+            rows.append({
+                "release_date":     release_date,
+                "table_name":       full_table_name,
+                "region":           region,
+                "market_year":      market_year,
+                "status":           status,
+                "projection_month": projection_month,
+                "attribute":        attr,
+                "value":            val,
+                "unit":             unit,
+            })
+
+    return rows
+
+
+def _parse_us_table_data(
+    header_lines: list[str],
+    data_lines: list[str],
+    release_date: str,
+    table_name: str,
+    unit: str,
+) -> list[dict]:
+    """Parse a US-table data section (items as rows, years as columns).
+
+    Extracts year/month column assignments from ``header_lines``, then emits
+    one row per (item, year) combination.
+    """
+    year_cols = _extract_us_year_cols(header_lines)
+    if not year_cols:
+        return []
+
+    rows: list[dict] = []
+    current_unit = unit
+
+    # Infer region from table name
+    if "U.S." in table_name or "United States" in table_name:
+        region = "United States"
+    else:
+        region = re.sub(
+            r"\s+Supply and Use.*", "", table_name, flags=re.IGNORECASE
+        ).strip()
+
+    for line in data_lines:
+        stripped = line.strip()
+        if not stripped or _SEP_RE.match(stripped):
+            continue
+        # Inline unit line (no ':')
+        if ":" not in line:
+            u_m = re.search(
+                r"(Million|Thousand|Short ton|metric ton|bushel|pound|bale|cwt)",
+                line, re.IGNORECASE,
+            )
+            if u_m:
+                current_unit = re.sub(r"\s+", " ", line.strip())
+            continue
+
+        parts = line.split(":", 1)
+        item_raw = parts[0].strip()
+        values_raw = parts[1].strip() if len(parts) > 1 else ""
+
+        if not item_raw or not values_raw:
+            continue
+
+        item_raw = re.sub(r"\s+\d+/?\s*$", "", item_raw).strip()
+        attribute = _normalise_attr(item_raw)
+        if not attribute:
+            continue
+
+        vals = [
+            _parse_number(n)
+            for n in re.findall(r"[\d,]+\.?\d*|-{1,2}", values_raw)
+        ]
+        if not vals:
+            continue
+
+        for idx, val in enumerate(vals):
+            if idx < len(year_cols):
+                my, st, pm = year_cols[idx]
+            else:
+                my, st, pm = "", "", ""
+            if not my:
+                continue
+            rows.append({
+                "release_date":     release_date,
+                "table_name":       table_name,
+                "region":           region,
+                "market_year":      my,
+                "status":           st,
+                "projection_month": pm,
+                "attribute":        attribute,
+                "value":            val,
+                "unit":             current_unit,
+            })
+
+    return rows
+
+
+def _parse_colon_table_v2(
     block_lines: list[str],
     release_date: str,
     table_name: str,
     unit: str,
 ) -> list[dict]:
-    """Parse a single colon-delimited table block into a list of row dicts."""
-    rows: list[dict] = []
+    """Parse one colon-format table block into row dicts.
 
-    # Rebuild the header from lines before the first data rows.
-    # Header lines are those that contain mostly text (no numbers after colons).
-    # Find the column headers by looking for lines with attribute keywords.
-    header_attrs: list[str] = []
-    header_found = False
+    Expected structure within ``block_lines``:
+    ``heading lines → sep1 (=====) → header lines → sep2 (=====) → data lines → [sep3]``
 
-    market_year = ""
-    status = ""
-    projection_month = ""
-    col_count = 0
+    Dispatches to the World-table parser if header lines contain no year
+    patterns (standard), or to the US-table parser otherwise.
+    """
+    sep_indices = [
+        i for i, ln in enumerate(block_lines)
+        if _SEP_RE.match(ln.strip())
+    ]
+    if len(sep_indices) < 2:
+        return []
 
-    for raw_line in block_lines:
-        line = raw_line.strip()
+    sep1 = sep_indices[0]
+    sep2 = sep_indices[1]
+    header_lines = block_lines[sep1 + 1: sep2]
 
-        # Skip separators and empty lines
-        if not line or _SEP_RE.match(line):
-            continue
+    data_end = sep_indices[-1] if len(sep_indices) >= 3 else len(block_lines)
+    data_lines = block_lines[sep2 + 1: data_end]
 
-        # Market year context line  e.g. ": 2009/10 (Proj.) :"
-        # or plain "2009/10 (Proj.)"
-        clean = re.sub(r"^\s*:\s*", "", line).strip()
-        if _MY_RE.match(clean):
-            m = _MY_RE.match(clean)
-            market_year, status = _parse_market_year_and_status(m.group(0).strip())
-            projection_month = ""
-            continue
+    header_flat = " ".join(header_lines)
+    if re.search(r"\d{4}/\d{2}", header_flat):
+        # US-style: years appear as column headers
+        return _parse_us_table_data(
+            header_lines, data_lines, release_date, table_name, unit,
+        )
 
-        # Projection month  e.g. "December :"
-        pm_m = _PROJ_MONTH_RE.match(clean)
-        if pm_m:
-            projection_month = pm_m.group(1).capitalize()
-            continue
-
-        # Try to split on colons: "Region : v1  v2  v3 ..."
-        # Format A lines look like:
-        #   "World 3/ : 127.59 610.46 113.39 ..."  or
-        #   "Argentina : 1.37  18.00  0.02 ..."
-        if ":" in line:
-            # Split at FIRST colon (region : values) or detect header line
-            parts = line.split(":", 1)
-            label_part = parts[0].strip()
-            values_part = parts[1].strip() if len(parts) > 1 else ""
-
-            # Detect header line: label contains known attribute words, no digits
-            label_lower = label_part.lower()
-            if not header_found and not _DATA_ROW_RE.search(line):
-                # Could be a header fragment line like ":Beginning:Produc-:"
-                # Extract attribute tokens from the whole line
-                tokens = re.split(r"[:]+", line)
-                attrs_in_line = [
-                    _normalise_attr(t) for t in tokens
-                    if t.strip() and not re.match(r"^\d", t.strip())
-                    and len(t.strip()) > 2
-                ]
-                if attrs_in_line and any(
-                    a in _ATTRIBUTE_ALIASES.values() for a in attrs_in_line
-                ):
-                    header_attrs.extend(a for a in attrs_in_line if a not in header_attrs)
-                continue
-
-            if not market_year:
-                continue
-
-            # Data row: extract numbers from values_part
-            # Numbers may be space-separated; some cells may be blank
-            nums_raw = re.findall(r"[\d,]+\.?\d*|-{1,2}", values_part)
-            if not nums_raw:
-                continue
-
-            region = re.sub(r"\s*\d+/\s*$", "", label_part).strip()  # strip footnote refs
-            region = re.sub(r"\s+\d+\s*$", "", region).strip()
-
-            if not region:
-                continue
-
-            values = [_parse_number(n) for n in nums_raw]
-
-            # Pair values with header attributes
-            used_attrs = header_attrs if header_attrs else []
-            for idx, val in enumerate(values):
-                attr = used_attrs[idx] if idx < len(used_attrs) else f"col_{idx}"
-                rows.append({
-                    "release_date":     release_date,
-                    "table_name":       table_name,
-                    "region":           region,
-                    "market_year":      market_year,
-                    "status":           status,
-                    "projection_month": projection_month,
-                    "attribute":        attr,
-                    "value":            val,
-                    "unit":             unit,
-                })
-        # Lines without colon: could be header continuation or footnote
-        # Skip footnotes (start with digit or "1/")
-        elif re.match(r"^\s*\d+/", line):
-            continue
-
-    return rows
+    attrs = _extract_attrs_from_header(header_lines)
+    return _parse_world_table_data(
+        data_lines, release_date, table_name, unit, attrs,
+    )
 
 
 def _parse_colon_page(page_text: str, release_date: str) -> list[dict]:
-    """Parse a full colon-format page (may contain multiple tables)."""
+    """Parse a full colon-format page (may contain multiple tables).
+
+    Locates every ``Supply and Use`` heading that is followed by a separator
+    line within five lines, treats the text from each heading to the next as
+    one table block, and dispatches to ``_parse_colon_table_v2``.
+    """
     rows: list[dict] = []
     lines = page_text.splitlines()
 
-    # Split into table blocks on separator lines, keeping the heading that
-    # precedes each separator.
-    table_blocks: list[tuple[str, str, list[str]]] = []  # (table_name, unit, lines)
-    current_heading_lines: list[str] = []
-    current_table_lines: list[str] = []
-    in_table = False
-    table_name = ""
-    unit = ""
+    # Find all heading lines: contain "Supply and Use" and are followed by
+    # a separator (=====) within the next 5 lines.
+    heading_indices: list[tuple[int, str, str]] = []  # (line_idx, table_name, unit)
 
-    for line in lines:
-        if _SEP_RE.match(line.strip()):
-            if not in_table:
-                # First separator for this block: heading is what came before
-                # Find the table name (last non-empty heading line before sep)
-                for hl in reversed(current_heading_lines):
-                    if hl.strip() and "Supply and Use" in hl:
-                        table_name = hl.strip()
-                        unit = _parse_unit(hl)
-                        break
-                else:
-                    # Fallback: use last non-empty line
-                    for hl in reversed(current_heading_lines):
-                        if hl.strip():
-                            table_name = hl.strip()
-                            unit = _parse_unit(hl)
-                            break
-                in_table = True
-                current_table_lines = []
-            else:
-                # Closing separator
-                table_blocks.append((table_name, unit, current_table_lines))
-                in_table = False
-                current_heading_lines = []
-                current_table_lines = []
-                table_name = ""
-                unit = ""
-        elif in_table:
-            current_table_lines.append(line)
-        else:
-            current_heading_lines.append(line)
-
-    # Flush any unclosed block
-    if in_table and current_table_lines:
-        table_blocks.append((table_name, unit, current_table_lines))
-
-    for tname, tunit, tlines in table_blocks:
-        if not tname:
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
             continue
-        rows.extend(_parse_colon_table_block(tlines, release_date, tname, tunit))
+        if re.search(r"Supply and Use", stripped, re.IGNORECASE):
+            for j in range(i + 1, min(i + 6, len(lines))):
+                if _SEP_RE.match(lines[j].strip()):
+                    tname = re.sub(r"\s*\d+/?\s*$", "", stripped).strip()
+                    tunit = _parse_unit(tname)
+                    heading_indices.append((i, tname, tunit))
+                    break
+
+    if not heading_indices:
+        return rows
+
+    for idx, (start_i, tname, tunit) in enumerate(heading_indices):
+        end_i = (
+            heading_indices[idx + 1][0]
+            if idx + 1 < len(heading_indices)
+            else len(lines)
+        )
+        block_lines = lines[start_i: end_i]
+        rows.extend(_parse_colon_table_v2(block_lines, release_date, tname, tunit))
 
     return rows
 

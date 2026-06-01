@@ -170,7 +170,7 @@ def test_strip_filler_removes_filler() -> None:
 
 
 def test_strip_filler_case_insensitive() -> None:
-    assert _strip_filler("FILLER World") == " World"
+    assert _strip_filler("FILLER World") == "World"
 
 
 def test_strip_filler_no_filler() -> None:
