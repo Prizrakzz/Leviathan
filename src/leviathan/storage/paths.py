@@ -558,6 +558,32 @@ def unica_biweekly_raw_key(harvest_year: str, idm: str) -> str:
     return f"raw/production/source=unica_biweekly/harvest_year={hy}/idm={idm}/report.pdf"
 
 
+def bronze_unica_biweekly_key(harvest_year: str, idm: str, table_name: str) -> str:
+    """S3 key for a UNICA bi-weekly bulletin bronze Parquet file.
+
+    One Parquet per (idm, table_name) pair; the table_name partition separates
+    the five output tables emitted by the bronze transform.
+
+    Args:
+        harvest_year: Harvest year in slash or underscore format,
+                      e.g. ``"2024/2025"`` or ``"2024_2025"``.
+        idm:          The UNICADATA media download ID, e.g. ``"12439002"`` or
+                      ``"pdf_1775f0afde26b483"``.
+        table_name:   One of ``"fortnight_production"``, ``"summary_snapshot"``,
+                      ``"corn_ethanol"``, ``"monthly_ethanol_sales"``,
+                      ``"season_final_extras"``.
+    """
+    hy = harvest_year.replace("/", "_")
+    return (
+        f"bronze/production/"
+        f"source=unica_biweekly/"
+        f"table={table_name}/"
+        f"harvest_year={hy}/"
+        f"idm={idm}/"
+        f"part-000.parquet"
+    )
+
+
 # ---------------------------------------------------------------------------
 # USDA PSD (Production, Supply and Distribution) — global S/D balance sheets
 # ---------------------------------------------------------------------------
@@ -1278,6 +1304,66 @@ def silver_unica_annual_state_key() -> str:
         ``"silver/unica_annual_state/part-000.parquet"``
     """
     return "silver/unica_annual_state/part-000.parquet"
+
+
+def silver_unica_biweekly_season_history_key() -> str:
+    """S3 key for the UNICA biweekly season history silver Parquet.
+
+    One row per (harvest_year, fortnight_seq, region).  Deduplicated across all
+    bulletins — each fortnight slot keeps the value from the latest bulletin that
+    reported it.
+
+    Returns:
+        ``"silver/unica_biweekly_season_history/part-000.parquet"``
+    """
+    return "silver/unica_biweekly_season_history/part-000.parquet"
+
+
+def silver_unica_biweekly_release_series_key() -> str:
+    """S3 key for the UNICA biweekly release series silver Parquet.
+
+    One row per (harvest_year, position_date, region) — the vintage/surprise
+    series of accumulated totals as reported on each bulletin release date.
+
+    Returns:
+        ``"silver/unica_biweekly_release_series/part-000.parquet"``
+    """
+    return "silver/unica_biweekly_release_series/part-000.parquet"
+
+
+def silver_unica_corn_ethanol_key() -> str:
+    """S3 key for the UNICA corn-derived ethanol silver Parquet.
+
+    One row per (harvest_year, fortnight_seq).  Deduplicated across bulletins.
+
+    Returns:
+        ``"silver/unica_corn_ethanol/part-000.parquet"``
+    """
+    return "silver/unica_corn_ethanol/part-000.parquet"
+
+
+def silver_unica_monthly_ethanol_sales_key() -> str:
+    """S3 key for the UNICA monthly ethanol sales silver Parquet.
+
+    One row per (harvest_year, month_num).  Prefers final (non-partial) monthly
+    totals; falls back to latest partial reading.
+
+    Returns:
+        ``"silver/unica_monthly_ethanol_sales/part-000.parquet"``
+    """
+    return "silver/unica_monthly_ethanol_sales/part-000.parquet"
+
+
+def silver_unica_supply_demand_key() -> str:
+    """S3 key for the UNICA supply/demand balance silver Parquet.
+
+    Derived from season_final_extras bronze (supply_demand_ethanol and
+    supply_demand_sugar sub-tables).  One row per (harvest_year, commodity).
+
+    Returns:
+        ``"silver/unica_supply_demand/part-000.parquet"``
+    """
+    return "silver/unica_supply_demand/part-000.parquet"
 
 
 def bronze_unica_key(harvest_year: str) -> str:
