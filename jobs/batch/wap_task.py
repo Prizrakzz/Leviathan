@@ -171,8 +171,13 @@ def _run_pdf_source(
     source: str,
     force_overwrite: bool,
     limit: int,
+    release_months: set[str] | None = None,
 ) -> tuple[int, int, int]:
     """Process all WAP PDF keys for sources a, b, or all.
+
+    Args:
+        release_months: If provided, only process keys whose release_month is
+            in this set.  Useful for targeted re-runs of specific months.
 
     Returns:
         ``(written, skipped, errors)``
@@ -186,6 +191,9 @@ def _run_pdf_source(
         keys = [k for k in all_keys if _is_era_b(parse_hive_key(k, "release_month"))]
     else:  # all
         keys = all_keys
+
+    if release_months is not None:
+        keys = [k for k in keys if parse_hive_key(k, "release_month") in release_months]
 
     logger.info("Found %d WAP PDF keys for source=%s", len(keys), source)
 
@@ -360,21 +368,31 @@ def main() -> None:
         default=0,
         help="Cap number of files processed (0 = no limit; useful for smoke tests)",
     )
+    parser.add_argument(
+        "--release-months",
+        nargs="+",
+        default=None,
+        dest="release_months",
+        metavar="YYYY-MM",
+        help="Process only these release months (space-separated, e.g. 2015-02 2015-03).",
+    )
     args = parser.parse_args()
 
     logger.info(
-        "Starting WAP extraction  bucket=%s  source=%s  force=%s  limit=%s",
+        "Starting WAP extraction  bucket=%s  source=%s  force=%s  limit=%s  months=%s",
         args.bucket,
         args.source,
         args.force_overwrite,
         args.limit or "none",
+        ",".join(args.release_months) if args.release_months else "all",
     )
 
     start = datetime.now(timezone.utc)
 
     if args.source in ("a", "b", "all"):
         written, skipped, errors = _run_pdf_source(
-            args.bucket, args.aws_region, args.source, args.force_overwrite, args.limit
+            args.bucket, args.aws_region, args.source, args.force_overwrite, args.limit,
+            release_months=set(args.release_months) if args.release_months else None,
         )
     else:  # html
         written, skipped, errors = _run_html_source(

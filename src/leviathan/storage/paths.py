@@ -1366,6 +1366,31 @@ def silver_unica_supply_demand_key() -> str:
     return "silver/unica_supply_demand/part-000.parquet"
 
 
+def silver_wap_table01_key() -> str:
+    """S3 key for the WAP Table 01 long-format silver Parquet.
+
+    One row per (release_month, commodity, marketing_year, vintage_type,
+    vintage_status, month_abbr, country).
+
+    Returns:
+        ``"silver/wap_table01/part-000.parquet"``
+    """
+    return "silver/wap_table01/part-000.parquet"
+
+
+def silver_wap_table01_revisions_key() -> str:
+    """S3 key for the WAP Table 01 revision series silver Parquet.
+
+    One row per (release_month, commodity, marketing_year, vintage_type,
+    vintage_status, month_abbr, country) with prior_release_month and
+    revision_mmt columns added.
+
+    Returns:
+        ``"silver/wap_table01_revisions/part-000.parquet"``
+    """
+    return "silver/wap_table01_revisions/part-000.parquet"
+
+
 def bronze_unica_key(harvest_year: str) -> str:
     """S3 key for a UNICA Center-South production bronze Parquet (one harvest year).
 

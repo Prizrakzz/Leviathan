@@ -1,9 +1,9 @@
-"""Probe Wayback Machine CDX for UNICA biweekly bulletins not yet in the manifest.
+﻿"""Discover UNICA biweekly bulletins on Wayback Machine not yet in the manifest.
 
 Usage (from repo root):
-    python scratch/probe_unica_cdx.py                   # report only
-    python scratch/probe_unica_cdx.py --update-manifest # also append to manifest
-    python scratch/probe_unica_cdx.py --no-liveness-check  # skip HEAD requests
+    python jobs/ingest/discover_unica_wayback.py                   # report only
+    python jobs/ingest/discover_unica_wayback.py --update-manifest # also append to manifest
+    python jobs/ingest/discover_unica_wayback.py --no-liveness-check  # skip HEAD requests
 
 Phases
 ------
@@ -31,10 +31,10 @@ import yaml
 # Paths
 # ---------------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).parent.parent.parent
 MANIFEST_PATH = REPO_ROOT / "configs" / "sources" / "unica_biweekly_manifest.yaml"
 SOURCES_PATH = REPO_ROOT / "configs" / "sources" / "unica_biweekly_sources.yaml"
-RESULTS_PATH = REPO_ROOT / "scratch" / "unica_cdx_results.json"
+RESULTS_PATH = REPO_ROOT / "data" / "metadata" / "unica_cdx_results.json"
 
 # ---------------------------------------------------------------------------
 # CDX API
@@ -52,10 +52,10 @@ _CDX_YEAR_TMPL = (
     "&limit=2000"
 )
 
-# Calendar years to probe: 2012–2026 (maps to harvest seasons 2012/13–2026/27)
+# Calendar years to probe: 2012â€“2026 (maps to harvest seasons 2012/13â€“2026/27)
 _CDX_YEARS = list(range(2012, 2027))
 
-# Seconds to wait between HEAD requests — be polite to both servers.
+# Seconds to wait between HEAD requests â€” be polite to both servers.
 _HEAD_TIMEOUT_S = 15
 _SLEEP_BETWEEN_HEADS_S = 0.4
 _SLEEP_BETWEEN_CDX_S = 1.5   # polite gap between per-year CDX calls
@@ -65,9 +65,9 @@ _SLEEP_BETWEEN_CDX_S = 1.5   # polite gap between per-year CDX calls
 # ---------------------------------------------------------------------------
 
 def _pub_ym_to_harvest_year(pub_year: int, pub_month: int) -> str:
-    """Map publication year/month → UNICA harvest year string (e.g. '2024/2025').
+    """Map publication year/month â†’ UNICA harvest year string (e.g. '2024/2025').
 
-    Brazil's milling season runs April–November.  Bulletins published Jan–Mar
+    Brazil's milling season runs Aprilâ€“November.  Bulletins published Janâ€“Mar
     belong to the season that started the previous April.
     """
     season_start = pub_year - 1 if pub_month <= 3 else pub_year
@@ -117,7 +117,7 @@ def fetch_cdx() -> list[dict]:
             with urllib.request.urlopen(req, timeout=45) as resp:
                 data = json.loads(resp.read())
         except Exception as exc:
-            print(f"  CDX {year}: ERROR — {exc}")
+            print(f"  CDX {year}: ERROR â€” {exc}")
             time.sleep(_SLEEP_BETWEEN_CDX_S)
             continue
 
@@ -222,7 +222,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # ── Phase A: CDX fetch ──────────────────────────────────────────────────
+    # â”€â”€ Phase A: CDX fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     print("=== Phase A: Fetching CDX records from Wayback Machine ===")
     cdx_records = fetch_cdx()
     print(f"CDX records returned: {len(cdx_records)}")
@@ -246,7 +246,7 @@ def main() -> None:
     for yr in sorted(cdx_by_year):
         print(f"  {yr}: {len(cdx_by_year[yr])} snapshots archived")
 
-    # ── Load manifest ────────────────────────────────────────────────────────
+    # â”€â”€ Load manifest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bulletins = load_manifest()
     known = _known_hashes(bulletins)
     existing_by_year = Counter(b["harvest_year"] for b in bulletins)
@@ -255,7 +255,7 @@ def main() -> None:
     for yr in sorted(existing_by_year):
         print(f"  {yr}: {existing_by_year[yr]}")
 
-    # ── Filter to new entries ────────────────────────────────────────────────
+    # â”€â”€ Filter to new entries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     new = [p for p in parsed if p["pdf_hash"] not in known]
     print(f"\nNew bulletins not in manifest: {len(new)}")
 
@@ -269,7 +269,7 @@ def main() -> None:
     else:
         print("  (nothing new found in CDX)")
 
-    # ── Phase B: Liveness check ─────────────────────────────────────────────
+    # â”€â”€ Phase B: Liveness check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if not args.no_liveness_check and new:
         print(f"\n=== Phase B: Liveness check ({len(new)} URLs) ===")
         live_count = 0
@@ -301,13 +301,12 @@ def main() -> None:
             entry["live_status"] = None
         print("\nLiveness check skipped.")
 
-    # ── Save results ─────────────────────────────────────────────────────────
-    RESULTS_PATH.write_text(
+    # â”€â”€ Save results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)    RESULTS_PATH.write_text(
         json.dumps(new, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    print(f"\nResults saved → {RESULTS_PATH} ({len(new)} entries)")
+    print(f"\nResults saved â†’ {RESULTS_PATH} ({len(new)} entries)")
 
-    # ── Phase C: Manifest update ─────────────────────────────────────────────
+    # â”€â”€ Phase C: Manifest update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if args.update_manifest and new:
         to_add: list[dict] = []
         for e in new:
@@ -330,9 +329,9 @@ def main() -> None:
     elif not args.update_manifest and new:
         print(f"\nRe-run with --update-manifest to append {len(new)} new entries to the manifest.")
     else:
-        print("\nManifest is already up to date — nothing to add.")
+        print("\nManifest is already up to date â€” nothing to add.")
 
-    # ── Final combined coverage table ────────────────────────────────────────
+    # â”€â”€ Final combined coverage table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     all_years = sorted(set(cdx_by_year) | set(existing_by_year))
     print("\n=== Final coverage summary ===")
     print(f"  {'Season':<14}  {'In manifest':>12}  {'New from CDX':>13}  {'CDX total':>10}")
