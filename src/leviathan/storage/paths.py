@@ -1135,6 +1135,31 @@ def bronze_psd_key(release_date: str) -> str:
     )
 
 
+def bronze_wasde_key(release_date: str) -> str:
+    """S3 key for a USDA WASDE bronze Parquet (all S/D tables, one release date).
+
+    Args:
+        release_date: Release date in ``YYYY-MM-DD`` format, e.g. ``"2010-01-12"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_wasde/"
+        f"release_date={release_date}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_psd_key() -> str:
+    """S3 key for the USDA PSD silver Parquet (all commodities, all releases).
+
+    The single consolidated Parquet accumulates every monthly release date and
+    all in-scope Leviathan contract slugs.  Fan-out means each PSD commodity
+    appears once per contract slug, so ``leviathan_slug`` is a universal join
+    key consistent with ESR, FGIS, and other silver tables.
+    """
+    return "silver/psd/part-000.parquet"
+
+
 def bronze_fgis_key(year: int) -> str:
     """S3 key for a USDA FGIS Export Inspections bronze Parquet (one calendar year).
 
