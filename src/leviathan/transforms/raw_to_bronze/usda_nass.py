@@ -87,6 +87,8 @@ _ANNUAL_KEEP_COLS = [
 # Columns to keep in crop progress series
 _PROGRESS_KEEP_COLS = [
     "source_desc", "commodity_desc", "class_desc",
+    "prodn_practice_desc", "util_practice_desc",
+    "domain_desc", "domaincat_desc", "short_desc",
     "statisticcat_desc", "unit_desc",
     "agg_level_desc", "state_alpha", "state_name",
     "year", "week_ending", "value",

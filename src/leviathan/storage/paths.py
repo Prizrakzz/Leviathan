@@ -1118,6 +1118,24 @@ def silver_nass_annual_key(
     )
 
 
+def silver_nass_crop_progress_key(
+    commodity: str,
+    year: int,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for a USDA NASS crop-progress silver Parquet partition.
+
+    This intentionally lives outside ``silver/production/`` and
+    ``silver/nass_annual/`` because it has a weekly, wide feature schema.
+    """
+    return (
+        f"silver/nass_crop_progress/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
 def bronze_conab_xls_key(safra_year: int, survey: int) -> str:
     """S3 key for a CONAB bulletin XLS bronze Parquet (one survey per safra year).
 

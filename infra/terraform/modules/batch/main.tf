@@ -1249,6 +1249,80 @@ resource "aws_batch_job_definition" "usda_nass_annual_silver" {
 }
 
 # ---------------------------------------------------------------------------
+# Job definition: USDA NASS crop-progress bronze -> silver
+# Single task reads weekly crop-progress bronze shards and writes wide weekly
+# state/national feature partitions under silver/nass_crop_progress/.
+# Sizing: 1 vCPU / 4096 MB - many small bronze files, internally parallelized.
+# Timeout: 1 h ceiling; normal run expected < 10 min after bronze is populated.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "usda_nass_crop_progress_silver" {
+  name = "${var.project_name}-${var.environment}-usda-nass-crop-progress-silver"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    bucket             = var.leviathan_bucket
+    aws_region         = var.aws_region
+    force_overwrite    = "false"
+    bronze_commodities = "all"
+    years              = "all"
+    workers            = "8"
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/nass_crop_progress_silver_task.py",
+      "--bucket",             "Ref::bucket",
+      "--aws-region",         "Ref::aws_region",
+      "--force-overwrite",    "Ref::force_overwrite",
+      "--bronze-commodities", "Ref::bronze_commodities",
+      "--years",              "Ref::years",
+      "--workers",            "Ref::workers"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "4096" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "usda-nass-crop-progress-silver"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Job definition: CONAB bulletin XLS raw → bronze
 # Single task reads all .xls/.xlsx keys under
 # raw/production/source=conab/bulletin_xls/ and writes per-safra Parquet.
