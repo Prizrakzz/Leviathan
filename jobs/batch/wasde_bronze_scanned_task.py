@@ -278,6 +278,20 @@ def _parse_args() -> argparse.Namespace:
         dest="max_concurrent",
         help=f"Max in-flight Textract jobs (default {_TEXTRACT_BATCH_SIZE}).",
     )
+    parser.add_argument(
+        "--start-year",
+        type=int,
+        default=None,
+        dest="start_year",
+        help="Only process releases from this year onwards (inclusive).",
+    )
+    parser.add_argument(
+        "--end-year",
+        type=int,
+        default=None,
+        dest="end_year",
+        help="Only process releases up to and including this year.",
+    )
     return parser.parse_args()
 
 
@@ -320,6 +334,23 @@ def main() -> None:
     if not scanned_keys:
         logger.error("No scanned WASDE keys found under %s — aborting", _RAW_PREFIX)
         sys.exit(1)
+
+    # Apply year filter before limit so --limit is a slice of the filtered set
+    if args.start_year or args.end_year:
+        filtered: list[str] = []
+        for k in scanned_keys:
+            yr = int(parse_hive_key(k, "release_date")[:4])
+            if args.start_year and yr < args.start_year:
+                continue
+            if args.end_year and yr > args.end_year:
+                continue
+            filtered.append(k)
+        logger.info(
+            "Year filter %s–%s: %d → %d keys",
+            args.start_year or "*", args.end_year or "*",
+            len(scanned_keys), len(filtered),
+        )
+        scanned_keys = filtered
 
     if args.limit:
         scanned_keys = scanned_keys[: args.limit]

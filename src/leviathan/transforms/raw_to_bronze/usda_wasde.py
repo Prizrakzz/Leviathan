@@ -48,6 +48,7 @@ _ATTRIBUTE_ALIASES: dict[str, str] = {
     "beg. stocks":          "beginning_stocks",
     "beg stocks":           "beginning_stocks",
     "produc":               "production",       # truncated header "Produc-\ntion"
+    "tion":                 "production",       # hyphen-split suffix "Produc-/tion" in scanned era
     "production":           "production",
     "output":               "production",
     "imports":              "imports",
@@ -110,6 +111,9 @@ _DATA_ROW_RE = re.compile(r"[\d,]+\.\d+|[\d,]{2,}")
 
 # Separator line in Format A / TXT
 _SEP_RE = re.compile(r"^={5,}", re.MULTILINE)
+
+# Y-coordinate tolerance for grouping Textract LINE blocks into visual rows (scanned era)
+_SCANNED_Y_TOLERANCE = 0.003
 
 # Unit extraction from table heading
 _UNIT_RE = re.compile(
@@ -230,7 +234,7 @@ def _extract_attrs_from_header(header_lines: list[str]) -> list[str]:
     if not candidate_lines:
         return []
 
-    last_lines = candidate_lines[-2:] if len(candidate_lines) >= 2 else candidate_lines
+    last_lines = candidate_lines[-3:] if len(candidate_lines) >= 3 else candidate_lines
 
     col_tokens: list[list[str]] = []
     for line in last_lines:
@@ -260,6 +264,197 @@ def _extract_attrs_from_header(header_lines: list[str]) -> list[str]:
         attrs.append("ending_stocks")
 
     return attrs
+
+
+_SYNTHETIC_SEP = "=" * 70
+
+
+def _colon_inject_data_section(lines: list[str]) -> list[str]:
+    """Convert colon-free data rows in a scanned-era data section to colon format.
+
+    1989-era WASDE PDFs have space-delimited rather than colon-delimited data
+    rows because Textract OCR groups each visual row as a single LINE block.
+    This function injects colons so that ``_parse_world_table_data`` can
+    consume the rows normally.
+
+    Patterns handled:
+
+    * ``"World 3/ 143.84 477.35 ..."`` → ``"World 3/ : 143.84 : 477.35 : ..."``
+      (mixed label + values on same line)
+    * A pure-text label line immediately followed by a pure-numeric line →
+      merged into ``"label : val1 : val2 : ..."``.  Covers the common case
+      where Textract places the region name on one LINE block and the row
+      values on the next.
+    * A pure-numeric line immediately followed by a pure-text label line →
+      merged.  Covers the rarer OCR artefact where Textract places the label
+      below its own row values (observed for some rows in 1989-02 corn table).
+    * Lines that already contain ``:`` are passed through unchanged.
+    * Year banners, footnotes, and separator lines are passed through unchanged.
+    """
+
+    def _is_pure_num(tok: str) -> bool:
+        return bool(re.match(r"^-?\d+\.?\d*$", tok))
+
+    def _is_label_tok(tok: str) -> bool:
+        # A "label" token contains letters OR is a bare footnote ref (e.g. "3/")
+        return bool(re.search(r"[a-zA-Z]", tok) or re.match(r"^\d+/$", tok))
+
+    # ---- Pass 1: classify each line ----------------------------------------
+    # tag ∈ {'pass', 'mixed', 'text', 'nums'}
+    tags: list[str] = []
+    # (original_line, tokens_list, last_label_token_index)
+    info: list[tuple[str, list[str], int]] = []
+
+    for line in lines:
+        s = line.strip()
+        toks = s.split() if s else []
+
+        # Empty / separator / already contains ':' → pass through unchanged
+        if not s or _SEP_RE.match(s) or ":" in line:
+            tags.append("pass")
+            info.append((line, toks, -1))
+            continue
+
+        # Year banner (e.g. "1989/90 (Projected) 3/") → pass through
+        if re.match(r"^\d{4}/\d{2,4}\b", s):
+            tags.append("pass")
+            info.append((line, toks, -1))
+            continue
+
+        # Footnote line (starts with "N/" e.g. "1/") or long descriptive text
+        if re.match(r"^\d+/", s) or len(s) > 60:
+            tags.append("pass")
+            info.append((line, toks, -1))
+            continue
+
+        # Count pure-numeric tokens first so that lines like "135.6 823.5 ..."
+        # are handled as 'nums' rather than falling into the no-letter check below.
+        num_count = sum(1 for t in toks if _is_pure_num(t))
+
+        if num_count == len(toks):
+            if len(toks) >= 2:
+                tags.append("nums")
+            else:
+                # Single-value fragment — can't reliably assign a region
+                tags.append("pass")
+            info.append((line, toks, -1))
+            continue
+
+        # No letters at all (e.g. "*******", "--------") → pass through
+        if not re.search(r"[a-zA-Z]", s):
+            tags.append("pass")
+            info.append((line, toks, -1))
+            continue
+
+        # Find the last label token
+        last_lbl = max(
+            (j for j, t in enumerate(toks) if _is_label_tok(t)), default=-1
+        )
+        vals_after = toks[last_lbl + 1:] if last_lbl >= 0 else []
+
+        if (
+            last_lbl >= 0
+            and len(vals_after) >= 2
+            and all(_is_pure_num(t) for t in vals_after)
+        ):
+            # Mixed: label tokens followed by numeric value tokens
+            tags.append("mixed")
+            info.append((line, toks, last_lbl))
+        else:
+            # Pure text label or unrecognised layout → candidate region label
+            tags.append("text")
+            info.append((line, toks, -1))
+
+    # ---- Pass 2: emit -------------------------------------------------------
+    result: list[str] = []
+    n = len(tags)
+    skip: set[int] = set()
+
+    def _next_real(start: int) -> int:
+        """Index of next non-empty line after *start* (skips blank pass-lines)."""
+        j = start
+        while j < n and tags[j] == "pass" and not info[j][0].strip():
+            j += 1
+        return j
+
+    for i in range(n):
+        if i in skip:
+            continue
+
+        tag = tags[i]
+        line, toks, lbl_end = info[i]
+
+        if tag == "pass":
+            result.append(line)
+
+        elif tag == "mixed":
+            vals = toks[lbl_end + 1:]
+            label = " ".join(toks[: lbl_end + 1])
+            result.append(label + " : " + " : ".join(vals))
+
+        elif tag == "text":
+            # Look ahead: merge with immediately following pure-numeric line
+            j = _next_real(i + 1)
+            if j < n and tags[j] == "nums":
+                nums_toks = info[j][1]
+                result.append(line.strip() + " : " + " : ".join(nums_toks))
+                skip.add(j)
+            else:
+                result.append(line)
+
+        elif tag == "nums":
+            # Look ahead: merge with immediately following text label.
+            # This handles the OCR artefact where Textract places the region
+            # label below its own row values in Y-order.
+            j = _next_real(i + 1)
+            if j < n and tags[j] == "text":
+                text_label = info[j][0].strip()
+                result.append(text_label + " : " + " : ".join(toks))
+                skip.add(j)
+            else:
+                # Orphan numerics with no adjacent label → pass through.
+                # _parse_world_table_data will skip these (unavoidable data loss).
+                result.append(line)
+
+    return result
+
+
+def _inject_scanned_seps(block_lines: list[str]) -> list[str]:
+    """Inject synthetic ===== separators into a scanned-era block that lacks them.
+
+    Scanned WASDE tables (1985–1994) were printed in the same colon-delimited
+    Format A layout as the digital era but without the ===== horizontal rules.
+    This function inserts two synthetic separators so that
+    ``_parse_colon_table_v2`` can locate the header and data sections:
+
+    * sep1: immediately after the heading line (block_lines[0])
+    * sep2: before the first market-year banner or first numeric data line
+    """
+    SEP = _SYNTHETIC_SEP
+    # Scan from line 1 onward to find where header lines end
+    header_end = len(block_lines)  # fallback: treat all remaining lines as header
+    for k in range(1, len(block_lines)):
+        ln = block_lines[k].strip()
+        if not ln:
+            continue
+        # Standalone market-year banner — allow trailing annotations/footnotes
+        # e.g. "1991/92", "1989/90 (Projected) 3/" → data section starts here
+        if _MY_RE.match(ln) or re.match(r"^\d{4}/\d{2,4}\b", ln):
+            header_end = k
+            break
+        # Line with ':' where any post-label cell contains a digit → data row
+        if ":" in ln:
+            parts = ln.split(":")
+            if any(re.search(r"\d", p) for p in parts[1:]):
+                header_end = k
+                break
+    data_section = _colon_inject_data_section(block_lines[header_end:])
+    return (
+        [block_lines[0], SEP]
+        + block_lines[1:header_end]
+        + [SEP]
+        + data_section
+    )
 
 
 def _extract_us_year_cols(header_lines: list[str]) -> list[tuple[str, str, str]]:
@@ -395,7 +590,8 @@ def _parse_world_table_data(
         if ":" not in line:
             my_m = re.match(
                 r"^\s*(\d{4}/\d{2,4})\s*"
-                r"(?:\(?(Est(?:imated)?\.?|Proj(?:ected)?\.?)\)?)?\s*$",
+                r"(?:\(?(Est(?:imated)?\.?|Proj(?:ected)?\.?)\)?)?"
+                r"(?:\s+\d+/)?\s*$",
                 stripped, re.IGNORECASE,
             )
             if my_m:
@@ -616,18 +812,23 @@ def _parse_colon_table_v2(
     )
 
 
-def _parse_colon_page(page_text: str, release_date: str) -> list[dict]:
+def _parse_colon_page(
+    page_text: str, release_date: str, *, require_sep: bool = True
+) -> list[dict]:
     """Parse a full colon-format page (may contain multiple tables).
 
-    Locates every ``Supply and Use`` heading that is followed by a separator
-    line within five lines, treats the text from each heading to the next as
-    one table block, and dispatches to ``_parse_colon_table_v2``.
+    Locates every ``Supply and Use`` heading, treats the text from each heading
+    to the next as one table block, and dispatches to ``_parse_colon_table_v2``.
+
+    When ``require_sep=True`` (default), the heading must be followed by a
+    separator line (=====) within five lines — matching the digital-era layout.
+    When ``require_sep=False``, every heading is accepted unconditionally and
+    synthetic separators are injected via ``_inject_scanned_seps`` so that the
+    downstream parser can locate header vs data sections.
     """
     rows: list[dict] = []
     lines = page_text.splitlines()
 
-    # Find all heading lines: contain "Supply and Use" and are followed by
-    # a separator (=====) within the next 5 lines.
     heading_indices: list[tuple[int, str, str]] = []  # (line_idx, table_name, unit)
 
     for i, line in enumerate(lines):
@@ -635,12 +836,17 @@ def _parse_colon_page(page_text: str, release_date: str) -> list[dict]:
         if not stripped:
             continue
         if re.search(r"Supply and Use", stripped, re.IGNORECASE):
-            for j in range(i + 1, min(i + 6, len(lines))):
-                if _SEP_RE.match(lines[j].strip()):
-                    tname = re.sub(r"\s*\d+/?\s*$", "", stripped).strip()
-                    tunit = _parse_unit(tname)
-                    heading_indices.append((i, tname, tunit))
-                    break
+            if not require_sep:
+                tname = re.sub(r"\s*\d+/?\s*$", "", stripped).strip()
+                tunit = _parse_unit(tname)
+                heading_indices.append((i, tname, tunit))
+            else:
+                for j in range(i + 1, min(i + 6, len(lines))):
+                    if _SEP_RE.match(lines[j].strip()):
+                        tname = re.sub(r"\s*\d+/?\s*$", "", stripped).strip()
+                        tunit = _parse_unit(tname)
+                        heading_indices.append((i, tname, tunit))
+                        break
 
     if not heading_indices:
         return rows
@@ -652,6 +858,8 @@ def _parse_colon_page(page_text: str, release_date: str) -> list[dict]:
             else len(lines)
         )
         block_lines = lines[start_i: end_i]
+        if not require_sep:
+            block_lines = _inject_scanned_seps(block_lines)
         rows.extend(_parse_colon_table_v2(block_lines, release_date, tname, tunit))
 
     return rows
@@ -906,28 +1114,48 @@ def parse_wasde_pdf_scanned(
     Returns:
         DataFrame with the standard bronze WASDE schema.
     """
-    # Filter to LINE blocks only and sort by page + top y
+    # Filter to LINE blocks only
     line_blocks = [
         b for b in textract_blocks
         if b.get("BlockType") == "LINE"
     ]
-    line_blocks.sort(key=lambda b: (
-        b.get("Page", 1),
-        b.get("Geometry", {}).get("BoundingBox", {}).get("Top", 0),
-    ))
 
-    # Reconstruct text preserving page breaks
-    current_page = None
-    text_lines: list[str] = []
+    # Group LINE blocks into visual rows by (page, Y-bucket).
+    # Textract emits each text fragment as a separate LINE block; blocks at
+    # the same printed Y coordinate must be sorted left-to-right and joined.
+    from collections import defaultdict
+    groups: dict[tuple[int, int], list[tuple[float, str]]] = defaultdict(list)
     for block in line_blocks:
         page_num = block.get("Page", 1)
-        if current_page is not None and page_num != current_page:
-            text_lines.append("")  # page break
-        current_page = page_num
-        text_lines.append(block.get("Text", ""))
+        bb = block.get("Geometry", {}).get("BoundingBox", {})
+        top = bb.get("Top", 0.0)
+        left = bb.get("Left", 0.0)
+        y_bucket = round(top / _SCANNED_Y_TOLERANCE)
+        groups[(page_num, y_bucket)].append((left, block.get("Text", "")))
 
-    full_text = "\n".join(text_lines)
-    rows = _parse_colon_page(full_text, release_date)
+    # Emit one visual line per group, sorted by (page, y_bucket)
+    text_lines: list[str] = []
+    prev_page: int | None = None
+    for (page_num, _y_bucket), fragments in sorted(groups.items()):
+        if prev_page is not None and page_num != prev_page:
+            text_lines.append("")  # page break
+        prev_page = page_num
+        fragments.sort(key=lambda t: t[0])  # sort by Left coordinate
+        text_lines.append(" ".join(frag for _left, frag in fragments))
+
+    # Orphan continuation merge: a line that starts with ':' and contains only
+    # colons and numeric tokens is a wide-row continuation fragment; merge it
+    # upward into the preceding line.
+    _ORPHAN_RE = re.compile(r"^[\s:0-9.,\-/]+$")
+    merged: list[str] = []
+    for line in text_lines:
+        if line.startswith(":") and _ORPHAN_RE.match(line) and merged:
+            merged[-1] = merged[-1] + " " + line
+        else:
+            merged.append(line)
+
+    full_text = "\n".join(merged)
+    rows = _parse_colon_page(full_text, release_date, require_sep=False)
     return _to_dataframe(rows)
 
 
