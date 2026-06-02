@@ -7,7 +7,7 @@ area/production/productivity tables.  This job downloads those XLS files.
 Discovery input
 ---------------
 Reads data/conab/conab_bulletin_excels.json produced by
-scratch/conab/probe_conab_bulletin_excels.py.
+jobs/ingest/discover_conab_bulletin_xls.py.
 Run the probe first to refresh the URL list.
 
 S3 key
@@ -83,7 +83,7 @@ def main() -> None:
         description=(
             "Download CONAB per-bulletin Excel files to raw S3. "
             "Reads data/conab/conab_bulletin_excels.json "
-            "(run probe_conab_bulletin_excels.py first)."
+            "(run discover_conab_bulletin_xls.py first)."
         )
     )
     parser.add_argument(
@@ -110,7 +110,7 @@ def main() -> None:
     if not _MANIFEST_PATH.exists():
         parser.error(
             f"Not found: {_MANIFEST_PATH}\n"
-            "  Run: .venv\\Scripts\\python.exe scratch/conab/probe_conab_bulletin_excels.py"
+            "  Run: .venv\\Scripts\\python.exe jobs/ingest/discover_conab_bulletin_xls.py"
         )
 
     entries: list[dict] = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -122,7 +122,7 @@ def main() -> None:
     if args.dry_run:
         print(f"Dry run: {len(entries)} bulletin Excel file(s)")
         for e in sorted(entries, key=lambda x: (x["safra_year"], x["survey_no"])):
-            filename = e["xls_url"].rsplit("/", 1)[-1]
+            filename = e.get("filename") or e["xls_url"].rsplit("/", 1)[-1]
             s3_key = raw_conab_hist_series_key(e["safra_year"], e["survey_no"], filename)
             print(f"  {e['survey_no']}o Safra {e['safra_year']}  {filename}")
             print(f"    -> s3://.../{s3_key}")
@@ -141,7 +141,7 @@ def main() -> None:
 
     for e in sorted(entries, key=lambda x: (x["safra_year"], x["survey_no"])):
         xls_url  = e["xls_url"]
-        filename = xls_url.rsplit("/", 1)[-1]
+        filename = e.get("filename") or xls_url.rsplit("/", 1)[-1]
         safra_year = int(e["safra_year"])
         survey_no  = int(e["survey_no"])
         s3_key = raw_conab_hist_series_key(safra_year, survey_no, filename)

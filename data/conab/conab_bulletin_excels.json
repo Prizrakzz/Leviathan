@@ -1,14 +1,132 @@
 [
   {
-    "safra_year": 2026,
+    "safra_year": 2023,
+    "survey_no": 1,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2023",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-JAN-2023.xls",
+    "file_size_label": "486 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2023,
     "survey_no": 2,
-    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2026/site_previsao-de-safra-cafe-mai-2026.xls",
-    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2026/2o-levantamento-de-cafe-safra-2026"
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2023",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-MAI-2023.xls",
+    "file_size_label": "490 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2023,
+    "survey_no": 3,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2023",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-SET-2023.xls",
+    "file_size_label": "491 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2023,
+    "survey_no": 4,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2023",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2023/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-DEZ-2023.xls",
+    "file_size_label": "497 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2024,
+    "survey_no": 2,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2024",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2024/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2024/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-MAI-2024.xls",
+    "file_size_label": "539 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2024,
+    "survey_no": 3,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2024",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2024/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2024/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-SET-2024.xls",
+    "file_size_label": "539 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2024,
+    "survey_no": 4,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2024",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2024/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2024/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-JAN-2025.xls",
+    "file_size_label": "495 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2025,
+    "survey_no": 1,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2025",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-JAN-2025_1 (1).xls",
+    "file_size_label": "496 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2025,
+    "survey_no": 2,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2025",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-MAI-2025.xls",
+    "file_size_label": "498 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2025,
+    "survey_no": 3,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2025",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/3o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-SET-2025.xls",
+    "file_size_label": "501 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
+  },
+  {
+    "safra_year": 2025,
+    "survey_no": 4,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2025",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/view",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/4o-levantamento-de-cafe-safra-2025/tabela-de-dados-estimativas-da-producao-e-colheita/@@download/file",
+    "filename": "Site_PREVISAO-DE-SAFRA-CAFE-DEZ-2025.xls",
+    "file_size_label": "501 KB",
+    "discovered_at": "2026-06-02T11:11:16+00:00"
   },
   {
     "safra_year": 2026,
     "survey_no": 1,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2026/1o-levantamento-de-cafe-safra-2026",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2026/1o-levantamento-de-cafe-safra-2026",
     "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2026/site_previsao-de-safra-cafe-fev-2026.xls",
-    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/1o-levantamento-de-cafe-safra-2026/1o-levantamento-de-cafe-safra-2026"
+    "filename": "site_previsao-de-safra-cafe-fev-2026.xls",
+    "file_size_label": null,
+    "discovered_at": "2026-06-02T11:11:38+00:00"
+  },
+  {
+    "safra_year": 2026,
+    "survey_no": 2,
+    "source_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2026/2o-levantamento-de-cafe-safra-2026",
+    "data_page": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2026/2o-levantamento-de-cafe-safra-2026",
+    "xls_url": "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/safra-de-cafe/2o-levantamento-de-cafe-safra-2026/site_previsao-de-safra-cafe-mai-2026.xls",
+    "filename": "site_previsao-de-safra-cafe-mai-2026.xls",
+    "file_size_label": null,
+    "discovered_at": "2026-06-02T11:11:38+00:00"
   }
 ]
