@@ -1387,6 +1387,76 @@ resource "aws_batch_job_definition" "conab_xls_bronze" {
 # graph at ExcelFile() open time; 512 MB is insufficient.
 # Timeout: 1 h ceiling; normal run < 5 min.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Job definition: CONAB coffee bronze to silver
+# Purpose: pivot Brazil coffee survey XLS bronze into state/national production
+#          revision features by safra year, survey number, region, and type.
+# Sizing: 0.25 vCPU / 1024 MB, small Excel-derived corpus.
+# Timeout: 30 min ceiling; normal run should be much shorter.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "conab_coffee_silver" {
+  name = "${var.project_name}-${var.environment}-conab-coffee-silver"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    bucket          = var.leviathan_bucket
+    aws_region      = var.aws_region
+    force_overwrite = "false"
+    years           = "all"
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/conab_coffee_silver_task.py",
+      "--bucket",          "Ref::bucket",
+      "--aws-region",      "Ref::aws_region",
+      "--force-overwrite", "Ref::force_overwrite",
+      "--years",           "Ref::years"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "0.25" },
+      { type = "MEMORY", value = "1024" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "conab-coffee-silver"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 1800
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 resource "aws_batch_job_definition" "fnc_excel_bronze" {
   name = "${var.project_name}-${var.environment}-fnc-excel-bronze"
   type = "container"

@@ -1152,6 +1152,20 @@ def bronze_conab_xls_key(safra_year: int, survey: int) -> str:
     )
 
 
+def silver_conab_coffee_key(
+    safra_year: int,
+    commodity: str,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for CONAB Brazil coffee production survey silver features."""
+    return (
+        f"silver/conab_coffee/"
+        f"commodity={commodity}/"
+        f"safra_year={safra_year}/"
+        f"{filename}"
+    )
+
+
 def bronze_fnc_key(series: str) -> str:
     """S3 key for a FNC Colombia Excel bronze Parquet (one named series).
 
