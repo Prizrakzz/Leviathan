@@ -750,25 +750,34 @@ def text_wap_key(release_month: str) -> str:
     )
 
 
-def text_gain_key(source_name: str, country_iso2: str, publication_date: str) -> str:
+def text_gain_key(
+    source_name: str,
+    country_iso2: str,
+    publication_date: str,
+    document_slug: str,
+) -> str:
     """S3 key for the extracted text document for a single USDA FAS GAIN report.
 
-    One file per (source, country, publication_date) tuple — mirrors the raw
-    key Hive partition structure so the two layers join without re-parsing.
-    Written by the GAIN text extraction pipeline; idempotency check uses
-    head_object on this key.
+    One file per raw PDF, keyed by (source, country, publication_date,
+    document_slug).  The ``document_slug`` is the lowercased stem of the raw
+    PDF filename (e.g. ``"sugar_annual_sao_paulo_ato_brazil_04-15-2020"``),
+    which disambiguates the multiple reports that can share the same
+    country/date partition.
 
     Args:
         source_name:      Source identifier, e.g. ``"usda_gain_wheat"``.
         country_iso2:     ISO 3166-1 alpha-2 country code, e.g. ``"US"``.
         publication_date: Publication date in ``YYYYMMDD`` format, e.g.
                           ``"20060419"`` — kept as-is from the raw key partition.
+        document_slug:    Lowercased PDF filename stem, used as the
+                          ``document=`` Hive partition value.
     """
     return (
         f"text/"
         f"source={source_name}/"
         f"country={country_iso2}/"
         f"publication_date={publication_date}/"
+        f"document={document_slug}/"
         f"document.json"
     )
 

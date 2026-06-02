@@ -28,6 +28,7 @@ import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from pathlib import Path
 
 from leviathan.storage.paths import parse_hive_key, text_gain_key
 from leviathan.storage.s3 import (
@@ -63,7 +64,8 @@ def _process_key(
     s3 = get_thread_local_s3_client(aws_region)
     country = parse_hive_key(raw_key, "country")
     pub_date = parse_hive_key(raw_key, "publication_date")
-    t_key = text_gain_key(source, country, pub_date)
+    slug = Path(raw_key).stem.lower()
+    t_key = text_gain_key(source, country, pub_date, slug)
 
     if not force_overwrite and document_exists(s3, bucket, t_key):
         return "skipped", raw_key
@@ -94,6 +96,7 @@ def _run(
     aws_region: str,
     force_overwrite: bool,
     limit: int,
+    workers: int = _WORKERS,
 ) -> tuple[int, int, int]:
     """Process all PDF keys for *source*.
 
@@ -110,7 +113,7 @@ def _run(
 
     written = skipped = errors = 0
 
-    with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
             pool.submit(_process_key, key, source, bucket, aws_region, force_overwrite): key
             for key in all_keys
@@ -164,6 +167,12 @@ def main() -> None:
         default=0,
         help="Cap number of files processed (0 = no limit; useful for smoke tests)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=_WORKERS,
+        help=f"Thread-pool size (default: {_WORKERS})",
+    )
     args = parser.parse_args()
 
     logger.info(
@@ -176,7 +185,8 @@ def main() -> None:
 
     start = datetime.now(timezone.utc)
     written, skipped, errors = _run(
-        args.source, args.bucket, args.aws_region, args.force_overwrite, args.limit
+        args.source, args.bucket, args.aws_region, args.force_overwrite, args.limit,
+        workers=args.workers,
     )
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
 

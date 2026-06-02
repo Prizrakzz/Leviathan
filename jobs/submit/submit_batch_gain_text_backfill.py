@@ -86,7 +86,14 @@ def submit_tasks(
             jobName=job_name,
             jobQueue=job_queue,
             jobDefinition=job_definition,
-            containerOverrides={"command": command},
+            containerOverrides={
+                "command": command,
+                # Bump from 2 GB → 4 GB; 30 concurrent pdfplumber workers OOM at 2 GB
+                "resourceRequirements": [
+                    {"type": "VCPU",   "value": "1"},
+                    {"type": "MEMORY", "value": "4096"},
+                ],
+            },
         )
         job_id = response["jobId"]
         logger.info("Submitted  job_name=%s  job_id=%s", job_name, job_id)
