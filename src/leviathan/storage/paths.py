@@ -724,6 +724,28 @@ def text_wap_key(release_month: str) -> str:
     )
 
 
+def text_fnc_report_key(
+    report_type: str,
+    publisher: str,
+    publication_date: str,
+) -> str:
+    """S3 key for extracted text from one FNC Colombia monthly PDF report.
+
+    ``publication_date`` is the report month normalized to ``YYYY-MM-DD``
+    using the first day of the month. ``publisher`` disambiguates the two
+    layouts that share ``report_type=cifras``.
+    """
+    return (
+        f"text/"
+        f"source=fnc/"
+        f"monthly_reports/"
+        f"report_type={report_type}/"
+        f"publisher={publisher}/"
+        f"publication_date={publication_date}/"
+        f"document.json"
+    )
+
+
 def bronze_wap_key(release_month: str) -> str:
     """S3 key for the bronze Parquet table for a single USDA WAP release.
 

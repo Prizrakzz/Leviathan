@@ -48,11 +48,13 @@ _ALL_TASKS: list[dict] = [
     {"source": "usda_wap",   "year_from": 2002, "year_to": 2012},
     {"source": "usda_wap",   "year_from": 2013, "year_to": 2019},
     {"source": "usda_wap",   "year_from": 2020, "year_to": 2025},
+    {"source": "fnc",        "year_from": 2023, "year_to": 2026},
 ]
 
 _SMOKE_TASKS: list[dict] = [
     {"source": "usda_wasde", "year_from": 2021, "year_to": 2021},
     {"source": "usda_wap",   "year_from": 2021, "year_to": 2021},
+    {"source": "fnc",        "year_from": 2025, "year_to": 2025},
 ]
 
 
@@ -143,7 +145,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--source",
-        choices=["usda_wasde", "usda_wap", "all"],
+        choices=["usda_wasde", "usda_wap", "fnc", "all"],
         default="all",
         help="Limit submission to a single source (default: all)",
     )

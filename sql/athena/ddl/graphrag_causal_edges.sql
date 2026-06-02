@@ -24,7 +24,7 @@ TBLPROPERTIES (
     'parquet.compress'              = 'SNAPPY',
     'projection.enabled'            = 'true',
     'projection.source.type'        = 'enum',
-    'projection.source.values'      = 'usda_wasde,usda_wap,usda_gain,conab',
+    'projection.source.values'      = 'usda_wasde,usda_wap,usda_gain,conab,fnc',
     'projection.year.type'          = 'integer',
     'projection.year.range'         = '2000,2030',
     'projection.month.type'         = 'integer',

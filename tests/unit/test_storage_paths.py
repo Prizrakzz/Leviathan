@@ -12,6 +12,7 @@ from leviathan.storage.paths import (
     silver_nass_annual_key,
     silver_production_key,
     silver_weather_key,
+    text_fnc_report_key,
 )
 
 
@@ -168,6 +169,16 @@ class TestSilverConabCoffeeKey:
         assert not key.startswith("silver/production/")
         assert not key.startswith("silver/nass_annual/")
         assert not key.startswith("silver/nass_crop_progress/")
+
+
+class TestTextFncReportKey:
+    def test_uses_publisher_to_avoid_cifras_collisions(self):
+        key = text_fnc_report_key("cifras", "fepcafe_reporte_mensual", "2025-01-01")
+        assert key == (
+            "text/source=fnc/monthly_reports/report_type=cifras/"
+            "publisher=fepcafe_reporte_mensual/"
+            "publication_date=2025-01-01/document.json"
+        )
 
 
 class TestBronzeProductionKey:

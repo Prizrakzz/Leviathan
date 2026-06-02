@@ -90,7 +90,8 @@ def _parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 _KEY_YEAR_MONTH_RE = re.compile(
-    r"(?:release_date|release_month|year)=(?P<year>\d{4})(?:-(?P<month>\d{2}))?",
+    r"(?:release_date|release_month|publication_date|year)="
+    r"(?P<year>\d{4})(?:-(?P<month>\d{2}))?",
 )
 
 
@@ -100,6 +101,7 @@ def _parse_year_month(key: str) -> Tuple[int, int] | None:
     Supported patterns:
       text/source=usda_wasde/release_date=YYYY-MM-DD/document.json
       text/source=usda_wap/release_month=YYYY-MM/document.json
+      text/source=fnc/.../publication_date=YYYY-MM-DD/document.json
     Returns None if the key doesn't match (e.g. a top-level prefix listing).
     """
     m = _KEY_YEAR_MONTH_RE.search(key)
