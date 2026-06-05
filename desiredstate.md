@@ -968,20 +968,48 @@ Tier 3 — Spread Signal Models  (Phase 2; requires price data)
     Signal = (current_tenor_spread − median_spread_at_this_su_quintile_and_week) / std.
 ```
 
+**Price data status and what is computable with current data:**
+
+Tier 1 and Tier 2 are fully buildable for all 31 commodities regardless of price data —
+CHIRPS, NASA POWER, CONAB, WASDE, FGIS, ESR, ONI, IOD, COT, FX, and food CPI are all
+in silver now.  The feature engineering pipeline (P3) computes the stage-aware z-scores;
+no price data is required.
+
+Tier 3 has two components with different data availability:
+
+*Intercommodity spread signal (Pairs 1–8):*
+The `spread_conviction` score and directional signal (`su_ratio_surprise_A −
+su_ratio_surprise_B`) are computable for all pairs from Tier 2 outputs alone — no price
+required.  This tells you WHICH leg is fundamentally more stressed and by how much.
+
+The price-relative mispricing z-score requires current market prices for **both** legs.
+With current data (yfinance covers 12 US/ICE contracts only), none of the 8 spread pairs
+have both legs with price data — see the "Signal status" column in the Spread Pairs table
+below.  The directional fundamental signal is always available; the price-relative
+component is deferred until non-US price data is ingested.
+
+*Calendar spread signal (C1–C6):*
+Requires historical C1/C2/C3 settlement prices (Quandl CHRIS — WAF blocked, see Future
+Work).  Backtesting is deferred.  Live signal accumulation from yfinance active individual
+months (ZCN26.CBT − ZCZ26.CBT etc.) starts from today and matures into a usable
+backtestable series over 12–18 months.
+
 ---
 
 ### Spread Pairs (Enhanced)
 
-| Pair | Leg A | Leg B | Primary driver | Asymmetric signal |
-|------|-------|-------|----------------|-------------------|
-| 1 | arabica_coffee | robusta_coffee | Brazil biennial + CONAB vs. Vietnam CHIRPS + ONI lag | Biennial mismatch fires on arabica only |
-| 2 | corn_cbot | campinas_corn_reference_bmf | US Corn Belt z + GE% vs. Brazil safrinha delay | Safrinha delay fires; US GE% normal |
-| 3 | soybeans_cbot | soybeans_no_1_dce | US pod-fill stress vs. Brazil MT harvest + port delay | La Niña: Brazil stress → US premium collapses |
-| 4 | soybean_oil_cbot | malaysian_crude_palm_oil_cme | Soyoil/palm premium z + ENSO lag on palm | El Niño onset: palm will stress in 9mo; soyoil unaffected |
-| 5 | french_rapeseed_matif | canola_ice | EU flowering frost vs. Canada heat dome flag | Heat dome is binary tail; MATIF immune |
-| 6 | south_african_white_maize_jse | south_african_yellow_maize_jse | Shared SA CHIRPS; white/yellow premium = food-security bid | Same origin; premium z-score is the only asymmetric signal |
-| 7 | raw_sugar | white_sugar | Shared cane supply; white/raw premium = refinery gap | Ethanol parity flip fires only on raw leg |
-| 8 | arabica_coffee | french_wheat_matif | ENSO: La Niña → Brazil coffee dry AND Black Sea drought simultaneously | Cross-commodity ENSO correlation — multi-origin detector fires; low conviction; watch carefully |
+| Pair | Leg A | Leg B | Primary driver | Asymmetric signal | Signal status |
+|------|-------|-------|----------------|-------------------|---------------|
+| 1 | arabica_coffee | robusta_coffee | Brazil biennial + CONAB vs. Vietnam CHIRPS + ONI lag | Biennial mismatch fires on arabica only | **Fundamental only** — KC=F (arabica) ✅, ICE robusta ❌ |
+| 2 | corn_cbot | campinas_corn_reference_bmf | US Corn Belt z + GE% vs. Brazil safrinha delay | Safrinha delay fires; US GE% normal | **Fundamental only** — ZC=F (corn) ✅, B3/BMF ❌ |
+| 3 | soybeans_cbot | soybeans_no_1_dce | US pod-fill stress vs. Brazil MT harvest + port delay | La Niña: Brazil stress → US premium collapses | **Fundamental only** — ZS=F (soybeans) ✅, DCE ❌ (licensed) |
+| 4 | soybean_oil_cbot | malaysian_crude_palm_oil_cme | Soyoil/palm premium z + ENSO lag on palm | El Niño onset: palm will stress in 9mo; soyoil unaffected | **Fundamental only** — ZL=F (soyoil) ✅, palm ❌ |
+| 5 | french_rapeseed_matif | canola_ice | EU flowering frost vs. Canada heat dome flag | Heat dome is binary tail; MATIF immune | **Fundamental only** — MATIF ❌, canola ❌ |
+| 6 | south_african_white_maize_jse | south_african_yellow_maize_jse | Shared SA CHIRPS; white/yellow premium = food-security bid | Same origin; premium z-score is the only asymmetric signal | **Fundamental only** — JSE white ❌, JSE yellow ❌ (licensed) |
+| 7 | raw_sugar | white_sugar | Shared cane supply; white/raw premium = refinery gap | Ethanol parity flip fires only on raw leg | **Fundamental only** — SB=F (raw sugar) ✅, LIFFE white ❌ |
+| 8 | arabica_coffee | french_wheat_matif | ENSO: La Niña → Brazil coffee dry AND Black Sea drought simultaneously | Cross-commodity ENSO correlation — multi-origin detector fires; low conviction; watch carefully | **Fundamental only** — KC=F ✅, MATIF wheat ❌ |
+
+**Signal status key:** "Fundamental only" = `su_ratio_surprise` differential + `spread_conviction` score are computable (directional view); price-relative mispricing z-score requires current market prices for both legs. No pair currently has complete price coverage for both legs. Full price-relative signals unblock when non-US exchange prices are ingested (Future Work).
 
 ### Calendar Spread Pairs (Phase 2 — same-commodity term structure)
 
@@ -990,18 +1018,29 @@ S/U ratio quintile is the primary conditioning variable — the same `psd_ending
 feature computed in Tier 1. No structural cost-of-carry model required; analogue lookup
 conditioned on S/U quintile and marketing-year week is sufficient.
 
-| Pair | Near contract | Deferred contract | S/U driver | Backwardation condition |
-|------|--------------|------------------|------------|------------------------|
-| C1 | corn_cbot Dec | corn_cbot Mar | CBOT corn S/U ratio | S/U < 10% → strong backwardation; export-demand acceleration amplifies |
-| C2 | soybeans_cbot Nov | soybeans_cbot Jan | CBOT soy S/U ratio | Tight old-crop vs. new-crop at harvest; pod-fill stress widens premium |
-| C3 | soft_red_winter_wheat_cbot Dec | soft_red_winter_wheat_cbot Mar | US wheat S/U ratio | Winter wheat carries structural contango unless global stocks tighten |
-| C4 | arabica_coffee Mar | arabica_coffee May | ICE arabica certified stocks / S/U | Biennial off-year tightens nearby; certified stocks draw the trigger |
-| C5 | raw_sugar Mar | raw_sugar May | Global sugar S/U ratio | Thai/Indian production deficit → near-term supply squeeze |
-| C6 | cocoa Mar | cocoa May | Global cocoa S/U ratio + grindings | Mid-crop arrival pace vs. near-term grinding demand |
+**Data status:** Quandl CHRIS (C1/C2/C3 roll-adjusted historical settlement series) is
+blocked by Nasdaq's Cloudflare WAF for all programmatic access — confirmed from home,
+Docker, and AWS Lambda us-east-1.  Historical backtest of C1–C6 is deferred.
+
+**Live accumulation strategy (in effect now):** yfinance individual active months
+(e.g. ZCN26.CBT − ZCZ26.CBT for corn Dec spread) provide the current daily calendar
+spread reading.  Daily snapshots are stored and the series grows from today.  Backtestable
+history accumulates at ~1 month per month; a meaningful 24-month backtest window arrives
+in ~mid-2028.  Until then, calendar spread signals are inference-only with no walk-forward
+CV validation — use with reduced position sizing.
+
+| Pair | Near contract | Deferred contract | S/U driver | Backwardation condition | Backtest status |
+|------|--------------|------------------|------------|------------------------|-----------------|
+| C1 | corn_cbot Dec | corn_cbot Mar | CBOT corn S/U ratio | S/U < 10% → strong backwardation; export-demand acceleration amplifies | ⏳ Accumulating from yfinance |
+| C2 | soybeans_cbot Nov | soybeans_cbot Jan | CBOT soy S/U ratio | Tight old-crop vs. new-crop at harvest; pod-fill stress widens premium | ⏳ Accumulating from yfinance |
+| C3 | soft_red_winter_wheat_cbot Dec | soft_red_winter_wheat_cbot Mar | US wheat S/U ratio | Winter wheat carries structural contango unless global stocks tighten | ⏳ Accumulating from yfinance |
+| C4 | arabica_coffee Mar | arabica_coffee May | ICE arabica certified stocks / S/U | Biennial off-year tightens nearby; certified stocks draw the trigger | ⏳ Accumulating from yfinance |
+| C5 | raw_sugar Mar | raw_sugar May | Global sugar S/U ratio | Thai/Indian production deficit → near-term supply squeeze | ⏳ Accumulating from yfinance |
+| C6 | cocoa Mar | cocoa May | Global cocoa S/U ratio + grindings | Mid-crop arrival pace vs. near-term grinding demand | ⏳ Accumulating from yfinance |
 
 Note: Euronext (MATIF wheat/corn/rapeseed), DCE (soy), JSE (SA maize), and BMF (Campinas corn)
-calendar spreads are deferred to Phase 2 backtest validation — add if intercommodity spread
-model confirms meaningful residual after cross-exchange spread signals are accounted for.
+calendar spreads are deferred to Phase 2 backtest validation — blocked by licensed data
+requirement in addition to the CHRIS data gap.
 
 ---
 
@@ -1025,7 +1064,26 @@ Weighted analogues outperform naive ±10% lookup: a drought year on tight stocks
 comparable to a drought year on ample stocks even if production quantities are identical.
 The S/U ratio weight is the single most important weighting dimension.
 
-Requires `silver.price_series` table that does not exist yet.
+**Price data coverage and analogue lookup completeness:**
+
+| Commodity group | Historical price source | Current price source | Lookup status |
+|---|---|---|---|
+| 12 US/ICE contracts (corn, soy complex ×3, wheat ×3, coffee, cocoa, cotton, raw sugar, rice, OJ) | Pink Sheet monthly averages (1960–present) | yfinance daily (`silver/futures_prices/`) | ✅ **Full mispricing z-score computable** |
+| Rapeseed/Canola (Euronext, ICE Canada) | Pink Sheet (rapeseed_oil_usd_t from 2002) | Investing.com (not yet ingested) | ⏳ Historical price available; current price pending ingest |
+| Palm oil (Bursa Malaysia) | Pink Sheet (palm_oil_cpo_usd_t from 1975) | Investing.com (not yet ingested) | ⏳ Historical price available; current price pending ingest |
+| Robusta coffee (ICE London) | Approximated from Pink Sheet | Investing.com (not yet ingested) | ⏳ Pending ingest |
+| White sugar (ICE London) | Pink Sheet (not directly — raw sugar proxy) | Investing.com (not yet ingested) | ⏳ Pending ingest |
+| DCE soy complex (3 contracts) | Pink Sheet monthly (soybeans_usd_t as proxy) | DCE licensed data ❌ | ❌ **No current price — fundamental output only** |
+| JSE white/yellow maize (2 contracts) | No free historical price series | JSE licensed data ❌ | ❌ **No price — fundamental output only** |
+| BMF/B3 Campinas corn, arabica | B3 arabica: Investing.com 2000–present (not ingested) | Not ingested | ⏳ Pending ingest |
+| MATIF wheat, corn, rapeseed | Pink Sheet (wheat_us_hrw as proxy) | Investing.com limited | ⏳ Partial proxy only |
+
+**"Fundamental output only"** = the Tier 1 origin_stress_score and Tier 2 su_ratio_surprise
+are computed for these commodities (the ML models run fully), but the final analogue lookup
+step that converts the production forecast into a mispricing z-score cannot be completed
+without a current market price to compare against.  These commodities still contribute to
+spread conviction scores and GraphRAG context — only the price-relative mispricing signal
+is absent.
 
 ---
 
