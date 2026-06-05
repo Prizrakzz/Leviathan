@@ -295,6 +295,9 @@ to prevent any future-vintage PSD or WASDE data from leaking into training.
 | `wasde_stocks_revision` | silver_sd_balance | Current − prior month WASDE ending stocks estimate |
 | `wap_nonUS_production_revision` | WAP bronze | Month-over-month change in non-US production estimate |
 | `enso_oni_3month_avg` | NOAA ONI (public) | 3-month avg Ocean Niño Index; El Niño >+0.5, La Niña <−0.5 |
+| `iod_dmi_3month_avg` | NOAA DMI (public) | 3-month avg Indian Ocean Dipole Mode Index. Positive IOD → East African drought (Ethiopia arabica stress, Indian subcontinent deficit); negative IOD → SE Asia/Australia flooding (rice, palm yield risk). Orthogonal to ENSO — fires independently. ✅ **Free; same ingest pattern as ONI** (`https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/dmi.had.long.data`), monthly back to 1870. One-session ingest. |
+| `mjo_phase_{1..8}_active` | NOAA CPC RMM index | 8 binary phase flags for the Madden-Julian Oscillation (30–90 day intraseasonal oscillation). Drives active/break monsoon cycles in India (rice, cotton) and SE Asia (palm oil, robusta coffee). Phase 2–3 → enhanced Bay of Bengal convection → above-normal India rainfall. Phase 6–7 → suppressed → drought risk. ✅ **Free** (`https://www.cpc.ncep.noaa.gov/products/precip/CWlink/MJO/data/rmm.74toRealtime.txt`), weekly back to 1974. Feature engineering: `mjo_amplitude × phase_indicator[phase]` per commodity-region window; amplitude < 1.0 = weak/inactive MJO, features zero out. |
+| `food_cpi_yoy_z_{country}` | World Bank DataBank | Domestic food CPI YoY% vs. 5yr rolling z-score. Countries: India, Russia, Indonesia, Ukraine. Mechanism: elevated domestic food inflation → government faces political pressure to restrict exports → physical supply exits global market before WASDE acknowledges shortfall. See "Government Intervention Risk" section for full feature spec and placement. |
 | `input_cost_urea_z` | Pink Sheet bronze | Urea price vs. 5yr avg — raw price signal only; economic exposure is commodity- and region-specific (see fertilizer intensity features below) |
 | `input_cost_dap_z` | Pink Sheet bronze | DAP price vs. 5yr avg — same caveat |
 | `nitrogen_cost_intensity_{commodity}_{region}` | Pink Sheet + crop_calendars.yaml | `urea_z × N_application_rate_index[commodity][region][production_system]` — scales the raw urea signal by the crop's actual nitrogen exposure. High-yield irrigated corn Iowa = 1.0 (reference); rainfed SA maize = 0.35; arabica coffee = 0.05; palm oil = 0.02. Stored as static scalars in `configs/sources/crop_calendars.yaml`. |
@@ -673,6 +676,7 @@ conviction drops and the multi-origin detector should flag it.
 | `sabah_sarawak_chirps_z` | CHIRPS | Monthly rainfall z-score; excess = flood damage; deficit = drought stress |
 | `indonesia_kalimantan_chirps` | CHIRPS | Kalimantan rainfall; Indonesia = 55% of world production |
 | `biodiesel_b35_consumption_adj` | Manual config YAML | Indonesia B35 mandate domestic consumption adjustment; hand-coded policy step |
+| `food_cpi_yoy_z_indonesia` | WB DataBank silver | Indonesia domestic food CPI YoY% z-score. Cooking oil price stress → CPO export ban risk. Rising > 1.5σ AND domestic palm stocks running low = export restriction imminent (2022 precedent). |
 | `soyoil_palm_premium_z` | Pink Sheet bronze | Soyoil − palm olein premium vs. 3yr avg; > $100/t = substitution trigger |
 | ⚠ `mpoc_competitive_price_ratio` | MPOC bronze | ✅ **Superseded by Phase 2A** — palm_oil_cpo_usd_t and soybean_oil_usd_t now in silver/pink_sheet. `soyoil_palm_premium_z` from Pink Sheet covers the competitive price signal; dedicated MPOC bronze not needed. |
 
@@ -699,7 +703,10 @@ France/EU (northern France, Germany, Poland), Russia (Krasnodar, Rostov), Ukrain
 | `france_heading_z` | — | — | — | ✓ | CHIRPS N.France | Apr–Jun heading/grain fill z-score |
 | `france_harvest_quality_flag` | — | — | — | ✓ | CHIRPS + POWER | Excess rain at harvest (Jul) → Hagberg falling number failure → milling wheat reclassified as feed (-$40/t) |
 | `black_sea_chirps_z` | ✓ | ✓ | ✓ | ✓ | CHIRPS Krasnodar/Rostov | Apr–Jun; Russia = #1 wheat exporter; all wheat contracts react |
-| `russia_export_quota_flag` | ✓ | ✓ | — | ✓ | Manual config YAML | Binary; Russian export quota/ban; hand-coded from policy announcements |
+| `russia_export_quota_flag` | ✓ | ✓ | — | ✓ | Manual config YAML | Binary; Russian export quota/ban; hand-coded from policy announcements — **lagging label**. Predictive precursor: `food_cpi_yoy_z_russia` |
+| `food_cpi_yoy_z_russia` | ✓ | ✓ | — | ✓ | WB DataBank silver | Russia domestic food CPI YoY% z-score. Rising > 1.5σ = export quota imminent risk. Fires 60–90 days before `russia_export_quota_flag`. |
+| `food_cpi_yoy_z_india` | ✓ | — | — | — | WB DataBank silver | India domestic food CPI YoY% z-score for wheat. See also rice table. |
+| `food_cpi_yoy_z_ukraine` | ✓ | ✓ | ✓ | ✓ | WB DataBank silver | Ukraine food CPI z-score; export restriction risk for wheat and corn. |
 | `fgis_wheat_export_z` | ✓ | ✓ | ✓ | — | AMS Inspections bronze | US cumulative wheat export pace vs. USDA forecast |
 | ⚠ `hardwheat_softwheat_premium_z` | ✓ | ✓ | — | ✓ | Pink Sheet bronze | ✅ **Phase 2A complete** — wheat_us_hrw_usd_t and wheat_us_srw_usd_t in silver/pink_sheet. HRW − SRW protein premium vs. 3yr avg. |
 
@@ -768,7 +775,8 @@ Vietnam (Mekong delta), India (Punjab, Andhra Pradesh)
 | `mekong_delta_chirps_z` | CHIRPS | Nov–Mar dry-season crop + May–Oct wet-season crop |
 | `enso_seasia_rice_lag3` | NOAA ONI | El Niño → reduced SE Asian monsoon; 3mo lag to crop impact |
 | `india_rice_monsoon_z` | CHIRPS Punjab/AP | Jun–Sep z-score |
-| `india_export_policy_flag` | Manual config YAML | India export ban/restrictions (2023, 2024 precedents); hand-coded binary |
+| `india_export_policy_flag` | Manual config YAML | India rice export ban/restrictions (2023, 2024 precedents); hand-coded binary — **lagging label**. Predictive precursor: `food_cpi_yoy_z_india` |
+| `food_cpi_yoy_z_india` | WB DataBank silver | India domestic food CPI YoY% z-score. Rising > 1.5σ AND domestic rice pace ≤ prior year = export ban imminent. Same series as wheat; feature is commodity-agnostic, application is commodity-specific. |
 | `wap_rice_production_revision` | WAP bronze | Month-over-month non-US rice production estimate |
 
 ---
@@ -796,6 +804,120 @@ severity score** — both passed as features into the Tier 2 model.
 | **French wheat quality reclassification** | Excess rain flag + Tmax < 20°C during Jul harvest window in northern France | french_wheat | Milling → feed reclassification collapses quality premium; MATIF moves before official quality data |
 | **Crush margin extreme expansion** | Crush margin index > 99th pct of trailing 5yr | soy, rapeseed | Processors compete aggressively for beans → unexpected demand pull on raw beans |
 | **Canada heat dome** | Tmax > 35°C for ≥3 consecutive days in SK/AB during Jul | canola_ice | 2021 precedent: −35% yield in one month; binary extreme far outside normal z-score range |
+| **Export ban imminent warning** | `food_cpi_yoy_z_{country}` > 1.5σ AND current-season production running ≤ prior-year pace | wheat (India, Russia), rice (India), palm oil (Indonesia) | Fires 60–90 days before expected export restriction announcement. Converts reactive manual policy flags into a predictive leading indicator. See "Government Intervention Risk" section. |
+
+---
+
+### Government Intervention Risk: Country-Level Food CPI
+
+**Mechanism**: High domestic food CPI in a major producing country → government faces
+political pressure to restrict exports to suppress domestic food prices → physical supply
+exits the global market *before* WASDE acknowledges a shortfall → price spike.
+
+This is not a price prediction feature. It is a **policy precursor** — it predicts that
+the manually-coded `india_export_policy_flag` and `russia_export_quota_flag` will fire,
+60–90 days before the announcement.
+
+**Documented historical precedents:**
+
+| Event | Country | Commodity | Domestic CPI-food (12m prior) | Outcome |
+|-------|---------|-----------|-------------------------------|---------|
+| Wheat export ban, May 2022 | India | Wheat | +8.4% YoY (Mar 2022) | Global wheat +20% in 3 weeks |
+| Broken rice export ban, Aug 2023 | India | Rice | +11.5% YoY (Jul 2023) | Global rice +15% |
+| CPO export ban, Apr 2022 | Indonesia | Palm oil | Domestic cooking oil prices +40% | CPO futures limit-up |
+| Wheat export quota, Mar 2022 | Russia | Wheat | +16.7% YoY food inflation | Black Sea premium widened |
+| Wheat export floor price | Russia | Wheat | Recurring — mechanism structural | Seasonal quota ceiling |
+
+**Feature specification:**
+
+| Feature | Computation | Placement in taxonomy |
+|---------|-------------|----------------------|
+| `food_cpi_yoy_z_india` | India CPI-food YoY% vs. 5yr rolling z-score | Commodity-specific: wheat (India), rice (India) |
+| `food_cpi_yoy_z_russia` | Russia CPI-food YoY% vs. 5yr rolling z-score | Commodity-specific: wheat (Russia) |
+| `food_cpi_yoy_z_indonesia` | Indonesia CPI-food YoY% vs. 5yr rolling z-score | Commodity-specific: palm oil (Indonesia) |
+| `food_cpi_yoy_z_ukraine` | Ukraine CPI-food YoY% vs. 5yr rolling z-score | Commodity-specific: wheat (Ukraine), corn (Ukraine) |
+| `food_cpi_intervention_risk_{country}` | Binary: `food_cpi_yoy_z > 1.5σ` AND season production pace ≤ prior year | Anomaly detector: "Export ban imminent warning" (see table above) |
+
+**Relationship to existing manual policy flags:**
+- `india_export_policy_flag`, `russia_export_quota_flag`, `indonesia_biodiesel_flag` remain
+  as **ground-truth historical labels** in the training data — coded from actual announcement
+  dates. They are the target event that `food_cpi_intervention_risk` is predicting.
+- At inference time (live), the CPI feature is the input; the manual flag is the outcome.
+- In the feature matrix they coexist: the model sees the CPI z-score as a continuous input
+  and the prior-year policy flag (lagged one year) as a historical context feature.
+
+**Data source:** World Bank DataBank API — free, no key required, JSON.
+```
+https://api.worldbank.org/v2/country/{ISO2}/indicator/FP.CPI.TOTL.ZG?format=json&per_page=100
+```
+Annual and quarterly data back to 1970s for all four countries. For monthly resolution:
+IMF IFS (`imf.org/en/Data`, free with registration) or OECD.Stat (OECD countries only).
+World Bank annual/quarterly is sufficient for the annual training grain; monthly adds
+in-season granularity for weekly inference refreshes.
+
+**Implementation plan (one session):**
+
+1. `jobs/ingest/fetch_food_cpi.py` — pull World Bank DataBank for IND, RUS, IDN, UKR;
+   write raw JSON to `raw/production/source=wb_food_cpi/{country}/part-000.json`
+2. `src/leviathan/transforms/raw_to_bronze/food_cpi.py` — parse JSON, normalize to
+   `(country_iso, year, cpi_food_yoy_pct)` bronze Parquet
+3. `src/leviathan/transforms/bronze_to_silver/food_cpi.py` — compute 5yr rolling
+   z-score per country; write `silver/food_cpi/part-000.parquet`
+4. Add `food_cpi_yoy_z_{country}` to the per-commodity feature tables (wheat, rice,
+   palm oil) and the anomaly detector table above
+5. Add companion `{country}_food_cpi_available` binary flag (missingness is structural
+   pre-1970; model should know data is absent, not treat it as "no inflation")
+
+**Where it appears in the three-tier model:**
+- **Tier 1** (origin stress): commodity-specific feature for wheat (India, Russia, Ukraine),
+  rice (India), palm oil (Indonesia). Sits alongside the weather features — it's a
+  non-weather stress signal for the same commodity-origin pair.
+- **Tier 2** (S/D balance): feeds into the anomaly detector layer as
+  `food_cpi_intervention_risk_{country}`, which flags that the PSD export forecast for
+  that commodity may be invalidated by an imminent restriction.
+- **Tier 3** (spread signal): indirectly — if the intervention risk flag fires for one
+  leg of a spread pair (e.g., India wheat → global wheat tightens), it lifts the Tier 2
+  su_ratio_surprise for that leg, which the spread model already consumes.
+
+---
+
+### IOD (Indian Ocean Dipole) and MJO (Madden-Julian Oscillation)
+
+Both are already registered as universal features in the feature table above. They are
+**not in Future Work** — they are in-scope, free, and have no technical blockers. They
+were not ingested earlier only because higher-priority fundamental data sources were
+processed first. IOD is a one-session job identical in structure to the ONI ingest.
+
+**IOD implementation plan (one session):**
+
+- Source: NOAA PSL DMI long-record dataset
+  (`https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/dmi.had.long.data`)
+  Monthly back to 1870. Same format family as `oni.ascii.txt`.
+- Raw → `raw/weather/source=noaa_iod/dmi.long.data`
+- Bronze: parse to `(year, month, dmi_value)` Parquet
+- Silver: compute `iod_dmi_3month_avg` rolling mean; join with ONI silver on
+  `year_month` key → `silver/weather/source=noaa_iod/part-000.parquet`
+- Feature: `iod_dmi_3month_avg` — universal feature, same as `enso_oni_3month_avg`.
+  Add commodity-specific lagged versions: `iod_dmi_ethiopia_lag4` (arabica),
+  `iod_dmi_india_lag2` (rice, wheat), `iod_dmi_seasia_lag3` (palm oil, robusta).
+
+**MJO implementation plan (2 sessions):**
+
+- Source: NOAA CPC RMM index
+  (`https://www.cpc.ncep.noaa.gov/products/precip/CWlink/MJO/data/rmm.74toRealtime.txt`)
+  Weekly pentad values of RMM1, RMM2, amplitude, and phase (1–8) back to 1974.
+- Raw → `raw/weather/source=noaa_mjo/rmm.74toRealtime.txt`
+- Bronze: parse to `(date, rmm1, rmm2, amplitude, phase)` Parquet
+- Silver feature engineering: for each commodity-region pair, compute:
+  - `mjo_phase_{p}_active_{region}` = 1 if current phase = p AND amplitude ≥ 1.0, else 0
+  - Relevant phase pairs by region:
+    - India (rice, cotton): phases 2–3 = enhanced convection; phases 6–7 = suppressed
+    - SE Asia (palm, robusta): phases 4–5 = enhanced; phases 8–1 = suppressed
+    - East Africa (arabica): phases 2–3 = enhanced (reduced drought risk)
+  - These are weekly features; aggregated to growing-window counts for annual training grain:
+    "weeks in active enhancing phase during critical window" = one scalar per crop year
+- The phase-based structure makes this slightly more complex than IOD but the
+  raw ingest is identical in pattern.
 
 ---
 
@@ -2223,55 +2345,6 @@ All other 26 contracts are unaffected.
 
 ---
 
-### Government Intervention Risk: Country-Level Food CPI
-
-The current system uses manually-coded binary flags for export policy interventions
-(`india_export_policy_flag`, `russia_export_quota_flag`, `indonesia_biodiesel_flag`).
-These are reactive — they are coded after the restriction is announced.
-
-A dynamic intervention risk feature is possible and would make the flags predictive:
-
-**Mechanism**: High domestic food CPI in a major producing country → government
-faces political pressure to restrict exports to suppress domestic prices → physical
-supply exits the global market → price spike in the affected commodity.
-
-Documented historical precedents:
-- **India** (wheat, 2022): domestic CPI-food running >8% YoY → sudden wheat export ban May 2022
-- **India** (rice, 2023): domestic food inflation → broken rice export ban + non-basmati rice ban
-- **Indonesia** (CPO, 2022): domestic cooking oil shortage → palm oil export ban April–May 2022
-- **Russia** (wheat, recurring 2022–2024): domestic bread price protection → export quota/floor price regime
-- **Argentina** (soy complex, recurring): capital control tightening → farmer silo-bag withholding incentive intensifies
-
-**Proposed features** (all scoped for Phase 3):
-
-| Feature | Mechanism | Countries |
-|---------|-----------|-----------|
-| `food_cpi_yoy_z_{country}` | Domestic food CPI YoY % vs. 5yr rolling z-score | India, Russia, Indonesia, Ukraine, Argentina |
-| `food_cpi_intervention_risk_{country}` | Binary: food_cpi_yoy_z > 1.5σ AND production_miss flag active | Same |
-
-When `food_cpi_intervention_risk_india = 1`, it raises the probability that the
-`india_export_policy_flag` fires within the next 60–90 days — before the announcement,
-not after. This converts a lagging indicator into a leading one.
-
-**Replaces**: manually-coded binary flags in `configs/sources/policy_flags.yaml` for
-the countries above. Manual flags remain as ground truth for the historical training
-labels; the CPI feature becomes the predictive input.
-
-**Free data source**: World Bank DataBank API (`api.worldbank.org/v2/country/{iso}/indicator/FP.CPI.TOTL.ZG`)
-covers CPI-food by country in JSON, no API key required, annual and quarterly, back
-to 1970s for most countries. Monthly granularity requires IMF IFS or OECD.Stat
-(both free with registration). FRED carries US CPI-food and several OECD-derived
-country series.
-
-**Why soil pH is NOT in this list**: Soil pH is a static variable on annual timescales
-(managed by farmers over multi-year liming cycles) and has zero marginal predictive
-value for inter-annual crop yield variation. The long-run yield potential effects of
-soil quality are already captured in `faostat_production_trend_dev`. SoilGrids (ISRIC)
-offers free global 250m soil pH data, but adding it would not improve model accuracy
-for the prediction targets Leviathan uses.
-
----
-
 ### Individual Delivery Month History (Calendar Spread Backtesting)
 
 yfinance and Investing.com both provide continuous front-month contracts only.
@@ -2312,12 +2385,9 @@ baseline is established.
 
 ---
 
-### IOD (Indian Ocean Dipole) and MJO (Madden-Julian Oscillation)
+### IOD and MJO
 
-ONI (ENSO) is already in silver. The IOD and MJO provide independent, orthogonal
-climate forcing not captured by ONI:
-- **IOD**: positive IOD → East African drought (Ethiopia arabica origin stress) → negative IOD → Australia/SE Asia flooding (rice, palm). NOAA publishes the Dipole Mode Index (DMI) free monthly.
-- **MJO**: 30–90 day intraseasonal oscillation; drives active/break monsoon phases in India and SE Asia on sub-seasonal timescales. CPC publishes the RMM index free weekly.
-
-Both are free. IOD is a one-session ingest (same pattern as ONI). MJO adds sub-seasonal
-resolution to rice, cotton, and palm oil models. Scoped for P4 model refinement.
+See "IOD (Indian Ocean Dipole) and MJO (Madden-Julian Oscillation)" section in the main
+feature taxonomy — both have been promoted out of Future Work. IOD is a one-session ingest
+(identical pattern to ONI). MJO follows in a subsequent session. Neither has a technical
+blocker; sequencing was the only reason they were not done earlier.
