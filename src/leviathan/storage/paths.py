@@ -1752,6 +1752,64 @@ def silver_oni_key() -> str:
     return "silver/weather/source=noaa_oni/part-000.parquet"
 
 
+def raw_iod_key() -> str:
+    """S3 key for the NOAA PSL Indian Ocean Dipole (IOD) DMI text file.
+
+    Single overwrite object — NOAA updates the file in-place each month.
+    Full history from 1870 included in every release.
+    """
+    return "raw/weather/source=noaa_iod/dmi.had.long.data"
+
+
+def bronze_iod_key() -> str:
+    """S3 key for the NOAA IOD bronze Parquet.
+
+    Single flat file — one row per (year, month), 1870-present.
+    Overwritten on each ingest run.
+    """
+    return "bronze/weather/source=noaa_iod/part-000.parquet"
+
+
+def silver_iod_key() -> str:
+    """S3 key for the NOAA IOD silver Parquet.
+
+    One row per (year, month), 1870-present.  Extends bronze with
+    iod_dmi_3month_avg (universal feature), iod_phase classification,
+    and iod_dmi_ethiopia_lag4 (arabica coffee commodity-specific feature).
+    """
+    return "silver/weather/source=noaa_iod/part-000.parquet"
+
+
+def raw_food_cpi_key(country_iso: str) -> str:
+    """S3 key for a World Bank DataBank food CPI raw JSON file.
+
+    One file per country.  Overwritten on each fetch — the API returns
+    the full history on every request.
+
+    Args:
+        country_iso: ISO 3166-1 alpha-3 country code, e.g. ``"IND"``.
+    """
+    return f"raw/production/source=wb_food_cpi/country={country_iso}/part-000.json"
+
+
+def bronze_food_cpi_key(country_iso: str) -> str:
+    """S3 key for a World Bank food CPI bronze Parquet (one file per country).
+
+    Args:
+        country_iso: ISO 3166-1 alpha-3 country code, e.g. ``"IND"``.
+    """
+    return f"bronze/production/source=wb_food_cpi/country={country_iso}/part-000.parquet"
+
+
+def silver_food_cpi_key() -> str:
+    """S3 key for the food CPI silver Parquet.
+
+    Long format — one row per (country_iso, year).  All four countries
+    (IND, RUS, IDN, UKR) combined with expanding-window z-scores.
+    """
+    return "silver/food_cpi/part-000.parquet"
+
+
 # ---------------------------------------------------------------------------
 # CONAB text and silver keys
 # ---------------------------------------------------------------------------
