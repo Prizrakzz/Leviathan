@@ -295,8 +295,7 @@ to prevent any future-vintage PSD or WASDE data from leaking into training.
 | `wasde_stocks_revision` | silver_sd_balance | Current − prior month WASDE ending stocks estimate |
 | `wap_nonUS_production_revision` | WAP bronze | Month-over-month change in non-US production estimate |
 | `enso_oni_3month_avg` | NOAA ONI (public) | 3-month avg Ocean Niño Index; El Niño >+0.5, La Niña <−0.5 |
-| `iod_dmi_3month_avg` | NOAA DMI (public) | 3-month avg Indian Ocean Dipole Mode Index. Positive IOD → East African drought (Ethiopia arabica stress, Indian subcontinent deficit); negative IOD → SE Asia/Australia flooding (rice, palm yield risk). Orthogonal to ENSO — fires independently. ✅ **Free; same ingest pattern as ONI** (`https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/dmi.had.long.data`), monthly back to 1870. One-session ingest. |
-| `mjo_phase_{1..8}_active` | NOAA CPC RMM index | 8 binary phase flags for the Madden-Julian Oscillation (30–90 day intraseasonal oscillation). Drives active/break monsoon cycles in India (rice, cotton) and SE Asia (palm oil, robusta coffee). Phase 2–3 → enhanced Bay of Bengal convection → above-normal India rainfall. Phase 6–7 → suppressed → drought risk. ✅ **Free** (`https://www.cpc.ncep.noaa.gov/products/precip/CWlink/MJO/data/rmm.74toRealtime.txt`), weekly back to 1974. Feature engineering: `mjo_amplitude × phase_indicator[phase]` per commodity-region window; amplitude < 1.0 = weak/inactive MJO, features zero out. |
+| `iod_dmi_3month_avg` | NOAA DMI (public) | 3-month avg Indian Ocean Dipole Mode Index. Positive IOD → East African drought (Ethiopia arabica — primary driver, stronger than ENSO for this origin); negative IOD → SE Asia/Australia flooding (rice, palm yield risk). Orthogonal to ENSO. Free, monthly back to 1870, one-session ingest. |
 | `food_cpi_yoy_z_{country}` | World Bank DataBank | Domestic food CPI YoY% vs. 5yr rolling z-score. Countries: India, Russia, Indonesia, Ukraine. Mechanism: elevated domestic food inflation → government faces political pressure to restrict exports → physical supply exits global market before WASDE acknowledges shortfall. See "Government Intervention Risk" section for full feature spec and placement. |
 | `input_cost_urea_z` | Pink Sheet bronze | Urea price vs. 5yr avg — raw price signal only; economic exposure is commodity- and region-specific (see fertilizer intensity features below) |
 | `input_cost_dap_z` | Pink Sheet bronze | DAP price vs. 5yr avg — same caveat |
@@ -487,6 +486,7 @@ Indonesia (North Sumatra), Honduras, Guatemala, Uganda
 | `vietnam_harvest_rain_flag` | — | — | ✓ | CHIRPS + POWER | Oct–Dec excess moisture → fungal risk during cherry development |
 | `enso_oni_vietnam_lag6` | — | — | ✓ | NOAA ONI | ONI lagged 6mo; El Niño → drought risk in Tay Nguyen |
 | `indonesia_sumatra_chirps` | — | — | ✓ | CHIRPS | North Sumatra (Lake Toba region) stress |
+| `iod_dmi_ethiopia_lag4` | ✓ | ✓ | — | NOAA DMI silver | IOD lagged 4 months → Ethiopia Sidama/Yirgacheffe rainfall impact. Positive IOD = drought risk for Ethiopian arabica. **Primary climate driver for this origin — stronger signal than ENSO for East Africa.** Uses same `iod_dmi_3month_avg` silver series; lag applied at feature engineering time. |
 | ⚠ `brl_usd_pct_change_90d` | ✓ | ✓ | — | FRED | ✅ **Phase 2B complete** — silver/fred_fx/part-000.parquet (5,508 rows, 2005–present). brl_usd_pct_change_90d computable. BRL depreciation → coffee exporters delay shipments → reduced near-term physical availability. |
 
 **Spread signal (arabica/robusta)**: `conab_revision_surprise` + `brazil_frost_event_flag`
@@ -881,12 +881,20 @@ in-season granularity for weekly inference refreshes.
 
 ---
 
-### IOD (Indian Ocean Dipole) and MJO (Madden-Julian Oscillation)
+### IOD (Indian Ocean Dipole)
 
-Both are already registered as universal features in the feature table above. They are
-**not in Future Work** — they are in-scope, free, and have no technical blockers. They
-were not ingested earlier only because higher-priority fundamental data sources were
-processed first. IOD is a one-session job identical in structure to the ONI ingest.
+**MJO is not implemented — see rationale below.**
+
+IOD is a one-session ingest, same pattern as ONI. Its primary value is the **Ethiopia
+arabica origin**, where IOD is the dominant large-scale climate driver — more important
+than ENSO. ENSO's fingerprint in East Africa is weak and inconsistent; positive IOD
+reliably drives drought in Sidama/Yirgacheffe. This is a genuine blind spot in the model
+without IOD that CHIRPS alone cannot fill at the start of a season (before in-season
+rainfall has accumulated).
+
+For other origins (India, SE Asia), `iod_dmi_3month_avg` is included as a universal
+feature at no marginal cost; XGBoost will weight it near zero where CHIRPS outcome
+features dominate.
 
 **IOD implementation plan (one session):**
 
@@ -895,29 +903,22 @@ processed first. IOD is a one-session job identical in structure to the ONI inge
   Monthly back to 1870. Same format family as `oni.ascii.txt`.
 - Raw → `raw/weather/source=noaa_iod/dmi.long.data`
 - Bronze: parse to `(year, month, dmi_value)` Parquet
-- Silver: compute `iod_dmi_3month_avg` rolling mean; join with ONI silver on
-  `year_month` key → `silver/weather/source=noaa_iod/part-000.parquet`
-- Feature: `iod_dmi_3month_avg` — universal feature, same as `enso_oni_3month_avg`.
-  Add commodity-specific lagged versions: `iod_dmi_ethiopia_lag4` (arabica),
-  `iod_dmi_india_lag2` (rice, wheat), `iod_dmi_seasia_lag3` (palm oil, robusta).
+- Silver: compute `iod_dmi_3month_avg` rolling mean →
+  `silver/weather/source=noaa_iod/part-000.parquet`
+- Commodity-specific feature: `iod_dmi_ethiopia_lag4` in the arabica model
+  (IOD leads Ethiopian crop-year stress by ~4 months). `iod_dmi_3month_avg`
+  universal entry handles all other origins.
 
-**MJO implementation plan (2 sessions):**
+**Why MJO is not implemented:**
 
-- Source: NOAA CPC RMM index
-  (`https://www.cpc.ncep.noaa.gov/products/precip/CWlink/MJO/data/rmm.74toRealtime.txt`)
-  Weekly pentad values of RMM1, RMM2, amplitude, and phase (1–8) back to 1974.
-- Raw → `raw/weather/source=noaa_mjo/rmm.74toRealtime.txt`
-- Bronze: parse to `(date, rmm1, rmm2, amplitude, phase)` Parquet
-- Silver feature engineering: for each commodity-region pair, compute:
-  - `mjo_phase_{p}_active_{region}` = 1 if current phase = p AND amplitude ≥ 1.0, else 0
-  - Relevant phase pairs by region:
-    - India (rice, cotton): phases 2–3 = enhanced convection; phases 6–7 = suppressed
-    - SE Asia (palm, robusta): phases 4–5 = enhanced; phases 8–1 = suppressed
-    - East Africa (arabica): phases 2–3 = enhanced (reduced drought risk)
-  - These are weekly features; aggregated to growing-window counts for annual training grain:
-    "weeks in active enhancing phase during critical window" = one scalar per crop year
-- The phase-based structure makes this slightly more complex than IOD but the
-  raw ingest is identical in pattern.
+MJO is a 30–90 day intraseasonal oscillation. Our model target is **annual crop-year
+production** — one observation per year. Over a 4-month growing season, 3–4 full MJO
+cycles pass through and average out. The net rainfall effect is already captured by the
+CHIRPS annual z-score computed over the same window. MJO is the mechanism; CHIRPS is the
+outcome. We measure the outcome directly, so the mechanism adds nothing to annual-grain
+prediction. MJO would be essential if Leviathan built a sub-seasonal (7–30 day) crop
+stress update layer — that is a different system scoped for a future phase.
+`mjo_phase_{p}_active` features are removed from the taxonomy.
 
 ---
 
@@ -2385,9 +2386,15 @@ baseline is established.
 
 ---
 
-### IOD and MJO
+### IOD
 
-See "IOD (Indian Ocean Dipole) and MJO (Madden-Julian Oscillation)" section in the main
-feature taxonomy — both have been promoted out of Future Work. IOD is a one-session ingest
-(identical pattern to ONI). MJO follows in a subsequent session. Neither has a technical
-blocker; sequencing was the only reason they were not done earlier.
+IOD is implemented (see "IOD" section in main feature taxonomy). One-session ingest,
+identical pattern to ONI. Primary value: Ethiopia arabica origin, where IOD is the
+dominant climate driver. `iod_dmi_3month_avg` universal + `iod_dmi_ethiopia_lag4`
+commodity-specific.
+
+**MJO is not implemented and will not be.** It is a 30–90 day intraseasonal signal;
+our model grain is annual. MJO cycles average out over a crop year and their net
+rainfall effect is already captured by CHIRPS outcome features. MJO would be relevant
+for a sub-seasonal crop stress update layer (7–30 day forecasts), which is a different
+system not in scope.
