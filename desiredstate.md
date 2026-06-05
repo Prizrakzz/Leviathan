@@ -376,7 +376,7 @@ The **target variable is annual** (`production_quantity` per crop year). Higher-
 
 | Source | Raw cadence | Coverage | Notes |
 |--------|-------------|----------|-------|
-| FAOSTAT QCL | Annual | 1961–2023 | Longest baseline; 10yr trend anchor |
+| FAOSTAT QCL | Annual | 1961–2024 | ✅ **Silver complete** — `silver/production/commodity={slug}/year={Y}/part-000.parquet`. 31 commodities × 64 years. Columns: country, metric (area_harvested / yield / production_quantity), year, value. Longest baseline; 10yr trend anchor. |
 | USDA PSD | Annual / mktg year | ~1960–present | ✅ Silver; Full S/U ratio history |
 | NOAA ONI | Monthly | 1950–present | ✅ **Silver complete** — raw/weather/source=noaa_oni/oni.ascii.txt + bronze + silver/weather/source=noaa_oni/part-000.parquet (915 rows, 1950–present). `enso_oni_3month_avg` universal feature unblocked. |
 | NOAA IOD (DMI) | Monthly | 1870–present | ✅ **Silver complete** — raw/weather/source=noaa_iod/dmi.had.long.data + bronze + silver/weather/source=noaa_iod/part-000.parquet (1,873 rows, 1870–present). `iod_dmi_3month_avg` universal + `iod_dmi_ethiopia_lag4` arabica-specific feature unblocked. |
@@ -1080,7 +1080,9 @@ Requires `silver.price_series` table that does not exist yet.
 
 | Source | Notes |
 |--------|-------|
-| Futures price series (CBOT, ICE, Euronext, DCE, JSE, BMF) | Required for analogue lookup target variable. **Ingest multiple contract expirations per commodity** (not just front month) — calendar spread signals require front + at least 2 deferred tenors per contract. |
+| Futures price series — yfinance (12 US/ICE front-month continuous) | ✅ **Silver complete** — `silver/futures_prices/part-000.parquet` (78,268 rows, 12 slugs, 2000–present). Features: `price_z_2yr`, `realized_vol_30d`, `momentum_60d`, `momentum_1yr`, `vol_regime`. Roll artifacts masked (`is_roll_date` flag, >5% threshold). Validated: corn 2012 drought peak z=+2.27σ ✓. Source: yfinance (unofficial Yahoo Finance API, no key). |
+| Futures price series — Quandl CHRIS (C1/C2/C3 calendar spreads) | ⏳ **Code complete, requires NASDAQ_API_KEY** — `silver/calendar_spreads/part-000.parquet`. Register free at data.nasdaq.com → set `NASDAQ_API_KEY`. 36 series (12 slugs × 3 tenors), roll-adjusted settlement prices. Silver features: `settle_c1/c2/c3`, `spread_c1c3`, `spread_c1c3_z_3yr` (756d rolling), `contango_flag`. Unblocks Tier 3 calendar spread backtesting. |
+| Futures price series — non-US exchanges (DCE, Euronext MATIF, JSE, BMF) | ❌ Licensed data required — see Future Work section. 19 contracts not covered by free sources. |
 | **CFTC COT reports** | ✅ Raw (20 files, `raw/production/source=cftc_cot/`), ✅ Bronze (10 Parquets, `bronze/production/source=cftc_cot/year=*/part-000.parquet`), ✅ Silver (`silver/cot/part-000.parquet`, 10,806 rows, 12 slugs, 2006-06-13–2025-12-30). Disaggregated futures-only. `mm_net_z_3yr` and `mm_pct_oi_z_3yr` computed via 156-week rolling window per commodity. |
 | Exchange rates (BRL/USD, EUR/USD, CNY/USD) | Basis spread component |
 | CEPEA/Esalq spot prices | Brazilian domestic coffee + sugar spot reference |
@@ -2265,7 +2267,7 @@ evaluation gate and run only the standard pytest + mypy + build checks.
 | **P5** | Entity vocabulary YAML + GraphRAG indexing pipeline (CONAB + WMT + WASDE corpus first) | Knowledge graph queryable; GraphRAG global/local search functional |
 | **P6** | LangGraph agent + FastAPI/Fargate + SSE | Query orchestration layer functional end-to-end |
 | **P7** | React/TS chat UI MVP (chat + SHAP waterfall + citations + alerts panel) | User-facing product |
-| **P8** | Price data ingestion (futures + FX) + CFTC COT disaggregated ingestion + analogue lookup engine | Mispricing z-score signal; `cot_net_managed_money_z` contrarian positioning features live for all Tier 3 spread pairs |
+| **P8** | ✅ **Partial** — FX (BRL/ARS/CNY), CFTC COT, yfinance front-month prices all in silver. Quandl CHRIS (calendar spreads) ready pending `NASDAQ_API_KEY`. Analogue lookup engine + Tier 3 spread models still to build. | Mispricing z-score signal; `cot_net_managed_money_z` contrarian positioning features live for all Tier 3 spread pairs |
 | **P9** | Tier 3 spread signal models | Full spread trading signals; system purpose fulfilled |
 | **P10** | Drift monitoring (evidently on Batch → migrate to Clarify) + data quality dashboard | Production operations |
 | **P11** | MCP news tools + INMET weather alerts | Live context layer for the agent |
