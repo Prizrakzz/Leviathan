@@ -1810,6 +1810,67 @@ def silver_food_cpi_key() -> str:
     return "silver/food_cpi/part-000.parquet"
 
 
+def raw_yfinance_key(slug: str) -> str:
+    """S3 key for a yfinance raw OHLCV Parquet (one file per slug).
+
+    Overwritten on each fetch — yfinance returns the full history on every
+    ``period='max'`` request.
+
+    Args:
+        slug: Leviathan slug, e.g. ``"corn_cbot"``.
+    """
+    return f"raw/production/source=yfinance/{slug}/part-000.parquet"
+
+
+def bronze_yfinance_key(slug: str) -> str:
+    """S3 key for a yfinance bronze Parquet (one file per slug).
+
+    Adds ``is_roll_date`` and ``log_return`` columns to the raw OHLCV.
+
+    Args:
+        slug: Leviathan slug, e.g. ``"corn_cbot"``.
+    """
+    return f"bronze/production/source=yfinance/{slug}/part-000.parquet"
+
+
+def silver_futures_prices_key() -> str:
+    """S3 key for the combined yfinance futures prices silver Parquet.
+
+    Long format — one row per (date, leviathan_slug).  All 12 US/ICE
+    front-month continuous contracts combined with price features.
+    """
+    return "silver/futures_prices/part-000.parquet"
+
+
+def raw_chris_key(slug: str, tenor: int) -> str:
+    """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
+
+    Args:
+        slug:  Leviathan slug, e.g. ``"corn_cbot"``.
+        tenor: 1 (front month), 2, or 3.
+    """
+    return f"raw/production/source=quandl_chris/{slug}/tenor={tenor}/part-000.json"
+
+
+def bronze_chris_key(slug: str, tenor: int) -> str:
+    """S3 key for a Quandl CHRIS bronze Parquet (one per slug × tenor).
+
+    Args:
+        slug:  Leviathan slug.
+        tenor: 1, 2, or 3.
+    """
+    return f"bronze/production/source=quandl_chris/{slug}/tenor={tenor}/part-000.parquet"
+
+
+def silver_calendar_spreads_key() -> str:
+    """S3 key for the Quandl CHRIS calendar spreads silver Parquet.
+
+    Long format — one row per (date, leviathan_slug).  Contains C1/C2/C3
+    settlement prices, C1–C3 calendar spread, and 3yr rolling z-score.
+    """
+    return "silver/calendar_spreads/part-000.parquet"
+
+
 # ---------------------------------------------------------------------------
 # CONAB text and silver keys
 # ---------------------------------------------------------------------------
