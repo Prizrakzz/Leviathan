@@ -2177,3 +2177,147 @@ evaluation gate and run only the standard pytest + mypy + build checks.
 
 No SageMaker inference endpoints. No persistent vector database. No RDS.
 All graph artifacts in S3 Parquet, loaded into memory at query time via Athena.
+
+---
+
+## Future Work
+
+Items that are architecturally understood, commercially valuable, and have a clear
+implementation path — but are explicitly out of scope for the current build due to
+licensed data requirements, compute budget, or backtest history constraints.
+
+---
+
+### Licensed Price Data: DCE and JSE Contracts
+
+Leviathan's current price data layer covers 12 US/ICE contracts (yfinance, free) and
+6 additional European/Asian contracts (Euronext rapeseed, Bursa Malaysia palm oil,
+ICE London robusta coffee and white sugar, B3 arabica coffee — scraped via
+Investing.com internal API, research-grade).
+
+**The following 5 contracts require a commercial data license for production use:**
+
+| Contract | Exchange | Why it matters |
+|----------|----------|----------------|
+| Soybean Meal futures | DCE (Dalian) | China crushes ~30% of global soy; DCE price leads CBOT in tight-stock regimes |
+| Soybean Oil futures | DCE (Dalian) | Chinese vegetable oil balance; biodiesel mandate proxy |
+| No.1 Soybeans futures | DCE (Dalian) | Domestic China bean price; import parity calculation |
+| White Maize futures | JSE/SAFEX | Southern African food-security commodity; white/yellow premium = food-security bid |
+| Yellow Maize futures | JSE/SAFEX | SA feedgrain; shares all SAGIS weather features with white maize |
+
+Neither DCE nor JSE exposes historical individual delivery month data through any free
+Western aggregator. DCE data requires a terminal subscription (Wind, Bloomberg) or a
+direct DCE data partnership. JSE/SAFEX data requires a JSE data license or a South
+African broker datafeed.
+
+**Statement for production deployment**: "We have the global contracts; the Chinese
+domestic (DCE) and South African (JSE/SAFEX) contracts require a data license, scoped
+for P13 production deployment. All model architecture and features for these contracts
+are designed and documented — the data gap is the only blocker."
+
+**Impact on current build**: The intercommodity spread pairs involving DCE (Pair 3:
+soybeans_cbot / soybeans_no_1_dce) and JSE (Pair 6: SA white maize / yellow maize)
+are architecturally complete — Tier 1/2 features are built from SAGIS and CHIRPS.
+Calendar spread pairs for DCE/JSE contracts are deferred pending licensed data.
+All other 26 contracts are unaffected.
+
+---
+
+### Government Intervention Risk: Country-Level Food CPI
+
+The current system uses manually-coded binary flags for export policy interventions
+(`india_export_policy_flag`, `russia_export_quota_flag`, `indonesia_biodiesel_flag`).
+These are reactive — they are coded after the restriction is announced.
+
+A dynamic intervention risk feature is possible and would make the flags predictive:
+
+**Mechanism**: High domestic food CPI in a major producing country → government
+faces political pressure to restrict exports to suppress domestic prices → physical
+supply exits the global market → price spike in the affected commodity.
+
+Documented historical precedents:
+- **India** (wheat, 2022): domestic CPI-food running >8% YoY → sudden wheat export ban May 2022
+- **India** (rice, 2023): domestic food inflation → broken rice export ban + non-basmati rice ban
+- **Indonesia** (CPO, 2022): domestic cooking oil shortage → palm oil export ban April–May 2022
+- **Russia** (wheat, recurring 2022–2024): domestic bread price protection → export quota/floor price regime
+- **Argentina** (soy complex, recurring): capital control tightening → farmer silo-bag withholding incentive intensifies
+
+**Proposed features** (all scoped for Phase 3):
+
+| Feature | Mechanism | Countries |
+|---------|-----------|-----------|
+| `food_cpi_yoy_z_{country}` | Domestic food CPI YoY % vs. 5yr rolling z-score | India, Russia, Indonesia, Ukraine, Argentina |
+| `food_cpi_intervention_risk_{country}` | Binary: food_cpi_yoy_z > 1.5σ AND production_miss flag active | Same |
+
+When `food_cpi_intervention_risk_india = 1`, it raises the probability that the
+`india_export_policy_flag` fires within the next 60–90 days — before the announcement,
+not after. This converts a lagging indicator into a leading one.
+
+**Replaces**: manually-coded binary flags in `configs/sources/policy_flags.yaml` for
+the countries above. Manual flags remain as ground truth for the historical training
+labels; the CPI feature becomes the predictive input.
+
+**Free data source**: World Bank DataBank API (`api.worldbank.org/v2/country/{iso}/indicator/FP.CPI.TOTL.ZG`)
+covers CPI-food by country in JSON, no API key required, annual and quarterly, back
+to 1970s for most countries. Monthly granularity requires IMF IFS or OECD.Stat
+(both free with registration). FRED carries US CPI-food and several OECD-derived
+country series.
+
+**Why soil pH is NOT in this list**: Soil pH is a static variable on annual timescales
+(managed by farmers over multi-year liming cycles) and has zero marginal predictive
+value for inter-annual crop yield variation. The long-run yield potential effects of
+soil quality are already captured in `faostat_production_trend_dev`. SoilGrids (ISRIC)
+offers free global 250m soil pH data, but adding it would not improve model accuracy
+for the prediction targets Leviathan uses.
+
+---
+
+### Individual Delivery Month History (Calendar Spread Backtesting)
+
+yfinance and Investing.com both provide continuous front-month contracts only.
+Historical individual delivery months (e.g., ZCZ22.CBT, KC H23.NYB) are deleted
+from free aggregators after contract expiry.
+
+**Blocker for**: Calendar spread pairs C1–C6 walk-forward backtesting. The current
+build can generate live spread snapshots from active deferred months, but cannot
+backtest the calendar spread signal over a meaningful historical window.
+
+**Solution**: Quandl CHRIS dataset (Nasdaq Data Link). CHRIS/CME_C1, C2, C3 provide
+first, second, and third nearby continuous roll-adjusted series for all CBOT/ICE
+contracts, back to the 1960s for grains. Free tier (50 calls/day) is sufficient for
+a one-time historical backfill of 12 contracts × 3 tenors = 36 series. Scoped for P8.
+
+---
+
+### Non-US Exchange Calendar Spreads
+
+Euronext MATIF (wheat, corn, rapeseed), Bursa Malaysia/DCE (palm olein), JSE (SA maize),
+and B3/BMF (campinas corn, arabica) calendar spreads are documented in the spread pairs
+table but deferred pending:
+1. Individual delivery month history (see above)
+2. Licensed data for DCE and JSE (see above)
+3. Confirmation that intercommodity spread models leave meaningful residual
+   unexplained — add only if cross-exchange spread signals are insufficient
+
+---
+
+### MODIS NDVI Active Fire / Deforestation Layer
+
+MODIS MOD14A1 active fire product (500m, daily) combined with Hansen Global Forest
+Change (annual deforestation rate) for key growing regions. Value: Brazilian Cerrado
+deforestation pace correlates with area expansion for soy and corn; Sumatra/Kalimantan
+fire season correlates with palm yield stress via smoke-induced radiation deficit.
+Both datasets are free (NASA EARTHDATA). Scoped for P4 model refinement once Tier 1
+baseline is established.
+
+---
+
+### IOD (Indian Ocean Dipole) and MJO (Madden-Julian Oscillation)
+
+ONI (ENSO) is already in silver. The IOD and MJO provide independent, orthogonal
+climate forcing not captured by ONI:
+- **IOD**: positive IOD → East African drought (Ethiopia arabica origin stress) → negative IOD → Australia/SE Asia flooding (rice, palm). NOAA publishes the Dipole Mode Index (DMI) free monthly.
+- **MJO**: 30–90 day intraseasonal oscillation; drives active/break monsoon phases in India and SE Asia on sub-seasonal timescales. CPC publishes the RMM index free weekly.
+
+Both are free. IOD is a one-session ingest (same pattern as ONI). MJO adds sub-seasonal
+resolution to rice, cotton, and palm oil models. Scoped for P4 model refinement.
