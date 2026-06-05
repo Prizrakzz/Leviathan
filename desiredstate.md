@@ -295,8 +295,8 @@ to prevent any future-vintage PSD or WASDE data from leaking into training.
 | `wasde_stocks_revision` | silver_sd_balance | Current − prior month WASDE ending stocks estimate |
 | `wap_nonUS_production_revision` | WAP bronze | Month-over-month change in non-US production estimate |
 | `enso_oni_3month_avg` | NOAA ONI (public) | 3-month avg Ocean Niño Index; El Niño >+0.5, La Niña <−0.5 |
-| `iod_dmi_3month_avg` | NOAA DMI (public) | 3-month avg Indian Ocean Dipole Mode Index. Positive IOD → East African drought (Ethiopia arabica — primary driver, stronger than ENSO for this origin); negative IOD → SE Asia/Australia flooding (rice, palm yield risk). Orthogonal to ENSO. Free, monthly back to 1870, one-session ingest. |
-| `food_cpi_yoy_z_{country}` | World Bank DataBank | Domestic food CPI YoY% vs. 5yr rolling z-score. Countries: India, Russia, Indonesia, Ukraine. Mechanism: elevated domestic food inflation → government faces political pressure to restrict exports → physical supply exits global market before WASDE acknowledges shortfall. See "Government Intervention Risk" section for full feature spec and placement. |
+| `iod_dmi_3month_avg` | NOAA DMI silver | ✅ **Silver complete** — silver/weather/source=noaa_iod/part-000.parquet (1,873 rows, 1870–present). 3-month avg Indian Ocean Dipole Mode Index. Positive IOD → East African drought (Ethiopia arabica — primary driver, stronger than ENSO for this origin); negative IOD → SE Asia/Australia flooding (rice, palm yield risk). Orthogonal to ENSO. |
+| `food_cpi_yoy_z_{country}` | WB Food CPI silver | ✅ **Silver complete** — silver/food_cpi/part-000.parquet (264 rows, IND/RUS/IDN/UKR, 1960–present). Overall CPI YoY% rolling z-score (5yr and 10yr windows) per country. Silver columns: `cpi_yoy_pct`, `cpi_yoy_z_5yr`, `cpi_yoy_z_10yr`, `cpi_available`. Maps to `food_cpi_yoy_z_{country}` at feature engineering time. See "Government Intervention Risk" section. |
 | `input_cost_urea_z` | Pink Sheet bronze | Urea price vs. 5yr avg — raw price signal only; economic exposure is commodity- and region-specific (see fertilizer intensity features below) |
 | `input_cost_dap_z` | Pink Sheet bronze | DAP price vs. 5yr avg — same caveat |
 | `nitrogen_cost_intensity_{commodity}_{region}` | Pink Sheet + crop_calendars.yaml | `urea_z × N_application_rate_index[commodity][region][production_system]` — scales the raw urea signal by the crop's actual nitrogen exposure. High-yield irrigated corn Iowa = 1.0 (reference); rainfed SA maize = 0.35; arabica coffee = 0.05; palm oil = 0.02. Stored as static scalars in `configs/sources/crop_calendars.yaml`. |
@@ -379,6 +379,8 @@ The **target variable is annual** (`production_quantity` per crop year). Higher-
 | FAOSTAT QCL | Annual | 1961–2023 | Longest baseline; 10yr trend anchor |
 | USDA PSD | Annual / mktg year | ~1960–present | ✅ Silver; Full S/U ratio history |
 | NOAA ONI | Monthly | 1950–present | ✅ **Silver complete** — raw/weather/source=noaa_oni/oni.ascii.txt + bronze + silver/weather/source=noaa_oni/part-000.parquet (915 rows, 1950–present). `enso_oni_3month_avg` universal feature unblocked. |
+| NOAA IOD (DMI) | Monthly | 1870–present | ✅ **Silver complete** — raw/weather/source=noaa_iod/dmi.had.long.data + bronze + silver/weather/source=noaa_iod/part-000.parquet (1,873 rows, 1870–present). `iod_dmi_3month_avg` universal + `iod_dmi_ethiopia_lag4` arabica-specific feature unblocked. |
+| World Bank Food CPI | Annual | 1960–present | ✅ **Silver complete** — silver/food_cpi/part-000.parquet (264 rows, IND/RUS/IDN/UKR, 1960–present). `cpi_yoy_z_5yr` + `cpi_yoy_z_10yr` rolling windows per country. `food_cpi_intervention_risk_{country}` anomaly detector unblocked. |
 | World Bank Pink Sheet | Monthly | 1960–present | ✅ Silver; Input costs + price history |
 | CHIRPS v3 | Daily | **1981–present** | Hard lower bound for all weather features |
 | NASA POWER | Daily | **1981–present** | Same lower bound as CHIRPS |
@@ -486,7 +488,7 @@ Indonesia (North Sumatra), Honduras, Guatemala, Uganda
 | `vietnam_harvest_rain_flag` | — | — | ✓ | CHIRPS + POWER | Oct–Dec excess moisture → fungal risk during cherry development |
 | `enso_oni_vietnam_lag6` | — | — | ✓ | NOAA ONI | ONI lagged 6mo; El Niño → drought risk in Tay Nguyen |
 | `indonesia_sumatra_chirps` | — | — | ✓ | CHIRPS | North Sumatra (Lake Toba region) stress |
-| `iod_dmi_ethiopia_lag4` | ✓ | ✓ | — | NOAA DMI silver | IOD lagged 4 months → Ethiopia Sidama/Yirgacheffe rainfall impact. Positive IOD = drought risk for Ethiopian arabica. **Primary climate driver for this origin — stronger signal than ENSO for East Africa.** Uses same `iod_dmi_3month_avg` silver series; lag applied at feature engineering time. |
+| `iod_dmi_ethiopia_lag4` | ✓ | ✓ | — | NOAA DMI silver | ✅ **Silver complete** — pre-computed in silver/weather/source=noaa_iod/part-000.parquet. IOD lagged 4 months → Ethiopia Sidama/Yirgacheffe rainfall impact. Positive IOD = drought risk for Ethiopian arabica. **Primary climate driver for this origin — stronger signal than ENSO for East Africa.** Lag already applied in silver; feature engineering reads column directly. |
 | ⚠ `brl_usd_pct_change_90d` | ✓ | ✓ | — | FRED | ✅ **Phase 2B complete** — silver/fred_fx/part-000.parquet (5,508 rows, 2005–present). brl_usd_pct_change_90d computable. BRL depreciation → coffee exporters delay shipments → reduced near-term physical availability. |
 
 **Spread signal (arabica/robusta)**: `conab_revision_surprise` + `brazil_frost_event_flag`
@@ -855,18 +857,19 @@ IMF IFS (`imf.org/en/Data`, free with registration) or OECD.Stat (OECD countries
 World Bank annual/quarterly is sufficient for the annual training grain; monthly adds
 in-season granularity for weekly inference refreshes.
 
-**Implementation plan (one session):**
+**Implementation — ✅ COMPLETE (2026-06-05):**
 
-1. `jobs/ingest/fetch_food_cpi.py` — pull World Bank DataBank for IND, RUS, IDN, UKR;
-   write raw JSON to `raw/production/source=wb_food_cpi/{country}/part-000.json`
-2. `src/leviathan/transforms/raw_to_bronze/food_cpi.py` — parse JSON, normalize to
-   `(country_iso, year, cpi_food_yoy_pct)` bronze Parquet
-3. `src/leviathan/transforms/bronze_to_silver/food_cpi.py` — compute 5yr rolling
-   z-score per country; write `silver/food_cpi/part-000.parquet`
-4. Add `food_cpi_yoy_z_{country}` to the per-commodity feature tables (wheat, rice,
-   palm oil) and the anomaly detector table above
-5. Add companion `{country}_food_cpi_available` binary flag (missingness is structural
-   pre-1970; model should know data is absent, not treat it as "no inflation")
+- `jobs/ingest/fetch_world_bank_food_cpi.py` — fetches IND/RUS/IDN/UKR from WB DataBank API
+- `src/leviathan/transforms/raw_to_bronze/world_bank_food_cpi.py` — parses 2-element JSON response
+- `src/leviathan/transforms/bronze_to_silver/world_bank_food_cpi.py` — rolling z-scores per country
+- `jobs/batch/food_cpi_task.py` — end-to-end task
+- `silver/food_cpi/part-000.parquet` — 264 rows, IND/RUS/IDN/UKR, 1960–present
+
+**Z-score design note (rolling, not expanding):** The plan originally specified an expanding
+window. During implementation, Indonesia's 1966 hyperinflation (1,136% CPI) made the
+expanding-window mean enormous, collapsing all modern z-scores toward zero. Switched to
+rolling 10-year / 5-year windows: governments react to inflation elevated vs *recent*
+experience, not 60-year history. Validation: Russia 2015 = +6.7σ (ruble collapse), Ukraine 2022 = +2.6σ (war inflation).
 
 **Where it appears in the three-tier model:**
 - **Tier 1** (origin stress): commodity-specific feature for wheat (India, Russia, Ukraine),
@@ -883,31 +886,19 @@ in-season granularity for weekly inference refreshes.
 
 ### IOD (Indian Ocean Dipole)
 
-**MJO is not implemented — see rationale below.**
+✅ **COMPLETE (2026-06-05)**
 
-IOD is a one-session ingest, same pattern as ONI. Its primary value is the **Ethiopia
-arabica origin**, where IOD is the dominant large-scale climate driver — more important
-than ENSO. ENSO's fingerprint in East Africa is weak and inconsistent; positive IOD
-reliably drives drought in Sidama/Yirgacheffe. This is a genuine blind spot in the model
-without IOD that CHIRPS alone cannot fill at the start of a season (before in-season
-rainfall has accumulated).
+- `raw/weather/source=noaa_iod/dmi.had.long.data` (19,736 bytes, NOAA PSL)
+- `bronze/weather/source=noaa_iod/part-000.parquet` (1,873 rows, 1870–present)
+- `silver/weather/source=noaa_iod/part-000.parquet` (1,873 rows)
+  - `iod_dmi_3month_avg` — universal feature
+  - `iod_phase` — positive / negative / neutral (JMA ±0.4 threshold)
+  - `iod_dmi_ethiopia_lag4` — arabica-specific (lag pre-computed in silver)
 
-For other origins (India, SE Asia), `iod_dmi_3month_avg` is included as a universal
-feature at no marginal cost; XGBoost will weight it near zero where CHIRPS outcome
-features dominate.
-
-**IOD implementation plan (one session):**
-
-- Source: NOAA PSL DMI long-record dataset
-  (`https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/dmi.had.long.data`)
-  Monthly back to 1870. Same format family as `oni.ascii.txt`.
-- Raw → `raw/weather/source=noaa_iod/dmi.long.data`
-- Bronze: parse to `(year, month, dmi_value)` Parquet
-- Silver: compute `iod_dmi_3month_avg` rolling mean →
-  `silver/weather/source=noaa_iod/part-000.parquet`
-- Commodity-specific feature: `iod_dmi_ethiopia_lag4` in the arabica model
-  (IOD leads Ethiopian crop-year stress by ~4 months). `iod_dmi_3month_avg`
-  universal entry handles all other origins.
+Primary value: **Ethiopia arabica origin** — IOD is the dominant climate driver for
+East Africa, stronger than ENSO. ENSO's fingerprint in the Sidama/Yirgacheffe region
+is weak and inconsistent. Validated: 1997-11 `iod_dmi_3month_avg` = 0.9743 ✓
+(known catastrophic positive IOD → Ethiopian crop failure 1998–1999).
 
 **Why MJO is not implemented:**
 
