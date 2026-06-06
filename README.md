@@ -27,6 +27,19 @@ This is not directional macro trading. It is:
 - **Spread / relative value** — identify when country-level origin stress diverges between legs of a spread pair (arabica/robusta, CBOT corn/Campinas corn, CBOT soy/DCE soy), generating a fundamental basis trade.
 - **Mispricing z-score** — when current price has not yet converged to what analogous production environments implied historically, sized by the weighted distribution of those historical outcomes.
 
+The system fuses two independent layers that answer different questions:
+
+**Quantitative layer** — weather + production data → ML production forecast → historical analogue lookup → mispricing signal. Tells you *that* a signal fired and *how large* the historical edge was.
+
+**Temporal knowledge graph** — the part that makes this system genuinely different. A directed graph over ~4,900 analyst documents (USDA GAIN, CONAB, WASDE, WAP, FNC, MPOB, SAGIS) where every node carries a publication timestamp and every edge encodes a documented causal relationship. This enables:
+
+- **Event-chain traversal** — given a stress event (Brazil arabica flowering failure, Indonesian palm export ban, La Niña onset), traverse the full documented cascade of downstream consequences with their historical lag times at each step. Not a single-hop answer — a multi-hop propagation sequence grounded in what analysts actually wrote, with citations.
+- **Cascading effect analysis** — when Ukraine wheat exports are disrupted, the graph traces: which importers panic-buy → from which alternative origins → whether those origins draw down carry-in stocks → whether feed grain substitution tightens corn stocks-to-use. Each hop is a documented edge, not an inference.
+- **Cross-source corroboration** — a signal that appears in one GAIN report is weak. The same signal corroborated independently by CONAB, a separate GAIN report, and a WASDE narrative within the same 30-day window is a different conviction level entirely. The graph scores this.
+- **Point-in-time discipline** — every query can be time-gated to return only information published before a given date. This is the qualitative equivalent of walk-forward cross-validation: you can ask what the graph would have told you in October 2021, with zero look-ahead.
+
+The quantitative layer tells you the signal exists. The knowledge graph tells you *why you believe it*, *what the documented historical consequence chain is*, and *whether independent sources agree* — the three things an investment committee actually needs.
+
 ---
 
 ## System Architecture
