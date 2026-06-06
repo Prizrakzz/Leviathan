@@ -267,6 +267,31 @@ def raw_cotton_annual_key(season_year: int, filename: str) -> str:
     )
 
 
+def bronze_ams_cotton_key(season: int) -> str:
+    """S3 key for a USDA AMS Cotton Annual Quality bronze Parquet.
+
+    One file per season — long-format (metric, value) rows extracted from
+    the annual quality report narrative and distribution tables.
+
+    Args:
+        season: Beginning year of the marketing season, e.g. ``2024``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_ams_cotton_classing/"
+        f"season={season}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_ams_cotton_key() -> str:
+    """S3 key for the USDA AMS Cotton Annual Quality silver Parquet.
+
+    Single flat file — one row per season, all quality metrics wide-format.
+    """
+    return "silver/ams_cotton_quality/part-000.parquet"
+
+
 def raw_nass_citrus_key(season: str, report_type: str, filename: str) -> str:
     """S3 key for a USDA NASS Florida Citrus PDF.
 
@@ -284,6 +309,38 @@ def raw_nass_citrus_key(season: str, report_type: str, filename: str) -> str:
         f"season={season}/"
         f"{filename}"
     )
+
+
+def bronze_nass_citrus_key(season: str, report_type: str, report_month: int) -> str:
+    """S3 key for a USDA NASS Citrus bronze Parquet.
+
+    One file per (season, report_type, report_month).  For ``monthly_forecast``
+    reports this maps to one Parquet per calendar month of the season
+    (Oct = 10 through Jul = 7 of the following year).
+
+    Args:
+        season:       Season in ``YYYY-YY`` format, e.g. ``"2024-25"``.
+        report_type:  E.g. ``"monthly_forecast"``.
+        report_month: Calendar month number (1–12), e.g. ``1`` for January.
+    """
+    return (
+        f"bronze/production/"
+        f"source=usda_nass_citrus/"
+        f"report_type={report_type}/"
+        f"season={season}/"
+        f"report_month={report_month:02d}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_nass_citrus_key() -> str:
+    """S3 key for the USDA NASS Citrus silver Parquet.
+
+    Single flat file — one row per (season, report_month, crop, state).
+    Contains the current-month forecast, prior-month revision, and HLB
+    structural decline index.
+    """
+    return "silver/nass_citrus/part-000.parquet"
 
 
 def raw_icco_qbcs_summary_key(release_date: str, filename: str) -> str:
@@ -315,6 +372,66 @@ def raw_icco_ewg_stocks_key(season: str, filename: str) -> str:
         f"source=icco_ewg_stocks/"
         f"season={season}/"
         f"{filename}"
+    )
+
+
+def bronze_icco_qbcs_key(release_date: str) -> str:
+    """S3 key for an ICCO QBCS quarterly summary bronze Parquet.
+
+    One file per quarterly release date — 8 rows per file
+    (2 vintages × 4 metrics: production, grindings, end_stocks, surplus_deficit).
+
+    Args:
+        release_date: ISO 8601 release date, e.g. ``"2024-11-29"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=icco_qbcs/"
+        f"release_date={release_date}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_icco_ewg_key(season: str) -> str:
+    """S3 key for an ICCO EWG annual cocoa bean stocks bronze Parquet.
+
+    One file per cocoa season — one row per stock location category.
+
+    Args:
+        season: Cocoa season in ``YYYY-YY`` format, e.g. ``"2020-21"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=icco_ewg_stocks/"
+        f"season={season}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_icco_cocoa_key() -> str:
+    """S3 key for the ICCO cocoa silver Parquet.
+
+    One row per cocoa year — latest quarterly estimate for production,
+    grindings, end-season stocks, S/U ratio, and grindings trend deviation.
+    """
+    return "silver/icco_cocoa/part-000.parquet"
+
+
+def text_cmo_outlook_key(release_ym: str) -> str:
+    """S3 key for the extracted text document for a single WB CMO Outlook PDF.
+
+    One file per release — mirrors the raw key Hive partition structure.
+    Written by the CMO Outlook text extraction pipeline.
+
+    Args:
+        release_ym: Publication year-month in ``YYYY-MM`` format,
+                    e.g. ``"2022-04"``.
+    """
+    return (
+        f"text/"
+        f"source=wb_cmo_outlook/"
+        f"release={release_ym}/"
+        f"document.json"
     )
 
 
@@ -1051,6 +1168,33 @@ def raw_cot_weekly_key(report_type: str, year: int, as_of_date: str) -> str:
     )
 
 
+def bronze_cot_key(year_label: str) -> str:
+    """S3 key for a CFTC COT Disaggregated Futures bronze Parquet.
+
+    One file per year label — the 2006-2016 bulk file gets ``"2006_2016"``;
+    each subsequent annual file gets its year, e.g. ``"2017"``.
+
+    Args:
+        year_label: ``"2006_2016"`` or ``"YYYY"`` (e.g. ``"2024"``).
+    """
+    return (
+        f"bronze/production/"
+        f"source=cftc_cot/"
+        f"year={year_label}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_cot_key() -> str:
+    """S3 key for the CFTC COT silver Parquet.
+
+    Single flat file — one row per (report_date, leviathan_slug), weekly,
+    2006-present, covering the 14 Leviathan contracts that have CFTC
+    disaggregated futures data.
+    """
+    return "silver/cot/part-000.parquet"
+
+
 # ---------------------------------------------------------------------------
 # World Bank Pink Sheet
 # ---------------------------------------------------------------------------
@@ -1151,6 +1295,35 @@ def raw_sagis_weekly_key(dataset: str, crop: str, filename: str) -> str:
         f"crop={crop}/"
         f"{filename}"
     )
+
+
+def bronze_sagis_weekly_key(dataset: str, crop: str, season: str) -> str:
+    """S3 key for a SAGIS Weekly Data bronze Parquet.
+
+    One file per (dataset, crop, season).
+
+    Args:
+        dataset: ``"producer_deliveries"`` or ``"imp_exp_progressive"``.
+        crop:    E.g. ``"maize"``, ``"wheat"``, ``"soybeans"``, ``"sunflower"``.
+        season:  Marketing year in ``YYYY-YY`` format, e.g. ``"2024-25"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=sagis_weekly/"
+        f"dataset={dataset}/"
+        f"crop={crop}/"
+        f"season={season}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_sagis_weekly_key(metric_name: str) -> str:
+    """S3 key for a SAGIS Weekly silver Parquet.
+
+    Args:
+        metric_name: ``"deliveries"`` or ``"exports"``.
+    """
+    return f"silver/sagis_weekly_{metric_name}/part-000.parquet"
 
 
 def bronze_psd_key(release_date: str) -> str:
@@ -1492,3 +1665,339 @@ def raw_sagis_cec_key(filename: str) -> str:
                   or ``"CEC-2024-12.doc"``.
     """
     return f"raw/production/source=sagis_cec/{filename}"
+
+
+def bronze_sagis_cec_key(production_year: int, report_month: int, filename_stem: str) -> str:
+    """S3 key for a SAGIS CEC bronze Parquet.
+
+    One file per (production_year, report_month, filename_stem).
+    The filename_stem preserves any ``a``/``b``/``summer``/``winter`` suffix
+    so that multiple releases in the same month are stored separately; silver
+    deduplicates by keeping the latest release_date.
+
+    Args:
+        production_year: Season year in the filename, e.g. ``2025``.
+        report_month:    Calendar month of the estimate (1–12).
+        filename_stem:   Filename without extension, e.g. ``"CEC-2025-09"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=sagis_cec/"
+        f"production_year={production_year}/"
+        f"report_month={report_month:02d}/"
+        f"{filename_stem}.parquet"
+    )
+
+
+def silver_sagis_cec_key() -> str:
+    """S3 key for the SAGIS CEC silver Parquet.
+
+    Single flat file — one row per (production_year, report_month, crop, scope),
+    deduplicated to the latest release per slot.
+    """
+    return "silver/sagis_cec/part-000.parquet"
+
+
+# ---------------------------------------------------------------------------
+# NOAA ONI (Ocean Niño Index) — ENSO 3-month SST anomaly series
+# ---------------------------------------------------------------------------
+
+def raw_oni_key() -> str:
+    """S3 key for the NOAA CPC Ocean Niño Index (ONI) text file.
+
+    Single overwrite object — NOAA updates the file in-place each month,
+    appending the latest 3-month season row.  No versioned snapshot is needed
+    because the full history from 1950 is included in every release and
+    historical revisions are rare (only when the 30-year baseline shifts).
+    """
+    return "raw/weather/source=noaa_oni/oni.ascii.txt"
+
+
+def bronze_oni_key() -> str:
+    """S3 key for the NOAA ONI bronze Parquet.
+
+    Single flat file — one row per 3-month overlapping season (12 rows/year),
+    1950-present.  Overwritten on each ingest run.
+    """
+    return "bronze/weather/source=noaa_oni/part-000.parquet"
+
+
+def raw_fred_fx_key(series_id: str) -> str:
+    """S3 key for a FRED FX rate raw CSV file.
+
+    Overwritten on each fetch — FRED returns the full history on every request.
+
+    Args:
+        series_id: FRED series identifier, e.g. ``"DEXBZUS"``.
+    """
+    return f"raw/fx/source=fred/{series_id}.csv"
+
+
+def bronze_fred_fx_key(series_id: str) -> str:
+    """S3 key for a FRED FX rate bronze Parquet (one file per series).
+
+    Args:
+        series_id: FRED series identifier, e.g. ``"DEXBZUS"``.
+    """
+    return f"bronze/fx/source=fred/{series_id}/part-000.parquet"
+
+
+def silver_fred_fx_key() -> str:
+    """S3 key for the FRED FX silver Parquet.
+
+    Wide daily table — one row per calendar day with rate and
+    pct_change_90d columns for each ingested series.
+    """
+    return "silver/fred_fx/part-000.parquet"
+
+
+def silver_oni_key() -> str:
+    """S3 key for the NOAA ONI silver Parquet.
+
+    Single flat file — one row per (year, month), 1950-present.  Extends
+    the bronze with lagged ONI columns and binary phase flags ready for
+    direct consumption by the feature engineering layer.
+    """
+    return "silver/weather/source=noaa_oni/part-000.parquet"
+
+
+def raw_iod_key() -> str:
+    """S3 key for the NOAA PSL Indian Ocean Dipole (IOD) DMI text file.
+
+    Single overwrite object — NOAA updates the file in-place each month.
+    Full history from 1870 included in every release.
+    """
+    return "raw/weather/source=noaa_iod/dmi.had.long.data"
+
+
+def bronze_iod_key() -> str:
+    """S3 key for the NOAA IOD bronze Parquet.
+
+    Single flat file — one row per (year, month), 1870-present.
+    Overwritten on each ingest run.
+    """
+    return "bronze/weather/source=noaa_iod/part-000.parquet"
+
+
+def silver_iod_key() -> str:
+    """S3 key for the NOAA IOD silver Parquet.
+
+    One row per (year, month), 1870-present.  Extends bronze with
+    iod_dmi_3month_avg (universal feature), iod_phase classification,
+    and iod_dmi_ethiopia_lag4 (arabica coffee commodity-specific feature).
+    """
+    return "silver/weather/source=noaa_iod/part-000.parquet"
+
+
+def raw_food_cpi_key(country_iso: str) -> str:
+    """S3 key for a World Bank DataBank food CPI raw JSON file.
+
+    One file per country.  Overwritten on each fetch — the API returns
+    the full history on every request.
+
+    Args:
+        country_iso: ISO 3166-1 alpha-3 country code, e.g. ``"IND"``.
+    """
+    return f"raw/production/source=wb_food_cpi/country={country_iso}/part-000.json"
+
+
+def bronze_food_cpi_key(country_iso: str) -> str:
+    """S3 key for a World Bank food CPI bronze Parquet (one file per country).
+
+    Args:
+        country_iso: ISO 3166-1 alpha-3 country code, e.g. ``"IND"``.
+    """
+    return f"bronze/production/source=wb_food_cpi/country={country_iso}/part-000.parquet"
+
+
+def silver_food_cpi_key() -> str:
+    """S3 key for the food CPI silver Parquet.
+
+    Long format — one row per (country_iso, year).  All four countries
+    (IND, RUS, IDN, UKR) combined with expanding-window z-scores.
+    """
+    return "silver/food_cpi/part-000.parquet"
+
+
+def raw_yfinance_key(slug: str) -> str:
+    """S3 key for a yfinance raw OHLCV Parquet (one file per slug).
+
+    Overwritten on each fetch — yfinance returns the full history on every
+    ``period='max'`` request.
+
+    Args:
+        slug: Leviathan slug, e.g. ``"corn_cbot"``.
+    """
+    return f"raw/production/source=yfinance/{slug}/part-000.parquet"
+
+
+def bronze_yfinance_key(slug: str) -> str:
+    """S3 key for a yfinance bronze Parquet (one file per slug).
+
+    Adds ``is_roll_date`` and ``log_return`` columns to the raw OHLCV.
+
+    Args:
+        slug: Leviathan slug, e.g. ``"corn_cbot"``.
+    """
+    return f"bronze/production/source=yfinance/{slug}/part-000.parquet"
+
+
+def silver_futures_prices_key() -> str:
+    """S3 key for the combined yfinance futures prices silver Parquet.
+
+    Long format — one row per (date, leviathan_slug).  All 12 US/ICE
+    front-month continuous contracts combined with price features.
+    """
+    return "silver/futures_prices/part-000.parquet"
+
+
+def raw_chris_key(slug: str, tenor: int) -> str:
+    """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
+
+    Args:
+        slug:  Leviathan slug, e.g. ``"corn_cbot"``.
+        tenor: 1 (front month), 2, or 3.
+    """
+    return f"raw/production/source=quandl_chris/{slug}/tenor={tenor}/part-000.json"
+
+
+def bronze_chris_key(slug: str, tenor: int) -> str:
+    """S3 key for a Quandl CHRIS bronze Parquet (one per slug × tenor).
+
+    Args:
+        slug:  Leviathan slug.
+        tenor: 1, 2, or 3.
+    """
+    return f"bronze/production/source=quandl_chris/{slug}/tenor={tenor}/part-000.parquet"
+
+
+def silver_calendar_spreads_key() -> str:
+    """S3 key for the Quandl CHRIS calendar spreads silver Parquet.
+
+    Long format — one row per (date, leviathan_slug).  Contains C1/C2/C3
+    settlement prices, C1–C3 calendar spread, and 3yr rolling z-score.
+    """
+    return "silver/calendar_spreads/part-000.parquet"
+
+
+# ---------------------------------------------------------------------------
+# CONAB text and silver keys
+# ---------------------------------------------------------------------------
+
+def text_mpoc_article_key(date: str, slug: str) -> str:
+    """S3 key for the extracted text document for a single MPOC Market Highlights article.
+
+    Both date and slug together form the unique key — two articles can share a
+    publication date, but slug is always unique.
+
+    Args:
+        date: Publication date in ``YYYYMMDD`` format, e.g. ``"20260123"``.
+        slug: URL slug of the article, e.g.
+              ``"the-rise-of-aseans-foodservice-industry-an-engine-for-palm-oil-demand"``.
+    """
+    return (
+        f"text/"
+        f"source=mpoc/"
+        f"release_type=market_highlights/"
+        f"date={date}/"
+        f"slug={slug}/"
+        f"document.json"
+    )
+
+
+def bronze_mpoc_trade_stats_key(year: int, table_name: str) -> str:
+    """S3 key for an MPOC Trade Statistics bronze Parquet (one table per year).
+
+    Args:
+        year:       Calendar year the page covers, e.g. ``2023``.
+        table_name: One of ``"monthly_totals"``, ``"annual_by_product"``,
+                    ``"annual_by_country"``.
+    """
+    return (
+        f"bronze/production/"
+        f"source=mpoc/"
+        f"release_type=trade_statistics/"
+        f"table={table_name}/"
+        f"year={year}/"
+        f"part-000.parquet"
+    )
+
+
+def bronze_mpoc_stock_comparison_key() -> str:
+    """S3 key for the MPOC Stock Comparison bronze Parquet.
+
+    Single file — 5 import-country × 6 oil-type × 12-month × 2-year grid.
+    Overwritten on each run (source page is a live single-page snapshot).
+    """
+    return "bronze/production/source=mpoc/release_type=stock_comparison/part-000.parquet"
+
+
+def silver_mpoc_key(table_name: str) -> str:
+    """S3 key for an MPOC silver Parquet.
+
+    Args:
+        table_name: One of ``"trade_stats_monthly"``, ``"exports_by_country"``,
+                    ``"stock_comparison"``.
+    """
+    return f"silver/mpoc_{table_name}/part-000.parquet"
+
+
+def text_wmt_key(publication_date: str) -> str:
+    """S3 key for the extracted text document for a single USDA FAS WMT circular.
+
+    One file per publication date — mirrors the raw key Hive partition structure
+    so the two layers join without re-parsing.  Written by the WMT text extraction
+    pipeline; idempotency check uses head_object on this key.
+
+    Args:
+        publication_date: Publication date in ``YYYYMMDD`` format,
+                          e.g. ``"20250625"``.
+    """
+    return (
+        f"text/"
+        f"source=usda_fas_coffee_wmt/"
+        f"publication_date={publication_date}/"
+        f"document.json"
+    )
+
+
+def text_conab_key(crop_year: str, survey_number: int) -> str:
+    """S3 key for the extracted text document for a single CONAB bulletin PDF.
+
+    One file per (crop_year, survey_number) pair — mirrors the raw key Hive
+    partition structure so the two layers join without re-parsing.
+    Written by the CONAB PDF text extraction pipeline; idempotency check
+    uses head_object on this key.
+
+    Args:
+        crop_year:     Marketing year in underscore format, e.g. ``"2024_25"``.
+        survey_number: Survey number within the season (1–5).
+    """
+    return (
+        f"text/"
+        f"source=conab/"
+        f"crop_year={crop_year}/"
+        f"survey={survey_number:02d}/"
+        f"document.json"
+    )
+
+
+def silver_conab_key(commodity: str, safra_year: int, survey: int) -> str:
+    """S3 key for a CONAB XLS silver Parquet partition.
+
+    One file per (commodity, safra_year, survey); contains all Brazilian
+    state rows plus the BRASIL aggregate row for that survey.
+
+    Args:
+        commodity:  Leviathan commodity slug, e.g. ``"arabica_coffee"``.
+        safra_year: Marketing year the survey covers, e.g. ``2026``.
+        survey:     Survey number within the season (1–5).
+    """
+    return (
+        f"silver/production/"
+        f"source=conab/"
+        f"commodity={commodity}/"
+        f"safra_year={safra_year}/"
+        f"survey={survey:02d}/"
+        f"part-000.parquet"
+    )
