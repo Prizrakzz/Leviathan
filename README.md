@@ -401,13 +401,6 @@ The wheel is also managed as a Terraform `aws_s3_object` resource and re-uploade
 
 Contributions are welcome. Please open an issue before submitting a large pull request.
 
-Areas where help is most valuable:
-
-- **Bronze parsers** — CONAB PDF bulletins, WASDE structured tables, SAGIS/CEC crop estimates, NASS Citrus, ICCO quarterly bulletins
-- **Feature engineering pipeline** — stage-aware z-score computation, SageMaker Feature Store integration
-- **GraphRAG indexing** — propositional chunking, entity/relationship extraction, vocabulary tuning
-- **Tests** — unit tests for transforms, integration tests against a local MinIO bucket
-
 ```bash
 pip install -e ".[dev]"
 pytest tests/unit/
