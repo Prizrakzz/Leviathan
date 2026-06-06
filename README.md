@@ -66,11 +66,11 @@ The quantitative layer tells you the signal exists. The knowledge graph tells yo
 │  XGBoost per    │ │  XGBoost per     │ │  Mispricing z-score      │
 │  country ×      │ │  commodity ×     │ │  vs. weighted historical │
 │  commodity ×    │ │  marketing year  │ │  analogue distribution   │
-│  crop year      │ │                  │ │  (Phase 2 — price data)  │
-│                 │ │  + WASDE/PSD     │ │                          │
-│  Weather +      │ │  revision        │ │  + COT positioning       │
-│  crop-stage     │ │  surprise        │ │  + FX cross rate         │
-│  features       │ │                  │ │  + calendar spread z     │
+│  crop year      │ │                  │ │                          │
+│                 │ │  + WASDE/PSD     │ │  + COT positioning       │
+│  Weather +      │ │  revision        │ │  + FX cross rate         │
+│  crop-stage     │ │  surprise        │ │  + calendar spread z     │
+│  features       │ │                  │ │                          │
 └─────────────────┘ └──────────────────┘ └──────────────────────────┘
                               │
                               ▼
@@ -135,45 +135,44 @@ All features use only data available at the point-in-time being forecast:
 
 ### Weather
 
-| Source | Coverage | Status |
-|---|---|---|
-| NASA POWER | All 31 commodities × all regions, daily, 1981–present | ✅ Silver complete |
-| CHIRPS v3 | All regions, daily, 1981–present | ✅ Silver complete |
-| MODIS NDVI (MOD13A1) | All crop regions, 16-day composites, 2000–present | ✅ Silver complete (9,723 files) |
-| NOAA CPC Soil Moisture | Global 0.5°, daily, 1948–present | ✅ Silver complete (133,774 files) |
-| NOAA ONI (ENSO) | Monthly, 1950–present | ✅ Silver complete (915 rows) |
-| NOAA IOD (Indian Ocean Dipole) | Monthly, 1870–present | ✅ Silver complete (1,873 rows) |
+| Source | Coverage |
+|---|---|
+| NASA POWER | All 31 commodities × all regions, daily, 1981–present |
+| CHIRPS v3 | All regions, daily, 1981–present |
+| MODIS NDVI (MOD13A1) | All crop regions, 16-day composites, 2000–present |
+| NOAA CPC Soil Moisture | Global 0.5°, daily, 1948–present |
+| NOAA ONI (ENSO) | Monthly, 1950–present |
+| NOAA IOD (Indian Ocean Dipole) | Monthly, 1870–present |
 
 ### Production & Supply/Demand
 
-| Source | Coverage | Status |
-|---|---|---|
-| FAOSTAT QCL | 31 commodities, 188 countries, 1961–2024 | ✅ Silver complete |
-| USDA PSD | All 31 commodities, 1960s–present | ✅ Silver complete (144,012 rows) |
-| USDA WASDE | Monthly revisions, 1973–present (3 format eras) | ✅ Text layer; bronze parse pending |
-| USDA NASS Crop Progress | US crops, weekly in-season, 1979–present | ✅ Silver complete (279 files) |
-| USDA NASS Annual | US corn, soy, cotton, wheat, rice | ✅ Silver complete |
-| USDA FAS FGIS Export Inspections | US grain/oilseed weekly volumes, 1983–present | ✅ Silver complete |
-| USDA FAS ESR (Export Sales) | Weekly commitments, ~1990–present | ✅ Silver complete (370 files) |
-| USDA WAP (World Ag. Production) | Monthly non-US production, 1988–present | ✅ Silver complete (Table 01 + text) |
-| USDA GAIN Reports | Country crop intelligence, 3,689 PDFs across 15 commodity groups | ✅ Text layer complete |
-| CONAB (Brazil coffee) | Bimonthly surveys, 2005–present | ✅ Bronze + recent silver |
-| UNICA (Brazil sugarcane) | Annual 1980/81–2020/21; biweekly 2022–present | ✅ Annual silver complete |
-| MPOB (Malaysian palm oil) | Monthly HTML 2017–present; annual PDF 2010–2016 | ✅ Silver complete |
-| FNC Colombia (coffee) | Monthly 1913–present, exports 2017–present | ✅ Silver complete (148 files) |
-| SAGIS CEC (South Africa) | Monthly crop estimates, 1999–present | ✅ Raw ingested (374 files) |
-| SAGIS Weekly Deliveries | SA maize weekly flows, 2006/07–present | ✅ Raw ingested |
+| Source | Coverage |
+|---|---|
+| FAOSTAT QCL | 31 commodities, 188 countries, 1961–2024 |
+| USDA PSD | All 31 commodities, 1960s–present |
+| USDA WASDE | Monthly revisions, 1973–present |
+| USDA NASS Crop Progress | US crops, weekly in-season, 1979–present |
+| USDA NASS Annual | US corn, soy, cotton, wheat, rice |
+| USDA FAS FGIS Export Inspections | US grain/oilseed weekly export volumes, 1983–present |
+| USDA FAS ESR (Export Sales Reporting) | Weekly forward commitments, ~1990–present |
+| USDA WAP (World Agricultural Production) | Monthly non-US production estimates, 1988–present |
+| USDA GAIN Reports | Country crop intelligence, 3,689 PDFs across 15 commodity groups |
+| CONAB | Brazil coffee bimonthly crop surveys, 2005–present |
+| UNICA | Brazil CS sugarcane annual production, 1980/81–present |
+| MPOB | Malaysian palm oil monthly statistics, 2010–present |
+| FNC Colombia | Colombia coffee production and exports, 1913–present |
+| SAGIS CEC | South Africa monthly crop estimates, 1999–present |
+| SAGIS Weekly Deliveries | SA maize weekly producer flows, 2006/07–present |
 
 ### Price & Positioning
 
-| Source | Coverage | Status |
-|---|---|---|
-| World Bank Pink Sheet | Monthly commodity + input costs (urea, DAP), 1960–present | ✅ Silver complete (796 rows) |
-| World Bank Food CPI | Annual IND/RUS/IDN/UKR, 1960–present | ✅ Silver complete (264 rows) |
-| CFTC COT (disaggregated) | 12 US/ICE contracts, weekly, 2006–present | ✅ Silver complete (10,806 rows) |
-| yfinance (front-month continuous) | 12 US/ICE contracts, daily, 2000–present | ✅ Silver complete (78,268 rows) |
-| FRED FX (BRL/USD, ARS/USD) | Daily, 2005–present | ✅ Silver complete |
-| Quandl CHRIS (C1/C2/C3) | Calendar spread history, all CBOT/ICE contracts | ⏳ Code ready; `NASDAQ_API_KEY` required |
+| Source | Coverage |
+|---|---|
+| World Bank Pink Sheet | Monthly commodity prices + input costs (urea, DAP), 1960–present |
+| World Bank Food CPI | Domestic food inflation IND/RUS/IDN/UKR, 1960–present |
+| CFTC COT (disaggregated) | Managed money positioning, 12 US/ICE contracts, weekly, 2006–present |
+| yfinance | Front-month continuous futures, 12 US/ICE contracts, daily, 2000–present |
+| FRED | BRL/USD and ARS/USD exchange rates, daily, 2005–present |
 
 ---
 
@@ -239,9 +238,6 @@ AWS credentials must have access to S3, Glue, Batch, and Athena. Configure the b
 ```bash
 export LEVIATHAN_BUCKET=your-s3-bucket-name
 export AWS_REGION=us-east-1
-
-# Required only for the Quandl CHRIS calendar spread pipeline
-export NASDAQ_API_KEY=your_key_here
 ```
 
 ---
@@ -282,21 +278,18 @@ aws glue start-job-run --job-name leviathan-dev-bronze-to-silver-faostat
 ### Price & positioning data
 
 ```bash
-# Front-month futures prices (no API key required)
+# Front-month futures prices
 python jobs/batch/yfinance_futures_task.py
 
 # CFTC Commitments of Traders
 python jobs/batch/cftc_cot_bronze_task.py
 python jobs/batch/cftc_cot_silver_task.py
 
-# World Bank Food CPI (IND/RUS/IDN/UKR)
+# World Bank Food CPI
 python jobs/batch/food_cpi_task.py
 
 # NOAA Indian Ocean Dipole
 python jobs/batch/noaa_iod_task.py
-
-# Quandl CHRIS calendar spreads (requires NASDAQ_API_KEY)
-python jobs/batch/quandl_chris_task.py
 ```
 
 ### Glue transforms
@@ -358,24 +351,6 @@ Six research modes over ~4,900 documents (~49,500 pages) spanning USDA GAIN, CON
 | **Point-in-Time** | "As of October 2021, what had been documented about Brazilian arabica flowering stress?" |
 
 All graph nodes carry a `document_date` timestamp — queries can be time-gated to return only information available before a given date, enabling look-ahead-bias-free qualitative backtesting.
-
----
-
-## Build Phases
-
-| Phase | Deliverable | Status |
-|---|---|---|
-| P0 | USDA PSD + NASS Crop Progress bronze + silver | ✅ Complete |
-| P1 | CONAB bronze (revision tables) + WASDE structured parse + FGIS + ESR | 🔄 In progress |
-| P2 | WMT + SAGIS/CEC + ICCO + AMS Cotton + NASS Citrus + Pink Sheet bronze | 🔄 In progress |
-| P3 | Feature engineering pipeline → SageMaker Feature Store | ⏳ Planned |
-| P4 | Tier 1 + Tier 2 XGBoost models + SageMaker Model Registry | ⏳ Planned |
-| P5 | Entity vocabulary + GraphRAG indexing pipeline | ⏳ Planned |
-| P6 | LangGraph agent + FastAPI/Fargate + SSE streaming | ⏳ Planned |
-| P7 | React/TypeScript chat UI MVP | ⏳ Planned |
-| P8 | FX, COT, yfinance, Quandl CHRIS (calendar spreads) | ✅ Partial — FX/COT/yfinance complete; CHRIS pending API key |
-| P9 | Tier 3 spread signal models + analogue lookup engine | ⏳ Planned |
-| P10 | Drift monitoring (evidently → SageMaker Clarify) | ⏳ Planned |
 
 ---
 
