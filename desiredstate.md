@@ -1,7 +1,7 @@
 # Leviathan — Desired State
 > Authoritative vision document. Update when strategy evolves.
 > Companion to currentstate.md — tracks where we're going, not where we are.
-> Last updated: June 2, 2026 (updated from full S3 audit)
+> Last updated: June 12, 2026 (updated MLOps model-output, explanation, dependency, and drift-table design)
 
 ---
 
@@ -386,9 +386,9 @@ The **target variable is annual** (`production_quantity` per crop year). Higher-
 | NASA POWER | Daily | **1981–present** | Same lower bound as CHIRPS |
 | MODIS NDVI (MOD13A1) | 16-day composite | **2000–present** | ✅ Silver (9,723 files); ~26 seasons; 500m pre-computed NDVI |
 | NOAA CPC Soil Moisture | Daily | **1948–present** | ✅ Silver (133,774 files); ~78 seasons; model-derived (leaky bucket), 0.5° |
-| WASDE (digital PDF) | Monthly | **2000–present** | ✅ text layer extracted (pdfplumber); bronze structured parse pending |
-| WASDE (TXT) | Monthly | **1995–1999** | ✅ text layer extracted (plain parse); 5 additional years |
-| WASDE (scanned PDF) | Monthly | 1973–1994 | ✅ Textract OCR complete; text layer extracted; 22 additional years |
+| WASDE (digital PDF) | Monthly | **2000–present** | ✅ text layer extracted (pdfplumber); ✅ Bronze complete (all 3 eras, 480 parquet files, 1973–2026) |
+| WASDE (TXT) | Monthly | **1995–1999** | ✅ text layer extracted (plain parse); 5 additional years; ✅ Bronze complete |
+| WASDE (scanned PDF) | Monthly | 1973–1994 | ✅ Textract OCR complete; text layer extracted; 22 additional years; ✅ Bronze complete |
 | WAP Table 01 (bronze) | Monthly | **2002–present** | ✅ pdfplumber Table 01 bronze complete; 247 files; ✅ Silver (`silver/wap_table01/part-000.parquet` + `silver/wap_table01_revisions/part-000.parquet`); `wap_nonUS_production_revision` feature ready |
 | WAP (pre-2002 text) | Monthly | **1988–2001** | ✅ text layer only (pdfplumber); no Table 01 format exists in this era; GraphRAG only |
 | NASS Crop Progress | Weekly (in-season) | **1986–present** | ✅ Silver (279 files, `silver/nass_crop_progress/`); US crops: corn_cbot, soybeans_cbot, cotton, SRW/HRS wheat, rough_rice_cbot; 1979–2025 |
@@ -398,13 +398,13 @@ The **target variable is annual** (`production_quantity` per crop year). Higher-
 | FNC Colombia | Monthly | **1956–present** (production); 2002–present (area) | ✅ Silver (148 files, `silver/fnc_colombia/`); monthly 1913–2026, area_department 2002–2025, exports_port_type 2017–2026 |
 | NASS Citrus Monthly | Monthly | **1996–present** | ~29 seasons; FCOJ only |
 | UNICA (annual totals) | Annual per season | **1980/81–2020/21** | **41 seasons**; ✅ Bronze (S3, 41 harvest years × HTML); ✅ Silver (`silver/unica_annual_state/part-000.parquet` — 1,107 rows, 27 state/region rows × 41 seasons, 8 cols) |
-| UNICA (biweekly, in-season) | Biweekly | **2022/23–present** | 3 seasons ⚠; 2021/22 permanently unavailable |
+| UNICA (biweekly, in-season) | Biweekly | **2022/23–present** | ✅ Bronze (210 files), ✅ Silver (4 tables: `unica_biweekly_season_history`, `unica_biweekly_release_series`, `unica_corn_ethanol`, `unica_monthly_ethanol_sales`); 3 seasons ⚠; 2021/22 permanently unavailable |
 | CONAB surveys | Bimonthly (~5/season) | **2005–present** | ~20 marketing years; config `historical_depth: 2005` |
 | MPOB (HTML monthly) | Monthly | **2017–present** | ~9 years; full Sabah/Sarawak regional detail; ~4 OOS seasons with 5yr min train; ✅ Bronze (annual_summary 2017–2026, 10 files); ✅ Silver (`silver/mpob/part-000.parquet`) |
 | MPOB (overview PDFs) | Annual summary | **2010–present** | ~16 years; national totals only, no monthly detail; ~6 OOS seasons for annual features; ✅ Bronze (overview_pdf 2011–2016, 6 files); ✅ Silver (`silver/mpob_annual/part-000.parquet`); ✅ Text layer (2010–2016) |
 | AMS Cotton Classing | Weekly (in-season) | **1986–present** | Annual quality PDFs ingested; weekly tenderable % files not yet |
-| SAGIS CEC (crop estimate) | Bimonthly | **1999–present** | ~27 seasons ✓; 374 files in S3; WordPress archive fully ingested |
-| SAGIS Weekly Deliveries (maize) | Weekly | **2006/07–present** | ~20 seasons ✓; 2006/07 is the practical start of structured weekly deliveries files |
+| SAGIS CEC (crop estimate) | Bimonthly | **1999–present** | ✅ Bronze (336 files), ✅ Silver (`silver/sagis_cec/part-000.parquet`, 2,071 rows, 15 cols); ~27 seasons ✓ |
+| SAGIS Weekly Deliveries (maize) | Weekly | **2006/07–present** | ✅ Bronze (79 files), ✅ Silver (`silver/sagis_weekly_deliveries/` 2,668 rows + `silver/sagis_weekly_exports/` 1,204 rows); ~20 seasons ✓ |
 
 #### Missing Values
 
@@ -968,6 +968,35 @@ Tier 3 — Spread Signal Models  (Phase 2; requires price data)
     Signal = (current_tenor_spread − median_spread_at_this_su_quintile_and_week) / std.
 ```
 
+---
+
+### Model Experimentation Strategy (MLflow-driven)
+
+XGBoost is the starting point for Tier 1 and Tier 2 — not the final answer. Every model decision is a hypothesis to be validated against out-of-sample walk-forward performance. MLflow is the experimentation backbone: every run logs the model class, full hyperparameter set, feature set version, training window, and all evaluation metrics. No model is promoted to the registry without beating the current champion on held-out tail performance, not just RMSE.
+
+**Model candidates to benchmark per tier:**
+
+| Model | Rationale | Watch-out |
+|---|---|---|
+| **XGBoost** (baseline) | Handles tabular data well, interpretable via SHAP, robust to sparse features | Can underfit long-range temporal dependencies |
+| **LightGBM** | Faster training, better on high-cardinality categoricals, often matches XGBoost | Similar inductive biases — not truly different hypothesis |
+| **LSTM / GRU** | Captures sequential dependencies across crop stages natively | Needs more data to generalize; marketing-year grain in Tier 2 is data-scarce |
+| **Temporal Fusion Transformer (TFT)** | Purpose-built for multi-horizon time series with mixed covariates; handles variable-length inputs | Complex to tune; overkill if LSTM already saturates performance |
+| **Tabular Autoencoder (PyTorch)** | Unsupervised anomaly signal: train encoder-decoder on normal feature distributions; high reconstruction error at inference = current conditions outside training manifold = tail event / regime shift / data quality issue. Catches *multivariate* anomalies — each feature may look normal individually but the combination is unprecedented. Used as: (1) a pre-inference gate that flags low-confidence conditions to the user, (2) an automatic GraphRAG trigger when reconstruction error exceeds threshold | Requires feature spine to be built first; minimum ~5yr of monthly observations to train meaningful reconstruction |
+| **Ridge Regression** | Strong regularized baseline for Tier 2 (few observations, many features); interpretable coefficients; useful as a floor to beat | Linear — misses interaction effects |
+| **Gaussian Process** | Principled uncertainty quantification on small datasets; native confidence intervals | Scales poorly beyond ~1,000 observations; Tier 1 weather-dense datasets may exceed this |
+
+**Hyperparameter search**: Optuna via MLflow's autolog integration. Each experiment run logs the full Optuna trial history. No manual grid search.
+
+**Feature set versioning**: every MLflow run logs the exact feature set SHA (derived from `configs/feature_sets/*.yaml`). A model trained on feature set v3 is never compared against one trained on v4 — MLflow filters by feature set version before champion selection.
+
+**Evaluation protocol — what "winning" means**:
+- Primary metric: **directional accuracy on the top/bottom quintile** of the target distribution (the observations that produce trading signals). A model that predicts ±2% uniformly is useless; a model that correctly identifies 70% of extreme outcomes is valuable even with mediocre RMSE.
+- Secondary: **tail error** (90th/95th percentile absolute error) — specifically evaluated on the held-out shock years (2010/11 La Niña, 2012 US drought, 2021 Brazil frost).
+- Gate: any model promoted to the registry must match or exceed the XGBoost baseline on both metrics. RMSE alone is not sufficient for promotion.
+
+**DSPy note**: DSPy (prompt auto-optimization) is intentionally excluded from the LangGraph agent layer at this stage. The PLANNER and domain-specific nodes encode hard commodity knowledge that requires precise hand-crafted prompts — DSPy's optimization loop needs a labeled eval set of "good PLANNER decisions" to search against, which does not exist until the system has accumulated query logs and human-rated responses. Revisit when sufficient annotation data is available.
+
 **Price data status and what is computable with current data:**
 
 Tier 1 and Tier 2 are fully buildable for all 31 commodities regardless of price data —
@@ -1105,21 +1134,21 @@ is absent.
 | FAOSTAT QCL | All 31 commodities, 188 countries, 1961–2023 | ZIP/CSV | ✅ Silver | Annual production baseline |
 | **USDA PSD** | All 31 commodities, 1960s–present | Bulk CSV | ✅ Raw, ✅ Bronze, ✅ Silver | **✅ Complete. `silver/psd/part-000.parquet` — 144,012 rows; all 31 commodities × all countries × market_year × wasde_release_month; columns include `su_ratio`, `su_ratio_yoy_delta`, `production_mt_revision`, `ending_stocks_mt_revision`, `consumption_mt_revision`. `wasde_production_revision` + `wasde_stocks_revision` features ready.** |
 | **USDA NASS QuickStats** | US domestic: corn, soy, wheat, cotton, citrus; weekly + annual | API/JSON | ✅ Raw, ✅ Silver (annual + Crop Progress) | **✅ Complete for both annual + Crop Progress. Annual stats: `silver/nass_annual/` (corn_cbot, soybeans_cbot, cotton, rough_rice_cbot, canola_ice). Crop Progress GE%: `silver/nass_crop_progress/` — 279 files by commodity × year (corn_cbot 1979–2025, soybeans_cbot, cotton, SRW wheat, HRS wheat, rough_rice_cbot).** |
-| **WASDE** | All commodities, monthly revision, 1973–present | CSV + PDF + TXT | ✅ Raw (616 files, 1973–2026), ✅ Text layer, ❌ Bronze structured parse | **P1. Text layer complete (all 3 eras). Three format eras: (1) 1973–1994 scanned PDF → Textract OCR complete; (2) 1995–1999 TXT → plain parse complete; (3) 2000–present digital PDF → pdfplumber complete. Bronze structured parse (`wasde_production_revision`, `wasde_stocks_revision` revision-delta features) pending.** |
+| **WASDE** | All commodities, monthly revision, 1973–present | CSV + PDF + TXT | ✅ Raw (616 files, 1973–2026), ✅ Text layer, ✅ Bronze (480 parquet files by `release_date`, 1973–2026) | **✅ Complete. Text layer complete (all 3 eras). Bronze structured parse complete — schema: `release_date, table_name, region, market_year, status, projection_month, attribute, value, unit`. Covers all 3 format eras (scanned 1973–1994, TXT 1995–1999, digital PDF 2000–present). `wasde_production_revision` + `wasde_stocks_revision` features unblocked. Monthly DAG active.** |
 | SAGIS SWB (South Africa) | SA weekly grain S&D bulletin; PDFs, 2011-present (~746 files) | PDF | ✅ Raw, ❌ Bronze | P2. Weekly S&D summary. Textract bronze pending. |
-| SAGIS Weekly Data (South Africa) | SA weekly producer deliveries + imp/exp; 2003-present (138 files) | Excel/XLS | ✅ Raw, ❌ Bronze | P2. Weekly grain flows by crop. |
-| **SAGIS / CEC (South Africa)** | White/yellow maize, wheat, soy, sunflower; monthly during season | Excel + PDF | ✅ Raw (374 files, 1999–2026), ❌ Bronze | **P2. Raw archive ingested (PDF/DOC/XLS mix, filenames `CEC-YYYY-MM-[Summer/Winter].ext`). SA equivalent of WASDE. Required for JSE contracts. Bronze parse (pdfplumber + Textract for .doc) pending.** |
+| SAGIS Weekly Data (South Africa) | SA weekly producer deliveries + imp/exp; 2003-present (138 files) | Excel/XLS | ✅ Raw, ✅ Bronze (79 files), ✅ Silver | **✅ Complete. `silver/sagis_weekly_deliveries/part-000.parquet` (2,668 rows, 9 cols: season, crop, week_number, week_ending, prog_total_mt, …) + `silver/sagis_weekly_exports/part-000.parquet` (1,204 rows). `sagis_weekly_deliveries_z` + `sa_export_pace_z` features ready.** |
+| **SAGIS / CEC (South Africa)** | White/yellow maize, wheat, soy, sunflower; monthly during season | Excel + PDF | ✅ Raw (374 files, 1999–2026), ✅ Bronze (336 files), ✅ Silver | **✅ Complete. `silver/sagis_cec/part-000.parquet` — 2,071 rows, 15 cols (`production_year`, `report_month`, `release_date`, `season_type`, `crop`, `scope`, …). `sagis_cec_production_revision` feature ready. SA WASDE equivalent; JSE contract feature unblocked.** |
 | CONAB bulletins | Brazil coffee; arabica + conilon by state; 4–5 surveys/season | PDF | ✅ Raw, ✅ Text layer (55 docs, pdfplumber, `text/source=conab/crop_year={y}/survey={n}/document.json`), ❌ Bronze | P1. Revision surprise = highest-conviction coffee feature. |
 | CONAB bulletin XLS | Brazil coffee; per-bulletin Excel | XLS | ✅ Raw, ✅ Bronze (13 files, `bronze/production/source=conab_xls/`), ✅ Silver (`silver/conab_coffee/` — arabica + robusta 2023–2026, 8 files; `silver/production/source=conab/` — 26 files) | ✅ Bronze + recent-season silver complete. |
 | UNICA production/milling | Brazil CS sugarcane; 41 seasons 1980/81–2020/21 | HTML | ✅ Raw, ✅ Bronze, ✅ Silver | Silver: `silver/unica_annual_state/part-000.parquet` (1,107 rows × 8 cols; harvest_year, state_region, cane_crushed_t, sugar_produced_t, ethanol_total_m3, ethanol_hydrous_m3, ethanol_anhydrous_m3, source). Batch job: `leviathan-dev-unica-annual-state:1`. |
-| UNICA bi-weekly | Brazil CS in-season bulletins | PDF | 🔄 Raw partial, ❌ Bronze | P3. Intra-season production pace. |
+| UNICA bi-weekly | Brazil CS in-season bulletins | PDF | ✅ Raw, ✅ Bronze (210 files), ✅ Silver (4 tables) | **✅ Bronze + Silver complete. Silver: `silver/unica_biweekly_release_series/` (122 rows, harvest_year × position_date × region), `silver/unica_biweekly_season_history/` (305 rows, fortnight × region), `silver/unica_corn_ethanol/` (86 rows, quinzenal ethanol), `silver/unica_monthly_ethanol_sales/` (58 rows). `unica_atr_weekly` + `unica_ethanol_sugar_mix` features ready for 2022/23–present seasons.** |
 | MPOB BEPI | Malaysia CPO; monthly + annual | HTML/PDF | ✅ Raw, ✅ Bronze, ✅ Silver | Bronze: annual_summary 2017–2026 (10 files) + overview_pdf 2011–2016 (6 files). Silver: `silver/mpob/part-000.parquet` (monthly 2017–present) + `silver/mpob_annual/part-000.parquet` (annual 2011–2016). Text layer: 2010–2016 (GraphRAG). |
-| MPOC | Malaysia palm trade stats, competitive prices | HTML | ✅ Raw, ❌ Bronze | P3. Trade flow + price comparison. |
+| MPOC | Malaysia palm trade stats, competitive prices, market highlights | HTML | ✅ Raw (355 files), ✅ Bronze (31 files: `trade_statistics` × 3 sub-tables + `stock_comparison`), ✅ Silver (3 tables), ✅ Text layer (335 docs) | **✅ Bronze + Silver + Text complete. Silver: `silver/mpoc_exports_by_country/` (1,923 rows, country × year, 2008–present), `silver/mpoc_trade_stats_monthly/` (192 rows, monthly 2008–present), `silver/mpoc_stock_comparison/` (311 rows, multi-country oils & fats 2025–present). Text: 335 market_highlights articles 2020–2026 via BS4 `<main>` + JSON-LD date.** |
 | FNC Colombia bulk Excel | Colombia coffee; production + exports, 1913–present | XLSX | ✅ Raw, ✅ Bronze (7 files, `bronze/production/source=fnc_excel/`), ✅ Silver (`silver/fnc_colombia/` — monthly 1913–2026, area_department 2002–2025, exports_port_type 2017–2026; 148 files) | ✅ Complete. `fnc_export_pace_z` feature ready. |
-| FNC Colombia monthly PDFs | Colombia coffee monthly reports | PDF | 🔄 Raw partial, ❌ Bronze | P3. GraphRAG secondary. |
+| FNC Colombia monthly PDFs | Colombia coffee monthly reports | PDF | ✅ Raw, ✅ Text layer (56 docs, `text/source=fnc/`), ❌ Bronze structured parse | P3. GraphRAG secondary. Text layer complete. Bronze structured parse (tables/figures) pending. |
 | **USDA AMS Cotton Classing** | US cotton; weekly bales classed, tenderable %, quality | Data files | ✅ Raw (annual quality PDFs, 27 seasons 1986–2025), ❌ Bronze | **P2. Annual Quality Report fully ingested. Weekly classing data files (tenderable %) not yet ingested.** |
-| **USDA NASS Citrus Forecast** | Florida citrus; monthly forecast Oct–Jul | PDF | ✅ Raw (372 files), ❌ Bronze | **P2. Raw backfilled. pdfplumber bronze + silver pending. Required for frozen_orange_juice.** |
-| **ICCO Cocoa Bulletins** | Global cocoa; production, grindings, stocks, quarterly | PDF/HTML | ✅ Raw (104 files — 95 QBCS quarterly bulletins + 9 EWG stocks), ❌ Bronze, ❌ Text | **P2. Raw archive ingested. pdfplumber bronze + text extraction pending. Quarterly grindings (demand) equally important as production for cocoa.** |
+| **USDA NASS Citrus Forecast** | Florida citrus; monthly forecast Oct–Jul | PDF | ✅ Raw (372 files), ✅ Bronze (133 files), ✅ Silver | **✅ Complete. `silver/nass_citrus/part-000.parquet` — 2,450 rows, 9 cols (`season`, `release_date`, `report_month`, `crop`, `state`, `forecast_1000_boxes`, …). `nass_citrus_forecast_revision` + `nass_citrus_vs_prior_month` features ready.** |
+| **ICCO Cocoa Bulletins** | Global cocoa; production, grindings, stocks, quarterly | PDF/HTML | ✅ Raw (104 files — 95 QBCS quarterly bulletins + 9 EWG stocks), ✅ Bronze (47 QBCS + 4 EWG files), ✅ Silver, ❌ Text | **✅ Bronze + Silver complete. `silver/icco_cocoa/part-000.parquet` — 15 rows annual (`cocoa_year`, `production_kt`, `grindings_kt`, `end_stocks_kt`, `surplus_deficit_kt`, `latest_release_date`). `icco_grindings_trend_dev` feature ready. Text extraction (narrative paragraphs) still pending.** |
 | **USDA AMS Export Inspections** | US grain/oilseed weekly export volumes inspected at ports; 1983–present | TXT/CSV | ✅ Raw (43 files, CY1983–CY2025), ✅ Bronze, ✅ Silver | Bronze: 43 Parquet files by CY (1983–2025). Silver: `silver/fgis/` partitioned by leviathan_slug × marketing_year; corn_cbot, soybeans_cbot, SRW/HRW/HRS wheat; 1982/83–2024/25. Weekly DAG live (`fgis_weekly_ingest_dag.py`, Thursdays noon UTC). |
 | **USDA FAS Export Sales Reporting (ESR)** | US grain/oilseed/cotton weekly export commitments (shipped + unshipped); ~1990–present | CSV | ✅ Raw (370 files), ✅ Bronze (740 files, by commodity_code × market_year × as_of snapshot), ✅ Silver (370 files, `silver/production/source=usda_esr/`) | **✅ Complete. `esr_commitments_pace_z` + `esr_new_crop_sales_z` features ready. Point-in-time snapshots preserved via `as_of` partition (20260524, 20260528). Thursday DAG live alongside FGIS.** |
 | **World Bank Pink Sheet** | Global commodity prices + fertilizer/energy input costs (urea, DAP, natural gas); monthly + annual, 1960–present | Excel | ✅ Raw (1 file, 2026M05), ✅ Bronze, ✅ Silver | **✅ Complete. `silver/pink_sheet/part-000.parquet` — 796 rows, 1960–present; columns: urea, DAP, potash, natural_gas_us, natural_gas_eu, phosphate_rock, blended_npk_index + 5yr rolling z-scores for each. `input_cost_urea_z` + `input_cost_dap_z` features ready. Monthly DAG active. ⚠ Note: Brent crude NOT in this silver — separate EIA ingest needed for `crude_oil_brent_z` universal feature.** |
@@ -1132,7 +1161,7 @@ is absent.
 | **USDA GAIN Coffee/Crop Reports** | Country coffee/crop annual + semi-annual | PDF | ✅ Raw (33 archive prefixes across 15 commodity groups, 3,689 total files), ✅ Text layer (5,120 docs, all 15 groups), ❌ Bronze (structured tables) | **✅ Text layer complete — GraphRAG corpus ready. Doc counts by group: cotton 888, sugar 801, coffee 645, grain_monthly 645, soybean_meal 260, cotton_monthly 226, wheat 214, orange_juice 179, corn 167, sugar_semiannual 159, soybean_oil 133, soybeans 127, rice 120, coffee_semiannual 86, rapeseed 83, palm_oil 73, cocoa 21. GraphRAG indexing is the immediate next step.** |
 | **WASDE Narrative** | All commodities, monthly | PDF narrative | ✅ Text layer (616 docs, `text/source=usda_wasde/`) | **✅ Text layer complete. 616 WASDE text extractions (1973–2026, all 3 format eras: Textract OCR 1973–1994, plain parse 1995–1999, pdfplumber 2000–present). GraphRAG-ready. Pairs with `silver/psd/` revision deltas.** |
 | **World Agricultural Production (WAP)** | All major crops, monthly, non-US focus | PDF | ✅ Raw (448 files), ✅ Text layer (448 files), ✅ Bronze Table 01 (247 files, 2002–2026), ✅ Silver | **✅ Complete. `silver/wap_table01/part-000.parquet` + `silver/wap_table01_revisions/part-000.parquet`. Text layer complete (GraphRAG). Table 01 bronze complete 2002–2026. Pre-2002 (1988–2001, source=b): text layer only — no Table 01 format exists in that era.** |
-| **World Bank Commodity Markets Outlook** | Global macro + fertilizer + energy + food market analysis; quarterly, 2012–present | PDF | ✅ Raw (146 files), ❌ Text layer | **P3. Raw archive ingested. Text extraction pending. GraphRAG macro overlay — structural price moves via energy/fertilizer costs, climate policy, global demand shocks. Pairs with `silver/pink_sheet/` structured data.** |
+| **World Bank Commodity Markets Outlook** | Global macro + fertilizer + energy + food market analysis; quarterly, 2012–present | PDF | ✅ Raw (146 files), ✅ Text layer (146 docs, `text/source=wb_cmo_outlook/`) | **✅ Text layer complete. GraphRAG macro overlay ready — structural price moves via energy/fertilizer costs, climate policy, global demand shocks. Pairs with `silver/pink_sheet/` structured data.** |
 
 ### Price & Positioning (Phase 2 — deferred)
 
@@ -1291,8 +1320,11 @@ survey_number, ingest_date`
 | `silver_production` | ✅ Exists | FAOSTAT |
 | `silver_sd_balance` | 🔄 Parquet exists (`silver/psd/part-000.parquet`, 144k rows), Athena registration pending | USDA PSD |
 | `silver_crop_progress` | 🔄 Parquet exists (`silver/nass_crop_progress/`, 279 files), Athena registration pending | NASS Crop Progress |
-| `silver_model_predictions` | ❌ Needed | Daily Batch inference output |
-| `silver_shap_values` | ❌ Needed | Daily SHAP output |
+| `silver_model_predictions` | ❌ Needed | Unified output table for production forecasts, S/D forecasts, anomaly scores, spread signals, and meta-model outputs |
+| `silver_model_explanations` | ❌ Needed | General explanation table: SHAP rows, anomaly triggers, z-score components, rule reasons, reconstruction-error contributors, and model-weight attributions |
+| `silver_model_dependencies` | ❌ Needed | Lineage table linking downstream predictions to upstream model outputs used as inputs |
+| `silver_model_drift_reports` | ❌ Needed | Batch/evidently/Clarify drift summaries and report locations |
+| `silver_shap_values` | 🔄 Compatibility view | Athena view over `silver_model_explanations` where `explanation_method = 'shap'` |
 | `silver_price_series` | ❌ Phase 2 | Futures exchanges |
 
 ---
@@ -1351,6 +1383,96 @@ the training pipeline.
 | ❌ SageMaker Pipelines | No | Overkill; EventBridge + Batch + Step Functions handles it |
 | ❌ Online Feature Store | No | Only needed for real-time inference, which is not in scope |
 
+#### Model Output And Explanation Tables
+
+Model outputs are broader than "one commodity production forecast." The same storage
+pattern must cover Tier 1 origin stress models, Tier 2 S/D balance models, Tier 3 spread
+signals, anomaly detectors, commodity-agnostic/global models, and future meta-models
+that consume upstream model outputs.
+
+Use one S3 bucket and a small number of Athena tables, partitioned by model family,
+entity, and prediction date. Do **not** create one bucket or table per model.
+
+**`silver_model_predictions`** — one row per emitted model output.
+
+Recommended S3 layout:
+```
+silver/model_predictions/
+  model_family={model_family}/
+  prediction_date={YYYY-MM-DD}/
+  part-000.parquet
+```
+
+Required columns:
+```
+prediction_id, run_id, model_family, model_name, model_version,
+prediction_date, as_of_date, target, horizon,
+entity_type, entity_id, commodity,
+prediction_value, prediction_lower, prediction_upper,
+confidence, source
+```
+
+`commodity` is nullable. Commodity-agnostic models use `entity_type` / `entity_id`
+instead: `global/global_macro`, `country/brazil`, `spread/corn_cbot__soybeans_cbot`,
+or `origin/brazil_arabica`.
+
+**`silver_model_explanations`** — long-format explanation rows for any prediction.
+
+Recommended S3 layout:
+```
+silver/model_explanations/
+  model_family={model_family}/
+  prediction_date={YYYY-MM-DD}/
+  part-000.parquet
+```
+
+Required columns:
+```
+prediction_id, run_id, model_family, model_name, model_version,
+prediction_date, entity_type, entity_id, commodity,
+explanation_method, feature_name, feature_value,
+contribution_value, base_value, output_value,
+abs_rank, direction, source
+```
+
+`explanation_method` examples:
+- `shap` for XGBoost/LightGBM feature attributions.
+- `threshold_trigger` for rule-based anomaly detectors.
+- `z_score_component` for seasonal anomaly detectors.
+- `reconstruction_error` / `feature_deviation` for autoencoder anomaly models.
+- `component_contribution` for spread and S/D decomposition.
+- `upstream_model_weight` for stacked/meta-models.
+
+`silver_shap_values` remains only as an Athena compatibility view over
+`silver_model_explanations` filtered to `explanation_method = 'shap'`.
+
+**`silver_model_dependencies`** — model-output lineage.
+
+Required columns:
+```
+prediction_id, upstream_prediction_id,
+upstream_model_family, upstream_model_name, upstream_model_version,
+dependency_type, upstream_target, upstream_value, source
+```
+
+This table is required when a downstream output consumes upstream model outputs, e.g.
+a Tier 3 spread signal consuming Tier 2 `su_ratio_surprise`, Tier 1
+`origin_stress_score`, FX anomalies, and export-pace anomalies. It enables the UI to
+trace "spread signal" back through the model chain instead of showing an opaque score.
+
+**`silver_model_drift_reports`** — drift and data-quality summaries.
+
+Required columns:
+```
+run_id, model_family, model_name, model_version,
+report_date, drift_window_start, drift_window_end,
+drift_metric, drift_score, drift_status,
+report_s3_uri, source
+```
+
+Large HTML/JSON drift artifacts stay in S3 under `model_artifacts/drift_reports/`; the
+silver table stores queryable summary rows plus the artifact URI.
+
 #### Training Pipeline
 
 Triggered by: EventBridge on WASDE release dates + weekly fallback cron.
@@ -1379,9 +1501,14 @@ Batch Fargate: inference task
   2. Load model artifact from S3
   3. Read features from Feature Store (as-of yesterday close)
   4. predict() → production_forecast + confidence interval
-  5. shap.TreeExplainer() locally → shap_values per feature
-  6. Write predictions.parquet + shap_values.parquet to S3
-  7. Glue sync to silver.model_predictions + silver.shap_values
+  5. Compute explanations:
+       - shap.TreeExplainer() locally for XGBoost/LightGBM models
+       - threshold/z-score/rule/reconstruction-error reasons for anomaly detectors
+       - upstream model weights for stacked/meta-models
+  6. Write model_predictions.parquet + model_explanations.parquet
+     + model_dependencies.parquet to S3
+  7. Glue sync to silver.model_predictions + silver.model_explanations
+     + silver.model_dependencies
   8. Compute signal: production_forecast vs. PSD/WASDE consensus → surprise
 ```
 
@@ -1396,7 +1523,8 @@ Batch Fargate: drift task (1st of month)
   2. Load last 30 days of inference feature distributions
   3. Run evidently ColumnDriftReport + DataQualityReport
   4. If drift > threshold: publish SNS alert → set model status to Pending
-  5. Write drift_report_{YYYYMM}.html to S3
+  5. Write drift_report_{YYYYMM}.html/json to S3
+  6. Write queryable summary rows to silver.model_drift_reports
 ```
 
 ---
@@ -1637,11 +1765,15 @@ Chunk B (4 sentences — narrative context, only coherent as a unit):
    surveys, the largest since 2014."
 ```
 
-**Model**: `gpt-4o-mini` (OpenAI API).  The `microsoft/graphrag` library calls OpenAI
-natively; using it with Bedrock requires a compatibility shim (LiteLLM or Bedrock
-Converse API).  For chunking — a one-time offline operation — OpenAI is used directly.
-For production query-time inference (LangGraph synthesiser) Claude on Bedrock is used
-to keep everything inside the AWS IAM data plane.
+**Model**: `anthropic.claude-3-haiku` via **Bedrock** (production) / `gpt-4o-mini` via OpenAI (PoC only).
+
+The `microsoft/graphrag` library calls OpenAI natively. Routing it through Bedrock requires a LiteLLM proxy shim — ~10 lines of config that translates OpenAI-format calls to Bedrock Converse API calls. For the PoC, OpenAI is used directly to get started faster. For production, the shim is set up once and all indexing runs through Bedrock:
+
+- **Single IAM plane** — no OpenAI API key to create, rotate, or secure; Bedrock access is governed by the same IAM role as everything else
+- **No external API dependency** during indexing runs — everything stays inside the AWS data plane
+- **Claude Haiku on Bedrock** is comparable cost to gpt-4o-mini and produces better structured entity/relationship extraction on domain-specific text
+
+Query-time inference (LangGraph SYNTHESIZER node) uses Claude Sonnet on Bedrock — same IAM plane, consistent throughout.
 
 **Cost estimate** (full corpus, one-time):
 - Propositional chunking: ~146,000 pages × $0.00015 = ~$22
@@ -1658,14 +1790,14 @@ to keep everything inside the AWS IAM data plane.
 ```
 S3: document.json files from text/ layer
   │
-  ├─ Stage 1: Propositional Chunking  [gpt-4o-mini, OpenAI API]
+  ├─ Stage 1: Propositional Chunking  [claude-3-haiku, Bedrock via LiteLLM shim]
   │     Input:  full document text (page by page)
   │     Prompt: "Decompose into atomic propositions, group related ones into chunks.
   │              Each chunk must be a complete, self-contained semantic unit."
   │     Output: variable-length chunks (1–6 sentences each)
   │     Cost:   ~$22 one-time for full corpus
   │
-  ├─ Stage 2: Entity + Relationship Extraction  [gpt-4o-mini, OpenAI API]
+  ├─ Stage 2: Entity + Relationship Extraction  [claude-3-haiku, Bedrock via LiteLLM shim]
   │     Input:  each chunk + entity_vocabulary.yaml constraints
   │     Prompt: "Extract ONLY entities matching these types: [vocabulary].
   │              Normalise to canonical names using these aliases: [aliases].
@@ -1873,7 +2005,7 @@ or Textract.
 |------|-------|---------|
 | PLANNER | Claude Haiku | Decompose query, classify retrieval types, build execution plan |
 | SQL AGENT | Claude Haiku | Write + execute Athena SQL across silver.* tables |
-| SHAP EXPLAINER | Claude Haiku | Fetch current SHAP breakdown, format top features with context |
+| MODEL EXPLAINER | Claude Haiku | Fetch current model explanations: SHAP, anomaly triggers, rule reasons, component contributions, and dependency lineage |
 | ANALOGUE FINDER | Claude Haiku | Query historical production-at-current-forecast-level (Phase 2) |
 | GRAPHRAG LOCAL | Graph search | Entity neighborhood retrieval |
 | GRAPHRAG GLOBAL | Graph search | Community synthesis for broad thematic questions |
@@ -1979,7 +2111,7 @@ class PlannerOutput(BaseModel):
     query_intent: Literal["production_forecast", "consequence_chain",
                           "counterfactual", "analyst_accuracy",
                           "tone_escalation", "point_in_time", "general"]
-    retrieval_modes: list[Literal["sql", "graphrag_local", "shap",
+    retrieval_modes: list[Literal["sql", "graphrag_local", "model_explanations",
                                    "analogue", "mcp"]]
     target_entities: list[str]        # e.g. ["Brazil", "arabica_coffee", "2021"]
     time_gate_date: str | None        # ISO date for point-in-time queries
@@ -1996,9 +2128,12 @@ class GraphragLocalOutput(BaseModel):
     citations: list[dict]             # {source, document_date, page}
     retrieval_confidence: float
 
-class ShapExplainerOutput(BaseModel):
+class ModelExplainerOutput(BaseModel):
     commodity: str
-    top_features: list[dict]          # {feature_name, shap_value, direction}
+    entity_type: str                  # commodity, origin, spread, country, global
+    entity_id: str
+    explanation_method: str           # shap, threshold_trigger, z_score_component, ...
+    top_features: list[dict]          # {feature_name, contribution_value, direction}
     forecast_value: float
     forecast_confidence_interval: dict  # {low_80, high_80}
 
@@ -2060,7 +2195,9 @@ def call_with_validation(
 ```python
 ALLOWED_TABLES = {
     "silver_weather", "silver_production", "silver_sd_balance",
-    "silver_crop_progress", "silver_model_predictions", "silver_shap_values",
+    "silver_crop_progress", "silver_model_predictions",
+    "silver_model_explanations", "silver_model_dependencies",
+    "silver_model_drift_reports", "silver_shap_values",
     "silver_psd", "silver_nass_citrus", "silver_fgis", "silver_esr", ...
 }
 FORBIDDEN_KEYWORDS = {"drop", "delete", "insert", "update", "create",
@@ -2449,3 +2586,91 @@ our model grain is annual. MJO cycles average out over a crop year and their net
 rainfall effect is already captured by CHIRPS outcome features. MJO would be relevant
 for a sub-seasonal crop stress update layer (7–30 day forecasts), which is a different
 system not in scope.
+
+---
+
+### GraphML Cascade Probability Layer (Amazon Neptune Analytics)
+
+**What it is**: A GNN trained offline over the GraphRAG knowledge graph, then served on demand as ML-as-a-service. When a user queries "what is the probability of palm oil substitution demand if La Niña coincides with an Argentine WASDE downgrade?", the request hits the Neptune Analytics endpoint, the GNN runs subgraph similarity against all historical analogs in the graph, and returns a probability distribution over downstream cascade nodes — in real time, without rerunning the model. Train once, query on demand.
+
+**Why it's deferred**: The labeled data problem kills it at current scale. GNNs need hundreds of training examples per relationship type. Clean La Niña → Argentine drought → palm substitution cascade analogs exist 5–8 times in 50 years of history. That's enough to overfit, not enough to generalize. A GNN trained on 6 examples is a lookup table with extra steps.
+
+**Why Neptune Analytics specifically**: Neptune Analytics is AWS's managed graph ML service — it runs PageRank, community detection, and GNN inference directly on a Neptune graph database without exporting to a separate ML cluster. It would consume the same knowledge graph built for GraphRAG (entities and causal relationships as nodes/edges) without a separate infrastructure layer. The trained GNN endpoint becomes the on-demand inference service.
+
+**What gives 90% of the value now at 5% of the cost**: Analog matching in pandas over the silver feature spine — find the k=5 nearest historical observations to current conditions (cosine similarity on the same features the Tier 1 model uses), count how often each downstream outcome fired in those analogs. Same probabilistic output, no graph database, no GNN training, no additional infrastructure. Implement this first.
+
+**Revisit condition**: When all three are true — (1) GraphRAG is live and the knowledge graph has been indexed, (2) Tier 1/2/3 models are in production and a user explicitly asks for cascade probabilities rather than narrative context, and (3) the analog matching approach demonstrably underperforms on out-of-sample events. At that point, export the GraphRAG entity/relationship graph to Neptune, train the GNN offline, deploy as a Neptune Analytics endpoint, and replace the pandas analog matcher with on-demand Neptune-backed inference.
+
+---
+
+### Real-Time Tick Data + Order Flow Ingestion (Bloomberg → Kinesis Firehose)
+
+**What it enables**: Live intraday price signals, order flow imbalance, volume-weighted basis tracking, intraday momentum features. Currently all signals are daily or lower frequency — the ML models are positional (days to weeks). Real-time tick data opens intraday regime detection and execution timing signals.
+
+**Architecture**: Bloomberg B-PIPE or SAPI feed → Kinesis Data Streams (buffer) → Kinesis Firehose (micro-batch delivery) → S3 `raw/tick/` → Glue Streaming job for feature computation. Kafka (MSK) over Kinesis only if multiple independent consumers need to read the same tick stream at different processing speeds — e.g., a risk engine and an ML feature computer running concurrently. At single-consumer scale, Kinesis Firehose is simpler and cheaper than MSK.
+
+**S3 Express One Zone**: relevant as the landing zone for tick data that ML training jobs repeatedly scan. Standard S3 has ~100ms first-byte latency; Express One Zone delivers single-digit millisecond latency and 10× higher throughput — meaningful when a backtester is iterating over years of tick data in tight loops. Not relevant for the current batch architecture.
+
+**EFS**: relevant if 10+ SageMaker model endpoints need to share large model artifacts concurrently without per-container S3 copies. Not relevant at current model count.
+
+**Blocker**: Bloomberg B-PIPE license. Real-time tick data is not available from free sources for futures markets. Post-revenue infrastructure investment.
+
+---
+
+### Options Layer: Volatility Surface + Lease Rates (Bloomberg-dependent)
+
+**Volatility surface**: The implied volatility surface (strike × expiry → IV) for commodity options encodes the market's full probability distribution over future prices — not just the mean (futures price) but the shape of uncertainty. Key signals:
+- **Skew**: put/call IV asymmetry reveals directional positioning. Elevated put skew on corn = hedgers buying downside protection = bearish lean despite flat futures.
+- **Term structure**: front-month IV vs back-month IV indicates whether stress is seen as short-term (spike) or structural (flat/inverted curve).
+- **Surface shift**: sudden parallel IV increase across all strikes = vol regime change, not a directional signal.
+
+These are orthogonal to all fundamental signals currently in the model and constitute a standalone feature group per commodity.
+
+**Lease rates**: The implied cost of borrowing a physical commodity (derived from the spread between spot and futures adjusted for carry). Elevated lease rates signal physical tightness not yet visible in WASDE numbers — a leading indicator of supply stress before official revisions confirm it.
+
+**Blocker**: Both require Bloomberg. No free or scraped alternative exists for options surfaces on commodity futures. Post-revenue.
+
+---
+
+### Neural Network Meta-Model + Outlier Preservation
+
+**NN as meta-model (stacking)**: Once Tier 1 (XGBoost), Tier 2 (LSTM), and Tier 3 (cross-commodity) models are trained independently, a shallow neural network trained on their outputs — plus a small set of regime features — learns when to weight each model more heavily. XGBoost dominates in normal-supply regimes; LSTM captures momentum in trending seasons; cross-commodity signals matter during substitution events. A meta-model learns this weighting from out-of-sample errors rather than hardcoding it.
+
+**Outlier preservation discipline**: Standard MSE loss implicitly encourages models to fit the bulk of the distribution, systematically underweighting tail events (droughts, frost, policy shocks) — exactly the observations that drive trading PnL. Mitigations to apply at Tier 1/2/3 build phase:
+- **Huber loss** during training: quadratic near zero, linear in tails — doesn't penalize large errors as aggressively as MSE
+- **Oversample shock years** in the training set: 2010/11 La Niña, 2012 US drought, 2021 Brazil frost
+- **Tail-event indicator feature**: binary flag for observations within confirmed shock regimes, so the model learns to treat them as a separate distribution
+- **Tail evaluation metrics**: evaluate on 90th/95th percentile error in addition to RMSE — a model that looks good on RMSE can be systematically wrong on the 10% of observations that matter most
+
+---
+
+### Global Commodity Knowledge Graph (Supply Chain + Logistics Layer)
+
+**What it is**: An extension of the GraphRAG knowledge graph encoding the **structural properties** of commodities globally — not just causal event chains from documents, but what is always true: physical specifications, grading standards, major producing countries and market shares, primary refining/processing locations, key consuming regions, and documented logistics corridors (ports, shipping lanes, rail links, storage hubs).
+
+**Why it's valuable**: The current GraphRAG graph is event-driven — it captures what happened and why. The structural graph captures invariants: Malaysia and Indonesia produce 85% of global palm oil; the Strait of Malacca is the chokepoint; CPO is refined into RBD olein before export; Rotterdam is the primary European landing point. When a geopolitical or weather event activates, the structural graph tells you which logistics nodes are affected and which downstream consumers are exposed — without needing a document to have explicitly described that specific cascade.
+
+**Scope**: 200+ agricultural and soft commodities (beyond the 31 in the ML model), full supply chain graphs, logistics movement patterns. Structurally similar to what Kpler and Vortexa sell as a product for energy — applied to agricultural commodities.
+
+**Implementation**: Separate Neptune graph (structural, slowly-changing) that the PLANNER LangGraph node can query at runtime to augment GraphRAG document retrieval with structural context. Build from FAOSTAT, UN Comtrade, World Bank commodity profiles, and LLM-assisted extraction from commodity handbooks.
+
+**Blocker**: Scope and curation time. Multi-month build, constitutes a separate data product. Post-revenue, post-GraphRAG-v1-validation.
+
+---
+
+## Our Moat
+
+**What Bloomberg does have**
+
+- Full Bloomberg News archive with entity tagging — searchable but not reasoning-capable
+- Bloomberg Supply Chain Analysis (SPLC) — maps corporate input/output relationships, flags supplier concentration risk
+- Bloomberg Intelligence — human analyst reports on commodities, sector coverage
+- Commodity price history, basis data, futures curves
+- Some USDA data feeds (structured numbers, not the PDFs)
+- Event-driven alerts on supply disruptions
+
+**What Bloomberg does NOT have**
+
+- **The primary source documents themselves** — WASDE PDFs going back to 1973, UNICA biweeklies, SAGIS CEC seasonal estimates, ICCO quarterly bulletins, MPOC market highlights, FNC Colombia reports, WB CMO Outlook. Bloomberg has the *numbers extracted* from some of these but not the full narrative context, the revision language, the qualitative caveats USDA economists put around uncertain projections.
+- **Cross-document reasoning over a specialist corpus** — Bloomberg search is keyword/entity matching. GraphRAG builds an explicit knowledge graph: "the 2010/11 La Niña reduced Argentine soy output → triggered Brazilian export surge → compressed CBOT basis → cascaded into palm oil substitution demand in Malaysia." That causal chain, traced across 6 different source types spanning 15 years, is not something Bloomberg can surface with a query.
+- **Crop-year-aware shock propagation** — Bloomberg's scenario tools are financial (rate shocks, equity beta). They don't model "what happens to white maize JSE futures when SA gets a drought in week 14 of the season, given that 2016 and 2022 had analogous timing." That requires SAGIS weekly delivery cadence + WASDE revision history + price data joined by crop stage, not calendar date.
