@@ -16,7 +16,6 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
-import boto3
 import pandas as pd
 
 from leviathan.common.logging import get_logger
@@ -155,7 +154,7 @@ def main() -> None:
         args.commodity, args.year, force_overwrite,
     )
 
-    s3_client = boto3.client("s3", region_name=args.aws_region)
+    s3_client = get_thread_local_s3_client(args.aws_region)
     locations = load_commodity_regions(s3_client, args.bucket, args.commodity)
     logger.info("Loaded %d locations for commodity=%s", len(locations), args.commodity)
 

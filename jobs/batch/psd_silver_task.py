@@ -31,14 +31,12 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-import boto3
 import pandas as pd
-from botocore.config import Config
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import silver_psd_key
-from leviathan.storage.s3 import list_s3_keys
+from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.bronze_to_silver.usda_psd import transform_psd_bronze_to_silver
 
 logger = get_logger("psd_silver_task")
@@ -73,14 +71,6 @@ def _parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 # S3 helpers
 # ---------------------------------------------------------------------------
-
-def _make_s3_client(aws_region: str):
-    return boto3.client(
-        "s3",
-        region_name=aws_region,
-        config=Config(retries={"max_attempts": 3, "mode": "standard"}),
-    )
-
 
 def _key_exists(s3_client, bucket: str, key: str) -> bool:
     try:
@@ -132,7 +122,7 @@ def main() -> None:
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
 
-    s3 = _make_s3_client(aws_region)
+    s3 = get_thread_local_s3_client(aws_region)
     silver_key = silver_psd_key()
     start = datetime.now(timezone.utc)
 

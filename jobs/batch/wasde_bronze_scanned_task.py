@@ -146,10 +146,30 @@ def _upload_json(s3_client, bucket: str, key: str, payload: object) -> None:
 # Textract poll loop
 # ---------------------------------------------------------------------------
 
-def _collect_line_blocks(textract_client, job_id: str) -> list[dict]:
-    """Paginate GetDocumentTextDetection; return all LINE blocks."""
+def _collect_line_blocks(
+    textract_client,
+    job_id: str,
+    initial_response: dict | None = None,
+) -> list[dict]:
+    """Paginate GetDocumentTextDetection; return all LINE blocks.
+
+    If *initial_response* is provided (e.g. the response already fetched to
+    check job status), its blocks seed the result so the first page is not
+    fetched a second time.
+    """
     blocks: list[dict] = []
-    kwargs: dict = {"JobId": job_id}
+
+    if initial_response is not None:
+        for block in initial_response.get("Blocks", []):
+            if block.get("BlockType") == "LINE":
+                blocks.append(block)
+        next_token = initial_response.get("NextToken")
+        if not next_token:
+            return blocks
+        kwargs: dict = {"JobId": job_id, "NextToken": next_token}
+    else:
+        kwargs = {"JobId": job_id}
+
     while True:
         resp = textract_client.get_document_text_detection(**kwargs)
         for block in resp.get("Blocks", []):
@@ -212,9 +232,9 @@ def _poll_batch(
                 results.append(result)
                 continue
 
-            # SUCCEEDED — parse and write
+            # SUCCEEDED — parse and write; pass resp so first page isn't re-fetched
             try:
-                blocks = _collect_line_blocks(textract_client, job_id)
+                blocks = _collect_line_blocks(textract_client, job_id, initial_response=resp)
                 df = parse_wasde_pdf_scanned(blocks, release_date)
                 result["rows"] = len(df)
 

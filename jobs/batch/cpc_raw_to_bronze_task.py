@@ -26,7 +26,6 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
-import boto3
 import pandas as pd
 
 from leviathan.common.logging import get_logger
@@ -215,7 +214,7 @@ def _process_year(
 
     # Write one Parquet per partition
     access_timestamp = datetime.now(timezone.utc).isoformat()
-    s3_client = boto3.client("s3", region_name=aws_region)
+    s3_client = get_thread_local_s3_client(aws_region)
     written = skipped = 0
     for (commodity, country, region, yr, month), rows in rows_by_partition.items():
         null_count = sum(1 for r in rows if r["soil_moisture_mm"] is None)
@@ -268,7 +267,7 @@ def main() -> None:
 
     force_overwrite = args.force_overwrite.lower() == "true"
 
-    s3_client = boto3.client("s3", region_name=args.aws_region)
+    s3_client = get_thread_local_s3_client(args.aws_region)
 
     if args.commodity:
         commodities = [args.commodity]

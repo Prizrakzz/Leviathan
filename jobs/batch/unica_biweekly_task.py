@@ -309,9 +309,7 @@ def main() -> None:
                 "status_counts":  dict(status_counts),
                 "doctype_counts": dict(doctype_counts),
             }
-            import boto3  # noqa: PLC0415
-            from botocore.config import Config  # noqa: PLC0415
-            s3 = boto3.client("s3", region_name=aws_region, config=Config(retries={"max_attempts": 3}))
+            s3 = get_thread_local_s3_client(aws_region)
             s3.put_object(
                 Bucket=bucket,
                 Key=f"{_BRONZE_PREFIX}_run_log.json",

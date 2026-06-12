@@ -34,9 +34,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-import boto3
 import pandas as pd
-from botocore.config import Config
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
@@ -46,7 +44,7 @@ from leviathan.storage.paths import (
     silver_unica_corn_ethanol_key,
     silver_unica_monthly_ethanol_sales_key,
 )
-from leviathan.storage.s3 import list_s3_keys
+from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.bronze_to_silver.unica_biweekly import (
     transform_corn_ethanol,
     transform_monthly_ethanol_sales,
@@ -95,14 +93,6 @@ def _parse_args() -> argparse.Namespace:
 # S3 helpers
 # ---------------------------------------------------------------------------
 
-def _make_s3_client(aws_region: str):
-    return boto3.client(
-        "s3",
-        region_name=aws_region,
-        config=Config(retries={"max_attempts": 3, "mode": "standard"}),
-    )
-
-
 def _key_exists(s3_client, bucket: str, key: str) -> bool:
     try:
         s3_client.head_object(Bucket=bucket, Key=key)
@@ -145,7 +135,7 @@ def _process_table(
     Returns a summary dict with keys: table, bronze_files, input_rows,
     output_rows, silver_key, status.
     """
-    s3 = _make_s3_client(aws_region)
+    s3 = get_thread_local_s3_client(aws_region)
     prefix = f"{_BRONZE_PREFIX}table={table_name}/"
 
     bronze_keys = list(list_s3_keys(bucket, prefix, suffix=".parquet", aws_region=aws_region))
@@ -285,7 +275,7 @@ def main() -> None:
                 "tables":      table_results,
                 "errors":      errors,
             }
-            s3 = _make_s3_client(aws_region)
+            s3 = get_thread_local_s3_client(aws_region)
             s3.put_object(
                 Bucket=bucket,
                 Key=_SILVER_LOG_KEY,

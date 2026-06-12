@@ -43,14 +43,12 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-import boto3
 import pandas as pd
-from botocore.config import Config
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_wasde_key, parse_hive_key
-from leviathan.storage.s3 import list_s3_keys, s3_download_with_retry
+from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys, s3_download_with_retry
 from leviathan.transforms.raw_to_bronze.usda_wasde import (
     parse_wasde_pdf_digital,
     parse_wasde_txt,
@@ -85,14 +83,6 @@ def _is_modern_key(key: str) -> bool:
 # ---------------------------------------------------------------------------
 # S3 helpers
 # ---------------------------------------------------------------------------
-
-def _make_s3_client(aws_region: str):
-    return boto3.client(
-        "s3",
-        region_name=aws_region,
-        config=Config(retries={"max_attempts": 3, "mode": "standard"}),
-    )
-
 
 def _key_exists(s3_client, bucket: str, key: str) -> bool:
     try:
@@ -149,12 +139,7 @@ def _process_one(
         "error":        None,
     }
 
-    # Thread-local S3 client
-    s3 = boto3.client(
-        "s3",
-        region_name=aws_region,
-        config=Config(retries={"max_attempts": 3, "mode": "standard"}),
-    )
+    s3 = get_thread_local_s3_client(aws_region)
 
     # Idempotency check
     if not force_overwrite and _key_exists(s3, bucket, bronze_key):
@@ -249,7 +234,7 @@ def main() -> None:
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
 
-    s3 = _make_s3_client(aws_region)
+    s3 = get_thread_local_s3_client(aws_region)
     start = datetime.now(timezone.utc)
 
     # ------------------------------------------------------------------

@@ -37,13 +37,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TypedDict
 from urllib.parse import unquote, urljoin
 
-import boto3
 from bs4 import BeautifulSoup
 from curl_cffi import requests as cr
 
 from leviathan.common.constants import MIN_RAW_FILE_SIZES
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_gain_key
+from leviathan.storage.s3 import get_thread_local_s3_client
 
 
 class GainDocument(TypedDict):
@@ -446,7 +446,7 @@ def main() -> None:
     # its landing page is resolved — no waiting for the full crawl to finish.
     # ---------------------------------------------------------------------------
     min_size = MIN_RAW_FILE_SIZES.get("usda_gain", 30_000)
-    s3 = boto3.client("s3", region_name=args.aws_region)
+    s3 = get_thread_local_s3_client(args.aws_region)
 
     def _upload_one(entry: dict) -> str:
         pdf_url = entry.get("pdf_url", "")

@@ -32,8 +32,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
-import boto3
-
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.text_to_graphrag.chunker import chunk_document
 from leviathan.transforms.text_to_graphrag.extractor import extract_chunk
@@ -178,7 +176,7 @@ def _run_partition(
 
     Returns (written, skipped, errors) at the document level.
     """
-    s3 = boto3.client("s3", region_name=aws_region)
+    s3 = get_thread_local_s3_client(aws_region)
 
     if not force_overwrite and partition_exists(s3, bucket, source, year, month):
         logger.info(
