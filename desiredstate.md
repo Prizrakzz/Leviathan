@@ -1341,6 +1341,7 @@ Runs as Glue Python Shell jobs (for scheduled/incremental) or Batch Fargate task
 | `chirps_precip_z_{region}_{lag_weeks}` | silver_weather | Rolling z-score vs. 30yr seasonal norm |
 | `nasa_temp_anomaly_{region}` | silver_weather | Deviation from 30yr baseline |
 | `frost_event_flag_{region}` | silver_weather | Tmin < 0°C in frost-sensitive areas |
+| `capacity_recovery_index_{region}` | silver_weather (NASA POWER Tmin) | Exponential decay model for post-frost productive wood capacity. **Tree crops only: arabica_coffee, robusta_coffee.** Frost severity classified from annual Tmin minimum: 0 (≥ −2°C, no damage), 1 (−4 to −2°C, cherry-kill — one season), 2 (−6 to −4°C, branch-kill — 3 yr recovery), 3 (< −6°C, tree-kill requiring replanting — 5+ yr recovery). Formula: `capacity = 1 − (severity/3) × 0.5^(years_since_event / half_life)`. Half-life = 3 yr. Requires rolling lookback over all prior crop_years per country × region × commodity — computed at feature engineering time with point-in-time discipline (only prior-year frost events visible at each training observation). **Not pre-computed in silver.** Cocoa equivalent: `cocoa_blackpod_cumulative_3yr` (see per-commodity table). |
 | `gdd_accumulated_{region}_{window}` | silver_weather | Growing Degree Days: `max(0, (T_max + T_min)/2 − T_base)` summed over the growing window. T_base and T_max cap are crop-specific (corn: base 10°C, cap 30°C; wheat: base 0–5°C, cap 25°C; soy: base 10°C, cap 30°C; cotton: base 15.5°C, cap 37°C). Inputs `temperature_2m_max_c` and `temperature_2m_min_c` are in silver_weather (NASA POWER). **Not pre-computed in silver — must be derived here in feature engineering with per-commodity T_base and T_max_cap.** |
 | `drought_consecutive_days_{region}` | silver_weather + CHIRPS | Consecutive below-20th-percentile days |
 | `nass_crop_progress_ge_pct` | silver_crop_progress | Good/Excellent % for week |
@@ -1380,7 +1381,7 @@ the training pipeline.
 | ✅ Clarify | Yes (when ready for prod ops) | Drift detection; start with evidently first (free, same capability) |
 | ❌ Async Inference | No | Wrong abstraction; endpoints cost $37+/mo idle; Batch Fargate runs 31 predictions in <10 min for pennies |
 | ❌ Training Jobs | No | Datasets too small; Batch Fargate is cheaper and already in stack |
-| ❌ SageMaker Pipelines | No | Overkill; EventBridge + Batch + Step Functions handles it |
+| ❌ SageMaker Pipelines | No | Overkill; EventBridge + Batch + Airflow DAGs handle it |
 | ❌ Online Feature Store | No | Only needed for real-time inference, which is not in scope |
 
 #### Model Output And Explanation Tables
@@ -1813,13 +1814,14 @@ S3: document.json files from text/ layer
   │     Each edge carries: source_citation, relation_type, confidence
   │
   ├─ Stage 4: Local Search Index  [CPU, no LLM]  ← PRIMARY
-  │     Dense vector index over entity embeddings (Bedrock Titan Embeddings, $0.0001/1K)
+  │     Dense vector index over entity embeddings (OpenAI text-embedding-3-large,
+  │     3,072 dims, $0.00013/1K tokens)
   │     Enables: entity neighbourhood retrieval at query time
   │     Covers: all 6 research modes in desiredstate.md
   │
   └─ Stage 5: Community Detection + Global Search  [optional, deferred]
         Leiden community detection (leidenalg, CPU, free)
-        Community report summarisation (Claude Sonnet, ~$7.50 for 500 communities)
+        Community report summarisation (GPT-4o, ~$8–10 for 500 communities)
         Enables: corpus-wide thematic synthesis queries
         Rationale for deferral: all 6 defined research modes are entity-anchored
         (local search). Global search adds thematic synthesis but is not required
@@ -1843,6 +1845,14 @@ Override the default chunker with the propositional chunking strategy above.
   → cited answer.  Covers all 6 research modes.  Fast, precise, grounded.
 - **Global search** (implement later): community reports → thematic synthesis.
   For corpus-wide questions with no entity anchor.  Slower, broader.
+- **Reranking** (implement with local search): after entity neighbourhood traversal
+  returns its chunk neighbourhood (typically 50–200 chunks), **BGE Reranker v2-m3**
+  (BAAI, open-source, cross-encoder) scores each `(query, chunk)` pair via a direct
+  forward pass and cuts to top-20 before the SYNTHESIZER receives context.  More
+  accurate than embedding similarity alone — the cross-encoder sees query and chunk
+  together, not as independent vectors.  Reduces synthesis cost and improves citation
+  precision.  Model (~1.1 GB) is bundled in the agent Docker image and loaded at
+  container startup; no external API dependency.
 
 #### Document Corpus — Full Inventory (All 4 Tiers)
 
@@ -1994,66 +2004,102 @@ or Textract.
 
 ### Layer 4: Query Orchestration (LangGraph Agent + FastAPI)
 
-**FastAPI service** on Fargate (1 vCPU, 2GB, always-on in dev, ~$35/month):
+**Deployment target**: **Amazon Bedrock AgentCore Runtime** — containerised execution
+environment for the LangGraph agent.  Manages container lifecycle, health checks, and
+scaling without manual Fargate task definition management.  AgentCore Runtime is a
+Bedrock-prefixed service and must be verified as accessible on this account
+independently of Bedrock model quota.  **Fallback**: Fargate service (1 vCPU, 2GB,
+behind ALB) if AgentCore Runtime is unavailable — functionally identical, slightly
+more operational overhead.
+
+**FastAPI service** (always-on in dev, ~$35/month):
 - Server-Sent Events (SSE) for streaming responses to UI
 - Reasoning trace per query stored in S3 (audit trail + future training data)
 - Per-request timeout: 30s total; individual node timeout: 10s
+
+**Session memory (DynamoDB — `leviathan_sessions` table)**:
+
+Cross-session conversation continuity — the last N exchanges are persisted so a
+user can return after closing the browser and continue a research thread without
+restarting context.  Within a single session, LangGraph state handles memory
+natively in-process; DynamoDB is only accessed at session start (load prior turns)
+and session end (persist current turns).
+
+```
+Table:          leviathan_sessions
+Partition key:  session_id  (UUID, generated per browser session)
+Sort key:       turn_index  (integer, monotonically increasing)
+Attributes:     role (user | assistant), content (str), timestamp (ISO)
+TTL:            7 days (DynamoDB native TTL — auto-expires old sessions at zero cost)
+```
+
+At session start, the PLANNER system prompt is seeded with the last N turns
+(configurable, default 5 exchanges = 10 items).  This gives the agent enough
+context to resolve follow-up references ("what about robusta?" → knows prior
+question was about arabica) without bloating the context window with stale history.
+
+If multi-user access is added later, `user_id` is prepended to `session_id` and
+a GSI on `user_id` enables per-user session listing.  No schema change required.
 
 **LangGraph agent nodes:**
 
 | Node | Model | Purpose |
 |------|-------|---------|
-| PLANNER | Claude Haiku | Decompose query, classify retrieval types, build execution plan |
-| SQL AGENT | Claude Haiku | Write + execute Athena SQL across silver.* tables |
-| MODEL EXPLAINER | Claude Haiku | Fetch current model explanations: SHAP, anomaly triggers, rule reasons, component contributions, and dependency lineage |
-| ANALOGUE FINDER | Claude Haiku | Query historical production-at-current-forecast-level (Phase 2) |
-| GRAPHRAG LOCAL | Graph search | Entity neighborhood retrieval |
+| PLANNER | GPT-4o-mini | Decompose query, classify retrieval types, build execution plan |
+| SQL AGENT | GPT-4o-mini | Write + execute Athena SQL across silver.* tables |
+| SHAP EXPLAINER | GPT-4o-mini | Fetch current SHAP breakdown, format top features with context |
+| ANALOGUE FINDER | GPT-4o-mini | Query historical production-at-current-forecast-level (Phase 2) |
+| GRAPHRAG LOCAL | Graph search + BGE Reranker v2-m3 | Entity neighborhood retrieval → cross-encoder rerank to top-20 |
 | GRAPHRAG GLOBAL | Graph search | Community synthesis for broad thematic questions |
-| MCP TOOLS | Claude Haiku | Live news / weather alerts (Phase 3) |
-| SYNTHESIZER | Claude Sonnet | Final answer with cited sources, streamed via SSE |
+| MCP TOOLS | GPT-4o-mini | Live news / weather alerts (Phase 3) |
+| SYNTHESIZER | GPT-4o | Final answer with cited sources, streamed via SSE |
 | ERROR HANDLER | — | Catches node failures, returns partial answer, logs to CloudWatch |
 
 ---
 
-#### Managed Services — Bedrock Prompt Management + Guardrails
+#### Prompt Management, Safety, and Observability
 
-**The principle**: use Bedrock managed services where they solve the problem better
-than custom code can.  Write custom code only where no managed service reaches.
+**The principle**: model inference runs on OpenAI (GPT-4o-mini / GPT-4o).  Safety
+filtering uses Bedrock Guardrails `ApplyGuardrail` as a provider-agnostic wrapper —
+it is a standalone content-filtering API, not tied to Bedrock model inference.
+Prompt lifecycle is managed through Langfuse + YAML/Git.
 
 ---
 
-##### Bedrock Prompt Management (all LLM nodes)
+##### Langfuse + YAML/Git (all LLM nodes)
 
-Every system prompt and user prompt template is stored in **Bedrock Prompt Management**
-as a versioned resource, not hardcoded in Python.  Each LangGraph node references a
-prompt by ARN (`promptId:version`).
+Every system prompt and user prompt template is stored as a versioned **YAML file in
+Git** — the authoritative source of truth — and published to **Langfuse Prompt
+Management** for runtime access.  Each LangGraph node loads its prompt by slug,
+never hardcoding strings.
 
 Benefits:
-- Prompt iteration without code deployment or Docker rebuild — publish a new version,
+- Prompt iteration without code deployment: merge a YAML change, publish to Langfuse,
   nodes pick it up on next invocation
-- Full version history and rollback
-- A/B testing at the prompt level (directly feeds the Prompt Gallery capability)
-- Model parameters (temperature, max_tokens, top_p) stored alongside the prompt,
-  not scattered across the codebase
+- Full version history and rollback via both Git history and Langfuse version registry
+- A/B testing at the prompt level — two PLANNER prompt versions run against the
+  standardised evaluation dataset; the winner is promoted
+- Model parameters (temperature, max_tokens) stored alongside the prompt, not
+  scattered across the codebase
+- YAML + Git makes prompts reviewable in pull requests like any other code change
 
 ```python
-# Every node calls prompts by ARN, never hardcodes strings
-response = bedrock.invoke_model(
-    modelId="anthropic.claude-3-haiku-20240307-v1:0",
-    promptArn="arn:aws:bedrock:us-east-1::prompt/PLANNER_PROMPT:3",
-    promptVariables={"query": user_query, "context": retrieved_context},
-    guardrailIdentifier=GUARDRAIL_ID,   # attached to every call — see below
-    guardrailVersion="DRAFT",
-)
+from langfuse import Langfuse
+langfuse = Langfuse()
+
+# Every node loads prompts by slug, never hardcodes strings
+prompt = langfuse.get_prompt("planner-prompt", version=3)
+compiled = prompt.compile(query=user_query, context=retrieved_context)
 ```
 
 ---
 
-##### Bedrock Guardrails (every Bedrock API call)
+##### Bedrock Guardrails — `ApplyGuardrail` (input + output safety wrapper)
 
-A single **Bedrock Guardrail** resource is configured once and attached to every
-Bedrock API call via `guardrailIdentifier`.  It runs transparently on both the input
-(user query) and the output (model response) without any custom code.
+A single **Bedrock Guardrail** resource is configured once and called via the
+standalone `ApplyGuardrail` API — independent of which model provider handles
+inference.  It wraps every OpenAI call: input is checked before the call; output
+is checked before it reaches the user or downstream nodes.
 
 What the Guardrail handles — replacing all custom security code:
 
@@ -2067,7 +2113,7 @@ What the Guardrail handles — replacing all custom security code:
 | Word/phrase blocks | None | Configurable word filters |
 
 ```python
-# Guardrail is defined once in Terraform / CDK:
+# Guardrail defined once in Terraform / CDK:
 guardrail = bedrock.create_guardrail(
     name="leviathan-agent-guardrail",
     topicPoliciesConfig={
@@ -2078,24 +2124,35 @@ guardrail = bedrock.create_guardrail(
             "type": "DENY",
         }]
     },
-    contentPolicyConfig={...},          # harmful content thresholds
-    sensitiveInformationPolicyConfig={  # PII types to redact
+    contentPolicyConfig={...},
+    sensitiveInformationPolicyConfig={
         "piiEntitiesConfig": [{"type": "EMAIL", "action": "ANONYMIZE"}, ...]
     },
     contextualGroundingPolicyConfig={
-        "filtersConfig": [{
-            "type": "GROUNDING",
-            "threshold": 0.7,           # answer must be 70%+ grounded in context
-        }]
+        "filtersConfig": [{"type": "GROUNDING", "threshold": 0.7}]
     },
 )
 GUARDRAIL_ID = guardrail["guardrailId"]
+
+def _apply_guardrail(text: str, source: Literal["INPUT", "OUTPUT"]) -> None:
+    """Raise GuardrailInterventionError if content is blocked."""
+    resp = bedrock.apply_guardrail(
+        guardrailIdentifier=GUARDRAIL_ID,
+        guardrailVersion="DRAFT",
+        source=source,
+        content=[{"text": {"text": text}}],
+    )
+    if resp["action"] == "GUARDRAIL_INTERVENED":
+        raise GuardrailInterventionError(source, resp.get("outputs", []))
 ```
 
 **System prompt integrity**: LangGraph session state carries a `system_prompt_hash`
 initialised at session start.  Bedrock Guardrails detects prompt override attempts
 at the API level; the hash provides a secondary application-level check that logs
 and terminates any session where state-level injection is attempted.
+
+Note: `ApplyGuardrail` is a Bedrock-prefixed API and must be verified as accessible
+on this account independently of Bedrock model quota before building against it.
 
 ---
 
@@ -2150,27 +2207,39 @@ class SynthesizerOutput(BaseModel):
 
 ```python
 def call_with_validation(
-    prompt_arn: str,
+    prompt_slug: str,
     prompt_variables: dict,
     output_schema: type[BaseModel],
     node_name: str,
+    model: str = "gpt-4o-mini",
     max_retries: int = 1,
 ) -> BaseModel:
+    prompt = langfuse.get_prompt(prompt_slug)
+    compiled = prompt.compile(**prompt_variables)
+
     for attempt in range(max_retries + 1):
-        response = bedrock.invoke_model(
-            promptArn=prompt_arn,
-            promptVariables=prompt_variables,
-            guardrailIdentifier=GUARDRAIL_ID,
-            guardrailVersion="DRAFT",
+        # Pre-call safety check
+        _apply_guardrail(compiled["user"], source="INPUT")
+
+        response = openai_client.chat.completions.create(
+            model=model,
+            messages=compiled["messages"],
+            tools=[output_schema.as_openai_tool()],
+            tool_choice={"type": "function",
+                         "function": {"name": output_schema.__name__}},
         )
         try:
-            return output_schema.model_validate_json(
-                response.tool_calls[0]["input"]
+            result = output_schema.model_validate_json(
+                response.choices[0].message.tool_calls[0].function.arguments
             )
+            # Post-call safety check
+            _apply_guardrail(result.model_dump_json(), source="OUTPUT")
+            return result
         except (ValidationError, IndexError, KeyError) as e:
             if attempt < max_retries:
                 # Re-prompt once with the specific validation error
                 prompt_variables["_validation_error"] = str(e)
+                compiled = prompt.compile(**prompt_variables)
             else:
                 logger.error("node=%s validation_failed attempts=%d error=%s",
                              node_name, max_retries + 1, e)
@@ -2290,16 +2359,28 @@ Node latency:  PLANNER p95 < 1s
 
 Percentile degradation beyond p95 thresholds → CloudWatch alarm → SNS alert.
 TTFT is the most PM-visible metric and should be monitored continuously; a TTFT
-regression is often the first signal of a Bedrock throughput issue before total
+regression is often the first signal of an OpenAI API throughput issue before total
 latency degrades.
 
 **Prompt versioning and experimentation** — Langfuse has prompt management that
 integrates with its evaluation harness.  Two versions of the PLANNER prompt can be
 A/B tested on the standardised evaluation dataset, with output quality scored
 automatically.  The winner is promoted; the loser is archived with its trace history.
-Division of responsibility with Bedrock Prompt Management: Langfuse for
-experimentation and iteration during development; Bedrock Prompt Management for
-production serving once a prompt version is validated.
+Langfuse is the single system for both development iteration and production serving —
+no handoff to a secondary prompt registry required.
+
+**Production evals** — Langfuse evaluators run async after every production trace,
+not only on the test dataset.  GPT-4o-mini serves as the LLM judge.
+
+| Evaluator | What it checks | Pass threshold |
+|---|---|---|
+| Citation faithfulness | Every claim in the SYNTHESIZER answer is traceable to a cited chunk | > 0.80 grounding score |
+| Retrieval quality | Chunks returned by GRAPHRAG LOCAL are relevant to the query | > 0.75 relevance score |
+| Answer completeness | SYNTHESIZER draws on retrieved evidence rather than parametric knowledge | > 0.70 grounding score |
+| SQL correctness | SQL AGENT produced a non-empty, plausible result set | Non-null result |
+
+Eval failures are flagged in Langfuse and routed to the human annotation queue.
+Score trends over time are the primary signal for prompt degradation and model drift.
 
 **Evaluation datasets** — the 30–50 standardised test prompts (covering all six
 research modes) live in Langfuse as a dataset.  Each item has an input query,
@@ -2482,12 +2563,14 @@ evaluation gate and run only the standard pytest + mypy + build checks.
 | SageMaker Model Registry | $0 |
 | Athena queries | $3 |
 | FastAPI on Fargate (always-on) | $35 |
-| Bedrock (Claude Haiku GraphRAG + queries; Sonnet synthesis) | $10–20 |
+| OpenAI API (GPT-4o-mini × 4 nodes + GPT-4o synthesis; text-embedding-3-large) | $10–25 |
+| DynamoDB (`leviathan_sessions`, on-demand) | ~$0 |
 | CloudWatch + SNS | $5 |
-| **Total dev** | **~$90–100/month** |
+| **Total dev** | **~$90–105/month** |
 
 No SageMaker inference endpoints. No persistent vector database. No RDS.
-All graph artifacts in S3 Parquet, loaded into memory at query time via Athena.
+No Bedrock model inference — all LLM calls via OpenAI API.
+All graph artifacts in S3 Parquet, loaded into memory at query time.
 
 ---
 
@@ -2495,7 +2578,44 @@ All graph artifacts in S3 Parquet, loaded into memory at query time via Athena.
 
 Items that are architecturally understood, commercially valuable, and have a clear
 implementation path — but are explicitly out of scope for the current build due to
-licensed data requirements, compute budget, or backtest history constraints.
+licensed data requirements, compute budget, or backlog constraints.
+
+---
+
+### Data Residency: OpenAI API Migration Path
+
+**Current state**: LLM inference runs on OpenAI API (GPT-4o-mini / GPT-4o).  Query
+content — commodity stress signals, research questions, retrieved document excerpts —
+leaves the AWS data plane on every agent invocation.
+
+**Why this was chosen**: Amazon Bedrock model quota was denied at account evaluation
+time.  OpenAI is the pragmatic path to a working system.
+
+**Production path**: Re-evaluate Bedrock model access once the account has established
+consistent AWS usage history and billing activity (per AWS support guidance).  When
+Bedrock quota is approved, migrate inference back to Claude models on Bedrock — all
+LLM calls are abstracted behind the `call_with_validation` wrapper, so the provider
+swap is a one-line model ID change per node.  Bedrock Guardrails `ApplyGuardrail`
+integration is already in place and requires no changes on migration.
+
+**Interim mitigation**: OpenAI Enterprise data processing agreement (DPA) should be
+in place before production deployment.  The DPA ensures query content is not used
+for model training and is subject to data deletion timelines.
+
+---
+
+### Pipeline Orchestration: Amazon MWAA
+
+**Current state**: Self-hosted Apache Airflow (EC2 t3.medium, ~$30/month) orchestrates
+multi-step ETL DAGs.  Batch Fargate tasks are the execution units; Airflow manages
+dependencies, retries, and scheduling.  EventBridge crons remain for simple single-task
+triggers.
+
+**Future path**: Migrate to **Amazon Managed Workflows for Apache Airflow (MWAA)** when
+pipeline complexity and team size justify the managed overhead.  MWAA eliminates
+Airflow cluster management (upgrades, HA, worker scaling) and integrates natively
+with IAM, VPC, S3, and CloudWatch.  Cost: ~$300–500/month for a small MWAA environment
+— appropriate when the operational overhead of self-hosted Airflow exceeds that cost.
 
 ---
 
