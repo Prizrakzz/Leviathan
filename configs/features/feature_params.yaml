@@ -1,0 +1,55 @@
+# Tunable feature-engineering parameters.
+#
+# Every modelling assumption that is NOT a published standard lives here so it
+# can be tuned without touching computation code.  The hash of this file goes
+# into every spine run manifest — a spine partition is reproducible from
+# (input fingerprints, registry version, this file).
+#
+# Anti-leakage note: all baselines are TRAILING windows ending the year before
+# the observation crop year.  A fixed 1981-2010 climatology would leak future
+# data into early-year observations and fail the truncate-at-T property test.
+
+baselines:
+  # Trailing climatology window for z-scores / anomalies / percentiles.
+  window_years: 30
+  # Minimum prior years required before a baseline-dependent feature is
+  # emitted.  Fewer prior years -> NaN (structural missingness, never 0).
+  min_years: 10
+
+drought:
+  # A day is "dry" when daily precipitation is below this percentile of the
+  # trailing-baseline distribution for the same stage window.
+  dry_percentile: 20.0
+
+frost:
+  # Severity tiers from the annual Tmin minimum (deg C), per desiredstate.md:
+  #   0 = no damage, 1 = cherry-kill, 2 = branch-kill, 3 = tree-kill.
+  severity_thresholds_c: [-2.0, -4.0, -6.0]
+
+capacity_recovery:
+  # Exponential recovery half-life in years for post-frost productive wood.
+  half_life_years: 3.0
+  # Only severity >= this tier carries forward across crop years.
+  min_carryforward_severity: 2
+  # Commodities with multi-year capacity memory (tree crops).
+  tree_crops:
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+
+gdd:
+  # Growing Degree Days: max(0, (Tmax_adj + Tmin_adj)/2 - base) where
+  # Tmin_adj = max(Tmin, base) and Tmax_adj = min(Tmax, cap).  Per-crop bases
+  # and caps per desiredstate.md Layer 1 table.
+  default: {base_c: 10.0, cap_c: 30.0}
+  per_commodity:
+    corn_cbot: {base_c: 10.0, cap_c: 30.0}
+    soybeans_cbot: {base_c: 10.0, cap_c: 30.0}
+    soft_red_winter_wheat_cbot: {base_c: 0.0, cap_c: 25.0}
+    cotton: {base_c: 15.5, cap_c: 37.0}
+
+production:
+  # Years of history used for the FAOSTAT linear trend deviation.
+  trend_years: 10
+  # Minimum points required to fit the trend.
+  trend_min_years: 5

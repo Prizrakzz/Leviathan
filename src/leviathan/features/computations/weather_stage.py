@@ -1,0 +1,281 @@
+"""Stage-window weather features: z-scores, anomalies, frost, GDD, drought.
+
+All families here consume long-format silver weather frames
+(``date, year, month, day, country, region, commodity, source, variable, value``)
+already restricted by the extractor to the relevant source.
+
+Window-completeness rule: an in-season aggregate whose stage window has not yet
+fully elapsed (window end after the last available observation date for the
+region) is emitted as NaN, never as a partial aggregate — a half-complete
+flowering z-score looks like data but means something different.  Exception:
+``frost_event_flag`` may emit 1 early (a frost already observed is a fact) but
+never an early 0.
+"""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+from leviathan.features.computations.base import (
+    FeatureContext,
+    assign_crop_year,
+    empty_result,
+    make_result,
+    max_consecutive_true,
+    stage_month_set,
+    trailing_baseline_z,
+)
+
+
+def _prepare(ctx: FeatureContext, source_key: str, variable: str) -> pd.DataFrame | None:
+    """Slice one weather variable, with crop-year assignment. None if unusable."""
+    df = ctx.inputs.get(source_key)
+    if df is None or df.empty or ctx.calendar is None:
+        return None
+    df = df.loc[df["variable"] == variable].copy()
+    if df.empty:
+        return None
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    df = df.dropna(subset=["value"])
+    df["date"] = pd.to_datetime(df["date"])
+    df["spine_crop_year"] = assign_crop_year(df, ctx.calendar)
+    return df.dropna(subset=["spine_crop_year"])
+
+
+def _window_complete(window_end: pd.Timestamp, last_obs: pd.Timestamp) -> bool:
+    return last_obs >= window_end
+
+
+def _stage_yearly_aggregates(
+    region_df: pd.DataFrame,
+    ctx: FeatureContext,
+    stage: str,
+    agg: str,
+) -> pd.Series:
+    """Per-crop-year stage aggregate for one region; incomplete windows -> NaN."""
+    months = stage_month_set(*ctx.calendar.stages[stage])
+    in_stage = region_df.loc[region_df["date"].dt.month.isin(months)]
+    if in_stage.empty:
+        return pd.Series(dtype=float)
+
+    yearly = in_stage.groupby("spine_crop_year")["value"].agg(agg)
+    yearly.index = yearly.index.astype(int)
+
+    last_obs = region_df["date"].max()
+    out = {}
+    for crop_year, value in yearly.items():
+        window = ctx.calendar.stage_window(stage, int(crop_year))
+        if _window_complete(pd.Timestamp(window.end_date), last_obs):
+            out[int(crop_year)] = value
+        else:
+            out[int(crop_year)] = np.nan
+    return pd.Series(out, dtype=float).sort_index()
+
+
+def _stage_z_family(
+    ctx: FeatureContext,
+    spec,
+    source_key: str,
+    variable: str,
+    name_prefix: str,
+    agg: str,
+) -> pd.DataFrame:
+    df = _prepare(ctx, source_key, variable)
+    if df is None:
+        return empty_result()
+
+    baselines = ctx.params.get("baselines", {})
+    window_years = int(baselines.get("window_years", 30))
+    min_years = int(baselines.get("min_years", 10))
+
+    rows: list[tuple[str, int, str, float]] = []
+    for (country, region), region_df in df.groupby(["country", "region"]):
+        if country not in ctx.countries:
+            continue
+        for stage in ctx.calendar.stages:
+            yearly = _stage_yearly_aggregates(region_df, ctx, stage, agg)
+            if yearly.empty:
+                continue
+            z = trailing_baseline_z(yearly, window_years, min_years)
+            feature = f"{name_prefix}_{region}_{stage}"
+            for crop_year in ctx.crop_years:
+                rows.append((country, crop_year, feature, z.get(crop_year, np.nan)))
+    return make_result(rows)
+
+
+def compute_stage_precip_z(ctx: FeatureContext, spec) -> pd.DataFrame:
+    return _stage_z_family(
+        ctx, spec, "weather:chirps", "precipitation_mm", "chirps_precip_z", "mean"
+    )
+
+
+def compute_stage_tmax_anomaly(ctx: FeatureContext, spec) -> pd.DataFrame:
+    return _stage_z_family(
+        ctx, spec, "weather:nasa_power", "temperature_2m_max_c", "nasa_tmax_anomaly", "mean"
+    )
+
+
+def compute_stage_tmin_anomaly(ctx: FeatureContext, spec) -> pd.DataFrame:
+    return _stage_z_family(
+        ctx, spec, "weather:nasa_power", "temperature_2m_min_c", "nasa_tmin_anomaly", "mean"
+    )
+
+
+def compute_frost_event_flag(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """1 if Tmin < 0°C inside the frost-sensitive window of the crop year.
+
+    Uses the ``frost_risk`` stage when the calendar defines one, otherwise the
+    whole crop year.  Early 1 is allowed (frost observed is a fact); an early 0
+    for an incomplete window is suppressed to NaN.
+    """
+    df = _prepare(ctx, "weather:nasa_power", "temperature_2m_min_c")
+    if df is None:
+        return empty_result()
+
+    has_stage = "frost_risk" in ctx.calendar.stages
+    months = (
+        stage_month_set(*ctx.calendar.stages["frost_risk"]) if has_stage else set(range(1, 13))
+    )
+
+    rows: list[tuple[str, int, str, float]] = []
+    for (country, region), region_df in df.groupby(["country", "region"]):
+        if country not in ctx.countries:
+            continue
+        in_window = region_df.loc[region_df["date"].dt.month.isin(months)]
+        if in_window.empty:
+            continue
+        yearly_min = in_window.groupby("spine_crop_year")["value"].min()
+        last_obs = region_df["date"].max()
+        feature = f"frost_event_flag_{region}"
+        for crop_year in ctx.crop_years:
+            tmin = yearly_min.get(crop_year, np.nan)
+            if pd.isna(tmin):
+                value = np.nan
+            elif tmin < 0.0:
+                value = 1.0
+            else:
+                window_end = (
+                    pd.Timestamp(ctx.calendar.stage_window("frost_risk", crop_year).end_date)
+                    if has_stage
+                    else pd.Timestamp(ctx.calendar.crop_year_end(crop_year))
+                )
+                value = 0.0 if _window_complete(window_end, last_obs) else np.nan
+            rows.append((country, crop_year, feature, value))
+    return make_result(rows)
+
+
+def compute_gdd_accumulated(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Growing Degree Days summed over the calendar's GDD window.
+
+    ``GDD_day = max(0, (min(Tmax, cap) + max(Tmin, base)) / 2 - base)`` with
+    per-commodity base/cap from feature_params.yaml.  Incomplete windows -> NaN.
+    """
+    if ctx.calendar is None or ctx.calendar.gdd_window is None:
+        return empty_result()
+
+    tmax = _prepare(ctx, "weather:nasa_power", "temperature_2m_max_c")
+    tmin = _prepare(ctx, "weather:nasa_power", "temperature_2m_min_c")
+    if tmax is None or tmin is None:
+        return empty_result()
+
+    gdd_params = ctx.params.get("gdd", {})
+    crop_cfg = (gdd_params.get("per_commodity") or {}).get(
+        ctx.commodity, gdd_params.get("default", {})
+    )
+    base = float(crop_cfg.get("base_c", 10.0))
+    cap = float(crop_cfg.get("cap_c", 30.0))
+
+    first_stage, last_stage = ctx.calendar.gdd_window
+    start_month = ctx.calendar.stages[first_stage][0]
+    end_month = ctx.calendar.stages[last_stage][1]
+    months = stage_month_set(start_month, end_month)
+
+    key = ["country", "region", "date", "spine_crop_year"]
+    merged = pd.merge(
+        tmax[key + ["value"]].rename(columns={"value": "tmax"}),
+        tmin[key + ["value"]].rename(columns={"value": "tmin"}),
+        on=key,
+        how="inner",
+    )
+    merged = merged.loc[merged["date"].dt.month.isin(months)]
+    if merged.empty:
+        return empty_result()
+
+    tmax_adj = merged["tmax"].clip(upper=cap)
+    tmin_adj = merged["tmin"].clip(lower=base)
+    merged["gdd"] = ((tmax_adj + tmin_adj) / 2.0 - base).clip(lower=0.0)
+
+    rows: list[tuple[str, int, str, float]] = []
+    for (country, region), region_df in merged.groupby(["country", "region"]):
+        if country not in ctx.countries:
+            continue
+        yearly = region_df.groupby("spine_crop_year")["gdd"].sum()
+        last_obs = region_df["date"].max()
+        feature = f"gdd_accumulated_{region}"
+        for crop_year in ctx.crop_years:
+            if crop_year not in yearly.index:
+                continue
+            window = ctx.calendar.gdd_dates(crop_year)
+            value = (
+                float(yearly.loc[crop_year])
+                if window and _window_complete(pd.Timestamp(window[1]), last_obs)
+                else np.nan
+            )
+            rows.append((country, crop_year, feature, value))
+    return make_result(rows)
+
+
+def compute_drought_consecutive_days(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Longest dry-day run per stage window, threshold from trailing baseline.
+
+    A day is dry when its precipitation is below the trailing-window
+    ``dry_percentile`` of daily values in the same stage months over prior
+    crop years (min ``baselines.min_years`` distinct years, else NaN).
+    """
+    df = _prepare(ctx, "weather:chirps", "precipitation_mm")
+    if df is None:
+        return empty_result()
+
+    baselines = ctx.params.get("baselines", {})
+    window_years = int(baselines.get("window_years", 30))
+    min_years = int(baselines.get("min_years", 10))
+    pctile = float(ctx.params.get("drought", {}).get("dry_percentile", 20.0))
+
+    rows: list[tuple[str, int, str, float]] = []
+    for (country, region), region_df in df.groupby(["country", "region"]):
+        if country not in ctx.countries:
+            continue
+        last_obs = region_df["date"].max()
+        for stage in ctx.calendar.stages:
+            months = stage_month_set(*ctx.calendar.stages[stage])
+            in_stage = region_df.loc[region_df["date"].dt.month.isin(months)]
+            if in_stage.empty:
+                continue
+            by_year = {
+                int(cy): g.sort_values("date")
+                for cy, g in in_stage.groupby("spine_crop_year")
+            }
+            feature = f"drought_consecutive_days_{region}_{stage}"
+            for crop_year in ctx.crop_years:
+                current = by_year.get(crop_year)
+                if current is None:
+                    continue
+                window_end = pd.Timestamp(
+                    ctx.calendar.stage_window(stage, crop_year).end_date
+                )
+                baseline_years = [
+                    y for y in by_year if crop_year - window_years <= y < crop_year
+                ]
+                if (
+                    not _window_complete(window_end, last_obs)
+                    or len(baseline_years) < min_years
+                ):
+                    rows.append((country, crop_year, feature, np.nan))
+                    continue
+                baseline = np.concatenate(
+                    [by_year[y]["value"].to_numpy() for y in baseline_years]
+                )
+                threshold = float(np.percentile(baseline, pctile))
+                run = max_consecutive_true(current["value"].to_numpy() < threshold)
+                rows.append((country, crop_year, feature, float(run)))
+    return make_result(rows)

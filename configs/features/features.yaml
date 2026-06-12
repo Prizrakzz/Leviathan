@@ -1,0 +1,122 @@
+# Feature registry — single source of truth for the gold/feature_spine.
+#
+# Each entry declares one feature family.  A family expands to one or more
+# feature rows per (country, crop_year) observation — e.g. stage_precip_z
+# emits one feature per region x stage.  The spine schema, output validation
+# ranges, and Athena DDL are all derived from this file via
+# leviathan.features.registry — never edited by hand elsewhere.
+#
+# Fields:
+#   family:      computation dispatch key (leviathan.features.computations)
+#   sources:     silver inputs required ("weather:chirps", "weather:nasa_power",
+#                "production:faostat", "psd")
+#   visibility:  point-in-time class (leviathan.features.visibility):
+#                  crop_year_direct     — in-season data within the crop year
+#                  prior_history        — data from crop years strictly before Y
+#                  prior_marketing_year — PSD vintage at crop-year start,
+#                                         prior marketing year
+#   commodities: "all", "calendar" (= all with a crop_calendars.yaml entry),
+#                or an explicit list
+#   value_range: [min, max] sanity bounds for output validation (null = open)
+#   is_label:    true for training targets (never served as model inputs)
+#   params:      family-specific overrides merged over feature_params.yaml
+
+- family: stage_precip_z
+  sources: ["weather:chirps"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [-6.0, 6.0]
+
+- family: stage_tmax_anomaly
+  sources: ["weather:nasa_power"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [-15.0, 15.0]
+
+- family: stage_tmin_anomaly
+  sources: ["weather:nasa_power"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [-15.0, 15.0]
+
+- family: frost_event_flag
+  sources: ["weather:nasa_power"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [0.0, 1.0]
+
+- family: gdd_accumulated
+  sources: ["weather:nasa_power"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [0.0, 12000.0]
+
+- family: drought_consecutive_days
+  sources: ["weather:chirps"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [0.0, 366.0]
+
+- family: capacity_recovery_index
+  sources: ["weather:nasa_power"]
+  visibility: prior_history
+  commodities:
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+  value_range: [0.0, 1.0]
+
+- family: faostat_production_yoy
+  sources: ["production:faostat"]
+  visibility: prior_history
+  commodities: all
+  value_range: [-1.0, 10.0]
+
+- family: faostat_production_trend_dev
+  sources: ["production:faostat"]
+  visibility: prior_history
+  commodities: all
+  value_range: [-1.0, 10.0]
+
+- family: faostat_available
+  sources: ["production:faostat"]
+  visibility: prior_history
+  commodities: all
+  value_range: [0.0, 1.0]
+
+- family: psd_ending_stock_su_ratio
+  sources: ["psd"]
+  visibility: prior_marketing_year
+  commodities: all
+  value_range: [0.0, 20.0]
+
+- family: psd_su_ratio_yoy_delta
+  sources: ["psd"]
+  visibility: prior_marketing_year
+  commodities: all
+  value_range: [-20.0, 20.0]
+
+- family: wasde_production_revision
+  sources: ["psd"]
+  visibility: prior_marketing_year
+  commodities: all
+  value_range: null
+
+- family: wasde_stocks_revision
+  sources: ["psd"]
+  visibility: prior_marketing_year
+  commodities: all
+  value_range: null
+
+- family: psd_available
+  sources: ["psd"]
+  visibility: prior_marketing_year
+  commodities: all
+  value_range: [0.0, 1.0]
+
+- family: faostat_labels
+  sources: ["production:faostat"]
+  visibility: crop_year_direct
+  commodities: all
+  value_range: [0.0, null]
+  is_label: true

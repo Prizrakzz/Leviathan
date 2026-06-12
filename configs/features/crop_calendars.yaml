@@ -1,0 +1,123 @@
+# Crop calendars: phenological stage windows + crop-year/marketing-year alignment.
+#
+# Source of truth for the windows documented in desiredstate.md ("Crop calendars
+# consumed by the feature engineering pipeline" + "Crop Year vs Marketing Year —
+# Alignment Rule").  Consumed by leviathan.features.calendar.
+#
+# Per commodity:
+#   crop_year_start_month: month (1-12) on which integer crop_year N begins.
+#       crop_year N spans [N-{start_month}-01, N+1-{start_month}-01).
+#       Example: corn_cbot start_month=5 → crop_year 2024 = 2024-05-01..2025-04-30.
+#   mkt_year_offset: marketing-year integer offset joined for S/D features.
+#       -1 = prior marketing year (the vintage available at planting).
+#   stages: {stage_name: [start_month, end_month]} — inclusive month windows.
+#       start_month > end_month means the window crosses the calendar-year
+#       boundary (e.g. grain_fill 11-3 = Nov..Mar of the following year).
+#       Stage months are resolved RELATIVE to the crop year: each month is the
+#       first occurrence of that month on/after the crop-year start date.
+#   gdd_window: [first_stage, last_stage] — stages bounding GDD accumulation.
+#
+# Commodities without an entry get no stage-window weather features (structural
+# missingness — the spine still builds with production/S-D features).
+
+corn_cbot:
+  crop_year_start_month: 5
+  mkt_year_offset: -1
+  stages:
+    planting: [5, 5]
+    silking: [7, 7]
+    grain_fill: [8, 8]
+    harvest: [9, 10]
+  gdd_window: [planting, grain_fill]
+
+soybeans_cbot:
+  crop_year_start_month: 5
+  mkt_year_offset: -1
+  stages:
+    planting: [5, 5]
+    pod_fill: [8, 8]
+    grain_fill: [8, 9]
+    harvest: [10, 10]
+  gdd_window: [planting, grain_fill]
+
+soft_red_winter_wheat_cbot:
+  crop_year_start_month: 10
+  mkt_year_offset: -1
+  stages:
+    planting: [10, 10]
+    jointing: [4, 5]
+    grain_fill: [5, 6]
+    harvest: [6, 7]
+  gdd_window: [planting, grain_fill]
+
+arabica_coffee:
+  crop_year_start_month: 4
+  mkt_year_offset: -1
+  stages:
+    frost_risk: [6, 7]
+    flowering: [8, 10]
+    grain_fill: [11, 3]
+    harvest: [5, 9]
+  gdd_window: [flowering, grain_fill]
+
+brazilian_arabica_coffee:
+  crop_year_start_month: 4
+  mkt_year_offset: -1
+  stages:
+    frost_risk: [6, 7]
+    flowering: [8, 10]
+    grain_fill: [11, 3]
+    harvest: [5, 9]
+  gdd_window: [flowering, grain_fill]
+
+robusta_coffee:
+  crop_year_start_month: 1
+  mkt_year_offset: -1
+  stages:
+    cherry_set: [4, 6]
+    grain_fill: [7, 9]
+    harvest: [10, 1]
+  gdd_window: [cherry_set, grain_fill]
+
+raw_sugar:
+  crop_year_start_month: 4
+  mkt_year_offset: -1
+  stages:
+    crush: [4, 11]
+  gdd_window: [crush, crush]
+
+malaysian_crude_palm_oil_cme:
+  crop_year_start_month: 1
+  mkt_year_offset: -1
+  stages:
+    year_round: [1, 12]
+  gdd_window: [year_round, year_round]
+
+canola_ice:
+  crop_year_start_month: 5
+  mkt_year_offset: -1
+  stages:
+    planting: [5, 5]
+    pod_fill: [7, 8]
+    harvest: [8, 9]
+  gdd_window: [planting, pod_fill]
+
+south_african_white_maize_jse:
+  crop_year_start_month: 10
+  mkt_year_offset: -1
+  stages:
+    planting: [10, 12]
+    critical_reproductive: [1, 2]
+    grain_fill: [2, 3]
+    harvest: [3, 4]
+  gdd_window: [planting, grain_fill]
+
+south_african_yellow_maize_jse:
+  crop_year_start_month: 10
+  mkt_year_offset: -1
+  stages:
+    planting: [10, 12]
+    critical_reproductive: [1, 2]
+    grain_fill: [2, 3]
+    harvest: [3, 4]
+  gdd_window: [planting, grain_fill]
