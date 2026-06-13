@@ -45,13 +45,20 @@ class SourceProbe:
 # in-file by the silver writers, so no hive-partition discovery is needed).
 _WEATHER_REQUIRED = ("date", "year", "month", "country", "region", "source",
                      "variable", "value")
-_FAOSTAT_REQUIRED = ("country", "variable", "year", "value")
+_FAOSTAT_REQUIRED = ("country_key", "metric", "year", "value")
 _PSD_REQUIRED = ("leviathan_slug", "country", "market_year",
                  "wasde_release_month", "release_date", "su_ratio")
 
+# Columns that are metadata/identifiers in wide-format weather files.
+# Everything else is a climate variable to be melted into (variable, value).
+_WEATHER_ID_COLS = frozenset({
+    "date", "year", "month", "day", "country", "region", "source",
+    "commodity", "ingest_date", "source_file_name",
+})
+
 # Natural keys whose duplication in silver is a hard failure.
 _WEATHER_KEY = ["date", "country", "region", "source", "variable"]
-_FAOSTAT_KEY = ["country", "variable", "year"]
+_FAOSTAT_KEY = ["country_key", "metric", "year"]
 _PSD_KEY = ["country", "market_year", "wasde_release_month", "release_date"]
 
 
@@ -119,8 +126,17 @@ def extract_weather(
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
 
-    df = _load(probe, ["date", "year", "month", "day", "country", "region",
-                       "source", "variable", "value"])
+    df = _load(probe, list(probe.columns))
+
+    # Wide-format sources (e.g. NASA POWER) store each climate variable as a
+    # separate column.  Melt to the long (variable, value) format expected by
+    # all computation functions.
+    if "variable" not in df.columns or "value" not in df.columns:
+        id_cols = [c for c in df.columns if c in _WEATHER_ID_COLS]
+        value_cols = [c for c in df.columns if c not in _WEATHER_ID_COLS]
+        df = df.melt(id_vars=id_cols, value_vars=value_cols,
+                     var_name="variable", value_name="value")
+
     _check_contract(df, source_key, _WEATHER_REQUIRED, _WEATHER_KEY)
     return df, probe
 
@@ -136,9 +152,11 @@ def extract_faostat(
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
 
-    df = _load(probe, ["country", "variable", "year", "value", "unit",
+    df = _load(probe, ["country_key", "metric", "year", "value", "unit",
                        "is_official", "ingest_date"])
     _check_contract(df, source_key, _FAOSTAT_REQUIRED, _FAOSTAT_KEY)
+    # Normalize to pipeline-standard names used by all computation functions.
+    df = df.rename(columns={"country_key": "country", "metric": "variable"})
     return df, probe
 
 

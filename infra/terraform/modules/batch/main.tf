@@ -1864,6 +1864,82 @@ resource "aws_batch_job_definition" "mpob_annual_silver" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Job definition: silver/* → gold/feature_spine (long-format training matrix)
+# 31 commodity tasks run in parallel submitted by
+# jobs/submit/submit_batch_feature_spine.py, one per commodity.
+# Each task reads weather, FAOSTAT, and PSD silver inputs, builds the
+# point-in-time-correct feature spine, and writes one Parquet partition +
+# a run manifest with input fingerprints, params hash, and git SHA.
+# Sizing: 1 vCPU / 2048 MB — pandas groupby + rolling over silver inputs;
+#   peak RSS ~500 MB per commodity; 2048 MiB gives 4x headroom.
+# Timeout: 30 min ceiling; normal run < 5 min per commodity.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "feature_spine" {
+  name = "${var.project_name}-${var.environment}-feature-spine"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    commodity       = "corn_cbot"
+    bucket          = var.leviathan_bucket
+    aws_region      = var.aws_region
+    start_crop_year = "1981"
+    end_crop_year   = "2026"
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/feature_spine_task.py",
+      "--commodity",       "Ref::commodity",
+      "--bucket",          "Ref::bucket",
+      "--aws-region",      "Ref::aws_region",
+      "--start-crop-year", "Ref::start_crop_year",
+      "--end-crop-year",   "Ref::end_crop_year",
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "feature-spine"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 1800  # 30 min ceiling; normal run < 5 min
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 resource "aws_batch_job_definition" "unica_annual_state" {
   name = "${var.project_name}-${var.environment}-unica-annual-state"
   type = "container"
