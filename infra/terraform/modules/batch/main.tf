@@ -1908,8 +1908,8 @@ resource "aws_batch_job_definition" "feature_spine" {
     ]
 
     resourceRequirements = [
-      { type = "VCPU",   value = "2" },
-      { type = "MEMORY", value = "8192" }
+      { type = "VCPU",   value = "4" },
+      { type = "MEMORY", value = "16384" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn
@@ -1930,7 +1930,7 @@ resource "aws_batch_job_definition" "feature_spine" {
   })
 
   timeout {
-    attempt_duration_seconds = 1800  # 30 min ceiling; normal run < 5 min
+    attempt_duration_seconds = 7200  # 2 h ceiling
   }
 
   tags = {
