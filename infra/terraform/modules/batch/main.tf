@@ -1908,8 +1908,8 @@ resource "aws_batch_job_definition" "feature_spine" {
     ]
 
     resourceRequirements = [
-      { type = "VCPU",   value = "1" },
-      { type = "MEMORY", value = "2048" }
+      { type = "VCPU",   value = "2" },
+      { type = "MEMORY", value = "8192" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn
