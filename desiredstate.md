@@ -1326,6 +1326,7 @@ survey_number, ingest_date`
 | `silver_model_drift_reports` | ❌ Needed | Batch/evidently/Clarify drift summaries and report locations |
 | `silver_shap_values` | 🔄 Compatibility view | Athena view over `silver_model_explanations` where `explanation_method = 'shap'` |
 | `silver_price_series` | ❌ Phase 2 | Futures exchanges |
+| `dim_commodities` | ❌ Needed when agent layer is built | Generated from `configs/commodities/*.yaml` + `configs/geographies/*_regions.yaml` — columns: `slug`, `display_name`, `exchange`, `contract_type`, `tier`, `active`, `region_count`. Source of truth stays in YAML/Git; this table is a materialized view for the SQL AGENT to answer "what commodities do we cover?" at runtime without reading files. Do not create earlier — no consumer exists until LangGraph is wired up. |
 
 ---
 
