@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libexpat1 \
         libgomp1 \
         libcurl4 \
+        gcc \
+        python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
