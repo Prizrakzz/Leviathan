@@ -16,3 +16,8 @@ output "glue_job_role_arn" {
   value       = aws_iam_role.glue_job_role.arn
   description = "ARN of the Glue job role (Glue Python Shell jobs use this to access S3)."
 }
+
+output "sagemaker_training_role_arn" {
+  value       = aws_iam_role.sagemaker_training_role.arn
+  description = "ARN of the SageMaker training role (passed as RoleArn in CreateTrainingJob calls)."
+}

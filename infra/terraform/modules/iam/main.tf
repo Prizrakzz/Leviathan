@@ -265,3 +265,77 @@ resource "aws_iam_role_policy_attachment" "glue_job_role_athena" {
   role       = aws_iam_role.glue_job_role.name
   policy_arn = aws_iam_policy.athena_validation.arn
 }
+
+# ---------------------------------------------------------------------------
+# SageMaker Training role — assumed by SageMaker Training Jobs to read the
+# feature matrix, write MLflow artifacts, pull the trainer ECR image, and
+# ship logs to CloudWatch.
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "sagemaker_training_role" {
+  name = "${var.project_name}-${var.environment}-sagemaker-training-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "sagemaker.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# Full data lake access — training jobs read feature_matrix + catalog and
+# write MLflow artifacts, all within the same bucket.
+resource "aws_iam_role_policy_attachment" "sagemaker_training_role_s3" {
+  role       = aws_iam_role.sagemaker_training_role.name
+  policy_arn = aws_iam_policy.s3_data_lake_rw.arn
+}
+
+data "aws_iam_policy_document" "sagemaker_training_ecr_logs" {
+  statement {
+    sid = "ECRAuthToken"
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+    # GetAuthorizationToken is account-level; cannot be scoped to a repo ARN.
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ECRPullTrainerImage"
+    actions = [
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchCheckLayerAvailability",
+    ]
+    resources = [var.ecr_trainer_repository_arn]
+  }
+
+  statement {
+    sid = "CloudWatchTrainingLogs"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = ["arn:aws:logs:*:*:log-group:/aws/sagemaker/TrainingJobs*"]
+  }
+}
+
+resource "aws_iam_policy" "sagemaker_training_ecr_logs" {
+  name        = "${var.project_name}-${var.environment}-sagemaker-training-ecr-logs"
+  description = "SageMaker training role: ECR pull for leviathan-trainer + CloudWatch log delivery."
+  policy      = data.aws_iam_policy_document.sagemaker_training_ecr_logs.json
+}
+
+resource "aws_iam_role_policy_attachment" "sagemaker_training_role_ecr_logs" {
+  role       = aws_iam_role.sagemaker_training_role.name
+  policy_arn = aws_iam_policy.sagemaker_training_ecr_logs.arn
+}

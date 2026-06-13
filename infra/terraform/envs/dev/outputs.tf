@@ -50,4 +50,22 @@ output "glue_bronze_to_silver_faostat_job" {
   description = "Glue job: bronze → silver FAOSTAT."
 }
 
+output "ecr_trainer_repository_url" {
+  value       = module.ecr_trainer.repository_url
+  description = "ECR repository URL for the leviathan-trainer image."
+}
 
+output "mlflow_instance_id" {
+  value       = module.mlflow_server.instance_id
+  description = "EC2 instance ID of the MLflow tracking server (use with SSM port-forward)."
+}
+
+output "mlflow_tracking_uri" {
+  value       = module.mlflow_server.tracking_uri
+  description = "MLFLOW_TRACKING_URI — set this in SageMaker Training Jobs and Batch containers."
+}
+
+output "sagemaker_training_role_arn" {
+  value       = module.iam.sagemaker_training_role_arn
+  description = "IAM role ARN to pass as RoleArn when submitting SageMaker Training Jobs."
+}

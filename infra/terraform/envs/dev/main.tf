@@ -24,9 +24,10 @@ module "s3" {
 module "iam" {
   source = "../../modules/iam"
 
-  project_name = var.project_name
-  environment  = var.environment
-  bucket_arn   = module.s3.bucket_arn
+  project_name               = var.project_name
+  environment                = var.environment
+  bucket_arn                 = module.s3.bucket_arn
+  ecr_trainer_repository_arn = module.ecr_trainer.repository_arn
 }
 
 module "ecr" {
@@ -35,6 +36,14 @@ module "ecr" {
   project_name    = var.project_name
   environment     = var.environment
   repository_name = "leviathan-worker"
+}
+
+module "ecr_trainer" {
+  source = "../../modules/ecr"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  repository_name = "leviathan-trainer"
 }
 
 module "batch" {
@@ -69,6 +78,17 @@ module "cloudwatch" {
   project_name = var.project_name
   environment  = var.environment
   aws_region   = var.aws_region
+}
+
+module "mlflow_server" {
+  source = "../../modules/mlflow_server"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+  bucket_name  = var.bucket_name
+  # Reuse the first Batch subnet — same VPC, same routing to S3 and SageMaker.
+  subnet_id    = var.batch_subnet_ids[0]
 }
 
 # ---------------------------------------------------------------------------
