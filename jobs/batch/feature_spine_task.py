@@ -36,12 +36,14 @@ import json
 import logging
 import subprocess
 import sys
+from collections import defaultdict
 
 import pandas as pd
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.features.calendar import load_crop_calendars
 from leviathan.features.extractors import SourceProbe, extract_all
+from leviathan.features.pivot import build_feature_catalog, build_feature_matrix
 from leviathan.features.registry import load_registry
 from leviathan.features.spine import (
     SPINE_NATURAL_KEY,
@@ -55,6 +57,8 @@ from leviathan.storage.s3 import get_thread_local_s3_client
 logger = get_logger("feature_spine_task")
 
 _SPINE_PREFIX = "gold/feature_spine"
+_MATRIX_PREFIX = "gold/feature_matrix"
+_CATALOG_KEY = "gold/feature_catalog/feature_catalog.parquet"
 _DEFAULT_START_CROP_YEAR = 1981
 # Crop years compared by --verify-pit must have windows that fully precede the
 # truncation cutoff; a 2-year guard covers windows that span calendar years.
@@ -76,6 +80,10 @@ def _spine_key(commodity: str) -> str:
 
 def _manifest_key(commodity: str) -> str:
     return f"{_SPINE_PREFIX}/_manifests/commodity={commodity}/run.json"
+
+
+def _matrix_key(commodity: str) -> str:
+    return f"{_MATRIX_PREFIX}/commodity={commodity}/part-0.parquet"
 
 
 def _write_bytes(args: argparse.Namespace, key: str, body: bytes,
@@ -219,6 +227,16 @@ def _process_commodity(
         result_log["status"] = "pit_check_failed"
         return result_log
 
+    # Collect per-feature metadata for the catalog (before dry_run guard so
+    # dry runs also report which features were computed).
+    feature_meta = (
+        build.df[["feature", "is_label"]]
+        .drop_duplicates("feature")
+        .set_index("feature")["is_label"]
+        .to_dict()
+    )
+    result_log["feature_meta"] = {f: bool(b) for f, b in feature_meta.items()}
+
     if args.dry_run:
         result_log["status"] = "dry_run"
         return result_log
@@ -227,6 +245,14 @@ def _process_commodity(
     build.df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
     _write_bytes(args, _spine_key(commodity), buf.getvalue(),
                  "application/octet-stream")
+
+    matrix_df = build_feature_matrix(build.df)
+    buf = io.BytesIO()
+    matrix_df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
+    _write_bytes(args, _matrix_key(commodity), buf.getvalue(),
+                 "application/octet-stream")
+    logger.info("%-8s  cols=%-5d %s (feature matrix)", "written",
+                len(matrix_df.columns) - 2, commodity)
 
     manifest = {
         "task": "feature_spine_task",
@@ -237,6 +263,7 @@ def _process_commodity(
         "crop_years": [min(crop_years), max(crop_years)],
         "inputs": [_probe_dict(p) for p in probes],
         "report": build.report,
+        "matrix_key": _matrix_key(commodity),
     }
     _write_bytes(args, _manifest_key(commodity),
                  json.dumps(manifest, indent=2, default=str).encode(),
@@ -322,6 +349,36 @@ def main() -> None:
     skipped = sum(1 for r in results if r["status"].startswith("skipped"))
     failed = sum(1 for r in results
                  if r["status"] in ("validation_failed", "pit_check_failed"))
+
+    # Build and write the feature catalog from observed feature→commodity
+    # membership across all successfully written commodities.
+    feature_commodity_map: dict[str, set[str]] = defaultdict(set)
+    feature_is_label: dict[str, bool] = {}
+    written_commodities: set[str] = set()
+
+    for r in results:
+        if r["status"] in ("written", "dry_run") and r.get("feature_meta"):
+            slug = r["commodity"]
+            if r["status"] == "written":
+                written_commodities.add(slug)
+            for feat, is_lbl in r["feature_meta"].items():
+                feature_commodity_map[feat].add(slug)
+                feature_is_label[feat] = is_lbl
+
+    if feature_commodity_map and not args.dry_run and written_commodities:
+        catalog_df = build_feature_catalog(
+            feature_commodity_map, feature_is_label, written_commodities
+        )
+        buf = io.BytesIO()
+        catalog_df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
+        _write_bytes(args, _CATALOG_KEY, buf.getvalue(), "application/octet-stream")
+        logger.info(
+            "Feature catalog written: %d features (%d universal, %d group, %d commodity-specific)",
+            len(catalog_df),
+            (catalog_df["scope"] == "universal").sum(),
+            (catalog_df["scope"] == "group").sum(),
+            (catalog_df["scope"] == "commodity").sum(),
+        )
 
     logger.info("Done  written=%d  dry_run=%d  skipped=%d  failed=%d",
                 written, dry, skipped, failed)
