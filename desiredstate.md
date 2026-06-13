@@ -412,6 +412,22 @@ All sources contribute `NaN` for any crop year where data is unavailable — whe
 
 For the most critical commodity-specific features, add a companion binary `{source}_available` flag (e.g., `conab_available`, `mpob_monthly_available`). This gives the model an explicit signal that missingness is structural rather than inferring it from the NaN pattern alone.
 
+#### Survivorship Bias and Missingness as Signal
+
+**The problem:** when a country stops reporting to FAOSTAT (political crisis, sanctions, famine), the spine has `NaN` for that country's production features. If the training pipeline drops or imputes those rows, the model trains almost entirely on "normal" years — years where data was flowing cleanly. The crisis years — exactly the ones where predictions matter most and markets move most — are invisible to the model. This is survivorship bias: the model has only ever seen survivors.
+
+**The deeper issue is MNAR (Missing Not At Random).** Data doesn't disappear randomly. It disappears *because* something went wrong. A country with a collapsing harvest is more likely to have missing agricultural statistics AND more likely to have extreme yield outcomes. The missingness and the label are correlated. Imputing with mean or dropping the row severs that correlation and teaches the model to be confidently wrong in the most important scenarios.
+
+**Three measures to address this:**
+
+1. **Missingness indicators in the spine.** For every silver source, emit a companion feature alongside the data features: `faostat_available`, `psd_available`, `weather_chirps_available`, `weather_nasa_available`. These are binary (1.0 / 0.0) and drop into the long-format spine as ordinary rows — no schema change. Computed for free from `SourceProbe.exists` at spine-build time. The model learns: "when `faostat_available=0` for a major producer, behave differently." Enrich further with `faostat_years_since_last_report` (continuous decay signal) to capture gradual degradation vs sudden cutoff.
+
+2. **NaN-native models — never impute.** XGBoost and LightGBM learn the optimal split direction for `NaN` at each node during training. They discover on their own: "when this feature is missing, route left (toward lower yield estimates)." Imputing with column mean destroys this — the model sees a plausible-looking number and loses all awareness that data was absent. Pass `NaN` through unchanged.
+
+3. **Composite data completeness score.** A single feature `data_completeness = sources_present / sources_expected` (e.g., 0.5 when 2 of 4 expected sources are missing). Gives the model a continuous signal about how much to trust its own inputs for that row. Tree models will naturally learn to widen their prediction intervals and reduce confidence when this score is low.
+
+These three measures together shift the framing: missingness is not noise to be cleaned away, it is a feature. The model should know when it is operating in data-sparse conditions and should be expected to reflect that uncertainty in its output.
+
 #### Look-Ahead Bias Prevention
 
 All statistics used to construct features must be computable using **only data available at the point-in-time being forecast**. Violations are subtle:
