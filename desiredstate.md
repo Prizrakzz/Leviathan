@@ -2962,6 +2962,73 @@ system not in scope.
 
 ---
 
+### PLANNER Retrieval Hints — Post-GraphRAG Evaluation Experiment
+
+**What it is**: When SHAP produces a high-attribution feature (e.g., `chirps_flowering_deficit`),
+the PLANNER currently queries GraphRAG LOCAL with the derived entity (`flowering_stress`).
+A retrieval hints layer would extend this: PLANNER also pre-fetches known *downstream* entities
+(`conab_revision`, `production_miss`, `robusta_substitution_demand`) as additional graph
+traversal seeds, without encoding what the cascade outcome will be.
+
+This is retrieval guidance — telling the graph traversal where to look next — not a cascade
+outcome YAML. The documents still determine what actually happened. The hints only expand the
+entity neighborhood queried in the first graph hop.
+
+**Why deferred**: GraphRAG must be live and queryable first. The value of retrieval hints
+can only be evaluated by comparing agent output quality with and without them — which requires
+a working system with a labelled evaluation dataset of "good" vs "poor" cascade answers.
+This is an A/B experiment on the PLANNER prompt, not an architectural change.
+
+**Evaluation trigger**: After GraphRAG is indexed and the agent is running in production
+with at least 200 logged queries and human-rated responses. Run two PLANNER prompt versions
+(with and without retrieval hints) against the standardized Langfuse eval dataset. Promote
+whichever produces higher citation quality and cascade completeness scores.
+
+**What it requires**:
+1. GraphRAG indexed and queryable
+2. 200+ logged production queries with human ratings (Langfuse)
+3. A labelled evaluation set of cascade queries with known "good" answers
+4. One PLANNER prompt variant with the hints table added
+
+**Implementation is trivial once the prerequisites exist** — it is a prompt change, not a code
+change. The hints table maps SHAP feature entities to expected downstream entities and lives
+entirely in the `planner-prompt` YAML.
+
+---
+
+### KNN on Cascade Pattern Similarity (Phase 3 GraphRAG Extension)
+
+**What it is**: The Analogue Finder (Phase 2) already does KNN on feature vectors to find
+historical production seasons similar to the current one. The natural extension: KNN on
+*cascade pattern* similarity — find historical seasons where the cascade chain most closely
+resembles the current one, and retrieve those chains with citations rather than constructing
+a narrative from scratch.
+
+**How it would work**:
+1. After GraphRAG is indexed, extract cascade sequences from the knowledge graph as structured
+   objects: `{trigger_entity, hop_1, hop_2, ..., terminal_entity, source_citations}`
+2. Embed each cascade sequence using BGE embeddings (same model already running for GraphRAG)
+3. At query time: current SHAP entity vector → KNN over cascade embeddings → retrieve the
+   k=5 most similar historical cascade chains with their original source citations
+4. SYNTHESIZER receives pre-retrieved, pre-structured chains — less construction, more retrieval
+
+**Why deferred**: Requires (1) GraphRAG indexed and the knowledge graph extracted, (2) cascade
+sequences parsed into structured objects — significant data engineering, (3) an embedding store
+for cascade vectors (S3 + faiss or a lightweight vector index). The BGE Reranker already does
+similarity retrieval over raw chunks; this adds a structured cascade extraction layer on top.
+
+**What gives 90% of the value now**: BGE Reranker over top-20 chunks + SYNTHESIZER chain
+construction from ranked evidence. The LLM is not starting from scratch — it is synthesizing
+pre-ranked evidence. This is sufficient for Phase 1 and Phase 2.
+
+**Revisit condition**: When (1) GraphRAG is live, (2) the agent has 6+ months of production
+usage and structured cascade extraction from the graph is validated, and (3) SYNTHESIZER
+chain quality on the eval dataset is demonstrably limited by chunk retrieval quality rather
+than by synthesis quality. If the bottleneck is the synthesis, KNN on cascade patterns will
+not help — invest in SYNTHESIZER prompt quality instead.
+
+---
+
 ### Real-Time Tick Data + Order Flow Ingestion (Bloomberg → Kinesis Firehose)
 
 **What it enables**: Live intraday price signals, order flow imbalance, volume-weighted basis tracking, intraday momentum features. Currently all signals are daily or lower frequency — the ML models are positional (days to weeks). Real-time tick data opens intraday regime detection and execution timing signals.
