@@ -22,7 +22,7 @@ This is not directional macro trading ("corn goes up"). It is:
 - **Fundamental mispricing**: when the current price has not yet converged to
   what similar production environments implied historically
 
-The system fuses two layers:
+The system fuses three layers:
 1. **Quantitative**: weather + production data → ML production forecast →
    historical analogue lookup → mispricing signal
 2. **Qualitative**: analyst reports + crop surveys → GraphRAG knowledge graph →
@@ -31,6 +31,11 @@ The system fuses two layers:
    narrative shift detection, and cross-source consensus scoring. This is not a passive
    context provider for the quant model — it is a primary research interface that answers
    questions no structured data system can answer.
+3. **Sentiment**: media coverage → daily z-score vs. 90-day baseline → narrative
+   propagation signal. The ML models tell you what the fundamentals say. GraphRAG
+   tells you what history says. Sentiment tells the manager whether the market
+   narrative has caught up. That is a research intelligence function, not a
+   prediction function.
 
 Price data is required for the analogue lookup (Phase 2). All of Phase 1 — the
 production forecasting model, feature engineering, and GraphRAG indexing — is
@@ -1783,15 +1788,11 @@ Chunk B (4 sentences — narrative context, only coherent as a unit):
    surveys, the largest since 2014."
 ```
 
-**Model**: `anthropic.claude-3-haiku` via **Bedrock** (production) / `gpt-4o-mini` via OpenAI (PoC only).
+**Model**: `claude-haiku-4-5` via **direct Anthropic API** (api.anthropic.com).
 
-The `microsoft/graphrag` library calls OpenAI natively. Routing it through Bedrock requires a LiteLLM proxy shim — ~10 lines of config that translates OpenAI-format calls to Bedrock Converse API calls. For the PoC, OpenAI is used directly to get started faster. For production, the shim is set up once and all indexing runs through Bedrock:
+The `microsoft/graphrag` library calls OpenAI natively; the indexing pipeline overrides the inference client with the Anthropic SDK — the call interface is identical, only the client and model ID change.  `claude-haiku-4-5` produces better structured entity/relationship extraction on domain-specific agricultural text than gpt-4o-mini, particularly for multi-lingual entity normalisation (EN/PT/ES aliases).
 
-- **Single IAM plane** — no OpenAI API key to create, rotate, or secure; Bedrock access is governed by the same IAM role as everything else
-- **No external API dependency** during indexing runs — everything stays inside the AWS data plane
-- **Claude Haiku on Bedrock** is comparable cost to gpt-4o-mini and produces better structured entity/relationship extraction on domain-specific text
-
-Query-time inference (LangGraph SYNTHESIZER node) uses Claude Sonnet on Bedrock — same IAM plane, consistent throughout.
+Query-time inference (LangGraph SYNTHESIZER node) uses `claude-sonnet-4-6` via direct Anthropic API.
 
 **Cost estimate** (full corpus, one-time):
 - Propositional chunking: ~146,000 pages × $0.00015 = ~$22
@@ -1838,7 +1839,7 @@ S3: document.json files from text/ layer
   │
   └─ Stage 5: Community Detection + Global Search  [optional, deferred]
         Leiden community detection (leidenalg, CPU, free)
-        Community report summarisation (GPT-4o, ~$8–10 for 500 communities)
+        Community report summarisation (claude-haiku-4-5, ~$5–8 for 500 communities)
         Enables: corpus-wide thematic synthesis queries
         Rationale for deferral: all 6 defined research modes are entity-anchored
         (local search). Global search adds thematic synthesis but is not required
@@ -1854,8 +1855,9 @@ S3 artifacts:
 ```
 
 **Library**: Microsoft `graphrag` open-source as the foundation — implements chunking,
-extraction, graph assembly, and local/global search with built-in OpenAI integration.
-Override the default chunker with the propositional chunking strategy above.
+extraction, graph assembly, and local/global search with built-in OpenAI-compatible interface.
+The inference client is overridden to use the direct Anthropic API; the default chunker is
+overridden with the propositional chunking strategy above.
 
 **Search modes**:
 - **Local search** (implement first): entity → neighbourhood traversal → source chunks
@@ -2036,7 +2038,7 @@ more operational overhead.
 
 **Session memory (DynamoDB — `leviathan_sessions` table)**:
 
-Cross-session conversation continuity — the last N exchanges are persisted so a
+Cross-session conversation continuity — the full session history is persisted so a
 user can return after closing the browser and continue a research thread without
 restarting context.  Within a single session, LangGraph state handles memory
 natively in-process; DynamoDB is only accessed at session start (load prior turns)
@@ -2047,36 +2049,247 @@ Table:          leviathan_sessions
 Partition key:  session_id  (UUID, generated per browser session)
 Sort key:       turn_index  (integer, monotonically increasing)
 Attributes:     role (user | assistant), content (str), timestamp (ISO)
-TTL:            7 days (DynamoDB native TTL — auto-expires old sessions at zero cost)
+TTL:            30 days (DynamoDB native TTL — auto-expires old sessions at zero cost)
 ```
 
-At session start, the PLANNER system prompt is seeded with the last N turns
-(configurable, default 5 exchanges = 10 items).  This gives the agent enough
-context to resolve follow-up references ("what about robusta?" → knows prior
-question was about arabica) without bloating the context window with stale history.
+**Session naming**: at turn 0, `claude-haiku-4-5` generates a short title from the
+first user query (e.g. "Brazil arabica frost 2024 — CONAB vs WASDE divergence") and
+stores it as a session-level attribute.  Cost: ~$0.001/session.  Displayed in the UI
+session list so users can resume specific research threads.
 
-If multi-user access is added later, `user_id` is prepended to `session_id` and
-a GSI on `user_id` enables per-user session listing.  No schema change required.
+**Context injection per node** — smart injection, not all nodes get full history:
+
+| Node | Context injected |
+|------|-----------------|
+| PLANNER | Last 3 exchanges verbatim — enough to resolve follow-up references ("what about robusta?" → knows prior query was arabica) and to derive implicit entities from a prior SHAP output when the query is referential ("have we seen this before?") |
+| SQL AGENT | Current query + schema only — history is irrelevant to SQL generation |
+| SHAP EXPLAINER | Current query + SHAP data only |
+| GRAPHRAG LOCAL | Query-driven retrieval — no history injected |
+| SYNTHESIZER | Last 15 exchanges verbatim + rolling summary of turns 16–50 |
+
+**SYNTHESIZER context window** (~45K tokens total):
+```
+System prompt                    ~2K tokens
+GraphRAG top-20 reranked chunks  ~8K tokens
+SQL query results                ~3K tokens
+SHAP breakdown                   ~1K tokens
+Last 15 exchanges verbatim       ~30K tokens  ← covers ~95% of research threads before topic shift
+Rolling summary of turns 16–50   ~600 tokens  ← compressed by claude-haiku-4-5
+Current query                    ~200 tokens
+```
+
+**Rolling summary**: triggered automatically when session exceeds 15 exchanges.
+`claude-haiku-4-5` compresses older turns into ~600 tokens of structured context.
+Example output:
+> *"Earlier in this session, user analyzed Brazil arabica frost severity 2021–2024
+> using CONAB revision streaks and NASA POWER Tmin. Compared to Vietnam robusta
+> under La Niña 2024. Concluded spread conviction was moderate (~0.6) due to
+> partial bilateral stress."*
+
+**Auth + rate limiting**:
+
+| Decision | Implementation | Cost |
+|----------|----------------|------|
+| Auth | Clerk — Google + Microsoft OAuth, session tokens | Free ≤10K MAU |
+| Rate limit storage | DynamoDB `leviathan_usage` (PK=user_id, SK=date YYYY-MM-DD, atomic increment) | ~$0/month |
+| Daily limit | 30 queries/user; counter shown in UI | — |
+| Session history TTL | 30 days (DynamoDB native TTL) | ~$0/month |
+| Session naming | `claude-haiku-4-5` auto-title from first query | ~$0.001/session |
+| **Total additional monthly cost** | | **<$5/month** |
+
+`user_id` from Clerk is prepended to `session_id`; a GSI on `user_id` enables
+per-user session listing and per-user rate limit enforcement.  No schema change
+required for multi-user.
 
 **LangGraph agent nodes:**
 
 | Node | Model | Purpose |
 |------|-------|---------|
-| PLANNER | GPT-4o-mini | Decompose query, classify retrieval types, build execution plan |
-| SQL AGENT | GPT-4o-mini | Write + execute Athena SQL across silver.* tables |
-| SHAP EXPLAINER | GPT-4o-mini | Fetch current SHAP breakdown, format top features with context |
-| ANALOGUE FINDER | GPT-4o-mini | Query historical production-at-current-forecast-level (Phase 2) |
-| GRAPHRAG LOCAL | Graph search + BGE Reranker v2-m3 | Entity neighborhood retrieval → cross-encoder rerank to top-20 |
-| GRAPHRAG GLOBAL | Graph search | Community synthesis for broad thematic questions |
-| MCP TOOLS | GPT-4o-mini | Live news / weather alerts (Phase 3) |
-| SYNTHESIZER | GPT-4o | Final answer with cited sources, streamed via SSE |
+| PLANNER | `claude-haiku-4-5` | Decompose query, classify retrieval types, build execution plan; derives implicit entities from prior SHAP output when query is referential |
+| SQL AGENT | `claude-haiku-4-5` | Write + execute Athena SQL across silver.* tables |
+| SHAP EXPLAINER | `claude-haiku-4-5` | Fetch current SHAP breakdown, format top features with context |
+| ANALOGUE FINDER | `claude-haiku-4-5` | Query historical production-at-current-forecast-level (Phase 2) |
+| GRAPHRAG LOCAL | Graph search + BGE Reranker v2-m3 | Entity neighborhood retrieval → cross-encoder rerank to top-20; zero LLM cost. Receives entity set from PLANNER — either named explicitly in the query or derived from prior SHAP output |
+| GRAPHRAG GLOBAL | Graph search (deferred) | Community synthesis for broad thematic questions |
+| SENTIMENT ANALYZER | None (SQL only) | Query pre-computed sentiment z-scores from `gold/media_sentiment/` via Athena; zero LLM cost at query time. Fires when PLANNER detects `sentiment_check` intent |
+| MCP TOOLS | `claude-haiku-4-5` | Policy-event enrichment via Brave Search — fires only on `policy_intent` queries (export ban, DMO, port closure, sanctions, corridor). Trusted domains: `reuters.com`, `fas.usda.gov`, `eia.gov`, `platts.com`. NOT general news search |
+| SYNTHESIZER | `claude-sonnet-4-6` | Final answer with cited sources, streamed via SSE |
 | ERROR HANDLER | — | Catches node failures, returns partial answer, logs to CloudWatch |
 
 ---
 
-#### Prompt Management, Safety, and Observability
+#### PLANNER — Implicit Entity Resolution & Sequencing
 
-**The principle**: model inference runs on OpenAI (GPT-4o-mini / GPT-4o).  Safety
+The PLANNER prompt (Langfuse slug: `planner-prompt`) must handle two routing patterns:
+
+**Pattern A — Explicit entities in query**
+Manager asks: *"What happened in past La Niña seasons for Vietnamese robusta?"*
+PLANNER extracts entities directly from the query text: `[vietnam, robusta_coffee, la_niña]`
+→ Routes to GraphRAG LOCAL immediately with those entities.
+
+**Pattern B — Referential query ("like this", "similar", "before", "what happened next")**
+Manager asks: *"Have we seen something like this before with arabica?"* or *"What usually follows from here?"*
+PLANNER detects the referential framing and reads the last 3 session exchanges for a prior SHAP output.
+→ If a SHAP output exists in context: extracts entities from the top SHAP feature names
+  (e.g., `chirps_flowering_deficit` → `flowering_stress`; `oni_3month_avg` → `la_niña`;
+  `biennial_cycle_off_year` → `biennial_cycle`) and passes derived entity set to GraphRAG LOCAL.
+→ If no SHAP output exists in context (cold first query): PLANNER sequences two steps —
+  (1) run SQL AGENT + Tier 1 ML to produce a SHAP breakdown, then
+  (2) extract entities from that output and route to GraphRAG LOCAL.
+  The manager never needs to name the drivers explicitly.
+
+**SHAP feature → entity mapping** (encoded in PLANNER system prompt):
+
+| SHAP feature name pattern | Derived GraphRAG entity |
+|--------------------------|------------------------|
+| `chirps_*_deficit` | `flowering_stress`, `drought` |
+| `nasa_power_tmin_anomaly` | `heat_stress`, `frost` (sign-dependent) |
+| `oni_3month_avg` (negative) | `la_niña` |
+| `oni_3month_avg` (positive) | `el_niño` |
+| `biennial_cycle_off_year` | `biennial_cycle` |
+| `conab_revision_streak` | `conab`, `production_revision` |
+| `export_pace_z` | `export_pace`, `export_anomaly` |
+| `psd_*_revision_delta` | `wasde_revision`, `supply_demand_balance` |
+| `capacity_recovery_index` | `tree_crop_stress`, `biennial_recovery` |
+
+This mapping is part of the `planner-prompt` YAML — it is commodity-domain knowledge baked into the prompt, not code. It evolves as new features are added to the ML models.
+
+**The prompt instruction (in `planner-prompt` YAML):**
+> *"When the user query contains referential language — 'like this', 'similar', 'before', 'what usually happens', 'what followed', 'what came next' — do not ask for clarification. Read the most recent SHAP output in session context and derive the entity set from the top feature contributions using the SHAP feature → entity mapping table. If no SHAP output exists in context, set retrieval_modes to ['sql', 'graphrag_local'] and sequence SQL first so the SHAP output is available before GraphRAG is called."*
+
+---
+
+#### Sentiment Layer & Policy-Event Enrichment
+
+These are the third layer of the research platform (see Strategic Objective). The ML
+models tell you what the fundamentals say. GraphRAG tells you what history says.
+Sentiment tells the manager whether the market narrative has caught up. Policy-event
+enrichment tells the manager whether something changed the S/D picture today.
+
+They are deliberately separated into two different architectures because they answer
+different questions with different latency requirements.
+
+---
+
+##### Sentiment — Batch Job → `gold/media_sentiment/` → SENTIMENT ANALYZER node
+
+**What it answers:** "Is the current media narrative crowded or is this story still
+under the radar?" Quantified as a z-score vs. a rolling 90-day baseline per commodity.
+
+**Why batch, not query-time:**
+The z-score is the entire value of the sentiment signal. Knowing that arabica coverage
+is at 1.8σ above baseline is actionable. Knowing that Reuters published 3 articles today
+is not — without the baseline you cannot tell if 3 is elevated or normal. The baseline
+requires 90 days of historical scores that can only be built by running the job daily.
+A single Brave Search call at query time cannot produce a z-score. Therefore: batch.
+
+The 24h delay is acceptable because sentiment is a slow-moving signal. Coverage of a
+commodity story does not flip overnight. The z-score from yesterday's batch still
+correctly characterises whether a narrative is building. The only case where 24h delay
+costs you something is if sentiment shifts dramatically within the same day a manager
+asks about it — a narrow edge case that the policy-event layer (below) handles for
+time-sensitive events.
+
+**Batch job design** (`jobs/batch/media_sentiment.py`, runs daily via AWS Batch):
+
+```
+Inputs:
+  - Trusted source RSS feeds (per commodity):
+      reuters.com/markets/commodities, ft.com/commodities,
+      agrimoney.com, wsj.com/market-data/commodities
+  - Keyword filter: commodity name + synonyms from entity_vocabulary.yaml
+  - Window: last 24h of new articles only (delta, not full re-scan)
+
+Per article:
+  - claude-haiku-4-5 scores: {sentiment_score: float (-1.0 to +1.0),
+                               framing: "bullish"|"bearish"|"neutral",
+                               intensity: "hyped"|"measured"|"dismissive"}
+  - Cost: ~$0.001 per article. ~200 relevant articles/day across 31 commodities
+  - Daily batch cost: ~$0.10/day → ~$3/month
+
+Aggregation per commodity × date:
+  {sentiment_mean, sentiment_std, coverage_volume,
+   coverage_z_score (vs 90d rolling baseline),
+   7d_trend, 30d_trend}
+
+Output: gold/media_sentiment/ partitioned by commodity + date (Parquet/Snappy)
+```
+
+**At query time (SENTIMENT ANALYZER node):**
+Pure Athena SQL — zero LLM calls. Returns pre-computed scores to SYNTHESIZER.
+
+```python
+SELECT commodity, sentiment_mean, coverage_z_score, trend_7d, trend_30d
+FROM gold.media_sentiment
+WHERE commodity = '{commodity}' AND date >= current_date - interval '30' day
+ORDER BY date DESC
+```
+
+SYNTHESIZER uses this to add: *"Arabica media coverage is running at 1.8σ above the
+90-day baseline — elevated but not extreme. Trend is accelerating over the past 14 days."*
+
+**PLANNER triggers SENTIMENT ANALYZER** when `query_intent = "sentiment_check"`.
+Trigger phrases: "is anyone expecting this", "is this priced in", "is the market
+narrative crowded", "what's the market saying", "is this already known".
+
+---
+
+##### Policy Events — Query-Time Brave Search → MCP TOOLS node
+
+**What it answers:** "Did something just change the S/D picture today that the batch
+pipeline hasn't captured yet?" Episodic policy shocks (export bans, DMO changes, port
+closures, sanctions, corridor disruptions) appear in WASDE/GAIN reports 4–6 weeks after
+the announcement. This closes that gap.
+
+**Why query-time, not batch:**
+Policy events are the one case where 24h delay is unacceptable. India reinstates sugar
+export ban at 2pm. A manager asks about raw sugar at 3pm. A batch job won't have it
+until tomorrow. Brave Search at query time catches it within hours of publication.
+
+This is NOT a general news search. It is a narrow, keyword-scoped, trusted-domain
+query fired only when PLANNER detects policy intent.
+
+**Trusted domains (hardcoded — no open web):**
+`reuters.com`, `fas.usda.gov`, `eia.gov`, `platts.com`, `hellenicshippingnews.com`
+
+**Keyword scope (hardcoded in MCP TOOLS prompt):**
+`export ban`, `export restriction`, `DMO`, `domestic market obligation`,
+`port closure`, `corridor`, `sanctions`, `quota`, `levy`, `mandate change`
+
+**PLANNER triggers MCP TOOLS** only when `query_intent = "policy_intent"`.
+Trigger phrases: "export ban", "what's the current policy", "any restrictions",
+"has anything changed", "DMO", "corridor", "sanctions". PLANNER does NOT trigger
+MCP TOOLS for production forecasts, historical analogues, or sentiment queries.
+
+**Cost:** Brave Search API = $3/1,000 queries.
+~10% of queries are policy_intent across 6 users at 30 queries/day:
+18 calls/day → ~540/month → **$1.62/month**. Negligible.
+
+**What SYNTHESIZER does with the result:**
+Prepends a one-paragraph policy context block before the main answer:
+*"Policy context (as of today): India reinstated sugar export ban [date], per Reuters.
+This directly affects the white/raw premium trajectory in the consequence chain below —
+in the 2022/23 analogue where a similar ban was active, the white premium widened X%
+over the following 6 weeks."*
+
+Note the integration with GraphRAG: the policy event from Brave Search is connected
+back to the historical analogue from GraphRAG. The system does not just report the news
+— it contextualises it against documented historical precedent. That combination is what
+makes the answer genuinely useful rather than a news aggregator.
+
+**What MCP TOOLS is NOT used for:**
+- General commodity news (handled by sentiment batch job)
+- Agricultural weather (handled by CHIRPS/NASA POWER in silver pipeline)
+- LNG/fertilizer prices (handled by EIA/FRED structured ingestion — see below)
+- GraphRAG qualitative research (handled by GRAPHRAG LOCAL)
+- Historical analogues (handled by ANALOGUE FINDER)
+
+---
+
+---
+
+**The principle**: model inference runs on the direct Anthropic API (api.anthropic.com) —
+`claude-haiku-4-5` for all routing nodes, `claude-sonnet-4-6` for synthesis.  Safety
 filtering uses Bedrock Guardrails `ApplyGuardrail` as a provider-agnostic wrapper —
 it is a standalone content-filtering API, not tied to Bedrock model inference.
 Prompt lifecycle is managed through Langfuse + YAML/Git.
@@ -2115,7 +2328,7 @@ compiled = prompt.compile(query=user_query, context=retrieved_context)
 
 A single **Bedrock Guardrail** resource is configured once and called via the
 standalone `ApplyGuardrail` API — independent of which model provider handles
-inference.  It wraps every OpenAI call: input is checked before the call; output
+inference.  It wraps every Anthropic API call: input is checked before the call; output
 is checked before it reaches the user or downstream nodes.
 
 What the Guardrail handles — replacing all custom security code:
@@ -2184,10 +2397,15 @@ validated with a Pydantic model before passing downstream.
 class PlannerOutput(BaseModel):
     query_intent: Literal["production_forecast", "consequence_chain",
                           "counterfactual", "analyst_accuracy",
-                          "tone_escalation", "point_in_time", "general"]
+                          "tone_escalation", "point_in_time",
+                          "sentiment_check",   # "is anyone expecting this?" / "is this priced in?" / "is the market narrative crowded?"
+                          "policy_intent",     # "what's the current export ban status?" / "any new DMO changes?" — triggers Brave Search MCP
+                          "general"]
     retrieval_modes: list[Literal["sql", "graphrag_local", "model_explanations",
-                                   "analogue", "mcp"]]
-    target_entities: list[str]        # e.g. ["Brazil", "arabica_coffee", "2021"]
+                                   "analogue", "sentiment", "mcp"]]
+                                   # sentiment → SENTIMENT ANALYZER node (Athena SQL, gold/media_sentiment/)
+                                   # mcp → MCP TOOLS node (Brave Search, policy_intent only)
+    target_entities: list[str]        # e.g. ["Brazil", "arabica_coffee", "la_niña"] — named explicitly in query OR derived from prior SHAP output feature names when query is referential
     time_gate_date: str | None        # ISO date for point-in-time queries
     confidence: float                 # 0–1, model self-assessed plan quality
 
@@ -2228,7 +2446,7 @@ def call_with_validation(
     prompt_variables: dict,
     output_schema: type[BaseModel],
     node_name: str,
-    model: str = "gpt-4o-mini",
+    model: str = "claude-haiku-4-5",
     max_retries: int = 1,
 ) -> BaseModel:
     prompt = langfuse.get_prompt(prompt_slug)
@@ -2238,16 +2456,17 @@ def call_with_validation(
         # Pre-call safety check
         _apply_guardrail(compiled["user"], source="INPUT")
 
-        response = openai_client.chat.completions.create(
+        response = anthropic_client.messages.create(
             model=model,
             messages=compiled["messages"],
-            tools=[output_schema.as_openai_tool()],
-            tool_choice={"type": "function",
-                         "function": {"name": output_schema.__name__}},
+            tools=[output_schema.as_anthropic_tool()],
+            tool_choice={"type": "tool",
+                         "name": output_schema.__name__},
+            max_tokens=1024,
         )
         try:
-            result = output_schema.model_validate_json(
-                response.choices[0].message.tool_calls[0].function.arguments
+            result = output_schema.model_validate(
+                response.content[0].input
             )
             # Post-call safety check
             _apply_guardrail(result.model_dump_json(), source="OUTPUT")
@@ -2312,7 +2531,7 @@ SELECT-only enforcement means a hallucinated `DROP TABLE` never reaches Athena.
 `reuters.com`, `bloomberg.com`, `mpob.gov.my`, `sagis.org.za`, `dalrrd.gov.za`,
 `cepea.esalq.usp.br`
 
-**Estimated per-query cost**: ~$0.02 (Haiku routing + Sonnet synthesis)
+**Estimated per-query cost**: ~$0.175 (claude-haiku-4-5 routing + claude-sonnet-4-6 synthesis; SYNTHESIZER dominates at ~$0.153 via 45K-token context window)
 
 ---
 
@@ -2376,7 +2595,7 @@ Node latency:  PLANNER p95 < 1s
 
 Percentile degradation beyond p95 thresholds → CloudWatch alarm → SNS alert.
 TTFT is the most PM-visible metric and should be monitored continuously; a TTFT
-regression is often the first signal of an OpenAI API throughput issue before total
+regression is often the first signal of an Anthropic API throughput issue before total
 latency degrades.
 
 **Prompt versioning and experimentation** — Langfuse has prompt management that
@@ -2387,7 +2606,7 @@ Langfuse is the single system for both development iteration and production serv
 no handoff to a secondary prompt registry required.
 
 **Production evals** — Langfuse evaluators run async after every production trace,
-not only on the test dataset.  GPT-4o-mini serves as the LLM judge.
+not only on the test dataset.  `claude-haiku-4-5` serves as the LLM judge.
 
 | Evaluator | What it checks | Pass threshold |
 |---|---|---|
@@ -2580,13 +2799,13 @@ evaluation gate and run only the standard pytest + mypy + build checks.
 | SageMaker Model Registry | $0 |
 | Athena queries | $3 |
 | FastAPI on Fargate (always-on) | $35 |
-| OpenAI API (GPT-4o-mini × 4 nodes + GPT-4o synthesis; text-embedding-3-large) | $10–25 |
+| Anthropic API (claude-haiku-4-5 × 5 nodes + claude-sonnet-4-6 synthesis) | $15–30 |
 | DynamoDB (`leviathan_sessions`, on-demand) | ~$0 |
 | CloudWatch + SNS | $5 |
 | **Total dev** | **~$90–105/month** |
 
 No SageMaker inference endpoints. No persistent vector database. No RDS.
-No Bedrock model inference — all LLM calls via OpenAI API.
+No Bedrock model inference — all LLM calls via direct Anthropic API (api.anthropic.com).
 All graph artifacts in S3 Parquet, loaded into memory at query time.
 
 ---
@@ -2599,25 +2818,28 @@ licensed data requirements, compute budget, or backlog constraints.
 
 ---
 
-### Data Residency: OpenAI API Migration Path
+### Data Residency: Anthropic API Migration Path
 
-**Current state**: LLM inference runs on OpenAI API (GPT-4o-mini / GPT-4o).  Query
-content — commodity stress signals, research questions, retrieved document excerpts —
-leaves the AWS data plane on every agent invocation.
+**Current state**: LLM inference runs on the direct Anthropic API (api.anthropic.com —
+`claude-haiku-4-5` / `claude-sonnet-4-6`).  Query content — commodity stress signals,
+research questions, retrieved document excerpts — leaves the AWS data plane on every
+agent invocation.
 
-**Why this was chosen**: Amazon Bedrock model quota was denied at account evaluation
-time.  OpenAI is the pragmatic path to a working system.
+**Why this was chosen**: Amazon Bedrock model access is blocked at the IAM level on
+this account.  The direct Anthropic API is the pragmatic path to a working system
+with the best available models.
 
 **Production path**: Re-evaluate Bedrock model access once the account has established
 consistent AWS usage history and billing activity (per AWS support guidance).  When
-Bedrock quota is approved, migrate inference back to Claude models on Bedrock — all
-LLM calls are abstracted behind the `call_with_validation` wrapper, so the provider
-swap is a one-line model ID change per node.  Bedrock Guardrails `ApplyGuardrail`
+Bedrock quota is approved, migrate inference to Claude models on Bedrock — all LLM
+calls are abstracted behind the `call_with_validation` wrapper, so the provider swap
+is a one-line model ID change per node.  Bedrock Guardrails `ApplyGuardrail`
 integration is already in place and requires no changes on migration.
 
-**Interim mitigation**: OpenAI Enterprise data processing agreement (DPA) should be
-in place before production deployment.  The DPA ensures query content is not used
-for model training and is subject to data deletion timelines.
+**Interim mitigation**: Anthropic's data processing agreement (DPA) and
+zero-data-retention policy for API customers should be confirmed before production
+deployment.  The DPA ensures query content is not used for model training and is
+subject to data deletion timelines.
 
 ---
 
