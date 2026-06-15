@@ -30,23 +30,33 @@ from leviathan.storage.metadata import utc_now_iso
 
 logger = get_logger("submit_batch_chirps_year_backfill")
 
-_TASK_LOCAL_PATH = Path("jobs/batch/chirps_year_to_bronze_task.py")
-_TASK_S3_KEY     = "scripts/chirps_year_to_bronze_task.py"
+_TASK_LOCAL_PATH   = Path("jobs/batch/chirps_year_to_bronze_task.py")
+_TASK_S3_KEY       = "scripts/chirps_year_to_bronze_task.py"
+
+# The Docker image may have a stale chirps.py (pre-vsigzip fix).  We upload
+# the current version and overwrite it in the container's editable-install
+# path before the task script runs, so the fix takes effect without a rebuild.
+_CHIRPS_LOCAL_PATH = Path("src/leviathan/ingestion/weather/chirps.py")
+_CHIRPS_S3_KEY     = "scripts/chirps_weather_fix.py"
+_CHIRPS_CONTAINER_PATH = "/app/src/leviathan/ingestion/weather/chirps.py"
 
 
 def _upload_task_script(bucket: str, aws_region: str) -> None:
-    """Upload the year-level task script to S3 so containers can pull it."""
+    """Upload the year-level task script and fixed chirps.py to S3."""
     s3 = boto3.client("s3", region_name=aws_region)
     s3.upload_file(str(_TASK_LOCAL_PATH), bucket, _TASK_S3_KEY)
-    logger.info("Uploaded task script -> s3://%s/%s", bucket, _TASK_S3_KEY)
+    logger.info("Uploaded task script  -> s3://%s/%s", bucket, _TASK_S3_KEY)
+    s3.upload_file(str(_CHIRPS_LOCAL_PATH), bucket, _CHIRPS_S3_KEY)
+    logger.info("Uploaded chirps fix   -> s3://%s/%s", bucket, _CHIRPS_S3_KEY)
 
 
 def _build_container_command(bucket: str, aws_region: str, year: int) -> list[str]:
-    """Return the container command that downloads and runs the year task."""
+    """Return the container command that hot-patches chirps.py then runs the year task."""
     bootstrap = (
         f"import boto3, subprocess; "
-        f"boto3.client('s3', region_name='{aws_region}').download_file("
-        f"'{bucket}', '{_TASK_S3_KEY}', '/tmp/chirps_year_task.py'); "
+        f"c = boto3.client('s3', region_name='{aws_region}'); "
+        f"c.download_file('{bucket}', '{_CHIRPS_S3_KEY}', '{_CHIRPS_CONTAINER_PATH}'); "
+        f"c.download_file('{bucket}', '{_TASK_S3_KEY}', '/tmp/chirps_year_task.py'); "
         f"subprocess.check_call(["
         f"'python', '/tmp/chirps_year_task.py', "
         f"'--year', '{year}', "
