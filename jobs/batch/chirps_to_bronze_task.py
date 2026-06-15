@@ -93,8 +93,8 @@ def _process_month(
     s3_client = get_thread_local_s3_client(aws_region)
     access_timestamp = datetime.now(timezone.utc).isoformat()
     source_url_template = (
-        f"https://data.chc.ucsb.edu/products/CHIRPS-3.0/global_daily/cogs/p05"
-        f"/{year}/chirps-v3.0.{year}.{month:02d}.{{DD}}.cog.tif"
+        f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/tifs/p05"
+        f"/{year}/chirps-v2.0.{year}.{month:02d}.{{DD}}.tif.gz"
     )
     for (country, region), rows in region_rows.items():
         bkey = bronze_weather_key(

@@ -74,14 +74,21 @@ def _prior_history(df: pd.DataFrame, crop_year: int) -> pd.DataFrame:
 def _prior_marketing_year(
     df: pd.DataFrame, calendar: CropCalendar, crop_year: int
 ) -> pd.DataFrame:
-    """PSD vintage selection: prior marketing year, latest release at planting.
+    """PSD vintage selection: prior marketing year, all releases at planting.
 
     Two filters compose:
     1. ``market_year == crop_year + mkt_year_offset`` — for US corn crop year
        2024 (offset -1) this selects marketing year 2023/24, the balance sheet
        known at May planting.  Never the marketing year that begins at harvest.
     2. ``release_date <= crop-year start`` — only WASDE/PSD vintages published
-       before the growing season; among those, the latest release wins.
+       before the growing season.
+
+    Returns ALL rows matching both filters.  Callers are responsible for
+    per-country latest-vintage selection (``sort + drop_duplicates("country",
+    keep="last")``).  The PSD bulk CSV only stores rows revised in a given
+    WASDE month, so the globally-latest release typically covers only the
+    countries revised that month; filtering here to that single release_date
+    would silently drop the rest.
     """
     for col in ("market_year", "release_date"):
         if col not in df.columns:
@@ -92,12 +99,7 @@ def _prior_marketing_year(
 
     my = pd.to_numeric(df["market_year"], errors="coerce")
     releases = pd.to_datetime(df["release_date"])
-    visible = df.loc[(my == target_my) & (releases <= cutoff)]
-    if visible.empty:
-        return visible
-
-    latest = pd.to_datetime(visible["release_date"]).max()
-    return visible.loc[pd.to_datetime(visible["release_date"]) == latest]
+    return df.loc[(my == target_my) & (releases <= cutoff)]
 
 
 def event_time(calendar: CropCalendar, crop_year: int) -> date:

@@ -91,5 +91,5 @@ class TestFetchChirpsDailyValues:
             fetch_chirps_daily_values(2020, 6, 15, _LOCATIONS)
 
         call_url: str = mock_open.call_args[0][0]
-        assert call_url.startswith("/vsicurl/")
-        assert "chirps-v3.0.2020.06.15.cog.tif" in call_url
+        assert call_url.startswith("/vsigzip//vsicurl/")
+        assert "chirps-v2.0.2020.06.15.tif.gz" in call_url

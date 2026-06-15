@@ -38,9 +38,11 @@ def submit_tasks(
     bucket: str,
     aws_region: str,
     dry_run: bool,
+    force_overwrite: bool = False,
 ) -> list[dict]:
     tasks = [
-        {"commodity": c, "bucket": bucket, "aws_region": aws_region}
+        {"commodity": c, "bucket": bucket, "aws_region": aws_region,
+         "force_overwrite": "true" if force_overwrite else "false"}
         for c in commodities
     ]
     return submit_batch_jobs(
@@ -92,6 +94,10 @@ def main() -> None:
         help='Comma-separated list or "all" (default).',
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--force-overwrite", action="store_true", dest="force_overwrite",
+        help="Overwrite existing silver S3 objects (required when re-processing after a bug fix).",
+    )
     args = parser.parse_args()
 
     bucket     = get_required_env("LEVIATHAN_BUCKET")
@@ -118,6 +124,7 @@ def main() -> None:
         bucket=bucket,
         aws_region=aws_region,
         dry_run=args.dry_run,
+        force_overwrite=args.force_overwrite,
     )
 
     if not args.dry_run:

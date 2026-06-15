@@ -34,10 +34,11 @@ def build_tasks(
     commodities: list[str],
     start_year: int,
     end_year: int,
+    force_overwrite: bool = False,
 ) -> list[dict]:
     """Return one task dict per (commodity, year)."""
     return [
-        {"commodity": c, "year": str(y)}
+        {"commodity": c, "year": str(y), "force_overwrite": "true" if force_overwrite else "false"}
         for c in commodities
         for y in range(start_year, end_year + 1)
     ]
@@ -126,6 +127,10 @@ def main() -> None:
         help="Last year to ingest (default: current year).",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--force-overwrite", action="store_true", dest="force_overwrite",
+        help="Overwrite existing bronze S3 objects (required when re-ingesting null data).",
+    )
     args = parser.parse_args()
 
     bucket     = get_required_env("LEVIATHAN_BUCKET")
@@ -141,7 +146,7 @@ def main() -> None:
         raise SystemExit(f"ERROR: Unknown commodities: {unknown}")
 
     end_year = args.end_year if args.end_year is not None else date.today().year
-    tasks    = build_tasks(commodities, args.start_year, end_year)
+    tasks    = build_tasks(commodities, args.start_year, end_year, args.force_overwrite)
 
     logger.info(
         "Submitting %d tasks  queue=%s  definition=%s  dry_run=%s",
