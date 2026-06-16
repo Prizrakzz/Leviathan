@@ -64,6 +64,25 @@ logger = get_logger(__name__)
 # Each global S/D row is emitted once per slug in this list.  Slugs match
 # the ``commodity`` field in configs/commodities/*.yaml files exactly.
 
+# Marketing-year start month per PSD commodity code (1=Jan … 12=Dec).
+# Used to convert (market_year, month_code) → the actual WASDE calendar date,
+# replacing the ingest timestamp that bronze stores as release_date.
+_PSD_COMMODITY_TO_MYS: dict[int, int] = {
+    410000:  6,   # wheat (all classes): Jun 1
+    440000:  9,   # corn / maize: Sep 1
+    422110:  8,   # milled rice: Aug 1
+    2222000: 9,   # soybeans: Sep 1
+    813100:  10,  # soybean meal: Oct 1
+    4232000: 10,  # soybean oil: Oct 1
+    2226000: 8,   # canola / rapeseed: Aug 1
+    4239100: 10,  # rapeseed oil: Oct 1
+    813600:  10,  # rapeseed meal: Oct 1
+    4243000: 11,  # palm oil: Nov 1
+    612000:  10,  # raw sugar / white sugar: Oct 1
+    711100:  10,  # coffee (arabica + robusta): Oct 1
+    2631000: 8,   # cotton: Aug 1
+}
+
 _PSD_COMMODITY_TO_SLUGS: dict[int, list[str]] = {
     410000: [                              # all-class wheat aggregate
         "hard_red_winter_wheat_kcbt",
@@ -189,6 +208,33 @@ _SILVER_COLS: list[str] = [
 # ---------------------------------------------------------------------------
 
 
+def _compute_psd_release_dates(df: pd.DataFrame) -> pd.Series:
+    """Replace bronze's ingest-timestamp release_date with the WASDE calendar date.
+
+    month_code (WASDE release number, 1–12 within the marketing year):
+      release_calendar_month = (MYS + month_code - 2) % 12 + 1
+      release_year           = market_year + (MYS + month_code - 2) // 12
+
+    month_code == 0 (pre-WASDE-tracking estimates, ~1960–2004): mapped to
+    Jan 1 of market_year — always visible to any historical crop-year cutoff.
+    """
+    mys = df["commodity_code"].map(_PSD_COMMODITY_TO_MYS).astype(int)
+    mc  = pd.to_numeric(df["month_code"], errors="coerce").fillna(0).astype(int)
+    my  = pd.to_numeric(df["market_year"], errors="coerce").fillna(0).astype(int)
+
+    total     = mys + mc - 2
+    cal_month = (total % 12 + 1).astype(int)
+    cal_year  = (my + total // 12).astype(int)
+
+    dates = cal_year.astype(str) + "-" + cal_month.astype(str).str.zfill(2) + "-10"
+
+    # Pre-tracking rows have no WASDE month; anchor them to Jan 1 so they are
+    # always visible to visible_slice("prior_marketing_year").
+    dates[mc == 0] = my[mc == 0].astype(str) + "-01-01"
+
+    return dates
+
+
 def transform_psd_bronze_to_silver(
     dfs: list[pd.DataFrame],
 ) -> pd.DataFrame:
@@ -246,6 +292,14 @@ def transform_psd_bronze_to_silver(
     # -----------------------------------------------------------------------
     combined["leviathan_slug"] = combined["commodity_code"].map(_PSD_COMMODITY_TO_SLUGS)
     combined = combined.explode("leviathan_slug").reset_index(drop=True)
+
+    # -----------------------------------------------------------------------
+    # 4b. Replace ingest-timestamp release_date with true WASDE calendar date
+    # -----------------------------------------------------------------------
+    # Bronze stamps every row with the download date (e.g. '2026-05-20').
+    # visible_slice("prior_marketing_year") filters release_date <= crop_year_start,
+    # so all historical rows would fail that filter without this correction.
+    combined["release_date"] = _compute_psd_release_dates(combined)
 
     # -----------------------------------------------------------------------
     # 5. Remap non-standard consumption attribute labels → "Domestic Consumption"
@@ -342,14 +396,18 @@ def transform_psd_bronze_to_silver(
 
     # -----------------------------------------------------------------------
     # 13. Compute su_ratio_yoy_delta
-    # Within each (leviathan_slug, country, release_date), diff su_ratio by
-    # market_year ascending.
+    # Within each (leviathan_slug, country, wasde_release_month), diff su_ratio
+    # by market_year ascending.  Each market_year × month_code pair maps to a
+    # unique release_date so grouping by release_date would produce singleton
+    # groups (all NaN).  Grouping by wasde_release_month instead captures "at
+    # the same point in the marketing calendar, how did the S/D balance shift
+    # year-over-year?" — the economically meaningful comparison.
     # -----------------------------------------------------------------------
     wide = wide.sort_values(
-        ["leviathan_slug", "country", "release_date", "market_year"]
+        ["leviathan_slug", "country", "wasde_release_month", "market_year"]
     ).copy()
     wide["su_ratio_yoy_delta"] = wide.groupby(
-        ["leviathan_slug", "country", "release_date"]
+        ["leviathan_slug", "country", "wasde_release_month"]
     )["su_ratio"].diff(1)
 
     # -----------------------------------------------------------------------

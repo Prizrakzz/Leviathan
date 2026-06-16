@@ -37,21 +37,41 @@ def test_prior_history_excludes_observation_year() -> None:
 
 
 def test_prior_marketing_year_desiredstate_worked_example() -> None:
-    """US corn crop_year 2024 -> MY 2023, latest release <= 2024-05-01."""
+    """US corn crop_year 2024 -> MY 2023, all releases published <= 2024-05-01.
+
+    visible_slice returns ALL pre-cutoff rows for the target marketing year.
+    Per-country latest-vintage selection is the caller's responsibility
+    (``sort_values("release_date").drop_duplicates("country", keep="last")``
+    in sd_balance._psd_value_family).  The PSD bulk CSV only includes revised
+    rows per WASDE month, so the globally-latest release often has only a
+    subset of countries; filtering here would silently drop the rest.
+    """
     df = pd.DataFrame({
         "market_year": [2023, 2023, 2023, 2024, 2023],
         "release_date": [
-            "2024-02-08",  # visible, superseded
-            "2024-04-11",  # visible, latest before planting -> WINS
+            "2024-02-08",  # visible
+            "2024-04-11",  # visible, latest
             "2024-06-12",  # after crop-year start -> excluded
-            "2024-04-11",  # wrong marketing year (the one starting at harvest)
-            "2023-11-09",  # visible, superseded
+            "2024-04-11",  # wrong marketing year -> excluded
+            "2023-11-09",  # visible
         ],
         "su_ratio": [0.10, 0.12, 0.14, 0.99, 0.08],
     })
     visible = visible_slice(df, "prior_marketing_year", CORN, 2024)
-    assert len(visible) == 1
-    assert visible["su_ratio"].iloc[0] == 0.12
+
+    # Returns all three MY-2023 rows before 2024-05-01; future and wrong-MY excluded
+    assert len(visible) == 3
+    assert set(visible["release_date"]) == {"2024-02-08", "2024-04-11", "2023-11-09"}
+    assert 0.99 not in visible["su_ratio"].values   # wrong MY excluded
+    assert 0.14 not in visible["su_ratio"].values   # post-cutoff excluded
+
+    # Caller selects latest per country — simulated here with a single-country df
+    df_with_country = visible.assign(country="United States")
+    best = (
+        df_with_country.sort_values("release_date")
+        .drop_duplicates("country", keep="last")
+    )
+    assert best["su_ratio"].iloc[0] == 0.12  # latest (2024-04-11) wins
 
 
 def test_prior_marketing_year_no_vintage_before_planting() -> None:

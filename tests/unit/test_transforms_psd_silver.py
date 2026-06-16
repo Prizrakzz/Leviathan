@@ -307,22 +307,34 @@ class TestRevisionCols:
         for col in ("production_mt_revision", "ending_stocks_mt_revision", "consumption_mt_revision"):
             assert silver[col].isna().all(), f"{col} should be all NaN with one release"
 
-    def test_two_releases_revision_correct(self) -> None:
-        """Production 200 → 210 (1000 MT): revision = 10,000 MT."""
-        release1 = _make_bronze(
-            commodity_code=440000, market_year=2024, release_date="2026-05-20",
+    def test_two_monthly_releases_revision_correct(self) -> None:
+        """Two different WASDE months (mc=5 and mc=6) for the same market_year.
+
+        Each month_code maps to a distinct computed release_date, so they are
+        separate rows in the silver pivot.  Revision diffs by release_date within
+        (slug, country, market_year, wasde_release_month) — each group has one
+        row here, so revision is NaN.  This test validates schema integrity.
+
+        Note: non-NaN revisions require two separate bulk downloads of the same
+        (market_year, month_code) captured at different calendar dates; that
+        infrastructure is not yet in place.
+        """
+        mc5 = _make_bronze(
+            commodity_code=440000, market_year=2024, month_code=5,
             attrs={"Production": ("(1000 MT)", 200.0), "Ending Stocks": ("(1000 MT)", 70.0),
                    "Domestic Consumption": ("(1000 MT)", 200.0)},
         )
-        release2 = _make_bronze(
-            commodity_code=440000, market_year=2024, release_date="2026-06-20",
+        mc6 = _make_bronze(
+            commodity_code=440000, market_year=2024, month_code=6,
             attrs={"Production": ("(1000 MT)", 210.0), "Ending Stocks": ("(1000 MT)", 75.0),
                    "Domestic Consumption": ("(1000 MT)", 202.0)},
         )
-        silver = transform_psd_bronze_to_silver([release1, release2])
-        cbot = silver[silver["leviathan_slug"] == "corn_cbot"].sort_values("release_date")
-        assert pd.isna(cbot.iloc[0]["production_mt_revision"])
-        assert abs(cbot.iloc[1]["production_mt_revision"] - 10_000.0) < 0.01
+        silver = transform_psd_bronze_to_silver([pd.concat([mc5, mc6], ignore_index=True)])
+        cbot = silver[silver["leviathan_slug"] == "corn_cbot"]
+        assert len(cbot) == 2
+        # Different month_codes → different revision groups → both revisions are NaN
+        for col in ("production_mt_revision", "ending_stocks_mt_revision", "consumption_mt_revision"):
+            assert cbot[col].isna().all(), f"{col} should be NaN across different wasde_release_months"
 
     def test_revision_groups_do_not_bleed(self) -> None:
         """Revisions for US and Brazil corn should be independent."""
@@ -376,6 +388,53 @@ class TestEdgeCases:
         )
         silver = transform_psd_bronze_to_silver([bronze])
         assert "Andorra" in silver["country"].values
+
+
+# ---------------------------------------------------------------------------
+# TestReleaseDateDerivation
+# ---------------------------------------------------------------------------
+
+class TestReleaseDateDerivation:
+    """Verify that bronze's ingest-timestamp release_date is replaced with the
+    computed WASDE calendar date based on (market_year, month_code, MYS)."""
+
+    def test_corn_mc5_market_year_2024_date(self) -> None:
+        """Corn (MYS=Sep=9), mc=5, market_year=2024 → January 2025 WASDE.
+
+        total = 9 + 5 - 2 = 12 → cal_month = 12%12+1 = 1 (Jan), cal_year = 2024+1 = 2025.
+        """
+        silver = transform_psd_bronze_to_silver([
+            _make_bronze(commodity_code=440000, month_code=5, market_year=2024)
+        ])
+        row = silver[silver["leviathan_slug"] == "corn_cbot"].iloc[0]
+        assert row["release_date"] == "2025-01-10"
+
+    def test_wheat_mc1_market_year_2024_date(self) -> None:
+        """Wheat (MYS=Jun=6), mc=1, market_year=2024 → June 2024 WASDE.
+
+        total = 6 + 1 - 2 = 5 → cal_month = 5%12+1 = 6 (Jun), cal_year = 2024+0 = 2024.
+        """
+        silver = transform_psd_bronze_to_silver([
+            _make_bronze(commodity_code=410000, month_code=1, market_year=2024)
+        ])
+        row = silver[silver["leviathan_slug"] == "soft_red_winter_wheat_cbot"].iloc[0]
+        assert row["release_date"] == "2024-06-10"
+
+    def test_month_code_zero_maps_to_jan_1(self) -> None:
+        """mc=0 (pre-tracking) → Jan 1 of market_year so it is always visible."""
+        silver = transform_psd_bronze_to_silver([
+            _make_bronze(commodity_code=440000, month_code=0, market_year=1990)
+        ])
+        row = silver[silver["leviathan_slug"] == "corn_cbot"].iloc[0]
+        assert row["release_date"] == "1990-01-01"
+
+    def test_ingest_date_not_stored(self) -> None:
+        """The original bronze release_date (ingest timestamp) must not survive."""
+        silver = transform_psd_bronze_to_silver([
+            _make_bronze(commodity_code=440000, month_code=5, market_year=2024,
+                         release_date="2026-05-20")
+        ])
+        assert "2026-05-20" not in silver["release_date"].values
 
 
 # ---------------------------------------------------------------------------

@@ -22,12 +22,12 @@ from rasterio.windows import Window  # noqa: E402
 
 logger = get_logger(__name__)
 
-_BASE_URL = "https://data.chc.ucsb.edu/products/CHIRPS-3.0/global_daily/cogs/p05"
+_BASE_URL = "https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/tifs/p05"
 _NODATA = -9999.0
 
 
 def _build_cog_url(year: int, month: int, day: int) -> str:
-    return f"{_BASE_URL}/{year}/chirps-v3.0.{year}.{month:02d}.{day:02d}.cog.tif"
+    return f"{_BASE_URL}/{year}/chirps-v2.0.{year}.{month:02d}.{day:02d}.tif.gz"
 
 
 def fetch_chirps_daily_values(
@@ -77,7 +77,7 @@ def _read_cog_values(
     logger.info("CHIRPS COG range-read: %s (%d locations)", url, len(locations))
     result: dict[str, float | None] = {}
 
-    with rasterio.open(f"/vsicurl/{url}") as src:
+    with rasterio.open(f"/vsigzip//vsicurl/{url}") as src:
         nodata = float(src.nodata) if src.nodata is not None else _NODATA
 
         for loc in locations:
