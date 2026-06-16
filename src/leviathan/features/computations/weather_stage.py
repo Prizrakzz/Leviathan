@@ -242,6 +242,52 @@ def compute_gdd_z(ctx: FeatureContext, spec) -> pd.DataFrame:
     return make_result(rows)
 
 
+def compute_cpc_soil_z(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Stage-level soil moisture z-scores from CPC daily soil moisture data.
+
+    Same trailing-baseline-z pattern as stage_precip_z but for soil moisture.
+    """
+    return _stage_z_family(
+        ctx, spec, "weather:cpc_soil", "soil_moisture_mm", "cpc_soil_z", "mean"
+    )
+
+
+def compute_modis_ndvi_z(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Stage-mean NDVI anomaly from MODIS 8-day composites.
+
+    Silver already carries ``ndvi_z_score`` (precomputed vs. the MODIS
+    climatological baseline), so we aggregate stage means of that z-score
+    rather than running a second trailing-baseline-z on top.
+    Mean of z-scores within a stage is a valid anomaly aggregate for a
+    gradient-boosting model.
+    """
+    df = _prepare(ctx, "weather:modis_ndvi", "ndvi_z_score")
+    if df is None:
+        return empty_result()
+
+    rows: list[tuple[str, int, str, float]] = []
+    for (country, region), region_df in df.groupby(["country", "region"]):
+        if country not in ctx.countries:
+            continue
+        last_obs = region_df["date"].max()
+        for stage in ctx.calendar.stages:
+            months = stage_month_set(*ctx.calendar.stages[stage])
+            in_stage = region_df.loc[region_df["date"].dt.month.isin(months)]
+            if in_stage.empty:
+                continue
+            yearly = in_stage.groupby("spine_crop_year")["value"].mean()
+            yearly.index = yearly.index.astype(int)
+            feature = f"modis_ndvi_z_{region}_{stage}"
+            for crop_year in ctx.crop_years:
+                window = ctx.calendar.stage_window(stage, crop_year)
+                if not _window_complete(pd.Timestamp(window.end_date), last_obs):
+                    continue
+                val = yearly.get(crop_year, np.nan)
+                if not np.isnan(val):
+                    rows.append((country, crop_year, feature, float(val)))
+    return make_result(rows)
+
+
 def compute_drought_z(ctx: FeatureContext, spec) -> pd.DataFrame:
     """Z-score of longest consecutive dry-day run per stage, vs. trailing baseline.
 

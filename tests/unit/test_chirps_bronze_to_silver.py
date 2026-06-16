@@ -70,11 +70,13 @@ class TestChirpsBronzeToSilver:
         expected_values = [1.5, 3.0, 4.5]
         assert sorted(silver["value"].tolist()) == pytest.approx(sorted(expected_values))
 
-    def test_none_precipitation_becomes_nan(self):
+    def test_none_precipitation_dropped(self):
+        # Null precipitation is coerced to NaN then dropped post-melt — value is a
+        # required non-null silver column, so null rows never reach the partition.
         df = _make_bronze_df(n_days=3, include_none=True)
         silver = chirps_bronze_to_silver(df)
-        nan_rows = silver[silver["value"].isna()]
-        assert len(nan_rows) == 1
+        assert silver["value"].isna().sum() == 0
+        assert len(silver) == 2
 
     def test_raises_on_missing_required_column(self):
         df = _make_bronze_df()

@@ -16,7 +16,11 @@ def chirps_bronze_to_silver(df: pd.DataFrame, source_label: str = "dataframe") -
              ingest_date, variable, value.
     """
     df = df.copy()
-    df["precipitation_mm"] = df["precipitation_mm"].clip(lower=0.0)
+    # Clip only when present; the required-column contract (and its ValueError)
+    # is enforced inside melt_weather_to_long, so a missing column must reach
+    # there rather than raising a bare KeyError on this access.
+    if "precipitation_mm" in df.columns:
+        df["precipitation_mm"] = df["precipitation_mm"].clip(lower=0.0)
     silver = melt_weather_to_long(df, "precipitation_mm", source_label)
     logger.info("CHIRPS silver transform: %d input rows → %d long rows", len(df), len(silver))
     return silver

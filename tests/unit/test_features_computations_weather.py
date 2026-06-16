@@ -12,9 +12,9 @@ from leviathan.features.computations.base import (
 )
 from leviathan.features.computations.capacity import compute_capacity_recovery_index
 from leviathan.features.computations.weather_stage import (
-    compute_drought_consecutive_days,
+    compute_drought_z,
     compute_frost_event_flag,
-    compute_gdd_accumulated,
+    compute_gdd_z,
     compute_stage_precip_z,
 )
 
@@ -183,50 +183,74 @@ def test_frost_flag_early_one_allowed_early_zero_suppressed() -> None:
 # GDD
 # ---------------------------------------------------------------------------
 
-def test_gdd_hand_computed_with_caps() -> None:
-    """Daily GDD with base 10 / cap 30, summed over May-Aug window."""
-    days = pd.date_range("2000-05-01", "2000-08-31", freq="D")
-    tmax = weather_frame(days, [35.0] * len(days), "temperature_2m_max_c")
-    tmin = weather_frame(days, [5.0] * len(days), "temperature_2m_min_c")
-    df = pd.concat([tmax, tmin], ignore_index=True)
-    # Tmax capped to 30, Tmin floored to 10 -> (30+10)/2 - 10 = 10 GDD/day
-    ctx = ctx_for(CORN, {"weather:nasa_power": df}, [2000])
-    result = compute_gdd_accumulated(ctx, None)
-    row = result.loc[result["feature"] == "gdd_accumulated_us_corn_belt"]
-    assert len(row) == 1
-    assert row["value"].iloc[0] == pytest.approx(10.0 * len(days))
+def test_gdd_z_hand_computed_with_caps() -> None:
+    """Annual capped GDD over the May-Aug window, z-scored vs the 3 prior years.
 
-
-# ---------------------------------------------------------------------------
-# drought consecutive days
-# ---------------------------------------------------------------------------
-
-def test_drought_run_length_against_trailing_threshold() -> None:
+    Per-day GDD = (min(Tmax, 30) + max(Tmin, 10))/2 - 10.  With Tmin pinned at
+    the base (10), GDD/day collapses to (min(Tmax, 30) - 10) / 2, so each year's
+    annual GDD is a clean function of its Tmax.
+    """
+    per_year_tmax = {2000: 20.0, 2001: 24.0, 2002: 22.0, 2003: 30.0}
     frames = []
-    for year in (2000, 2001, 2002):  # baseline: wet Julys
-        days = july_days(year)
-        frames.append(weather_frame(days, [10.0] * len(days), "precipitation_mm"))
-    days_2003 = july_days(2003)
-    # 12-day dry run mid-month, wet otherwise
-    values = [10.0] * 9 + [0.0] * 12 + [10.0] * 10
-    frames.append(weather_frame(days_2003, values, "precipitation_mm"))
+    for year, tmax in per_year_tmax.items():
+        days = pd.date_range(f"{year}-05-01", f"{year}-08-31", freq="D")
+        frames.append(weather_frame(days, [tmax] * len(days), "temperature_2m_max_c"))
+        frames.append(weather_frame(days, [10.0] * len(days), "temperature_2m_min_c"))
     df = pd.concat(frames, ignore_index=True)
 
-    ctx = ctx_for(CORN, {"weather:chirps": df}, [2003])
-    result = compute_drought_consecutive_days(ctx, None)
-    row = result.loc[
-        result["feature"] == "drought_consecutive_days_us_corn_belt_silking"
-    ]
-    assert row["value"].iloc[0] == 12.0
+    ctx = ctx_for(CORN, {"weather:nasa_power": df}, [2003])
+    result = compute_gdd_z(ctx, None)
+    row = result.loc[result["feature"] == "gdd_z_us_corn_belt"]
+    assert len(row) == 1
+
+    annual = {
+        year: ((min(tmax, 30.0) - 10.0) / 2.0)
+        * len(pd.date_range(f"{year}-05-01", f"{year}-08-31", freq="D"))
+        for year, tmax in per_year_tmax.items()
+    }
+    baseline = [annual[2000], annual[2001], annual[2002]]
+    expected = (annual[2003] - np.mean(baseline)) / np.std(baseline, ddof=1)
+    assert row["value"].iloc[0] == pytest.approx(expected)
 
 
-def test_drought_insufficient_baseline_years_emits_nothing() -> None:
+# ---------------------------------------------------------------------------
+# drought z (run-length of dry days, z-scored)
+# ---------------------------------------------------------------------------
+
+def test_drought_z_hand_computed() -> None:
+    """Annual longest dry-day run, z-scored vs the trailing run-count baseline.
+
+    Wet baseline (2000-2002, 10 mm/day) sets the 20th-percentile dry threshold
+    at 10, so the lone block of 0 mm days in each later year is the only dry
+    run.  Its length per year drives the z-score emitted for the target year.
+    """
+    dry_len = {2003: 5, 2004: 8, 2005: 6, 2006: 20}
+    frames = []
+    for year in (2000, 2001, 2002):  # wet baseline establishes the threshold
+        days = july_days(year)
+        frames.append(weather_frame(days, [10.0] * len(days), "precipitation_mm"))
+    for year, dl in dry_len.items():
+        days = july_days(year)
+        values = [10.0] * 5 + [0.0] * dl + [10.0] * (len(days) - 5 - dl)
+        frames.append(weather_frame(days, values, "precipitation_mm"))
+    df = pd.concat(frames, ignore_index=True)
+
+    ctx = ctx_for(CORN, {"weather:chirps": df}, [2006])
+    result = compute_drought_z(ctx, None)
+    row = result.loc[result["feature"] == "drought_z_us_corn_belt_silking"]
+    assert len(row) == 1
+    runs = pd.Series({year: float(dl) for year, dl in dry_len.items()})
+    expected = trailing_baseline_z(runs, 30, 3).loc[2006]
+    assert row["value"].iloc[0] == pytest.approx(expected)
+
+
+def test_drought_z_insufficient_baseline_years_emits_nothing() -> None:
     days = july_days(2001)
     df = weather_frame(days, [0.0] * len(days), "precipitation_mm")
     ctx = ctx_for(CORN, {"weather:chirps": df}, [2001])
-    result = compute_drought_consecutive_days(ctx, None)
+    result = compute_drought_z(ctx, None)
     assert result.loc[
-        result["feature"] == "drought_consecutive_days_us_corn_belt_silking"
+        result["feature"] == "drought_z_us_corn_belt_silking"
     ].empty
 
 

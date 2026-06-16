@@ -34,9 +34,10 @@ Design notes
   year-over-year diff of su_ratio across market_year.  Available from the first
   release because the PSD snapshot spans ~65 marketing years.
 
-* **revision columns** — value from this release minus the prior release for the
-  same (leviathan_slug, country, market_year, wasde_release_month).  All NaN
-  with a single release; populate as monthly downloads accumulate.
+* **revision columns** — month-on-month change within (leviathan_slug, country,
+  market_year), ordered by wasde_release_month ascending:
+  revision[M] = estimate[M] - estimate[M-1].  The earliest month in a marketing
+  year has no prior estimate, so its revision is NaN.
 
 * **month_code = 0** — pre-WASDE-tracking historical estimates (MY ~1960–2004
   for older series).  Passed through as wasde_release_month = 0.

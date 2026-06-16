@@ -51,8 +51,19 @@ _PSD_REQUIRED = ("leviathan_slug", "country", "market_year",
 _ONI_REQUIRED = ("year", "month", "oni_anom", "el_nino_flag", "la_nina_flag")
 _IOD_REQUIRED = ("year", "month", "iod_dmi_3month_avg")
 _COT_REQUIRED = ("report_date", "leviathan_slug", "mm_net_z_3yr", "mm_pct_oi_z_3yr")
-_PINK_SHEET_REQUIRED = ("date", "blended_npk_index_zscore_5yr", "brent_crude_usd_bbl_zscore_5yr")
+_PINK_SHEET_REQUIRED = ("date", "blended_npk_index_zscore_5yr", "brent_crude_usd_bbl_zscore_5yr",
+                        "urea_usd_mt_zscore_5yr", "dap_usd_mt_zscore_5yr")
 _CONAB_REQUIRED = ("safra_year", "survey_number", "region", "production_revision_thousand_bags")
+_FRED_FX_REQUIRED = ("date", "brl_usd_pct_change_90d", "cny_usd_pct_change_90d")
+_MPOB_REQUIRED = ("date", "production_cpo_mt", "closing_stocks_palm_oil_mt",
+                  "exports_palm_oil_mt", "su_ratio")
+_WAP_REVISIONS_REQUIRED = ("release_month", "commodity", "country",
+                            "marketing_year", "vintage_type", "value_mmt",
+                            "revision_mmt")
+_NASS_REQUIRED = ("state", "year", "date", "pct_good_excellent")
+_SAGIS_WEEKLY_REQUIRED = ("season", "crop", "week_number", "z_vs_3yr_avg")
+_SAGIS_CEC_REQUIRED = ("production_year", "report_month", "release_date", "crop", "scope",
+                        "revision_surprise")
 _FGIS_REQUIRED = ("marketing_year", "week_of_marketing_year", "destination_country", "exports_mt_weekly")
 _ESR_REQUIRED = (
     "commodity_name", "market_year", "week_ending_date",
@@ -268,6 +279,89 @@ def extract_pink_sheet(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
     return df, probe
 
 
+def extract_nass_crop_progress(
+    root: str, commodity: str
+) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """USDA NASS weekly crop progress silver for one commodity."""
+    source_key = "nass_crop_progress"
+    location = _location(root, f"silver/nass_crop_progress/commodity={commodity}")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _NASS_REQUIRED, ["state", "year", "date"])
+    return df, probe
+
+
+def extract_wap_revisions(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """WAP Table 01 revision series silver (all commodities and countries)."""
+    source_key = "wap_revisions"
+    location = _location(root, "silver/wap_table01_revisions")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _WAP_REVISIONS_REQUIRED,
+                    ["release_month", "commodity", "country", "marketing_year"])
+    return df, probe
+
+
+def extract_mpob(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """MPOB monthly CPO supply/demand silver (commodity-agnostic at load)."""
+    source_key = "mpob"
+    location = _location(root, "silver/mpob")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _MPOB_REQUIRED, ["date"])
+    return df, probe
+
+
+def extract_fred_fx(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """FRED FX daily silver — BRL/USD and CNY/USD 90-day pct changes."""
+    source_key = "fred_fx"
+    location = _location(root, "silver/fred_fx")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _FRED_FX_REQUIRED, ["date"])
+    return df, probe
+
+
+def extract_sagis_weekly(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """SAGIS progressive delivery totals silver (all crops; computation filters)."""
+    source_key = "sagis_deliveries"
+    location = _location(root, "silver/sagis_weekly_deliveries")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _SAGIS_WEEKLY_REQUIRED,
+                    ["season", "crop", "week_number"])
+    return df, probe
+
+
+def extract_sagis_cec(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """SAGIS Crop Estimates Committee silver (all crops; computation filters)."""
+    source_key = "sagis_cec"
+    location = _location(root, "silver/sagis_cec")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _SAGIS_CEC_REQUIRED,
+                    ["production_year", "report_month", "crop", "scope"])
+    return df, probe
+
+
 def extract_conab(
     root: str, commodity: str
 ) -> tuple[pd.DataFrame | None, SourceProbe]:
@@ -352,6 +446,28 @@ def extract_all(
             if "pink_sheet" not in _agnostic_cache:
                 _agnostic_cache["pink_sheet"] = extract_pink_sheet(root)
             df, probe = _agnostic_cache["pink_sheet"]
+        elif key == "nass_crop_progress":
+            df, probe = extract_nass_crop_progress(root, commodity)
+        elif key == "wap_revisions":
+            if "wap_revisions" not in _agnostic_cache:
+                _agnostic_cache["wap_revisions"] = extract_wap_revisions(root)
+            df, probe = _agnostic_cache["wap_revisions"]
+        elif key == "mpob":
+            if "mpob" not in _agnostic_cache:
+                _agnostic_cache["mpob"] = extract_mpob(root)
+            df, probe = _agnostic_cache["mpob"]
+        elif key == "fred_fx":
+            if "fred_fx" not in _agnostic_cache:
+                _agnostic_cache["fred_fx"] = extract_fred_fx(root)
+            df, probe = _agnostic_cache["fred_fx"]
+        elif key == "sagis_deliveries":
+            if "sagis_deliveries" not in _agnostic_cache:
+                _agnostic_cache["sagis_deliveries"] = extract_sagis_weekly(root)
+            df, probe = _agnostic_cache["sagis_deliveries"]
+        elif key == "sagis_cec":
+            if "sagis_cec" not in _agnostic_cache:
+                _agnostic_cache["sagis_cec"] = extract_sagis_cec(root)
+            df, probe = _agnostic_cache["sagis_cec"]
         elif key == "conab":
             df, probe = extract_conab(root, commodity)
         elif key == "fgis":

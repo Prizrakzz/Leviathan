@@ -53,3 +53,13 @@ production:
   trend_years: 10
   # Minimum points required to fit the trend.
   trend_min_years: 5
+
+validation:
+  # Output range checks: a small fraction of values legitimately fall in the
+  # tails (z-scores off a small trailing baseline; a residually-calculated PSD
+  # stock-to-use ratio that dips slightly negative).  An isolated breach is
+  # winsorized to the declared bound and logged as a soft range_clip; the write
+  # proceeds.  A breach exceeding BOTH thresholds is treated as a systematic
+  # bug / upstream corruption and hard-fails the commodity.
+  range_clip_max_fraction: 0.01
+  range_clip_min_count: 5

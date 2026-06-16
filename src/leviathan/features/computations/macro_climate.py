@@ -183,11 +183,85 @@ def compute_pink_sheet_input_costs(ctx: FeatureContext, spec) -> pd.DataFrame:
 
         npk_z = latest.get("blended_npk_index_zscore_5yr")
         energy_z = latest.get("brent_crude_usd_bbl_zscore_5yr")
+        urea_z = latest.get("urea_usd_mt_zscore_5yr")
+        dap_z = latest.get("dap_usd_mt_zscore_5yr")
 
         for country in ctx.countries:
             if pd.notna(npk_z):
                 rows.append((country, crop_year, "pink_sheet_npk_z", float(npk_z)))
             if pd.notna(energy_z):
                 rows.append((country, crop_year, "pink_sheet_energy_z", float(energy_z)))
+            if pd.notna(urea_z):
+                rows.append((country, crop_year, "pink_sheet_urea_z", float(urea_z)))
+            if pd.notna(dap_z):
+                rows.append((country, crop_year, "pink_sheet_dap_z", float(dap_z)))
+
+    return make_result(rows)
+
+
+# ---------------------------------------------------------------------------
+# FRED FX — BRL and CNY 90-day pct change at crop-year start
+# ---------------------------------------------------------------------------
+
+# Commodities where BRL matters (Brazil is the dominant exporter/producer).
+_BRL_COMMODITIES: frozenset[str] = frozenset({
+    "arabica_coffee", "brazilian_arabica_coffee", "robusta_coffee",
+    "raw_sugar",
+    "soybeans_cbot", "soybean_meal_cbot", "soybean_oil_cbot",
+})
+
+# Commodities where CNY matters (China is the dominant importer).
+_CNY_COMMODITIES: frozenset[str] = frozenset({
+    "soybeans_cbot", "soybean_meal_cbot", "soybean_oil_cbot",
+    "soybeans_no_1_dce", "soybeans_no_2_dce",
+    "soybean_meal_dce", "soybean_oil_dce",
+    "corn_cbot",
+    "malaysian_crude_palm_oil_cme", "palm_olein_dce",
+})
+
+
+def compute_fred_fx(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """BRL/USD and CNY/USD 90-day pct change at the most recent trading day
+    before the crop-year start.
+
+    Currency impacts:
+      brl_fx_pct_90d — BRL depreciation raises Brazil's USD-denominated
+                        export competitiveness; relevant for coffee, sugar,
+                        and US-vs-Brazil soy competition.
+      cny_fx_pct_90d — CNY depreciation reduces China's purchasing power
+                        for USD-priced imports: soybeans, corn, palm.
+
+    Emits only the currency (or currencies) relevant to ctx.commodity.
+    """
+    df = ctx.inputs.get("fred_fx")
+    if df is None or df.empty or ctx.calendar is None:
+        return empty_result()
+
+    df2 = df.copy()
+    df2["date"] = pd.to_datetime(df2["date"], errors="coerce")
+    df2 = df2.dropna(subset=["date"]).sort_values("date")
+
+    emit_brl = ctx.commodity in _BRL_COMMODITIES
+    emit_cny = ctx.commodity in _CNY_COMMODITIES
+    if not emit_brl and not emit_cny:
+        return empty_result()
+
+    rows: list[tuple[str, int, str, float]] = []
+
+    for crop_year in ctx.crop_years:
+        cutoff = pd.Timestamp(ctx.calendar.crop_year_start(crop_year))
+        eligible = df2[df2["date"] < cutoff]
+        if eligible.empty:
+            continue
+        latest = eligible.iloc[-1]
+
+        brl = latest.get("brl_usd_pct_change_90d")
+        cny = latest.get("cny_usd_pct_change_90d")
+
+        for country in ctx.countries:
+            if emit_brl and pd.notna(brl):
+                rows.append((country, crop_year, "brl_fx_pct_90d", float(brl)))
+            if emit_cny and pd.notna(cny):
+                rows.append((country, crop_year, "cny_fx_pct_90d", float(cny)))
 
     return make_result(rows)

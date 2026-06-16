@@ -115,7 +115,7 @@ def test_spine_structure_and_validation(registry, corn_calendar, synthetic_input
     features = set(df["feature"])
     # Weather, production, and S/D families all present
     assert f"chirps_precip_z_{REGION}_silking" in features
-    assert f"gdd_accumulated_{REGION}" in features
+    assert f"gdd_z_{REGION}" in features
     assert "faostat_production_yoy" in features
     assert "psd_ending_stock_su_ratio" in features
     assert "label_production_quantity" in features

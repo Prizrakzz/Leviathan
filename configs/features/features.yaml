@@ -25,7 +25,7 @@
   sources: ["weather:chirps"]
   visibility: crop_year_direct
   commodities: calendar
-  value_range: [-10.0, 10.0]
+  value_range: [-15.0, 15.0]
 
 - family: stage_tmax_anomaly
   sources: ["weather:nasa_power"]
@@ -49,13 +49,25 @@
   sources: ["weather:nasa_power"]
   visibility: crop_year_direct
   commodities: calendar
-  value_range: [-10.0, 10.0]
+  value_range: [-15.0, 15.0]
 
 - family: drought_z
   sources: ["weather:chirps"]
   visibility: crop_year_direct
   commodities: calendar
-  value_range: [-10.0, 10.0]
+  value_range: [-15.0, 15.0]
+
+- family: modis_ndvi_z
+  sources: ["weather:modis_ndvi"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [-15.0, 15.0]
+
+- family: cpc_soil_z
+  sources: ["weather:cpc_soil"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [-15.0, 15.0]
 
 - family: capacity_recovery_index
   sources: ["weather:nasa_power"]
@@ -88,7 +100,11 @@
   sources: ["psd"]
   visibility: prior_marketing_year
   commodities: all
-  value_range: [0.0, 20.0]
+  # Floor is slightly negative: USDA PSD ending stocks are a residual, so the
+  # stock-to-use ratio can dip just below 0 in some country-vintages (observed
+  # min ≈ -0.10 for Brazil/Argentina sugar).  Extreme low-use ratios are
+  # winsorized to the ceiling by the spine's soft range-clip.
+  value_range: [-1.0, 20.0]
 
 - family: psd_su_ratio_yoy_delta
   sources: ["psd"]
@@ -144,6 +160,30 @@
   value_range: [-5.0, 5.0]
 
 # ---------------------------------------------------------------------------
+# FX macro: FRED BRL + CNY 90-day pct change at crop-year start
+# ---------------------------------------------------------------------------
+
+- family: fred_fx_macro
+  sources: ["fred_fx"]
+  visibility: prior_history
+  commodities:
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+    - raw_sugar
+    - corn_cbot
+    - soybeans_cbot
+    - soybean_meal_cbot
+    - soybean_oil_cbot
+    - soybeans_no_1_dce
+    - soybeans_no_2_dce
+    - soybean_meal_dce
+    - soybean_oil_dce
+    - malaysian_crude_palm_oil_cme
+    - palm_olein_dce
+  value_range: null
+
+# ---------------------------------------------------------------------------
 # Input costs: World Bank Pink Sheet
 # ---------------------------------------------------------------------------
 
@@ -151,6 +191,26 @@
   sources: ["pink_sheet"]
   visibility: prior_history
   commodities: all
+  value_range: [-10.0, 10.0]
+
+# ---------------------------------------------------------------------------
+# South Africa grain: SAGIS progressive deliveries + CEC revision
+# ---------------------------------------------------------------------------
+
+- family: sagis_deliveries_z
+  sources: ["sagis_deliveries"]
+  visibility: prior_history
+  commodities:
+    - south_african_white_maize_jse
+    - south_african_yellow_maize_jse
+  value_range: [-10.0, 10.0]
+
+- family: sagis_cec_revision
+  sources: ["sagis_cec"]
+  visibility: prior_marketing_year
+  commodities:
+    - south_african_white_maize_jse
+    - south_african_yellow_maize_jse
   value_range: null
 
 # ---------------------------------------------------------------------------
@@ -167,6 +227,48 @@
   value_range: null
 
 # ---------------------------------------------------------------------------
+# Malaysian palm oil: MPOB monthly fundamentals
+# ---------------------------------------------------------------------------
+
+- family: mpob_fundamentals
+  sources: ["mpob"]
+  visibility: prior_history
+  commodities:
+    - malaysian_crude_palm_oil_cme
+    - palm_olein_dce
+  value_range: [-10.0, 10.0]
+  params:
+    baselines:
+      window_years: 10
+      min_years: 5
+
+# ---------------------------------------------------------------------------
+# WAP non-US production revision (USDA FAS World Ag Production circular)
+# ---------------------------------------------------------------------------
+
+- family: wap_nonUS_revision
+  sources: ["wap_revisions"]
+  visibility: prior_marketing_year
+  commodities:
+    - corn_cbot
+    - campinas_corn_reference_bmf
+    - french_maize_matif
+    - soft_red_winter_wheat_cbot
+    - hard_red_winter_wheat_kcbt
+    - hard_red_spring_wheat_mgex
+    - french_wheat_matif
+    - soybeans_cbot
+    - soybeans_no_1_dce
+    - soybeans_no_2_dce
+    - soybean_meal_cbot
+    - soybean_oil_cbot
+    - soybean_meal_dce
+    - soybean_oil_dce
+    - cotton
+    - rough_rice_cbot
+  value_range: [-10.0, 10.0]
+
+# ---------------------------------------------------------------------------
 # US export pace: FGIS inspections
 # ---------------------------------------------------------------------------
 
@@ -180,6 +282,22 @@
     - soft_red_winter_wheat_cbot
     - soybeans_cbot
   value_range: [-1.0, 5.0]
+
+# ---------------------------------------------------------------------------
+# USDA NASS crop progress: national % Good+Excellent z-score
+# ---------------------------------------------------------------------------
+
+- family: nass_crop_progress_ge_z
+  sources: ["nass_crop_progress"]
+  visibility: crop_year_direct
+  commodities:
+    - corn_cbot
+    - cotton
+    - hard_red_spring_wheat_mgex
+    - rough_rice_cbot
+    - soft_red_winter_wheat_cbot
+    - soybeans_cbot
+  value_range: [-10.0, 10.0]
 
 # ---------------------------------------------------------------------------
 # US forward export commitments: USDA FAS ESR

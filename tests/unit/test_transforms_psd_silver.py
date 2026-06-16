@@ -70,10 +70,15 @@ def _make_bronze(
 # ---------------------------------------------------------------------------
 
 class TestFanOut:
-    def test_corn_produces_three_slugs(self) -> None:
+    def test_corn_produces_five_slugs(self) -> None:
+        # PSD corn (440000) fans out to every corn/maize futures slug, including
+        # the two South African maize contracts added in the slug-map expansion.
         silver = transform_psd_bronze_to_silver([_make_bronze(commodity_code=440000)])
         slugs = set(silver["leviathan_slug"].unique())
-        assert slugs == {"corn_cbot", "campinas_corn_reference_bmf", "french_maize_matif"}
+        assert slugs == {
+            "corn_cbot", "campinas_corn_reference_bmf", "french_maize_matif",
+            "south_african_white_maize_jse", "south_african_yellow_maize_jse",
+        }
 
     def test_cotton_produces_one_slug(self) -> None:
         silver = transform_psd_bronze_to_silver([_make_bronze(commodity_code=2631000, attrs={
@@ -103,9 +108,9 @@ class TestFanOut:
         assert len(silver) == 0
 
     def test_rows_per_slug_equals_one_country_market_year(self) -> None:
-        """Each corn row produces 3 slugs × 1 (country, market_year) = 3 rows."""
+        """Each corn row produces 5 slugs × 1 (country, market_year) = 5 rows."""
         silver = transform_psd_bronze_to_silver([_make_bronze(commodity_code=440000)])
-        assert len(silver) == 3
+        assert len(silver) == 5
 
 
 # ---------------------------------------------------------------------------
@@ -308,16 +313,14 @@ class TestRevisionCols:
             assert silver[col].isna().all(), f"{col} should be all NaN with one release"
 
     def test_two_monthly_releases_revision_correct(self) -> None:
-        """Two different WASDE months (mc=5 and mc=6) for the same market_year.
+        """Two WASDE months (mc=5, mc=6) for one market_year give a month-on-month
+        revision.
 
-        Each month_code maps to a distinct computed release_date, so they are
-        separate rows in the silver pivot.  Revision diffs by release_date within
-        (slug, country, market_year, wasde_release_month) — each group has one
-        row here, so revision is NaN.  This test validates schema integrity.
-
-        Note: non-NaN revisions require two separate bulk downloads of the same
-        (market_year, month_code) captured at different calendar dates; that
-        infrastructure is not yet in place.
+        Revisions diff by ``wasde_release_month`` (ascending) within
+        (leviathan_slug, country, market_year): revision[M] = estimate[M] -
+        estimate[M-1].  The earlier month has no prior estimate, so its revision
+        is NaN; the later month carries the delta (in MT, after the 1000-MT unit
+        scale-up).
         """
         mc5 = _make_bronze(
             commodity_code=440000, market_year=2024, month_code=5,
@@ -330,11 +333,15 @@ class TestRevisionCols:
                    "Domestic Consumption": ("(1000 MT)", 202.0)},
         )
         silver = transform_psd_bronze_to_silver([pd.concat([mc5, mc6], ignore_index=True)])
-        cbot = silver[silver["leviathan_slug"] == "corn_cbot"]
+        cbot = silver[silver["leviathan_slug"] == "corn_cbot"].sort_values("wasde_release_month")
         assert len(cbot) == 2
-        # Different month_codes → different revision groups → both revisions are NaN
-        for col in ("production_mt_revision", "ending_stocks_mt_revision", "consumption_mt_revision"):
-            assert cbot[col].isna().all(), f"{col} should be NaN across different wasde_release_months"
+        early, late = cbot.iloc[0], cbot.iloc[1]
+        # Earlier month: no prior estimate -> NaN revision.
+        assert pd.isna(early["production_mt_revision"])
+        # Later month: month-on-month delta, scaled to MT.
+        assert late["production_mt_revision"] == pytest.approx(10_000.0)
+        assert late["ending_stocks_mt_revision"] == pytest.approx(5_000.0)
+        assert late["consumption_mt_revision"] == pytest.approx(2_000.0)
 
     def test_revision_groups_do_not_bleed(self) -> None:
         """Revisions for US and Brazil corn should be independent."""
