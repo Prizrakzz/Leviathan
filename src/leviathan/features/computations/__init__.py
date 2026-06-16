@@ -31,6 +31,7 @@ from leviathan.features.computations.sd_balance import (
     compute_wasde_production_revision,
     compute_wasde_stocks_revision,
 )
+from leviathan.features.computations.esr_exports import compute_esr_exports
 from leviathan.features.computations.trade_flows import (
     compute_conab_production_revision,
     compute_fgis_export_pace_yoy,
@@ -69,6 +70,7 @@ COMPUTATIONS: dict[str, ComputeFn] = {
     "pink_sheet_input_costs": compute_pink_sheet_input_costs,
     "conab_production_revision": compute_conab_production_revision,
     "fgis_export_pace_yoy": compute_fgis_export_pace_yoy,
+    "esr_exports": compute_esr_exports,
 }
 
 __all__ = ["COMPUTATIONS", "FeatureContext"]

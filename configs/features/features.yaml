@@ -25,7 +25,7 @@
   sources: ["weather:chirps"]
   visibility: crop_year_direct
   commodities: calendar
-  value_range: [-6.0, 6.0]
+  value_range: [-10.0, 10.0]
 
 - family: stage_tmax_anomaly
   sources: ["weather:nasa_power"]
@@ -192,3 +192,20 @@
     - soft_red_winter_wheat_cbot
     - soybeans_cbot
   value_range: [-1.0, 5.0]
+
+# ---------------------------------------------------------------------------
+# US forward export commitments: USDA FAS ESR
+# ---------------------------------------------------------------------------
+
+- family: esr_exports
+  sources: ["esr"]
+  visibility: prior_history
+  commodities:
+    - corn_cbot
+    - hard_red_winter_wheat_kcbt
+    - hard_red_spring_wheat_mgex
+    - soft_red_winter_wheat_cbot
+    - soybeans_cbot
+    - soybean_meal_cbot
+    - soybean_oil_cbot
+  value_range: null

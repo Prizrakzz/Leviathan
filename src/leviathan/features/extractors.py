@@ -54,6 +54,10 @@ _COT_REQUIRED = ("report_date", "leviathan_slug", "mm_net_z_3yr", "mm_pct_oi_z_3
 _PINK_SHEET_REQUIRED = ("date", "blended_npk_index_zscore_5yr", "brent_crude_usd_bbl_zscore_5yr")
 _CONAB_REQUIRED = ("safra_year", "survey_number", "region", "production_revision_thousand_bags")
 _FGIS_REQUIRED = ("marketing_year", "week_of_marketing_year", "destination_country", "exports_mt_weekly")
+_ESR_REQUIRED = (
+    "commodity_name", "market_year", "week_ending_date",
+    "outstanding_sales_1000mt", "weekly_exports_1000mt", "gross_new_sales_1000mt",
+)
 
 # Columns that are metadata/identifiers in wide-format weather files.
 # Everything else is a climate variable to be melted into (variable, value).
@@ -66,6 +70,7 @@ _WEATHER_ID_COLS = frozenset({
 _WEATHER_KEY = ["date", "country", "region", "source", "variable"]
 _FAOSTAT_KEY = ["country_key", "metric", "year"]
 _PSD_KEY = ["country", "market_year", "wasde_release_month", "release_date"]
+_ESR_KEY = ["commodity_name", "market_year", "week_ending_date", "country_code"]
 
 
 def _location(root: str, relative: str) -> str:
@@ -294,6 +299,21 @@ def extract_fgis(
     return df, probe
 
 
+def extract_esr(
+    root: str, commodity: str
+) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """USDA FAS ESR weekly export commitment silver for one commodity slug."""
+    source_key = "esr"
+    location = _location(root, f"silver/esr/commodity={commodity}")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _ESR_REQUIRED, _ESR_KEY)
+    return df, probe
+
+
 def extract_all(
     root: str, commodity: str, source_keys: set[str]
 ) -> tuple[dict[str, pd.DataFrame], list[SourceProbe]]:
@@ -336,6 +356,8 @@ def extract_all(
             df, probe = extract_conab(root, commodity)
         elif key == "fgis":
             df, probe = extract_fgis(root, commodity)
+        elif key == "esr":
+            df, probe = extract_esr(root, commodity)
         else:
             raise ExtractionContractError(f"Unknown source key in registry: {key!r}")
         probes.append(probe)
