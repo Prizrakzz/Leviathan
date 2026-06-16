@@ -58,8 +58,8 @@ _FRED_FX_REQUIRED = ("date", "brl_usd_pct_change_90d", "cny_usd_pct_change_90d")
 _MPOB_REQUIRED = ("date", "production_cpo_mt", "closing_stocks_palm_oil_mt",
                   "exports_palm_oil_mt", "su_ratio")
 _WAP_REVISIONS_REQUIRED = ("release_month", "commodity", "country",
-                            "marketing_year", "vintage_type", "value_mmt",
-                            "revision_mmt")
+                            "marketing_year", "vintage_type", "row_label",
+                            "value_mmt", "revision_mmt")
 _NASS_REQUIRED = ("state", "year", "date", "pct_good_excellent")
 _SAGIS_WEEKLY_REQUIRED = ("season", "crop", "week_number", "z_vs_3yr_avg")
 _SAGIS_CEC_REQUIRED = ("production_year", "report_month", "release_date", "crop", "scope",
@@ -127,6 +127,35 @@ def _check_contract(
             f"{source_key}: {dupes} duplicate rows on natural key {natural_key} — "
             "fix the silver source; aggregating over duplicates would corrupt features"
         )
+
+
+def _dedup_natural_key(
+    df: pd.DataFrame, source_key: str, natural_key: list[str]
+) -> pd.DataFrame:
+    """Drop benign duplicate rows on the natural key, keeping the last after a
+    deterministic full-column sort.
+
+    A handful of duplicates in an auxiliary, commodity-agnostic silver source —
+    a year-boundary artifact in a derived column, a late revision retained as a
+    second row — must not crash the entire spine the way a strict contract would.
+    The dropped count is warned so the upstream silver issue stays visible.  Use
+    this only where duplicates are genuinely interchangeable for the feature;
+    where extra rows are legitimately distinct (e.g. multiple report vintages),
+    widen the natural key instead.
+    """
+    dupes = int(df.duplicated(subset=natural_key).sum())
+    if not dupes:
+        return df
+    logger.warning(
+        "%s: %d duplicate rows on %s — keeping last after deterministic sort "
+        "(dedup the silver source upstream)", source_key, dupes, natural_key,
+    )
+    sort_cols = natural_key + [c for c in df.columns if c not in natural_key]
+    return (
+        df.sort_values(sort_cols, kind="mergesort")
+        .drop_duplicates(subset=natural_key, keep="last")
+        .reset_index(drop=True)
+    )
 
 
 def _load(probe: SourceProbe, columns: list[str],
@@ -303,8 +332,12 @@ def extract_wap_revisions(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
     df = _load(probe, list(probe.columns))
+    # row_label distinguishes the monthly vs. annual-projection vintage rows that
+    # share (release_month, commodity, country, marketing_year); without it the
+    # key spuriously collapses ~70k legitimate rows.
     _check_contract(df, source_key, _WAP_REVISIONS_REQUIRED,
-                    ["release_month", "commodity", "country", "marketing_year"])
+                    ["release_month", "commodity", "country", "marketing_year",
+                     "row_label"])
     return df, probe
 
 
@@ -330,6 +363,9 @@ def extract_fred_fx(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
     df = _load(probe, list(probe.columns))
+    # Year-end dates carry a few duplicate rows (a 90-day pct_change boundary
+    # artifact in the silver); the feature only reads the latest value per date.
+    df = _dedup_natural_key(df, source_key, ["date"])
     _check_contract(df, source_key, _FRED_FX_REQUIRED, ["date"])
     return df, probe
 
@@ -343,6 +379,10 @@ def extract_sagis_weekly(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
     df = _load(probe, list(probe.columns))
+    # A late delivery revision can leave a second row for one (season, crop,
+    # week); keep the last.  (Observed once, on a wheat week the maize feature
+    # filters out anyway.)
+    df = _dedup_natural_key(df, source_key, ["season", "crop", "week_number"])
     _check_contract(df, source_key, _SAGIS_WEEKLY_REQUIRED,
                     ["season", "crop", "week_number"])
     return df, probe
