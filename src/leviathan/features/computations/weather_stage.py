@@ -164,11 +164,17 @@ def compute_frost_event_flag(ctx: FeatureContext, spec) -> pd.DataFrame:
     return make_result(rows)
 
 
-def compute_gdd_accumulated(ctx: FeatureContext, spec) -> pd.DataFrame:
-    """Growing Degree Days summed over the calendar's GDD window.
+def compute_gdd_z(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Growing Degree Days accumulated over the GDD window, z-scored vs. trailing baseline.
 
-    ``GDD_day = max(0, (min(Tmax, cap) + max(Tmin, base)) / 2 - base)`` with
-    per-commodity base/cap from feature_params.yaml.  Incomplete windows -> NaN.
+    Raw GDD totals are cross-commodity and cross-country incomparable (corn ~2700 GDD,
+    wheat ~1200 GDD).  The z-score normalises each year against the prior-years
+    baseline for that specific (commodity, country, region), making the feature
+    dimensionless and comparable.
+
+    ``GDD_day = max(0, (min(Tmax, cap) + max(Tmin, base)) / 2 - base)``
+    ``z[Y] = (gdd[Y] - mean(gdd[Y-w..Y-1])) / std(gdd[Y-w..Y-1])``
+    Incomplete windows -> NaN.
     """
     if ctx.calendar is None or ctx.calendar.gdd_window is None:
         return empty_result()
@@ -184,6 +190,10 @@ def compute_gdd_accumulated(ctx: FeatureContext, spec) -> pd.DataFrame:
     )
     base = float(crop_cfg.get("base_c", 10.0))
     cap = float(crop_cfg.get("cap_c", 30.0))
+
+    baselines = ctx.params.get("baselines", {})
+    window_years = int(baselines.get("window_years", 30))
+    min_years = int(baselines.get("min_years", 10))
 
     first_stage, last_stage = ctx.calendar.gdd_window
     start_month = ctx.calendar.stages[first_stage][0]
@@ -209,28 +219,43 @@ def compute_gdd_accumulated(ctx: FeatureContext, spec) -> pd.DataFrame:
     for (country, region), region_df in merged.groupby(["country", "region"]):
         if country not in ctx.countries:
             continue
-        yearly = region_df.groupby("spine_crop_year")["gdd"].sum()
         last_obs = region_df["date"].max()
-        feature = f"gdd_accumulated_{region}"
+        yearly_raw = region_df.groupby("spine_crop_year")["gdd"].sum()
+        yearly_raw.index = yearly_raw.index.astype(int)
+
+        # Include only complete windows in the baseline series.
+        complete: dict[int, float] = {}
+        for crop_year, total in yearly_raw.items():
+            window = ctx.calendar.gdd_dates(int(crop_year))
+            if window and _window_complete(pd.Timestamp(window[1]), last_obs):
+                complete[int(crop_year)] = float(total)
+
+        if not complete:
+            continue
+
+        z = trailing_baseline_z(
+            pd.Series(complete, dtype=float).sort_index(), window_years, min_years
+        )
+        feature = f"gdd_z_{region}"
         for crop_year in ctx.crop_years:
-            if crop_year not in yearly.index:
-                continue
-            window = ctx.calendar.gdd_dates(crop_year)
-            value = (
-                float(yearly.loc[crop_year])
-                if window and _window_complete(pd.Timestamp(window[1]), last_obs)
-                else np.nan
-            )
-            rows.append((country, crop_year, feature, value))
+            rows.append((country, crop_year, feature, z.get(crop_year, np.nan)))
     return make_result(rows)
 
 
-def compute_drought_consecutive_days(ctx: FeatureContext, spec) -> pd.DataFrame:
-    """Longest dry-day run per stage window, threshold from trailing baseline.
+def compute_drought_z(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Z-score of longest consecutive dry-day run per stage, vs. trailing baseline.
 
-    A day is dry when its precipitation is below the trailing-window
-    ``dry_percentile`` of daily values in the same stage months over prior
-    crop years (min ``baselines.min_years`` distinct years, else NaN).
+    Two normalisation layers:
+      1. Dry-day threshold: bottom ``dry_percentile`` of daily precipitation in
+         the same stage months over prior ``window_years`` crop years.  This makes
+         "dry" relative to the local climatology of each (region, stage).
+      2. Run-count z-score: the annual count of consecutive dry days is itself
+         z-scored vs. the prior-year baseline, making the output dimensionless
+         and comparable across arid and humid regions.
+
+    All prior years are processed first (pass 1) to populate the z-score baseline;
+    only ctx.crop_years are emitted (pass 2).  Incomplete windows and years with
+    < min_years of baseline yield NaN.
     """
     df = _prepare(ctx, "weather:chirps", "precipitation_mm")
     if df is None:
@@ -255,11 +280,13 @@ def compute_drought_consecutive_days(ctx: FeatureContext, spec) -> pd.DataFrame:
                 int(cy): g.sort_values("date")
                 for cy, g in in_stage.groupby("spine_crop_year")
             }
-            feature = f"drought_consecutive_days_{region}_{stage}"
-            for crop_year in ctx.crop_years:
-                current = by_year.get(crop_year)
-                if current is None:
-                    continue
+
+            # Pass 1: compute raw run count for every complete year in the data.
+            # Iterating all available years (not just ctx.crop_years) ensures the
+            # z-score baseline covers the full history.
+            yearly_runs: dict[int, float] = {}
+            for crop_year in sorted(by_year.keys()):
+                current = by_year[crop_year]
                 window_end = pd.Timestamp(
                     ctx.calendar.stage_window(stage, crop_year).end_date
                 )
@@ -270,12 +297,22 @@ def compute_drought_consecutive_days(ctx: FeatureContext, spec) -> pd.DataFrame:
                     not _window_complete(window_end, last_obs)
                     or len(baseline_years) < min_years
                 ):
-                    rows.append((country, crop_year, feature, np.nan))
                     continue
                 baseline = np.concatenate(
                     [by_year[y]["value"].to_numpy() for y in baseline_years]
                 )
                 threshold = float(np.percentile(baseline, pctile))
                 run = max_consecutive_true(current["value"].to_numpy() < threshold)
-                rows.append((country, crop_year, feature, float(run)))
+                yearly_runs[crop_year] = float(run)
+
+            if not yearly_runs:
+                continue
+
+            # Pass 2: z-score the annual run counts vs. trailing baseline of counts.
+            z = trailing_baseline_z(
+                pd.Series(yearly_runs, dtype=float).sort_index(), window_years, min_years
+            )
+            feature = f"drought_z_{region}_{stage}"
+            for crop_year in ctx.crop_years:
+                rows.append((country, crop_year, feature, z.get(crop_year, np.nan)))
     return make_result(rows)

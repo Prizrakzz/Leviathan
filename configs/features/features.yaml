@@ -45,17 +45,17 @@
   commodities: calendar
   value_range: [0.0, 1.0]
 
-- family: gdd_accumulated
+- family: gdd_z
   sources: ["weather:nasa_power"]
   visibility: crop_year_direct
   commodities: calendar
-  value_range: [0.0, 12000.0]
+  value_range: [-10.0, 10.0]
 
-- family: drought_consecutive_days
+- family: drought_z
   sources: ["weather:chirps"]
   visibility: crop_year_direct
   commodities: calendar
-  value_range: [0.0, 366.0]
+  value_range: [-10.0, 10.0]
 
 - family: capacity_recovery_index
   sources: ["weather:nasa_power"]
