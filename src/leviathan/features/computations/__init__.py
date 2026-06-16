@@ -12,6 +12,12 @@ import pandas as pd
 
 from leviathan.features.computations.base import FeatureContext
 from leviathan.features.computations.capacity import compute_capacity_recovery_index
+from leviathan.features.computations.macro_climate import (
+    compute_cot_mm_positioning,
+    compute_iod_climate,
+    compute_oni_climate,
+    compute_pink_sheet_input_costs,
+)
 from leviathan.features.computations.production import (
     compute_faostat_available,
     compute_faostat_labels,
@@ -24,6 +30,10 @@ from leviathan.features.computations.sd_balance import (
     compute_psd_su_ratio_yoy_delta,
     compute_wasde_production_revision,
     compute_wasde_stocks_revision,
+)
+from leviathan.features.computations.trade_flows import (
+    compute_conab_production_revision,
+    compute_fgis_export_pace_yoy,
 )
 from leviathan.features.computations.weather_stage import (
     compute_drought_consecutive_days,
@@ -53,6 +63,12 @@ COMPUTATIONS: dict[str, ComputeFn] = {
     "wasde_production_revision": compute_wasde_production_revision,
     "wasde_stocks_revision": compute_wasde_stocks_revision,
     "psd_available": compute_psd_available,
+    "oni_climate": compute_oni_climate,
+    "iod_climate": compute_iod_climate,
+    "cot_mm_positioning": compute_cot_mm_positioning,
+    "pink_sheet_input_costs": compute_pink_sheet_input_costs,
+    "conab_production_revision": compute_conab_production_revision,
+    "fgis_export_pace_yoy": compute_fgis_export_pace_yoy,
 }
 
 __all__ = ["COMPUTATIONS", "FeatureContext"]

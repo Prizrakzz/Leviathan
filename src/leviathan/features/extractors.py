@@ -48,6 +48,12 @@ _WEATHER_REQUIRED = ("date", "year", "month", "country", "region", "source",
 _FAOSTAT_REQUIRED = ("country_key", "metric", "year", "value")
 _PSD_REQUIRED = ("leviathan_slug", "country", "market_year",
                  "wasde_release_month", "release_date", "su_ratio")
+_ONI_REQUIRED = ("year", "month", "oni_anom", "el_nino_flag", "la_nina_flag")
+_IOD_REQUIRED = ("year", "month", "iod_dmi_3month_avg")
+_COT_REQUIRED = ("report_date", "leviathan_slug", "mm_net_z_3yr", "mm_pct_oi_z_3yr")
+_PINK_SHEET_REQUIRED = ("date", "blended_npk_index_zscore_5yr", "brent_crude_usd_bbl_zscore_5yr")
+_CONAB_REQUIRED = ("safra_year", "survey_number", "region", "production_revision_thousand_bags")
+_FGIS_REQUIRED = ("marketing_year", "week_of_marketing_year", "destination_country", "exports_mt_weekly")
 
 # Columns that are metadata/identifiers in wide-format weather files.
 # Everything else is a climate variable to be melted into (variable, value).
@@ -191,6 +197,103 @@ def extract_psd(
     return df, probe
 
 
+def extract_oni(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """Global ONI/ENSO monthly silver (commodity-agnostic)."""
+    source_key = "oni"
+    location = _location(root, "silver/weather/source=noaa_oni")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _ONI_REQUIRED, ["year", "month"])
+    return df, probe
+
+
+def extract_iod(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """Global IOD monthly silver (commodity-agnostic).
+
+    The IOD silver sometimes contains two rows per (year, month) from different
+    source series.  Deduplicate by preferring rows with a valid 3-month average
+    over rows where it is NaN, then keep the last after sorting by dmi_value.
+    """
+    source_key = "iod"
+    location = _location(root, "silver/weather/source=noaa_iod")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    # Prefer rows with a non-null 3-month average; sort so those sink to the
+    # bottom, then drop_duplicates(keep="last") retains them.
+    df = (
+        df.assign(_has_avg=df["iod_dmi_3month_avg"].notna().astype(int))
+        .sort_values(["year", "month", "_has_avg"])
+        .drop(columns=["_has_avg"])
+        .drop_duplicates(subset=["year", "month"], keep="last")
+        .reset_index(drop=True)
+    )
+    _check_contract(df, source_key, _IOD_REQUIRED, ["year", "month"])
+    return df, probe
+
+
+def extract_cot(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """CFTC COT managed-money silver (all slugs; computation filters by commodity)."""
+    source_key = "cot"
+    location = _location(root, "silver/cot")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _COT_REQUIRED, ["report_date", "leviathan_slug"])
+    return df, probe
+
+
+def extract_pink_sheet(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """World Bank Pink Sheet monthly silver (commodity-agnostic)."""
+    source_key = "pink_sheet"
+    location = _location(root, "silver/pink_sheet")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _PINK_SHEET_REQUIRED, ["date"])
+    return df, probe
+
+
+def extract_conab(
+    root: str, commodity: str
+) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """CONAB coffee production silver for one commodity (arabica or robusta)."""
+    source_key = "conab"
+    location = _location(root, f"silver/conab_coffee/commodity={commodity}")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _CONAB_REQUIRED, ["safra_year", "survey_number", "region"])
+    return df, probe
+
+
+def extract_fgis(
+    root: str, commodity: str
+) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """USDA FGIS weekly export inspection silver for one commodity slug."""
+    source_key = "fgis"
+    location = _location(root, f"silver/fgis/leviathan_slug={commodity}")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(df, source_key, _FGIS_REQUIRED,
+                    ["marketing_year", "week_of_marketing_year", "destination_country"])
+    return df, probe
+
+
 def extract_all(
     root: str, commodity: str, source_keys: set[str]
 ) -> tuple[dict[str, pd.DataFrame], list[SourceProbe]]:
@@ -202,6 +305,10 @@ def extract_all(
     inputs: dict[str, pd.DataFrame] = {}
     probes: list[SourceProbe] = []
 
+    # Commodity-agnostic sources only need to be loaded once regardless of how
+    # many feature families reference them; de-duplicate via the inputs dict.
+    _agnostic_cache: dict[str, tuple[pd.DataFrame | None, SourceProbe]] = {}
+
     for key in sorted(source_keys):
         if key.startswith("weather:"):
             df, probe = extract_weather(root, commodity, key.split(":", 1)[1])
@@ -209,6 +316,26 @@ def extract_all(
             df, probe = extract_faostat(root, commodity)
         elif key == "psd":
             df, probe = extract_psd(root, commodity)
+        elif key == "oni":
+            if "oni" not in _agnostic_cache:
+                _agnostic_cache["oni"] = extract_oni(root)
+            df, probe = _agnostic_cache["oni"]
+        elif key == "iod":
+            if "iod" not in _agnostic_cache:
+                _agnostic_cache["iod"] = extract_iod(root)
+            df, probe = _agnostic_cache["iod"]
+        elif key == "cot":
+            if "cot" not in _agnostic_cache:
+                _agnostic_cache["cot"] = extract_cot(root)
+            df, probe = _agnostic_cache["cot"]
+        elif key == "pink_sheet":
+            if "pink_sheet" not in _agnostic_cache:
+                _agnostic_cache["pink_sheet"] = extract_pink_sheet(root)
+            df, probe = _agnostic_cache["pink_sheet"]
+        elif key == "conab":
+            df, probe = extract_conab(root, commodity)
+        elif key == "fgis":
+            df, probe = extract_fgis(root, commodity)
         else:
             raise ExtractionContractError(f"Unknown source key in registry: {key!r}")
         probes.append(probe)

@@ -120,3 +120,75 @@
   commodities: all
   value_range: [0.0, null]
   is_label: true
+
+# ---------------------------------------------------------------------------
+# Macro-climate: ENSO + IOD
+# ---------------------------------------------------------------------------
+
+- family: oni_climate
+  sources: ["oni"]
+  visibility: prior_history
+  commodities: calendar
+  value_range: null
+
+- family: iod_climate
+  sources: ["iod"]
+  visibility: prior_history
+  commodities: calendar
+  value_range: null
+
+# ---------------------------------------------------------------------------
+# Market positioning: CFTC COT
+# ---------------------------------------------------------------------------
+
+- family: cot_mm_positioning
+  sources: ["cot"]
+  visibility: prior_history
+  commodities:
+    - corn_cbot
+    - hard_red_winter_wheat_kcbt
+    - hard_red_spring_wheat_mgex
+    - soft_red_winter_wheat_cbot
+    - soybeans_cbot
+    - soybean_meal_cbot
+    - soybean_oil_cbot
+    - rough_rice_cbot
+  value_range: [-5.0, 5.0]
+
+# ---------------------------------------------------------------------------
+# Input costs: World Bank Pink Sheet
+# ---------------------------------------------------------------------------
+
+- family: pink_sheet_input_costs
+  sources: ["pink_sheet"]
+  visibility: prior_history
+  commodities: all
+  value_range: null
+
+# ---------------------------------------------------------------------------
+# Brazil production: CONAB revisions
+# ---------------------------------------------------------------------------
+
+- family: conab_production_revision
+  sources: ["conab"]
+  visibility: prior_marketing_year
+  commodities:
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+  value_range: null
+
+# ---------------------------------------------------------------------------
+# US export pace: FGIS inspections
+# ---------------------------------------------------------------------------
+
+- family: fgis_export_pace_yoy
+  sources: ["fgis"]
+  visibility: prior_history
+  commodities:
+    - corn_cbot
+    - hard_red_winter_wheat_kcbt
+    - hard_red_spring_wheat_mgex
+    - soft_red_winter_wheat_cbot
+    - soybeans_cbot
+  value_range: [-1.0, 5.0]
