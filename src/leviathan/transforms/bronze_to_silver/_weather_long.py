@@ -60,4 +60,6 @@ def melt_weather_to_long(
         value_name="value",
     )
 
+    silver = silver.dropna(subset=["value"])
+
     return silver.sort_values(["country", "region", "date"]).reset_index(drop=True)

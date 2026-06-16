@@ -15,6 +15,8 @@ def chirps_bronze_to_silver(df: pd.DataFrame, source_label: str = "dataframe") -
     Columns: date, year, month, day, country, region, commodity, source,
              ingest_date, variable, value.
     """
+    df = df.copy()
+    df["precipitation_mm"] = df["precipitation_mm"].clip(lower=0.0)
     silver = melt_weather_to_long(df, "precipitation_mm", source_label)
     logger.info("CHIRPS silver transform: %d input rows → %d long rows", len(df), len(silver))
     return silver
