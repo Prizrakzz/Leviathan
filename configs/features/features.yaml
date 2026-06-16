@@ -96,18 +96,6 @@
   commodities: all
   value_range: [-20.0, 20.0]
 
-- family: wasde_production_revision
-  sources: ["psd"]
-  visibility: prior_marketing_year
-  commodities: all
-  value_range: null
-
-- family: wasde_stocks_revision
-  sources: ["psd"]
-  visibility: prior_marketing_year
-  commodities: all
-  value_range: null
-
 - family: psd_available
   sources: ["psd"]
   visibility: prior_marketing_year

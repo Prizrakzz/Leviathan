@@ -94,6 +94,8 @@ _PSD_COMMODITY_TO_SLUGS: dict[int, list[str]] = {
         "corn_cbot",
         "campinas_corn_reference_bmf",
         "french_maize_matif",
+        "south_african_white_maize_jse",   # SA maize shares global corn S/D
+        "south_african_yellow_maize_jse",
     ],
     422110: ["rough_rice_cbot"],           # milled rice
     2222000: [                             # soybeans aggregate
@@ -108,7 +110,11 @@ _PSD_COMMODITY_TO_SLUGS: dict[int, list[str]] = {
     813600:  ["rapeseed_meal_zce"],
     4243000: ["palm_olein_dce", "malaysian_crude_palm_oil_cme"],
     612000:  ["raw_sugar", "white_sugar"],
-    711100:  ["arabica_coffee", "robusta_coffee"],
+    711100:  [                             # coffee aggregate (all origins)
+        "arabica_coffee",
+        "brazilian_arabica_coffee",        # same global coffee S/D as arabica/robusta
+        "robusta_coffee",
+    ],
     2631000: ["cotton"],
 }
 
@@ -412,15 +418,15 @@ def transform_psd_bronze_to_silver(
 
     # -----------------------------------------------------------------------
     # 14. Compute revision columns
-    # Within each (leviathan_slug, country, market_year, wasde_release_month),
-    # diff value columns by release_date ascending.
+    # Within each (leviathan_slug, country, market_year), diff across
+    # wasde_release_month ascending: revision[M] = estimate[M] - estimate[M-1].
+    # release_date is deterministic from (market_year, wasde_release_month) so
+    # grouping by release_date inside the group would produce singletons (all NaN).
     # -----------------------------------------------------------------------
     wide = wide.sort_values(
-        ["leviathan_slug", "country", "market_year", "wasde_release_month", "release_date"]
+        ["leviathan_slug", "country", "market_year", "wasde_release_month"]
     ).copy()
-    revision_group_key = [
-        "leviathan_slug", "country", "market_year", "wasde_release_month",
-    ]
+    revision_group_key = ["leviathan_slug", "country", "market_year"]
     for col in ("production_mt", "ending_stocks_mt", "consumption_mt"):
         wide[f"{col}_revision"] = wide.groupby(revision_group_key)[col].diff(1)
 
