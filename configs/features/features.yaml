@@ -193,7 +193,7 @@
     - soybean_oil_dce
     - malaysian_crude_palm_oil_cme
     - palm_olein_dce
-  value_range: null
+  value_range: [-40.0, 40.0]   # wide: BRL 90d pct-change reaches ~32 in FX crises
 
 # ---------------------------------------------------------------------------
 # Input costs: World Bank Pink Sheet
@@ -223,7 +223,7 @@
   commodities:
     - south_african_white_maize_jse
     - south_african_yellow_maize_jse
-  value_range: null
+  value_range: [-3.0, 3.0]   # revision_surprise is pre-normalized; observed [-2.3, 1.6]
 
 # ---------------------------------------------------------------------------
 # Brazil production: CONAB revisions
