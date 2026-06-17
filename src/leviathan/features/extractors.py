@@ -201,6 +201,18 @@ def extract_weather(
     return df, probe
 
 
+# FAOSTAT area names mechanically slugify to verbose forms that don't match the
+# pipeline's geography convention (shared with PSD/weather/geographies YAMLs).
+# Without this reconciliation, US-only commodities (e.g. KCBT/CBOT wheat) join
+# nothing and lose every production label.  FAOSTAT key -> pipeline country.
+_FAOSTAT_COUNTRY_ALIASES = {
+    "united_states_of_america": "united_states",
+    "viet_nam": "vietnam",
+    "ethiopia_pdr": "ethiopia",          # pre-1993 FAO area; continuous with "ethiopia"
+    "european_union_27": "european_union",
+}
+
+
 def extract_faostat(
     root: str, commodity: str
 ) -> tuple[pd.DataFrame | None, SourceProbe]:
@@ -217,6 +229,7 @@ def extract_faostat(
     _check_contract(df, source_key, _FAOSTAT_REQUIRED, _FAOSTAT_KEY)
     # Normalize to pipeline-standard names used by all computation functions.
     df = df.rename(columns={"country_key": "country", "metric": "variable"})
+    df["country"] = df["country"].replace(_FAOSTAT_COUNTRY_ALIASES)
     return df, probe
 
 
