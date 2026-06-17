@@ -1,0 +1,53 @@
+# Pre-registered acceptable performance gaps between slices.
+#
+# Written BEFORE training, so a bad slice can't be rationalised in hindsight.
+# Two kinds of rule:
+#   ratio  — slice A's RMSE may be at most (1 + max_ratio) x slice B's RMSE.
+#            Some gaps are structurally expected and acceptable (tree crops are
+#            biologically harder; sparse countries have less data).
+#   floor / order — a hard disqualifier that must hold regardless. Being worse
+#            in stress years than normal years means the system emits noise
+#            exactly when signals matter — an automatic fail.
+#
+# evaluate_gaps() reports pass / warn / fail per rule; any `hard: true` failure
+# disqualifies the model from promotion.
+
+rules:
+  - name: tree_vs_annual_rmse
+    kind: ratio
+    metric: rmse
+    worse: {dim: crop_type, value: tree}
+    baseline: {dim: crop_type, value: annual}
+    max_ratio: 0.40                       # tree may be <=40% worse
+    hard: false
+
+  - name: sparse_vs_rich_country_rmse
+    kind: ratio
+    metric: rmse
+    worse: {dim: data_richness, value: sparse}
+    baseline: {dim: data_richness, value: rich}
+    max_ratio: 0.60                       # sparse may be <=60% worse
+    hard: false
+
+  - name: softs_vs_grains_rmse
+    kind: ratio
+    metric: rmse
+    worse: {dim: group, value: softs}
+    baseline: {dim: group, value: grains}
+    max_ratio: 0.50
+    hard: false
+
+  - name: stress_not_worse_than_normal_direction
+    kind: order                           # stress directional accuracy must be >= normal
+    metric: directional_accuracy
+    must_be: ">="
+    left: {dim: year_type, value: stress}
+    right: {dim: year_type, value: normal}
+    hard: true                            # the whole value proposition
+
+  - name: country_directional_floor
+    kind: floor                           # every country must beat near-random
+    metric: directional_accuracy
+    dim: country
+    min_value: 0.45                       # below = exclude from live signals
+    hard: true

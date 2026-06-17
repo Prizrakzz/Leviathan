@@ -1,0 +1,111 @@
+# Evaluation slice taxonomy.
+#
+# Aggregate metrics average away the failures that matter for a mispricing
+# system: a model can be excellent on data-rich annual crops and random on
+# data-sparse tree crops or in stress years, and the overall RMSE looks fine.
+# These slices are the subgroups where errors are most costly or most likely to
+# fail silently.  Consumed by leviathan.training.slices.
+#
+# Scope note: one model is trained per commodity, so crop_type / group /
+# data_richness are *cross-run* rollup slices (computed by concatenating every
+# commodity's predictions); country / year_type are *within-run* slices logged
+# per commodity to MLflow.
+
+crop_type:
+  tree:                       # multi-year capacity dynamics (validates capacity.py)
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+    - cocoa
+    - malaysian_crude_palm_oil_cme
+    - palm_olein_dce
+    - frozen_orange_juice
+  annual:                     # single growing-season dynamics
+    - corn_cbot
+    - campinas_corn_reference_bmf
+    - french_maize_matif
+    - french_wheat_matif
+    - hard_red_spring_wheat_mgex
+    - hard_red_winter_wheat_kcbt
+    - soft_red_winter_wheat_cbot
+    - rough_rice_cbot
+    - south_african_white_maize_jse
+    - south_african_yellow_maize_jse
+    - soybeans_cbot
+    - soybeans_no_1_dce
+    - soybeans_no_2_dce
+    - soybean_meal_cbot
+    - soybean_meal_dce
+    - soybean_oil_cbot
+    - soybean_oil_dce
+    - canola_ice
+    - french_rapeseed_matif
+    - rapeseed_meal_zce
+    - rapeseed_oil_zce
+    - raw_sugar
+    - white_sugar
+    - cotton
+
+group:                        # structurally different price formation
+  grains:
+    - corn_cbot
+    - campinas_corn_reference_bmf
+    - french_maize_matif
+    - french_wheat_matif
+    - hard_red_spring_wheat_mgex
+    - hard_red_winter_wheat_kcbt
+    - soft_red_winter_wheat_cbot
+    - rough_rice_cbot
+    - south_african_white_maize_jse
+    - south_african_yellow_maize_jse
+  oilseeds:
+    - soybeans_cbot
+    - soybeans_no_1_dce
+    - soybeans_no_2_dce
+    - soybean_meal_cbot
+    - soybean_meal_dce
+    - soybean_oil_cbot
+    - soybean_oil_dce
+    - canola_ice
+    - french_rapeseed_matif
+    - rapeseed_meal_zce
+    - rapeseed_oil_zce
+    - malaysian_crude_palm_oil_cme
+    - palm_olein_dce
+  softs:
+    - arabica_coffee
+    - brazilian_arabica_coffee
+    - robusta_coffee
+    - cocoa
+    - cotton
+    - raw_sugar
+    - white_sugar
+    - frozen_orange_juice
+
+# Countries with decades of high-quality weather + production records.  Anything
+# not listed is treated as data-sparse.  Names are the pipeline convention
+# (shared with the geographies / FAOSTAT alias map).
+data_rich_countries:
+  - brazil
+  - united_states
+  - argentina
+  - australia
+  - canada
+  - china
+  - india
+  - france
+  - germany
+  - russia
+  - ukraine
+  - indonesia
+  - malaysia
+
+# A crop year is a "stress year" for a (commodity, country) when its actual
+# production deviates >= sigma_threshold from a fitted linear trend, OR it is one
+# of the named macro shock years.  Computed on ACTUALS for evaluation labelling
+# only — never a model input, so no leakage.
+stress:
+  method: trend_residual
+  sigma_threshold: 1.5
+  min_years: 10
+  named_shock_years: [2010, 2011, 2012, 2021]

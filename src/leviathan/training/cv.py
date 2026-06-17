@@ -51,12 +51,38 @@ class WalkForwardResult:
     mae: float                  # mean absolute error across all folds
     directional_accuracy: float | None  # fraction of folds with correct sign, or None
     n_folds: int
+    sliced_metrics: "pd.DataFrame | None" = None  # populated by with_slices()
+
+    def with_slices(self, commodity: str, config_dir: str | None = None) -> "WalkForwardResult":
+        """Attach per-slice metrics (country, year_type, plus this commodity's
+        crop_type/group) computed from ``predictions``.  Returns self for
+        chaining.  Aggregate metrics are unchanged — slices are additive.
+
+        Cross-commodity slices (tree-vs-annual) come from
+        ``leviathan.training.slices.rollup_cross_commodity`` after all runs.
+        """
+        from leviathan.training.slices import compute_slice_metrics, load_taxonomy
+        taxonomy = load_taxonomy(config_dir)
+        self.sliced_metrics = compute_slice_metrics(self.predictions, taxonomy, commodity)
+        return self
 
     def as_mlflow_metrics(self) -> dict[str, float]:
-        """Flat dict suitable for mlflow.log_metrics()."""
+        """Flat dict suitable for mlflow.log_metrics().
+
+        Always includes the aggregate rmse/mae/directional_accuracy; when
+        ``with_slices()`` has run, the flattened per-slice metrics
+        (e.g. ``rmse_year_type_stress``, ``directional_accuracy_country_vietnam``)
+        are merged in.
+        """
         m: dict[str, float] = {"rmse": self.rmse, "mae": self.mae, "n_folds": self.n_folds}
         if self.directional_accuracy is not None:
             m["directional_accuracy"] = self.directional_accuracy
+        if self.sliced_metrics is not None and not self.sliced_metrics.empty:
+            from leviathan.training.slices import flatten_for_mlflow
+            for key, val in flatten_for_mlflow(self.sliced_metrics).items():
+                # don't clobber the canonical aggregate keys
+                if key not in m:
+                    m[key] = val
         return m
 
 
