@@ -71,38 +71,34 @@ def compute_nass_crop_progress_ge_z(ctx: FeatureContext, spec) -> pd.DataFrame:
 
     last_obs = nass["date"].max()
 
-    # Compute the typical max week_number at which GE% reporting ends,
-    # using all years that have at least 10 weeks of GE% data.
-    yearly_max_week = (
-        ge_rows.groupby("crop_year")["date"].max()
-    )
-    # A year is "complete" if its last GE% date is strictly before last_obs
-    # (data was available for the full season before our cutoff).
-    complete_years = yearly_max_week[yearly_max_week < last_obs]
+    # Typical day-of-year at which GE% reporting ends, over years whose data has
+    # fully landed (last GE% date strictly before the global last observation).
+    # Median day-of-year is coherent; medianing month and day independently is
+    # not — it can synthesise an end date later than most seasons actually run
+    # and wrongly drop full historical years.
+    yearly_max_date = ge_rows.groupby("crop_year")["date"].max()
+    complete_years = yearly_max_date[yearly_max_date < last_obs]
 
     if len(complete_years) < min_years:
         return empty_result()
 
-    # Median end-of-season date across complete years (used to detect
-    # incomplete current-year seasons).
-    median_end_month = int(complete_years.dt.month.median())
-    median_end_day = int(complete_years.dt.day.median())
+    median_end_doy = int(complete_years.dt.dayofyear.median())
+
+    # Every historical crop year holds a full season in the silver; the only one
+    # that may still be in progress is the year reaching the global last
+    # observation.  Gate just that current season — include it only once it has
+    # passed the typical end-of-season day-of-year — and keep all the rest.
+    current_cy = int(last_obs.year if last_obs.month >= cys else last_obs.year - 1)
 
     # Annual national season-average GE% across ALL years in silver
     # (not just ctx.crop_years) to build a complete baseline for z-scoring.
     annual_ge: dict[int, float] = {}
     for crop_year, group in ge_rows.groupby("crop_year"):
         season_last_date = group["date"].max()
-        # Require the season to be complete: latest GE% date must be >= median
-        # end-of-season date for this year.
-        expected_end = pd.Timestamp(
-            year=int(season_last_date.year),
-            month=median_end_month,
-            day=min(median_end_day, 28),
-        )
-        if season_last_date < expected_end:
-            continue
-        if season_last_date > last_obs:
+        if (
+            int(crop_year) == current_cy
+            and int(season_last_date.dayofyear) < median_end_doy
+        ):
             continue
         # National season average: mean across states per week, then mean across weeks.
         weekly_national = group.groupby("date")["pct_good_excellent"].mean()

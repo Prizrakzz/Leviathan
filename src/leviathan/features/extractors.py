@@ -179,6 +179,15 @@ def extract_weather(
 
     df = _load(probe, list(probe.columns))
 
+    # Source-specific silver schemas (e.g. MODIS NDVI, on 8-day "period"
+    # composites) omit the standard month/source id columns.  Derive them before
+    # the melt so they stay id columns (not melted into variable/value) and the
+    # long contract holds.
+    if "source" not in df.columns:
+        df["source"] = source
+    if "month" not in df.columns and "date" in df.columns:
+        df["month"] = pd.to_datetime(df["date"], errors="coerce").dt.month
+
     # Wide-format sources (e.g. NASA POWER) store each climate variable as a
     # separate column.  Melt to the long (variable, value) format expected by
     # all computation functions.
