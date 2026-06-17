@@ -29,6 +29,10 @@ tiers:
       - oni_anom_prior
       - oni_el_nino_flag
       - oni_la_nina_flag
+      - oni_lag3_prior
+      - oni_lag6_prior
+      - oni_la_nina_brazil_flag
+      - oni_la_nina_argentina_flag
       - iod_dmi_prior
       - frost_event_flag
 
@@ -38,6 +42,7 @@ tiers:
     includes: [fundamentals]
     families:
       - gdd_z
+      - heat_stress_z
       - chirps_precip_z
       - nasa_tmax_anomaly
       - nasa_tmin_anomaly
@@ -76,6 +81,7 @@ tiers:
       - wap_nonUS_production_revision_z
       - cot_mm_net_z
       - cot_mm_pct_oi_z
+      - crush_margin_z
 
 # Density threshold (fraction of a tier's present features non-null in a year)
 # used to report each tier's `dense_start` — the first year dense enough for
