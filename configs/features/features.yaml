@@ -51,6 +51,12 @@
   commodities: calendar
   value_range: [-15.0, 15.0]
 
+- family: heat_stress_z
+  sources: ["weather:nasa_power"]
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [-15.0, 15.0]
+
 - family: drought_z
   sources: ["weather:chirps"]
   visibility: crop_year_direct
@@ -130,6 +136,12 @@
 # ---------------------------------------------------------------------------
 
 - family: oni_climate
+  sources: ["oni"]
+  visibility: prior_history
+  commodities: calendar
+  value_range: null
+
+- family: oni_lag_climate
   sources: ["oni"]
   visibility: prior_history
   commodities: calendar
@@ -241,6 +253,23 @@
     baselines:
       window_years: 10
       min_years: 5
+
+# ---------------------------------------------------------------------------
+# Soy board-crush margin (demand-side; from silver/futures_prices)
+# ---------------------------------------------------------------------------
+
+- family: crush_margin_z
+  sources: ["futures_prices"]
+  visibility: prior_history
+  commodities:
+    - soybeans_cbot
+    - soybean_meal_cbot
+    - soybean_oil_cbot
+    - soybeans_no_1_dce
+    - soybeans_no_2_dce
+    - soybean_meal_dce
+    - soybean_oil_dce
+  value_range: [-10.0, 10.0]   # recent renewable-diesel crush surge reaches ~6σ
 
 # ---------------------------------------------------------------------------
 # WAP non-US production revision (USDA FAS World Ag Production circular)

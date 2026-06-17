@@ -242,6 +242,72 @@ def compute_gdd_z(ctx: FeatureContext, spec) -> pd.DataFrame:
     return make_result(rows)
 
 
+def compute_heat_stress_z(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Count of days above a crop-specific heat threshold in the GDD window,
+    z-scored vs. the trailing baseline.
+
+    Heat during the critical reproductive window is one of the most predictive
+    yield signals — corn yield collapses above ~35 °C at silking — and is *not*
+    captured by ``gdd_z`` (capped accumulation) or ``nasa_tmax_anomaly`` (stage
+    mean).  This counts threshold exceedances over the same window ``gdd_z`` uses,
+    then z-scores per (commodity, country, region) so it is comparable across
+    regions.  Incomplete windows -> NaN.
+
+    Emits:
+      heat_stress_z_<region>
+    """
+    if ctx.calendar is None or ctx.calendar.gdd_window is None:
+        return empty_result()
+
+    tmax = _prepare(ctx, "weather:nasa_power", "temperature_2m_max_c")
+    if tmax is None:
+        return empty_result()
+
+    hs_params = ctx.params.get("heat_stress", {})
+    crop_cfg = (hs_params.get("per_commodity") or {}).get(
+        ctx.commodity, hs_params.get("default", {})
+    )
+    threshold = float(crop_cfg.get("threshold_c", 35.0))
+
+    baselines = ctx.params.get("baselines", {})
+    window_years = int(baselines.get("window_years", 30))
+    min_years = int(baselines.get("min_years", 10))
+
+    first_stage, last_stage = ctx.calendar.gdd_window
+    start_month = ctx.calendar.stages[first_stage][0]
+    end_month = ctx.calendar.stages[last_stage][1]
+    months = stage_month_set(start_month, end_month)
+
+    df = tmax.loc[tmax["date"].dt.month.isin(months)].copy()
+    if df.empty:
+        return empty_result()
+    df["hot"] = (df["value"] > threshold).astype(float)
+
+    rows: list[tuple[str, int, str, float]] = []
+    for (country, region), region_df in df.groupby(["country", "region"]):
+        if country not in ctx.countries:
+            continue
+        last_obs = region_df["date"].max()
+        yearly = region_df.groupby("spine_crop_year")["hot"].sum()
+        yearly.index = yearly.index.astype(int)
+
+        complete: dict[int, float] = {}
+        for crop_year, total in yearly.items():
+            window = ctx.calendar.gdd_dates(int(crop_year))
+            if window and _window_complete(pd.Timestamp(window[1]), last_obs):
+                complete[int(crop_year)] = float(total)
+        if not complete:
+            continue
+
+        z = trailing_baseline_z(
+            pd.Series(complete, dtype=float).sort_index(), window_years, min_years
+        )
+        feature = f"heat_stress_z_{region}"
+        for crop_year in ctx.crop_years:
+            rows.append((country, crop_year, feature, z.get(crop_year, np.nan)))
+    return make_result(rows)
+
+
 def compute_cpc_soil_z(ctx: FeatureContext, spec) -> pd.DataFrame:
     """Stage-level soil moisture z-scores from CPC daily soil moisture data.
 

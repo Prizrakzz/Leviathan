@@ -197,6 +197,92 @@ def compute_wap_nonUS_production_revision(ctx: FeatureContext, spec) -> pd.DataF
 
 
 # ---------------------------------------------------------------------------
+# Soy board-crush margin (demand-side driver for the oilseed complex)
+# ---------------------------------------------------------------------------
+
+# Crush is priced off the CBOT soy complex; the same global crush signal applies
+# to every soy slug (DCE included — global crush economics drive them all).
+_CRUSH_LEGS = {
+    "beans": "soybeans_cbot",
+    "meal": "soybean_meal_cbot",
+    "oil": "soybean_oil_cbot",
+}
+_CRUSH_COMMODITIES: frozenset[str] = frozenset({
+    "soybeans_cbot", "soybean_meal_cbot", "soybean_oil_cbot",
+    "soybeans_no_1_dce", "soybeans_no_2_dce", "soybean_meal_dce", "soybean_oil_dce",
+})
+
+
+def compute_crush_margin_z(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Board crush margin for the soy complex, z-scored vs. trailing baseline.
+
+    Board crush ($/bu) = meal($/ton)·meal_coef + oil(¢/lb)·oil_coef
+    − beans(¢/bu)·bean_coef, using the standard 44 lb meal / 11 lb oil yield per
+    bushel.  A demand-side fundamental: a high crush margin pulls processors to
+    crush more beans (→ more meal/oil output, tighter bean ending stocks).  Not
+    a price-relative signal — the level is a real economic driver.
+
+    Point-in-time: the latest daily crush strictly before the crop-year start,
+    z-scored across crop years.  Emits ``crush_margin_z`` for the soy slugs only.
+    """
+    if ctx.commodity not in _CRUSH_COMMODITIES:
+        return empty_result()
+    df = ctx.inputs.get("futures_prices")
+    if df is None or df.empty or ctx.calendar is None:
+        return empty_result()
+
+    crush_cfg = ctx.params.get("crush", {})
+    meal_coef = float(crush_cfg.get("meal_coef", 0.022))
+    oil_coef = float(crush_cfg.get("oil_coef", 0.11))
+    bean_coef = float(crush_cfg.get("bean_coef", 0.01))
+
+    legs = df[df["leviathan_slug"].isin(_CRUSH_LEGS.values())].copy()
+    legs["date"] = pd.to_datetime(legs["date"], errors="coerce")
+    legs = legs.dropna(subset=["date"])
+    wide = legs.pivot_table(index="date", columns="leviathan_slug", values="close", aggfunc="last")
+    needed = list(_CRUSH_LEGS.values())
+    if not set(needed) <= set(wide.columns):
+        return empty_result()
+    wide = wide.dropna(subset=needed).sort_index()
+    if wide.empty:
+        return empty_result()
+
+    crush = (
+        meal_coef * wide[_CRUSH_LEGS["meal"]]
+        + oil_coef * wide[_CRUSH_LEGS["oil"]]
+        - bean_coef * wide[_CRUSH_LEGS["beans"]]
+    )
+
+    baselines = ctx.params.get("baselines", {})
+    window_years = int(baselines.get("window_years", 30))
+    min_years = int(baselines.get("min_years", 10))
+
+    # Latest crush strictly before each candidate crop year's start, across all
+    # years the price history spans (two-pass, so the z-score baseline is full).
+    years = range(int(crush.index.year.min()), int(crush.index.year.max()) + 2)
+    annual: dict[int, float] = {}
+    for yr in years:
+        cutoff = pd.Timestamp(ctx.calendar.crop_year_start(yr))
+        eligible = crush[crush.index < cutoff]
+        if not eligible.empty:
+            annual[int(yr)] = float(eligible.iloc[-1])
+    if not annual:
+        return empty_result()
+
+    z = trailing_baseline_z(
+        pd.Series(annual, dtype=float).sort_index(), window_years, min_years
+    )
+    rows: list[tuple[str, int, str, float]] = []
+    for crop_year in ctx.crop_years:
+        val = z.get(crop_year, np.nan)
+        if np.isnan(val):
+            continue
+        for country in ctx.countries:
+            rows.append((country, crop_year, "crush_margin_z", float(val)))
+    return make_result(rows)
+
+
+# ---------------------------------------------------------------------------
 # MPOB Malaysian palm oil fundamentals
 # ---------------------------------------------------------------------------
 

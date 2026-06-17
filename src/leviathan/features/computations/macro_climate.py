@@ -71,6 +71,70 @@ def compute_oni_climate(ctx: FeatureContext, spec) -> pd.DataFrame:
     return make_result(rows)
 
 
+# Commodities whose dominant origin is Brazil / Argentina — they get the
+# region-specific La Niña teleconnection flags already computed in ONI silver.
+_BRAZIL_TELECONNECTION: frozenset[str] = frozenset({
+    "arabica_coffee", "brazilian_arabica_coffee", "robusta_coffee",
+    "raw_sugar", "soybeans_cbot", "soybean_meal_cbot", "soybean_oil_cbot",
+    "campinas_corn_reference_bmf",
+})
+_ARGENTINA_TELECONNECTION: frozenset[str] = frozenset({
+    "soybeans_cbot", "soybean_meal_cbot", "soybean_oil_cbot", "corn_cbot",
+})
+
+
+def compute_oni_lag(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Lagged ENSO + region-specific La Niña teleconnection flags.
+
+    ENSO's effect on crops lags the SST anomaly by a season or more (planting
+    decisions and rainfall regimes respond with delay).  The ONI silver already
+    carries ``oni_lag3`` / ``oni_lag6`` and origin-specific La Niña flags; this
+    surfaces them at the month before crop-year start (point-in-time), where the
+    base ``oni_climate`` family only exposed the contemporaneous anomaly.
+
+    Emits per (country, crop_year):
+      oni_lag3_prior / oni_lag6_prior          — ENSO anomaly at 3 / 6-month lag
+      oni_la_nina_brazil_flag (Brazil origins) — Brazil-specific La Niña
+      oni_la_nina_argentina_flag (Argentina origins)
+    """
+    df = ctx.inputs.get("oni")
+    if df is None or df.empty or ctx.calendar is None:
+        return empty_result()
+
+    cys = ctx.calendar.crop_year_start_month
+    emit_brazil = ctx.commodity in _BRAZIL_TELECONNECTION
+    emit_argentina = ctx.commodity in _ARGENTINA_TELECONNECTION
+    rows: list[tuple[str, int, str, float]] = []
+
+    for crop_year in ctx.crop_years:
+        if cys == 1:
+            lookup_year, lookup_month = crop_year - 1, 12
+        else:
+            lookup_year, lookup_month = crop_year, cys - 1
+
+        row = df[(df["year"] == lookup_year) & (df["month"] == lookup_month)]
+        if row.empty:
+            continue
+        row = row.iloc[0]
+
+        lag3 = row.get("oni_lag3")
+        lag6 = row.get("oni_lag6")
+        brazil = row.get("la_nina_brazil_flag")
+        argentina = row.get("argentina_la_nina_flag")
+
+        for country in ctx.countries:
+            if pd.notna(lag3):
+                rows.append((country, crop_year, "oni_lag3_prior", float(lag3)))
+            if pd.notna(lag6):
+                rows.append((country, crop_year, "oni_lag6_prior", float(lag6)))
+            if emit_brazil and pd.notna(brazil):
+                rows.append((country, crop_year, "oni_la_nina_brazil_flag", float(brazil)))
+            if emit_argentina and pd.notna(argentina):
+                rows.append((country, crop_year, "oni_la_nina_argentina_flag", float(argentina)))
+
+    return make_result(rows)
+
+
 # ---------------------------------------------------------------------------
 # IOD
 # ---------------------------------------------------------------------------

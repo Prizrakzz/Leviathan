@@ -37,6 +37,31 @@ capacity_recovery:
     - brazilian_arabica_coffee
     - robusta_coffee
 
+heat_stress:
+  # Count of days with daily Tmax above a crop-specific kill threshold during
+  # the GDD (reproductive) window — heat extremes that capped GDD and stage-mean
+  # anomalies miss.  Corn/soy silking-pollination collapse above ~35°C; wheat
+  # grain-fill is hurt above ~32°C.
+  default: {threshold_c: 35.0}
+  per_commodity:
+    corn_cbot: {threshold_c: 35.0}
+    campinas_corn_reference_bmf: {threshold_c: 35.0}
+    french_maize_matif: {threshold_c: 35.0}
+    south_african_white_maize_jse: {threshold_c: 35.0}
+    south_african_yellow_maize_jse: {threshold_c: 35.0}
+    soybeans_cbot: {threshold_c: 35.0}
+    soft_red_winter_wheat_cbot: {threshold_c: 32.0}
+    hard_red_winter_wheat_kcbt: {threshold_c: 32.0}
+    hard_red_spring_wheat_mgex: {threshold_c: 32.0}
+    french_wheat_matif: {threshold_c: 32.0}
+
+crush:
+  # Soy board-crush margin ($/bu) = meal($/ton)*meal_coef + oil(c/lb)*oil_coef
+  # - beans(c/bu)*bean_coef, from the standard 44 lb meal / 11 lb oil yield.
+  meal_coef: 0.022
+  oil_coef: 0.11
+  bean_coef: 0.01
+
 gdd:
   # Growing Degree Days: max(0, (Tmax_adj + Tmin_adj)/2 - base) where
   # Tmin_adj = max(Tmin, base) and Tmax_adj = min(Tmax, cap).  Per-crop bases

@@ -17,6 +17,7 @@ from leviathan.features.computations.macro_climate import (
     compute_fred_fx,
     compute_iod_climate,
     compute_oni_climate,
+    compute_oni_lag,
     compute_pink_sheet_input_costs,
 )
 from leviathan.features.computations.production import (
@@ -26,6 +27,7 @@ from leviathan.features.computations.production import (
     compute_faostat_production_yoy,
 )
 from leviathan.features.computations.sd_balance import (
+    compute_crush_margin_z,
     compute_mpob_fundamentals,
     compute_psd_available,
     compute_psd_ending_stock_su_ratio,
@@ -45,6 +47,7 @@ from leviathan.features.computations.weather_stage import (
     compute_drought_z,
     compute_frost_event_flag,
     compute_gdd_z,
+    compute_heat_stress_z,
     compute_modis_ndvi_z,
     compute_stage_precip_z,
     compute_stage_tmax_anomaly,
@@ -59,6 +62,7 @@ COMPUTATIONS: dict[str, ComputeFn] = {
     "stage_tmin_anomaly": compute_stage_tmin_anomaly,
     "frost_event_flag": compute_frost_event_flag,
     "gdd_z": compute_gdd_z,
+    "heat_stress_z": compute_heat_stress_z,
     "drought_z": compute_drought_z,
     "cpc_soil_z": compute_cpc_soil_z,
     "modis_ndvi_z": compute_modis_ndvi_z,
@@ -68,11 +72,13 @@ COMPUTATIONS: dict[str, ComputeFn] = {
     "faostat_available": compute_faostat_available,
     "faostat_labels": compute_faostat_labels,
     "psd_ending_stock_su_ratio": compute_psd_ending_stock_su_ratio,
+    "crush_margin_z": compute_crush_margin_z,
     "mpob_fundamentals": compute_mpob_fundamentals,
     "wap_nonUS_revision": compute_wap_nonUS_production_revision,
     "psd_su_ratio_yoy_delta": compute_psd_su_ratio_yoy_delta,
     "psd_available": compute_psd_available,
     "oni_climate": compute_oni_climate,
+    "oni_lag_climate": compute_oni_lag,
     "iod_climate": compute_iod_climate,
     "cot_mm_positioning": compute_cot_mm_positioning,
     "fred_fx_macro": compute_fred_fx,

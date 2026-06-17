@@ -64,6 +64,7 @@ _NASS_REQUIRED = ("state", "year", "date", "pct_good_excellent")
 _SAGIS_WEEKLY_REQUIRED = ("season", "crop", "week_number", "z_vs_3yr_avg")
 _SAGIS_CEC_REQUIRED = ("production_year", "report_month", "release_date", "crop", "scope",
                         "revision_surprise")
+_FUTURES_PRICES_REQUIRED = ("date", "leviathan_slug", "close")
 _FGIS_REQUIRED = ("marketing_year", "week_of_marketing_year", "destination_country", "exports_mt_weekly")
 _ESR_REQUIRED = (
     "commodity_name", "market_year", "week_ending_date",
@@ -470,6 +471,26 @@ def extract_esr(
     return df, probe
 
 
+def extract_futures_prices(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """Daily futures-price silver (all contracts; computation filters by slug).
+
+    Commodity-agnostic at load — the crush-margin computation selects the soy
+    complex legs.  Prices are used only where they encode an economic driver
+    (board crush); raw momentum/vol columns are intentionally not surfaced as
+    features.
+    """
+    source_key = "futures_prices"
+    location = _location(root, "silver/futures_prices")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s — structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    df = _dedup_natural_key(df, source_key, ["date", "leviathan_slug"])
+    _check_contract(df, source_key, _FUTURES_PRICES_REQUIRED, ["date", "leviathan_slug"])
+    return df, probe
+
+
 def extract_all(
     root: str, commodity: str, source_keys: set[str]
 ) -> tuple[dict[str, pd.DataFrame], list[SourceProbe]]:
@@ -530,6 +551,10 @@ def extract_all(
             if "sagis_cec" not in _agnostic_cache:
                 _agnostic_cache["sagis_cec"] = extract_sagis_cec(root)
             df, probe = _agnostic_cache["sagis_cec"]
+        elif key == "futures_prices":
+            if "futures_prices" not in _agnostic_cache:
+                _agnostic_cache["futures_prices"] = extract_futures_prices(root)
+            df, probe = _agnostic_cache["futures_prices"]
         elif key == "conab":
             df, probe = extract_conab(root, commodity)
         elif key == "fgis":
