@@ -1,0 +1,84 @@
+# Named feature tiers for ML experiments.
+#
+# Each tier is a cumulative feature set grouped by data-availability era, so an
+# experiment can trade training-window length against feature richness without
+# hand-listing columns.  Membership is by feature-family prefix (a feature like
+# ``gdd_z_us_corn_belt`` belongs to family ``gdd_z``).  The actual per-commodity
+# window is computed from real coverage by leviathan.features.windows — these
+# lists only declare *which* families belong to *which* tier.
+#
+# Recommended usage with the missingness-as-signal CV (training/cv.py): for
+# tree models (XGBoost/LightGBM) train on the longest label window and feed the
+# whole `full` tier — young features are simply NaN before they exist and the
+# trees learn the split.  Use the narrower tiers' `dense_start` years for
+# non-tree models or for sanity/ablation runs.
+
+tiers:
+  # ~1981+ : supply-demand + macro + ENSO + fertilizer. Always available.
+  fundamentals:
+    description: Fundamentals and macro — longest history, lowest feature count.
+    families:
+      - faostat_production_yoy
+      - faostat_production_trend_dev
+      - faostat_available
+      - psd_ending_stock_su_ratio
+      - psd_su_ratio_yoy_delta
+      - psd_available
+      - pink_sheet_npk_z
+      - pink_sheet_dap_z
+      - oni_anom_prior
+      - oni_el_nino_flag
+      - oni_la_nina_flag
+      - iod_dmi_prior
+      - frost_event_flag
+
+  # ~1990+ : adds CHIRPS/NASA-POWER climate + energy/urea fertilizer.
+  climate:
+    description: Fundamentals + station-climate (precip/temperature/GDD/drought).
+    includes: [fundamentals]
+    families:
+      - gdd_z
+      - chirps_precip_z
+      - nasa_tmax_anomaly
+      - nasa_tmin_anomaly
+      - drought_z
+      - pink_sheet_energy_z
+      - pink_sheet_urea_z
+      - capacity_recovery_index
+
+  # ~1994+ : adds US trade pace, crop-condition surveys, regional estimates.
+  trade_condition:
+    description: Climate + trade pace / crop-condition / regional estimates.
+    includes: [climate]
+    families:
+      - esr_outstanding_sales_z
+      - esr_net_commitment_z
+      - esr_export_pace_z
+      - fgis_export_pace_yoy
+      - nass_ge_pct_z
+      - sagis_delivery_z
+      - sagis_cec_revision_surprise
+      - conab_production_revision_bags
+
+  # ~2006-2009+ : densest. Adds remote sensing, FX, palm fundamentals,
+  # positioning, and non-US production revisions.
+  full:
+    description: All features — densest coverage, shortest dense window.
+    includes: [trade_condition]
+    families:
+      - modis_ndvi_z
+      - cpc_soil_z
+      - brl_fx_pct_90d
+      - cny_fx_pct_90d
+      - mpob_production_z
+      - mpob_exports_z
+      - mpob_su_ratio_z
+      - wap_nonUS_production_revision_z
+      - cot_mm_net_z
+      - cot_mm_pct_oi_z
+
+# Density threshold (fraction of a tier's present features non-null in a year)
+# used to report each tier's `dense_start` — the first year dense enough for
+# models that cannot consume NaN.  Kept high: dense_start is meant to flag where
+# the tier is essentially complete, not merely majority-present.
+dense_threshold: 0.9
