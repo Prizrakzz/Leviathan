@@ -21,7 +21,8 @@ LOCATION 's3://leviathan-dev-shahem-001/silver/model_predictions/'
 TBLPROPERTIES (
     'parquet.compression' = 'SNAPPY',
     'projection.enabled' = 'true',
-    'projection.model_family.type' = 'injected',
+    'projection.model_family.type' = 'enum',
+    'projection.model_family.values' = 'tier1_production,tier2_sd,tier3_spread,anomaly',
     'projection.prediction_date.type' = 'date',
     'projection.prediction_date.format' = 'yyyy-MM-dd',
     'projection.prediction_date.range' = '2026-01-01,2030-12-31',
