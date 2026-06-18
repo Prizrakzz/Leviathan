@@ -150,6 +150,27 @@ def _metrics(df: pd.DataFrame) -> dict[str, float]:
     }
 
 
+def quintile_directional_accuracy(predictions: pd.DataFrame, q: float = 0.2) -> float:
+    """Directional accuracy on the most extreme outcomes — the tradeable ones.
+
+    The design's primary metric: a model that nails ±2% everywhere is useless; one
+    that calls the *extremes* right is valuable even with mediocre RMSE.  Intended
+    for a centred (anomaly / detrended) target — on the rows whose |y_actual| is in
+    the top ``q`` of the distribution, the fraction where sign(y_pred) matches
+    sign(y_actual).  Returns NaN if too few rows.
+    """
+    df = predictions.dropna(subset=["y_actual", "y_pred"]).copy()
+    if df.empty:
+        return float("nan")
+    mag = df["y_actual"].abs()
+    threshold = mag.quantile(1.0 - q)
+    extreme = df[mag >= threshold]
+    if len(extreme) < 5:
+        return float("nan")
+    correct = np.sign(extreme["y_pred"]) == np.sign(extreme["y_actual"])
+    return float(correct.mean())
+
+
 def compute_slice_metrics(
     predictions: pd.DataFrame,
     taxonomy: dict,

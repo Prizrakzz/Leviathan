@@ -54,6 +54,7 @@ training = [
     "torch>=2.1",          # CPU-only wheel installed separately in Dockerfile
     "shap>=0.44",
     "mlflow>=2.9",
+    "optuna>=3.5",         # Bayesian hyperparameter search (TPE) over walk-forward CV
     "sagemaker-training>=4.4",  # SageMaker container protocol (SM_HP_* env vars, /opt/ml/ paths)
 ]
 

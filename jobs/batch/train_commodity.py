@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 
 import boto3
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -38,7 +39,7 @@ from leviathan.features.registry import load_registry          # noqa: E402
 from leviathan.features.windows import resolve_tier_families    # noqa: E402
 from leviathan.training.cv import walk_forward_cv               # noqa: E402
 from leviathan.training.slices import (                         # noqa: E402
-    evaluate_gaps, gaps_passed, load_gap_rules,
+    evaluate_gaps, gaps_passed, load_gap_rules, quintile_directional_accuracy,
 )
 from leviathan.training.tracking import log_training_run        # noqa: E402
 
@@ -52,16 +53,51 @@ _TIERS_PATH = _REPO / "configs" / "features" / "feature_tiers.yaml"
 _CONFIG_DIR = _REPO / "configs" / "features"
 
 
-def _make_model(name: str):
+def _make_model(name: str, **hp):
     """Tree regressors — NaN-native, no scaling needed (missingness-as-signal)."""
-    common = dict(n_estimators=400, max_depth=4, learning_rate=0.03, subsample=0.8)
+    common = dict(
+        n_estimators=hp.get("n_estimators", 400),
+        max_depth=hp.get("max_depth", 4),
+        learning_rate=hp.get("learning_rate", 0.03),
+        subsample=hp.get("subsample", 0.8),
+        reg_lambda=hp.get("reg_lambda", 1.0),
+        min_child_weight=hp.get("min_child_weight", 1),
+    )
     if name == "xgboost":
         from xgboost import XGBRegressor
-        return XGBRegressor(**common, colsample_bytree=0.8, n_jobs=-1)
+        return XGBRegressor(**common, colsample_bytree=hp.get("colsample_bytree", 0.8), n_jobs=-1)
     if name == "lightgbm":
         from lightgbm import LGBMRegressor
-        return LGBMRegressor(**common, n_jobs=-1, verbose=-1)
+        return LGBMRegressor(**common, colsample_bytree=hp.get("colsample_bytree", 0.8),
+                             n_jobs=-1, verbose=-1)
     raise SystemExit(f"unknown --model {name!r} (xgboost|lightgbm)")
+
+
+def _detrend_target(matrix: pd.DataFrame, target_col: str, min_years: int = 5) -> pd.DataFrame:
+    """Replace the level target with its fractional deviation from a TRAILING
+    linear trend, per country (anti-leakage: the trend uses only years < Y).
+
+    Stress/anomaly features predict *deviations*, not levels — a level target is
+    ~95% a deterministic area×yield trend that swamps the signal.  This turns the
+    problem into "production surprise vs the trend extrapolation", which the
+    features can actually move.  Years without ``min_years`` of prior data → NaN
+    (dropped by CV).
+    """
+    df = matrix.copy()
+    out = pd.Series(np.nan, index=df.index)
+    for _, grp in df.groupby("country"):
+        g = grp[["crop_year", target_col]].dropna(subset=[target_col]).sort_values("crop_year")
+        years = g["crop_year"].to_numpy(dtype=float)
+        vals = g[target_col].to_numpy(dtype=float)
+        for i in range(len(g)):
+            if i < min_years:
+                continue
+            coeffs = np.polyfit(years[:i], vals[:i], 1)        # trend on prior years only
+            trend = np.polyval(coeffs, years[i])
+            if trend != 0:
+                out.loc[g.index[i]] = (vals[i] - trend) / abs(trend)
+    df[target_col] = out
+    return df
 
 
 def _read_matrix(s3, bucket: str, commodity: str) -> pd.DataFrame | None:
@@ -106,6 +142,43 @@ def _write_predictions(s3, bucket, args, predictions, run_id, feature_set_sha) -
     return f"s3://{bucket}/{key}"
 
 
+def _optuna_search(matrix, target_col, feature_cols, args, mlflow) -> dict:
+    """Search hyperparameters with Optuna, maximising quintile-directional accuracy
+    (the design's primary metric).  Each trial is a full walk-forward CV; the best
+    params are returned and logged."""
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    def objective(trial):
+        hp = dict(
+            max_depth=trial.suggest_int("max_depth", 2, 5),
+            learning_rate=trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
+            n_estimators=trial.suggest_int("n_estimators", 100, 600),
+            reg_lambda=trial.suggest_float("reg_lambda", 0.1, 10.0, log=True),
+            min_child_weight=trial.suggest_int("min_child_weight", 1, 10),
+            subsample=trial.suggest_float("subsample", 0.6, 1.0),
+            colsample_bytree=trial.suggest_float("colsample_bytree", 0.6, 1.0),
+        )
+        try:
+            res = walk_forward_cv(matrix, target_col, feature_cols,
+                                  _make_model(args.model, **hp),
+                                  min_train_years=args.min_train_years)
+        except ValueError:
+            return -1.0
+        score = quintile_directional_accuracy(res.predictions)
+        return -1.0 if np.isnan(score) else score
+
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=args.n_trials, show_progress_bar=False)
+    mlflow.set_tag("hpo", "optuna")
+    mlflow.log_param("n_trials", args.n_trials)
+    mlflow.log_metric("best_quintile_dir_acc", study.best_value)
+    for k, v in study.best_params.items():
+        mlflow.log_param(f"hp_{k}", v)
+    logger.info("optuna best quintile_dir_acc=%.3f params=%s", study.best_value, study.best_params)
+    return study.best_params
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train one commodity model → MLflow.")
     parser.add_argument("--commodity", required=True)
@@ -114,14 +187,25 @@ def main() -> None:
     parser.add_argument("--target", default="production_quantity",
                         help="label target (production_quantity|area_harvested|yield)")
     parser.add_argument("--model", default="xgboost", help="xgboost|lightgbm")
+    parser.add_argument("--detrend", action="store_true",
+                        help="predict fractional deviation from a trailing trend (anomaly), "
+                             "not the level — the recommended target for stress features")
     parser.add_argument("--bucket", default=os.environ.get("LEVIATHAN_BUCKET"))
     parser.add_argument("--aws-region", default=os.environ.get("AWS_REGION", "us-east-1"),
                         dest="aws_region")
     parser.add_argument("--experiment", default="leviathan-tier1-production")
     parser.add_argument("--tracking-uri", default=os.environ.get("MLFLOW_TRACKING_URI"),
                         dest="tracking_uri")
-    parser.add_argument("--min-train-years", type=int, default=5, dest="min_train_years")
+    parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
     parser.add_argument("--no-snapshot", action="store_true")
+    # manual hyperparameters (ignored under --optuna)
+    parser.add_argument("--max-depth", type=int, default=4, dest="max_depth")
+    parser.add_argument("--n-estimators", type=int, default=400, dest="n_estimators")
+    parser.add_argument("--learning-rate", type=float, default=0.03, dest="learning_rate")
+    parser.add_argument("--reg-lambda", type=float, default=1.0, dest="reg_lambda")
+    # hyperparameter search
+    parser.add_argument("--optuna", action="store_true", help="search hyperparameters with Optuna")
+    parser.add_argument("--n-trials", type=int, default=30, dest="n_trials")
     args = parser.parse_args()
     if not args.bucket:
         raise SystemExit("LEVIATHAN_BUCKET (or --bucket) is required")
@@ -141,6 +225,12 @@ def main() -> None:
         logger.warning("%s has no %s labels — skipping.", args.commodity, target_col)
         return  # clean skip (exit 0): an expected gap, not a failure
 
+    if args.detrend:
+        matrix = _detrend_target(matrix, target_col)
+        if matrix[target_col].notna().sum() == 0:
+            logger.warning("%s: detrend left no usable target — skipping.", args.commodity)
+            return
+
     feature_cols = _tier_feature_cols(matrix, args.tier)
     if not feature_cols:
         logger.warning("%s tier %s resolved to 0 feature columns — skipping.",
@@ -148,12 +238,19 @@ def main() -> None:
         return
 
     registry = load_registry(_CONFIG_DIR)
-    model = _make_model(args.model)
-    run_name = f"{args.commodity}-{args.tier}-{args.target}-{args.model}"
+    run_name = f"{args.commodity}-{args.tier}-{args.target}{'-detrend' if args.detrend else ''}-{args.model}"
 
     train_slice = matrix[["country", "crop_year"] + feature_cols + [target_col]].copy()
 
     with mlflow.start_run(run_name=run_name) as run:
+        if args.optuna:
+            best = _optuna_search(matrix, target_col, feature_cols, args, mlflow)
+            model = _make_model(args.model, **best)
+        else:
+            model = _make_model(
+                args.model, max_depth=args.max_depth, n_estimators=args.n_estimators,
+                learning_rate=args.learning_rate, reg_lambda=args.reg_lambda,
+            )
         try:
             result = walk_forward_cv(
                 matrix, target_col, feature_cols, model,
@@ -170,6 +267,11 @@ def main() -> None:
 
         mlflow.set_tag("model", args.model)
         mlflow.set_tag("target", args.target)
+        mlflow.set_tag("detrend", str(args.detrend))
+        q_dir = quintile_directional_accuracy(result.predictions)
+        if not np.isnan(q_dir):
+            mlflow.log_metric("quintile_directional_accuracy", q_dir)
+
         logged = log_training_run(
             args.commodity, args.tier, train_slice, feature_cols, result,
             target_col=target_col, params_hash=registry.params_hash,
@@ -185,8 +287,8 @@ def main() -> None:
 
         passed = gaps_passed(gaps) if gaps is not None else None
         logger.info(
-            "run %s  rmse=%.4f  dir_acc=%s  gaps_passed=%s  folds=%d",
-            run.info.run_id, result.rmse, result.directional_accuracy, passed, result.n_folds,
+            "run %s  rmse=%.4f  dir_acc=%s  quintile_dir=%.3f  gaps_passed=%s  folds=%d",
+            run.info.run_id, result.rmse, result.directional_accuracy, q_dir, passed, result.n_folds,
         )
 
 
