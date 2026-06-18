@@ -48,6 +48,11 @@ def main() -> None:
     parser.add_argument("--targets", default="production_quantity")
     parser.add_argument("--models", default="xgboost")
     parser.add_argument("--experiment", default="leviathan-tier1-production")
+    parser.add_argument("--detrend", action="store_true",
+                        help="predict the detrended anomaly target (recommended for stress features)")
+    parser.add_argument("--optuna", action="store_true",
+                        help="search hyperparameters with Optuna per job")
+    parser.add_argument("--n-trials", type=int, default=30, dest="n_trials")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -70,6 +75,9 @@ def main() -> None:
         {
             "commodity": c, "tier": t, "target": tg, "model": m,
             "bucket": bucket, "aws_region": aws_region, "experiment": args.experiment,
+            "detrend": str(args.detrend).lower(),   # Ref::detrend → "true"/"false"
+            "optuna": str(args.optuna).lower(),
+            "n_trials": str(args.n_trials),
         }
         for c, t, tg, m in itertools.product(commodities, tiers, targets, models)
     ]

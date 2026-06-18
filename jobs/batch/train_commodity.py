@@ -53,6 +53,17 @@ _TIERS_PATH = _REPO / "configs" / "features" / "feature_tiers.yaml"
 _CONFIG_DIR = _REPO / "configs" / "features"
 
 
+def _str2bool(v) -> bool:
+    """Parse a bool that may arrive bare (``--detrend``) or valued (``--detrend true``).
+
+    The Batch job definition substitutes ``Ref::detrend`` → "true"/"false" as a CLI
+    *value*, while local/manual use passes the bare flag — both must work.
+    """
+    if isinstance(v, bool):
+        return v
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
 def _make_model(name: str, **hp):
     """Tree regressors — NaN-native, no scaling needed (missingness-as-signal)."""
     common = dict(
@@ -187,9 +198,10 @@ def main() -> None:
     parser.add_argument("--target", default="production_quantity",
                         help="label target (production_quantity|area_harvested|yield)")
     parser.add_argument("--model", default="xgboost", help="xgboost|lightgbm")
-    parser.add_argument("--detrend", action="store_true",
+    parser.add_argument("--detrend", nargs="?", const=True, default=False, type=_str2bool,
                         help="predict fractional deviation from a trailing trend (anomaly), "
-                             "not the level — the recommended target for stress features")
+                             "not the level — the recommended target for stress features. "
+                             "Bare flag or 'true'/'false' (Batch passes a value).")
     parser.add_argument("--bucket", default=os.environ.get("LEVIATHAN_BUCKET"))
     parser.add_argument("--aws-region", default=os.environ.get("AWS_REGION", "us-east-1"),
                         dest="aws_region")
@@ -204,7 +216,8 @@ def main() -> None:
     parser.add_argument("--learning-rate", type=float, default=0.03, dest="learning_rate")
     parser.add_argument("--reg-lambda", type=float, default=1.0, dest="reg_lambda")
     # hyperparameter search
-    parser.add_argument("--optuna", action="store_true", help="search hyperparameters with Optuna")
+    parser.add_argument("--optuna", nargs="?", const=True, default=False, type=_str2bool,
+                        help="search hyperparameters with Optuna (bare flag or 'true'/'false')")
     parser.add_argument("--n-trials", type=int, default=30, dest="n_trials")
     args = parser.parse_args()
     if not args.bucket:
