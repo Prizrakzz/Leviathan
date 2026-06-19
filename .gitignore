@@ -42,6 +42,7 @@ data/batch_runs/
 currentstate.md
 desiredstate.md
 GAINPLAN.MD
+GRAPHRAG_PLAN.md
 
 # Claude working files
 .claude/
