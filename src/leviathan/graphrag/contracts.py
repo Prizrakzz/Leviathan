@@ -20,7 +20,7 @@ from typing import Any, Literal, Optional
 import pyarrow as pa
 from pydantic import BaseModel, Field, model_validator
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
 
 # ── closed enums (structural; the open vocab is config) ──────────────────────────
 ExtractionMethod = Literal["textract", "pdfplumber", "beautifulsoup"]
@@ -28,7 +28,13 @@ EvidenceClass = Literal["fact", "reported_claim", "model_inference"]
 EdgeScope = Literal["structural", "event_specific"]
 Sign = Literal["+", "-", "0"]
 Agreement = Literal["agree", "disagree", "unverifiable"]
-Metric = Literal["production", "area", "yield", "export", "stock", "price", "spread"]
+# Node-model rule (pinned): a graph node is the COMMODITY (or other entity). The metric +
+# direction + as-of-date ride on QuantitativeClaim / Relationship — never baked into a node id
+# (no `arabica_production` nodes). `Metric` is the closed set of series a claim/edge can concern.
+Metric = Literal[
+    "production", "area", "yield", "export", "import", "stock", "beginning_stock",
+    "consumption", "price", "spread",
+]
 
 
 class _Base(BaseModel):
@@ -101,7 +107,8 @@ class Relationship(_Base):
     src_entity: str
     dst_entity: str
     relation_type: str                     # one of entity_vocabulary.yaml edge types
-    sign: Sign = "0"
+    metric: Optional[Metric] = None        # which series the edge moves (e.g. causes → production)
+    sign: Sign = "0"                       # direction (↑/↓) of the effect on `metric`
     lag_months: Optional[int] = None
     magnitude: Optional[float] = None
     confidence: float = Field(ge=0.0, le=1.0)
@@ -138,7 +145,7 @@ class QuantitativeClaim(_Base):
     chunk_id: str
     entity_id: str
     metric: Metric
-    value: float
+    value: Optional[float] = None          # None = value-less directional claim ("production fell")
     unit: str
     period: str
     direction: Sign = "0"

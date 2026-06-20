@@ -23,9 +23,11 @@ def _chunk(**over):
 
 
 def _edge(**over):
+    # Node-model: node is the commodity (arabica_coffee); the metric the edge moves
+    # rides on `metric`, the direction on `sign`.
     base = dict(
-        edge_id="e1", src_entity="drought", dst_entity="arabica_production",
-        relation_type="causes", sign="-", confidence=0.8,
+        edge_id="e1", src_entity="drought", dst_entity="arabica_coffee",
+        relation_type="causes", metric="production", sign="-", confidence=0.8,
         evidence_class="fact", edge_scope="structural",
     )
     base.update(over)
@@ -46,13 +48,13 @@ def test_all_contracts_round_trip():
         c.Event(event_id="brazil_drought_2021", event_type="drought", commodity="arabica_coffee",
                 country="Brazil", season_or_date="2021", description="flowering drought",
                 document_date=date(2021, 7, 1)),
-        c.QuantitativeClaim(claim_id="q1", chunk_id="x1", entity_id="arabica_production",
+        c.QuantitativeClaim(claim_id="q1", chunk_id="x1", entity_id="arabica_coffee",
                             metric="production", value=-32.0, unit="pct", period="2021",
                             direction="-", document_date=date(2021, 7, 1)),
         c.SourceReliability(source="conab", commodity="arabica_coffee", horizon_months=12,
                             n_obs=20, directional_hit_rate=0.8, reliability_score=0.75),
-        c.NodeSilverMap(node_id="arabica_production", country="Brazil", silver_table="silver.psd",
-                        silver_column="production_quantity", as_of_supported=True),
+        c.NodeSilverMap(node_id="arabica_coffee", country="Brazil", silver_table="silver_psd",
+                        silver_column="production_mt", as_of_supported=True),
     ]
     for m in samples:
         assert type(m)(**m.model_dump()) == m
@@ -90,6 +92,30 @@ def test_unknown_field_rejected():
 def test_closed_enums():
     with pytest.raises(ValidationError):
         _edge(evidence_class="rumor")          # not in EvidenceClass
+
+
+# ── node-model (commodity is the node; metric/direction ride on edge/claim) ───────
+def test_edge_carries_metric_and_direction():
+    e = _edge(metric="export", sign="+")
+    assert c.Relationship(**e.model_dump()) == e
+    assert e.metric == "export" and e.dst_entity == "arabica_coffee"
+
+
+def test_new_metric_members_validate():
+    for m in ("import", "consumption", "beginning_stock"):
+        e = _edge(metric=m)
+        assert e.metric == m
+    with pytest.raises(ValidationError):
+        _edge(metric="rainfall")               # not in Metric
+
+
+def test_value_less_directional_claim():
+    # "production fell" with no number → value=None, direction carries the signal.
+    q = c.QuantitativeClaim(claim_id="q2", chunk_id="x1", entity_id="arabica_coffee",
+                            metric="production", unit="", period="2021", direction="-",
+                            document_date=date(2021, 7, 1))
+    assert q.value is None
+    assert c.QuantitativeClaim(**q.model_dump()) == q
 
 
 # ── arrow schema is derivable for every contract ─────────────────────────────────

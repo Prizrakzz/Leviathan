@@ -48,6 +48,13 @@ def lint_vocab() -> list[str]:
     for canon, al in (v.get("aliases") or {}).items():
         if canon not in node_terms:
             errs.append(f"aliases: canonical {canon!r} is not a defined node")
+        # An alias surface form must NOT itself be a node term — that's an identity collision
+        # (e.g. `canola` listed as a commodity node AND an alias of `rapeseed`; or a distinct
+        # sub-region listed as an alias of its parent). Such a term has two canonical identities.
+        for surface in (al or []):
+            if surface in node_terms and surface != canon:
+                errs.append(f"aliases[{canon}]: {surface!r} is also a node term "
+                            f"(alias collides with a canonical node — pick one identity)")
 
     for vn, rule in (v.get("verb_normalization") or {}).items():
         if rule.get("edge") not in edge_terms:

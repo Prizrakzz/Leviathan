@@ -28,15 +28,18 @@ _REQUIRED = {
 }
 
 
-def _vocab() -> tuple[set[str], set[str]]:
+def _vocab() -> tuple[dict[str, set[str]], set[str], set[str]]:
     v = yaml.safe_load((_CFG / "entity_vocabulary.yaml").read_text(encoding="utf-8"))
+    # node_members maps each node *type* → its closed set of canonical terms. `event` (and any
+    # empty list) is an OPEN type: instances are minted at extraction, so membership isn't checked.
+    node_members = {t: set(terms) for t, terms in v.get("nodes", {}).items() if terms}
     node_types = set(v.get("nodes", {}).keys())
     edges = set(v.get("edges", {}).keys())
-    return node_types, edges
+    return node_members, node_types, edges
 
 
 def validate() -> list[str]:
-    node_types, edges = _vocab()
+    node_members, node_types, edges = _vocab()
     errs: list[str] = []
     for fname, required in _REQUIRED.items():
         path = _GOLD / fname
@@ -57,10 +60,16 @@ def validate() -> list[str]:
             missing = required - rec.keys()
             if missing:
                 errs.append(f"{fname}:{ln} missing fields {sorted(missing)}")
-            # vocab consistency for extraction labels
+            # vocab consistency + node-model enforcement for extraction labels.
             for ent in rec.get("entities", []):
-                if ent.get("type") not in node_types:
-                    errs.append(f"{fname}:{ln} entity type {ent.get('type')!r} not a vocab node type")
+                etype, eid = ent.get("type"), ent.get("id")
+                if etype not in node_types:
+                    errs.append(f"{fname}:{ln} entity type {etype!r} not a vocab node type")
+                # Node-model: a closed-type entity id MUST be a canonical node (no composites like
+                # `arabica_production` typed commodity; metrics belong in `quant`, never as entities).
+                elif etype in node_members and eid not in node_members[etype]:
+                    errs.append(f"{fname}:{ln} entity {eid!r} is not a canonical {etype} node "
+                                f"(use the canonical term; metrics go in `quant`)")
             for ed in rec.get("edges", []):
                 if ed.get("rel") not in edges:
                     errs.append(f"{fname}:{ln} edge rel {ed.get('rel')!r} not in vocab edges")
