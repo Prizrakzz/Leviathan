@@ -1,8 +1,16 @@
 # entity_vocabulary.yaml
+#
+# ⚠️ LEGACY / SUPERSEDED — FROZEN. This slug-canonical vocabulary drives the first-generation
+# Haiku extractor (leviathan.transforms.text_to_graphrag.extractor). The GraphRAG redesign replaces
+# it with the node-based vocabulary at configs/graphrag/entity_vocabulary.yaml (single source of
+# truth) + configs/graphrag/commodity_hierarchy.yaml (contract↔node↔group). Its reference data
+# (section_commodity_groups, country/org/stress aliases, causal_markers) has been HARVESTED into the
+# new vocab. Do not extend this file; make changes in configs/graphrag/. Kept only so the legacy
+# extractor + any existing batch outputs remain reproducible.
+#
 # Canonical entity names for GraphRAG extraction.
 # The extractor passes this to Claude Haiku as a constraint — all extracted
 # entity names must resolve to one of the canonical forms listed here.
-# Update when new commodities, countries, or stress types are added to the corpus.
 
 # ---------------------------------------------------------------------------
 # Commodities

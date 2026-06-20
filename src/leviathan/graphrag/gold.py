@@ -25,7 +25,10 @@ _REQUIRED = {
     "cascade.jsonl": {"id", "root", "template", "expected_hops"},
     "entity_linking.jsonl": {"id", "mention", "expected"},
     "generalization.jsonl": {"id", "query", "expect"},
+    "expansion.jsonl": {"id", "concept", "expected_nodes", "policy"},
 }
+
+_EXPANSION_POLICIES = {"enumerate_divergent", "benchmark", "aggregate", "abstain"}
 
 
 def _vocab() -> tuple[dict[str, set[str]], set[str], set[str]]:
@@ -73,6 +76,14 @@ def validate() -> list[str]:
             for ed in rec.get("edges", []):
                 if ed.get("rel") not in edges:
                     errs.append(f"{fname}:{ln} edge rel {ed.get('rel')!r} not in vocab edges")
+            # expansion labels: expected_nodes must be real nodes; policy from the closed set.
+            if fname == "expansion.jsonl":
+                all_nodes = set().union(*node_members.values())
+                for nd in rec.get("expected_nodes", []):
+                    if nd not in all_nodes:
+                        errs.append(f"{fname}:{ln} expected_node {nd!r} not a vocab node")
+                if rec.get("policy") not in _EXPANSION_POLICIES:
+                    errs.append(f"{fname}:{ln} policy {rec.get('policy')!r} not in {_EXPANSION_POLICIES}")
         if n == 0:
             errs.append(f"{fname}: empty")
         else:

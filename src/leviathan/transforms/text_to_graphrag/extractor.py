@@ -1,6 +1,11 @@
 """Extractor: calls Claude Haiku via Amazon Bedrock to extract structured
 entities from a single text chunk.
 
+LEGACY / SUPERSEDED — FROZEN. This is the first-generation extraction path (Haiku +
+configs/sources/entity_vocabulary.yaml). The GraphRAG redesign replaces it with the node-based
+vocab (configs/graphrag/) + Opus extraction (built in the extraction phase). Kept for
+reproducibility of existing batch outputs; do not extend. See GRAPHRAG_PLAN.md.
+
 The vocabulary (entity_vocabulary.yaml) is loaded once at module import and
 injected into every prompt so Haiku resolves commodity names and country names
 to canonical leviathan slugs.

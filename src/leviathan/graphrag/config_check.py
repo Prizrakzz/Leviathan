@@ -83,9 +83,18 @@ def check_node_silver_map() -> list[str]:
     return errs
 
 
+def check_hierarchy() -> list[str]:
+    """Commodity hierarchy integrity — every contract maps to a real node, full slug coverage,
+    group/complex members real, legacy canonicals still resolve. Delegates to the resolver itself
+    so config-lint and the runtime expander agree by construction."""
+    from leviathan.graphrag.hierarchy import coverage_check
+    return coverage_check()
+
+
 def main() -> int:
     failures = 0
-    for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map())):
+    for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
+                        ("hierarchy", check_hierarchy())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")
