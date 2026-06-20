@@ -44,6 +44,11 @@ desiredstate.md
 GAINPLAN.MD
 GRAPHRAG_PLAN.md
 
+# GraphRAG private IP — vocab / templates / params / gold sets / corpus profile.
+# (The schema CODE under src/leviathan/graphrag/ is public; only these configs are private.)
+configs/graphrag/
+docs/graphrag/corpus_profile/
+
 # Claude working files
 .claude/
 
