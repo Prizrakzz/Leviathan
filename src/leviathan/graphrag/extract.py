@@ -29,8 +29,17 @@ from leviathan.graphrag.contracts import (
 
 _CFG = Path(__file__).resolve().parents[3] / "configs" / "graphrag"
 MODEL = "claude-opus-4-8"
-# Opus 4.8 list price ($/token) — for the cost log.
-PRICE_IN, PRICE_OUT = 5.0 / 1e6, 25.0 / 1e6
+SONNET = "claude-sonnet-4-6"
+# list price ($/token) per model: (input, output). Batch halves these at billing time.
+PRICES = {"claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6),
+          "claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6)}
+PRICE_IN, PRICE_OUT = PRICES[MODEL]   # default (Opus) — back-compat for existing callers
+
+
+def price(model: str) -> tuple[float, float]:
+    return PRICES.get(model, PRICES[MODEL])
+
+
 _CONF_BY_EVIDENCE = {"fact": 0.9, "reported_claim": 0.6, "model_inference": 0.3}
 
 # synonym drift → canonical Metric (from the grounded-truth run's --diagnose). Recovers claims Opus

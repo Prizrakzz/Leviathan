@@ -460,15 +460,223 @@ def _write_sweep(res: dict, n_docs: int) -> None:
     print(f"\nwrote {_OUT / 'sweep_report.md'}")
 
 
+# ── DECIDER: full-commodity, multi-era, Sonnet-vs-Opus run that sets the go-forward ──────────────
+_COMMODITY_MAP = [
+    (("cotton",), "cotton"), (("sugar",), "sugar"), (("coffee", "conab", "fnc"), "coffee"),
+    (("cocoa",), "cocoa"), (("orange", "_oj"), "orange_juice"), (("rice",), "rice"),
+    (("rapeseed", "canola"), "rapeseed"), (("palm", "mpo"), "palm_oil"),
+    (("soybean_meal",), "soybean_meal"), (("soybean_oil",), "soybean_oil"), (("soybean",), "soybeans"),
+    (("wheat",), "wheat"), (("corn", "maize", "grain"), "corn_grains"),
+    (("wasde", "wap"), "multi_sd"), (("wb_cmo", "cmo"), "macro"),
+]
+_DECIDER_TARGETS = ["usda_gain_cotton_monthly", "usda_gain_sugar_semiannual", "usda_gain_coffee_semiannual",
+                    "conab", "fnc", "usda_gain_grain_monthly", "usda_gain_wheat", "usda_gain_corn",
+                    "usda_gain_soybeans", "usda_gain_soybean_meal", "usda_gain_soybean_oil",
+                    "usda_gain_rice", "usda_gain_rapeseed", "mpoc", "usda_gain_orange_juice",
+                    "usda_gain_cocoa", "wb_cmo_outlook"]
+
+
+def _commodity_of(source: str) -> str:
+    s = source.lower()
+    for keys, c in _COMMODITY_MAP:
+        if any(k in s for k in keys):
+            return c
+    return "other"
+
+
+def _era_of(key: str) -> str:
+    y = _year_of(key)
+    if y == "unknown":
+        return "unknown"
+    yi = int(y)
+    return "ocr_pre95" if yi < 1995 else "old_95_09" if yi < 2010 else "recent_10plus"
+
+
+def sample_decider(s3, seed: int) -> list[str]:
+    by = collections.defaultdict(list)
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX):
+        for o in page.get("Contents", []):
+            if o["Key"].endswith("document.json"):
+                by[_source_of(o["Key"])].append(o["Key"])
+    rng = random.Random(seed)
+    picked = []
+    for src in _DECIDER_TARGETS:                       # one per commodity domain (shorter variants)
+        if by.get(src):
+            picked.append(rng.choice(by[src]))
+    for src in ("usda_wasde", "usda_wap"):             # deliberate old-era / OCR-era picks
+        old = sorted((k for k in by.get(src, []) if _year_of(k) != "unknown" and int(_year_of(k)) < 2000),
+                     key=_year_of)
+        if old:
+            picked.append(old[0])
+    return picked
+
+
+_DECIDER_MAX_PER_DOC = 40   # sample enough/doc to reveal coverage+quality without exhaustive cost
+
+
+def _build_reqs(s3, keys, model, tag):
+    system = ex.build_system_prompt()
+    manifest, reqs = {}, []
+    for key in keys:
+        commodity, era, src = _commodity_of(_source_of(key)), _era_of(key), _source_of(key)
+        chunks = _chunks_for(s3, key, "haiku", gate=True)[:_DECIDER_MAX_PER_DOC]
+        for i, ch in enumerate(chunks):
+            cid = _custom_id(f"{tag}-{ch.chunk_id}")
+            prev = chunks[i - 1].proposition if i > 0 else ""
+            nxt = chunks[i + 1].proposition if i < len(chunks) - 1 else ""
+            reqs.append({"custom_id": cid, "params": {
+                "model": model, "max_tokens": 4096, "system": system,
+                "messages": [{"role": "user", "content": ex.build_user_message(prev, ch.proposition, nxt)}],
+                "tools": [ex.extraction_tool()], "tool_choice": {"type": "tool", "name": "emit_extraction"}}})
+            manifest[cid] = {"chunk": ch.model_dump(mode="json"), "commodity": commodity, "era": era, "source": src}
+    return reqs, manifest
+
+
+def _collect_decider(client, bid, manifest, model):
+    nt, nm, edg = ex.vocab_sets()
+    pin, pout = ex.price(model)
+    o = dict(edges=set(), per=collections.defaultdict(lambda: [0, 0, 0]), etypes=collections.Counter(),
+             events=[], ents=collections.Counter(), unmapped=collections.Counter(),
+             dangling=0, fails=0, in_tok=0, out_tok=0)
+    for r in client.messages.batches.results(bid):
+        if r.result.type != "succeeded":
+            o["fails"] += 1
+            continue
+        msg = r.result.message
+        u = getattr(msg, "usage", None)
+        o["in_tok"] += getattr(u, "input_tokens", 0)
+        o["out_tok"] += getattr(u, "output_tokens", 0)
+        ti = next((b.input for b in msg.content if getattr(b, "type", None) == "tool_use"), None)
+        m = manifest.get(r.custom_id)
+        if ti is None or m is None:
+            o["fails"] += 1
+            continue
+        try:
+            mapped, fr = ex.to_contracts(ex.parse_extraction(ti), Chunk(**m["chunk"]),
+                                         node_types=nt, node_members=nm, edges=edg)
+        except Exception:  # noqa: BLE001
+            o["fails"] += 1
+            continue
+        cell = o["per"][(m["commodity"], m["era"])]
+        cell[0] += fr.n_entities
+        cell[1] += len(mapped["relationships"])
+        cell[2] += len(fr.unmapped_entities)
+        o["dangling"] += len(fr.dangling_endpoints)
+        for label in fr.unmapped_entities:
+            o["unmapped"][label] += 1
+        for rel in mapped["relationships"]:
+            o["edges"].add((rel.src_entity, rel.relation_type, rel.dst_entity, rel.metric))
+            o["etypes"][rel.relation_type] += 1
+        for e in mapped["entities"]:
+            o["ents"][e.entity_id] += 1
+        for ev in mapped["events"]:
+            o["events"].append(f"{ev.event_type}@{ev.commodity}/{ev.country}")
+    o["cost"] = (o["in_tok"] * pin + o["out_tok"] * pout) * _BATCH_PRICE
+    return o
+
+
+def decider(s3, client, *, seed: int) -> None:
+    keys = sample_decider(s3, seed)
+    print(f"decider: {len(keys)} docs")
+    for k in keys:
+        print(f"  {_commodity_of(_source_of(k)):14} {_era_of(k):14} {k}")
+    sreqs, smani = _build_reqs(s3, keys, ex.SONNET, "son")
+    sbid = client.messages.batches.create(requests=sreqs).id
+    ab_keys = keys[:3]
+    oreqs, omani = _build_reqs(s3, ab_keys, ex.MODEL, "opu")
+    obid = client.messages.batches.create(requests=oreqs).id
+    print(f"submitted sonnet({len(sreqs)})={sbid}  opus_AB({len(oreqs)})={obid}", flush=True)
+    for bid in (sbid, obid):
+        while client.messages.batches.retrieve(bid).processing_status != "ended":
+            time.sleep(30)
+    son = _collect_decider(client, sbid, smani, ex.SONNET)
+    opu = _collect_decider(client, obid, omani, ex.MODEL)
+    son_ab_only, _ = _ab_edges(client, sbid, smani, ab_keys)   # Sonnet edges restricted to the A/B docs
+    _decider_report(son, opu, son_ab_only, keys)
+
+
+def _ab_edges(client, bid, manifest, ab_keys):
+    """Sonnet edges restricted to the A/B docs, to compare like-for-like with the Opus A/B batch."""
+    ab_src = {_source_of(k) for k in ab_keys}
+    nt, nm, edg = ex.vocab_sets()
+    eset = set()
+    for r in client.messages.batches.results(bid):
+        if r.result.type != "succeeded":
+            continue
+        m = manifest.get(r.custom_id)
+        if not m or m["source"] not in ab_src:
+            continue
+        ti = next((b.input for b in r.result.message.content if getattr(b, "type", None) == "tool_use"), None)
+        if ti is None:
+            continue
+        try:
+            mapped, _ = ex.to_contracts(ex.parse_extraction(ti), Chunk(**m["chunk"]),
+                                        node_types=nt, node_members=nm, edges=edg)
+        except Exception:  # noqa: BLE001
+            continue
+        for rel in mapped["relationships"]:
+            eset.add((rel.src_entity, rel.relation_type, rel.dst_entity, rel.metric))
+    return eset, ab_src
+
+
+def _decider_report(son, opu, son_ab, keys) -> None:
+    _OUT.mkdir(parents=True, exist_ok=True)
+    n_docs = len(keys)
+    # model A/B (same 3 docs): overlap both ways
+    o_edges = opu["edges"]
+    recall_s_vs_o = len(son_ab & o_edges) / len(o_edges) if o_edges else 0
+    recall_o_vs_s = len(son_ab & o_edges) / len(son_ab) if son_ab else 0
+    # fragmentation
+    ev_total, ev_distinct = len(son["events"]), len(set(son["events"]))
+    ent_total = sum(son["ents"].values())
+    ent_distinct = len(son["ents"])
+    L = ["# GraphRAG DECIDER report", f"\n**{n_docs} docs | broad model=Sonnet 4.6 | A/B vs Opus on 3 docs**\n",
+         "## Coverage + generalization (Sonnet, per commodity x era)",
+         "| commodity | era | entities | edges | unmapped |", "|---|---|---:|---:|---:|"]
+    for (com, era), (e, r, u) in sorted(son["per"].items()):
+        L.append(f"| {com} | {era} | {e} | {r} | {u} |")
+    L += [f"\n- totals: {ent_total} entities ({ent_distinct} distinct), {len(son['edges'])} unique edges, "
+          f"{ev_total} events, dangling={son['dangling']}, fails={son['fails']}",
+          f"- **cost: Sonnet ${son['cost']:.2f} for {n_docs} docs**  (Opus A/B 3 docs ${opu['cost']:.2f})",
+          "\n## Model A/B (same 3 docs)",
+          f"- Sonnet edges {len(son_ab)} vs Opus edges {len(o_edges)} | overlap: "
+          f"Sonnet recovers {recall_s_vs_o:.0%} of Opus's, Opus recovers {recall_o_vs_s:.0%} of Sonnet's",
+          "\n## Fragmentation (Phase-4 normalization scope)",
+          f"- events: {ev_total} total -> {ev_distinct} distinct ({ev_total - ev_distinct} dup mentions to canonicalize)",
+          f"- entity instances: {ent_total} -> {ent_distinct} distinct (dup-rate {1 - ent_distinct / max(ent_total,1):.0%})",
+          "- edge-type distribution: " + ", ".join(f"{t}={n}" for t, n in son["etypes"].most_common()),
+          "\n## Top unmapped (per-commodity vocab gaps)"]
+    L += [f"- {n}x `{e}`" for e, n in son["unmapped"].most_common(25)] or ["- none"]
+    (_OUT / "decider_report.md").write_text("\n".join(L), encoding="utf-8")
+    print("\n".join(L), flush=True)
+    print(f"\nwrote {_OUT / 'decider_report.md'}", flush=True)
+
+
+def dry_decider(s3, *, seed: int) -> None:
+    keys = sample_decider(s3, seed)
+    sys_chars = len(ex.build_system_prompt())
+    by_com, total = collections.Counter(), 0
+    for k in keys:
+        by_com[_commodity_of(_source_of(k))] += 1
+        prop_est = len(_chunks_for(s3, k, "deterministic", 1500, gate=True)) * 10  # propositional ~10x det_1500
+        total += min(prop_est, _DECIDER_MAX_PER_DOC)                                # capped per doc
+    sp_in, sp_out = ex.price(ex.SONNET)
+    est = (total * (sys_chars // 4 + 170) * sp_in + total * 500 * sp_out) * _BATCH_PRICE
+    print(f"decider docs ({len(keys)}): {dict(by_com)}")
+    print(f"[dry-run] ~{total} chunks (capped {_DECIDER_MAX_PER_DOC}/doc), est Sonnet ${est:.2f} "
+          f"+ ~${est * 3 / len(keys):.2f} Opus A/B. No API calls.")
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="GraphRAG cloud Batch extraction (3 docs x 3 years).")
-    g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--dry-run", action="store_true")
+    ap = argparse.ArgumentParser(description="GraphRAG cloud Batch extraction.")
+    g = ap.add_mutually_exclusive_group()
     g.add_argument("--submit", action="store_true")
     g.add_argument("--retrieve", metavar="BATCH_ID")
     g.add_argument("--run", action="store_true")
     g.add_argument("--diagnose", metavar="BATCH_ID")
     g.add_argument("--sweep", action="store_true", help="chunk-granularity recall-vs-cost experiment")
+    g.add_argument("--decider", action="store_true", help="full-commodity, multi-era, Sonnet-vs-Opus run")
+    ap.add_argument("--dry-run", action="store_true", help="estimate only, no API calls")
     ap.add_argument("--docs", type=int, default=1, help="docs for --sweep")
     ap.add_argument("--seed", type=int, default=20260621)
     ap.add_argument("--chunker", choices=["haiku", "deterministic"], default="haiku")
@@ -477,12 +685,14 @@ def main() -> int:
 
     _load_env()
     s3 = boto3.client("s3", region_name=args.region)
-    if args.dry_run:
-        dry_run(s3, seed=args.seed)
+    if args.dry_run:                                   # estimate-only paths need no API client
+        (dry_decider if args.decider else dry_run)(s3, seed=args.seed)
         return 0
     import anthropic
     client = anthropic.Anthropic(api_key=_api_key())
-    if args.submit:
+    if args.decider:
+        decider(s3, client, seed=args.seed)
+    elif args.submit:
         submit(s3, client, seed=args.seed, chunker=args.chunker)
     elif args.retrieve:
         retrieve(s3, client, args.retrieve)
@@ -490,8 +700,10 @@ def main() -> int:
         diagnose(s3, client, args.diagnose)
     elif args.sweep:
         sweep(s3, client, seed=args.seed, n_docs=args.docs)
-    else:
+    elif args.run:
         retrieve(s3, client, submit(s3, client, seed=args.seed, chunker=args.chunker))
+    else:
+        ap.error("choose an action: --submit/--retrieve/--run/--diagnose/--sweep/--decider (or --dry-run)")
     return 0
 
 

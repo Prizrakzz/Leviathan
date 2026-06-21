@@ -119,6 +119,37 @@ def re_ok(cid: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", cid))
 
 
+def test_model_pricing():
+    from leviathan.graphrag import extract as ex
+    assert ex.price("claude-sonnet-4-6")[0] < ex.price("claude-opus-4-8")[0]   # Sonnet cheaper input
+
+
+def test_commodity_and_era():
+    assert bx._commodity_of("usda_gain_soybean_meal") == "soybean_meal"   # ordered before soybeans
+    assert bx._commodity_of("usda_gain_soybeans") == "soybeans"
+    assert bx._commodity_of("usda_gain_cocoa") == "cocoa"
+    assert bx._commodity_of("conab") == "coffee"
+    assert bx._era_of("text/source=usda_wasde/year=1988/document.json") == "ocr_pre95"
+    assert bx._era_of("text/source=x/year=2020/document.json") == "recent_10plus"
+
+
+def test_sample_decider_covers_commodities_and_old_era():
+    class FakeS3D:
+        def get_paginator(self, _):
+            return self
+
+        def paginate(self, **_):
+            keys = [f"text/source={s}/year=2018/document.json" for s in bx._DECIDER_TARGETS]
+            keys += ["text/source=usda_wasde/year=1988/document.json",
+                     "text/source=usda_wap/year=1996/document.json"]
+            yield {"Contents": [{"Key": k} for k in keys]}
+
+    picked = bx.sample_decider(FakeS3D(), seed=1)
+    coms = {bx._commodity_of(bx._source_of(k)) for k in picked}
+    assert {"coffee", "cocoa", "sugar", "palm_oil", "cotton", "rice", "wheat"} <= coms
+    assert any(bx._era_of(k) == "ocr_pre95" for k in picked)
+
+
 def test_relevance_gate():
     from datetime import date
     from leviathan.graphrag.contracts import Chunk
