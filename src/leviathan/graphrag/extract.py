@@ -257,9 +257,11 @@ def to_contracts(x: ChunkExtraction, chunk, *, node_types: set[str], node_member
     out: dict[str, list] = {"entities": [], "relationships": [], "events": [], "quantitative_claims": []}
 
     for e in x.entities:
-        if not e.mapped or e.type not in node_types:
+        if e.type not in node_types:
             fr.unmapped_entities.append(f"{e.id} ({e.type})")
             continue
+        # Mapped-ness is decided by OUR vocab, not Opus's self-reported `mapped` flag (it marks valid
+        # nodes like `Thailand`/`Pakistan` false when hedging → false-unmapped if we trust it).
         eid, name = e.id, e.canonical_name
         if e.id not in node_members:
             canon = _canon_region(e.id) if e.type == "region" else None  # harvested-region resolution

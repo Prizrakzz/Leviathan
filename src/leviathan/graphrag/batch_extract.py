@@ -148,9 +148,10 @@ def submit(s3, anthropic_client, *, seed: int, chunker: str) -> str:
             nxt = chunks[i + 1].proposition if i < len(chunks) - 1 else ""
             requests.append({"custom_id": cid, "params": {
                 "model": ex.MODEL, "max_tokens": 4096,
-                # cache the (identical) tools+system prefix for 1h so the batch reuses it (only engages
-                # once the prefix exceeds Opus's 4096-token minimum — the few-shot block gets us there)
-                "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
+                # NO prompt caching in Batch: measured (msgbatch_…ERLJM) that concurrent batch requests
+                # mostly WRITE the cache (2× premium) rather than read it (0.1×) → caching RAISED cost
+                # by ~$1.85. The cost lever for the corpus run is chunk granularity, not caching.
+                "system": system,
                 "messages": [{"role": "user", "content": ex.build_user_message(prev, ch.proposition, nxt)}],
                 "tools": [ex.extraction_tool()], "tool_choice": {"type": "tool", "name": "emit_extraction"}}})
             manifest[cid] = ch.model_dump(mode="json")
