@@ -237,8 +237,12 @@ def retrieve(s3, anthropic_client, bid: str) -> None:
             fr.validation_failures.append(f"{cid}: no tool_use / unknown id")
             continue
         chunk = Chunk(**manifest[cid])
-        mapped, f1 = ex.to_contracts(ex.parse_extraction(tool_input), chunk,
-                                     node_types=node_types, node_members=node_members, edges=edges)
+        try:
+            mapped, f1 = ex.to_contracts(ex.parse_extraction(tool_input), chunk,
+                                         node_types=node_types, node_members=node_members, edges=edges)
+        except Exception as exc:  # noqa: BLE001 — log + skip, never crash retrieval
+            fr.validation_failures.append(f"{cid}: parse {type(exc).__name__}")
+            continue
         _merge_friction(fr, f1)
         recs = ex.full_records(mapped, chunk)
         yr = _year_of(chunk.source_key)
@@ -414,8 +418,11 @@ def sweep(s3, client, *, seed: int, n_docs: int) -> None:
             if ti is None or r.custom_id not in run["manifest"]:
                 continue
             ch = Chunk(**run["manifest"][r.custom_id])
-            mapped, fr = ex.to_contracts(ex.parse_extraction(ti), ch, node_types=node_types,
-                                         node_members=node_members, edges=edges)
+            try:
+                mapped, fr = ex.to_contracts(ex.parse_extraction(ti), ch, node_types=node_types,
+                                             node_members=node_members, edges=edges)
+            except Exception:  # noqa: BLE001 — one quirky result must not sink the sweep
+                continue
             for rel in mapped["relationships"]:
                 eset.add((rel.src_entity, rel.relation_type, rel.dst_entity, rel.metric))
             n_rel += len(mapped["relationships"])

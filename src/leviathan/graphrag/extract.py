@@ -12,6 +12,7 @@ extraction is the one step the design routes to the Anthropic API. Follows the `
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -230,7 +231,17 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
 
 
 def parse_extraction(tool_input: dict) -> ChunkExtraction:
-    return ChunkExtraction.model_validate(tool_input)
+    # Opus occasionally stringifies a list field in the tool input (`entities`: "[{...}]"); coerce
+    # those back before validating so one quirky result can't crash a whole batch retrieval.
+    fixed = dict(tool_input)
+    for k in ("entities", "relationships", "events", "quantitative_claims",
+              "unmapped_relations", "unmapped_entities"):
+        if isinstance(fixed.get(k), str):
+            try:
+                fixed[k] = json.loads(fixed[k])
+            except (json.JSONDecodeError, TypeError):
+                fixed[k] = []
+    return ChunkExtraction.model_validate(fixed)
 
 
 # ── map the loose extraction into strict contracts + collect friction ─────────────
