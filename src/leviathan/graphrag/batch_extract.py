@@ -122,7 +122,22 @@ def _put_jsonl(s3, key: str, records: list[dict]) -> None:
     s3.put_object(Bucket=BUCKET, Key=key, Body=body)
 
 
-def _chunks_for(s3, key: str, chunker: str):
+def _relevant(ch) -> bool:
+    """Cheap no-signal filter: skip cover pages, author/credit lists, pure number tables BEFORE the
+    expensive Opus call. Compounds with coarser chunking to cut cost."""
+    t = ch.proposition
+    if len(t) < 40:
+        return False
+    letters = sum(c.isalpha() for c in t)
+    if letters < len(t) * 0.4:                       # mostly digits/punctuation → a table
+        return False
+    words = t.split()
+    if words and sum(w[:1].isupper() for w in words) > len(words) * 0.85:  # ALL-CAPS name/credit list
+        return False
+    return True
+
+
+def _chunks_for(s3, key: str, chunker: str, block_chars: int | None = None, *, gate: bool = False):
     doc = json.loads(s3.get_object(Bucket=BUCKET, Key=key)["Body"].read())
     full = doc.get("full_text") or ""
     if not full.strip():
@@ -131,7 +146,11 @@ def _chunks_for(s3, key: str, chunker: str):
     kw = dict(full_text=full, source_key=key, source=src, document_date=_doc_date_from(doc, key),
               lang="en", extraction_method=doc.get("extraction_method"),
               doc_id=f"{src}-{_year_of(key)}-{abs(hash(key)) % 10**6:06d}")
-    return propositional_chunks(**kw) if chunker == "haiku" else chunk_document(**kw)
+    if chunker == "haiku":
+        chunks = propositional_chunks(**kw, **({"max_block_chars": block_chars} if block_chars else {}))
+    else:
+        chunks = chunk_document(**kw, **({"target_chars": block_chars} if block_chars else {}))
+    return [c for c in chunks if _relevant(c)] if gate else chunks
 
 
 # ── modes ───────────────────────────────────────────────────────────────────────────
@@ -348,6 +367,92 @@ def dry_run(s3, *, seed: int) -> None:
     print(f"[dry-run] ~{total} chunks (deterministic proxy), est Batch cost ${est:.2f}. No API calls.")
 
 
+_SWEEP_SETTINGS = [("propositional", "haiku", None),    # G1 = recall reference (~97/doc)
+                   ("det_1500", "deterministic", 1500), # ~30/doc
+                   ("det_4000", "deterministic", 4000)] # ~12/doc
+_CORPUS_DOCS = 6537
+
+
+def sweep(s3, client, *, seed: int, n_docs: int) -> None:
+    """Run the same doc(s) through 3 chunk granularities; compare edge-recall vs cost to find the knee."""
+    keys = sample_3(s3, seed)[:n_docs]
+    print(f"sweep over {len(keys)} doc(s): {[_source_of(k) for k in keys]}")
+    node_types, node_members, edges = ex.vocab_sets()
+    system = ex.build_system_prompt()
+    runs = []
+    for label, chunker, bc in _SWEEP_SETTINGS:
+        manifest, reqs, nch = {}, [], 0
+        for key in keys:
+            chunks = _chunks_for(s3, key, chunker, bc, gate=True)
+            nch += len(chunks)
+            for i, ch in enumerate(chunks):
+                cid = _custom_id(f"{label}-{ch.chunk_id}")
+                prev = chunks[i - 1].proposition if i > 0 else ""
+                nxt = chunks[i + 1].proposition if i < len(chunks) - 1 else ""
+                reqs.append({"custom_id": cid, "params": {
+                    "model": ex.MODEL, "max_tokens": 4096, "system": system,
+                    "messages": [{"role": "user", "content": ex.build_user_message(prev, ch.proposition, nxt)}],
+                    "tools": [ex.extraction_tool()], "tool_choice": {"type": "tool", "name": "emit_extraction"}}})
+                manifest[cid] = ch.model_dump(mode="json")
+        bid = client.messages.batches.create(requests=reqs).id
+        runs.append({"label": label, "bid": bid, "manifest": manifest, "n_chunks": nch})
+        print(f"  submitted {label}: {nch} chunks -> {bid}")
+
+    res = {}
+    for run in runs:
+        while client.messages.batches.retrieve(run["bid"]).processing_status != "ended":
+            time.sleep(30)
+        eset, n_rel, n_ent, n_unmapped, in_tok, out_tok = set(), 0, 0, 0, 0, 0
+        for r in client.messages.batches.results(run["bid"]):
+            if r.result.type != "succeeded":
+                continue
+            msg = r.result.message
+            u = getattr(msg, "usage", None)
+            in_tok += getattr(u, "input_tokens", 0)
+            out_tok += getattr(u, "output_tokens", 0)
+            ti = next((b.input for b in msg.content if getattr(b, "type", None) == "tool_use"), None)
+            if ti is None or r.custom_id not in run["manifest"]:
+                continue
+            ch = Chunk(**run["manifest"][r.custom_id])
+            mapped, fr = ex.to_contracts(ex.parse_extraction(ti), ch, node_types=node_types,
+                                         node_members=node_members, edges=edges)
+            for rel in mapped["relationships"]:
+                eset.add((rel.src_entity, rel.relation_type, rel.dst_entity, rel.metric))
+            n_rel += len(mapped["relationships"])
+            n_ent += fr.n_entities
+            n_unmapped += len(fr.unmapped_entities)
+        cost = (in_tok * ex.PRICE_IN + out_tok * ex.PRICE_OUT) * _BATCH_PRICE
+        res[run["label"]] = dict(n_chunks=run["n_chunks"], edges=eset, n_rel=n_rel, n_ent=n_ent,
+                                 n_unmapped=n_unmapped, cost=cost)
+    _write_sweep(res, len(keys))
+
+
+def _write_sweep(res: dict, n_docs: int) -> None:
+    _OUT.mkdir(parents=True, exist_ok=True)
+    base = res.get("propositional", {}).get("edges", set())
+    lines = ["# GraphRAG chunk-granularity sweep", f"\n{n_docs} doc(s). G1 (propositional) = recall reference.\n",
+             "| setting | chunks/doc | relationships | unmapped ent | edge-recall vs G1 | $/doc | proj. corpus $ |",
+             "|---|---:|---:|---:|---:|---:|---:|"]
+    for label, _, _ in _SWEEP_SETTINGS:
+        r = res.get(label)
+        if not r:
+            continue
+        cpd = r["n_chunks"] / n_docs
+        recall = (len(r["edges"] & base) / len(base)) if base else 1.0
+        per_doc = r["cost"] / n_docs
+        proj = per_doc * _CORPUS_DOCS
+        lines.append(f"| {label} | {cpd:.0f} | {r['n_rel']} | {r['n_unmapped']} | {recall:.0%} | "
+                     f"${per_doc:.2f} | ${proj:,.0f} |")
+    lines += ["\n**Read:** pick the cheapest setting that holds edge-recall (≥~85%) without an unmapped spike.",
+              "Projection assumes these (long) docs' chunks/doc; the corpus average is lower, so real cost is",
+              "below the table. Caching is OFF (Batch can't cache); the lever here is chunk count.",
+              "Runtime: Anthropic Batch (50% off, durable) recommended over sync+cache (~20% cheaper but loses",
+              "Batch's output discount + needs RPM/checkpoint infra)."]
+    (_OUT / "sweep_report.md").write_text("\n".join(lines), encoding="utf-8")
+    print("\n".join(lines))
+    print(f"\nwrote {_OUT / 'sweep_report.md'}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="GraphRAG cloud Batch extraction (3 docs x 3 years).")
     g = ap.add_mutually_exclusive_group(required=True)
@@ -356,6 +461,8 @@ def main() -> int:
     g.add_argument("--retrieve", metavar="BATCH_ID")
     g.add_argument("--run", action="store_true")
     g.add_argument("--diagnose", metavar="BATCH_ID")
+    g.add_argument("--sweep", action="store_true", help="chunk-granularity recall-vs-cost experiment")
+    ap.add_argument("--docs", type=int, default=1, help="docs for --sweep")
     ap.add_argument("--seed", type=int, default=20260621)
     ap.add_argument("--chunker", choices=["haiku", "deterministic"], default="haiku")
     ap.add_argument("--region", default="us-east-1")
@@ -374,6 +481,8 @@ def main() -> int:
         retrieve(s3, client, args.retrieve)
     elif args.diagnose:
         diagnose(s3, client, args.diagnose)
+    elif args.sweep:
+        sweep(s3, client, seed=args.seed, n_docs=args.docs)
     else:
         retrieve(s3, client, submit(s3, client, seed=args.seed, chunker=args.chunker))
     return 0

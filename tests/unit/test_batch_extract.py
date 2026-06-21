@@ -119,6 +119,30 @@ def re_ok(cid: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", cid))
 
 
+def test_relevance_gate():
+    from datetime import date
+    from leviathan.graphrag.contracts import Chunk
+
+    def mk(text):
+        return Chunk(chunk_id="c", proposition=text, verbatim_span=text, source_key="k", page=0,
+                     char_start=0, char_end=len(text), document_date=date(2020, 1, 1), source="s",
+                     lang="en", translated=False, extraction_method="pdfplumber", ocr=False, text_quality=0.9)
+    assert bx._relevant(mk("Brazil arabica production fell sharply due to frost in Minas Gerais this year."))
+    assert not bx._relevant(mk("SILVIO PORTO AIRTON SILVA CARLOS BESTATTI ELEDON OLIVEIRA NEGREIROS"))
+    assert not bx._relevant(mk("12 34 56 78 90 1.2 3.4 5.6 7.8 9.0 11 22 33 44 55 66 77 88 99 00"))
+    assert not bx._relevant(mk("short"))
+
+
+def test_block_chars_changes_chunk_count():
+    from datetime import date
+    from leviathan.graphrag.chunking import chunk_document
+    text = "\n\n".join(f"Paragraph {i} on commodity markets, weather, and trade flows in some detail here."
+                       for i in range(40))
+    kw = dict(full_text=text, source_key="k", source="s", document_date=date(2020, 1, 1), lang="en",
+              extraction_method="pdfplumber", doc_id="d")
+    assert len(chunk_document(**kw, target_chars=200)) > len(chunk_document(**kw, target_chars=5000))
+
+
 def test_retrieve_writes_full_records(monkeypatch, tmp_path):
     if not _vocab_present():
         pytest.skip("private vocab not present")
