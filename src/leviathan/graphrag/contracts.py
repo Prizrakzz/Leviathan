@@ -34,6 +34,8 @@ Agreement = Literal["agree", "disagree", "unverifiable"]
 Metric = Literal[
     "production", "area", "yield", "export", "import", "stock", "beginning_stock",
     "consumption", "price", "spread",
+    # added v0.4 from the grounded-truth run's metric drift (high-frequency, S/D-relevant):
+    "import_tariff", "crush", "harvest_progress", "market_share",
 ]
 
 

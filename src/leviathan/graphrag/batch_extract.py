@@ -147,7 +147,10 @@ def submit(s3, anthropic_client, *, seed: int, chunker: str) -> str:
             prev = chunks[i - 1].proposition if i > 0 else ""
             nxt = chunks[i + 1].proposition if i < len(chunks) - 1 else ""
             requests.append({"custom_id": cid, "params": {
-                "model": ex.MODEL, "max_tokens": 4096, "system": system,
+                "model": ex.MODEL, "max_tokens": 4096,
+                # cache the (identical) tools+system prefix for 1h so the batch reuses it (only engages
+                # once the prefix exceeds Opus's 4096-token minimum — the few-shot block gets us there)
+                "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
                 "messages": [{"role": "user", "content": ex.build_user_message(prev, ch.proposition, nxt)}],
                 "tools": [ex.extraction_tool()], "tool_choice": {"type": "tool", "name": "emit_extraction"}}})
             manifest[cid] = ch.model_dump(mode="json")
@@ -197,7 +200,7 @@ def retrieve(s3, anthropic_client, bid: str) -> None:
     node_types, node_members, edges = ex.vocab_sets()
     tables = {t: collections.defaultdict(list) for t in _TABLES}
     candidates, fr = [], ex.Friction()
-    in_tok = out_tok = 0
+    in_tok = out_tok = cache_read = cache_write = 0
     for result in anthropic_client.messages.batches.results(bid):
         cid = result.custom_id
         if result.result.type != "succeeded":
@@ -207,6 +210,8 @@ def retrieve(s3, anthropic_client, bid: str) -> None:
         u = getattr(msg, "usage", None)
         in_tok += getattr(u, "input_tokens", 0)
         out_tok += getattr(u, "output_tokens", 0)
+        cache_read += getattr(u, "cache_read_input_tokens", 0) or 0
+        cache_write += getattr(u, "cache_creation_input_tokens", 0) or 0
         tool_input = next((b.input for b in msg.content if getattr(b, "type", None) == "tool_use"), None)
         if tool_input is None or cid not in manifest:
             fr.validation_failures.append(f"{cid}: no tool_use / unknown id")
@@ -228,12 +233,66 @@ def retrieve(s3, anthropic_client, bid: str) -> None:
         for (src, yr), rows in tables[t].items():
             if rows:
                 _put_jsonl(s3, f"{_PREFIX}/{t}/source={src}/year={yr}/part-{bid}.jsonl", rows)
-    cost = (in_tok * ex.PRICE_IN + out_tok * ex.PRICE_OUT) * _BATCH_PRICE
-    _write_reports(bid, tables, candidates, fr, cost, in_tok, out_tok)
+    # Batch (×0.5) pricing; 1h cache write = 2× input, read = 0.1× input
+    cost = (in_tok * ex.PRICE_IN + cache_write * ex.PRICE_IN * 2 + cache_read * ex.PRICE_IN * 0.1
+            + out_tok * ex.PRICE_OUT) * _BATCH_PRICE
+    usage = {"input_tokens": in_tok, "output_tokens": out_tok,
+             "cache_read_input_tokens": cache_read, "cache_creation_input_tokens": cache_write}
+    _write_reports(bid, tables, candidates, fr, cost, usage)
     print(f"retrieved {bid}: "
           f"{sum(len(v) for v in tables['relationships'].values())} relationships, "
-          f"{sum(len(v) for v in tables['entities'].values())} entities, ${cost:.2f}. "
+          f"{sum(len(v) for v in tables['entities'].values())} entities, ${cost:.2f} "
+          f"(cache_read={cache_read:,} cache_write={cache_write:,}). "
           f"full graph → s3://{BUCKET}/{_PREFIX}/  reports → {_OUT}")
+
+
+def diagnose(s3, anthropic_client, bid: str) -> None:
+    """Re-retrieve a finished batch and explain WHY records failed to_contracts — esp. whether the
+    Metric enum is too narrow for what Opus actually emits. Read-only; results persist 29 days."""
+    from datetime import date
+    from typing import get_args
+    from leviathan.graphrag.contracts import Event, Metric, QuantitativeClaim
+    valid = set(get_args(Metric))
+
+    b = anthropic_client.messages.batches.retrieve(bid)
+    if b.processing_status != "ended":
+        print(f"batch {bid} not ended ({b.processing_status})")
+        return
+    metrics, fails, rels = collections.Counter(), collections.Counter(), collections.Counter()
+    n = 0
+    for result in anthropic_client.messages.batches.results(bid):
+        if result.result.type != "succeeded":
+            fails[f"batch:{result.result.type}"] += 1
+            continue
+        ti = next((bl.input for bl in result.result.message.content
+                   if getattr(bl, "type", None) == "tool_use"), None)
+        if ti is None:
+            fails["no_tool_use"] += 1
+            continue
+        n += 1
+        x = ex.parse_extraction(ti)
+        for c in x.quantitative_claims:
+            metrics[c.metric] += 1
+            try:
+                QuantitativeClaim(claim_id="d", chunk_id="d", entity_id=c.entity, metric=c.metric,
+                                  value=c.value, unit=c.unit, period=c.period or "unknown",
+                                  direction=(c.direction if c.direction in ("+", "-", "0") else "0"),
+                                  document_date=date(2020, 1, 1))
+            except Exception:  # noqa: BLE001
+                fails[f"claim_metric:{c.metric}" if c.metric not in valid else "claim:other"] += 1
+        for ev in x.events:
+            try:
+                Event(event_id="d", event_type=ev.event_type, commodity=ev.commodity, country=ev.country,
+                      season_or_date="unknown", description=ev.description, document_date=date(2020, 1, 1))
+            except Exception as e:  # noqa: BLE001
+                fails[f"event:{str(e).splitlines()[0][:48]}"] += 1
+        for r in x.relationships:
+            rels[r.relation_type] += 1
+    print(f"parsed {n} succeeded results")
+    print(f"valid Metric enum: {sorted(valid)}")
+    print(f"\nFAILURE TALLY:\n  " + "\n  ".join(f"{v:>3}x {k}" for k, v in fails.most_common(30)))
+    print(f"\nMETRICS Opus emitted:\n  " + "\n  ".join(f"{v:>3}x {k}" for k, v in metrics.most_common(25)))
+    print(f"\nRELATION TYPES emitted:\n  " + "\n  ".join(f"{v:>3}x {k}" for k, v in rels.most_common(30)))
 
 
 def _merge_friction(agg: ex.Friction, f: ex.Friction) -> None:
@@ -245,30 +304,32 @@ def _merge_friction(agg: ex.Friction, f: ex.Friction) -> None:
     agg.n_relationships += f.n_relationships
 
 
-def _write_reports(bid, tables, candidates, fr, cost, in_tok, out_tok) -> None:
+def _write_reports(bid, tables, candidates, fr, cost, usage) -> None:
     _OUT.mkdir(parents=True, exist_ok=True)
     (_OUT / "candidate_gold.jsonl").write_text(
         "\n".join(json.dumps(c, ensure_ascii=False) for c in candidates), encoding="utf-8")
     (_OUT / "cost_log.json").write_text(json.dumps({
-        "batch_id": bid, "model": ex.MODEL, "input_tokens": in_tok, "output_tokens": out_tok,
-        "cost_usd": round(cost, 4), "table_counts": {t: sum(len(v) for v in tables[t].values()) for t in _TABLES}},
+        "batch_id": bid, "model": ex.MODEL, **usage, "cost_usd": round(cost, 4),
+        "table_counts": {t: sum(len(v) for v in tables[t].values()) for t in _TABLES}},
         indent=2), encoding="utf-8")
     rel_lines = [f"- {n}x `{r}`" for r, n in collections.Counter(fr.unmapped_relations).most_common(20)]
     ent_lines = [f"- {n}x `{e}`" for e, n in collections.Counter(fr.unmapped_entities).most_common(20)]
+    dang_lines = [f"- {n}x `{d}`" for d, n in collections.Counter(fr.dangling_endpoints).most_common(15)]
     table_lines = [f"| {t} | {sum(len(v) for v in tables[t].values())} |" for t in _TABLES]
+    cached = usage.get("cache_read_input_tokens", 0)
     lines = [
-        f"# GraphRAG pilot v2 - grounded-truth extraction ({bid})",
-        f"\n**${cost:.2f} | model {ex.MODEL} (Batch) | full records in s3://{BUCKET}/{_PREFIX}/**\n",
+        f"# GraphRAG v0.4 grounded-truth extraction ({bid})",
+        f"\n**${cost:.2f} | {ex.MODEL} (Batch) | cache_read={cached:,} tok | s3://{BUCKET}/{_PREFIX}/**\n",
         "| table | rows |", "|---|---:|",
         *table_lines,
         f"\n- unmapped relationships (taxonomy too tight?): {len(fr.unmapped_relations)}",
         f"- unmapped entities (would-be new nodes): {len(fr.unmapped_entities)}",
+        f"- dangling edge endpoints (non-canonical src/dst): {len(fr.dangling_endpoints)}",
         f"- causal links without a marker: {fr.causal_without_marker}",
         f"- contract-validation / non-succeeded: {len(fr.validation_failures)}",
-        "\n## Top unmapped relationships",
-        *(rel_lines or ["- none"]),
-        "\n## Top unmapped entities",
-        *(ent_lines or ["- none"]),
+        "\n## Top unmapped relationships", *(rel_lines or ["- none"]),
+        "\n## Top unmapped entities", *(ent_lines or ["- none"]),
+        "\n## Top dangling endpoints", *(dang_lines or ["- none"]),
     ]
     (_OUT / "friction_report.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -293,6 +354,7 @@ def main() -> int:
     g.add_argument("--submit", action="store_true")
     g.add_argument("--retrieve", metavar="BATCH_ID")
     g.add_argument("--run", action="store_true")
+    g.add_argument("--diagnose", metavar="BATCH_ID")
     ap.add_argument("--seed", type=int, default=20260621)
     ap.add_argument("--chunker", choices=["haiku", "deterministic"], default="haiku")
     ap.add_argument("--region", default="us-east-1")
@@ -309,6 +371,8 @@ def main() -> int:
         submit(s3, client, seed=args.seed, chunker=args.chunker)
     elif args.retrieve:
         retrieve(s3, client, args.retrieve)
+    elif args.diagnose:
+        diagnose(s3, client, args.diagnose)
     else:
         retrieve(s3, client, submit(s3, client, seed=args.seed, chunker=args.chunker))
     return 0

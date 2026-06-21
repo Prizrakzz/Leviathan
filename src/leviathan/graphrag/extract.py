@@ -12,7 +12,10 @@ extraction is the one step the design routes to the Anthropic API. Follows the `
 from __future__ import annotations
 
 import hashlib
+import re
+import unicodedata
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -28,6 +31,43 @@ MODEL = "claude-opus-4-8"
 # Opus 4.8 list price ($/token) — for the cost log.
 PRICE_IN, PRICE_OUT = 5.0 / 1e6, 25.0 / 1e6
 _CONF_BY_EVIDENCE = {"fact": 0.9, "reported_claim": 0.6, "model_inference": 0.3}
+
+# synonym drift → canonical Metric (from the grounded-truth run's --diagnose). Recovers claims Opus
+# emitted under a near-name without widening the enum.
+_METRIC_ALIASES = {
+    "harvested_area": "area", "ending_stocks": "stock", "stocks": "stock", "demand": "consumption",
+    "import_market_share": "market_share", "export_share": "market_share",
+    "crush_capacity": "crush", "crush_capacity_utilization": "crush", "planting_pace": "harvest_progress",
+    "price_differential": "spread", "exports": "export", "imports": "import",
+}
+
+
+def _norm_metric(m: str | None) -> str | None:
+    return _METRIC_ALIASES.get(m, m) if m else m
+
+
+def _normalize(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
+    return re.sub(r"[\s_\-]+", " ", s).strip().lower()
+
+
+@lru_cache(maxsize=1)
+def _region_lookup() -> dict[str, str]:
+    """normalized surface form → canonical region, from the harvested configs/graphrag/regions.yaml."""
+    p = _CFG / "regions.yaml"
+    if not p.exists():
+        return {}
+    data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    lk: dict[str, str] = {}
+    for canon, meta in (data.get("regions") or {}).items():
+        lk[_normalize(canon)] = canon
+        for a in (meta or {}).get("aliases", []):
+            lk.setdefault(_normalize(a), canon)
+    return lk
+
+
+def _canon_region(name: str) -> Optional[str]:
+    return _region_lookup().get(_normalize(name))
 
 
 # ── what Opus emits (lightweight; mapped into strict contracts afterward) ─────────
@@ -133,8 +173,25 @@ CAUSAL anchors (prefer minting a `causes`/`affects_yield_of` edge when the sente
 If you see a clear causal link with NO anchor phrase, still emit it but leave `marker` null.
 
 Every relation and claim MUST carry the exact `verbatim` source span. evidence_class ∈
-{{fact, reported_claim, model_inference}}. Return empty lists where nothing applies. Emit via the
-emit_extraction tool only."""
+{{fact, reported_claim, model_inference}}. Return empty lists where nothing applies.
+
+EXAMPLES (how to fill emit_extraction):
+1. "India cotton yield fell in 2017/18 due to erratic monsoon rainfall."
+   entities: excess_rain(hazard), cotton(commodity), India(country_origin)
+   relationships: [excess_rain -affects_yield_of(-)-> cotton, metric=yield, marker="due to", evidence=reported_claim]
+   quantitative_claims: [cotton, metric=yield, direction=-]
+2. "Russia produced a record 0.7 mmt more corn than last year."  (origin anchor)
+   relationships: [Russia -produces(+)-> corn, metric=production, evidence=fact]
+   quantitative_claims: [corn, metric=production, value=0.7, unit=mmt, direction=+]
+3. "Favorable snow cover in Turkey protected winter crops against frost."  (BENEFICIAL weather → +)
+   entities: protective_snow_cover(beneficial_weather), wheat(commodity), Turkey(country_origin)
+   relationships: [protective_snow_cover -affects_yield_of(+)-> wheat, metric=yield, evidence=fact]
+4. "Sunflower oil glut in the Black Sea pressured palm oil."  (cross-commodity substitution)
+   relationships: [sunflower_oil -substitutes_for(+)-> palm_oil, metric=price]
+5. "Shrimp farmers also bid for the protein."  → shrimp is NOT a node type: mapped=false, add
+   "shrimp" to unmapped_entities. NEVER force a non-vocab term into a node — we measure coverage.
+
+Emit via the emit_extraction tool only."""
 
 
 def build_user_message(prev_text: str, current_text: str, next_text: str) -> str:
@@ -183,6 +240,7 @@ class Friction:
     unmapped_entities: list[str] = field(default_factory=list)
     validation_failures: list[str] = field(default_factory=list)  # would-be records that failed
     causal_without_marker: int = 0                                # would be dropped by the strict rule
+    dangling_endpoints: list[str] = field(default_factory=list)   # edges whose src/dst aren't canonical
     n_entities: int = 0
     n_relationships: int = 0
 
@@ -199,14 +257,21 @@ def to_contracts(x: ChunkExtraction, chunk, *, node_types: set[str], node_member
     out: dict[str, list] = {"entities": [], "relationships": [], "events": [], "quantitative_claims": []}
 
     for e in x.entities:
-        if not e.mapped or e.type not in node_types or e.id not in node_members:
+        if not e.mapped or e.type not in node_types:
             fr.unmapped_entities.append(f"{e.id} ({e.type})")
             continue
+        eid, name = e.id, e.canonical_name
+        if e.id not in node_members:
+            canon = _canon_region(e.id) if e.type == "region" else None  # harvested-region resolution
+            if canon is None:
+                fr.unmapped_entities.append(f"{e.id} ({e.type})")
+                continue
+            eid = name = canon
         try:
-            out["entities"].append(Entity(entity_id=e.id, type=e.type, canonical_name=e.canonical_name))
+            out["entities"].append(Entity(entity_id=eid, type=e.type, canonical_name=name))
             fr.n_entities += 1
         except ValidationError as ex:
-            fr.validation_failures.append(f"entity {e.id}: {ex.error_count()} err")
+            fr.validation_failures.append(f"entity {eid}: {ex.error_count()} err")
 
     for r in x.relationships:
         if r.relation_type not in edges or not r.mapped:
@@ -214,13 +279,17 @@ def to_contracts(x: ChunkExtraction, chunk, *, node_types: set[str], node_member
             continue
         if r.marker is None and r.relation_type in ("causes", "affects_yield_of"):
             fr.causal_without_marker += 1
+        # endpoint check: flag (don't drop) edges whose src/dst aren't canonical nodes/regions
+        for end in (r.src, r.dst):
+            if end not in node_members and _canon_region(end) is None:
+                fr.dangling_endpoints.append(f"{end} (in {r.src}-[{r.relation_type}]->{r.dst})")
         sign = r.sign if r.sign in ("+", "-", "0") else "0"
         evidence = r.evidence_class if r.evidence_class in _CONF_BY_EVIDENCE else "reported_claim"
         eid = hashlib.sha1(f"{chunk.chunk_id}|{r.src}|{r.relation_type}|{r.dst}".encode()).hexdigest()[:16]
         try:
             out["relationships"].append(Relationship(
                 edge_id=eid, src_entity=r.src, dst_entity=r.dst, relation_type=r.relation_type,
-                metric=r.metric or None, sign=sign, confidence=_CONF_BY_EVIDENCE[evidence],
+                metric=_norm_metric(r.metric) or None, sign=sign, confidence=_CONF_BY_EVIDENCE[evidence],
                 evidence_class=evidence, edge_scope="structural", sources=[_sref(chunk, r.verbatim)]))
             fr.n_relationships += 1
         except ValidationError as ex:
@@ -231,10 +300,10 @@ def to_contracts(x: ChunkExtraction, chunk, *, node_types: set[str], node_member
         try:
             out["quantitative_claims"].append(QuantitativeClaim(
                 claim_id=f"{chunk.chunk_id}#q{i}", chunk_id=chunk.chunk_id, entity_id=c.entity,
-                metric=c.metric, value=c.value, unit=c.unit, period=c.period or "unknown",
+                metric=_norm_metric(c.metric), value=c.value, unit=c.unit, period=c.period or "unknown",
                 direction=direction, document_date=chunk.document_date))
-        except ValidationError as ex:
-            fr.validation_failures.append(f"claim {c.entity}/{c.metric}: {ex.error_count()} err")
+        except ValidationError:
+            fr.validation_failures.append(f"claim metric={c.metric!r}")
 
     for i, ev in enumerate(x.events):
         try:

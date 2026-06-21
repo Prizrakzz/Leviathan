@@ -75,6 +75,29 @@ def test_call_opus_with_fake_client_then_parse():
     assert ex.parse_extraction(tool_input).entities == []
 
 
+def test_metric_normalization():
+    assert ex._norm_metric("harvested_area") == "area"
+    assert ex._norm_metric("ending_stocks") == "stock"
+    assert ex._norm_metric("demand") == "consumption"
+    assert ex._norm_metric("production") == "production"   # canonical passes through
+    assert ex._norm_metric(None) is None
+
+
+def test_endpoint_check_flags_but_keeps_dangling_edge():
+    x = ex.ChunkExtraction(relationships=[
+        ex.XRel(src="Narnia", dst="arabica_coffee", relation_type="causes", sign="-", verbatim="x")])
+    out, fr = ex.to_contracts(x, _chunk(), node_types=NODE_TYPES, node_members=NODE_MEMBERS, edges=EDGES)
+    assert len(out["relationships"]) == 1                  # kept, not dropped
+    assert any("Narnia" in d for d in fr.dangling_endpoints)
+
+
+def test_region_canonicalizer():
+    if not (ex._CFG / "regions.yaml").exists():
+        pytest.skip("harvested regions.yaml not present")
+    assert ex._canon_region("free state") == "Free_State"  # case/space-insensitive harvest match
+    assert ex._canon_region("Nowhere_Region_XYZ") is None
+
+
 def test_system_prompt_has_node_model_rule():
     if not (ex._CFG / "entity_vocabulary.yaml").exists():
         pytest.skip("private vocab not present (CI without IP configs)")
