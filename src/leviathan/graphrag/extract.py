@@ -18,13 +18,13 @@ import unicodedata
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Optional, get_args
 
 import yaml
 from pydantic import BaseModel, ValidationError
 
 from leviathan.graphrag.contracts import (
-    Entity, Event, QuantitativeClaim, Relationship, SourceRef,
+    Entity, Event, Metric, QuantitativeClaim, Relationship, SourceRef,
 )
 
 _CFG = Path(__file__).resolve().parents[3] / "configs" / "graphrag"
@@ -54,6 +54,18 @@ _METRIC_ALIASES = {
 
 def _norm_metric(m: str | None) -> str | None:
     return _METRIC_ALIASES.get(m, m) if m else m
+
+
+# A non-node concept smuggled as an edge endpoint: a metric name (import_tariff, export, ...) or a minted
+# policy instrument / dated token. These fragment the graph — every doc mints a different
+# `soybean_subsidy_2025` that never joins — so an edge to one is dropped (a real subsidy is an EDGE).
+_METRIC_VALUES = {m.lower() for m in get_args(Metric)}
+_INSTRUMENT_RE = re.compile(r"(?i)(subsid|tariff|mandate|quota|\bpolicy\b|program|_(?:19|20)\d\d)")
+
+
+def _is_instrument_endpoint(name: str) -> bool:
+    n = name.strip().lower()
+    return n in _METRIC_VALUES or bool(_INSTRUMENT_RE.search(name))
 
 
 # ── edge-class taxonomy (cascade engine) ─────────────────────────────────────────
@@ -256,6 +268,10 @@ causes/affects_yield_of when a causal marker is present ({", ".join(markers[:8])
 marker -> emit with marker=null. evidence_class in {{fact,reported_claim,model_inference}}. Every
 relation/claim carries the exact `verbatim`.
 
+HYGIENE: never emit a self-edge (src==dst). A subsidy/tariff/mandate/quota is an EDGE
+(subsidizes/restricts) FROM the country/org TO the commodity — do NOT mint a policy node (no
+`soybean_subsidy_2025`, `import_tariff_soybeans`). affects_yield_of always has metric=yield.
+
 EXAMPLES:
 - "India cotton yield fell due to erratic monsoon": excess_rain -affects_yield_of(-)-> cotton [yield], marker="due to".
 - "Russia produced 0.7 mmt more corn": Russia -produces(+)-> corn [production]; claim corn production +0.7 mmt.
@@ -299,6 +315,13 @@ If you see a clear causal link with NO anchor phrase, still emit it but leave `m
 
 Every relation and claim MUST carry the exact `verbatim` source span. evidence_class ∈
 {{fact, reported_claim, model_inference}}. Return empty lists where nothing applies.
+
+GRAPH HYGIENE (these fragment or corrupt the graph):
+- NEVER emit a self-edge — src and dst must differ (no `soybeans -causes-> soybeans`).
+- A policy instrument (subsidy, tariff, mandate, quota, biofuel mandate) is an EDGE, not a node: emit
+  `country/org -subsidizes|restricts-> commodity`. Do NOT mint a named policy node such as
+  `soybean_subsidy_2025` or `import_tariff_soybeans` — those never join across documents.
+- `affects_yield_of` moves YIELD by definition → its metric is always `yield` (never price/production).
 
 EXAMPLES (how to fill emit_extraction):
 1. "India cotton yield fell in 2017/18 due to erratic monsoon rainfall."
@@ -414,7 +437,11 @@ class Friction:
     unmapped_entities: list[str] = field(default_factory=list)
     validation_failures: list[str] = field(default_factory=list)  # would-be records that failed
     causal_without_marker: int = 0                                # would be dropped by the strict rule
+    causal_without_metric: int = 0                                # causes/affects_yield_of with no metric (soft)
     dangling_endpoints: list[str] = field(default_factory=list)   # edges whose src/dst aren't canonical
+    self_loops: int = 0                                           # G1 — src==dst, dropped
+    dropped_instrument: int = 0                                   # G2 — metric/instrument-as-node, dropped
+    yield_metric_fixed: int = 0                                   # G3 — affects_yield_of metric coerced→yield
     n_entities: int = 0
     n_relationships: int = 0
 
@@ -453,19 +480,38 @@ def to_contracts(x: ChunkExtraction, chunk, *, node_types: set[str], node_member
         if r.relation_type not in edges or not r.mapped:
             fr.unmapped_relations.append(f"{r.src} -[{r.relation_type}]-> {r.dst}")
             continue
-        if r.marker is None and r.relation_type in ("causes", "affects_yield_of"):
-            fr.causal_without_marker += 1
-        # endpoint check: flag (don't drop) edges whose src/dst aren't canonical nodes/regions
+        if r.src == r.dst:                                    # G1 — a node can't cause/affect itself
+            fr.self_loops += 1
+            continue
+        # G2 — endpoint check: DROP edges whose dangling endpoint is a non-node concept (a metric name or a
+        # minted policy instrument); KEEP genuine unmapped commodities (flagged → coverage signal to fold).
+        dropped = False
         for end in (r.src, r.dst):
             if end not in node_members and _canon_region(end) is None:
+                if _is_instrument_endpoint(end):
+                    fr.dropped_instrument += 1
+                    fr.dangling_endpoints.append(f"{end} (DROPPED instrument, in {r.src}-[{r.relation_type}]->{r.dst})")
+                    dropped = True
+                    break
                 fr.dangling_endpoints.append(f"{end} (in {r.src}-[{r.relation_type}]->{r.dst})")
+        if dropped:
+            continue
+        metric = _norm_metric(r.metric)
+        if r.relation_type == "affects_yield_of":            # G3 — definitionally moves yield
+            if metric != "yield":
+                fr.yield_metric_fixed += 1
+            metric = "yield"
+        if metric is None and r.relation_type in ("causes", "affects_yield_of"):  # G4 — soft flag (kept)
+            fr.causal_without_metric += 1
+        if r.marker is None and r.relation_type in ("causes", "affects_yield_of"):
+            fr.causal_without_marker += 1
         sign = r.sign if r.sign in ("+", "-", "0") else "0"
         evidence = r.evidence_class if r.evidence_class in _CONF_BY_EVIDENCE else "reported_claim"
         eid = hashlib.sha1(f"{chunk.chunk_id}|{r.src}|{r.relation_type}|{r.dst}".encode()).hexdigest()[:16]
         try:
             out["relationships"].append(Relationship(
                 edge_id=eid, src_entity=r.src, dst_entity=r.dst, relation_type=r.relation_type,
-                metric=_norm_metric(r.metric) or None, sign=sign, confidence=_CONF_BY_EVIDENCE[evidence],
+                metric=metric or None, sign=sign, confidence=_CONF_BY_EVIDENCE[evidence],
                 evidence_class=evidence, edge_scope="structural", sources=[_sref(chunk, r.verbatim)]))
             fr.n_relationships += 1
         except ValidationError as ex:

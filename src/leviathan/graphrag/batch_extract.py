@@ -882,6 +882,10 @@ def _collect_minibatch(client, bid, manifest, model, k):
     nt, nm, edg = ex.vocab_sets()
     pin, pout = ex.price(model)
     rels, in_tok, out_tok, fails, n_props = [], 0, 0, 0, 0
+    hyg = {"self_loops": 0, "dropped_instrument": 0, "yield_metric_fixed": 0}  # cleanup-guard tally
+    def _absorb(fr):                                     # accumulate the cleanup-guard counters
+        for kk in hyg:
+            hyg[kk] += getattr(fr, kk, 0)
     for r in client.messages.batches.results(bid):
         if r.result.type != "succeeded":
             fails += 1
@@ -898,9 +902,10 @@ def _collect_minibatch(client, bid, manifest, model, k):
         chunks = [Chunk(**c) for c in m["chunks"]]
         if k == 1:
             try:
-                mapped, _ = ex.to_contracts(ex.parse_extraction(ti), chunks[0],
-                                            node_types=nt, node_members=nm, edges=edg)
+                mapped, fr = ex.to_contracts(ex.parse_extraction(ti), chunks[0],
+                                             node_types=nt, node_members=nm, edges=edg)
                 rels += mapped["relationships"]
+                _absorb(fr)
                 n_props += 1
             except Exception:  # noqa: BLE001 — one quirky result must not sink the arm
                 fails += 1
@@ -911,8 +916,9 @@ def _collect_minibatch(client, bid, manifest, model, k):
                     continue
                 seen.add(idx)
                 try:
-                    mapped, _ = ex.to_contracts(x, chunks[idx - 1], node_types=nt, node_members=nm, edges=edg)
+                    mapped, fr = ex.to_contracts(x, chunks[idx - 1], node_types=nt, node_members=nm, edges=edg)
                     rels += mapped["relationships"]
+                    _absorb(fr)
                 except Exception:  # noqa: BLE001
                     fails += 1
             n_props += len(seen)
@@ -929,7 +935,7 @@ def _collect_minibatch(client, bid, manifest, model, k):
     chains = _two_hop_chains(cascade)
     cost = (in_tok * pin + out_tok * pout) * _BATCH_PRICE
     return dict(edges=edges, cascade=cascade, chains=chains, **_classify_chains(chains, prov),
-                prov=dict(prov), cost=cost, n_props=n_props, n_reqs=len(manifest), fails=fails)
+                prov=dict(prov), cost=cost, n_props=n_props, n_reqs=len(manifest), fails=fails, hyg=hyg)
 
 
 def _minibatch_report(arms: dict, ref_label: str, keys, ks) -> None:
@@ -959,6 +965,11 @@ def _minibatch_report(arms: dict, ref_label: str, keys, ks) -> None:
                  f"{len(a['xtime'])} | ${a['cost']:.2f} | ${dpp:.4f} | "
                  f"{'—' if is_ref else f'{cr:.0%}'} | {'—' if is_ref else f'{hr:.0%}'} | "
                  f"{'—' if is_ref else f'{xr:.0%}'} |")
+    # cleanup guards (Stage A): should show self_loops=0 and instrument-nodes dropped, on a clean pipeline
+    hyg = ref.get("hyg", {})
+    L += [f"\n**Cleanup guards ({ref_label}):** self_loops={hyg.get('self_loops', 0)} (must be 0), "
+          f"dropped_instrument={hyg.get('dropped_instrument', 0)}, "
+          f"yield_metric_fixed={hyg.get('yield_metric_fixed', 0)}"]
     # PREVIEW (not the mini-batch gate): concrete cross-source/cross-year cascades the assembled graph
     # forms. Correctness of these is decided at the GRAPH PILOT; here they only show the join works.
     showcase = sorted(ref["xsrc"] | ref["xtime"], key=ek)[:20]

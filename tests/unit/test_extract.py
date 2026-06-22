@@ -91,6 +91,42 @@ def test_endpoint_check_flags_but_keeps_dangling_edge():
     assert any("Narnia" in d for d in fr.dangling_endpoints)
 
 
+def test_guard_self_loop_dropped():
+    x = ex.ChunkExtraction(relationships=[ex.XRel(src="arabica_coffee", dst="arabica_coffee",
+                                                  relation_type="causes", metric="production", verbatim="x")])
+    out, fr = ex.to_contracts(x, _chunk(), node_types=NODE_TYPES, node_members=NODE_MEMBERS, edges=EDGES)
+    assert out["relationships"] == [] and fr.self_loops == 1
+
+
+def test_guard_instrument_endpoint_dropped_but_keeps_plain_unmapped():
+    x = ex.ChunkExtraction(relationships=[
+        ex.XRel(src="soybean_subsidy_2025", dst="arabica_coffee", relation_type="causes",
+                metric="production", verbatim="x"),                      # minted policy instance → drop
+        ex.XRel(src="import_tariff", dst="arabica_coffee", relation_type="causes",
+                metric="import", verbatim="x"),                          # metric-as-node → drop
+        ex.XRel(src="peanut", dst="arabica_coffee", relation_type="causes",
+                metric="production", verbatim="x")])                     # plain unmapped commodity → keep+flag
+    out, fr = ex.to_contracts(x, _chunk(), node_types=NODE_TYPES, node_members=NODE_MEMBERS, edges=EDGES)
+    assert fr.dropped_instrument == 2
+    assert [r.src_entity for r in out["relationships"]] == ["peanut"]    # coverage signal preserved
+    assert any("peanut" in d for d in fr.dangling_endpoints)
+
+
+def test_guard_affects_yield_of_metric_coerced_to_yield():
+    x = ex.ChunkExtraction(relationships=[ex.XRel(src="frost", dst="arabica_coffee",
+                                                  relation_type="affects_yield_of", metric="price", verbatim="x")])
+    out, fr = ex.to_contracts(x, _chunk(), node_types=NODE_TYPES, node_members=NODE_MEMBERS, edges=EDGES)
+    assert out["relationships"][0].metric == "yield" and fr.yield_metric_fixed == 1
+
+
+def test_is_instrument_endpoint():
+    assert ex._is_instrument_endpoint("soybean_subsidy_2025")
+    assert ex._is_instrument_endpoint("import_tariff")          # a Metric enum value
+    assert ex._is_instrument_endpoint("biofuel_mandate")
+    assert not ex._is_instrument_endpoint("soybeans")
+    assert not ex._is_instrument_endpoint("arabica_coffee")
+
+
 def test_region_canonicalizer():
     if not (ex._CFG / "regions.yaml").exists():
         pytest.skip("harvested regions.yaml not present")
