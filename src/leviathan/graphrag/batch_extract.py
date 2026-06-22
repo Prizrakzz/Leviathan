@@ -827,17 +827,31 @@ def _build_minibatch_reqs(chunks_by_key, model, tag, *, k, lean=True):
     return reqs, manifest
 
 
-def _two_hop_chains(cascade: set) -> set:
-    """All a→b→c chains over PROPAGATING edges (shared middle b, a≠c) — the multi-hop scaffolding the
-    graph exists to support. A chain = (a, r1, b, r2, c)."""
+def _time_coherent(p1: set, p2: set) -> bool:
+    """True if the b→c hop can be dated >= the a→b hop — i.e. some downstream witness is not EARLIER than
+    some upstream one (no backward cascade). Publication-date proxy; unknown dates are permissive. The
+    real event-time ordering is the cascade engine's job, but this stops the preview showing 2024→2013."""
+    d1 = sorted(d for _, d in p1 if d and d != "?")
+    d2 = sorted(d for _, d in p2 if d and d != "?")
+    if not d1 or not d2:
+        return True
+    return d2[-1] >= d1[0]                                   # latest downstream >= earliest upstream
+
+
+def _two_hop_chains(cascade: set, prov: dict | None = None) -> set:
+    """All a→b→c chains over PROPAGATING edges (shared middle b, a≠c). When `prov` is given, keep only
+    TIME-COHERENT chains (downstream hop not dated before the upstream hop) — no backward cascades."""
     by_src = collections.defaultdict(list)
     for (s, rt, d, _m) in cascade:
         by_src[s].append((rt, d))
     chains = set()
     for (s, rt, d, _m) in cascade:
         for (rt2, c) in by_src.get(d, []):
-            if c != s:
-                chains.add((s, rt, d, rt2, c))
+            if c == s:
+                continue
+            if prov is not None and not _time_coherent(prov.get((s, rt, d), set()), prov.get((d, rt2, c), set())):
+                continue
+            chains.add((s, rt, d, rt2, c))
     return chains
 
 
@@ -869,10 +883,12 @@ def _classify_chains(chains: set, prov: dict) -> dict:
 
 
 def _chain_prov_str(ch, prov: dict) -> str:
-    """`a =r1=> b =r2=> c  [sourceA@date -> sourceB@date]` — show the two hops realized across docs."""
+    """`a =r1=> b =r2=> c  [sourceA@date -> sourceB@date]` — earliest upstream → latest downstream, so the
+    arrow reads time-forward (paired with the _time_coherent filter, never backward)."""
     a, r1, b, r2, c = ch
-    w1 = sorted(prov.get((a, r1, b), {("?", "?")}))[0]
-    w2 = sorted(prov.get((b, r2, c), {("?", "?")}))[-1]
+    by_date = lambda sd: sd[1]                               # noqa: E731 — prov entries are (source, date)
+    w1 = sorted(prov.get((a, r1, b), {("?", "?")}), key=by_date)[0]
+    w2 = sorted(prov.get((b, r2, c), {("?", "?")}), key=by_date)[-1]
     return f"{a} ={r1}=> {b} ={r2}=> {c}  [{w1[0]}@{w1[1]} -> {w2[0]}@{w2[1]}]"
 
 
@@ -932,7 +948,7 @@ def _collect_minibatch(client, bid, manifest, model, k):
             s0 = r.sources[0]
             d = s0.document_date.isoformat() if getattr(s0, "document_date", None) else "?"
             prov[(r.src_entity, r.relation_type, r.dst_entity)].add((s0.source, d))
-    chains = _two_hop_chains(cascade)
+    chains = _two_hop_chains(cascade, prov)                 # time-coherent only (no backward cascades)
     cost = (in_tok * pin + out_tok * pout) * _BATCH_PRICE
     return dict(edges=edges, cascade=cascade, chains=chains, **_classify_chains(chains, prov),
                 prov=dict(prov), cost=cost, n_props=n_props, n_reqs=len(manifest), fails=fails, hyg=hyg)

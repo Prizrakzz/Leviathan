@@ -180,8 +180,21 @@ def test_two_hop_chains_over_propagating_edges():
              ("coffee", "substitutes_for", "tea", "price"),
              ("Brazil", "produces", "coffee", None)}            # reference edge
     cascade = {e for e in edges if ex._edge_class(e[1]) == "propagating"}
-    chains = bx._two_hop_chains(cascade)
+    chains = bx._two_hop_chains(cascade)                        # no prov → no time filter
     assert chains == {("frost", "affects_yield_of", "coffee", "substitutes_for", "tea")}
+
+
+def test_two_hop_chains_drops_backward_in_time():
+    cascade = {("drought", "affects_yield_of", "soybeans", "yield"),
+               ("soybeans", "redirects_to", "Philippines", "export")}
+    chain = ("drought", "affects_yield_of", "soybeans", "redirects_to", "Philippines")
+    fwd = {("drought", "affects_yield_of", "soybeans"): {("conab", "2013-01-01")},   # cause earlier
+           ("soybeans", "redirects_to", "Philippines"): {("usda", "2024-01-01")}}    # effect later → keep
+    bwd = {("drought", "affects_yield_of", "soybeans"): {("conab", "2024-01-01")},   # cause later
+           ("soybeans", "redirects_to", "Philippines"): {("usda", "2013-01-01")}}    # effect earlier → drop
+    assert bx._two_hop_chains(cascade, fwd) == {chain}
+    assert bx._two_hop_chains(cascade, bwd) == set()           # 2024→2013 cascade rejected
+    assert bx._time_coherent({("a", "2013")}, {("b", "2024")}) and not bx._time_coherent({("a", "2024")}, {("b", "2013")})
 
 
 def _mb_chunk(cid, source="x", year="2020"):
