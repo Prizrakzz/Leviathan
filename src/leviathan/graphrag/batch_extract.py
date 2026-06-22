@@ -764,13 +764,19 @@ def dry_validate(s3, *, seed: int) -> None:
 # The prefix (~2.3K lean tok) is re-paid per chunk and is uncacheable in Batch. Sending K propositions
 # per request pays it ~1/K×. The risk is that batching degrades extraction (blob-of-props loses edges),
 # so the test scores by the END GOAL: cascade-edge recall + multi-hop-chain preservation vs the K=1 arm.
-_MINIBATCH_SOURCES = ["usda_gain_soybean_meal", "usda_gain_coffee_semiannual"]  # crush cascade + weather→price
-MINIBATCH_MAX_PER_DOC = 120        # bound cost; shared first-N props so every arm sees identical inputs
+# SOY-COMPLEX docs from DIFFERENT sources (USDA GAIN series + Brazil's CONAB) — they share canonical
+# nodes (soybeans, corn, soybean_meal/oil, Brazil), so the per-chunk edges JOIN across documents at the
+# graph layer. That overlap is what lets the test measure CROSS-DOCUMENT / CROSS-SOURCE / TEMPORAL
+# cascades, not just intra-doc ones (the whole point of a temporal knowledge graph).
+_MINIBATCH_SOURCES = ["usda_gain_soybeans", "usda_gain_soybean_meal", "conab"]
+_MINIBATCH_N_DOCS = 3
+MINIBATCH_MAX_PER_DOC = 80         # bound cost (~$3); shared first-N props so every arm sees identical inputs
 _PROP_OUT_TOK = 450                # per-proposition output estimate for the dry-run
 
 
 def _sample_minibatch(s3, seed: int) -> list[str]:
-    """2 content-rich docs, different commodity complexes — enough multi-hop narrative to form chains."""
+    """Soy-complex docs across different sources/years — overlapping canonical nodes so the graph forms
+    cross-document, cross-source, temporal cascades (not just intra-doc chains)."""
     by = collections.defaultdict(list)
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX):
         for o in page.get("Contents", []):
@@ -778,12 +784,12 @@ def _sample_minibatch(s3, seed: int) -> list[str]:
                 by[_source_of(o["Key"])].append(o["Key"])
     rng = random.Random(seed)
     picked = [rng.choice(by[s]) for s in _MINIBATCH_SOURCES if by.get(s)]
-    for src, keys in by.items():                       # backfill to 2 distinct sources if a target is absent
-        if len(picked) >= 2:
+    for src, keys in by.items():                       # backfill to N distinct sources if a target is absent
+        if len(picked) >= _MINIBATCH_N_DOCS:
             break
         if all(_source_of(p) != src for p in picked) and keys:
             picked.append(rng.choice(keys))
-    return picked[:2]
+    return picked[:_MINIBATCH_N_DOCS]
 
 
 def _build_minibatch_reqs(chunks_by_key, model, tag, *, k, lean=True):
@@ -835,8 +841,44 @@ def _two_hop_chains(cascade: set) -> set:
     return chains
 
 
+def _crosses(p1: set, p2: set) -> bool:
+    """True if the two edges' provenance sets can be realized from DIFFERENT documents (a genuine
+    cross-document join) — false only when both edges are witnessed exclusively in the same single doc."""
+    if not p1 or not p2:
+        return False
+    if len(p1) == 1 and p1 == p2:
+        return False
+    return True
+
+
+def _classify_chains(chains: set, prov: dict) -> dict:
+    """Split chains into the temporal-KG capabilities that justify the system: chains whose two hops
+    cross documents / cross data sources / span >1 as-of date. prov[(src,rel,dst)] = {(source, date)}."""
+    xdoc, xsrc, xtime = set(), set(), set()
+    for ch in chains:
+        a, r1, b, r2, c = ch
+        p1, p2 = prov.get((a, r1, b), set()), prov.get((b, r2, c), set())
+        if _crosses(p1, p2):
+            xdoc.add(ch)
+        if _crosses({s for s, _ in p1}, {s for s, _ in p2}):
+            xsrc.add(ch)
+        dates = {d for _, d in (p1 | p2) if d and d != "?"}
+        if len(dates) >= 2:
+            xtime.add(ch)
+    return {"xdoc": xdoc, "xsrc": xsrc, "xtime": xtime}
+
+
+def _chain_prov_str(ch, prov: dict) -> str:
+    """`a =r1=> b =r2=> c  [sourceA@date -> sourceB@date]` — show the two hops realized across docs."""
+    a, r1, b, r2, c = ch
+    w1 = sorted(prov.get((a, r1, b), {("?", "?")}))[0]
+    w2 = sorted(prov.get((b, r2, c), {("?", "?")}))[-1]
+    return f"{a} ={r1}=> {b} ={r2}=> {c}  [{w1[0]}@{w1[1]} -> {w2[0]}@{w2[1]}]"
+
+
 def _collect_minibatch(client, bid, manifest, model, k):
-    """Map an arm's results → (collapsed) edge set, cascade subset, 2-hop chain set, cost, prop count."""
+    """Map an arm's results → (collapsed) edge set, cascade subset, 2-hop chain set + cross-doc/source/
+    temporal splits (with per-edge provenance), cost, prop count."""
     nt, nm, edg = ex.vocab_sets()
     pin, pout = ex.price(model)
     rels, in_tok, out_tok, fails, n_props = [], 0, 0, 0, 0
@@ -878,9 +920,16 @@ def _collect_minibatch(client, bid, manifest, model, k):
     collapsed = ex.collapse_reference_edges(rels)
     edges = {(r.src_entity, r.relation_type, r.dst_entity, r.metric) for r in collapsed}
     cascade = {e for e in edges if ex._edge_class(e[1]) == "propagating"}
+    prov = collections.defaultdict(set)                 # (src,rel,dst) -> {(source, as-of date)} provenance
+    for r in collapsed:
+        if r.sources:
+            s0 = r.sources[0]
+            d = s0.document_date.isoformat() if getattr(s0, "document_date", None) else "?"
+            prov[(r.src_entity, r.relation_type, r.dst_entity)].add((s0.source, d))
+    chains = _two_hop_chains(cascade)
     cost = (in_tok * pin + out_tok * pout) * _BATCH_PRICE
-    return dict(edges=edges, cascade=cascade, chains=_two_hop_chains(cascade), cost=cost,
-                n_props=n_props, n_reqs=len(manifest), fails=fails)
+    return dict(edges=edges, cascade=cascade, chains=chains, **_classify_chains(chains, prov),
+                prov=dict(prov), cost=cost, n_props=n_props, n_reqs=len(manifest), fails=fails)
 
 
 def _minibatch_report(arms: dict, ref_label: str, keys, ks) -> None:
@@ -889,39 +938,54 @@ def _minibatch_report(arms: dict, ref_label: str, keys, ks) -> None:
     fmt_c = lambda c: f"{c[0]} ={c[1]}=> {c[2]} ={c[3]}=> {c[4]}"      # noqa: E731
     ek = lambda e: tuple(str(x) for x in e)                            # noqa: E731 — metric can be None
     ref = arms[ref_label]
-    L = ["# Mini-batch test — does K props/request preserve cascades while amortizing the prefix?",
+    rec = lambda a, b: (len(a & b) / len(b)) if b else 1.0           # noqa: E731 — recall of arm a vs ref b
+    L = ["# Mini-batch test — cascade preservation (incl. cross-doc/source/temporal) vs prefix cost",
          f"\n{len(keys)} docs: {[_source_of(k) for k in keys]} | all arms Sonnet+lean+fixes | "
          f"reference = {ref_label}\n",
-         "| arm | reqs | props | edges | cascade | chains | cost | $/prop | proj corpus $ | "
-         "cascade-recall | chain-recall |",
-         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+         "| arm | reqs | props | edges | cascade | chains | x-doc | x-src | x-time | cost | $/prop | "
+         "casc-rec | chain-rec | x-src-rec |",
+         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for k in ks:
         lab = f"k{k}"
         a = arms.get(lab)
         if not a:
             continue
         dpp = a["cost"] / a["n_props"] if a["n_props"] else 0.0
-        proj = (a["cost"] / len(keys)) * _CORPUS_DOCS if keys else 0.0
         is_ref = lab == ref_label
-        cr = len(a["cascade"] & ref["cascade"]) / len(ref["cascade"]) if ref["cascade"] else 1.0
-        hr = len(a["chains"] & ref["chains"]) / len(ref["chains"]) if ref["chains"] else 1.0
+        cr, hr = rec(a["cascade"], ref["cascade"]), rec(a["chains"], ref["chains"])
+        xr = rec(a["xsrc"], ref["xsrc"])
         L.append(f"| {lab}{' (ref)' if is_ref else ''} | {a['n_reqs']} | {a['n_props']} | {len(a['edges'])} | "
-                 f"{len(a['cascade'])} | {len(a['chains'])} | ${a['cost']:.2f} | ${dpp:.4f} | ${proj:,.0f} | "
-                 f"{'—' if is_ref else f'{cr:.0%}'} | {'—' if is_ref else f'{hr:.0%}'} |")
+                 f"{len(a['cascade'])} | {len(a['chains'])} | {len(a['xdoc'])} | {len(a['xsrc'])} | "
+                 f"{len(a['xtime'])} | ${a['cost']:.2f} | ${dpp:.4f} | "
+                 f"{'—' if is_ref else f'{cr:.0%}'} | {'—' if is_ref else f'{hr:.0%}'} | "
+                 f"{'—' if is_ref else f'{xr:.0%}'} |")
+    # PREVIEW (not the mini-batch gate): concrete cross-source/cross-year cascades the assembled graph
+    # forms. Correctness of these is decided at the GRAPH PILOT; here they only show the join works.
+    showcase = sorted(ref["xsrc"] | ref["xtime"], key=ek)[:20]
+    L += [f"\n## PREVIEW — cross-document / cross-source / temporal cascades, reference graph ({len(ref['xdoc'])} "
+          f"x-doc, {len(ref['xsrc'])} x-source, {len(ref['xtime'])} multi-date of {len(ref['chains'])} chains)",
+          "_each line: a 2-hop cascade whose hops were extracted from DIFFERENT docs/sources/years — shows the"
+          " canonical-node graph joins across the corpus. Informational; the graph pilot judges correctness._"]
+    L += [f"- {_chain_prov_str(ch, ref['prov'])}" for ch in showcase] or ["- none (docs shared too few nodes)"]
     for k in [x for x in ks if f"k{x}" != ref_label]:
         a = arms.get(f"k{k}")
         if not a:
             continue
         miss_c = [fmt_e(e) for e in sorted(ref["cascade"] - a["cascade"], key=ek)]
         miss_h = [fmt_c(c) for c in sorted(ref["chains"] - a["chains"], key=ek)]
+        miss_x = [_chain_prov_str(ch, ref["prov"]) for ch in sorted(ref["xsrc"] - a["xsrc"], key=ek)]
         L += [f"\n## K={k}: cascade edges the reference found but K={k} MISSED ({len(miss_c)}) — salient or footnote?"]
         L += miss_c or ["- none"]
-        L += [f"\n## K={k}: multi-hop chains MISSED ({len(miss_h)}) — the cascade-reasoning loss"]
+        L += [f"\n## K={k}: multi-hop chains MISSED ({len(miss_h)})"]
         L += [f"- {c}" for c in miss_h] or ["- none"]
-    L += ["\n**Verdict:** ship mini-batch at the largest K with cascade-recall >=~90% AND chain-recall "
-          ">=~90% AND $/prop well below the reference. K=10 -> K=5 fallback; if both fail, keep K=1 and "
-          "prioritize the run.",
-          "\nLimits: 2 docs, a 2-hop proxy for multi-hop, and K>1 props see batch-mates as context (a real",
+        L += [f"\n## K={k}: cross-source cascades the arm didn't reproduce ({len(miss_x)}) — preview only"]
+        L += miss_x or ["- none"]
+    L += ["\n**Verdict (the K question):** ship mini-batch at the largest K with **cascade-recall AND "
+          "chain-recall** >=~90% and $/prop well below the reference. K=10 -> K=5 fallback; if both fail, "
+          "keep K=1 and prioritize the run. The x-doc/x-src/x-time columns are an INFORMATIONAL PREVIEW "
+          "that the canonical-node graph joins across the corpus — their *correctness* is decided at the "
+          "GRAPH PILOT (with the model bake-off), not here.",
+          "\nLimits: a 2-hop proxy for multi-hop, and K>1 props see batch-mates as context (a real "
           "production property of the mini-batch arm, not matched away)."]
     (_OUT / "minibatch_report.md").write_text("\n".join(L), encoding="utf-8")
     print("\n".join(L), flush=True)

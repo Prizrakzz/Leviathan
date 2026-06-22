@@ -184,13 +184,49 @@ def test_two_hop_chains_over_propagating_edges():
     assert chains == {("frost", "affects_yield_of", "coffee", "substitutes_for", "tea")}
 
 
-def _mb_chunk(cid):
+def _mb_chunk(cid, source="x", year="2020"):
     from datetime import date
     from leviathan.graphrag.contracts import Chunk
     return Chunk(chunk_id=cid, proposition="p", verbatim_span="p",
-                 source_key="text/source=x/year=2020/document.json", page=0, char_start=0, char_end=1,
-                 document_date=date(2020, 1, 1), source="x", lang="en", translated=False,
-                 extraction_method="pdfplumber", ocr=False, text_quality=0.9)
+                 source_key=f"text/source={source}/year={year}/document.json", page=0, char_start=0,
+                 char_end=1, document_date=date(int(year), 1, 1), source=source, lang="en",
+                 translated=False, extraction_method="pdfplumber", ocr=False, text_quality=0.9)
+
+
+def test_crosses_detects_cross_document():
+    assert bx._crosses({("conab", "2019")}, {("usda", "2021")})        # different docs
+    assert not bx._crosses({("conab", "2019")}, {("conab", "2019")})   # both pinned to one doc
+    assert bx._crosses({("conab", "2019")}, {("conab", "2019"), ("usda", "2021")})
+    assert not bx._crosses(set(), {("usda", "2021")})
+
+
+def test_classify_chains_splits_cross_source_and_temporal():
+    chain = ("frost", "affects_yield_of", "soybeans", "crushed_into", "soybean_meal")
+    prov = {("frost", "affects_yield_of", "soybeans"): {("conab", "2019-05-01")},
+            ("soybeans", "crushed_into", "soybean_meal"): {("usda_gain_soybean_meal", "2021-03-01")}}
+    out = bx._classify_chains({chain}, prov)
+    assert chain in out["xdoc"] and chain in out["xsrc"] and chain in out["xtime"]
+    s = bx._chain_prov_str(chain, prov)
+    assert "conab@2019-05-01" in s and "usda_gain_soybean_meal@2021-03-01" in s
+
+
+def test_collect_minibatch_builds_cross_source_temporal_chain(monkeypatch):
+    # frost→soybeans from CONAB (2019) joins soybeans→soybean_meal from a USDA doc (2021) at the
+    # shared canonical `soybeans` node — a cross-document, cross-source, cross-year cascade.
+    monkeypatch.setattr(bx.ex, "vocab_sets", lambda: (
+        {"commodity", "hazard"}, {"frost", "soybeans", "soybean_meal"},
+        {"affects_yield_of", "crushed_into"}))
+    empty = {"entities": [], "events": [], "quantitative_claims": [],
+             "unmapped_relations": [], "unmapped_entities": []}
+    rel = lambda s, d, rt, m: {"src": s, "dst": d, "relation_type": rt, "metric": m, "sign": "-",
+                               "mapped": True, "verbatim": "v"}                            # noqa: E731
+    manifest = {"k1-d1": {"chunks": [_mb_chunk("d1#c0", "conab", "2019").model_dump(mode="json")]},
+                "k1-d2": {"chunks": [_mb_chunk("d2#c0", "usda_gain_soybean_meal", "2021").model_dump(mode="json")]}}
+    rr = [("k1-d1", dict(empty, relationships=[rel("frost", "soybeans", "affects_yield_of", "yield")])),
+          ("k1-d2", dict(empty, relationships=[rel("soybeans", "soybean_meal", "crushed_into", "crush")]))]
+    out = bx._collect_minibatch(_MBClient(rr), "bid", manifest, bx.ex.SONNET, k=1)
+    chain = ("frost", "affects_yield_of", "soybeans", "crushed_into", "soybean_meal")
+    assert chain in out["chains"] and chain in out["xsrc"] and chain in out["xtime"]
 
 
 class _MBClient:
