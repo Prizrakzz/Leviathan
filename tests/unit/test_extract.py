@@ -98,6 +98,21 @@ def test_region_canonicalizer():
     assert ex._canon_region("Nowhere_Region_XYZ") is None
 
 
+def test_lean_tool_schema_has_all_fields():
+    props = ex.extraction_tool(lean=True)["input_schema"]["properties"]
+    assert set(props) >= {"entities", "relationships", "events", "quantitative_claims",
+                          "unmapped_relations", "unmapped_entities"}
+
+
+def test_lean_prompt_shorter_keeps_drivers():
+    if not (ex._CFG / "entity_vocabulary.yaml").exists():
+        pytest.skip("private vocab not present")
+    full, lean = ex.build_system_prompt(lean=False), ex.build_system_prompt(lean=True)
+    assert len(lean) < len(full) * 0.75                       # materially shorter
+    for keep in ("NODE-MODEL", "arabica_coffee", "produces", "EXAMPLES"):
+        assert keep in lean, f"lean prompt dropped recall-driver: {keep}"
+
+
 def test_system_prompt_has_node_model_rule():
     if not (ex._CFG / "entity_vocabulary.yaml").exists():
         pytest.skip("private vocab not present (CI without IP configs)")

@@ -514,12 +514,15 @@ def sample_decider(s3, seed: int) -> list[str]:
 _DECIDER_MAX_PER_DOC = 40   # sample enough/doc to reveal coverage+quality without exhaustive cost
 
 
-def _build_reqs(s3, keys, model, tag):
-    system = ex.build_system_prompt()
+def _build_reqs(s3, keys, model, tag, *, chunker="haiku", block_chars=None, lean=False, max_per_doc=None):
+    system = ex.build_system_prompt(lean=lean)
+    tool = ex.extraction_tool(lean=lean)
     manifest, reqs = {}, []
     for key in keys:
         commodity, era, src = _commodity_of(_source_of(key)), _era_of(key), _source_of(key)
-        chunks = _chunks_for(s3, key, "haiku", gate=True)[:_DECIDER_MAX_PER_DOC]
+        chunks = _chunks_for(s3, key, chunker, block_chars, gate=True)
+        if max_per_doc:
+            chunks = chunks[:max_per_doc]
         for i, ch in enumerate(chunks):
             cid = _custom_id(f"{tag}-{ch.chunk_id}")
             prev = chunks[i - 1].proposition if i > 0 else ""
@@ -527,7 +530,7 @@ def _build_reqs(s3, keys, model, tag):
             reqs.append({"custom_id": cid, "params": {
                 "model": model, "max_tokens": 4096, "system": system,
                 "messages": [{"role": "user", "content": ex.build_user_message(prev, ch.proposition, nxt)}],
-                "tools": [ex.extraction_tool()], "tool_choice": {"type": "tool", "name": "emit_extraction"}}})
+                "tools": [tool], "tool_choice": {"type": "tool", "name": "emit_extraction"}}})
             manifest[cid] = {"chunk": ch.model_dump(mode="json"), "commodity": commodity, "era": era, "source": src}
     return reqs, manifest
 
@@ -580,10 +583,10 @@ def decider(s3, client, *, seed: int) -> None:
     print(f"decider: {len(keys)} docs")
     for k in keys:
         print(f"  {_commodity_of(_source_of(k)):14} {_era_of(k):14} {k}")
-    sreqs, smani = _build_reqs(s3, keys, ex.SONNET, "son")
+    sreqs, smani = _build_reqs(s3, keys, ex.SONNET, "son", max_per_doc=_DECIDER_MAX_PER_DOC)
     sbid = client.messages.batches.create(requests=sreqs).id
     ab_keys = keys[:3]
-    oreqs, omani = _build_reqs(s3, ab_keys, ex.MODEL, "opu")
+    oreqs, omani = _build_reqs(s3, ab_keys, ex.MODEL, "opu", max_per_doc=_DECIDER_MAX_PER_DOC)
     obid = client.messages.batches.create(requests=oreqs).id
     print(f"submitted sonnet({len(sreqs)})={sbid}  opus_AB({len(oreqs)})={obid}", flush=True)
     for bid in (sbid, obid):
@@ -667,6 +670,94 @@ def dry_decider(s3, *, seed: int) -> None:
           f"+ ~${est * 3 / len(keys):.2f} Opus A/B. No API calls.")
 
 
+# ── VALIDATION: does det_1000+lean keep propositional's salient edges? (production go/no-go) ──────
+# Production config (documented; run via the deferred full extraction, not here):
+#   --model sonnet --chunker deterministic --block-chars 1000 --lean  (+ waste gates on)
+_VALIDATE_SOURCES = ["usda_gain_cotton_monthly", "usda_gain_grain_monthly", "usda_gain_sugar_semiannual"]
+
+
+def _sample_validate(s3, seed: int) -> list[str]:
+    by = collections.defaultdict(list)
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX):
+        for o in page.get("Contents", []):
+            if o["Key"].endswith("document.json"):
+                by[_source_of(o["Key"])].append(o["Key"])
+    rng = random.Random(seed)
+    return [rng.choice(by[s]) for s in _VALIDATE_SOURCES if by.get(s)]
+
+
+def _collect_edges(client, bid, manifest, model):
+    nt, nm, edg = ex.vocab_sets()
+    pin, pout = ex.price(model)
+    eset, in_tok, out_tok = set(), 0, 0
+    for r in client.messages.batches.results(bid):
+        if r.result.type != "succeeded":
+            continue
+        u = getattr(r.result.message, "usage", None)
+        in_tok += getattr(u, "input_tokens", 0)
+        out_tok += getattr(u, "output_tokens", 0)
+        ti = next((b.input for b in r.result.message.content if getattr(b, "type", None) == "tool_use"), None)
+        m = manifest.get(r.custom_id)
+        if ti is None or m is None:
+            continue
+        try:
+            mapped, _ = ex.to_contracts(ex.parse_extraction(ti), Chunk(**m["chunk"]),
+                                        node_types=nt, node_members=nm, edges=edg)
+        except Exception:  # noqa: BLE001
+            continue
+        for rel in mapped["relationships"]:
+            eset.add((rel.src_entity, rel.relation_type, rel.dst_entity, rel.metric))
+    return eset, (in_tok * pin + out_tok * pout) * _BATCH_PRICE
+
+
+def validate(s3, client, *, seed: int) -> None:
+    keys = _sample_validate(s3, seed)
+    print(f"validate on {len(keys)} docs: {[_source_of(k) for k in keys]}")
+    preqs, pmani = _build_reqs(s3, keys, ex.SONNET, "P", chunker="haiku", lean=True)
+    pbid = client.messages.batches.create(requests=preqs).id
+    dreqs, dmani = _build_reqs(s3, keys, ex.SONNET, "D", chunker="deterministic", block_chars=1000, lean=True)
+    dbid = client.messages.batches.create(requests=dreqs).id
+    print(f"submitted P(propositional {len(preqs)})={pbid}  D(det_1000 {len(dreqs)})={dbid}", flush=True)
+    for bid in (pbid, dbid):
+        while client.messages.batches.retrieve(bid).processing_status != "ended":
+            time.sleep(30)
+    P, pcost = _collect_edges(client, pbid, pmani, ex.SONNET)
+    D, dcost = _collect_edges(client, dbid, dmani, ex.SONNET)
+    _validate_report(P, D, pcost, dcost, keys)
+
+
+def _validate_report(P, D, pcost, dcost, keys) -> None:
+    _OUT.mkdir(parents=True, exist_ok=True)
+    recall = len(D & P) / len(P) if P else 0.0
+    fmt = lambda e: f"{e[0]} -{e[1]}({e[3] or '-'})-> {e[2]}"   # noqa: E731
+    missed = [fmt(e) for e in sorted(P - D)]
+    extra = [fmt(e) for e in sorted(D - P)]
+    L = ["# Chunking validation — det_1000+lean vs propositional (both Sonnet+lean)",
+         f"\n{len(keys)} docs: {[_source_of(k) for k in keys]}",
+         f"- **P (propositional)** = {len(P)} edges, ${pcost:.2f}",
+         f"- **D (det_1000)** = {len(D)} edges, ${dcost:.2f}",
+         f"- **edge-recall D vs P = {recall:.0%}**  (corpus would be ~9x cheaper at D granularity)",
+         f"\n## Edges P found but D MISSED ({len(missed)}) — judge: salient cascade or footnote?"]
+    L += missed or ["- none"]
+    L += [f"\n## D-only edges ({len(extra)}) — coarse found, propositional didn't:"]
+    L += extra or ["- none"]
+    (_OUT / "validation_report.md").write_text("\n".join(L), encoding="utf-8")
+    print("\n".join(L), flush=True)
+    print(f"\nwrote {_OUT / 'validation_report.md'}", flush=True)
+
+
+def dry_validate(s3, *, seed: int) -> None:
+    keys = _sample_validate(s3, seed)
+    sysl = len(ex.build_system_prompt(lean=True))
+    d_ch = sum(len(_chunks_for(s3, k, "deterministic", 1000, gate=True)) for k in keys)
+    p_est = d_ch * 10                                      # propositional ~10x det_1000
+    sp_in, sp_out = ex.price(ex.SONNET)
+    est = ((p_est + d_ch) * (sysl // 4 + 170) * sp_in + (p_est + d_ch) * 450 * sp_out) * _BATCH_PRICE
+    print(f"validate docs: {[_source_of(k) for k in keys]}")
+    print(f"[dry-run] det_1000 ~{d_ch} chunks + propositional ~{p_est} chunks (both Sonnet+lean), "
+          f"est ${est:.2f}. No API calls.")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="GraphRAG cloud Batch extraction.")
     g = ap.add_mutually_exclusive_group()
@@ -676,6 +767,7 @@ def main() -> int:
     g.add_argument("--diagnose", metavar="BATCH_ID")
     g.add_argument("--sweep", action="store_true", help="chunk-granularity recall-vs-cost experiment")
     g.add_argument("--decider", action="store_true", help="full-commodity, multi-era, Sonnet-vs-Opus run")
+    g.add_argument("--validate", action="store_true", help="det_1000+lean vs propositional edge-recall check")
     ap.add_argument("--dry-run", action="store_true", help="estimate only, no API calls")
     ap.add_argument("--docs", type=int, default=1, help="docs for --sweep")
     ap.add_argument("--seed", type=int, default=20260621)
@@ -686,12 +778,15 @@ def main() -> int:
     _load_env()
     s3 = boto3.client("s3", region_name=args.region)
     if args.dry_run:                                   # estimate-only paths need no API client
-        (dry_decider if args.decider else dry_run)(s3, seed=args.seed)
+        dry = dry_decider if args.decider else dry_validate if args.validate else dry_run
+        dry(s3, seed=args.seed)
         return 0
     import anthropic
     client = anthropic.Anthropic(api_key=_api_key())
     if args.decider:
         decider(s3, client, seed=args.seed)
+    elif args.validate:
+        validate(s3, client, seed=args.seed)
     elif args.submit:
         submit(s3, client, seed=args.seed, chunker=args.chunker)
     elif args.retrieve:

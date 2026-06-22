@@ -127,12 +127,29 @@ class ChunkExtraction(BaseModel):
     unmapped_entities: list[str] = []    # entities that don't map to a node type
 
 
-def extraction_tool() -> dict:
-    """The forced-tool schema Opus fills (derived from the Pydantic model — single source of truth)."""
+def _lean_schema() -> dict:
+    """Hand-written minimal input_schema matching ChunkExtraction's field names/shapes — ~400 tok vs the
+    ~1,500-tok auto model_json_schema(). ChunkExtraction fills defaults for any field the model omits."""
+    s = {"type": "string"}
+    arr = lambda props: {"type": "array", "items": {"type": "object", "properties": props}}  # noqa: E731
+    return {"type": "object", "properties": {
+        "entities": arr({"id": s, "type": s, "canonical_name": s, "mapped": {"type": "boolean"}}),
+        "relationships": arr({"src": s, "dst": s, "relation_type": s, "metric": s, "sign": s,
+                              "evidence_class": s, "marker": s, "verbatim": s, "mapped": {"type": "boolean"}}),
+        "events": arr({"event_type": s, "commodity": s, "country": s, "description": s, "verbatim": s}),
+        "quantitative_claims": arr({"entity": s, "metric": s, "value": {"type": "number"}, "unit": s,
+                                    "period": s, "direction": s, "verbatim": s}),
+        "unmapped_relations": {"type": "array", "items": s},
+        "unmapped_entities": {"type": "array", "items": s}}}
+
+
+def extraction_tool(lean: bool = False) -> dict:
+    """The forced-tool schema. lean=True swaps the verbose auto-schema for a compact hand-written one
+    (same field names → parse_extraction still validates)."""
     return {
         "name": "emit_extraction",
         "description": "Emit the structured graph extracted from the CURRENT chunk only.",
-        "input_schema": ChunkExtraction.model_json_schema(),
+        "input_schema": _lean_schema() if lean else ChunkExtraction.model_json_schema(),
     }
 
 
@@ -141,7 +158,7 @@ def _vocab() -> dict:
     return yaml.safe_load((_CFG / "entity_vocabulary.yaml").read_text(encoding="utf-8"))
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(lean: bool = False) -> str:
     v = _vocab()
     node_types = list(v.get("nodes", {}).keys())
     edges = list(v.get("edges", {}).keys())
@@ -153,6 +170,34 @@ def build_system_prompt() -> str:
         return ", ".join(v["nodes"].get(t) or []) or "(open set — mint instances)"
 
     node_lines = "\n".join(f"  {t}: {_members(t)}" for t in node_types)
+    if lean:
+        # Compact variant (~1.7K tok vs ~4.3K): keeps the recall-drivers (node-model, full node lists,
+        # edges, markers, few-shot) but strips verbosity. Pairs with extraction_tool(lean=True).
+        return f"""Knowledge-graph extractor for Leviathan's CAUSAL CASCADE graph (commodity quant research).
+PRIORITIZE cascade edges: causal links, cross-commodity substitution/competition, crush + biofuel
+feedstock, supply-demand, policy->trade. Extract ONLY what the CURRENT chunk states (prior/next = context).
+
+NODE-MODEL: a node is a COMMODITY/entity; the metric (production/yield/export/import/stock/consumption/
+area/price/spread/...) + direction ride on the RELATION (metric,sign) or a quantitative_claim — never a
+metric-in-node id (no `arabica_production`; use `arabica_coffee` + metric=production).
+
+CANONICALIZE entities to these node TYPES (resolve aliases; if none fits -> mapped=false + add to
+unmapped_entities):
+{node_lines}
+
+RELATIONS — use ONLY: {", ".join(edges)}. Set sign +/-/0 and metric=affected series. No fit ->
+relation_type="OTHER", mapped=false, describe in unmapped_relations (do NOT force-fit). Prefer
+causes/affects_yield_of when a causal marker is present ({", ".join(markers[:8])}); a causal link with no
+marker -> emit with marker=null. evidence_class in {{fact,reported_claim,model_inference}}. Every
+relation/claim carries the exact `verbatim`.
+
+EXAMPLES:
+- "India cotton yield fell due to erratic monsoon": excess_rain -affects_yield_of(-)-> cotton [yield], marker="due to".
+- "Russia produced 0.7 mmt more corn": Russia -produces(+)-> corn [production]; claim corn production +0.7 mmt.
+- "Snow protected Turkey winter crops from frost": protective_snow_cover -affects_yield_of(+)-> wheat [yield].
+- "Sunflower oil glut pressured palm oil": sunflower_oil -substitutes_for(+)-> palm_oil [price].
+- "Shrimp farmers bid for the protein": shrimp NOT a node -> mapped=false, add to unmapped_entities.
+Emit via emit_extraction only."""
     return f"""You are a knowledge-graph extractor building Leviathan's CAUSAL CASCADE graph for
 commodity quant researchers. The graph exists to trace how a shock propagates — weather/policy/logistics
 shock -> supply-demand balance -> trade flows -> substitute markets -> price/policy. So PRIORITIZE the
