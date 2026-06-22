@@ -730,8 +730,9 @@ def _validate_report(P, D, pcost, dcost, keys) -> None:
     _OUT.mkdir(parents=True, exist_ok=True)
     recall = len(D & P) / len(P) if P else 0.0
     fmt = lambda e: f"{e[0]} -{e[1]}({e[3] or '-'})-> {e[2]}"   # noqa: E731
-    missed = [fmt(e) for e in sorted(P - D)]
-    extra = [fmt(e) for e in sorted(D - P)]
+    keyf = lambda e: tuple(str(x) for x in e)                   # noqa: E731 — metric can be None
+    missed = [fmt(e) for e in sorted(P - D, key=keyf)]
+    extra = [fmt(e) for e in sorted(D - P, key=keyf)]
     L = ["# Chunking validation — det_1000+lean vs propositional (both Sonnet+lean)",
          f"\n{len(keys)} docs: {[_source_of(k) for k in keys]}",
          f"- **P (propositional)** = {len(P)} edges, ${pcost:.2f}",
