@@ -43,13 +43,24 @@ def test_score_doc_priority_and_cost():
 
 
 def test_knapsack_respects_budget_and_value_order():
-    rows = [{"priority": 1.0, "est_cost": 1.0},   # value/$ 1.0
-            {"priority": 0.9, "est_cost": 0.3},   # 3.0 (best)
-            {"priority": 0.5, "est_cost": 1.0},   # 0.5
-            {"priority": 0.8, "est_cost": 0.4}]   # 2.0
+    rows = [{"value": 1.0, "est_cost": 1.0},   # value/$ 1.0
+            {"value": 0.9, "est_cost": 0.3},   # 3.0 (best)
+            {"value": 0.5, "est_cost": 1.0},   # 0.5
+            {"value": 0.8, "est_cost": 0.4}]   # 2.0
     picked, cost = pr.knapsack(rows, 1.0)
     assert cost <= 1.0
     assert {round(r["est_cost"], 1) for r in picked} == {0.3, 0.4}   # the two best value/$ that fit
+
+
+def test_score_doc_value_scales_with_content():
+    p = {"density_weights": W, "liquidity": {"_default": 1.0}, "recency": [[0, 1.0]],
+         "chars_per_prop": 50, "usd_per_prop": 0.01}
+    short = pr._score_doc("text/source=usda_gain_wheat/year=2020/document.json",
+                          "Wheat fell because drought hit Kansas. " * 3, p, MARKERS)
+    long = pr._score_doc("text/source=usda_gain_wheat/year=2020/document.json",
+                         "Wheat fell because drought hit Kansas. " * 30, p, MARKERS)
+    assert long["value"] > short["value"]          # same quality, more content → more value
+    assert long["est_props"] > short["est_props"]
 
 
 def test_year_cutoff_contiguous_newest_first_with_floor():

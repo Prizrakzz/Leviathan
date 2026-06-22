@@ -76,9 +76,10 @@ def _score_doc(key: str, text: str, p: dict, markers: list[str]) -> dict:
     liq = liquidity(commodity, p.get("liquidity", {}))
     rec = recency(year, p.get("recency", []))
     est_props = max(1, round(alpha_chars / p.get("chars_per_prop", 130)))
+    prio = round(dens * liq * rec, 5)                        # per-prop QUALITY (0–1)
     return {"key": key, "source": _source_of(key), "commodity": commodity, "year": year,
             "era": bx._era_of(key), "chars": len(text), "density": dens, "liquidity": liq,
-            "recency": rec, "priority": round(dens * liq * rec, 5),
+            "recency": rec, "priority": prio, "value": round(prio * est_props, 4),  # quality × content volume
             "est_props": est_props, "est_cost": round(est_props * p.get("usd_per_prop", 0.0085), 4)}
 
 
@@ -114,8 +115,9 @@ def scan(s3, *, sample: int = 0, workers: int = 24) -> list[dict]:
 
 # ── selection ────────────────────────────────────────────────────────────────────
 def knapsack(rows: list[dict], budget: float) -> tuple[list[dict], float]:
-    """Greedy value/$ pick (priority per dollar) until budget exhausted — value-optimal slice."""
-    ordered = sorted(rows, key=lambda r: (r["priority"] / r["est_cost"]) if r["est_cost"] else 0.0, reverse=True)
+    """Greedy value/$ pick until budget exhausted — value-optimal slice. value = priority × est_props
+    (quality × content), so value/$ ∝ priority → favours recent + liquid + dense docs, not just cheap ones."""
+    ordered = sorted(rows, key=lambda r: (r["value"] / r["est_cost"]) if r["est_cost"] else 0.0, reverse=True)
     picked, cost = [], 0.0
     for r in ordered:
         if cost + r["est_cost"] <= budget:
@@ -146,14 +148,14 @@ def _coverage(rows: list[dict]) -> str:
 
 def report(rows: list[dict], budget: float, density_floor: float, *, sampled: bool) -> None:
     _OUT.mkdir(parents=True, exist_ok=True)
-    total_value = sum(r["priority"] for r in rows) or 1.0
+    total_value = sum(r["value"] for r in rows) or 1.0
     total_cost = sum(r["est_cost"] for r in rows)
     by_year = collections.defaultdict(lambda: {"n": 0, "cost": 0.0, "value": 0.0, "dens": []})
     for r in rows:
         a = by_year[r["year"]]
         a["n"] += 1
         a["cost"] += r["est_cost"]
-        a["value"] += r["priority"]
+        a["value"] += r["value"]
         a["dens"].append(r["density"])
     years = sorted((y for y in by_year if y != "unknown"), key=int, reverse=True)
 
@@ -180,7 +182,7 @@ def report(rows: list[dict], budget: float, density_floor: float, *, sampled: bo
         a = by_com[r["commodity"]]
         a["n"] += 1
         a["cost"] += r["est_cost"]
-        a["value"] += r["priority"]
+        a["value"] += r["value"]
         a["dens"].append(r["density"])
     L += ["\n## Per-commodity", "| commodity | liquidity | docs | avg density | est cost | value% |",
           "|---|---:|---:|---:|---:|---:|"]
@@ -194,11 +196,11 @@ def report(rows: list[dict], budget: float, density_floor: float, *, sampled: bo
     cut, yc, ycost = year_cutoff(rows, budget, density_floor)
     L += [f"\n## Selection for ${budget:,.0f}",
           f"- **Knapsack (value/$ optimal):** {len(kp)} docs, ${kc:,.0f}, "
-          f"**{sum(r['priority'] for r in kp) / total_value:.0%} of total value**; years "
+          f"**{sum(r['value'] for r in kp) / total_value:.0%} of total value**; years "
           f"{min((int(r['year']) for r in kp if r['year'] != 'unknown'), default='?')}–"
           f"{max((int(r['year']) for r in kp if r['year'] != 'unknown'), default='?')}",
           f"- **Year-cutoff (contiguous, density ≥ {density_floor}):** ≥ **{cut}** → {len(yc)} docs, ${ycost:,.0f}, "
-          f"{sum(r['priority'] for r in yc) / total_value:.0%} of value",
+          f"{sum(r['value'] for r in yc) / total_value:.0%} of value",
           f"- knapsack commodity coverage: {_coverage(kp)}"]
     (_OUT / "prioritization_report.md").write_text("\n".join(L), encoding="utf-8")
     print("\n".join(L), flush=True)
