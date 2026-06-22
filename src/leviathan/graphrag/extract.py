@@ -56,6 +56,44 @@ def _norm_metric(m: str | None) -> str | None:
     return _METRIC_ALIASES.get(m, m) if m else m
 
 
+# ── edge-class taxonomy (cascade engine) ─────────────────────────────────────────
+# PROPAGATING edges carry a shock from one node to another (the cascade scaffolding); REFERENCE edges
+# are structural/origin facts that don't propagate; CORROBORATION edges relate claims/series. Used to
+# (a) weight retrieval toward cascades and (b) collapse the metric-agnostic `produces` flood without
+# ever touching a real cascade edge. Light normalization — we never merge near-duplicate cascades.
+PROPAGATING_EDGES = {
+    "causes", "affects_yield_of", "teleconnects_to", "amplifies", "dampens", "substitutes_for",
+    "competes_with", "crushed_into", "refined_into", "feedstock_for", "diverted_to", "redirects_to",
+    "restricts", "subsidizes", "delays", "disrupts",
+}
+REFERENCE_EDGES = {"produces", "depends_on", "belongs_to_group"}
+CORROBORATION_EDGES = {"leads_lags", "correlates_with", "precedes", "confirms", "contradicts", "cited_by"}
+
+
+def _edge_class(relation_type: str) -> str:
+    if relation_type in PROPAGATING_EDGES:
+        return "propagating"
+    if relation_type in CORROBORATION_EDGES:
+        return "corroboration"
+    return "reference"   # produces/depends_on/belongs_to_group + any unknown → low-weight, not a cascade
+
+
+def collapse_reference_edges(rels: list) -> list:
+    """Collapse the metric-agnostic `produces` flood (~52% of edges) to ONE edge per (src,dst), metric
+    dropped — origin facts don't carry a metric. Every PROPAGATING cascade edge is left untouched (we
+    never merge near-duplicate cascades; the multi-hop richness is the asset). Returns a new list."""
+    out, seen = [], set()
+    for r in rels:
+        if r.relation_type == "produces":
+            key = (r.src_entity, r.dst_entity)
+            if key in seen:
+                continue
+            seen.add(key)
+            r = r.model_copy(update={"metric": None})
+        out.append(r)
+    return out
+
+
 def _normalize(s: str) -> str:
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     return re.sub(r"[\s_\-]+", " ", s).strip().lower()
@@ -127,12 +165,12 @@ class ChunkExtraction(BaseModel):
     unmapped_entities: list[str] = []    # entities that don't map to a node type
 
 
-def _lean_schema() -> dict:
-    """Hand-written minimal input_schema matching ChunkExtraction's field names/shapes — ~400 tok vs the
-    ~1,500-tok auto model_json_schema(). ChunkExtraction fills defaults for any field the model omits."""
+def _chunk_props() -> dict:
+    """The six ChunkExtraction list-fields as a JSON-schema property dict — shared by the lean tool and
+    the mini-batch tool. ChunkExtraction fills defaults for any field the model omits."""
     s = {"type": "string"}
     arr = lambda props: {"type": "array", "items": {"type": "object", "properties": props}}  # noqa: E731
-    return {"type": "object", "properties": {
+    return {
         "entities": arr({"id": s, "type": s, "canonical_name": s, "mapped": {"type": "boolean"}}),
         "relationships": arr({"src": s, "dst": s, "relation_type": s, "metric": s, "sign": s,
                               "evidence_class": s, "marker": s, "verbatim": s, "mapped": {"type": "boolean"}}),
@@ -140,7 +178,13 @@ def _lean_schema() -> dict:
         "quantitative_claims": arr({"entity": s, "metric": s, "value": {"type": "number"}, "unit": s,
                                     "period": s, "direction": s, "verbatim": s}),
         "unmapped_relations": {"type": "array", "items": s},
-        "unmapped_entities": {"type": "array", "items": s}}}
+        "unmapped_entities": {"type": "array", "items": s}}
+
+
+def _lean_schema() -> dict:
+    """Hand-written minimal input_schema matching ChunkExtraction's field names/shapes — ~400 tok vs the
+    ~1,500-tok auto model_json_schema(). ChunkExtraction fills defaults for any field the model omits."""
+    return {"type": "object", "properties": _chunk_props()}
 
 
 def extraction_tool(lean: bool = False) -> dict:
@@ -150,6 +194,25 @@ def extraction_tool(lean: bool = False) -> dict:
         "name": "emit_extraction",
         "description": "Emit the structured graph extracted from the CURRENT chunk only.",
         "input_schema": _lean_schema() if lean else ChunkExtraction.model_json_schema(),
+    }
+
+
+def minibatch_extraction_tool(lean: bool = True) -> dict:
+    """Forced-tool schema for a MINI-BATCH request: ONE extraction object per labeled [Pk] proposition,
+    keyed by prop_index. This amortizes the system+tool prefix across K props (the cacheless cost lever)
+    while keeping each proposition atomic — the fix for the blob-of-props recall loss. The per-item
+    schema is always the compact `_chunk_props()` (a verbose per-item schema would bloat the very prefix
+    the batching is trying to save); `lean` is accepted for call-site symmetry."""
+    _ = lean
+    item_props = {"prop_index": {"type": "integer", "description": "1-based index of the [Pk] proposition"},
+                  **_chunk_props()}
+    return {
+        "name": "emit_minibatch_extraction",
+        "description": ("Emit ONE structured extraction per labeled proposition [P1]..[PK]. Each "
+                        "results entry's prop_index MUST equal the [Pk] number; extract each "
+                        "proposition INDEPENDENTLY (neighbors are context only)."),
+        "input_schema": {"type": "object", "properties": {
+            "results": {"type": "array", "items": {"type": "object", "properties": item_props}}}},
     }
 
 
@@ -185,8 +248,10 @@ CANONICALIZE entities to these node TYPES (resolve aliases; if none fits -> mapp
 unmapped_entities):
 {node_lines}
 
-RELATIONS — use ONLY: {", ".join(edges)}. Set sign +/-/0 and metric=affected series. No fit ->
-relation_type="OTHER", mapped=false, describe in unmapped_relations (do NOT force-fit). Prefer
+RELATIONS — use ONLY: {", ".join(edges)}. Set sign +/-/0 and metric=the series the DESTINATION moves
+(yield/price/export/import/stock/production/...). A price->yield or policy->yield link is a VALID causal
+chain — emit it (affects_yield_of/causes, metric=yield); never drop a link for being indirect/multi-hop.
+No fit -> relation_type="OTHER", mapped=false, describe in unmapped_relations (do NOT force-fit). Prefer
 causes/affects_yield_of when a causal marker is present ({", ".join(markers[:8])}); a causal link with no
 marker -> emit with marker=null. evidence_class in {{fact,reported_claim,model_inference}}. Every
 relation/claim carries the exact `verbatim`.
@@ -220,6 +285,11 @@ NODE TYPES:
 
 RELATIONS — use ONLY these edge types; set `sign` to "+"/"-"/"0" and `metric` to the affected series:
   {", ".join(edges)}
+The `metric` is the series the DESTINATION moves (yield, price, production, export, import, stock,
+consumption, area, spread). An INDIRECT link is still real: a price → yield effect (farmers substitute
+crops), or a policy → yield effect, is a valid causal chain — emit it as affects_yield_of/causes with
+metric=yield. NEVER drop a relationship just because it is multi-hop or indirect; those chains are the
+whole point of the graph.
 If a real relationship does NOT fit one of these edge types, set relation_type="OTHER", mapped=false,
 AND add a short description to unmapped_relations. Do NOT force a bad fit — we are measuring coverage.
 
@@ -253,6 +323,19 @@ def build_user_message(prev_text: str, current_text: str, next_text: str) -> str
     return (f"[PRIOR CONTEXT]\n{prev_text or '(none)'}\n\n"
             f"[CURRENT CHUNK — extract from this]\n{current_text}\n\n"
             f"[NEXT CONTEXT]\n{next_text or '(none)'}")
+
+
+def build_minibatch_message(props: list[str], *, prev: str = "", next: str = "") -> str:
+    """K consecutive propositions in ONE request, each a labeled [Pk] unit. They are each other's local
+    context (a coherence gain over the K=1 prev/next), but each relation must be anchored in its own
+    [Pk]. Pairs with minibatch_extraction_tool — emit one results entry per [Pk]."""
+    labeled = "\n\n".join(f"[P{i + 1}] {p}" for i, p in enumerate(props))
+    return ("Extract from EACH labeled proposition below INDEPENDENTLY. The other propositions and the "
+            "PRIOR/NEXT context are background only — anchor every relation in its own [Pk]. Return "
+            "exactly one results entry per [Pk] (prop_index = k).\n\n"
+            f"[PRIOR CONTEXT]\n{prev or '(none)'}\n\n"
+            f"[PROPOSITIONS]\n{labeled}\n\n"
+            f"[NEXT CONTEXT]\n{next or '(none)'}")
 
 
 # ── the Opus call (forced tool use) ───────────────────────────────────────────────
@@ -296,6 +379,32 @@ def parse_extraction(tool_input: dict) -> ChunkExtraction:
             except (json.JSONDecodeError, TypeError):
                 fixed[k] = []
     return ChunkExtraction.model_validate(fixed)
+
+
+def parse_minibatch(tool_input: dict) -> list[tuple[int, ChunkExtraction]]:
+    """Split a mini-batch tool result into (prop_index, ChunkExtraction) pairs, reusing parse_extraction
+    per item. Tolerant: a stringified `results`, a missing/garbled prop_index, or one malformed item
+    never sinks the batch — bad items are skipped (the caller scores a missing index as a friction miss)."""
+    results = tool_input.get("results")
+    if isinstance(results, str):
+        try:
+            results = json.loads(results)
+        except (json.JSONDecodeError, TypeError):
+            results = []
+    out: list[tuple[int, ChunkExtraction]] = []
+    for item in results or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("prop_index"))
+        except (TypeError, ValueError):
+            continue
+        rest = {k: v for k, v in item.items() if k != "prop_index"}
+        try:
+            out.append((idx, parse_extraction(rest)))
+        except Exception:  # noqa: BLE001 — skip a malformed item, keep the rest of the batch
+            continue
+    return out
 
 
 # ── map the loose extraction into strict contracts + collect friction ─────────────

@@ -11,6 +11,7 @@ Output is the FULL grounded-truth graph (all five contract tables, with provenan
     python -m leviathan.graphrag.batch_extract --submit         # chunk + persist + create batch, exit
     python -m leviathan.graphrag.batch_extract --retrieve <id>  # poll + fetch + write full records
     python -m leviathan.graphrag.batch_extract --run            # submit then poll inline
+    python -m leviathan.graphrag.batch_extract --minibatch-test # K props/request vs K=1 (cascade-preserving cost test)
 """
 from __future__ import annotations
 
@@ -759,6 +760,214 @@ def dry_validate(s3, *, seed: int) -> None:
           f"est ${est:.2f}. No API calls.")
 
 
+# ── MINI-BATCH TEST: does K props/request preserve cascades while amortizing the prefix? ──────────
+# The prefix (~2.3K lean tok) is re-paid per chunk and is uncacheable in Batch. Sending K propositions
+# per request pays it ~1/K×. The risk is that batching degrades extraction (blob-of-props loses edges),
+# so the test scores by the END GOAL: cascade-edge recall + multi-hop-chain preservation vs the K=1 arm.
+_MINIBATCH_SOURCES = ["usda_gain_soybean_meal", "usda_gain_coffee_semiannual"]  # crush cascade + weather→price
+MINIBATCH_MAX_PER_DOC = 120        # bound cost; shared first-N props so every arm sees identical inputs
+_PROP_OUT_TOK = 450                # per-proposition output estimate for the dry-run
+
+
+def _sample_minibatch(s3, seed: int) -> list[str]:
+    """2 content-rich docs, different commodity complexes — enough multi-hop narrative to form chains."""
+    by = collections.defaultdict(list)
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX):
+        for o in page.get("Contents", []):
+            if o["Key"].endswith("document.json"):
+                by[_source_of(o["Key"])].append(o["Key"])
+    rng = random.Random(seed)
+    picked = [rng.choice(by[s]) for s in _MINIBATCH_SOURCES if by.get(s)]
+    for src, keys in by.items():                       # backfill to 2 distinct sources if a target is absent
+        if len(picked) >= 2:
+            break
+        if all(_source_of(p) != src for p in picked) and keys:
+            picked.append(rng.choice(keys))
+    return picked[:2]
+
+
+def _build_minibatch_reqs(chunks_by_key, model, tag, *, k, lean=True):
+    """Arm builder. k==1 = the reference path (one request/prop, emit_extraction, prev/next context).
+    k>1 = consecutive props grouped into one mini-batch request (emit_minibatch_extraction). The SAME
+    pre-chunked props feed every arm, so K is the only variable. manifest[cid] = the group's chunks."""
+    system = ex.build_system_prompt(lean=lean)
+    manifest, reqs = {}, []
+    if k == 1:
+        tool = ex.extraction_tool(lean=lean)
+        for chunks in chunks_by_key.values():
+            for i, ch in enumerate(chunks):
+                cid = _custom_id(f"{tag}-{ch.chunk_id}")
+                prev = chunks[i - 1].proposition if i > 0 else ""
+                nxt = chunks[i + 1].proposition if i < len(chunks) - 1 else ""
+                reqs.append({"custom_id": cid, "params": {
+                    "model": model, "max_tokens": 4096, "system": system,
+                    "messages": [{"role": "user", "content": ex.build_user_message(prev, ch.proposition, nxt)}],
+                    "tools": [tool], "tool_choice": {"type": "tool", "name": "emit_extraction"}}})
+                manifest[cid] = {"chunks": [ch.model_dump(mode="json")]}
+    else:
+        tool = ex.minibatch_extraction_tool(lean=lean)
+        for chunks in chunks_by_key.values():
+            for start in range(0, len(chunks), k):
+                grp = chunks[start:start + k]
+                prev = chunks[start - 1].proposition if start > 0 else ""
+                nxt = chunks[start + k].proposition if start + k < len(chunks) else ""
+                cid = _custom_id(f"{tag}-{grp[0].chunk_id}-g{len(grp)}")
+                msg = ex.build_minibatch_message([c.proposition for c in grp], prev=prev, next=nxt)
+                reqs.append({"custom_id": cid, "params": {
+                    "model": model, "max_tokens": 8192, "system": system,
+                    "messages": [{"role": "user", "content": msg}],
+                    "tools": [tool], "tool_choice": {"type": "tool", "name": "emit_minibatch_extraction"}}})
+                manifest[cid] = {"chunks": [c.model_dump(mode="json") for c in grp]}
+    return reqs, manifest
+
+
+def _two_hop_chains(cascade: set) -> set:
+    """All a→b→c chains over PROPAGATING edges (shared middle b, a≠c) — the multi-hop scaffolding the
+    graph exists to support. A chain = (a, r1, b, r2, c)."""
+    by_src = collections.defaultdict(list)
+    for (s, rt, d, _m) in cascade:
+        by_src[s].append((rt, d))
+    chains = set()
+    for (s, rt, d, _m) in cascade:
+        for (rt2, c) in by_src.get(d, []):
+            if c != s:
+                chains.add((s, rt, d, rt2, c))
+    return chains
+
+
+def _collect_minibatch(client, bid, manifest, model, k):
+    """Map an arm's results → (collapsed) edge set, cascade subset, 2-hop chain set, cost, prop count."""
+    nt, nm, edg = ex.vocab_sets()
+    pin, pout = ex.price(model)
+    rels, in_tok, out_tok, fails, n_props = [], 0, 0, 0, 0
+    for r in client.messages.batches.results(bid):
+        if r.result.type != "succeeded":
+            fails += 1
+            continue
+        msg = r.result.message
+        u = getattr(msg, "usage", None)
+        in_tok += getattr(u, "input_tokens", 0)
+        out_tok += getattr(u, "output_tokens", 0)
+        ti = next((b.input for b in msg.content if getattr(b, "type", None) == "tool_use"), None)
+        m = manifest.get(r.custom_id)
+        if ti is None or m is None:
+            fails += 1
+            continue
+        chunks = [Chunk(**c) for c in m["chunks"]]
+        if k == 1:
+            try:
+                mapped, _ = ex.to_contracts(ex.parse_extraction(ti), chunks[0],
+                                            node_types=nt, node_members=nm, edges=edg)
+                rels += mapped["relationships"]
+                n_props += 1
+            except Exception:  # noqa: BLE001 — one quirky result must not sink the arm
+                fails += 1
+        else:
+            seen = set()
+            for idx, x in ex.parse_minibatch(ti):
+                if not (1 <= idx <= len(chunks)) or idx in seen:
+                    continue
+                seen.add(idx)
+                try:
+                    mapped, _ = ex.to_contracts(x, chunks[idx - 1], node_types=nt, node_members=nm, edges=edg)
+                    rels += mapped["relationships"]
+                except Exception:  # noqa: BLE001
+                    fails += 1
+            n_props += len(seen)
+            fails += len(chunks) - len(seen)            # propositions the model failed to return
+    collapsed = ex.collapse_reference_edges(rels)
+    edges = {(r.src_entity, r.relation_type, r.dst_entity, r.metric) for r in collapsed}
+    cascade = {e for e in edges if ex._edge_class(e[1]) == "propagating"}
+    cost = (in_tok * pin + out_tok * pout) * _BATCH_PRICE
+    return dict(edges=edges, cascade=cascade, chains=_two_hop_chains(cascade), cost=cost,
+                n_props=n_props, n_reqs=len(manifest), fails=fails)
+
+
+def _minibatch_report(arms: dict, ref_label: str, keys, ks) -> None:
+    _OUT.mkdir(parents=True, exist_ok=True)
+    fmt_e = lambda e: f"{e[0]} -{e[1]}({e[3] or '-'})-> {e[2]}"        # noqa: E731
+    fmt_c = lambda c: f"{c[0]} ={c[1]}=> {c[2]} ={c[3]}=> {c[4]}"      # noqa: E731
+    ek = lambda e: tuple(str(x) for x in e)                            # noqa: E731 — metric can be None
+    ref = arms[ref_label]
+    L = ["# Mini-batch test — does K props/request preserve cascades while amortizing the prefix?",
+         f"\n{len(keys)} docs: {[_source_of(k) for k in keys]} | all arms Sonnet+lean+fixes | "
+         f"reference = {ref_label}\n",
+         "| arm | reqs | props | edges | cascade | chains | cost | $/prop | proj corpus $ | "
+         "cascade-recall | chain-recall |",
+         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for k in ks:
+        lab = f"k{k}"
+        a = arms.get(lab)
+        if not a:
+            continue
+        dpp = a["cost"] / a["n_props"] if a["n_props"] else 0.0
+        proj = (a["cost"] / len(keys)) * _CORPUS_DOCS if keys else 0.0
+        is_ref = lab == ref_label
+        cr = len(a["cascade"] & ref["cascade"]) / len(ref["cascade"]) if ref["cascade"] else 1.0
+        hr = len(a["chains"] & ref["chains"]) / len(ref["chains"]) if ref["chains"] else 1.0
+        L.append(f"| {lab}{' (ref)' if is_ref else ''} | {a['n_reqs']} | {a['n_props']} | {len(a['edges'])} | "
+                 f"{len(a['cascade'])} | {len(a['chains'])} | ${a['cost']:.2f} | ${dpp:.4f} | ${proj:,.0f} | "
+                 f"{'—' if is_ref else f'{cr:.0%}'} | {'—' if is_ref else f'{hr:.0%}'} |")
+    for k in [x for x in ks if f"k{x}" != ref_label]:
+        a = arms.get(f"k{k}")
+        if not a:
+            continue
+        miss_c = [fmt_e(e) for e in sorted(ref["cascade"] - a["cascade"], key=ek)]
+        miss_h = [fmt_c(c) for c in sorted(ref["chains"] - a["chains"], key=ek)]
+        L += [f"\n## K={k}: cascade edges the reference found but K={k} MISSED ({len(miss_c)}) — salient or footnote?"]
+        L += miss_c or ["- none"]
+        L += [f"\n## K={k}: multi-hop chains MISSED ({len(miss_h)}) — the cascade-reasoning loss"]
+        L += [f"- {c}" for c in miss_h] or ["- none"]
+    L += ["\n**Verdict:** ship mini-batch at the largest K with cascade-recall >=~90% AND chain-recall "
+          ">=~90% AND $/prop well below the reference. K=10 -> K=5 fallback; if both fail, keep K=1 and "
+          "prioritize the run.",
+          "\nLimits: 2 docs, a 2-hop proxy for multi-hop, and K>1 props see batch-mates as context (a real",
+          "production property of the mini-batch arm, not matched away)."]
+    (_OUT / "minibatch_report.md").write_text("\n".join(L), encoding="utf-8")
+    print("\n".join(L), flush=True)
+    print(f"\nwrote {_OUT / 'minibatch_report.md'}", flush=True)
+
+
+def minibatch_test(s3, client, *, seed: int, ks: list[int]) -> None:
+    keys = _sample_minibatch(s3, seed)
+    print(f"minibatch test on {len(keys)} docs: {[_source_of(k) for k in keys]} | K={ks}")
+    chunks_by_key = {}                                  # chunk ONCE (Haiku) → identical props for every arm
+    for key in keys:
+        chs = _chunks_for(s3, key, "haiku", gate=True)[:MINIBATCH_MAX_PER_DOC]
+        chunks_by_key[key] = chs
+        print(f"  {_source_of(key)}: {len(chs)} props (capped {MINIBATCH_MAX_PER_DOC})")
+    runs = []
+    for k in ks:
+        reqs, mani = _build_minibatch_reqs(chunks_by_key, ex.SONNET, f"k{k}", k=k)
+        bid = client.messages.batches.create(requests=reqs).id
+        runs.append((k, bid, mani))
+        print(f"  submitted k{k}: {len(reqs)} requests -> {bid}", flush=True)
+    for _, bid, _ in runs:
+        while client.messages.batches.retrieve(bid).processing_status != "ended":
+            time.sleep(30)
+    arms = {f"k{k}": _collect_minibatch(client, bid, mani, ex.SONNET, k) for k, bid, mani in runs}
+    _minibatch_report(arms, f"k{min(ks)}", keys, ks)    # smallest K (=1) is the reference
+
+
+def dry_minibatch(s3, *, seed: int, ks: list[int]) -> None:
+    keys = _sample_minibatch(s3, seed)
+    sysl = len(ex.build_system_prompt(lean=True))
+    props = sum(min(len(_chunks_for(s3, k, "deterministic", 1000, gate=True)) * 10, MINIBATCH_MAX_PER_DOC)
+                for k in keys)                          # det proxy ×10 ≈ propositional, capped (no Haiku spend)
+    sp_in, sp_out = ex.price(ex.SONNET)
+    pre = sysl // 4 + 170                               # lean prefix tokens (system + tool + framing)
+    print(f"minibatch docs: {[_source_of(k) for k in keys]} | ~{props} props (det proxy)")
+    total = 0.0
+    for k in ks:
+        n_reqs = props if k == 1 else -(-props // k)    # ceil
+        in_tok = n_reqs * pre + props * 40              # prefix per request + ~40 tok/prop text
+        out_tok = props * _PROP_OUT_TOK
+        c = (in_tok * sp_in + out_tok * sp_out) * _BATCH_PRICE
+        total += c
+        print(f"  [dry] k{k}: ~{n_reqs} requests, est ${c:.2f}")
+    print(f"[dry-run] total est ${total:.2f} (Sonnet+lean, Batch -50%). No API calls.")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="GraphRAG cloud Batch extraction.")
     g = ap.add_mutually_exclusive_group()
@@ -769,22 +978,31 @@ def main() -> int:
     g.add_argument("--sweep", action="store_true", help="chunk-granularity recall-vs-cost experiment")
     g.add_argument("--decider", action="store_true", help="full-commodity, multi-era, Sonnet-vs-Opus run")
     g.add_argument("--validate", action="store_true", help="det_1000+lean vs propositional edge-recall check")
+    g.add_argument("--minibatch-test", action="store_true",
+                   help="K props/request vs K=1: cascade + multi-hop-chain preservation at lower $/prop")
     ap.add_argument("--dry-run", action="store_true", help="estimate only, no API calls")
     ap.add_argument("--docs", type=int, default=1, help="docs for --sweep")
+    ap.add_argument("--ks", default="1,5,10", help="comma-separated K values for --minibatch-test")
     ap.add_argument("--seed", type=int, default=20260621)
     ap.add_argument("--chunker", choices=["haiku", "deterministic"], default="haiku")
     ap.add_argument("--region", default="us-east-1")
     args = ap.parse_args()
 
+    ks = [int(x) for x in args.ks.split(",") if x.strip()]
     _load_env()
     s3 = boto3.client("s3", region_name=args.region)
     if args.dry_run:                                   # estimate-only paths need no API client
-        dry = dry_decider if args.decider else dry_validate if args.validate else dry_run
-        dry(s3, seed=args.seed)
+        if args.minibatch_test:
+            dry_minibatch(s3, seed=args.seed, ks=ks)
+        else:
+            dry = dry_decider if args.decider else dry_validate if args.validate else dry_run
+            dry(s3, seed=args.seed)
         return 0
     import anthropic
     client = anthropic.Anthropic(api_key=_api_key())
-    if args.decider:
+    if args.minibatch_test:
+        minibatch_test(s3, client, seed=args.seed, ks=ks)
+    elif args.decider:
         decider(s3, client, seed=args.seed)
     elif args.validate:
         validate(s3, client, seed=args.seed)

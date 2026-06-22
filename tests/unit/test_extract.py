@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 
 from leviathan.graphrag import extract as ex
-from leviathan.graphrag.contracts import Chunk
+from leviathan.graphrag.contracts import Chunk, Relationship, SourceRef
 
 NODE_TYPES = {"commodity", "hazard"}
 NODE_MEMBERS = {"arabica_coffee", "frost"}
@@ -111,6 +111,63 @@ def test_lean_prompt_shorter_keeps_drivers():
     assert len(lean) < len(full) * 0.75                       # materially shorter
     for keep in ("NODE-MODEL", "arabica_coffee", "produces", "EXAMPLES"):
         assert keep in lean, f"lean prompt dropped recall-driver: {keep}"
+
+
+def test_edge_class_taxonomy():
+    assert ex._edge_class("causes") == "propagating"
+    assert ex._edge_class("affects_yield_of") == "propagating"
+    assert ex._edge_class("crushed_into") == "propagating"        # the crush cascade carries shocks
+    assert ex._edge_class("produces") == "reference"
+    assert ex._edge_class("belongs_to_group") == "reference"
+    assert ex._edge_class("cited_by") == "corroboration"
+    assert ex._edge_class("totally_unknown_edge") == "reference"  # unknown → low-weight default
+
+
+def test_collapse_reference_edges_collapses_produces_keeps_cascades():
+    def rel(src, rt, dst, metric):
+        return Relationship(edge_id=f"{src}{rt}{dst}{metric}", src_entity=src, relation_type=rt,
+                            dst_entity=dst, metric=metric, sign="+", confidence=0.9, evidence_class="fact",
+                            edge_scope="structural",
+                            sources=[SourceRef(chunk_id="c", source="s", document_date=date(2020, 1, 1),
+                                               verbatim_span="v")])
+    rels = [rel("Brazil", "produces", "coffee", "production"),
+            rel("Brazil", "produces", "coffee", "area"),          # same (src,dst), different metric
+            rel("frost", "affects_yield_of", "coffee", "yield"),
+            rel("excess_rain", "affects_yield_of", "coffee", "yield")]
+    out = ex.collapse_reference_edges(rels)
+    prod = [r for r in out if r.relation_type == "produces"]
+    casc = [r for r in out if r.relation_type == "affects_yield_of"]
+    assert len(prod) == 1 and prod[0].metric is None             # one produces, metric dropped
+    assert len(casc) == 2                                        # near-duplicate cascades NEVER merged
+
+
+def test_minibatch_message_labels_each_proposition():
+    msg = ex.build_minibatch_message(["frost cut coffee output", "prices rose", "tea gained share"],
+                                     prev="ctx", next="more")
+    assert "[P1]" in msg and "[P2]" in msg and "[P3]" in msg
+    assert "INDEPENDENTLY" in msg and "ctx" in msg and "more" in msg
+
+
+def test_minibatch_tool_schema_has_prop_index_and_all_fields():
+    item = ex.minibatch_extraction_tool()["input_schema"]["properties"]["results"]["items"]["properties"]
+    assert "prop_index" in item
+    assert {"entities", "relationships", "events", "quantitative_claims",
+            "unmapped_relations", "unmapped_entities"} <= set(item)
+
+
+def test_parse_minibatch_roundtrips_and_tolerates_bad_items():
+    ti = {"results": [
+        {"prop_index": 1, "relationships": [{"src": "frost", "dst": "coffee",
+                                             "relation_type": "causes", "verbatim": "x"}]},
+        {"prop_index": 2},                                       # sparse — defaults fill in
+        {"no_index": True},                                     # garbled — skipped
+        {"prop_index": 3, "entities": "[{\"id\": \"coffee\", \"type\": \"commodity\", "
+                                      "\"canonical_name\": \"coffee\"}]"}]}  # stringified list field
+    out = ex.parse_minibatch(ti)
+    idxs = [i for i, _ in out]
+    assert idxs == [1, 2, 3]                                     # garbled item dropped, rest kept in order
+    assert out[0][1].relationships[0].relation_type == "causes"
+    assert out[2][1].entities[0].id == "coffee"                 # stringified field coerced
 
 
 def test_system_prompt_has_node_model_rule():

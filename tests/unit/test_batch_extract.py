@@ -174,6 +174,76 @@ def test_block_chars_changes_chunk_count():
     assert len(chunk_document(**kw, target_chars=200)) > len(chunk_document(**kw, target_chars=5000))
 
 
+def test_two_hop_chains_over_propagating_edges():
+    from leviathan.graphrag import extract as ex
+    edges = {("frost", "affects_yield_of", "coffee", "yield"),
+             ("coffee", "substitutes_for", "tea", "price"),
+             ("Brazil", "produces", "coffee", None)}            # reference edge
+    cascade = {e for e in edges if ex._edge_class(e[1]) == "propagating"}
+    chains = bx._two_hop_chains(cascade)
+    assert chains == {("frost", "affects_yield_of", "coffee", "substitutes_for", "tea")}
+
+
+def _mb_chunk(cid):
+    from datetime import date
+    from leviathan.graphrag.contracts import Chunk
+    return Chunk(chunk_id=cid, proposition="p", verbatim_span="p",
+                 source_key="text/source=x/year=2020/document.json", page=0, char_start=0, char_end=1,
+                 document_date=date(2020, 1, 1), source="x", lang="en", translated=False,
+                 extraction_method="pdfplumber", ocr=False, text_quality=0.9)
+
+
+class _MBClient:
+    """Minimal fake exposing only client.messages.batches.results(bid) for _collect_minibatch."""
+    def __init__(self, rr):
+        batches = type("B", (), {"results": lambda self, bid: (_result(c, t) for c, t in rr)})()
+        self.messages = type("M", (), {"batches": batches})()
+
+
+def test_collect_minibatch_maps_indices_collapses_and_chains(monkeypatch):
+    # closed vocab via monkeypatch so this runs in CI without the private IP configs
+    monkeypatch.setattr(bx.ex, "vocab_sets", lambda: (
+        {"commodity", "hazard"}, {"frost", "coffee", "tea", "Brazil"},
+        {"affects_yield_of", "substitutes_for", "produces"}))
+    manifest = {"k5-d-c0-g2": {"chunks": [_mb_chunk("d#c0").model_dump(mode="json"),
+                                          _mb_chunk("d#c1").model_dump(mode="json")]}}
+    rel = lambda s, d, rt, m: {"src": s, "dst": d, "relation_type": rt, "metric": m, "sign": "+",
+                               "mapped": True, "verbatim": "v"}                            # noqa: E731
+    ti = {"results": [
+        {"prop_index": 1, "relationships": [rel("frost", "coffee", "affects_yield_of", "yield"),
+                                            rel("Brazil", "coffee", "produces", "production"),
+                                            rel("Brazil", "coffee", "produces", "area")]},   # produces flood
+        {"prop_index": 2, "relationships": [rel("coffee", "tea", "substitutes_for", "price")]}]}
+    out = bx._collect_minibatch(_MBClient([("k5-d-c0-g2", ti)]), "bid", manifest, bx.ex.SONNET, k=5)
+    assert out["n_props"] == 2                                                   # both indices mapped
+    assert ("frost", "affects_yield_of", "coffee", "yield") in out["cascade"]
+    assert ("Brazil", "produces", "coffee", None) in out["edges"]               # produces collapsed: metric=None
+    assert sum(e[1] == "produces" for e in out["edges"]) == 1                    # flood collapsed to one
+    assert out["chains"] == {("frost", "affects_yield_of", "coffee", "substitutes_for", "tea")}
+
+
+def test_collect_minibatch_counts_missing_index_as_friction(monkeypatch):
+    monkeypatch.setattr(bx.ex, "vocab_sets", lambda: ({"commodity"}, {"coffee"}, {"causes"}))
+    manifest = {"k5-d-c0-g2": {"chunks": [_mb_chunk("d#c0").model_dump(mode="json"),
+                                          _mb_chunk("d#c1").model_dump(mode="json")]}}
+    ti = {"results": [{"prop_index": 1, "relationships": []}]}                   # only 1 of 2 props returned
+    out = bx._collect_minibatch(_MBClient([("k5-d-c0-g2", ti)]), "bid", manifest, bx.ex.SONNET, k=5)
+    assert out["n_props"] == 1 and out["fails"] == 1                            # the dropped prop is friction
+
+
+def test_build_minibatch_reqs_groups_props(monkeypatch):
+    if not _vocab_present():
+        pytest.skip("private vocab not present")
+    chunks = {"k": [_mb_chunk(f"d#c{i}") for i in range(7)]}
+    r1, m1 = bx._build_minibatch_reqs(chunks, bx.ex.SONNET, "k1", k=1)
+    assert len(r1) == 7 and all(r["params"]["tool_choice"]["name"] == "emit_extraction" for r in r1)
+    r5, m5 = bx._build_minibatch_reqs(chunks, bx.ex.SONNET, "k5", k=5)
+    assert len(r5) == 2                                                          # 7 props → ceil(7/5)=2 requests
+    assert all(r["params"]["tool_choice"]["name"] == "emit_minibatch_extraction" for r in r5)
+    assert all("[P1]" in r["params"]["messages"][0]["content"] for r in r5)
+    assert sum(len(v["chunks"]) for v in m5.values()) == 7                       # every prop accounted for
+
+
 def test_retrieve_writes_full_records(monkeypatch, tmp_path):
     if not _vocab_present():
         pytest.skip("private vocab not present")
