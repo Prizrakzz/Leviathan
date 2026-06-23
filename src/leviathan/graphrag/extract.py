@@ -30,9 +30,11 @@ from leviathan.graphrag.contracts import (
 _CFG = Path(__file__).resolve().parents[3] / "configs" / "graphrag"
 MODEL = "claude-opus-4-8"
 SONNET = "claude-sonnet-4-6"
+HAIKU = "claude-haiku-4-5"
 # list price ($/token) per model: (input, output). Batch halves these at billing time.
 PRICES = {"claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6),
-          "claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6)}
+          "claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6),
+          "claude-haiku-4-5": (1.0 / 1e6, 5.0 / 1e6)}
 PRICE_IN, PRICE_OUT = PRICES[MODEL]   # default (Opus) — back-compat for existing callers
 
 
