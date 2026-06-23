@@ -228,6 +228,50 @@ def minibatch_extraction_tool(lean: bool = True) -> dict:
     }
 
 
+# ── compact-output schema (the OUTPUT-token lever — Exp-1 showed output = 72% of the warm call) ──
+# Short-key ↔ full-field maps. Output keys are shortened (fewer structural tokens); the re-inflated dict
+# uses the canonical field names so parse_extraction / to_contracts are unchanged.
+_SHORT_TOP = {"E": "entities", "R": "relationships", "V": "events", "Q": "quantitative_claims",
+              "UR": "unmapped_relations", "UE": "unmapped_entities"}
+_SHORT_ENT = {"i": "id", "t": "type"}
+_SHORT_REL = {"s": "src", "d": "dst", "r": "relation_type", "m": "metric", "g": "sign",
+              "c": "evidence_class", "k": "marker"}
+_SHORT_CLAIM = {"e": "entity", "m": "metric", "n": "value", "u": "unit", "p": "period", "g": "direction"}
+_SHORT_EVENT = {"y": "event_type", "c": "commodity", "o": "country", "x": "description"}
+
+
+def compact_output_tool(short: bool = False) -> dict:
+    """Output-trimmed forced-tool schema. ALWAYS omits `verbatim` (the echoed source span — the biggest
+    output term), `canonical_name` (defaults to id) and `mapped` (recomputed) → fewer OUTPUT tokens at ~no
+    recall cost (provenance falls to chunk level). `short=True` ALSO shortens the keys (more saving, higher
+    model-comprehension risk — the experiment's secondary arm). Same tool NAME so the forced tool_choice is
+    unchanged. Pair with build_system_prompt(slim=True) + parse_compact(short=...)."""
+    s = {"type": "string"}
+    arr = lambda props: {"type": "array", "items": {"type": "object", "properties": props}}  # noqa: E731
+    if short:
+        top = {"E": arr({"i": s, "t": s}),
+               "R": arr({"s": s, "d": s, "r": s, "m": s, "g": s, "c": s, "k": s}),
+               "V": arr({"y": s, "c": s, "o": s, "x": s}),
+               "Q": arr({"e": s, "m": s, "n": {"type": "number"}, "u": s, "p": s, "g": s}),
+               "UR": {"type": "array", "items": s}, "UE": {"type": "array", "items": s}}
+        desc = ("Emit the graph from the CURRENT chunk with COMPACT keys (omit verbatim/canonical_name/"
+                "mapped). E=entities[i=id,t=type]; R=relationships[s=src,d=dst,r=relation_type,m=metric,"
+                "g=sign(+/-/0),c=evidence_class,k=marker]; V=events[y=event_type,c=commodity,o=country,"
+                "x=description]; Q=quantitative_claims[e=entity,m=metric,n=value,u=unit,p=period,"
+                "g=direction]; UR=unmapped_relations; UE=unmapped_entities.")
+    else:
+        top = {"entities": arr({"id": s, "type": s}),
+               "relationships": arr({"src": s, "dst": s, "relation_type": s, "metric": s, "sign": s,
+                                     "evidence_class": s, "marker": s}),
+               "events": arr({"event_type": s, "commodity": s, "country": s, "description": s}),
+               "quantitative_claims": arr({"entity": s, "metric": s, "value": {"type": "number"},
+                                           "unit": s, "period": s, "direction": s}),
+               "unmapped_relations": {"type": "array", "items": s},
+               "unmapped_entities": {"type": "array", "items": s}}
+        desc = "Emit the graph from the CURRENT chunk. Omit verbatim/canonical_name/mapped (chunk-level provenance)."
+    return {"name": "emit_extraction", "description": desc, "input_schema": {"type": "object", "properties": top}}
+
+
 # ── prompt (reads the git-ignored vocab/hierarchy IP at runtime) ──────────────────
 def _merge_seed(v: dict, seed: dict) -> None:
     """Additively merge a harvested seed (Phase-1 harvest) into the vocab — new node members + aliases +
@@ -257,7 +301,12 @@ def _vocab() -> dict:
     return v
 
 
-def build_system_prompt(lean: bool = False) -> str:
+_SLIM_NOTE = ("\n\nCOMPACT OUTPUT: OMIT the `verbatim`, `canonical_name`, and `mapped` fields entirely "
+              "(provenance is tracked at chunk level; canonical_name defaults to the id). Still add "
+              "non-vocab entities to unmapped_entities and non-fitting relations to unmapped_relations.")
+
+
+def build_system_prompt(lean: bool = False, slim: bool = False) -> str:
     v = _vocab()
     node_types = list(v.get("nodes", {}).keys())
     edges = list(v.get("edges", {}).keys())
@@ -302,7 +351,7 @@ EXAMPLES:
 - "Snow protected Turkey winter crops from frost": protective_snow_cover -affects_yield_of(+)-> wheat [yield].
 - "Sunflower oil glut pressured palm oil": sunflower_oil -substitutes_for(+)-> palm_oil [price].
 - "Shrimp farmers bid for the protein": shrimp NOT a node -> mapped=false, add to unmapped_entities.
-Emit via emit_extraction only."""
+Emit via emit_extraction only.""" + (_SLIM_NOTE if slim else "")
     return f"""You are a knowledge-graph extractor building Leviathan's CAUSAL CASCADE graph for
 commodity quant researchers. The graph exists to trace how a shock propagates — weather/policy/logistics
 shock -> supply-demand balance -> trade flows -> substitute markets -> price/policy. So PRIORITIZE the
@@ -363,7 +412,7 @@ EXAMPLES (how to fill emit_extraction):
 5. "Shrimp farmers also bid for the protein."  → shrimp is NOT a node type: mapped=false, add
    "shrimp" to unmapped_entities. NEVER force a non-vocab term into a node — we measure coverage.
 
-Emit via the emit_extraction tool only."""
+Emit via the emit_extraction tool only.""" + (_SLIM_NOTE if slim else "")
 
 
 def build_user_message(prev_text: str, current_text: str, next_text: str) -> str:
@@ -451,6 +500,50 @@ def _cache_control(ttl: str | None) -> dict:
     if ttl == "1h":
         cc["ttl"] = "1h"
     return cc
+
+
+def _aslist(v) -> list:
+    """Tolerate a stringified array (the model occasionally JSON-encodes a list field)."""
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    return v if isinstance(v, list) else []
+
+
+def _drop_none(d: dict) -> dict:
+    return {k: v for k, v in d.items() if v is not None}
+
+
+def parse_compact(tool_input: dict, *, short: bool = False) -> ChunkExtraction:
+    """Re-inflate a `compact_output_tool` result into a full ChunkExtraction (verbatim="", canonical_name=id,
+    mapped defaulted) and validate via parse_extraction — so to_contracts and all downstream mapping are
+    unchanged. Omitted/None fields fall back to the contract defaults. `short=True` expands the short keys."""
+    raw = tool_input
+    if short:
+        raw = {_SHORT_TOP.get(k, k): v for k, v in tool_input.items()}
+        raw = {
+            "entities": [{_SHORT_ENT.get(k, k): v for k, v in e.items()} for e in _aslist(raw.get("entities")) if isinstance(e, dict)],
+            "relationships": [{_SHORT_REL.get(k, k): v for k, v in r.items()} for r in _aslist(raw.get("relationships")) if isinstance(r, dict)],
+            "events": [{_SHORT_EVENT.get(k, k): v for k, v in e.items()} for e in _aslist(raw.get("events")) if isinstance(e, dict)],
+            "quantitative_claims": [{_SHORT_CLAIM.get(k, k): v for k, v in c.items()} for c in _aslist(raw.get("quantitative_claims")) if isinstance(c, dict)],
+            "unmapped_relations": _aslist(raw.get("unmapped_relations")),
+            "unmapped_entities": _aslist(raw.get("unmapped_entities"))}
+    ents = [_drop_none({"id": e.get("id"), "type": e.get("type"), "canonical_name": e.get("id")})
+            for e in _aslist(raw.get("entities")) if isinstance(e, dict)]
+    rel_keys = ("src", "dst", "relation_type", "metric", "sign", "evidence_class", "marker")
+    rels = [{**_drop_none({k: r.get(k) for k in rel_keys}), "verbatim": ""}
+            for r in _aslist(raw.get("relationships")) if isinstance(r, dict)]
+    cl_keys = ("entity", "metric", "value", "unit", "period", "direction")
+    claims = [{**_drop_none({k: c.get(k) for k in cl_keys}), "verbatim": ""}
+              for c in _aslist(raw.get("quantitative_claims")) if isinstance(c, dict)]
+    ev_keys = ("event_type", "commodity", "country", "description")
+    events = [{**{k: e.get(k, "") for k in ev_keys}, "verbatim": ""}
+              for e in _aslist(raw.get("events")) if isinstance(e, dict) and all(e.get(k) for k in ev_keys)]
+    return parse_extraction({"entities": ents, "relationships": rels, "quantitative_claims": claims,
+                             "events": events, "unmapped_relations": _aslist(raw.get("unmapped_relations")),
+                             "unmapped_entities": _aslist(raw.get("unmapped_entities"))})
 
 
 def call_extract(client, system: str, user: str, *, model: str = SONNET, max_tokens: int = 4096,

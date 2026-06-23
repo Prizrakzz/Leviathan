@@ -70,3 +70,13 @@ def test_year_cutoff_contiguous_newest_first_with_floor():
             {"year": "2005", "density": 0.1, "est_cost": 1.0}]    # below floor
     cut, chosen, cost = pr.year_cutoff(rows, 2.0, 0.3)
     assert cut == 2021 and len(chosen) == 2 and cost == 2.0
+
+
+def test_stratified_sample_spans_sources():
+    keys = ([f"text/source=usda_gain_cotton/y={i}/document.json" for i in range(20)]
+            + [f"text/source=usda_wasde/y={i}/document.json" for i in range(20)]
+            + ["text/source=mpob/y=1/document.json"])
+    picked = pr._stratified_sample(keys, 6)
+    srcs = {pr._source_of(k) for k in picked}
+    assert len(picked) == 6 and len(srcs) >= 3          # round-robin spans sources, not one bucket
+    assert len(set(picked)) == 6                        # no duplicates

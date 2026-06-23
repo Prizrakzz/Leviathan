@@ -75,7 +75,8 @@ def _score_doc(key: str, text: str, p: dict, markers: list[str]) -> dict:
     dens = density(text, markers, p.get("density_weights", {}))
     liq = liquidity(commodity, p.get("liquidity", {}))
     rec = recency(year, p.get("recency", []))
-    est_props = max(1, round(alpha_chars / p.get("chars_per_prop", 130)))
+    # est_props after the relevance gate (~40% of chunks are boilerplate/tables, never sent to the LLM)
+    est_props = max(1, round(alpha_chars / p.get("chars_per_prop", 130) * p.get("gate_keep_rate", 1.0)))
     prio = round(dens * liq * rec, 5)                        # per-prop QUALITY (0–1)
     return {"key": key, "source": _source_of(key), "commodity": commodity, "year": year,
             "era": bx._era_of(key), "chars": len(text), "density": dens, "liquidity": liq,
@@ -111,6 +112,84 @@ def scan(s3, *, sample: int = 0, workers: int = 24) -> list[dict]:
             if r:
                 rows.append(r)
     return rows
+
+
+# ── calibration: chars_per_prop (the est_props constant) ───────────────────────────
+def _stratified_sample(keys: list[str], n: int, seed: int = 0) -> list[str]:
+    """Round-robin across sources so the sample spans the corpus (not just the biggest source)."""
+    by = collections.defaultdict(list)
+    for k in keys:
+        by[_source_of(k)].append(k)
+    rng = random.Random(seed)
+    for v in by.values():
+        rng.shuffle(v)
+    srcs = list(by)
+    rng.shuffle(srcs)
+    picked, i = [], 0
+    while len(picked) < n and any(by.values()) and i < n * 50:
+        s = srcs[i % len(srcs)]
+        if by[s]:
+            picked.append(by[s].pop())
+        i += 1
+    return picked[:n]
+
+
+def calibrate(s3, *, sample: int = 25) -> None:
+    """Empirically calibrate ``chars_per_prop`` (prioritize.py's est_props constant, default 130). Runs the
+    REAL Haiku propositional chunker (``bx._chunks_for(..., "haiku")``) UNGATED over a stratified doc sample
+    and measures ``alpha_chars / props`` per doc — the relevance gate is applied separately
+    (params.gate_keep_rate), so props are counted ungated. Writes a report + the suggested value."""
+    keys = _stratified_sample(_all_keys(s3), sample)
+    print(f"calibrating chars_per_prop on {len(keys)} stratified docs (Haiku, ungated)…", flush=True)
+    rows = []
+    for k in keys:
+        try:
+            doc = json.loads(s3.get_object(Bucket=BUCKET, Key=k)["Body"].read())
+            full = doc.get("full_text") or ""
+            if not full.strip():
+                continue
+            nprops = len(bx._chunks_for(s3, k, "haiku", gate=False))
+            if nprops == 0:
+                continue
+            alpha = sum(c.isalpha() for c in full)
+            rows.append({"src": _source_of(k), "year": bx._year_of(k), "alpha": alpha,
+                         "props": nprops, "cpp": alpha / nprops})
+            print(f"  {_source_of(k):30} {bx._year_of(k)}  props={nprops:4d}  cpp={alpha / nprops:6.1f}", flush=True)
+        except Exception as e:  # noqa: BLE001 — a bad doc never sinks the sample
+            print(f"  ERR {k[-50:]}: {e}", flush=True)
+    if not rows:
+        raise SystemExit("calibration produced no rows — check S3/Bedrock access")
+    _calibration_report(rows)
+
+
+def _calibration_report(rows: list[dict]) -> None:
+    _OUT.mkdir(parents=True, exist_ok=True)
+    tot_alpha = sum(r["alpha"] for r in rows)
+    tot_props = sum(r["props"] for r in rows)
+    weighted = tot_alpha / tot_props
+    cpps = sorted(r["cpp"] for r in rows)
+    med = cpps[len(cpps) // 2]
+    current = _params().get("chars_per_prop", 130)
+    mult = current / weighted                          # >1 ⇒ corpus has MORE props than assumed ⇒ cost ↑
+    by_src = collections.defaultdict(lambda: {"alpha": 0, "props": 0})
+    for r in rows:
+        a = by_src[r["src"]]
+        a["alpha"] += r["alpha"]
+        a["props"] += r["props"]
+    src_lines = [f"| {s} | {a['props']} | {a['alpha'] / a['props']:.1f} |"
+                 for s, a in sorted(by_src.items(), key=lambda kv: -kv[1]["props"])]
+    L = ["# chars_per_prop calibration (UNGATED Haiku propositional chunker)",
+         f"\n{len(rows)} docs across {len(by_src)} sources | total props {tot_props:,} | total alpha-chars {tot_alpha:,}\n",
+         f"- **weighted chars_per_prop = {weighted:.1f}** (Σalpha / Σprops)",
+         f"- median (per-doc) = {med:.1f} | range {cpps[0]:.0f}–{cpps[-1]:.0f}",
+         f"- current assumption = **{current}** → corpus has **×{mult:.2f} the props** assumed "
+         f"⇒ extraction cost ×{mult:.2f} (set `prioritize.chars_per_prop: {weighted:.0f}`).",
+         "\n## Per-source", "| source | props | chars/prop |", "|---|---:|---:|", *src_lines]
+    (_OUT / "calibration_report.md").write_text("\n".join(L), encoding="utf-8")
+    print(f"weighted chars_per_prop = {weighted:.1f} (median {med:.1f}, range {cpps[0]:.0f}-{cpps[-1]:.0f}); "
+          f"vs assumed {current} -> props x{mult:.2f} -> cost x{mult:.2f}; "
+          f"set prioritize.chars_per_prop: {weighted:.0f}", flush=True)
+    print(f"wrote {_OUT / 'calibration_report.md'}", flush=True)
 
 
 # ── selection ────────────────────────────────────────────────────────────────────
@@ -220,7 +299,14 @@ def main() -> int:
     ap.add_argument("--sample", type=int, default=0, help="scan N random docs (fast preview; no manifest)")
     ap.add_argument("--workers", type=int, default=24)
     ap.add_argument("--region", default="us-east-1")
+    ap.add_argument("--calibrate", type=int, default=0, metavar="N",
+                    help="calibrate chars_per_prop on N stratified docs (Haiku, billed ~$1-3) → report only")
     args = ap.parse_args()
+    if args.calibrate:
+        from leviathan.common import config
+        config.load_env()                              # Bedrock (Haiku) creds + region from .env
+        calibrate(boto3.client("s3", region_name=args.region), sample=args.calibrate)
+        return 0
     budget = args.budget if args.budget is not None else _params().get("default_budget", 1500)
     s3 = boto3.client("s3", region_name=args.region)
     rows = scan(s3, sample=args.sample, workers=args.workers)
