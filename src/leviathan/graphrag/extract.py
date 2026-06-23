@@ -386,14 +386,47 @@ def build_minibatch_message(props: list[str], *, prev: str = "", next: str = "")
 
 
 # ── the Opus call (forced tool use) ───────────────────────────────────────────────
+# prompt-cache write multipliers (× base input price): 1.25× for the default 5-minute TTL, 2× for 1-hour.
+_CACHE_WRITE_MULT = {None: 1.25, "5m": 1.25, "1h": 2.0}
+_CACHE_READ_MULT = 0.1
+_EXT_CACHE_BETA = "extended-cache-ttl-2025-04-11"   # required for ttl="1h"
+
+
 @dataclass
 class Usage:
-    input_tokens: int = 0
+    input_tokens: int = 0          # processed at full price (not cached)
     output_tokens: int = 0
+    cache_creation: int = 0        # prefix tokens WRITTEN to cache this call (paid the write premium)
+    cache_read: int = 0            # prefix tokens SERVED from cache this call (paid 0.1×)
 
     @property
     def cost(self) -> float:
+        """Back-compat: Opus-priced, cache-agnostic (existing callers don't use caching)."""
         return self.input_tokens * PRICE_IN + self.output_tokens * PRICE_OUT
+
+    @property
+    def total_input(self) -> int:
+        """Full prompt size = uncached + written + read (input_tokens alone is the uncached remainder)."""
+        return self.input_tokens + self.cache_creation + self.cache_read
+
+    def cost_for(self, model: str = MODEL, ttl: str | None = None) -> float:
+        """True billed cost for `model`, pricing the cache buckets: reads 0.1×, writes 1.25× (5m) / 2× (1h)."""
+        pin, pout = price(model)
+        return (self.input_tokens * pin
+                + self.cache_read * pin * _CACHE_READ_MULT
+                + self.cache_creation * pin * _CACHE_WRITE_MULT.get(ttl, 1.25)
+                + self.output_tokens * pout)
+
+
+def _usage_from(u) -> Usage:
+    """Read a response usage object into our dataclass, tolerating missing cache fields (sync no-cache
+    responses omit them)."""
+    if u is None:
+        return Usage()
+    return Usage(input_tokens=getattr(u, "input_tokens", 0) or 0,
+                 output_tokens=getattr(u, "output_tokens", 0) or 0,
+                 cache_creation=getattr(u, "cache_creation_input_tokens", 0) or 0,
+                 cache_read=getattr(u, "cache_read_input_tokens", 0) or 0)
 
 
 def call_opus(client, system: str, user: str, *, model: str = MODEL,
@@ -410,9 +443,58 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
     tool_input = next((b.input for b in resp.content if getattr(b, "type", None) == "tool_use"), None)
     if tool_input is None:
         raise ValueError("model returned no tool_use block")
-    u = getattr(resp, "usage", None)
-    usage = Usage(getattr(u, "input_tokens", 0), getattr(u, "output_tokens", 0)) if u else Usage()
-    return tool_input, usage
+    return tool_input, _usage_from(getattr(resp, "usage", None))
+
+
+def _cache_control(ttl: str | None) -> dict:
+    cc = {"type": "ephemeral"}
+    if ttl == "1h":
+        cc["ttl"] = "1h"
+    return cc
+
+
+def call_extract(client, system: str, user: str, *, model: str = SONNET, max_tokens: int = 4096,
+                 cache: bool = False, ttl: str | None = None,
+                 tool: dict | None = None) -> tuple[dict, Usage]:
+    """The PRODUCTION extraction call (forced tool use). When ``cache=True`` the static prefix (tools +
+    system) is sent with a ``cache_control`` breakpoint on the last system block — render order is
+    tools → system → messages, so one breakpoint caches both. Repeat calls over the same prefix then read
+    it at 0.1×. ``ttl="1h"`` uses the 1-hour cache (2× write) + the extended-cache beta header; default is
+    the 5-minute TTL. ``tool_choice`` stays forced — it only invalidates the messages tier, never the
+    cached tools+system. Returns (tool_input, Usage) with the cache buckets populated. Retries are the
+    caller's job (kept thin for the unit fake)."""
+    tool = tool or extraction_tool()
+    kw: dict = dict(model=model, max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": user}],
+                    tools=[tool], tool_choice={"type": "tool", "name": tool["name"]})
+    if cache:
+        kw["system"] = [{"type": "text", "text": system, "cache_control": _cache_control(ttl)}]
+        if ttl == "1h":
+            kw["extra_headers"] = {"anthropic-beta": _EXT_CACHE_BETA}
+    else:
+        kw["system"] = system
+    resp = client.messages.create(**kw)
+    tool_input = next((b.input for b in resp.content if getattr(b, "type", None) == "tool_use"), None)
+    if tool_input is None:
+        raise ValueError("model returned no tool_use block")
+    return tool_input, _usage_from(getattr(resp, "usage", None))
+
+
+def warm_cache(client, system: str, *, model: str = SONNET, ttl: str | None = None,
+               tool: dict | None = None) -> Usage:
+    """Pre-warm the tools+system cache with a ``max_tokens=0`` prefill — the API writes the cache at the
+    breakpoint and returns immediately (no output billed). ``tool_choice`` is OMITTED: ``max_tokens=0``
+    rejects a forced ``{"type":"tool"}`` choice, and tool_choice doesn't affect the tools+system cache
+    anyway, so a real forced call reads what this writes. Use before a concurrent fan-out so workers read
+    the cache instead of each racing to write it. Returns the Usage (``cache_creation`` should be > 0)."""
+    kw: dict = dict(model=model, max_tokens=0,
+                    system=[{"type": "text", "text": system, "cache_control": _cache_control(ttl)}],
+                    messages=[{"role": "user", "content": "warmup"}],
+                    tools=[tool or extraction_tool()])
+    if ttl == "1h":
+        kw["extra_headers"] = {"anthropic-beta": _EXT_CACHE_BETA}
+    resp = client.messages.create(**kw)
+    return _usage_from(getattr(resp, "usage", None))
 
 
 def parse_extraction(tool_input: dict) -> ChunkExtraction:
