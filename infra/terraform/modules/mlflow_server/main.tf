@@ -39,22 +39,16 @@ data "aws_ami" "al2023" {
 #       --parameters portNumber=8080,localPortNumber=8080
 # ---------------------------------------------------------------------------
 resource "aws_security_group" "mlflow" {
-  name        = "${var.project_name}-${var.environment}-mlflow-server"
-  description = "MLflow + Airflow server: ports 5000 and 8080 from VPC only; no inbound SSH."
+  name = "${var.project_name}-${var.environment}-mlflow-server"
+  # Match the adopted live security group. Airflow browser access uses SSM
+  # port-forwarding and does not require a VPC ingress rule.
+  description = "MLflow tracking server: port 5000 from VPC only; no inbound SSH."
   vpc_id      = data.aws_vpc.main.id
 
   ingress {
     description = "MLflow UI and API from within the VPC"
     from_port   = 5000
     to_port     = 5000
-    protocol    = "tcp"
-    cidr_blocks = [data.aws_vpc.main.cidr_block]
-  }
-
-  ingress {
-    description = "Airflow webserver from within the VPC"
-    from_port   = 8080
-    to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = [data.aws_vpc.main.cidr_block]
   }
@@ -104,8 +98,8 @@ resource "aws_iam_role_policy_attachment" "mlflow_ssm" {
 
 data "aws_iam_policy_document" "mlflow_s3" {
   statement {
-    sid     = "MLflowListBucket"
-    actions = ["s3:ListBucket"]
+    sid       = "MLflowListBucket"
+    actions   = ["s3:ListBucket"]
     resources = ["arn:aws:s3:::${var.bucket_name}"]
   }
 
@@ -187,17 +181,28 @@ resource "aws_iam_instance_profile" "mlflow" {
 #   aws ec2 stop-instances   --instance-ids <id> --region us-east-1
 # ---------------------------------------------------------------------------
 resource "aws_instance" "mlflow" {
-  ami                         = data.aws_ami.al2023.id
+  # Phase 0 adopts the existing dev host. Pinning the current AMI and ignoring
+  # bootstrap drift prevents a routine plan from replacing the SQLite-backed
+  # experiment store. Phase 9 will perform the durable-backend migration.
+  ami                         = coalesce(var.ami_id, data.aws_ami.al2023.id)
   instance_type               = "t3.medium"
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.mlflow.id]
   iam_instance_profile        = aws_iam_instance_profile.mlflow.name
-  user_data_replace_on_change = true
+  user_data_replace_on_change = false
 
   root_block_device {
     volume_type = "gp3"
-    volume_size = 20
+    volume_size = var.root_volume_size_gib
     encrypted   = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [
+      ami,
+      user_data,
+    ]
   }
 
   # Terraform expands ${var.*} before this reaches the instance.

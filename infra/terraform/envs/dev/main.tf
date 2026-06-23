@@ -49,11 +49,11 @@ module "ecr_trainer" {
 module "batch" {
   source = "../../modules/batch"
 
-  project_name    = var.project_name
-  environment     = var.environment
-  aws_region      = var.aws_region
-  max_vcpus       = var.batch_max_vcpus
-  subnet_ids      = var.batch_subnet_ids
+  project_name       = var.project_name
+  environment        = var.environment
+  aws_region         = var.aws_region
+  max_vcpus          = var.batch_max_vcpus
+  subnet_ids         = var.batch_subnet_ids
   security_group_ids = var.batch_security_group_ids
 
   ecr_repository_url       = module.ecr.repository_url
@@ -88,7 +88,9 @@ module "mlflow_server" {
   aws_region   = var.aws_region
   bucket_name  = var.bucket_name
   # Reuse the first Batch subnet — same VPC, same routing to S3 and SageMaker.
-  subnet_id    = var.batch_subnet_ids[0]
+  subnet_id            = var.batch_subnet_ids[0]
+  ami_id               = var.mlflow_ami_id
+  root_volume_size_gib = var.mlflow_root_volume_size_gib
 }
 
 # ---------------------------------------------------------------------------

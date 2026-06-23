@@ -37,6 +37,18 @@ variable "batch_security_group_ids" {
   description = "Security group IDs for Fargate tasks."
 }
 
+variable "mlflow_ami_id" {
+  type        = string
+  description = "Pinned AMI for the adopted dev MLflow/Airflow EC2 instance."
+  default     = "ami-0521cb2d60cfbb1a6"
+}
+
+variable "mlflow_root_volume_size_gib" {
+  type        = number
+  description = "Current root volume size for the adopted MLflow/Airflow host."
+  default     = 10
+}
+
 variable "budget_alert_email" {
   type        = string
   description = "Email address for monthly cost budget alerts. Leave empty to disable email notifications."
