@@ -229,8 +229,32 @@ def minibatch_extraction_tool(lean: bool = True) -> dict:
 
 
 # ── prompt (reads the git-ignored vocab/hierarchy IP at runtime) ──────────────────
+def _merge_seed(v: dict, seed: dict) -> None:
+    """Additively merge a harvested seed (Phase-1 harvest) into the vocab — new node members + aliases +
+    verb_normalization + causal_markers. Idempotent; never removes. Keeps entity_vocabulary.yaml as the
+    hand-curated base while the harvest extends it (reversible: delete research_seed.active.yaml)."""
+    nodes, aliases = v.setdefault("nodes", {}), v.setdefault("aliases", {})
+    for ntype in ("hazard", "climate_driver", "state_marker", "policy_event", "instrument"):
+        members = list(nodes.get(ntype) or [])
+        for concept, forms in (seed.get(ntype) or {}).items():
+            if concept not in members:
+                members.append(concept)
+            if forms:
+                al = aliases.setdefault(concept, [])
+                al.extend(f for f in forms if f not in al)
+        nodes[ntype] = members
+    v.setdefault("verb_normalization", {}).update(seed.get("verb_normalization") or {})
+    cm = v.setdefault("causal_markers", [])
+    cm.extend(m for m in (seed.get("causal_markers") or []) if m not in cm)
+
+
 def _vocab() -> dict:
-    return yaml.safe_load((_CFG / "entity_vocabulary.yaml").read_text(encoding="utf-8"))
+    v = yaml.safe_load((_CFG / "entity_vocabulary.yaml").read_text(encoding="utf-8"))
+    seed_p = _CFG / "research_seed.active.yaml"             # pruned seed (harvest output); else the raw seed
+    seed_p = seed_p if seed_p.exists() else _CFG / "research_seed.yaml"
+    if seed_p.exists():
+        _merge_seed(v, yaml.safe_load(seed_p.read_text(encoding="utf-8")) or {})
+    return v
 
 
 def build_system_prompt(lean: bool = False) -> str:
