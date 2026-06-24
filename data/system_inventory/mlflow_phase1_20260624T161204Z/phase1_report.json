@@ -1,0 +1,471 @@
+{
+  "report_name": "MLflow experiment readiness Phase 1 platform repair",
+  "created_at": "2026-06-24T16:22:27.871269+00:00",
+  "git": {
+    "branch": "codex/mlflow-readiness-phase2",
+    "head": "e556fb5f6f08836a83bd84a772211f4e7b6bda64",
+    "head_subject": "Rewrite MLflow readiness plan around legacy gold"
+  },
+  "evidence_directory": "C:\\Users\\User\\Desktop\\Leviathan-phase1\\data\\system_inventory\\mlflow_phase1_20260624T161204Z",
+  "scratch_preservation": {
+    "manifest": "C:\\Users\\User\\Desktop\\Leviathan-phase1\\data\\system_inventory\\mlflow_phase1_20260624T161204Z\\scratch_preservation_manifest.json",
+    "tracked_patch": "C:\\Users\\User\\Desktop\\Leviathan-phase1\\data\\system_inventory\\mlflow_phase1_20260624T161204Z\\uncommitted_tracked_changes.patch",
+    "untracked_file_list": "C:\\Users\\User\\Desktop\\Leviathan-phase1\\data\\system_inventory\\mlflow_phase1_20260624T161204Z\\untracked_files.txt",
+    "untracked_zip": "C:\\Users\\User\\Desktop\\Leviathan-phase1\\data\\system_inventory\\mlflow_phase1_20260624T161204Z\\untracked_files.zip"
+  },
+  "ml_platform_backup": {
+    "backup_id": "2026-06-24T16-12-22Z",
+    "created_at": "2026-06-24T16:12:38.185063+00:00",
+    "instance_id": "i-012f869a03d7247fa",
+    "schema_version": 1,
+    "services": [
+      {
+        "backup_id": "2026-06-24T16-12-22Z",
+        "backup_integrity_check": "ok",
+        "created_at": "2026-06-24T16:12:30.440123+00:00",
+        "database_path": "/home/ec2-user/mlflow/mlflow.db",
+        "database_s3_uri": "s3://leviathan-dev-shahem-001/mlflow/backups/backend/2026-06-24T16-12-22Z/mlflow.db",
+        "database_sha256": "2b153b9ab90bce4e7e79021db5048f63fc18e795b465d735a4800daed83a0934",
+        "database_size_bytes": 266240,
+        "instance_id": "i-012f869a03d7247fa",
+        "manifest_s3_uri": "s3://leviathan-dev-shahem-001/mlflow/backups/backend/2026-06-24T16-12-22Z/manifest.json",
+        "schema_version": 1,
+        "service": "mlflow",
+        "service_status": {
+          "mlflow": "active"
+        },
+        "service_version": "mlflow, version 3.1.4",
+        "source_integrity_check": "ok",
+        "table_counts": {
+          "alembic_version": 1,
+          "datasets": 0,
+          "experiment_tags": 0,
+          "experiments": 2,
+          "input_tags": 0,
+          "inputs": 0,
+          "latest_metrics": 32,
+          "logged_model_metrics": 0,
+          "logged_model_params": 0,
+          "logged_model_tags": 0,
+          "logged_models": 0,
+          "metrics": 32,
+          "model_version_tags": 0,
+          "model_versions": 0,
+          "params": 4,
+          "registered_model_aliases": 0,
+          "registered_model_tags": 0,
+          "registered_models": 0,
+          "runs": 1,
+          "tags": 21,
+          "trace_info": 0,
+          "trace_request_metadata": 0,
+          "trace_tags": 0
+        }
+      },
+      {
+        "backup_id": "2026-06-24T16-12-22Z",
+        "backup_integrity_check": "ok",
+        "created_at": "2026-06-24T16:12:36.966883+00:00",
+        "database_path": "/home/ec2-user/airflow/airflow.db",
+        "database_s3_uri": "s3://leviathan-dev-shahem-001/airflow/backups/backend/2026-06-24T16-12-22Z/airflow.db",
+        "database_sha256": "ff2002b460b2a1b36fec47a76c366ac5685e2bd0d4570875b52634ce384b75e4",
+        "database_size_bytes": 557056,
+        "instance_id": "i-012f869a03d7247fa",
+        "manifest_s3_uri": "s3://leviathan-dev-shahem-001/airflow/backups/backend/2026-06-24T16-12-22Z/manifest.json",
+        "schema_version": 1,
+        "service": "airflow",
+        "service_status": {
+          "airflow-scheduler": "active",
+          "airflow-webserver": "active"
+        },
+        "service_version": "2.9.3",
+        "source_integrity_check": "ok",
+        "table_counts": {
+          "ab_permission": 5,
+          "ab_permission_view": 113,
+          "ab_permission_view_role": 224,
+          "ab_register_user": 0,
+          "ab_role": 5,
+          "ab_user": 1,
+          "ab_user_role": 1,
+          "ab_view_menu": 60,
+          "alembic_version": 1,
+          "callback_request": 0,
+          "connection": 0,
+          "dag": 7,
+          "dag_code": 7,
+          "dag_owner_attributes": 0,
+          "dag_pickle": 0,
+          "dag_run": 0,
+          "dag_run_note": 0,
+          "dag_schedule_dataset_reference": 0,
+          "dag_tag": 23,
+          "dag_warning": 0,
+          "dagrun_dataset_event": 0,
+          "dataset": 0,
+          "dataset_dag_run_queue": 0,
+          "dataset_event": 0,
+          "import_error": 0,
+          "job": 3,
+          "log": 15,
+          "log_template": 1,
+          "rendered_task_instance_fields": 0,
+          "serialized_dag": 7,
+          "session": 7,
+          "sla_miss": 0,
+          "slot_pool": 1,
+          "task_fail": 0,
+          "task_instance": 0,
+          "task_instance_note": 0,
+          "task_map": 0,
+          "task_outlet_dataset_reference": 0,
+          "task_reschedule": 0,
+          "trigger": 0,
+          "variable": 0,
+          "xcom": 0
+        }
+      }
+    ]
+  },
+  "restore_verification": {
+    "mlflow": {
+      "manifest_s3_uri": "s3://leviathan-dev-shahem-001/mlflow/backups/backend/2026-06-24T16-12-22Z/manifest.json",
+      "verification": {
+        "integrity_check": "ok",
+        "mode": "verify-only",
+        "service": "mlflow",
+        "sha256": "2b153b9ab90bce4e7e79021db5048f63fc18e795b465d735a4800daed83a0934",
+        "size_bytes": 266240,
+        "table_counts": {
+          "alembic_version": 1,
+          "datasets": 0,
+          "experiment_tags": 0,
+          "experiments": 2,
+          "input_tags": 0,
+          "inputs": 0,
+          "latest_metrics": 32,
+          "logged_model_metrics": 0,
+          "logged_model_params": 0,
+          "logged_model_tags": 0,
+          "logged_models": 0,
+          "metrics": 32,
+          "model_version_tags": 0,
+          "model_versions": 0,
+          "params": 4,
+          "registered_model_aliases": 0,
+          "registered_model_tags": 0,
+          "registered_models": 0,
+          "runs": 1,
+          "tags": 21,
+          "trace_info": 0,
+          "trace_request_metadata": 0,
+          "trace_tags": 0
+        }
+      }
+    },
+    "airflow": {
+      "manifest_s3_uri": "s3://leviathan-dev-shahem-001/airflow/backups/backend/2026-06-24T16-12-22Z/manifest.json",
+      "verification": {
+        "integrity_check": "ok",
+        "mode": "verify-only",
+        "service": "airflow",
+        "sha256": "ff2002b460b2a1b36fec47a76c366ac5685e2bd0d4570875b52634ce384b75e4",
+        "size_bytes": 557056,
+        "table_counts": {
+          "ab_permission": 5,
+          "ab_permission_view": 113,
+          "ab_permission_view_role": 224,
+          "ab_register_user": 0,
+          "ab_role": 5,
+          "ab_user": 1,
+          "ab_user_role": 1,
+          "ab_view_menu": 60,
+          "alembic_version": 1,
+          "callback_request": 0,
+          "connection": 0,
+          "dag": 7,
+          "dag_code": 7,
+          "dag_owner_attributes": 0,
+          "dag_pickle": 0,
+          "dag_run": 0,
+          "dag_run_note": 0,
+          "dag_schedule_dataset_reference": 0,
+          "dag_tag": 23,
+          "dag_warning": 0,
+          "dagrun_dataset_event": 0,
+          "dataset": 0,
+          "dataset_dag_run_queue": 0,
+          "dataset_event": 0,
+          "import_error": 0,
+          "job": 3,
+          "log": 15,
+          "log_template": 1,
+          "rendered_task_instance_fields": 0,
+          "serialized_dag": 7,
+          "session": 7,
+          "sla_miss": 0,
+          "slot_pool": 1,
+          "task_fail": 0,
+          "task_instance": 0,
+          "task_instance_note": 0,
+          "task_map": 0,
+          "task_outlet_dataset_reference": 0,
+          "task_reschedule": 0,
+          "trigger": 0,
+          "variable": 0,
+          "xcom": 0
+        }
+      }
+    }
+  },
+  "catalog_plan_before_apply": {
+    "path": "C:\\Users\\User\\Desktop\\Leviathan-phase1\\data\\system_inventory\\mlflow_phase1_20260624T161204Z\\catalog_plan_before_apply.json",
+    "action_counts": {
+      "noop": 46,
+      "create": 8,
+      "replace": 1
+    },
+    "non_noop_actions": [
+      {
+        "action": "create",
+        "dataset_id": "gold_v2_dataset_manifests",
+        "ddl_sha256": "1f768c7a55db3d6f5e99a6ae3a8c61ae26e679c4cd94fd80c9d35552dc568d7f",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "gold_v2_dataset_manifests"
+      },
+      {
+        "action": "create",
+        "dataset_id": "gold_v2_feature_catalog",
+        "ddl_sha256": "b236e870c125e3465692c1663f20de6e9a1076f7935037d6cd875a13cfa3ebaa",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "gold_v2_feature_catalog"
+      },
+      {
+        "action": "create",
+        "dataset_id": "gold_v2_feature_entity_map",
+        "ddl_sha256": "60e5cb7581ba21ab8f909c21f7fe86c0b22b952c34ffa915e8324fce6a2207cb",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "gold_v2_feature_entity_map"
+      },
+      {
+        "action": "create",
+        "dataset_id": "gold_v2_feature_group_map",
+        "ddl_sha256": "ef16e953ba04d29465c55fce1d0dc6cf8eac16101a19289fa4d61ba155f95674",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "gold_v2_feature_group_map"
+      },
+      {
+        "action": "create",
+        "dataset_id": "gold_v2_feature_matrix",
+        "ddl_sha256": "06b319befaab5b43b9637f518f0272df1f334ed8b2a4c56363eb30c5a3c35870",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "gold_v2_feature_matrix"
+      },
+      {
+        "action": "create",
+        "dataset_id": "gold_v2_feature_spine",
+        "ddl_sha256": "7e8ff5cd8a1ad6ebb4a4d1674da936702a2c441536984a87789074c1d3919d4f",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "gold_v2_feature_spine"
+      },
+      {
+        "action": "create",
+        "dataset_id": "silver_ams_cotton_quality",
+        "ddl_sha256": "91bf45bf7e87e3b40a4e4ba4460134c53376ec23de70283399aa8a5ece3d8bf9",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "silver_ams_cotton_quality"
+      },
+      {
+        "action": "replace",
+        "dataset_id": "silver_conab_coffee",
+        "ddl_sha256": "3cf6fe0bc089bc2e97d143038036ad29c398e0e046d627373003cdd51430a673",
+        "reasons": [
+          "columns",
+          "partitions",
+          "properties"
+        ],
+        "table": "silver_conab_coffee"
+      },
+      {
+        "action": "create",
+        "dataset_id": "silver_wasde",
+        "ddl_sha256": "abfe53b5c784e92370949b3c539c8c5ca46a97d66ac190f425f52b370d0e62de",
+        "reasons": [
+          "table_missing"
+        ],
+        "table": "silver_wasde"
+      }
+    ],
+    "decision": "Applied only active missing silver_wasde and silver_ams_cotton_quality DDLs. Deferred gold_v2_* tables and avoided silver_conab_coffee replacement under the rebased plan."
+  },
+  "catalog_repair": {
+    "applied_ddls": [
+      {
+        "query_execution_id": "6ae8386f-5ab5-4fee-9fc8-816eb877b69b",
+        "state": "SUCCEEDED",
+        "reason": null,
+        "output_location": "s3://leviathan-dev-shahem-001/athena-results/catalog-reconciliation/6ae8386f-5ab5-4fee-9fc8-816eb877b69b.txt",
+        "data_scanned_bytes": 0
+      },
+      {
+        "query_execution_id": "c7ba88e2-7c00-4374-8a4a-62952a77b366",
+        "state": "SUCCEEDED",
+        "reason": null,
+        "output_location": "s3://leviathan-dev-shahem-001/athena-results/catalog-reconciliation/c7ba88e2-7c00-4374-8a4a-62952a77b366.txt",
+        "data_scanned_bytes": 0
+      }
+    ],
+    "glue_tables": {
+      "silver_wasde": {
+        "name": "silver_wasde",
+        "location": "s3://leviathan-dev-shahem-001/silver/wasde",
+        "columns": [
+          "commodity",
+          "table_type",
+          "region",
+          "marketing_year",
+          "attribute",
+          "unit",
+          "estimate",
+          "prior_release_date",
+          "prior_estimate",
+          "revision",
+          "revision_direction",
+          "months_to_marketing_year_end",
+          "is_first_estimate",
+          "is_final_or_latest",
+          "raw_table_name",
+          "raw_region",
+          "raw_attribute",
+          "raw_status",
+          "raw_projection_month",
+          "source"
+        ],
+        "partition_keys": [
+          "release_date"
+        ]
+      },
+      "silver_ams_cotton_quality": {
+        "name": "silver_ams_cotton_quality",
+        "location": "s3://leviathan-dev-shahem-001/silver/ams_cotton_quality",
+        "columns": [
+          "commodity",
+          "season",
+          "geography",
+          "percent_tenderable",
+          "samples_classed",
+          "avg_staple",
+          "avg_micronaire",
+          "avg_strength",
+          "source_pages",
+          "source_raw_key",
+          "source_file_etag",
+          "source"
+        ],
+        "partition_keys": []
+      }
+    }
+  },
+  "athena_smoke": {
+    "silver_wasde_2026_05_12": {
+      "state": "SUCCEEDED",
+      "query_execution_id": "c1e74bb7-9061-47df-bfa2-0adc73a7154a",
+      "reason": null,
+      "data_scanned_bytes": 144,
+      "rows": [
+        {
+          "n": "600",
+          "commodities": "7",
+          "min_release_date": "2026-05-12",
+          "max_release_date": "2026-05-12"
+        }
+      ]
+    },
+    "silver_wasde_1985_01_11": {
+      "state": "SUCCEEDED",
+      "query_execution_id": "b9099e28-1726-44c6-9402-4f6377bd5a0a",
+      "reason": null,
+      "data_scanned_bytes": 91,
+      "rows": [
+        {
+          "n": "51",
+          "commodities": "1",
+          "min_release_date": "1985-01-11",
+          "max_release_date": "1985-01-11"
+        }
+      ]
+    },
+    "silver_ams_cotton_quality": {
+      "state": "SUCCEEDED",
+      "query_execution_id": "c96cd237-9a47-496e-a8b5-133f906f2e0e",
+      "reason": null,
+      "data_scanned_bytes": 475,
+      "rows": [
+        {
+          "n": "27",
+          "min_season": "1986",
+          "max_season": "2025",
+          "avg_percent_tenderable": "68.99629629629628"
+        }
+      ]
+    },
+    "gold_feature_spine_corn": {
+      "state": "SUCCEEDED",
+      "query_execution_id": "9f53eef3-bc59-4632-a1da-110d63e64f55",
+      "reason": null,
+      "data_scanned_bytes": 10892,
+      "rows": [
+        {
+          "n": "16863",
+          "features": "459",
+          "min_crop_year": "1981",
+          "max_crop_year": "2026"
+        }
+      ]
+    },
+    "gold_training_windows": {
+      "state": "SUCCEEDED",
+      "query_execution_id": "3255f48f-de4e-4112-8de2-84c2cb885258",
+      "reason": null,
+      "data_scanned_bytes": 0,
+      "rows": [
+        {
+          "n": "124"
+        }
+      ]
+    }
+  },
+  "terraform_plan": {
+    "path": "C:\\Users\\User\\Desktop\\Leviathan-phase1\\data\\system_inventory\\mlflow_phase1_20260624T161204Z\\terraform_plan_attempt.txt",
+    "status": "blocked_missing_required_variables",
+    "missing_required_variables": [
+      "bucket_name",
+      "batch_subnet_ids",
+      "batch_security_group_ids"
+    ],
+    "note": "No Terraform apply was run. Plan cannot evaluate EC2 replacement safety in this isolated worktree until the dev variable values or approved tfvars are provided.",
+    "contains_no_apply": true
+  },
+  "phase1_status": {
+    "mlflow_airflow_backup": "pass",
+    "restore_verify": "pass",
+    "active_glue_missing_tables": "repaired",
+    "athena_smoke": "pass",
+    "terraform_replacement_check": "blocked_missing_vars",
+    "overall": "complete_except_terraform_drift_check_blocked_by_missing_vars"
+  }
+}
