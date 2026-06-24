@@ -1,2486 +1,1431 @@
-# MLflow Experiment Readiness Remediation Plan
+# MLflow Experiment Readiness Plan
 
-Status: Proposed  
-Prepared: 2026-06-23  
-Scope: Existing Leviathan data and infrastructure only  
-Primary goal: Make the platform trustworthy and reproducible for MLflow model experimentation
+Status: Audited rewrite  
+Prepared: 2026-06-24  
+Scope: Existing Leviathan data, code, S3, Glue/Athena, MLflow, Airflow, and Batch infrastructure  
+Primary goal: Make Leviathan ready for reproducible MLflow experimentation using the broad existing `gold/feature_spine`
 
-## 1. Objective
+## 1. Executive Decision
 
-Leviathan should reach a state where a researcher can select a valid target,
-select a versioned point-in-time feature set, launch an experiment, compare it
-with appropriate baselines, and reproduce every result from immutable data and
-configuration.
+The MLflow training surface should remain the existing broad
+`gold/feature_spine` and `gold/feature_matrix`.
 
-Experiment-ready means more than "the training script runs." It means:
+`gold_v2` should not replace it in the near term. The useful parts of the v2
+work are architectural and governance pieces:
 
-1. Every training value has a defined business meaning, unit, grain, source,
-   and first-knowable timestamp.
-2. Every feature is available at the declared forecast as-of date.
-3. Every target is appropriate for the physical commodity being modeled.
-4. Source revisions, forecasts, flows, and final values are distinguishable.
-5. Contract aliases do not create fake independent learning problems.
-6. The exact training dataset can be reconstructed and compared across runs.
-7. MLflow stores parameters, data lineage, evaluation results, and a fitted
-   model artifact.
-8. Infrastructure changes cannot silently destroy experiment history.
-9. Athena and checked-in DDLs describe the data that actually exists in S3.
-10. Price data enters the fundamental track only when it represents a
-    point-in-time economic mechanism that changes physical supply, demand,
-    processing, storage, trade, or acreage decisions. Price forecasting,
-    technical signals, and price-relative mispricing remain out of scope.
+- immutable dataset versions;
+- manifests;
+- source availability rules;
+- source certification reports;
+- feature taxonomy;
+- model-purpose feature sets;
+- feature-policy metadata;
+- catalog/entity/group mapping.
 
-The completion of this plan does not imply that any model is production-ready.
-It creates the controlled laboratory required to determine which models deserve
-promotion later.
+Those ideas should be folded around the existing broad gold layer instead of
+recomputing all feature ETLs through a new thin v2 builder.
 
-## 2. Hard Constraints
+The reason is empirical: live S3 shows that current legacy gold is much broader
+than v2.
 
-### 2.1 Data scope
+| Layer | Verified state | Decision |
+|---|---:|---|
+| `gold/feature_spine` | 31 commodity partitions | Keep as primary feature computation layer |
+| `gold/feature_matrix` | 31 commodity partitions, 4,370 total matrix rows | Keep as primary training matrix source |
+| Observed matrix feature columns | 2,680 distinct observed columns | Treat as real feature universe to catalog |
+| Stored `gold_feature_catalog` | 148 rows, all marked `universal` | Replace with versioned catalog logic |
+| `gold_v2` | 8 objects, 3 commodities, 4-7 features per commodity | Keep as proof/future PIT design, not replacement |
 
-- Use only data already present in S3.
-- New transformations over existing raw, bronze, silver, and gold data are in
-  scope.
-- Downloading or purchasing new external datasets is out of scope.
-- Existing raw documents may be reparsed when the current structured result is
-  missing or defective.
-
-### 2.2 Fundamental-only policy
-
-The primary experiment track predicts physical fundamentals, official
-revisions, physical flows, quality, or supply-and-demand balances. It does not
-predict contract prices, returns, spreads, or mispricing.
-
-Price data is allowed when it is transformed into a point-in-time economic
-driver with a documented causal mechanism affecting physical fundamentals.
-The governing distinction is the role of the variable, not whether its source
-is a futures exchange or a cash-market series.
-
-Allowed economic-transmission examples:
-
-- Board crush margin derived from soybean, soybean-meal, and soybean-oil prices:
-  processor profitability changes soybean crush demand and meal/oil output.
-- Sugar-versus-ethanol parity: mill allocation economics change sugar output
-  and ethanol output from the same cane crop.
-- Fertilizer and energy input costs: expected margins affect planted area,
-  application rates, drying, processing, and freight.
-- Producer or internal prices, when lagged to the planting or investment
-  decision window: expected returns can affect acreage, replanting, and crop
-  maintenance.
-- Exchange rates: producer selling incentives, export pace, input affordability,
-  and crop-switching economics.
-- Freight or fuel-cost proxies: trade-flow competitiveness and processing costs.
-- Product-versus-feedstock margins for oilseeds, sugar, ethanol, or other
-  processing chains.
-
-Excluded uses:
-
-- Contract price, return, or spread as a prediction target.
-- Price momentum, moving averages, breakouts, technical indicators, or chart
-  patterns.
-- Price-relative fair-value or mispricing models.
-- Calendar spreads or term structure.
-- Contemporaneous own-contract prices used as a shortcut for information already
-  embedded in the market, unless the experiment specifically studies a
-  pre-decision physical response and uses a strictly lagged incentive window.
-- CFTC positioning.
-- Any price feature whose availability timestamp, economic mechanism, and
-  decision lag are undefined.
-
-Feature-policy classes:
-
-- `core_fundamental`: physical observations, official estimates, weather,
-  crop condition, physical flows, quality, and balance-sheet quantities.
-- `certified_economic_driver`: transformed price or cost variables with a
-  documented physical mechanism, point-in-time availability, and target
-  eligibility rules.
-- `diagnostic_only`: useful context for analysis, monitoring, slicing, or
-  explanation, but not part of core fundamental training sets by default.
-- `excluded_market_signal`: market-implied or technical variables that are
-  blocked from fundamental S&D datasets.
-
-Initial classifications:
-
-- `pink_sheet_energy_z`: `certified_economic_driver`.
-- `crush_margin_z`: `certified_economic_driver`.
-- Vegetable-oil substitution premiums built from Pink Sheet prices:
-  `certified_economic_driver`.
-- `cot_mm_net_z` and `cot_mm_pct_oi_z`: `diagnostic_only`.
-- `vol_regime`: `diagnostic_only`.
-- Calendar spreads, term structure, price momentum, and own-contract returns:
-  `excluded_market_signal` for the fundamental track.
-
-Every allowed price-derived feature must declare:
-
-- `economic_mechanism`
-- `affected_balance_component`
-- `decision_window`
-- `minimum_lag`
-- `source_series`
-- `unit_conversion`
-- `feature_available_at`
-- `eligible_targets`
-- `prohibited_targets`
-
-For example, a crush-margin feature may be eligible for soybean crush,
-soybean-meal production, soybean-oil production, or ending-stock models. It is
-not automatically eligible for predicting the soybean futures price.
-
-Other allowed core inputs include:
-
-- Weather and remote sensing.
-- Crop progress and crop condition.
-- Official production, area, and yield estimates.
-- Official estimate revisions.
-- Physical exports, deliveries, crush, stocks, consumption, and trade flows.
-- Physical quality and tenderability statistics.
-- Climate indices such as ONI and IOD.
-- Source availability and data-quality indicators.
-- Certified economic-transmission features that satisfy the mechanism and
-  point-in-time requirements above.
-
-### 2.3 Operational scope
-
-- Batch experimentation remains the training execution method.
-- MLflow remains the experiment tracking and model artifact system.
-- Airflow remains the scheduled orchestration surface.
-- Athena remains the SQL inspection and validation surface.
-- This plan does not require real-time endpoints.
-- This plan does not require SageMaker Feature Store or SageMaker endpoints.
-
-## 3. Verified Starting State
-
-The following observations were verified against the live repository and AWS
-environment on 2026-06-23.
-
-| Area | Verified state | Consequence |
-|---|---|---|
-| S3 lake | 2,032,475 objects, approximately 34.63 GB | The lake is substantial; manual object-by-object inspection is impractical without inventory metadata |
-| S3 inventory | No S3 Inventory configuration | No cheap, durable whole-bucket audit or daily object manifest |
-| S3 versioning | Suspended | Experiment inputs and MLflow bootstrap state have weak recovery protection |
-| Gold matrices | 31 commodity matrices | The current training surface covers all configured contracts |
-| Empirical feature universe | 2,680 observed feature columns | The real taxonomy is much larger than the stored catalog |
-| Empirical scope | 9 universal, 113 shared, 2,558 commodity-specific | The stored feature scope is materially wrong |
-| Stored feature catalog | 148 rows, all marked universal | A single-commodity run overwrote the global catalog |
-| Crop calendars | 11 of 31 contracts | Twenty contracts have no stage-aware crop calendar |
-| Contract targets | 31 contracts map to 13 FAOSTAT items | Many contract models currently share identical physical labels |
-| PSD silver | 163,707 rows; all revision columns null | PSD cannot currently train a revision model |
-| WASDE bronze | Approximately 473 non-empty releases and 943,000 rows | Existing data can support real release-vintage modeling after normalization |
-| CONAB silver | All later survey production values equal the first survey | Current revision fields contain no usable information |
-| NASS annual | 14,631 rows across 593 partitions | Strong US final annual source is available |
-| NASS crop progress | 141,714 rows across 279 partitions | Rich weekly in-season state data is available but compressed to one annual mean in gold |
-| NASS citrus | 2,450 rows, 967 nonzero revisions | Strong FCOJ revision data exists but is absent from gold |
-| SAGIS CEC | 2,071 rows, 1,592 nonzero revisions | Strong South African revision data exists |
-| SAGIS weekly | 2,668 delivery rows and 1,204 export rows | Physical trajectory data exists |
-| FNC monthly | 1,360 rows from 1913 through 2026 | Long coffee production and export history exists |
-| UNICA | Annual and fortnightly physical crush, sugar, and ethanol tables exist | Strong raw-sugar in-season features exist but are absent from gold |
-| MPOB | 113 monthly rows from 2016-12 through 2026-04 | Palm physical balance data exists |
-| ICCO | 15 annual cocoa balance rows | Useful balance context exists, but supervised sample size is small |
-| AMS cotton | 27 annual quality PDFs; no bronze or silver | Existing raw files contain Percent Tenderable and quality distributions |
-| Pink Sheet silver | Queryable `silver_pink_sheet` contains Brent crude, fertilizers, natural gas, soybeans, soybean oil, soybean meal, palm oil, raw sugar, wheat, rapeseed oil, and 5-year z-scores | Brent is not missing; low-effort economic-driver features can be built from existing monthly silver |
-| Substitute prices | Pink Sheet has the raw monthly soybean-oil, palm-oil, rapeseed-oil, soybean-meal, wheat, and sugar price inputs, but gold has no substitute-premium feature families | The valuable gap is feature construction and policy gating, not ingestion |
-| Calendar spreads | `silver/calendar_spreads/` is empty and no live Glue table exists | Calendar spreads and named maturity pairs are not experiment-ready data sources |
-| Livestock margins | No S3 inventory, Glue table, or checked-in DDL for livestock, cattle, hog, poultry, or feed-margin datasets | Livestock/feed margins are deferred unless a separate ingestion project is approved |
-| Regime classifier | `silver_futures_prices` contains only a market-volatility `vol_regime` flag | There is no physical S&D regime classifier; `vol_regime` is diagnostic-only |
-| Export features | ESR, FGIS, SAGIS weekly, MPOB/MPOC, PSD, FNC, and UNICA export/flow datasets exist, but gold coverage is uneven by commodity and source | The next gap is standardized as-of export-pace features |
-| Athena/Glue | 40 live tables versus 41 checked-in DDLs | Catalog drift prevents Athena from serving as a reliable validation surface |
-| MLflow | MLflow 3.1.4, two experiments, one completed run | Experiment tracking is live but barely exercised |
-| MLflow models | Zero registered models and no logged fitted model artifact | The train-to-model loop is open |
-| Airflow | Seven ingestion DAGs, all paused | No scheduled experiment, retraining, inference, or drift workflow |
-| Terraform | A plan would replace the MLflow EC2 instance and security group | A normal apply can destroy the SQLite-backed experiment history |
-| MLflow storage | SQLite on a 10 GB delete-on-termination root volume | The experiment system has a single point of failure |
-| SageMaker registry/store | No feature groups, model packages, models, or endpoints | Desired-state references to these services are aspirational, not live |
-
-## 4. Goal-State Contract
-
-The platform is MLflow experiment-ready only when all of the following
-contracts are satisfied.
-
-### 4.1 Data contract
-
-Every model-ready dataset must publish:
-
-- `dataset_id`
-- `dataset_version`
-- `entity_type`
-- `entity_id`
-- `physical_commodity`
-- `contract_slug` when applicable
-- `origin`
-- `target_name`
-- `target_horizon`
-- `observation_date`
-- `as_of_date`
-- `release_date`
-- `event_time`
-- `target_value`
-- `target_unit`
-- `is_final`
-- `source`
-- `source_vintage`
-- `input_fingerprint`
-- `code_git_sha`
-- `config_sha`
-
-### 4.2 Point-in-time contract
-
-For every feature value:
+The next phase is therefore not "make v2 broad." The next phase is:
 
 ```text
-feature_available_at <= row_as_of_date
+Make legacy gold immutable, cataloged, governed, versioned, and MLflow-selectable.
 ```
 
-No feature may be stamped with crop-year start merely because it belongs to
-that crop year. Weather, crop progress, surveys, exports, and official
-revisions become visible when their observation or release is available.
+## 2. Non-Negotiable Principles
 
-### 4.3 Modeling-entity contract
+### 2.1 Existing broad gold is the computation layer
 
-Physical commodities, processed products, origins, and exchange contracts must
-be represented separately.
+The canonical feature computation path remains:
+
+```text
+configs/features/features.yaml
+src/leviathan/features/computations/
+src/leviathan/features/spine.py
+jobs/batch/feature_spine_task.py
+gold/feature_spine/commodity={commodity}/part-000.parquet
+gold/feature_matrix/commodity={commodity}/part-0.parquet
+```
+
+New small feature families should be added through that path unless they truly
+require multi-snapshot release replay.
+
+### 2.2 v2 is a design source, not the current product
+
+The v2 work remains useful for:
+
+- immutable path conventions;
+- dataset manifest shape;
+- `feature_available_at` thinking;
+- taxonomy and feature-set design;
+- catalog/entity/group map design;
+- future multi-`as_of_date` replay.
+
+It should not be used as the current MLflow training source because it does not
+match legacy feature breadth.
+
+### 2.3 No new ingestion in this readiness phase
+
+Use data already present in S3. Reparsing existing raw files is allowed when the
+structured result is missing or defective, but downloading new external data is
+out of scope.
+
+### 2.4 GraphRAG is out of scope
+
+Do not touch GraphRAG in this plan. Another workstream owns it.
+
+### 2.5 Fundamental-only modeling policy
+
+The primary track predicts physical fundamentals:
+
+- production anomaly;
+- yield anomaly;
+- harvested-area anomaly;
+- official estimate revision;
+- finalization gap;
+- physical-flow trajectory;
+- stock/use or balance-sheet revision;
+- quality/tenderability;
+- tail-event probability;
+- multivariate physical anomaly score.
+
+It does not predict:
+
+- contract price;
+- return;
+- calendar spread;
+- term structure;
+- price-relative mispricing.
+
+Price data may enter only when transformed into a certified economic driver
+with a physical mechanism and point-in-time decision lag.
+
+Allowed examples:
+
+- fertilizer and energy costs;
+- board crush margin;
+- sugar/ethanol allocation economics;
+- vegetable-oil substitution premiums;
+- FX-driven producer/export incentives;
+- producer/internal prices where lagged to planting or investment decisions.
+
+Blocked from core fundamental datasets:
+
+- raw futures prices;
+- own-contract returns;
+- price momentum;
+- calendar spreads;
+- term structure;
+- COT positioning;
+- market volatility regime.
+
+COT and `vol_regime` may be diagnostic-only features for monitoring or slicing,
+not core fitting inputs.
+
+## 3. Audited Current State
+
+This section supersedes earlier starting-state claims in this document.
+
+### 3.1 Repository state
+
+The MLflow/gold work is in the `Leviathan-phase1` worktree on branch
+`codex/mlflow-readiness-phase2`.
+
+The main `Leviathan` worktree has separate `main`-branch work, including
+GraphRAG/causal edits. Do not mix those files into this workstream.
+
+The `Leviathan-phase1` worktree currently contains dirty v2-related scratch
+changes. Before implementation continues, useful v2 pieces should be preserved
+and the final plan should avoid treating scratch v2 code as production-ready.
+
+### 3.2 S3 and Glue state
+
+Live S3 has the broad gold layer:
+
+- `gold/feature_spine/`;
+- `gold/feature_matrix/`;
+- `gold/feature_catalog/`;
+- `gold/training_windows/`.
+
+Live S3 also has a tiny `gold_v2/` proof:
+
+- one dataset version;
+- three commodities;
+- eight objects;
+- only a handful of features per commodity.
+
+Checked-in Athena DDLs and live Glue are not aligned.
+
+Checked-in DDLs exist for:
+
+- `silver_wasde`;
+- `silver_ams_cotton_quality`;
+- `gold_v2_feature_spine`;
+- `gold_v2_feature_matrix`;
+- `gold_v2_dataset_manifests`;
+- `gold_v2_feature_catalog`;
+- `gold_v2_feature_entity_map`;
+- `gold_v2_feature_group_map`.
+
+Live Glue is missing those tables. This is catalog drift. Athena cannot be the
+trusted validation surface until the drift is fixed.
+
+### 3.3 Silver state
+
+The important finding is that most of the data is already present in S3. The
+main gap is silver-to-gold feature construction and governance, not ingestion.
+
+Present silver prefixes include:
+
+- `silver/ams_cotton_quality/`;
+- `silver/conab_coffee/`;
+- `silver/cot/`;
+- `silver/esr/`;
+- `silver/fgis/`;
+- `silver/fnc_colombia/`;
+- `silver/food_cpi/`;
+- `silver/fred_fx/`;
+- `silver/futures_prices/`;
+- `silver/icco_cocoa/`;
+- `silver/mpob/`;
+- `silver/mpob_annual/`;
+- `silver/mpoc_exports_by_country/`;
+- `silver/mpoc_stock_comparison/`;
+- `silver/mpoc_trade_stats_monthly/`;
+- `silver/nass_annual/`;
+- `silver/nass_citrus/`;
+- `silver/nass_crop_progress/`;
+- `silver/pink_sheet/`;
+- `silver/production/`;
+- `silver/psd/`;
+- `silver/sagis_cec/`;
+- `silver/sagis_weekly_deliveries/`;
+- `silver/sagis_weekly_exports/`;
+- `silver/unica_annual_state/`;
+- `silver/unica_biweekly_release_series/`;
+- `silver/unica_biweekly_season_history/`;
+- `silver/unica_corn_ethanol/`;
+- `silver/unica_monthly_ethanol_sales/`;
+- `silver/wap_table01/`;
+- `silver/wap_table01_revisions/`;
+- `silver/wasde/`;
+- `silver/weather/`.
+
+High-value silver sources that are present but not fully consumed by gold:
+
+- direct WASDE revision features from `silver/wasde`;
+- FCOJ forecast revisions from `silver/nass_citrus`;
+- cotton quality/tenderability from `silver/ams_cotton_quality`;
+- raw-sugar in-season crush and sugar mix from `silver/unica_*`;
+- FNC Colombia monthly coffee features from `silver/fnc_colombia/*`;
+- ICCO cocoa balance features from `silver/icco_cocoa`;
+- Food CPI policy-risk features from `silver/food_cpi`;
+- richer export-pace features across ESR, FGIS, SAGIS, MPOB/MPOC, FNC, UNICA,
+  PSD, and WASDE.
+
+### 3.4 Gold state
+
+`gold/feature_spine` is broad and registry-driven.
+
+Current registry families include:
+
+- stage weather and remote sensing;
+- FAOSTAT production features and labels;
+- PSD stock/use features;
+- ONI and IOD;
+- Pink Sheet input costs;
+- FRED FX;
+- COT diagnostics;
+- SAGIS weekly and CEC;
+- CONAB coffee revisions;
+- MPOB fundamentals;
+- board crush margin;
+- WAP non-US revisions;
+- FGIS export pace;
+- NASS crop progress;
+- ESR exports.
+
+The weak points are:
+
+- outputs are mutable latest paths;
+- there is no first-class `dataset_version`;
+- the catalog can be overwritten by partial runs;
+- scope labels are empirically wrong;
+- training reads mutable latest matrices;
+- feature sets are era tiers, not model-purpose sets;
+- not every existing silver source has a gold feature family;
+- point-in-time semantics are coarse annual/crop-year semantics, not full
+  historical release replay.
+
+### 3.5 MLflow and Airflow state
+
+MLflow and Airflow run on a single EC2 instance:
+
+```text
+Name: leviathan-dev-mlflow-server
+Private IP: 172.31.29.109
+Instance type: t3.medium
+MLflow: port 5000
+Airflow: port 8080
+```
+
+MLflow uses local SQLite for the backend store and S3 for artifacts:
+
+```text
+sqlite:////home/ec2-user/mlflow/mlflow.db
+s3://leviathan-dev-shahem-001/mlflow/artifacts/
+```
+
+Airflow also uses local SQLite:
+
+```text
+sqlite:////home/ec2-user/airflow/airflow.db
+```
+
+This is acceptable for development experimentation, but it makes backup,
+restore, and Terraform drift protection mandatory before serious sweeps.
+
+### 3.6 Current training path
+
+Training currently reads:
+
+```text
+gold/feature_matrix/commodity={commodity}/part-0.parquet
+```
+
+Then it:
+
+- resolves features by `configs/features/feature_tiers.yaml`;
+- applies `configs/features/feature_policies.yaml`;
+- runs walk-forward CV;
+- logs metrics and tags to MLflow;
+- optionally snapshots the training slice;
+- writes predictions to `silver/model_predictions/`.
+
+This is close, but not experiment-ready because the selected data version is
+implicit. The run logs a fingerprint after reading the mutable matrix, but the
+experimenter cannot intentionally request "dataset version X" yet.
+
+## 4. Target Experiment-Ready State
+
+Leviathan is MLflow experiment-ready when a researcher can:
+
+1. choose a model target;
+2. choose a physical entity or contract-facing output;
+3. choose an immutable dataset version;
+4. choose a reviewed feature set version;
+5. launch a training job;
+6. compare trials in MLflow;
+7. reproduce the exact training matrix later;
+8. inspect source fingerprints, feature policies, row counts, and validation
+   reports;
+9. promote or reject models based on documented metrics and gaps.
+
+Experiment-ready does not mean production-ready.
+
+It means the laboratory is controlled enough that model comparisons are real.
+
+## 5. Data Contracts
+
+### 5.1 Versioned gold contract
+
+Add immutable versions around the existing broad gold outputs:
+
+```text
+gold/feature_spine_versions/dataset_version={version}/commodity={commodity}/part-000.parquet
+gold/feature_matrix_versions/dataset_version={version}/commodity={commodity}/part-000.parquet
+gold/feature_spine_manifests/dataset_version={version}/manifest.json
+gold/feature_catalog_versions/dataset_version={version}/feature_catalog.parquet
+gold/feature_entity_map_versions/dataset_version={version}/feature_entity_map.parquet
+gold/feature_group_map_versions/dataset_version={version}/feature_group_map.parquet
+```
+
+Default version format:
+
+```text
+YYYYMMDDTHHMMSSZ_{short_git_sha}
+```
+
+Rules:
+
+- never overwrite an existing dataset version;
+- the mutable latest gold paths may remain for operational compatibility;
+- MLflow training must prefer versioned paths;
+- old runs must remain reproducible after newer gold builds.
+
+### 5.2 Manifest contract
+
+Each dataset version must publish one manifest containing:
+
+- `dataset_version`;
+- build timestamp;
+- base Git SHA;
+- dirty-worktree flag;
+- container image digest when available;
+- config SHAs for feature registry, feature params, calendars, geographies,
+  dataset registry, feature policies, taxonomy, and feature sets;
+- source list;
+- source row counts;
+- source max dates;
+- source object fingerprints;
+- source certification statuses;
+- waivers;
+- commodity list;
+- row counts per commodity;
+- feature counts per commodity;
+- label names;
+- label counts;
+- validation results;
+- feature-policy summary;
+- matrix fingerprint;
+- catalog fingerprint.
+
+### 5.3 Feature catalog contract
+
+The versioned feature catalog must not infer semantic scope solely from which
+commodities happened to be built in a partial run.
+
+Each catalog row should include:
+
+- `dataset_version`;
+- `feature`;
+- `feature_family`;
+- `semantic_scope`;
+- `policy`;
+- `mechanism`;
+- `sources`;
+- `groups`;
+- `is_label`;
+- `entity_count`;
+- `commodity_count`;
+- `origin_count`;
+- `row_count`;
+- `non_null_rate`;
+- `first_event_time`;
+- `last_event_time`;
+- `source_cadence`;
+- `notes`.
+
+Semantic scope and empirical availability must be separate.
 
 Example:
 
 ```text
-physical crop: soybeans
-processed products: soybean meal, soybean oil
-contracts: soybeans_cbot, soybean_meal_cbot, soybean_meal_dce, ...
-origins: united_states, brazil, argentina, china
+Brazil coffee frost feature:
+  semantic_scope = origin
+  empirical availability = only coffee entities
 ```
 
-A contract may consume a physical-model output. It must not automatically own
-an independent copy of a physically identical target.
+It is not "commodity-specific" merely because one run built only coffee.
 
-### 4.4 Experiment contract
+### 5.4 Feature policy contract
 
-Every MLflow run must include:
+Canonical policy names:
 
-- Experiment purpose.
-- Target definition.
-- Forecast horizon.
-- As-of policy.
-- Physical commodity and entity.
-- Feature-set ID and SHA.
-- Dataset ID, version, and content fingerprint.
-- Source-vintage summary.
-- Code Git SHA and dirty-worktree flag.
-- Image digest, not only an image tag.
-- Full estimator parameters.
-- Full tuning-trial history or a linked artifact.
-- Baseline metrics.
-- Walk-forward and final holdout metrics.
-- Slice and tail metrics.
-- Prediction artifact.
-- Fitted model artifact.
-- Feature importance or explanation artifact when supported.
-- Validation-gate outcomes.
+- `fundamental_physical`;
+- `certified_economic_driver`;
+- `diagnostic_only`;
+- `excluded_market_signal`.
 
-### 4.5 Recovery contract
+The older `allowed_economic_driver` phrase is a legacy alias only. New manifests
+and MLflow logs should emit `certified_economic_driver`.
 
-- MLflow backend state must survive instance replacement.
-- MLflow artifact paths must be versioned and backed up.
-- Terraform must be reconcilable without destroying unexported run history.
-- Training must use immutable image digests or immutable release tags.
+### 5.5 Point-in-time claim boundary
 
-## 5. Program Sequencing
-
-The phases below are intentionally gated.
+The first experiment-ready versioned legacy gold layer may claim:
 
 ```text
-Phase 0: Protect current state
-    |
-Phase 1: Establish inventory and catalog truth
-    |
-Phase 2: Repair source-specific structured data
-    |
-Phase 3: Define physical entities and target semantics
-    |
-Phase 4: Close preflight gaps and build point-in-time gold v2
-    |
-Phase 5: Build feature taxonomy and model-purpose feature sets
-    |
-Phase 6: Build model-ready labels and datasets
-    |
-Phase 7: Add data-quality and leakage certification
-    |
-Phase 8: Make MLflow experimentation complete and reproducible
-    |
-Phase 9: Reconcile infrastructure and orchestration
-    |
-Phase 10: Certify experiment readiness
+This dataset is immutable, fingerprinted, cataloged, policy-governed, and
+reproducible for the declared crop-year/as-of convention.
 ```
 
-No phase should be bypassed by directly launching a large experiment sweep.
-
-## Phase 0: Protect Current State and Freeze the Baseline
-
-Status: Completed on 2026-06-23. See
-`docs/ops/PHASE0_COMPLETION.md` for the live evidence and remaining safeguards.
-
-### Purpose
-
-Prevent loss of experiment history and create a stable baseline against which
-all remediation work can be measured.
-
-### Workstreams
-
-#### 0.1 Preserve MLflow and Airflow state
-
-- Stop treating the EC2 root volume as the only durable copy of:
-  - `/home/ec2-user/mlflow/mlflow.db`
-  - `/home/ec2-user/airflow/airflow.db`
-- Create versioned backups under:
+It must not yet claim:
 
 ```text
-mlflow/backups/backend/YYYY-MM-DDTHH-MM-SSZ/mlflow.db
-airflow/backups/backend/YYYY-MM-DDTHH-MM-SSZ/airflow.db
+This dataset can replay every weekly, monthly, and official-release snapshot
+exactly as it appeared historically.
 ```
 
-- Record checksums and SQLite integrity-check results.
-- Add a restore script that:
-  - verifies the checksum;
-  - restores the database;
-  - fixes ownership;
-  - restarts the service;
-  - verifies the health endpoint.
+Full multi-`as_of_date` historical replay is a future PIT phase. The current
+goal is MLflow experiment readiness without throwing away the broad existing
+spine.
 
-#### 0.2 Reconcile Terraform state before any apply
+## 6. Program Phases
 
-- Import or refresh the manually changed `t3.medium` instance state.
-- Prevent the next apply from replacing the instance solely because the latest
-  AMI changed.
-- Separate mutable service configuration from instance replacement triggers.
-- Decide whether the current instance is adopted or replaced through a planned
-  migration.
-- Do not apply the currently observed replacement plan.
-- Add lifecycle safeguards until migration is complete:
-  - `prevent_destroy` on the MLflow instance or durable backend volume;
-  - explicit backup precondition;
-  - documented migration approval.
+### Phase 1: Protect MLflow and Repair Catalog Drift
 
-#### 0.3 Snapshot the current lake and catalog state
+#### Purpose
 
-- Generate a one-time logical inventory for:
-  - raw source prefixes;
-  - bronze source prefixes;
-  - silver dataset prefixes;
-  - gold datasets;
-  - Athena/Glue tables;
-  - ECR images;
-  - Batch job-definition revisions.
-- Save the inventory as timestamped JSON and Parquet under:
+Make the experiment platform and Athena validation layer safe enough to trust.
 
-```text
-metadata/system_inventory/as_of_date=YYYY-MM-DD/
-```
+#### Work
 
-#### 0.4 Preserve the current experimental baseline
-
-- Export the existing corn run metadata, predictions, metrics, and training
-  snapshot into a read-only baseline record.
-- Record that the run:
-  - used a production-level target;
-  - used 279 features;
-  - failed hard governance gaps;
-  - did not log a fitted model artifact;
-  - had unknown spine Git SHA.
-
-### Deliverables
-
-- MLflow backup and restore scripts.
-- Airflow backup and restore scripts.
-- Terraform reconciliation note.
-- Timestamped system inventory.
-- Frozen baseline experiment record.
-
-### Tests
-
-- `PRAGMA integrity_check` returns `ok` for both SQLite databases.
-- Restore into a temporary location and query experiments successfully.
-- Terraform plan does not unexpectedly destroy the active backend.
-- Inventory generation is repeatable and deterministic.
-
-### Exit criteria
-
-- Experiment history can be recovered after EC2 replacement.
-- No planned infrastructure operation can silently erase MLflow state.
-- The current state is captured well enough to compare later phases.
-
-## Phase 1: Establish S3, Athena, and Schema Truth
-
-Status: Completed on 2026-06-23. See
-`docs/ops/PHASE1_COMPLETION.md` for live evidence and operating procedures.
-
-### Purpose
-
-Make the physical lake and query catalog agree, and provide a durable inventory
-for future audits.
-
-### Workstreams
-
-#### 1.1 Enable S3 Inventory
-
-- Add daily or weekly S3 Inventory for the data-lake bucket.
-- Include:
-  - key;
-  - size;
-  - ETag;
-  - last modified;
-  - storage class;
-  - encryption status;
-  - replication status when applicable.
-- Write inventory to a dedicated prefix outside raw/bronze/silver/gold.
-- Register the inventory manifest in Athena.
-
-#### 1.2 Define one authoritative dataset registry
-
-Create a checked-in dataset registry containing:
-
-- Dataset name.
-- Layer.
-- S3 prefix.
-- Natural grain.
-- Partition keys.
-- Owning transform.
-- Athena table.
-- Expected schema.
-- Primary timestamp fields.
-- Expected freshness.
-- Expected historical range.
-- Whether it is allowed in core fundamental features.
-- Whether it is a label, feature source, narrative source, or diagnostic source.
-
-The registry should drive DDL generation and validation instead of scanning an
-arbitrary first Parquet file.
-
-#### 1.3 Repair Athena/Glue drift
-
-Explicitly resolve:
-
-- Remove or quarantine legacy `production_raw`, which points to an unrelated
-  bucket.
-- Recreate `silver_production` from its actual current Parquet schema and
-  prefix.
-- Recreate weather tables so each source has an accurate schema:
-  - NASA POWER;
-  - CHIRPS;
-  - CPC soil;
-  - MODIS NDVI;
-  - NOAA ONI;
-  - NOAA IOD.
-- Split the FNC root into three Athena tables matching its three grains:
-  - monthly;
-  - area by department;
-  - exports by port and type.
-- Register the missing ESR and UNICA annual tables.
-- Reconcile generated DDLs with live partition projection settings.
-- Remove stale table definitions that claim schemas no current Parquet file
-  follows.
-
-#### 1.4 Add automated DDL validation
-
-For every registered dataset:
-
-- Compare Glue schema with Parquet schema.
-- Compare Glue location with registry location.
-- Validate projected partition values against actual path conventions.
-- Run a bounded Athena query.
-- Check that mixed-schema prefixes are not registered as one table.
-- Fail CI or the catalog-deployment job on mismatch.
-
-### Deliverables
-
-- S3 Inventory configuration and Athena table.
-- Dataset registry.
-- Corrected Athena DDLs.
-- Catalog deployment command.
-- Catalog drift validator.
-- Catalog reconciliation report.
-
-### Tests
-
-- Every registered table can read at least one expected row.
-- No table points outside the Leviathan bucket unless explicitly approved.
-- No table scans a prefix containing incompatible Parquet schemas.
-- Repo DDL count and live table count reconcile.
-- Schema validator returns zero blocking mismatches.
-
-### Exit criteria
-
-- Athena is trustworthy for source inspection and experiment validation.
-- A researcher can discover every model-relevant dataset through one registry.
-- Whole-lake inventory no longer requires paginating two million live objects.
-
-## Phase 2: Repair and Certify Source-Specific Structured Data
-
-Status: Implementation started on 2026-06-23. The first implementation pass adds
-the reusable source-certification framework, feature-policy preflight,
-revision-aware WASDE silver, repaired CONAB coffee silver logic, and AMS cotton
-annual-quality bronze/silver scaffolding. Runtime backfills, Glue deployment,
-and source-certification reports remain before Phase 2 can be marked complete.
-
-### Purpose
-
-Convert the high-value data already present in S3 into clean, revision-aware,
-model-ready silver datasets.
-
-### 2A. Normalize the WASDE release archive
-
-#### Problem
-
-The existing WASDE bronze archive is rich but contains parser noise in table,
-region, and attribute values. The current PSD silver is a bulk snapshot and
-cannot recreate historical monthly revision paths.
-
-#### Required work
-
-- Build a dedicated `silver_wasde` transform from existing WASDE bronze.
-- Retain the release grain:
-
-```text
-release_date
-commodity
-table_type
-region
-marketing_year
-attribute
-unit
-estimate
-```
-
-- Add strict allowlists for:
-  - supported commodity tables;
-  - attributes;
-  - geographic aggregates;
-  - units.
-- Map known table aliases across report eras.
-- Reject parser artifacts such as truncated attributes or column placeholders.
-- Preserve raw descriptor columns for audit.
-- Add:
-  - `prior_release_date`;
-  - `prior_estimate`;
-  - `revision`;
-  - `revision_direction`;
-  - `months_to_marketing_year_end`;
-  - `is_first_estimate`;
-  - `is_final_or_latest`.
-- Keep source releases immutable.
-- Write release-partitioned Parquet to a non-overlapping prefix.
-
-#### Validation
-
-- Compare selected historical releases with known report tables.
-- Verify revision arithmetic for corn, wheat, soybeans, meal, oil, cotton, and
-  rice.
-- Require plausible units and ranges.
-- Require one estimate per natural key per release.
-- Report retained and rejected row counts by report era.
-
-#### Acceptance criteria
-
-- Decades of nonzero revisions are available.
-- No placeholder attributes remain in accepted silver.
-- Revision calculations are reproducible from adjacent releases.
-- A release available at date T can be reconstructed without later releases.
-
-### 2B. Repair CONAB survey identity and revisions
-
-#### Problem
-
-Different CONAB survey partitions currently yield identical values. This
-eliminates the revision signal and suggests incorrect file-to-survey parsing or
-selection.
-
-#### Required work
-
-- Trace every silver partition back to:
-  - raw S3 key;
-  - file ETag;
-  - safra year;
-  - survey number;
-  - worksheet;
-  - parser version.
-- Confirm that each raw file is distinct and that the parser reads the intended
-  current-survey columns.
-- Add a survey-content fingerprint.
-- Add a validation rule:
-
-```text
-if survey_number changes and the entire accepted table is identical,
-mark the partition suspicious and block silver publication
-```
-
-- Recompute:
-  - production revision;
-  - area revision;
-  - yield revision;
-  - revision streak;
-  - revision percentage.
-- Preserve both national and state/region rows.
-
-#### Acceptance criteria
-
-- Survey tables differ where the official files differ.
-- Nonzero revisions appear for historical surveys.
-- Identical-survey validation produces no unexplained pass.
-- Every value can be traced to a raw file and worksheet.
-
-### 2C. Build AMS cotton quality bronze and silver
-
-#### Problem
-
-Existing raw annual PDFs contain numeric cotton-quality information, including
-`Percent Tenderable`, but no structured bronze or silver exists.
-
-#### Required work
-
-- Parse the 27 existing annual-quality PDFs.
-- Extract at minimum:
-  - crop season;
-  - geography;
-  - percent tenderable;
-  - average staple;
-  - samples classed;
-  - micronaire distribution when consistently available;
-  - strength and leaf/color summaries when consistently available.
-- Preserve source page and table number.
-- Distinguish US total from state/region tables.
-- Build a silver annual-quality table with one row per season and geography.
-- Do not claim weekly quality cadence from annual reports.
-
-#### Acceptance criteria
-
-- Percent tenderable is populated for the usable historical seasons.
-- Values reconcile with report totals for sampled years.
-- Source pages are traceable.
-- Dataset documentation states the true annual cadence.
-
-### 2D. Certify existing source-specific silver tables
-
-Each of the following receives a source contract, range checks, date checks,
-natural-key uniqueness checks, and revision/flow consistency checks:
-
-- NASS annual.
-- NASS crop progress.
-- NASS citrus.
-- SAGIS CEC.
-- SAGIS weekly deliveries.
-- SAGIS weekly exports.
-- FNC monthly production and exports.
-- FNC department area.
-- FNC exports by port and type.
-- UNICA annual state.
-- UNICA fortnightly release series.
-- UNICA season history.
-- UNICA corn ethanol.
-- UNICA monthly ethanol sales.
-- MPOB monthly.
-- MPOB annual.
-- MPOC exports, trade, and stocks.
-- ICCO cocoa balance.
-- ESR.
-- FGIS.
-- WAP revisions.
-- NOAA ONI.
-- NOAA IOD.
-
-Certification must report:
-
-- Historical start and end.
-- Row count.
-- Natural-key duplicate count.
-- Null rate by value column.
-- Nonzero revision count.
-- Unexpected unit count.
-- Unexpected category count.
-- Current freshness.
-- Known source limitations.
-
-### 2E. Classify economic price drivers and excluded market signals
-
-Do not classify an entire source as fundamental or non-fundamental merely
-because it contains prices. Classify each derived feature by its use.
-
-Add one of these policies to every price-related feature:
-
-- `allowed_economic_driver`
-- `diagnostic_only`
-- `excluded_market_signal`
-
-Examples:
-
-| Feature | Policy | Reason |
-|---|---|---|
-| Board crush margin | `allowed_economic_driver` | Processing profitability changes physical soybean crush and product output |
-| Fertilizer cost index | `allowed_economic_driver` | Input cost affects acreage, application, and expected yield |
-| Brent or fuel-cost index | `allowed_economic_driver` | Affects ethanol economics, processing, and freight |
-| Lagged BRL or ARS movement | `allowed_economic_driver` | Affects producer selling, input affordability, and export behavior |
-| FNC internal producer price | `allowed_economic_driver` for lagged acreage or maintenance studies | Producer returns can affect investment and crop care |
-| Own-contract return or momentum | `excluded_market_signal` | Market prediction shortcut, not a physical mechanism |
-| Calendar spread or term structure | `excluded_market_signal` | Price-relative market structure is outside the fundamental target |
-| CFTC positioning | `diagnostic_only` or `excluded_market_signal` | Positioning describes market behavior rather than physical supply and demand |
-
-Build certified transformations for the currently available economic drivers:
-
-- Soybean board crush margin and its components.
-- Fertilizer and energy input-cost indices.
-- Brent or fuel-cost transmission variables.
-- Lagged producer-price incentive variables where an eligible physical target
-  and decision window exist.
-- FX-driven selling and input-cost variables.
-- Sugar-versus-ethanol allocation economics when the necessary existing price
-  series can be aligned from current S3 data.
-
-Each transform must:
-
-- use only values available before the row as-of date;
-- apply an explicit decision lag;
-- preserve the raw component values used in the calculation;
-- use stable physical-unit conversions;
-- identify the balance component it can affect;
-- avoid using future realized physical outcomes in normalization;
-- publish a mechanism-specific name rather than a generic price column.
-
-Add a training preflight that:
-
-- permits `allowed_economic_driver` features only for declared eligible targets;
-- rejects `excluded_market_signal` features;
-- keeps `diagnostic_only` features out of model fitting;
-- reports every admitted price-derived feature and its mechanism in MLflow.
-
-Preserve all current source data in S3. This phase changes feature policy and
-transformation semantics, not historical retention.
-
-### Deliverables
-
-- Normalized WASDE silver.
-- Repaired CONAB silver.
-- AMS cotton bronze and silver.
-- Source certification reports.
-- Source-level data contracts.
-- Economic-driver transforms and mechanism metadata.
-- Fundamental-feature policy validator.
-
-### Exit criteria
-
-- All high-value existing physical datasets are numerically usable.
-- Defective revision data cannot silently enter gold.
-- Every source has a declared grain, cadence, timestamp, and limitation.
-- Only certified economic-transmission price features can enter the fundamental
-  experiment track.
-- Price-prediction and market-signal features remain excluded.
-
-## Phase 3: Define the Physical Commodity and Contract Taxonomy
-
-Status: implementation started 2026-06-24. Initial entity taxonomy,
-contract mappings, target dictionary, source precedence, proxy-label rules,
-loader, validation, and tests are now in place.
-
-### Purpose
-
-Stop treating contract slugs as if they were independent biological targets.
-
-### Workstreams
-
-#### 3.1 Create canonical entity dimensions
-
-Add versioned configuration for:
-
-- `physical_commodity`
-- `processed_product`
-- `contract_slug`
-- `origin`
-- `crop_class`
-- `source_commodity`
-- `balance_sheet_family`
-- `conversion_relationship`
-
-Example relationships:
-
-```text
-maize -> corn_cbot
-maize -> campinas_corn_reference_bmf
-maize -> french_maize_matif
-maize -> south_african_white_maize_jse
-maize -> south_african_yellow_maize_jse
-
-soybeans -> soybean_meal
-soybeans -> soybean_oil
-soybeans -> soybean and product contracts
-```
-
-#### 3.2 Separate biological and contract targets
-
-Biological targets:
-
-- Yield anomaly.
-- Harvested-area anomaly.
-- Production anomaly.
-- Crop-condition state.
-- Physical output trajectory.
-
-Balance targets:
-
-- Production revision.
-- Export revision.
-- Consumption/crush revision.
-- Ending-stock revision.
-- Stock-to-use revision.
-
-Contract-facing outputs:
-
-- Physical supply stress relevant to the contract.
-- Contract-specific origin exposure.
-- Product balance stress.
-- Relative fundamental differential.
-
-#### 3.3 Remove invalid duplicate labels
-
-- Do not train independent coffee-species models against identical generic
-  FAOSTAT green-coffee labels.
-- Do not train wheat-class models against identical all-wheat labels without a
-  class-specific label.
-- Do not train meal contracts against bean production as if meal were a crop.
-- Do not train white sugar against sugar-cane production as if it represented
-  refined-sugar availability.
-- Mark proxy labels explicitly and disallow them as primary promotion targets.
-
-#### 3.4 Choose authoritative labels by geography
-
-Priority should follow specificity and finality:
-
-1. Source-specific final national or state estimate.
-2. Reconciled official annual source.
-3. FAOSTAT final annual value as a long-history fallback.
-
-Examples:
-
-- US crops: NASS annual final values before FAOSTAT.
-- Brazil coffee revisions: CONAB.
-- Colombia coffee monthly production: FNC.
-- South African maize: SAGIS CEC.
-- Florida citrus: NASS citrus.
-- Malaysia palm: MPOB.
-- Brazil sugar: UNICA.
-
-### Deliverables
-
-- Physical commodity taxonomy.
-- Contract-to-physical mapping.
-- Origin mapping.
-- Target dictionary.
-- Authoritative-source precedence rules.
-- Proxy-label exclusion rules.
-
-### Tests
-
-- Every contract resolves to exactly one physical or product-balance family.
-- Every primary target has one authoritative source policy.
-- Duplicate label series are reported and justified.
-- A processed product cannot accidentally inherit an agricultural area/yield
-  target.
-
-### Exit criteria
-
-- Training problems are defined by physical and balance-sheet meaning.
-- Contract outputs consume the correct upstream physical signals.
-- No experiment can present a proxy label as an undisclosed direct target.
-
-## Phase 4: Build Point-in-Time Gold v2
-
-### Purpose
-
-Replace the annual final-season matrix with a release-aware and as-of-aware
-research spine. Phase 4 must start by closing the earlier-phase gaps that
-would otherwise make a point-in-time spine look correct while still resting on
-ambiguous source status, policy vocabulary, or release-date semantics.
-
-### 4.0 Preflight: close earlier-phase gaps before gold v2
-
-Do not start gold v2 implementation until the following preflight items are
-complete or explicitly waived in the Phase 4 manifest.
-
-#### 4.0.1 Checkpoint current work
-
-- Commit or otherwise preserve the current Phase 1-3 implementation state.
-- Keep Phase 4 changes separable from catalog, source-repair, and taxonomy
-  changes.
-- Record the base Git SHA used to build the first gold v2 dataset version.
-
-#### 4.0.2 Reconcile Phase 2 runtime status
-
-- Confirm S3 outputs, DDLs, and source-certification status for:
+- Back up MLflow SQLite and Airflow SQLite through the existing ops scripts.
+- Verify restore procedure on a copied backup.
+- Ensure Terraform cannot accidentally replace the MLflow/Airflow EC2 instance
+  without an explicit recovery plan.
+- Register missing Glue tables for checked-in DDLs that correspond to real S3
+  outputs:
   - `silver_wasde`;
-  - `silver_conab_coffee`;
-  - `silver_ams_cotton_quality`;
-  - `silver_pink_sheet`;
-  - `silver_futures_prices`;
-  - ESR, FGIS, SAGIS, MPOB/MPOC, FNC, UNICA, PSD, WAP, NASS annual, NASS crop
-    progress, and NASS citrus where used by gold v2.
-- Update phase-status docs so the plan does not continue to describe completed
-  runtime backfills as pending.
-- Block or exclude sources whose certification is not good enough for a PIT
-  feature.
+  - `silver_ams_cotton_quality`.
+- Decide whether `gold_v2_*` Glue tables should be registered now as historical
+  proof artifacts or removed/deferred from the active registry until v2 returns.
+- Regenerate or apply DDLs from `configs/datasets/datasets.yaml`.
+- Run Athena smoke queries for live non-GraphRAG tables.
 
-#### 4.0.3 Normalize feature-policy vocabulary
+#### Deliverables
 
-- Make code, config, and plan agree on policy names before emitting v2 feature
-  metadata.
-- Either rename `allowed_economic_driver` to `certified_economic_driver`, or
-  define `certified_economic_driver` as the stricter successor state reached
-  after policy metadata and PIT checks pass.
-- Preserve `diagnostic_only` and `excluded_market_signal` as hard categories.
-- Update the feature-policy preflight so every emitted economic-driver feature
-  can report its policy class in the dataset manifest.
+- MLflow backup manifest.
+- Airflow backup manifest.
+- Glue-vs-DDL reconciliation report.
+- Updated dataset registry status.
+- Athena smoke report.
 
-#### 4.0.4 Register gold v2 before writing data
+#### Exit Criteria
 
-Add dataset-registry entries and Athena DDLs before the first write:
+- No checked-in active DDL is missing from Glue unless explicitly deferred.
+- MLflow/Airflow state is backed up before large experiment sweeps.
+- Athena can validate the data this plan depends on.
 
-- `gold_v2_feature_spine`
-- `gold_v2_feature_matrix`
-- `gold_v2_dataset_manifests`
+### Phase 2: Certify Existing Silver Sources
 
-The registry must define schemas, natural keys, partition keys, ownership,
-freshness, historical range, and smoke queries. Gold v2 must not be a hidden
-S3-only artifact.
+#### Purpose
 
-#### 4.0.5 Normalize source availability semantics
+Confirm which existing silver sources are safe to admit into model-ready gold
+features.
 
-For every source admitted to gold v2, define:
+#### Work
 
-- `observation_date`
-- `release_date`
-- `feature_window_start`
-- `feature_window_end`
-- `feature_available_at`
-- `source_vintage`
+For each source used or planned for gold features, certify:
 
-No feature computation should invent these fields privately. They belong in a
-shared availability adapter so PIT tests can reason across sources.
+- S3 prefix exists;
+- Glue table exists where expected;
+- row count;
+- schema;
+- natural key uniqueness;
+- date range;
+- max source date;
+- release/availability date columns;
+- duplicate policy;
+- known limitations;
+- whether the source is admitted, warning-only, deferred, or blocked.
 
-#### 4.0.6 Clarify first target priorities
+Priority sources:
 
-Gold v2 should prioritize targets that benefit from release-aware snapshots:
+- FAOSTAT production silver;
+- weather silver: CHIRPS, NASA POWER, MODIS NDVI, CPC soil;
+- PSD;
+- WASDE;
+- WAP;
+- NASS annual;
+- NASS crop progress;
+- NASS citrus;
+- ESR;
+- FGIS;
+- SAGIS CEC;
+- SAGIS weekly deliveries and exports;
+- CONAB coffee;
+- FNC Colombia;
+- MPOB and MPOC;
+- UNICA;
+- ICCO cocoa;
+- AMS cotton quality;
+- Pink Sheet;
+- FRED FX;
+- futures prices;
+- COT;
+- Food CPI.
 
-- official next-release revision;
-- official finalization gap;
-- yield and harvested-area anomaly;
-- physical-flow trajectory;
-- balance-sheet component revision;
-- tail-event labels.
+#### Certification Classes
 
-Final production levels from FAOSTAT, NASS annual, and other final sources
-remain useful as labels, baselines, and reconciliation anchors. They should not
-be the default research objective unless the experiment is explicitly framed
-as anomaly or residual prediction rather than deterministic level prediction.
+- `pass`: usable in core or certified feature sets.
+- `warn`: usable with limitations recorded in the manifest.
+- `diagnostic_only`: usable for monitoring/slicing, not core fitting.
+- `blocked`: not admitted to model-ready datasets.
+- `deferred`: present but not needed for the next MLflow-ready slice.
 
-### 4.1 Define the additive gold v2 layout
+#### Deliverables
 
-Build v2 additively. Do not overwrite or mutate the current `gold/` outputs
-until v2 is certified and training has migrated.
+- `source_certification_report.json`.
+- Source status summary in the readiness plan.
+- Waiver format for known limitations.
 
-Versioned output prefixes:
+#### Exit Criteria
+
+- Every feature family in `configs/features/features.yaml` references a source
+  with a certification status.
+- New gold dataset versions cannot be published with uncertified sources unless
+  the manifest records a waiver.
+
+### Phase 3: Preserve and Clean Current v2 Scratch Work
+
+#### Purpose
+
+Keep useful v2 ideas without letting scratch code define the critical path.
+
+#### Work
+
+- Preserve current v2 scratch on a backup branch or commit.
+- Classify v2 files into:
+  - keep and adapt to legacy gold;
+  - keep for future PIT v2;
+  - discard or defer.
+- Keep/adapt:
+  - source availability adapter;
+  - taxonomy loader concepts;
+  - feature-set selector concepts;
+  - catalog/entity/group map concepts;
+  - immutable path helper patterns.
+- Defer:
+  - thin v2 feature builder as production training source;
+  - v2 feature matrix as the default MLflow input.
+
+#### Deliverables
+
+- Short preservation note in the plan or commit message.
+- Clean worktree before Phase 4 implementation.
+
+#### Exit Criteria
+
+- No ambiguous half-v2 state blocks work on versioned legacy gold.
+- Future PIT v2 can be resumed without confusing it with the current MLflow
+  readiness path.
+
+### Phase 4: Version the Broad Legacy Gold Layer
+
+#### Purpose
+
+Make the existing broad gold layer reproducible and selectable by MLflow.
+
+#### Work
+
+- Add storage helpers for:
+  - `gold/feature_spine_versions/...`;
+  - `gold/feature_matrix_versions/...`;
+  - `gold/feature_spine_manifests/...`;
+  - versioned catalog/entity/group map outputs.
+- Add dataset registry entries and Athena DDLs for versioned legacy gold.
+- Extend or wrap `feature_spine_task.py` so it can:
+  - build current mutable latest outputs;
+  - write immutable versioned copies;
+  - refuse overwrites;
+  - write one dataset-level manifest;
+  - include source certification summaries;
+  - include config hashes and source fingerprints.
+- Build the versioned matrix only from the matching versioned spine.
+- Preserve labels but mark them clearly.
+- Validate uniqueness of:
 
 ```text
-gold_v2/feature_spine/dataset_version={version}/commodity={commodity}/part-000.parquet
-gold_v2/feature_matrix/dataset_version={version}/commodity={commodity}/part-0.parquet
-gold_v2/dataset_manifests/dataset_version={version}/manifest.json
+dataset_version, commodity, country, crop_year, feature
 ```
 
-### 4.2 Define the long spine grain
+#### Deliverables
 
-Recommended grain:
+- `gold_feature_spine_versions` DDL.
+- `gold_feature_matrix_versions` DDL.
+- `gold_feature_spine_manifests` DDL or JSON registry entry.
+- Versioned S3 outputs for all 31 commodities.
+- Manifest for the dataset version.
 
-```text
-entity_type
-entity_id
-physical_commodity
-contract_slug
-origin
-crop_year
-as_of_date
-snapshot_stage
-feature
-value
-feature_available_at
-source
-source_vintage
-is_label
-```
+#### Exit Criteria
 
-`event_time` must represent actual availability, not crop-year start.
+- One immutable broad dataset version exists.
+- It covers the same 31 commodities as legacy gold.
+- Feature counts match or exceed current legacy matrices for the same inputs.
+- The mutable latest paths are still readable.
+- MLflow can be pointed at the immutable version.
 
-### 4.3 Define forecast snapshots
+### Phase 5: Build a Real Feature Taxonomy and Catalog
 
-Support consistent snapshot policies:
+#### Purpose
 
-- Preseason.
-- Planting.
-- Early season.
-- Midseason.
-- Late season.
-- Harvest.
-- Each official report release.
-- Each weekly or fortnightly physical update.
+Replace the incorrect empirical catalog with a versioned, semantic catalog over
+the real feature universe.
 
-Snapshots must be generated from data satisfying:
+#### Work
 
-```text
-source_release_date <= as_of_date
-observation_date <= as_of_date
-feature_window_end <= as_of_date
-```
+- Create or adapt `configs/features/feature_taxonomy.yaml`.
+- Cover all known emitted feature patterns, including:
+  - weather stage features;
+  - CHIRPS-derived features;
+  - NASA POWER features;
+  - GDD;
+  - heat stress;
+  - drought;
+  - frost flags;
+  - MODIS NDVI;
+  - CPC soil;
+  - capacity recovery;
+  - FAOSTAT;
+  - labels;
+  - PSD;
+  - WASDE;
+  - WAP;
+  - ONI;
+  - IOD;
+  - Pink Sheet;
+  - FRED FX;
+  - COT;
+  - crush margin;
+  - vegetable-oil substitution premiums;
+  - SAGIS;
+  - CONAB;
+  - MPOB/MPOC;
+  - FGIS;
+  - ESR;
+  - NASS;
+  - NASS citrus;
+  - AMS cotton quality;
+  - UNICA;
+  - FNC;
+  - ICCO;
+  - Food CPI.
+- Build a final single-writer catalog job that reads the complete versioned
+  dataset, not one commodity at a time.
+- Add feature-to-entity and feature-to-group maps.
+- Add group taxonomy:
+  - grains;
+  - maize complex;
+  - wheat complex;
+  - oilseeds;
+  - soy complex;
+  - vegetable oils;
+  - palm;
+  - coffee;
+  - sugar and biofuel;
+  - cotton;
+  - rice;
+  - cocoa;
+  - citrus;
+  - tree crops;
+  - US row crops;
+  - South African grains.
 
-### 4.4 Preserve partial-season information
+#### Deliverables
 
-Replace full-season-only features with as-of features such as:
+- `configs/features/feature_taxonomy.yaml`.
+- Versioned `feature_catalog`.
+- Versioned `feature_entity_map`.
+- Versioned `feature_group_map`.
+- Tests proving known features do not fall into a vague catch-all category.
 
-- Stage rainfall observed to date.
-- Temperature anomaly observed to date.
-- Soil-moisture anomaly observed to date.
-- NDVI anomaly observed to date.
-- Latest crop condition.
-- Change in crop condition over prior weeks.
-- Planting/emergence/harvest pace against seasonal norm.
-- Cumulative export or delivery pace.
-- Latest official revision.
-- Number and direction of consecutive revisions.
+#### Exit Criteria
 
-Do not expose uncompleted stages as completed aggregates.
+- No observed high-volume feature family is unclassified.
+- Scope labels do not change merely because a partial commodity run happened.
+- Catalog rows are keyed by `dataset_version`.
 
-### 4.5 Build release calendars
+### Phase 6: Replace Era Tiers with Model-Purpose Feature Sets
 
-Create canonical release calendars from existing data:
+#### Purpose
 
-- WASDE release date.
-- WAP release month.
-- NASS crop-progress date.
-- NASS citrus release date.
-- SAGIS CEC release date.
-- CONAB survey date.
-- FNC monthly observation date.
-- UNICA position date.
-- MPOB month.
-- ICCO release date or latest-release date.
-- ESR and FGIS week-ending date.
+Let researchers select reviewed feature sets by modeling purpose, not by broad
+historical era.
 
-### 4.6 Build immutable dataset versions
+The existing `feature_tiers.yaml` can stay for backward compatibility, but the
+MLflow-ready path should use model-purpose sets.
 
-Do not overwrite an existing dataset version.
+#### Feature Sets
 
-The manifest must include:
+Create `configs/features/feature_sets.yaml` with:
 
-- Code Git SHA.
-- Dirty-worktree flag.
-- Container image digest.
-- Configuration SHAs.
-- Input object fingerprints.
-- Input source vintages.
-- Row and feature counts.
-- Time range.
-- Validation results.
-- Source-certification summary.
-- Feature-policy class summary.
-- Waivers for any incomplete Phase 4.0 preflight item.
-
-### 4.7 Build a thin v2 builder first
-
-Implement the first v2 builder as a narrow, correct slice rather than a full
-port of every existing feature family.
-
-Initial components:
-
-- `src/leviathan/features/availability.py` for source-date adapters.
-- `src/leviathan/features/spine_v2.py` for versioned PIT spine assembly.
-- `jobs/batch/feature_spine_v2_task.py` for S3/local execution.
-- Bounded feature set covering at least:
-  - one official-release source;
-  - one weekly or fortnightly physical-flow source;
-  - one crop-progress source;
-  - one certified economic-driver source.
-
-### 4.8 Repair training and serving symmetry
-
-- Replace "read the latest annual row" with "read the latest certified snapshot
-  at or before the requested as-of date."
-- Require callers to provide:
-  - entity;
-  - target;
-  - horizon;
-  - as-of date;
-  - feature-set ID.
-- Make it impossible for serving to infer a future-complete season by default.
-- Keep the old `gold/` serving path working until v2 is certified.
-
-### 4.9 Add point-in-time joins for certified economic drivers
-
-Use existing silver sources only. Do not add new ingestion for this workstream.
-
-Rules:
-
-- Pink Sheet monthly values must be joined with a conservative publication lag.
-- No raw price column may enter a model-ready fundamental dataset directly.
-- Only transformed, named economic-driver features may be emitted.
-- Same-month values must not be used when the release calendar is ambiguous.
-- Each economic-driver value must carry `feature_available_at`.
-- Export and physical-flow features must be computed from cumulative values
-  known at the requested `as_of_date`, not from full-season totals.
-
-Initial PIT economic-driver joins:
-
-- Brent crude z-score from `silver_pink_sheet` as `pink_sheet_energy_z`.
-- Board crush margin from existing futures silver as `crush_margin_z`, where
-  target eligibility allows it.
-- Vegetable-oil substitution premiums from Pink Sheet soybean oil, palm oil,
-  and rapeseed oil prices.
-- Export-pace features from ESR, FGIS, SAGIS weekly exports, MPOB/MPOC, FNC,
-  UNICA, PSD, and WASDE where the source grain supports an as-of view.
-
-### Deliverables
-
-- Phase 4.0 preflight report.
-- Gold v2 dataset-registry entries and DDLs.
-- Source availability adapters for admitted sources.
-- Snapshot policy configuration.
-- Thin gold v2 spine and matrix builder.
-- Versioned gold v2 S3 output for at least three representative commodities.
-- Dataset manifest containing fingerprints, source vintages, certifications,
-  feature-policy classes, and any preflight waivers.
-- Serving loader path that can request a v2 snapshot by `dataset_version` and
-  `as_of_date` while preserving the current gold loader.
-
-### Tests
-
-- Verify Phase 4 refuses to write when gold v2 registry entries are absent.
-- Verify uncertified sources are excluded or produce explicit manifest waivers.
-- Verify source availability adapters emit consistent `observation_date`,
-  `release_date`, `feature_window_start`, `feature_window_end`,
-  `feature_available_at`, and `source_vintage`.
-- Truncate all sources at historical date T and rebuild.
-- Verify that no value released after T appears.
-- Advance T by one release and verify only newly available values change.
-- Verify incomplete crop stages remain null or explicitly partial.
-- Verify the same snapshot is returned by training and serving loaders.
-- Verify every row has `feature_available_at <= as_of_date`.
-- Verify Pink Sheet, export, and margin features obey their declared release lag.
-- Verify old `gold/feature_spine` and `gold/feature_matrix` outputs remain
-  untouched during gold v2 writes.
-
-### Exit criteria
-
-- Phase 4.0 preflight is complete or every waiver is recorded in the manifest.
-- Gold v2 exists in S3 under immutable versioned prefixes and is registered in
-  the dataset registry and Athena.
-- At least three representative commodities build successfully.
-- At least one weekly or fortnightly source, one official-release source, one
-  crop-progress source, and one certified economic-driver source are PIT-safe.
-- Historical simulations reproduce what was knowable at each date.
-- Full-season weather and progress no longer leak into early-season snapshots.
-- Training and inference use the same snapshot builder.
-- Existing gold remains readable and unchanged until explicit migration.
-
-## Phase 5: Rebuild Feature Taxonomy and Feature Sets
-
-### Purpose
-
-Create a meaningful taxonomy for selection, ablation, governance, and reuse.
-
-### 5.1 Separate semantic scope from empirical availability
-
-Semantic scope:
-
-- `global`
-- `group`
-- `physical_commodity`
-- `origin`
-- `contract`
-
-Empirical availability:
-
-- Number of entities containing the feature.
-- Number of years or releases.
-- First and last available dates.
-- Non-null rate.
-- Source cadence.
-
-A Brazil coffee weather feature is semantically origin-specific even if the
-catalog-building run processed only Brazil coffee.
-
-### 5.2 Make the catalog a single-writer output
-
-- Commodity jobs write only their own manifests and matrices.
-- A final catalog job reads all completed manifests.
-- The final job computes cross-entity coverage.
-- The catalog is published only if the expected entity set is complete.
-- Partial rebuilds must not overwrite the global catalog.
-
-### 5.3 Add real group membership
-
-The current `group` field is always null. Populate explicit groups such as:
-
-- grains;
-- oilseeds;
-- soy complex;
-- wheat complex;
-- maize complex;
-- coffee;
-- sugar and biofuel;
-- palm;
-- tree crops;
-- US row crops;
-- South African grains.
-
-A feature may have multiple group tags. Use a normalized mapping table rather
-than forcing one ambiguous string.
-
-### 5.4 Replace era tiers with model-purpose feature sets
-
-Create versioned feature-set definitions for:
-
-- `preseason_physical`
-- `inseason_weather`
-- `crop_condition`
-- `official_revision`
-- `physical_flow`
-- `balance_sheet`
-- `processing_economics`
-- `planting_incentives`
-- `trade_competitiveness`
-- `tail_risk`
-- `data_quality`
+- `preseason_physical`;
+- `inseason_weather`;
+- `crop_condition`;
+- `official_revision`;
+- `physical_flow`;
+- `balance_sheet`;
+- `processing_economics`;
+- `planting_incentives`;
+- `trade_competitiveness`;
+- `tail_risk`;
+- `data_quality`;
+- `diagnostic_market_context`.
 
 Each feature set declares:
 
-- Allowed semantic scopes.
-- Allowed sources.
-- Allowed economic mechanisms and price-feature policies.
-- Excluded market-signal classes.
-- Required as-of policy.
-- Required decision lag for price-derived economic drivers.
-- Minimum coverage.
-- Missingness policy.
-- Target compatibility.
-- Feature-set version.
+- allowed semantic scopes;
+- allowed policies;
+- allowed mechanisms;
+- blocked policies;
+- source families;
+- minimum lag;
+- target compatibility;
+- minimum coverage;
+- missingness policy;
+- whether labels are excluded;
+- feature-set version.
 
-### 5.5 Add certified economic-driver feature families
+#### Deliverables
 
-Build only high-value, low-engineering features from existing silver tables.
-Do not add livestock margins, named futures maturity spreads, or new external
-price ingestion in this phase.
+- Versioned feature-set config.
+- Feature-set selector.
+- MLflow tags for `feature_set_id`, `feature_set_version`, and
+  `feature_set_sha`.
 
-Initial feature families:
+#### Exit Criteria
 
-- `pink_sheet_energy_z`
-  - Source: `silver_pink_sheet.brent_crude_usd_bbl_zscore_5yr`.
-  - Mechanism: fuel, freight, drying, processing, and biofuel economics.
-  - Policy: `certified_economic_driver`.
-- `crush_margin_z`
-  - Source: existing futures silver and current crush-margin computation.
-  - Mechanism: oilseed processor profitability and product-output incentives.
-  - Policy: `certified_economic_driver`.
-  - Required certification: verify which soy-complex contracts actually receive
-    the feature in gold, and either fix a small builder bug or document the
-    processed-product-only eligibility.
-- `veg_oil_soy_palm_premium_z`
-  - Source: Pink Sheet soybean oil and palm CPO monthly prices.
-  - Mechanism: vegetable-oil demand substitution, biodiesel feedstock
-    allocation, trade switching, and stock pressure.
-  - Policy: `certified_economic_driver`.
-- `veg_oil_soy_palm_ratio_z`
-  - Source: Pink Sheet soybean oil and palm CPO monthly prices.
-  - Mechanism: scale-normalized vegetable-oil substitution pressure.
-  - Policy: `certified_economic_driver`.
-- `veg_oil_rape_palm_premium_z`
-  - Source: Pink Sheet rapeseed oil and palm CPO monthly prices.
-  - Mechanism: vegetable-oil substitution pressure.
-  - Policy: `certified_economic_driver`.
-- `export_pace_z`, `export_pace_yoy`, and
-  `remaining_exports_required_pace`
-  - Sources: ESR, FGIS, SAGIS weekly exports, MPOB/MPOC, FNC, UNICA, PSD, and
-    WASDE where supported by source grain.
-  - Mechanism: observed physical demand, shipment pace, and balance-sheet
-    pressure.
-  - Policy: `core_fundamental`.
+- Training can select feature sets by config.
+- Core feature sets reject `diagnostic_only` and `excluded_market_signal`
+  features.
+- Economic-driver feature sets include only certified features.
 
-Feature construction rules:
+### Phase 7: Add High-Value Existing-Silver Feature Families to Gold
 
-- Use relative price spreads, ratios, or z-scores, not raw price levels.
-- Require a documented decision lag and target eligibility.
-- Emit missing values when required source legs are absent; do not substitute
-  unrelated proxies silently.
-- Keep COT and `vol_regime` out of core feature sets unless an experiment is
-  explicitly diagnostic.
-- Keep calendar spreads and term-structure features blocked from fundamental
-  S&D model-ready datasets.
+#### Purpose
 
-### 5.6 Reduce dimensionality before model fitting
+Close obvious value gaps using silver data that already exists, without new
+ingestion or large architecture work.
 
-The current matrices contain up to 730 inputs for approximately 220 labels.
-Feature engineering must reduce this before tuning.
+#### Add First
 
-Required methods:
+These are high-value and should be modest engineering work because silver is
+already present:
 
-- Agronomic aggregation from location to weighted origin-stage features.
-- Remove zero-variance and near-zero-variance columns.
-- Remove duplicate columns.
-- Collapse strongly redundant regional measurements when they represent the
-  same mechanism.
-- Retain source-availability flags separately from source values.
-- Apply selection inside each training fold when target-driven selection is
-  used.
+- WASDE direct revision features:
+  - `wasde_latest_revision`;
+  - `wasde_consecutive_revision_count`;
+  - component-specific production/stocks/use revisions where schema supports.
+- NASS citrus features for FCOJ:
+  - forecast revision;
+  - prior-month forecast change;
+  - finalization gap where available.
+- AMS cotton quality:
+  - `ams_percent_tenderable`;
+  - cotton quality flags where sample size supports.
+- UNICA raw sugar:
+  - sugar mix;
+  - cane crush pace;
+  - ATR or sugar output pace where source supports.
+- FNC Colombia:
+  - production pace;
+  - export pace;
+  - internal/ex-dock price as certified economic driver only where lagged and
+    documented.
+- ICCO cocoa:
+  - grindings trend deviation;
+  - stock/use or surplus/deficit context.
+- Food CPI:
+  - policy-risk z-score features for countries where food-security intervention
+    risk matters.
+- Vegetable-oil substitution:
+  - `veg_oil_soy_palm_premium_z`;
+  - `veg_oil_soy_palm_ratio_z`;
+  - `veg_oil_rape_palm_premium_z`.
 
-### 5.7 Complete crop calendars
+#### Add Carefully
 
-- Add a calendar only where agronomically defensible.
-- Prefer physical-commodity and origin calendars over contract calendars.
-- Validate cross-year stage windows.
-- Document tree-crop multi-year cycles.
-- Contracts without a defensible calendar consume shared physical-model
-  outputs instead of inventing one.
+- Richer export-pace features from ESR, FGIS, SAGIS weekly exports, MPOB/MPOC,
+  FNC, UNICA, PSD, and WASDE.
+- In-season latest NASS crop progress features only for datasets whose target
+  has an explicit as-of date.
 
-### Deliverables
+#### Do Not Add Now
 
-- Global feature catalog v2.
-- Feature-to-entity and feature-to-group mapping tables.
-- Versioned model-purpose feature-set configs.
-- Economic-mechanism and market-signal policy tests.
-- Certified economic-driver feature definitions from existing silver.
-- Export-pace feature definitions for sources that support an as-of view.
-- Coverage and collinearity reports.
-- Physical crop calendars.
+- new external data;
+- livestock margins;
+- futures calendar spreads;
+- term structure;
+- price momentum;
+- intraday price features;
+- GraphRAG-derived features.
 
-### Exit criteria
+#### Deliverables
 
-- Scope labels remain correct under partial rebuilds.
-- Feature selection is config-driven and reviewable.
-- Fundamental feature sets admit only certified economic-transmission price
-  features and reject price-prediction or technical-market features.
-- Feature count is proportionate to usable observations.
+- Feature registry additions.
+- Extractor additions where needed.
+- Computation functions.
+- Unit tests per feature family.
+- Updated taxonomy and feature-set mapping.
 
-## Phase 6: Build Model-Ready Targets and Datasets
+#### Exit Criteria
 
-### Purpose
+- New features are visible in versioned gold.
+- New features have policy metadata.
+- New features do not leak future information under the declared as-of rule.
 
-Produce explicit supervised and unsupervised datasets for experimentation.
+### Phase 8: Build Model-Ready Targets and Datasets
 
-### 6.1 Define target families
+#### Purpose
+
+Move from one overloaded annual matrix to explicit model-ready datasets.
+
+#### Target Families
 
 Required target families:
 
-- Official next-release revision.
-- Official finalization gap.
-- Yield anomaly versus trailing expectation.
-- Harvested-area anomaly versus trailing expectation.
-- Production anomaly composed from area and yield.
-- End-season physical-flow total.
-- Balance-sheet component revision.
-- Ending-stock and stock-to-use revision.
-- Tail-event labels.
+- official next-release revision;
+- official finalization gap;
+- yield anomaly versus trailing expectation;
+- harvested-area anomaly versus trailing expectation;
+- production anomaly versus trailing expectation;
+- end-season physical-flow total;
+- balance-sheet component revision;
+- ending-stock or stock/use revision;
+- quality/tenderability event;
+- tail-event label;
+- multivariate anomaly score.
 
-Each target requires:
+Final production levels are still useful as labels and reconciliation anchors,
+but the primary research target should usually be the residual/anomaly or
+revision, not the deterministic production level.
 
-- Definition.
-- Unit.
-- Forecast horizon.
-- As-of rule.
-- Final source.
-- Revision policy.
-- Eligible entities.
-- Minimum sample requirement.
+#### Dataset Grains
 
-### 6.2 Build no-change and structural baselines
+Create distinct model-ready datasets rather than forcing every model through one
+annual matrix:
+
+```text
+annual_physical_anomaly:
+  physical_commodity x origin x crop_year x as_of_stage
+
+official_revision:
+  source x commodity x geography x marketing_year x release_date
+
+weekly_or_fortnightly_trajectory:
+  source x commodity x geography x season x observation_date
+
+balance_sheet_revision:
+  commodity x geography x marketing_year x release_date x balance_component
+
+quality_event:
+  commodity x origin x season x report_date
+
+anomaly_detection_panel:
+  entity x observation_date x feature_set
+```
+
+#### Baselines
 
 Every supervised dataset must include baseline predictions:
 
-- Current official estimate unchanged.
-- Prior release unchanged.
-- Prior-year final value.
-- Trailing mean.
-- Trailing linear trend.
-- Seasonal analogue.
-- Current cumulative pace extrapolation for flow datasets.
-
-These baselines are dataset artifacts, not informal notebook calculations.
-
-### 6.3 Separate training grains
-
-Create distinct datasets instead of one overloaded matrix:
-
-#### Annual physical anomaly dataset
-
-```text
-physical_commodity x origin x crop_year x as_of_stage
-```
-
-#### Official revision dataset
-
-```text
-source x commodity x geography x marketing_year x release_date
-```
-
-#### Weekly/fortnightly trajectory dataset
-
-```text
-source x commodity x geography x season x observation_date
-```
-
-#### Balance-sheet dataset
-
-```text
-commodity x geography x marketing_year x release_date x balance_component
-```
-
-#### Unsupervised anomaly dataset
-
-```text
-entity x observation_date x standardized physical features
-```
-
-### 6.4 Add dataset eligibility gates
-
-Before publishing:
-
-- Minimum number of independent seasons.
-- Minimum number of nonzero target changes.
-- Maximum feature-to-observation ratio.
-- Maximum missingness by required feature family.
-- Minimum number of stress/tail events.
-- No duplicated target series presented as independent entities.
-- No unsupported target unit or source vintage.
-
-### 6.5 Enforce feature-to-target eligibility
-
-Every model-ready dataset must apply feature-policy gates before writing the
-dataset manifest.
-
-Eligibility rules:
-
-- Vegetable-oil substitution premiums are allowed for:
-  - palm-oil demand, exports, stocks, and balance models;
-  - soybean-oil demand, exports, stocks, and balance models;
-  - oilseed/product flow or balance models where substitution is a documented
-    mechanism.
-- Vegetable-oil substitution premiums are prohibited for:
-  - agronomic yield models;
-  - harvested-area anomaly models unless the as-of date is in a documented
-    planting or investment decision window;
-  - weather-only yield anomaly datasets.
-- `crush_margin_z` is allowed for:
-  - crush;
-  - soybean-meal and soybean-oil output;
-  - soy-complex balance components;
-  - product stock or export models where processor economics is documented.
-- `crush_margin_z` is prohibited for:
-  - pure crop-weather yield models;
-  - unrelated crop families.
-- `pink_sheet_energy_z` is allowed as an input-cost, freight, processing, and
-  biofuel proxy when the target mechanism is documented.
-- COT positioning and market `vol_regime` are diagnostic-only unless the
-  experiment is explicitly non-core and labeled as such.
-- Calendar spreads, term structure, price momentum, and own-contract returns
-  are blocked from core fundamental S&D datasets.
-
-The dataset manifest must record which feature-policy classes are present.
-
-### 6.6 Register dataset versions
-
-Create a dataset manifest table containing:
-
-- `dataset_id`
-- `dataset_version`
-- `target_id`
-- `feature_set_id`
-- `entity_scope`
-- `row_count`
-- `feature_count`
-- `first_as_of_date`
-- `last_as_of_date`
-- `positive_tail_count`
-- `negative_tail_count`
-- `content_fingerprint`
-- `manifest_s3_uri`
-- `certification_status`
-
-### Deliverables
-
-- Versioned model-ready datasets.
-- Target registry.
-- Baseline prediction artifacts.
-- Dataset manifest table.
-- Dataset eligibility reports.
-- Feature-to-target eligibility reports.
-
-### Exit criteria
-
-- Every experiment target has a valid economic and physical interpretation.
-- Baselines are available before any learned model is evaluated.
-- Datasets of different grains are not mixed into one annual matrix.
-- Ineligible datasets are blocked rather than quietly trained.
-
-## Phase 7: Add Data-Quality, Leakage, and Robustness Certification
-
-### Purpose
-
-Turn data correctness into an automated gate rather than a researcher's
-assumption.
-
-### 7.1 Source-level checks
-
-- Schema.
-- Natural-key uniqueness.
-- Unit consistency.
-- Range validity.
-- Category allowlists.
-- Date monotonicity.
-- Revision arithmetic.
-- Cumulative-flow monotonicity where expected.
-- Final estimate consistency.
-- Suspicious identical partitions.
-
-### 7.2 Gold-level checks
-
-- Feature availability is not later than as-of date.
-- Labels are not present in feature columns.
-- Target-derived transformations are fold-local.
-- Source-vintage dates are retained.
-- No future-complete stage enters an earlier snapshot.
-- Global values are broadcast only when semantically valid.
-- Origin-specific values do not leak across origins.
-
-### 7.3 Statistical checks
-
-- Constant features.
-- Duplicate features.
-- Extreme missingness.
-- Implausible discontinuities.
-- Target leakage correlations.
-- Unexpected target identity across contracts.
-- Unrealistic revision distributions.
-- Feature-count versus sample-count warning.
-- Train/test distribution changes by release era.
-
-### 7.4 Truncate-at-T regression suite
-
-For selected historical dates:
-
-1. Build the dataset with all current data.
-2. Build it after truncating inputs at T.
-3. Compare the row corresponding to T.
-4. Require equality for every feature that should have been known at T.
-5. Require absence of every feature first available after T.
-
-Cover:
-
-- WASDE.
-- NASS crop progress.
-- NASS citrus.
-- SAGIS CEC.
-- CONAB.
-- UNICA.
-- MPOB.
-- ESR.
-- FGIS.
-- Weather stages.
-
-### 7.5 Feature-policy certification
-
-Before any dataset can be used in MLflow:
-
-- Reject raw price columns in core fundamental feature sets.
-- Reject calendar spread, term-structure, price-momentum, and own-contract
-  return features from core fundamental S&D datasets.
-- Reject COT positioning and market `vol_regime` from core feature sets unless
-  the dataset is explicitly labeled diagnostic.
-- Verify every `certified_economic_driver` has:
-  - `economic_mechanism`;
-  - `affected_balance_component`;
-  - `decision_window`;
-  - `minimum_lag`;
-  - `source_series`;
-  - `feature_available_at`;
-  - `eligible_targets`;
-  - `prohibited_targets`.
-- Verify substitute-price features are relative, ratio, or z-scored features,
-  not raw price levels.
-- Verify the required source legs exist for each emitted substitute-price or
-  margin feature.
-- Verify export-pace features use only observations available at `as_of_date`.
-
-### 7.6 Certification artifact
-
-Publish a machine-readable certification:
-
-```text
-certified
-certified_with_warnings
-blocked
-```
-
-MLflow training must reject `blocked` dataset versions.
-
-### Exit criteria
-
-- Leakage checks run automatically.
-- A dataset cannot be trained merely because Parquet exists.
-- Known source defects become explicit blocked certifications.
-- Certification is linked to every MLflow run.
-
-## Phase 8: Complete the MLflow Experimentation System
-
-### Purpose
-
-Make every experiment comparable, reproducible, and capable of producing a
-deployable fitted artifact.
-
-### 8.1 Define experiment hierarchy
-
-Use separate MLflow experiments by research problem, not one generic production
-experiment.
-
-Recommended naming convention:
-
-```text
-leviathan/{target_family}/{entity_family}
-```
-
-Runs are tagged with physical commodity, origin, target, horizon, and dataset
-version.
-
-### 8.2 Build a general experiment runner
-
-The runner must accept:
-
-- Dataset ID and version.
-- Feature-set ID and version.
-- Target ID.
-- Entity filter.
-- As-of stage or horizon.
-- Estimator adapter.
-- Search-space config.
-- CV policy.
-- Final holdout policy.
-- Random seed.
-- Experiment name.
-
-It must not infer experimental intent solely from a contract slug.
-
-### 8.3 Fit and log the final model
-
-After cross-validation and model selection:
-
-- Refit the selected configuration on the eligible pre-holdout data.
-- Evaluate once on the untouched final holdout.
-- Log the fitted model with its signature and input example.
-- Log preprocessing and feature-selection objects as one pipeline artifact.
-- Store the model under MLflow artifacts.
-- Do not register or promote a model that lacks a fitted artifact.
-
-### 8.4 Log full tuning history
-
-- Use nested or child MLflow runs for tuning trials, or log a complete trial
-  table artifact.
-- Record failed and pruned trials.
-- Record trial duration.
-- Record search-space version.
-- Do not log only the winning parameters.
-
-### 8.5 Add proper evaluation outputs
-
-Required metrics by applicable target:
-
-- Baseline-relative skill.
-- Normalized absolute error.
-- Directional accuracy.
-- Revision-direction accuracy.
-- Tail precision, recall, and calibration.
-- Quantile or interval loss.
-- Prediction-interval coverage.
-- Error by origin.
-- Error by forecast horizon.
-- Error by source/release month.
-- Stress-year or tail-event performance.
-- Sample count for every metric.
-
-### 8.6 Add run artifacts
-
-- Fold predictions.
-- Final holdout predictions.
-- Baseline predictions.
-- Residual diagnostics.
-- Feature coverage report.
-- Dataset manifest.
-- Feature-set config.
-- Trial history.
-- Fitted model.
-- Model signature.
-- Explanation output when supported.
-- Validation certification.
-
-### 8.7 Fix provenance
-
-- Fail or warn when Git SHA is unknown.
-- Record dirty-worktree state.
-- Record ECR image digest.
-- Record exact package lock or installed dependency list.
-- Record AWS Batch job ID and job-definition revision.
-- Record source object fingerprints.
-
-### 8.8 Add a candidate model registry workflow
-
-Experiment readiness requires a clear distinction between:
-
-- experiment run;
-- candidate model;
-- approved research champion;
-- production model.
-
-At this stage:
-
-- Allow a run to be registered as a candidate only after certification passes.
-- Use MLflow aliases such as `candidate` and `research_champion`.
-- Do not automatically create a production alias.
-- Promotion to production remains a later governance decision.
-
-### Deliverables
-
-- General experiment runner.
-- Estimator adapter interface.
-- Search-space configuration format.
-- Complete MLflow logging.
-- Fitted model artifacts.
-- Candidate registry workflow.
-- Experiment comparison report.
-
-### Exit criteria
-
-- A run can be recreated from its tags and artifacts.
-- MLflow contains a fitted model, not only predictions.
-- Every run compares against stored baselines.
-- Hyperparameter history is inspectable.
-- Uncertified datasets cannot launch experiments.
-
-## Phase 9: Reconcile Infrastructure and Orchestration
-
-### Purpose
-
-Make the experimentation platform durable and operable without adding expensive
-serving infrastructure.
-
-### 9.1 Make MLflow backend durable
-
-Preferred development options:
-
-1. Attach a dedicated persistent encrypted EBS volume and preserve it across
-   instance replacement.
-2. Move MLflow metadata to a small managed PostgreSQL backend when concurrent
-   use justifies it.
-
-Do not continue with the only metadata copy on a delete-on-termination root
-volume.
-
-### 9.2 Remove hardcoded MLflow private IPs
-
-- Resolve the tracking endpoint through:
-  - private DNS;
-  - an internal load balancer;
-  - Cloud Map;
-  - or a parameter stored in SSM Parameter Store.
-- Batch job definitions should not require manual updates after EC2 replacement.
-
-### 9.3 Pin container images
-
-- Use immutable release tags or image digests.
-- Record image digest in every run.
-- Do not let `latest` change the implementation behind an otherwise identical
-  experiment.
-- Maintain separate worker and trainer release histories.
-
-### 9.4 Reconcile Airflow configuration
-
-The live Airflow environment currently uses SQLite and SequentialExecutor even
-though Terraform comments describe LocalExecutor.
-
-- Make code, environment variables, and live configuration agree.
-- Keep SequentialExecutor if only one local task should run at a time.
-- Use Airflow primarily to submit and monitor Batch jobs.
-- Unpause only validated DAGs.
-
-### 9.5 Add experiment orchestration DAGs
-
-Create DAGs for:
-
-- Dataset build and certification.
-- Experiment launch.
-- Experiment result aggregation.
-- Candidate registration.
-- Periodic source freshness checks.
-
-Do not add production inference scheduling until research champions exist.
-
-### 9.6 Add observability
-
-Monitor:
-
-- MLflow and Airflow service health.
-- Backend backup age.
-- Disk usage.
-- Batch queue depth.
-- Failed experiment jobs.
-- Dataset-certification failures.
-- Athena catalog drift.
-- Stale source inputs.
-
-### 9.7 Update output tables
-
-Reconcile the current narrow model-prediction DDL with the generalized schema
-already described in `desiredstate.md`.
-
-Add:
-
-- `silver_model_predictions`
-- `silver_model_explanations`
-- `silver_model_dependencies`
-- `silver_model_drift_reports`
-
-For experiment readiness, predictions and explanations may initially be
-research outputs. Their schemas must already support different target families
-and non-contract entities.
-
-### Deliverables
-
-- Durable MLflow backend.
-- Stable tracking endpoint.
-- Immutable trainer-image releases.
-- Reconciled Airflow deployment.
-- Experiment DAGs.
-- Health and backup monitoring.
-- Correct generalized model-output tables.
-
-### Exit criteria
-
-- EC2 replacement does not erase experiments.
-- Batch resolves MLflow without a hardcoded private IP.
-- A scheduled workflow can build, certify, train, and summarize an experiment.
-- Output tables support physical, balance, anomaly, and downstream model types.
-
-## Phase 10: Experiment Readiness Certification
-
-### Purpose
-
-Prove that the system is ready before launching broad model research.
-
-### 10.1 Select representative certification datasets
-
-Use a cross-section of data structures:
-
-- US annual crop plus weekly crop progress.
-- Multi-origin annual crop.
-- Official monthly revision series.
-- Weekly physical-flow series.
-- Tree crop.
-- Processed-product balance.
-
-The certification exercise validates infrastructure and data contracts. It does
-not choose the final model portfolio.
-
-### 10.2 Run end-to-end dry runs
-
-For each certification dataset:
-
-1. Build immutable gold snapshots.
-2. Run source and PIT certification.
-3. Resolve a versioned feature set.
-4. Generate stored baselines.
-5. Launch a small experiment.
-6. Log complete MLflow metadata.
-7. Log a fitted artifact.
-8. Recreate predictions from the logged artifact.
-9. Query predictions in Athena.
-10. Restore MLflow metadata in a temporary environment and find the run.
-
-### 10.3 Reproducibility test
-
-Run the same dataset, configuration, seed, and image twice.
-
-Require:
-
-- Same dataset fingerprint.
-- Same feature-set SHA.
-- Same fold assignment.
-- Deterministic predictions within declared tolerance.
-- Same primary metrics within declared tolerance.
-
-### 10.4 Negative tests
-
-Confirm the platform rejects:
-
-- A feature released after the row as-of date.
-- A blocked dataset certification.
-- An uncertified market-derived feature in a fundamental feature set.
-- A raw price column in a core fundamental feature set.
-- A calendar-spread or term-structure feature in a core S&D dataset.
-- A substitute-price feature without relative/z-score transformation and target
-  eligibility metadata.
-- A processed product using an agricultural yield target.
-- An unknown Git SHA when strict mode is enabled.
-- A mutable unrecorded image reference.
-- A target with insufficient independent seasons.
-- A suspicious identical CONAB survey.
-
-### 10.5 Final readiness checklist
-
-Data:
-
-- [x] S3 Inventory is live.
-- [x] Dataset registry covers all model-relevant prefixes.
-- [x] Athena DDL drift is zero.
-- [ ] WASDE revisions are normalized.
-- [ ] CONAB revisions are repaired or explicitly blocked.
-- [ ] AMS cotton quality is structured.
-- [ ] Every existing physical source has a certification report.
-
-Semantics:
-
-- [ ] Physical commodity taxonomy is authoritative.
-- [ ] Contract-to-physical mappings are explicit.
-- [ ] Primary and proxy labels are distinguishable.
-- [ ] Source precedence is documented.
-
-Point in time:
-
-- [ ] Phase 4.0 preflight is complete or all waivers are manifest-recorded.
-- [ ] Gold v2 registry entries and Athena DDLs exist before gold v2 data is
-      written.
-- [ ] Source availability adapters define observation, release, window, and
-      available-at dates for every admitted source.
-- [ ] Gold v2 contains as-of snapshots.
-- [ ] Actual availability timestamps are retained.
-- [ ] Truncate-at-T tests pass.
-- [ ] Training and serving loaders return the same snapshot.
-
-Features:
-
-- [ ] Feature catalog is built by one finalizer.
-- [ ] Global, group, physical, origin, and contract scopes are populated.
-- [ ] Model-purpose feature sets are versioned.
-- [ ] Feature-policy vocabulary is consistent across plan, config, code, and
-      manifests.
-- [ ] Fundamental sets contain no uncertified market-derived inputs.
-- [ ] Pink Sheet economic-driver features are point-in-time certified.
-- [ ] Substitute-price premiums are feature-policy gated.
-- [ ] Calendar spreads and term structure are blocked from fundamental S&D
-      datasets.
-- [ ] COT and market-volatility regime features are diagnostic-only unless
-      explicitly overridden.
-- [ ] Export-pace features are standardized where source data supports them.
-- [ ] Feature count is controlled relative to sample size.
-
-MLflow:
-
-- [ ] Runs log dataset and feature-set versions.
-- [ ] Runs log Git SHA and image digest.
-- [ ] Baselines are logged.
-- [ ] Trial history is logged.
-- [ ] Fitted model artifacts are logged.
-- [ ] Candidate registry workflow works.
-- [ ] Existing runs survive backend restore.
-
-Infrastructure:
-
-- [ ] Terraform plan is non-destructive or intentionally migratory.
-- [ ] MLflow backend is durable.
-- [ ] Tracking URI is stable.
-- [ ] Airflow live configuration matches code.
-- [ ] Experiment DAGs are tested.
-- [ ] Backup and service-health alarms exist.
-
-### Definition of done
-
-The program is complete when a researcher can launch a certified experiment
-using a versioned dataset and feature set, inspect all trials in MLflow, compare
-the result with stored baselines, load the fitted artifact, reproduce its
-predictions, and prove that no input was unavailable at the forecast date.
-
-## 6. Cross-Phase Engineering Standards
-
-### 6.1 Immutability
-
-- Raw remains immutable.
-- Bronze and silver transforms are reproducible.
-- Gold experiment dataset versions are immutable.
-- Model artifacts are immutable.
-- Mutable aliases may point to immutable versions.
-
-### 6.2 Idempotency
-
-- Rerunning a transform with the same inputs and version produces the same
-  content fingerprint.
-- Existing versioned outputs are skipped unless an explicit rebuild creates a
-  new version.
-- Retry behavior cannot duplicate natural keys.
-
-### 6.3 Source lineage
-
-Every derived row must be traceable to:
-
-- Source dataset.
-- Source object or release.
-- Parser/transform version.
-- Configuration version.
-- Build job.
-
-### 6.4 Test pyramid
-
-- Unit tests for parsing and feature calculations.
-- Contract tests for schemas and natural keys.
-- Integration tests over bounded S3 fixtures.
-- PIT regression tests.
-- Athena smoke tests.
-- End-to-end experiment tests.
-
-### 6.5 Change management
-
-- Data-contract changes require a dataset-version increment.
-- Feature-definition changes require a feature-set-version increment.
-- Target changes require a target-version increment.
-- Training-code changes require a new image digest.
-- Runs with different target or dataset versions must not be ranked as direct
-  substitutes without an explicit comparison study.
-
-## 7. Risks and Mitigations
+- no-change from current official estimate;
+- prior release unchanged;
+- prior-year final value;
+- trailing mean;
+- trailing linear trend;
+- seasonal analogue;
+- cumulative pace extrapolation for flow datasets.
+
+#### Deliverables
+
+- Target dictionary.
+- Dataset builders.
+- Dataset manifests.
+- Baseline outputs.
+- MLflow-ready dataset registry entries.
+
+#### Exit Criteria
+
+- Each dataset has one clear target, horizon, grain, and as-of rule.
+- Baselines are materialized, not computed informally in notebooks.
+- Datasets can be selected by `dataset_version`.
+
+### Phase 9: Upgrade MLflow Training
+
+#### Purpose
+
+Make MLflow runs reproducible, comparable, and artifact-complete.
+
+#### Work
+
+- Add `--dataset-version` to training jobs.
+- Read `gold/feature_matrix_versions/...` by default.
+- Support `--feature-set-id` and `--feature-set-version`.
+- Keep `--tier` only as backward compatibility.
+- Log:
+  - dataset version;
+  - dataset manifest URI;
+  - dataset fingerprint;
+  - feature-set SHA;
+  - feature policy summary;
+  - target definition;
+  - training window;
+  - model class;
+  - hyperparameters;
+  - Optuna trial history;
+  - CV metrics;
+  - slice metrics;
+  - baseline comparison;
+  - fitted model artifact.
+- Store training snapshots under a run-specific immutable path.
+- Write predictions to `silver/model_predictions/`.
+- Add `silver/model_explanations/` and `silver/model_dependencies/` in a later
+  production-readiness phase; do not block experiment readiness on frontend
+  chart outputs.
+
+#### Deliverables
+
+- Updated training CLI.
+- Updated Batch job definition.
+- MLflow artifact logging.
+- Fitted model logging.
+- Optuna trial logging.
+- Baseline comparison logging.
+
+#### Exit Criteria
+
+- A run can be reproduced from MLflow tags and artifacts.
+- A fitted model artifact is logged.
+- Runs with different dataset or feature-set versions are not ranked as direct
+  substitutes unless explicitly compared.
+
+### Phase 10: Orchestration and Readiness Certification
+
+#### Purpose
+
+Make the experiment lifecycle repeatable.
+
+#### Work
+
+- Add or update Airflow DAGs for:
+  - source certification;
+  - versioned gold build;
+  - feature catalog build;
+  - training-window build;
+  - selected experiment sweeps.
+- Keep all DAGs paused until manually enabled.
+- Add a readiness certification script that checks:
+  - Glue/DDL sync;
+  - S3 prefixes exist;
+  - source certifications pass or have waivers;
+  - versioned gold exists;
+  - catalog exists;
+  - feature sets validate;
+  - MLflow backup exists;
+  - one smoke training run succeeds.
+
+#### Deliverables
+
+- Airflow DAGs.
+- Readiness certification report.
+- Smoke training run.
+
+#### Exit Criteria
+
+- The project can run a controlled MLflow experiment from a versioned dataset
+  without manual S3 spelunking.
+
+## 7. Recommended Execution Order
+
+The shortest safe path is:
+
+1. Protect MLflow and Airflow state.
+2. Fix Glue/DDL drift for live silver tables.
+3. Preserve and clean v2 scratch.
+4. Certify existing silver sources.
+5. Add versioned legacy-gold registry entries and DDLs.
+6. Build one immutable broad gold dataset version.
+7. Build versioned catalog/entity/group maps.
+8. Add model-purpose feature sets.
+9. Add the small high-value existing-silver feature families.
+10. Build model-ready target datasets and baselines.
+11. Upgrade training to select `dataset_version` and feature-set version.
+12. Run one smoke MLflow experiment.
+13. Certify readiness.
+
+Parallel work is safe where outputs do not overlap:
+
+- Glue reconciliation can proceed alongside source certification.
+- Feature taxonomy can proceed alongside versioned path implementation.
+- Training CLI changes can be developed against fixtures before versioned gold
+  is written.
+- New feature families can be added after the first versioned-gold plumbing is
+  proven.
+
+Do not run broad experiment sweeps until versioned gold and the catalog are
+published.
+
+## 8. Risks and Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Rebuilding gold changes historical experiment results | Preserve immutable dataset versions and existing snapshots |
-| WASDE parser-era differences create false revisions | Use era-specific mappings, allowlists, and sampled report reconciliation |
-| Source-specific datasets have short histories | Pool only when entities share a defensible mechanism; use simpler baselines and uncertainty |
-| Hundreds of regional weather features overwhelm small annual samples | Agronomic aggregation, fold-local selection, and feature-count gates |
-| Partial-season features accidentally use full-season normalization | Use as-of-safe trailing baselines and truncate-at-T tests |
-| Contract duplication inflates the number of apparent models | Train physical and balance entities, then map outputs to contracts |
-| Terraform replaces MLflow before state is durable | Block apply until backup, restore, and state reconciliation pass |
-| Mutable ECR tags make runs irreproducible | Pin image digest in Batch and MLflow |
-| Market variables leak into the fundamental track | Source policy metadata and training preflight rejection |
-| Researcher selects features in the UI without version control | MLflow is for comparison; feature definitions remain in reviewed configuration |
+| v2 work distracts from broad feature readiness | Treat v2 as future PIT design; fold useful pieces into legacy gold |
+| Mutable latest gold changes historical experiment results | Train from immutable dataset versions |
+| Current catalog lies about universal features | Replace with versioned semantic catalog and single-writer build |
+| Checked-in DDLs drift from Glue | Add Glue/DDL certification to Phase 1 |
+| MLflow EC2 replacement destroys SQLite state | Backup and restore before Terraform changes |
+| Hundreds of weather features overfit annual labels | Add feature sets, coverage gates, dimensionality reduction, and baselines |
+| Final production levels are too deterministic | Prefer anomaly, revision, finalization-gap, flow, and tail targets |
+| Economic-driver price features leak market shortcuts | Enforce policy classes and target eligibility |
+| Short-history sources look more reliable than they are | Surface source history and confidence in manifests and MLflow tags |
+| Partial rebuild overwrites global catalog | Single-writer catalog keyed by dataset version |
 
-## 8. Recommended Execution Order
+## 9. Definition of Done
 
-The shortest safe critical path is:
+The readiness plan is complete when:
 
-1. Protect MLflow state and neutralize destructive Terraform drift.
-2. Establish the dataset registry and repair Athena.
-3. Build normalized WASDE silver.
-4. Repair or block CONAB.
-5. Build AMS cotton structured data.
-6. Define physical commodity, origin, product, and contract mappings.
-7. Close Phase 4.0 preflight: source certifications, policy vocabulary,
-   source availability semantics, and gold v2 registry entries.
-8. Build thin point-in-time gold v2 under immutable versioned prefixes.
-9. Rebuild feature taxonomy and model-purpose feature sets.
-10. Build certified model-ready datasets and baselines.
-11. Complete MLflow logging, fitted artifacts, and trial tracking.
-12. Reconcile Airflow and add experiment orchestration.
-13. Pass the end-to-end readiness certification.
+- MLflow and Airflow backend stores are backed up.
+- Glue and checked-in DDLs are reconciled for active non-GraphRAG datasets.
+- A source certification report exists.
+- One immutable broad `gold/feature_spine_versions` dataset exists for all 31
+  commodities.
+- The matching immutable feature matrix exists.
+- A dataset manifest exists.
+- A versioned feature catalog exists.
+- Feature/entity/group maps exist.
+- Feature sets are versioned and policy-governed.
+- Training can select `dataset_version` and feature-set version.
+- At least one smoke MLflow run logs:
+  - fitted model artifact;
+  - dataset version;
+  - feature-set SHA;
+  - metrics;
+  - baseline comparison;
+  - training snapshot.
 
-Parallel work is safe only where outputs do not overlap:
+## 10. Future PIT v2 Boundary
 
-- Athena reconciliation can proceed alongside source certification.
-- AMS parsing can proceed alongside WASDE normalization.
-- Entity taxonomy can proceed alongside data repairs.
-- MLflow runner refactoring can proceed before gold v2 is complete, using
-  bounded fixtures.
-- Broad experiment sweeps must wait for certified gold v2 datasets.
+Full PIT v2 should be restarted only after the legacy-gold MLflow path is
+experiment-ready.
 
-## 9. Recommended Model Portfolio
-
-This section describes the research portfolio to investigate after the phases
-above establish experiment readiness. It is intentionally separate from the
-remediation phases.
-
-### 9.1 Official next-release revision models
-
-#### Research question
-
-Given information available immediately before an official release, will the
-next estimate be revised up or down, and by how much?
-
-#### Targets
-
-- `next_estimate - current_estimate`
-- Revision direction.
-- Probability of a revision exceeding a material threshold.
-
-#### Existing data
-
-- WASDE releases.
-- WAP revisions.
-- SAGIS CEC.
-- NASS citrus.
-- CONAB after repair.
-- Crop progress.
-- Weather and remote sensing.
-- ESR and FGIS.
-
-#### Candidate approaches
-
-- Regularized linear benchmark.
-- Hierarchical partial-pooling regression.
-- Gradient-boosted tree model.
-- Quantile model for revision intervals.
-
-#### Why it is valuable
-
-The target is explicitly relative to the current official consensus. It is more
-actionable and statistically cleaner than predicting a large trending
-production level.
-
-### 9.2 Finalization-gap models
-
-#### Research question
-
-How far is the current official estimate likely to finish from the eventual
-final estimate?
-
-#### Targets
-
-- `final_estimate - current_estimate`
-- Probability current estimate is materially too high.
-- Probability current estimate is materially too low.
-
-#### Existing data
-
-- Historical release paths from WASDE.
-- NASS citrus forecast history.
-- SAGIS CEC estimate sequence.
-- CONAB survey sequence after repair.
-- WAP revisions.
-
-#### Candidate approaches
-
-- Release-month-specific regularized models.
-- Hierarchical models pooling adjacent release months.
-- Quantile regression.
-- Survival-style convergence model over the estimate sequence.
-
-#### Why it is valuable
-
-It measures remaining official-estimate risk directly and naturally supports a
-confidence interval.
-
-### 9.3 Yield and harvested-area anomaly models
-
-#### Research question
-
-Is the crop likely to finish above or below its trailing yield and area
-expectation?
-
-#### Targets
-
-- Yield residual versus a trailing expectation.
-- Harvested-area residual versus a trailing expectation.
-- Tail-event probability for large negative residuals.
-
-#### Existing data
-
-- NASS annual.
-- FAOSTAT fallback history.
-- Stage weather.
-- CHIRPS.
-- NASA POWER.
-- CPC soil.
-- MODIS NDVI.
-- NASS crop progress.
-- ONI and IOD.
-
-#### Candidate approaches
-
-- Regularized linear benchmark.
-- Gradient-boosted trees.
-- Hierarchical origin model.
-- Quantile regression.
-- Calibrated tail classifier.
-
-#### Why it is valuable
-
-It separates agronomic yield shock from acreage abandonment or expansion.
-Production can then be composed from understandable physical components.
-
-### 9.4 Physical-flow trajectory models
-
-#### Research question
-
-Given the cumulative path observed so far, where will the season finish?
-
-#### Targets
-
-- End-season exports.
-- End-season deliveries.
-- End-season crush.
-- End-season sugar or ethanol production.
-- Remaining volume from the current date.
-
-#### Existing data
-
-- NASS crop progress.
-- SAGIS weekly deliveries and exports.
-- ESR.
-- FGIS.
-- UNICA fortnightly.
-- FNC monthly exports and production.
-- MPOB monthly production, exports, imports, and stocks.
-- Standardized as-of export-pace features where the source grain supports
-  cumulative trajectory modeling.
-
-#### Candidate approaches
-
-- Seasonal curve benchmark.
-- Dynamic linear model.
-- State-space model.
-- Gradient-boosted model on curve-position features.
-- Functional trajectory model.
-
-#### Why it is valuable
-
-These datasets have many more observations than annual crop models and produce
-continually updating in-season signals.
-Export pace is one of the highest-value existing features because it measures
-observed physical demand rather than market opinion.
-
-### 9.5 Probabilistic supply-and-demand reconciler
-
-#### Research question
-
-What distribution of ending stocks and stock-to-use is consistent with the
-uncertainty in production, trade, and consumption components?
-
-#### Identity
+The future PIT layer should solve a different problem:
 
 ```text
-ending stocks =
-beginning stocks
-+ production
-+ imports
-- exports
-- consumption
+multiple historical as-of snapshots per entity, release, week, or month
 ```
 
-#### Targets
+It should not be justified merely as "cleaner gold." The legacy gold path can
+already serve annual crop-year experiments once versioned and governed.
 
-- Ending-stocks revision.
-- Stock-to-use revision.
-- Component-level forecast distributions.
+Future PIT v2 should reuse:
 
-#### Existing data
+- the broad legacy feature registry;
+- versioned manifest format;
+- source certification report;
+- feature taxonomy;
+- model-purpose feature sets;
+- availability adapter;
+- MLflow dataset-version selection.
 
-- Normalized WASDE.
-- PSD levels.
-- WAP.
-- ESR and FGIS.
-- SAGIS.
-- FNC.
-- MPOB and MPOC.
-- UNICA.
-- ICCO.
-- Certified economic drivers from existing Pink Sheet and futures silver:
-  energy, crush margins, and vegetable-oil substitution premiums.
+It should not start from a small hand-picked feature subset.
 
-#### Candidate approaches
+## 11. Recommended Model Portfolio
 
-- Component models plus constrained reconciliation.
-- Probabilistic graphical model.
-- Hierarchical Bayesian balance model.
-- Quantile component forecasts with accounting reconciliation.
+This section is not part of the remediation phases. It describes the research
+portfolio to investigate after the platform is experiment-ready.
 
-#### Why it is valuable
+### 11.1 Official Next-Release Revision Models
 
-It enforces physical accounting and avoids an unconstrained model producing an
-impossible balance sheet.
-Economic-driver features are inputs to component behavior only when they pass
-the feature-policy gates; they are not used as price forecasts.
-
-### 9.6 Tail-event classifiers
-
-#### Research question
-
-Is the current season or estimate path entering a materially adverse tail?
-
-#### Example labels
-
-- Yield anomaly below minus one standard deviation.
-- Official downward revision beyond a material threshold.
-- Crop condition below a historical percentile.
-- Export pace materially below the official balance assumption.
-- Tenderable cotton share below a historical threshold.
-- Multi-origin simultaneous stress.
-
-#### Existing data
-
-- Weather and remote sensing.
-- Crop progress.
-- Official revisions.
-- Physical flows.
-- AMS cotton quality.
-- Climate indices.
-- Certified export-pace, energy, crush-margin, and substitution-premium
-  features where they map to the tail label.
-
-#### Candidate approaches
-
-- Penalized logistic baseline.
-- Calibrated boosted classifier.
-- Hierarchical classifier.
-- Conformal risk set or calibrated probability layer.
-
-#### Why it is valuable
-
-The portfolio is primarily valuable in extreme years. Tail recall, precision,
-and probability calibration are more relevant than average production RMSE.
-
-### 9.7 Multivariate physical anomaly detectors
-
-#### Research question
-
-Is the current combination of physical observations outside the historical
-normal manifold, even if no individual feature is extreme?
-
-#### Existing data
-
-- Weekly and monthly physical panels.
-- Weather and remote sensing.
-- Crop condition.
-- Official revisions.
-- Trade and delivery pace.
-- Stocks and crush.
-- Certified economic-driver features as physical-context dimensions.
-- Diagnostic-only market `vol_regime` may be used for monitoring slices, but
-  physical and market anomalies must be reported separately.
-
-#### Candidate approaches
-
-- Robust covariance distance.
-- Isolation-based detector.
-- One-class model.
-- Autoencoder only for sufficiently large weekly/monthly panels.
-
-#### Outputs
-
-- Anomaly score.
-- Historical percentile.
-- Contributing feature deviations.
-- Nearest historical analogues.
-- Data-quality anomaly flag separated from economic anomaly.
-
-#### Why it is valuable
-
-It can identify unprecedented combinations and warn when supervised models are
-operating outside their training support.
-
-### 9.8 Hierarchical physical-crop models
-
-#### Research question
-
-Can shared biological information improve sparse origin forecasts without
-pretending every exchange contract is an independent crop?
-
-#### Structure
+Research question:
 
 ```text
-global crop mechanism
+Given all information available before the next official release, will the
+estimate revise up or down, and by how much?
+```
+
+Targets:
+
+- next estimate minus current estimate;
+- revision direction;
+- probability of a material revision.
+
+Useful data:
+
+- WASDE;
+- WAP;
+- SAGIS CEC;
+- NASS citrus;
+- CONAB;
+- crop progress;
+- weather and remote sensing;
+- ESR and FGIS.
+
+Candidate models:
+
+- no-change baseline;
+- regularized linear model;
+- XGBoost or LightGBM;
+- hierarchical partial-pooling model where histories are sparse.
+
+### 11.2 Yield and Area Anomaly Models
+
+Research question:
+
+```text
+How far will yield or harvested area deviate from a trailing expectation?
+```
+
+Targets:
+
+- yield anomaly;
+- harvested-area anomaly;
+- production anomaly decomposed into area and yield.
+
+Useful data:
+
+- stage weather;
+- drought and heat stress;
+- crop progress;
+- NASS annual;
+- FAOSTAT;
+- ONI/IOD;
+- fertilizer and energy drivers;
+- planting-incentive features where certified.
+
+Candidate models:
+
+- trailing-trend baseline;
+- Ridge or Elastic Net;
+- XGBoost or LightGBM;
+- quantile boosted trees for uncertainty.
+
+### 11.3 Physical Flow Trajectory Models
+
+Research question:
+
+```text
+Given current shipment, sales, delivery, or crush pace, where will the season
+finish?
+```
+
+Targets:
+
+- end-season export total;
+- end-season delivery total;
+- end-season crush or production total;
+- current official flow assumption minus model-implied final flow.
+
+Useful data:
+
+- ESR;
+- FGIS;
+- SAGIS weekly;
+- MPOB/MPOC;
+- FNC;
+- UNICA;
+- PSD/WASDE balance assumptions.
+
+Candidate models:
+
+- cumulative pace extrapolation;
+- same-week historical analogue;
+- gradient-boosted model;
+- sequence model only where enough weekly/monthly history exists.
+
+### 11.4 Balance-Sheet Revision Models
+
+Research question:
+
+```text
+Which balance-sheet components are most likely to revise, and does the implied
+stock/use ratio move materially?
+```
+
+Targets:
+
+- production revision;
+- consumption/use revision;
+- export revision;
+- ending-stocks revision;
+- stock/use revision.
+
+Useful data:
+
+- WASDE;
+- PSD;
+- WAP;
+- flows;
+- crop progress;
+- weather;
+- certified economic drivers.
+
+Candidate models:
+
+- component no-change baseline;
+- constrained component regression;
+- XGBoost/LightGBM component models;
+- reconciliation layer that enforces balance-sheet arithmetic.
+
+### 11.5 Quality and Tenderability Models
+
+Research question:
+
+```text
+Is usable/tenderable supply materially different from headline production?
+```
+
+Targets:
+
+- percent tenderable;
+- quality threshold event;
+- quality-adjusted supply anomaly.
+
+Useful data:
+
+- AMS cotton quality;
+- weather;
+- crop progress;
+- production estimates;
+- historical quality reports.
+
+Candidate models:
+
+- threshold baseline;
+- logistic classifier;
+- boosted classifier;
+- calibrated probability model.
+
+### 11.6 Tail-Event Classifiers
+
+Research question:
+
+```text
+Is the current season entering a materially adverse tail?
+```
+
+Targets:
+
+- yield anomaly below threshold;
+- downward official revision above threshold;
+- crop condition below historical percentile;
+- export pace materially below balance assumption;
+- tenderable share below threshold;
+- simultaneous multi-origin stress.
+
+Useful data:
+
+- weather and remote sensing;
+- crop progress;
+- official revisions;
+- physical flows;
+- AMS cotton;
+- climate indices;
+- certified economic drivers where mechanism supports the target.
+
+Candidate models:
+
+- penalized logistic regression;
+- calibrated boosted classifier;
+- conformal risk set;
+- simple rule ensemble as baseline.
+
+### 11.7 Multivariate Physical Anomaly Detectors
+
+Research question:
+
+```text
+Is the current feature combination outside the historical physical manifold?
+```
+
+Outputs:
+
+- anomaly score;
+- historical percentile;
+- contributing feature deviations;
+- nearest historical analogues;
+- data-quality anomaly flag.
+
+Useful data:
+
+- weather;
+- remote sensing;
+- crop progress;
+- physical flows;
+- official revisions;
+- stocks and crush;
+- quality measures.
+
+Candidate models:
+
+- robust covariance distance;
+- Isolation Forest;
+- one-class model;
+- autoencoder only for large enough weekly/monthly panels.
+
+### 11.8 Source Reliability and Estimate Combination
+
+Research question:
+
+```text
+When official and physical sources disagree, which source should receive more
+weight at this stage of the season?
+```
+
+Outputs:
+
+- combined estimate;
+- source weights;
+- disagreement score;
+- confidence interval.
+
+Useful data:
+
+- current source estimates;
+- historical source errors;
+- source revision volatility;
+- source freshness;
+- source availability;
+- weather and progress context.
+
+Candidate models:
+
+- inverse historical-error weighting;
+- dynamic model averaging;
+- Bayesian combination;
+- stacked out-of-fold meta-model after upstream models have enough history.
+
+### 11.9 Hierarchical Physical-Commodity Models
+
+Research question:
+
+```text
+Can shared biological and balance-sheet structure improve sparse commodity
+models without pretending every futures contract is an independent crop?
+```
+
+Structure:
+
+```text
+global mechanism
   -> physical commodity
     -> origin
-      -> crop class or product balance
+      -> crop class or processed product
         -> contract-facing output
 ```
 
-#### Existing data
+Candidate models:
 
-- Shared weather and climate indices.
-- Origin-specific weather.
-- Official production histories.
-- Source-specific revisions and flows.
+- mixed-effects regression;
+- hierarchical Bayesian model;
+- shared boosted model with entity indicators;
+- multi-task model only after simpler baselines are beaten.
 
-#### Candidate approaches
+### 11.10 Fundamental Relative-Stress Engine
 
-- Mixed-effects model.
-- Hierarchical Bayesian model.
-- Shared model with entity embeddings or entity indicators.
-- Multi-task boosted-tree approximation with carefully designed entity
-  features.
+Research question:
 
-#### Why it is valuable
-
-It pools signal where biology is shared while preserving origin and product
-differences. It is a better match to the 13 physical FAOSTAT items underlying
-31 contract slugs.
-
-### 9.9 Source-reliability and estimate-combination model
-
-#### Research question
-
-When multiple official and physical sources disagree, which source should
-receive more weight at this stage of the season?
-
-#### Inputs
-
-- Current source estimates.
-- Historical source errors by horizon.
-- Source revision volatility.
-- Source freshness.
-- Source availability.
-- Weather and progress context.
-
-#### Outputs
-
-- Combined estimate.
-- Source weights.
-- Disagreement score.
-- Confidence interval.
-
-#### Candidate approaches
-
-- Inverse historical-error weighting baseline.
-- Dynamic model averaging.
-- Bayesian model combination.
-- Stacked out-of-fold meta-model after sufficient upstream histories exist.
-
-#### Why it is valuable
-
-Source disagreement is itself information. A combination layer can exploit
-consistent source biases while exposing rather than hiding uncertainty.
-
-### 9.10 Fundamental relative-stress engine
-
-#### Research question
-
+```text
 Which related physical commodity, origin, or processed product is more
 fundamentally stressed?
+```
 
-#### Inputs
+Inputs:
 
-- Certified upstream revision forecasts.
-- Yield and area anomaly distributions.
-- Physical-flow trajectories.
-- Balance-sheet surprise.
-- Tail-event probabilities.
-- Certified substitution premiums for related physical products, such as
-  soybean-oil versus palm-oil pressure in the vegetable-oil complex.
+- upstream revision forecasts;
+- yield and area anomaly forecasts;
+- physical-flow trajectory forecasts;
+- stock/use surprise forecasts;
+- tail-event probabilities;
+- certified substitution-premium features.
 
-#### Outputs
+Outputs:
 
-- Relative physical stress differential.
-- Confidence in the asymmetry.
-- Upstream dependency trace.
-- Component contribution breakdown.
+- relative physical stress differential;
+- confidence in the asymmetry;
+- upstream dependency trace;
+- component contribution breakdown.
 
-#### Candidate approaches
-
-- Begin with transparent arithmetic over certified upstream outputs.
-- Add a learned combination model only after enough out-of-fold upstream
-  predictions exist.
-
-#### Why it is valuable
-
-It provides contract-relevant relative fundamental research without predicting
-prices. Certified substitution premiums may explain cross-commodity pressure,
-but calendar spreads, term structure, and technical market signals remain out
-of scope for the fundamental engine.
+This is not a price-spread model. It is a contract-relevant research layer built
+from physical fundamentals.
