@@ -1,0 +1,483 @@
+# Source certification contracts for MLflow experiment readiness.
+#
+# These contracts intentionally describe the live silver/feature inputs that can
+# feed model-ready gold. They do not include GraphRAG tables.
+#
+# status values:
+#   core              - eligible for core fundamental feature sets if checks pass
+#   certified_driver  - economic/physical driver allowed in core feature sets
+#   diagnostic_only   - useful for slicing/monitoring, not core fitting
+#   deferred          - present but not needed for the next MLflow-ready slice
+#
+# duplicate_check values:
+#   full  - run exact duplicate natural-key check
+#   skip  - skip exact duplicate check and record the reason
+
+sources:
+  - source_key: production:faostat
+    title: FAOSTAT production silver
+    glue_table: silver_production
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/production/
+    status: core
+    grain: commodity x country x metric x year
+    required_columns: [country, country_key, metric, unit, value, source, dataset]
+    natural_key: [commodity, country_key, metric, year]
+    date_columns: [year]
+    availability_columns: [year, ingest_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: weather:chirps
+    title: CHIRPS precipitation silver
+    glue_table: silver_chirps
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=chirps/
+    status: core
+    grain: commodity x country x region x date x variable
+    required_columns: [date, variable, value, source]
+    natural_key: [commodity, country, region, year, month, date, variable]
+    date_columns: [date, year, month]
+    availability_columns: [date, ingest_date]
+    expected_min_rows: 1000
+    duplicate_check: skip
+    athena_mode: metadata_only
+    duplicate_skip_reason: large partitioned daily weather source; exact duplicate scan is deferred to source-specific validation
+
+  - source_key: weather:nasa_power
+    title: NASA POWER weather silver
+    glue_table: silver_nasa_power
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=nasa_power/
+    status: core
+    grain: commodity x country x region x date
+    required_columns: [date, temperature_2m_mean_c, temperature_2m_max_c, temperature_2m_min_c, precipitation_mm, source]
+    natural_key: [commodity, country, region, year, month, date]
+    date_columns: [date, year, month]
+    availability_columns: [date, ingest_date]
+    expected_min_rows: 1000
+    duplicate_check: skip
+    athena_mode: metadata_only
+    duplicate_skip_reason: large partitioned daily weather source; exact duplicate scan is deferred to source-specific validation
+
+  - source_key: weather:modis_ndvi
+    title: MODIS NDVI silver
+    glue_table: silver_modis_ndvi
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=modis_ndvi/
+    status: core
+    grain: commodity x country x region x date
+    required_columns: [date, year, period, commodity, country, region, ndvi, ndvi_z_score]
+    natural_key: [commodity, country, region, date]
+    date_columns: [date, year]
+    availability_columns: [date, ingest_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: weather:cpc_soil
+    title: CPC soil moisture silver
+    glue_table: silver_cpc_soil
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=cpc_soil/
+    status: core
+    grain: commodity x country x region x date x variable
+    required_columns: [date, variable, value, source]
+    natural_key: [commodity, country, region, year, month, date, variable]
+    date_columns: [date, year, month]
+    availability_columns: [date, ingest_date]
+    expected_min_rows: 1000
+    duplicate_check: skip
+    athena_mode: metadata_only
+    duplicate_skip_reason: large partitioned daily weather source; exact duplicate scan is deferred to source-specific validation
+
+  - source_key: psd
+    title: USDA PSD silver
+    glue_table: silver_psd
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/psd/
+    status: core
+    grain: commodity x country x market_year x release_date
+    required_columns: [leviathan_slug, country, market_year, release_date, production_mt, exports_mt, ending_stocks_mt, su_ratio]
+    natural_key: [leviathan_slug, country, market_year, release_date]
+    date_columns: [release_date, market_year]
+    availability_columns: [release_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: wasde
+    title: USDA WASDE silver
+    glue_table: silver_wasde
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/wasde/
+    status: core
+    grain: release_date x commodity x table_type x region x marketing_year x attribute
+    required_columns: [commodity, table_type, region, marketing_year, attribute, estimate, revision, source]
+    natural_key: [release_date, commodity, table_type, region, marketing_year, attribute]
+    date_columns: [release_date]
+    availability_columns: [release_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: wap_revisions
+    title: USDA WAP table 01 revisions silver
+    glue_table: silver_wap_table01_revisions
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/wap_table01_revisions/
+    status: core
+    grain: release_month x commodity x country x marketing_year x row_label
+    required_columns: [release_month, commodity, country, marketing_year, row_label, value_mmt, revision_mmt]
+    natural_key: [release_month, commodity, country, marketing_year, row_label]
+    date_columns: [release_month, marketing_year]
+    availability_columns: [release_month]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: nass_annual
+    title: USDA NASS annual silver
+    glue_table: silver_nass_annual
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/nass_annual/
+    status: core
+    grain: commodity x state x year
+    required_columns: [leviathan_slug, country, state, marketing_year, area_planted_ha, area_harvested_ha, yield_t_ha, production_mt, source]
+    natural_key: [commodity, state, year]
+    date_columns: [year, marketing_year]
+    availability_columns: [year]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: nass_crop_progress
+    title: USDA NASS crop progress silver
+    glue_table: silver_nass_crop_progress
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/nass_crop_progress/
+    status: core
+    grain: commodity x state x year x date
+    required_columns: [leviathan_slug, state, date, week_of_year, pct_good_excellent, pct_harvested, source]
+    natural_key: [commodity, state, year, date]
+    date_columns: [date, year]
+    availability_columns: [date]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: nass_citrus
+    title: USDA NASS citrus silver
+    glue_table: silver_nass_citrus
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/nass_citrus/
+    status: core
+    grain: season x release_date x crop x state
+    required_columns: [season, release_date, crop, state, forecast_1000_boxes, revision_1000_boxes, source]
+    natural_key: [season, release_date, crop, state]
+    date_columns: [release_date, season]
+    availability_columns: [release_date]
+    expected_min_rows: 50
+    duplicate_check: full
+
+  - source_key: esr
+    title: USDA ESR export sales silver
+    glue_table: silver_esr
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/production/source=usda_esr/
+    status: core
+    grain: commodity_code x market_year x as_of_date x country_code
+    required_columns: [commodity_name, country_code, week_ending_date, outstanding_sales_1000mt, weekly_exports_1000mt, source]
+    natural_key: [commodity_code, market_year, as_of_date, country_code]
+    date_columns: [as_of_date, week_ending_date, market_year]
+    availability_columns: [as_of_date, week_ending_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+    athena_mode: metadata_only
+    limitation: partition-projected ESR table requires static as_of_date filters for efficient Athena scans; Phase 2 uses Glue/S3/schema certification and defers exact row/duplicate checks to source-specific validation
+
+  - source_key: fgis
+    title: USDA FGIS export inspections silver
+    glue_table: silver_fgis
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/fgis/
+    status: core
+    grain: leviathan_slug x marketing_year x week_ending_date x destination_country
+    required_columns: [week_ending_date, destination_country, exports_mt_weekly, exports_mt_ctd, source]
+    natural_key: [leviathan_slug, marketing_year, week_ending_date, destination_country]
+    date_columns: [week_ending_date, marketing_year]
+    availability_columns: [week_ending_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: sagis_cec
+    title: SAGIS CEC crop estimates silver
+    glue_table: silver_sagis_cec
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/sagis_cec/
+    status: core
+    grain: production_year x report_month x crop x scope x estimate_number
+    required_columns: [production_year, report_month, release_date, crop, scope, current_estimate_t, revision_t, revision_surprise, source]
+    natural_key: [production_year, report_month, crop, scope, estimate_number]
+    date_columns: [release_date, production_year]
+    availability_columns: [release_date]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: sagis_deliveries
+    title: SAGIS weekly deliveries silver
+    glue_table: silver_sagis_weekly_deliveries
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries/
+    status: core
+    grain: season x crop x week_number
+    required_columns: [season, crop, week_number, week_ending, prog_total_mt, pct_of_prior_yr, z_vs_3yr_avg, source]
+    natural_key: [season, crop, week_number]
+    date_columns: [week_ending, season]
+    availability_columns: [week_ending]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: sagis_weekly_exports
+    title: SAGIS weekly exports silver
+    glue_table: silver_sagis_weekly_exports
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/sagis_weekly_exports/
+    status: core
+    grain: season x crop x week_number
+    required_columns: [season, crop, week_number, week_ending, prog_exports_mt, pct_of_prior_yr, z_vs_3yr_avg, source]
+    natural_key: [season, crop, week_number]
+    date_columns: [week_ending, season]
+    availability_columns: [week_ending]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: conab
+    title: CONAB coffee silver
+    glue_table: silver_conab_coffee
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/conab_coffee/
+    status: core
+    grain: commodity x safra_year x survey_number x region
+    required_columns: [commodity, country, safra_year, survey_number, region, production_thousand_bags, production_revision_thousand_bags, source]
+    natural_key: [commodity, safra_year, survey_number, region]
+    date_columns: [safra_year]
+    availability_columns: [safra_year]
+    expected_min_rows: 50
+    duplicate_check: full
+
+  - source_key: fnc_colombia_monthly
+    title: FNC Colombia monthly coffee silver
+    glue_table: silver_fnc_colombia_monthly
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/fnc_colombia/monthly/
+    status: core
+    grain: commodity x year x month
+    required_columns: [leviathan_slug, country, month, date, production_bags_60kg, exports_bags_60kg, exports_value_usd_m, source]
+    natural_key: [commodity, year, month]
+    date_columns: [date, year, month]
+    availability_columns: [date]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: fnc_colombia_area_department
+    title: FNC Colombia area by department silver
+    glue_table: silver_fnc_colombia_area_department
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/
+    status: deferred
+    grain: commodity x year x department
+    required_columns: [leviathan_slug, country, department, department_raw, area_ha, source]
+    natural_key: [commodity, year, department]
+    date_columns: [year]
+    availability_columns: [year]
+    expected_min_rows: 10
+    duplicate_check: full
+    limitation: different grain from the main monthly MLflow feature table
+
+  - source_key: fnc_colombia_exports_port_type
+    title: FNC Colombia exports by port/type silver
+    glue_table: silver_fnc_colombia_exports_port_type
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/fnc_colombia/exports_port_type/
+    status: deferred
+    grain: commodity x year x month x port x coffee_type
+    required_columns: [leviathan_slug, country, month, date, port, coffee_type, exports_bags_60kg, exports_value_usd, source]
+    natural_key: [commodity, year, month, port, coffee_type]
+    date_columns: [date, year, month]
+    availability_columns: [date]
+    expected_min_rows: 100
+    duplicate_check: full
+    limitation: useful for diagnostics or later specialty coffee flow features; not first model-ready slice
+
+  - source_key: mpob
+    title: MPOB monthly palm oil silver
+    glue_table: silver_mpob
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/mpob/
+    status: core
+    grain: commodity x date
+    required_columns: [date, production_cpo_mt, closing_stocks_palm_oil_mt, exports_palm_oil_mt, su_ratio, source, commodity]
+    natural_key: [commodity, date]
+    date_columns: [date]
+    availability_columns: [date]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: mpoc_exports_by_country
+    title: MPOC exports by country silver
+    glue_table: silver_mpoc_exports_by_country
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/mpoc_exports_by_country/
+    status: deferred
+    grain: year x country
+    required_columns: [year, country, exports_mt, source]
+    natural_key: [year, country]
+    date_columns: [year]
+    availability_columns: [year]
+    expected_min_rows: 10
+    duplicate_check: full
+
+  - source_key: mpoc_stock_comparison
+    title: MPOC stock comparison silver
+    glue_table: silver_mpoc_stock_comparison
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/mpoc_stock_comparison/
+    status: deferred
+    grain: country x oil_type x year x month
+    required_columns: [country, oil_type, year, month, ending_stocks_mt, source]
+    natural_key: [country, oil_type, year, month]
+    date_columns: [year, month]
+    availability_columns: [year, month]
+    expected_min_rows: 10
+    duplicate_check: full
+
+  - source_key: mpoc_trade_stats_monthly
+    title: MPOC monthly trade stats silver
+    glue_table: silver_mpoc_trade_stats_monthly
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/mpoc_trade_stats_monthly/
+    status: deferred
+    grain: year x month
+    required_columns: [year, month, exports_mt, imports_mt, source]
+    natural_key: [year, month]
+    date_columns: [year, month]
+    availability_columns: [year, month]
+    expected_min_rows: 10
+    duplicate_check: full
+
+  - source_key: unica_biweekly
+    title: UNICA biweekly sugarcane season history silver
+    glue_table: silver_unica_biweekly_season_history
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/unica_biweekly_season_history/
+    status: core
+    grain: harvest_year x region x fortnight_seq
+    required_columns: [harvest_year, fortnight_seq, fortnight_date, region, cane_crushed_t, sugar_produced_t, source_position_date]
+    natural_key: [harvest_year, region, fortnight_seq]
+    date_columns: [fortnight_date, harvest_year]
+    availability_columns: [source_position_date, fortnight_date]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: unica_annual_state
+    title: UNICA annual state silver
+    glue_table: silver_unica_annual_state
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/unica_annual_state/
+    status: deferred
+    grain: harvest_year x state_region
+    required_columns: [harvest_year, state_region, cane_crushed_t, sugar_produced_t, ethanol_total_m3, source]
+    natural_key: [harvest_year, state_region]
+    date_columns: [harvest_year]
+    availability_columns: [harvest_year]
+    expected_min_rows: 10
+    duplicate_check: full
+
+  - source_key: icco_cocoa
+    title: ICCO cocoa supply/demand silver
+    glue_table: silver_icco_cocoa
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/icco_cocoa/
+    status: core
+    grain: cocoa_year
+    required_columns: [cocoa_year, latest_release_date, production_kt, grindings_kt, end_stocks_kt, su_ratio, source]
+    natural_key: [cocoa_year]
+    date_columns: [latest_release_date, cocoa_year]
+    availability_columns: [latest_release_date]
+    expected_min_rows: 10
+    duplicate_check: full
+
+  - source_key: ams_cotton_quality
+    title: AMS cotton annual quality silver
+    glue_table: silver_ams_cotton_quality
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/ams_cotton_quality/
+    status: core
+    grain: commodity x geography x season
+    required_columns: [commodity, season, geography, percent_tenderable, samples_classed, source]
+    natural_key: [commodity, geography, season]
+    date_columns: [season]
+    availability_columns: [season]
+    expected_min_rows: 10
+    duplicate_check: full
+    limitation: annual cadence, not weekly tenderability
+
+  - source_key: pink_sheet
+    title: World Bank Pink Sheet silver
+    glue_table: silver_pink_sheet
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/pink_sheet/
+    status: certified_driver
+    grain: monthly date
+    required_columns: [date, year, month, urea_usd_mt, natural_gas_us_usd_mmbtu, brent_crude_usd_bbl, soybeans_usd_t, soybean_oil_usd_t, palm_oil_cpo_usd_t]
+    natural_key: [date]
+    date_columns: [date, year, month]
+    availability_columns: [date]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: fred_fx
+    title: FRED FX silver
+    glue_table: silver_fred_fx
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/fred_fx/
+    status: certified_driver
+    grain: daily date
+    required_columns: [date, brl_usd, brl_usd_pct_change_90d, cny_usd, cny_usd_pct_change_90d, source]
+    natural_key: [date]
+    date_columns: [date]
+    availability_columns: [date]
+    expected_min_rows: 1000
+    duplicate_check: full
+
+  - source_key: futures_prices
+    title: futures prices silver
+    glue_table: silver_futures_prices
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/futures_prices/
+    status: diagnostic_only
+    grain: leviathan_slug x date
+    required_columns: [date, leviathan_slug, close, log_return, price_z_2yr, realized_vol_30d, vol_regime, source]
+    natural_key: [leviathan_slug, date]
+    date_columns: [date]
+    availability_columns: [date]
+    expected_min_rows: 1000
+    duplicate_check: full
+    limitation: raw market price/technical context must not enter core fundamental fitting unless used as an explicitly certified economic driver feature
+
+  - source_key: cot
+    title: CFTC COT positioning silver
+    glue_table: silver_cot
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/cot/
+    status: diagnostic_only
+    grain: leviathan_slug x report_date
+    required_columns: [report_date, leviathan_slug, open_interest, mm_net, mm_net_z_3yr, source]
+    natural_key: [leviathan_slug, report_date]
+    date_columns: [report_date]
+    availability_columns: [report_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+    limitation: positioning is diagnostic market context, not a core physical fundamental feature
+
+  - source_key: food_cpi
+    title: World Bank food CPI silver
+    glue_table: silver_food_cpi
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/food_cpi/
+    status: certified_driver
+    grain: country x year
+    required_columns: [country_iso, country_name, year, cpi_yoy_pct, cpi_yoy_z_5yr, cpi_available, source]
+    natural_key: [country_iso, year]
+    date_columns: [year]
+    availability_columns: [year]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: oni
+    title: NOAA ONI silver
+    glue_table: silver_noaa_oni
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=noaa_oni/
+    status: core
+    grain: year x month x season
+    required_columns: [year, month, season, oni_anom, phase, oni_lag3, oni_lag6, oni_lag9, oni_lag12, source]
+    natural_key: [year, month, season]
+    date_columns: [year, month]
+    availability_columns: [year, month]
+    expected_min_rows: 100
+    duplicate_check: full
+
+  - source_key: iod
+    title: NOAA IOD silver
+    glue_table: silver_noaa_iod
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=noaa_iod/
+    status: core
+    grain: year x month
+    required_columns: [year, month, date, dmi_value, iod_dmi_3month_avg, iod_phase, source]
+    natural_key: [year, month]
+    date_columns: [date, year, month]
+    availability_columns: [date]
+    expected_min_rows: 100
+    duplicate_check: full

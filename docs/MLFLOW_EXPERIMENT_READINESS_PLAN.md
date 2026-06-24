@@ -567,6 +567,22 @@ Priority sources:
 - New gold dataset versions cannot be published with uncertified sources unless
   the manifest records a waiver.
 
+#### Implementation Status
+
+Phase 2 was implemented on 2026-06-24.
+
+- Certification contracts now live in
+  `configs/datasets/source_contracts.yaml`.
+- Live certification output:
+  `data/system_inventory/source_certification_20260624T214850/source_certification_report.json`.
+- Status counts: 27 `warn`, 6 `deferred`, 2 `diagnostic_only`, 0 `blocked`.
+- Feature-source coverage: 20 feature-registry sources, 0 missing contracts.
+- Warning-only status is expected for this pass because exact duplicate scans
+  were skipped and projected/heavy tables such as CHIRPS, NASA POWER, CPC soil,
+  and ESR need bounded source-specific validation before immutable gold
+  publication.
+- See `docs/ops/PHASE2_COMPLETION.md`.
+
 ### Phase 3: Preserve and Clean Current v2 Scratch Work
 
 #### Purpose
