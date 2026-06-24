@@ -115,18 +115,44 @@ def mine_corpus(s3, sample: int) -> dict:
 
 
 # ── matcher + two-level hit-count prune ────────────────────────────────────────────
-def build_matcher(forms: list[str]):
-    """Word-boundary regex over all surface forms → counts hits per form. (Exp-2 swaps in spaCy PhraseMatcher.)"""
-    forms = sorted({f for f in forms if f and len(f) > 1}, key=len, reverse=True)
-    idx = {f.lower(): f for f in forms}
-    rx = re.compile(r"\b(" + "|".join(re.escape(f) for f in forms) + r")\b", re.I) if forms else None
-    return rx, idx
+class _Matcher:
+    """Accent/case-insensitive word-boundary matcher. Both the surface forms AND the scanned text are routed
+    through ex._normalize (NFKD -> ASCII, casefold, collapse ws/_/-), so 'Cafe'/'cafe', 'La Nina'/'La Nina'
+    and accented PT/ES forms all collapse to one canonical form. `.findall` returns the ORIGINAL surface
+    forms; `.search` returns a bool. Falsy when no usable forms were supplied. (Exp-2 swaps in PhraseMatcher.)"""
+
+    def __init__(self, forms: list[str]):
+        self._idx: dict[str, str] = {}                     # normalized form -> original surface
+        for f in forms:
+            if not f or len(f) <= 1:
+                continue
+            nf = ex._normalize(f)
+            if nf:
+                self._idx.setdefault(nf, f)
+        keys = sorted(self._idx, key=len, reverse=True)    # longest-first: a short form can't shadow a longer one
+        self._rx = re.compile(r"\b(" + "|".join(re.escape(k) for k in keys) + r")\b") if keys else None
+
+    def __bool__(self) -> bool:
+        return self._rx is not None
+
+    def findall(self, text: str) -> list[str]:
+        if self._rx is None:
+            return []
+        return [self._idx.get(m, m) for m in self._rx.findall(ex._normalize(text))]
+
+    def search(self, text: str) -> bool:
+        return self._rx is not None and self._rx.search(ex._normalize(text)) is not None
+
+
+def build_matcher(forms: list[str]) -> _Matcher:
+    """Accent/case-insensitive word-boundary matcher over all surface forms."""
+    return _Matcher(forms)
 
 
 def hit_count(s3, forms: list[str], sample: int) -> collections.Counter:
-    rx, idx = build_matcher(forms)
+    matcher = build_matcher(forms)
     hits = collections.Counter({f: 0 for f in forms})
-    if rx is None:
+    if not matcher:
         return hits
     keys = [o["Key"] for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX)
             for o in page.get("Contents", []) if o["Key"].endswith("document.json")
@@ -136,8 +162,8 @@ def hit_count(s3, forms: list[str], sample: int) -> collections.Counter:
             txt = (json.loads(s3.get_object(Bucket=BUCKET, Key=k)["Body"].read()).get("full_text") or "")
         except Exception:  # noqa: BLE001
             continue
-        for m in rx.findall(txt):
-            hits[idx.get(m.lower(), m)] += 1
+        for f in matcher.findall(txt):
+            hits[f] += 1
     return hits
 
 

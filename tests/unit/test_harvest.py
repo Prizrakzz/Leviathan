@@ -17,10 +17,24 @@ def test_guess_type():
 
 
 def test_build_matcher_recognizes_forms():
-    rx, idx = h.build_matcher(["stem rust", "drought", "soybean rust"])
-    found = [idx[m.lower()] for m in rx.findall("A severe drought and stem rust hit the crop.")]
+    m = h.build_matcher(["stem rust", "drought", "soybean rust"])
+    found = m.findall("A severe drought and stem rust hit the crop.")
     assert set(found) == {"drought", "stem rust"}
     assert "soybean rust" not in found                      # absent → no false hit
+
+
+def test_build_matcher_is_accent_and_case_insensitive():
+    m = h.build_matcher(["café", "La Niña", "drought"])
+    # text written WITHOUT accents / different case still matches the accented canonical form, and vice versa
+    found = m.findall("CAFE prices jumped after the La Nina drought.")
+    assert set(found) == {"café", "La Niña", "drought"}     # findall returns the ORIGINAL surface forms
+    assert m.search("LA NIÑA") and not m.search("nothing relevant here")
+    assert "scafé" not in m.findall("a scafé latte")        # word boundary still holds on normalized text
+
+
+def test_build_matcher_empty_is_falsy():
+    m = h.build_matcher(["a", ""])                          # all forms too short / empty
+    assert not m and m.findall("anything") == [] and m.search("anything") is False
 
 
 def test_prune_two_level_keeps_absent_concept_parks_redundant_alias():

@@ -485,11 +485,12 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
     """One forced-tool extraction call. Returns (tool_input_dict, usage). Retries are the caller's job
     (kept thin so the unit test can pass a trivial fake client). `tool` defaults to the full schema; pass
     extraction_tool(lean=True) for the lean schema (e.g. the bake-off)."""
+    tool = tool or extraction_tool()
     resp = client.messages.create(
         model=model, max_tokens=max_tokens, system=system,
         messages=[{"role": "user", "content": user}],
-        tools=[tool or extraction_tool()],
-        tool_choice={"type": "tool", "name": "emit_extraction"},
+        tools=[tool],
+        tool_choice={"type": "tool", "name": tool["name"]},
     )
     tool_input = next((b.input for b in resp.content if getattr(b, "type", None) == "tool_use"), None)
     if tool_input is None:

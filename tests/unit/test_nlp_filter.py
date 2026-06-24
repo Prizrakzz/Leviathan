@@ -16,11 +16,11 @@ def test_rule_keep_logic():
 
 
 def test_matcher_counts_distinct_entities():
-    ent_rx, _ = hv.build_matcher(["soybeans", "corn", "brazil", "soybean oil"])
-    assert nf.n_entities("Brazil soybeans and corn rose", ent_rx) == 3
-    assert nf.n_entities("soybeans, soybeans, soybeans", ent_rx) == 1                # distinct only
-    mrk_rx, _ = hv.build_matcher(["due to", "because"])
-    assert nf.has_marker("fell due to drought", mrk_rx) and not nf.has_marker("fell sharply", mrk_rx)
+    ent_m = hv.build_matcher(["soybeans", "corn", "brazil", "soybean oil"])
+    assert nf.n_entities("Brazil soybeans and corn rose", ent_m) == 3
+    assert nf.n_entities("soybeans, soybeans, soybeans", ent_m) == 1                # distinct only
+    mrk_m = hv.build_matcher(["due to", "because"])
+    assert nf.has_marker("fell due to drought", mrk_m) and not nf.has_marker("fell sharply", mrk_m)
 
 
 def test_score_rule_recall_and_skip():

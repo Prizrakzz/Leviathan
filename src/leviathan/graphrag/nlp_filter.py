@@ -41,17 +41,17 @@ def _entity_forms() -> list[str]:
 
 
 def matchers() -> tuple:
-    ent_rx, _ = hv.build_matcher(_entity_forms())
-    mrk_rx, _ = hv.build_matcher(ex._vocab().get("causal_markers", []))
-    return ent_rx, mrk_rx
+    ent_m = hv.build_matcher(_entity_forms())
+    mrk_m = hv.build_matcher(ex._vocab().get("causal_markers", []))
+    return ent_m, mrk_m
 
 
-def n_entities(text: str, ent_rx) -> int:
-    return len({m.lower() for m in ent_rx.findall(text)}) if ent_rx else 0
+def n_entities(text: str, ent_m) -> int:
+    return len(set(ent_m.findall(text))) if ent_m else 0
 
 
-def has_marker(text: str, mrk_rx) -> bool:
-    return bool(mrk_rx and mrk_rx.search(text))
+def has_marker(text: str, mrk_m) -> bool:
+    return bool(mrk_m) and mrk_m.search(text)
 
 
 @dataclass(frozen=True)
