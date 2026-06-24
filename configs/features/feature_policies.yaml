@@ -4,43 +4,43 @@ default_policy: fundamental_physical
 
 policies:
   - pattern: pink_sheet_npk_z
-    policy: allowed_economic_driver
+    policy: certified_economic_driver
     mechanism: fertilizer_input_cost
     eligible_targets: [production_quantity, area_harvested, yield]
     reason: Fertilizer costs affect acreage, application intensity, and expected yield.
 
   - pattern: pink_sheet_dap_z
-    policy: allowed_economic_driver
+    policy: certified_economic_driver
     mechanism: fertilizer_input_cost
     eligible_targets: [production_quantity, area_harvested, yield]
     reason: DAP costs affect crop input decisions before physical outcomes are known.
 
   - pattern: pink_sheet_urea_z
-    policy: allowed_economic_driver
+    policy: certified_economic_driver
     mechanism: fertilizer_input_cost
     eligible_targets: [production_quantity, area_harvested, yield]
     reason: Urea costs affect nitrogen application and acreage incentives.
 
   - pattern: pink_sheet_energy_z
-    policy: allowed_economic_driver
+    policy: certified_economic_driver
     mechanism: energy_freight_processing_cost
     eligible_targets: [production_quantity, area_harvested, yield]
     reason: Brent/energy costs affect freight, processing economics, and input costs.
 
   - pattern: brl_fx_pct_90d
-    policy: allowed_economic_driver
+    policy: certified_economic_driver
     mechanism: producer_selling_and_input_affordability
     eligible_targets: [production_quantity, area_harvested, yield]
     reason: Lagged BRL moves affect Brazil producer incentives and input affordability.
 
   - pattern: cny_fx_pct_90d
-    policy: allowed_economic_driver
+    policy: certified_economic_driver
     mechanism: importer_purchasing_power
     eligible_targets: [production_quantity]
     reason: Lagged CNY moves can affect import demand and physical flow incentives.
 
   - pattern: crush_margin_z
-    policy: allowed_economic_driver
+    policy: certified_economic_driver
     mechanism: soybean_processing_profitability
     eligible_targets: [production_quantity]
     reason: Board crush profitability changes physical soybean crush and product output incentives.
@@ -49,6 +49,31 @@ policies:
     policy: diagnostic_only
     mechanism: market_positioning
     reason: CFTC positioning describes market behavior rather than physical supply and demand.
+
+  - pattern: vol_regime
+    policy: diagnostic_only
+    mechanism: market_volatility_regime
+    reason: Volatility regime explains market behavior and belongs in diagnostics, not core fundamentals.
+
+  - pattern: close
+    policy: excluded_market_signal
+    mechanism: raw_contract_price
+    reason: Raw futures prices are market shortcuts and are excluded from core fundamental training sets.
+
+  - pattern: price_z
+    policy: excluded_market_signal
+    mechanism: own_contract_price_zscore
+    reason: Own-contract price z-scores are price-prediction shortcuts, not physical fundamentals.
+
+  - pattern: realized_vol
+    policy: diagnostic_only
+    mechanism: market_volatility
+    reason: Realized volatility is diagnostic market state, not a physical supply-demand driver.
+
+  - pattern: momentum
+    policy: excluded_market_signal
+    mechanism: market_momentum
+    reason: Price momentum is excluded from fundamental forecasting datasets.
 
   - pattern: futures_return
     policy: excluded_market_signal

@@ -48,6 +48,38 @@ def build_feature_matrix(spine_df: pd.DataFrame) -> pd.DataFrame:
     return matrix.sort_values(["country", "crop_year"]).reset_index(drop=True)
 
 
+def build_feature_matrix_v2(spine_df: pd.DataFrame) -> pd.DataFrame:
+    """Pivot a gold_v2 point-in-time spine to a wide training matrix.
+
+    Input columns follow ``SPINE_V2_COLUMNS`` from ``features.spine_v2``.
+    Output keeps the full snapshot identity before feature columns so one
+    dataset version can contain multiple as-of snapshots without ambiguity.
+    """
+    index = [
+        "entity_type",
+        "entity_id",
+        "physical_commodity",
+        "contract_slug",
+        "origin",
+        "crop_year",
+        "as_of_date",
+        "snapshot_stage",
+    ]
+    if spine_df.empty:
+        return pd.DataFrame(columns=index)
+    matrix = spine_df.pivot_table(
+        index=index,
+        columns="feature",
+        values="value",
+        aggfunc="first",
+    ).reset_index()
+    matrix.columns.name = None
+    return (
+        matrix.sort_values(["contract_slug", "origin", "crop_year", "as_of_date"])
+        .reset_index(drop=True)
+    )
+
+
 def build_feature_catalog(
     feature_commodity_map: dict[str, set[str]],
     feature_is_label: dict[str, bool],

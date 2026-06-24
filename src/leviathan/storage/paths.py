@@ -2009,3 +2009,37 @@ def silver_conab_key(commodity: str, safra_year: int, survey: int) -> str:
         f"survey={survey:02d}/"
         f"part-000.parquet"
     )
+
+
+def gold_v2_feature_spine_key(dataset_version: str, commodity: str) -> str:
+    """Immutable gold_v2 long-spine key for one dataset version and commodity."""
+    return (
+        f"gold_v2/feature_spine/"
+        f"dataset_version={dataset_version}/"
+        f"commodity={commodity}/"
+        f"part-000.parquet"
+    )
+
+
+def gold_v2_feature_matrix_key(dataset_version: str, commodity: str) -> str:
+    """Immutable gold_v2 wide-matrix key for one dataset version and commodity."""
+    return (
+        f"gold_v2/feature_matrix/"
+        f"dataset_version={dataset_version}/"
+        f"commodity={commodity}/"
+        f"part-0.parquet"
+    )
+
+
+def gold_v2_dataset_manifest_key(dataset_version: str) -> str:
+    """Immutable gold_v2 dataset manifest key."""
+    return f"gold_v2/dataset_manifests/dataset_version={dataset_version}/manifest.json"
+
+
+def gold_v2_preflight_report_key(dataset_version: str) -> str:
+    """Immutable gold_v2 Phase 4 preflight report key."""
+    return (
+        f"gold_v2/preflight_reports/"
+        f"dataset_version={dataset_version}/"
+        f"phase4_preflight_report.json"
+    )

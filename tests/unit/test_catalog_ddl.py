@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from leviathan.catalog.ddl import render_registry_ddls
+from leviathan.catalog.ddl import normalize_ddl_for_comparison, render_registry_ddls
 from leviathan.catalog.registry import load_dataset_registry
 
 
@@ -12,10 +12,13 @@ def test_all_checked_in_ddls_match_registry() -> None:
     rendered = render_registry_ddls(registry)
     ddl_dir = Path(__file__).resolve().parents[2] / "sql" / "athena" / "ddl"
     checked_in = {
-        path.stem: path.read_text(encoding="utf-8")
+        path.stem: normalize_ddl_for_comparison(path.read_text(encoding="utf-8"))
         for path in ddl_dir.glob("*.sql")
     }
-    assert checked_in == rendered
+    assert checked_in == {
+        table: normalize_ddl_for_comparison(ddl)
+        for table, ddl in rendered.items()
+    }
 
 
 def test_production_ddl_cannot_scan_esr_or_conab_prefixes() -> None:

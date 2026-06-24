@@ -46,6 +46,20 @@ def _read_gold_matrix(root: str, commodity: str) -> pd.DataFrame:
     return dataset.to_table().to_pandas()
 
 
+def _read_gold_v2_matrix(root: str, commodity: str, dataset_version: str) -> pd.DataFrame:
+    location = (
+        f"{root}/gold_v2/feature_matrix/"
+        f"dataset_version={dataset_version}/commodity={commodity}"
+    )
+    dataset = ds.dataset(location, format="parquet")
+    frame = dataset.to_table().to_pandas()
+    if "dataset_version" not in frame.columns:
+        frame["dataset_version"] = dataset_version
+    if "commodity" not in frame.columns:
+        frame["commodity"] = commodity
+    return frame
+
+
 def _compute_matrix(
     root: str, commodity: str, crop_year: int, config_dir: str | None
 ) -> pd.DataFrame:
@@ -67,6 +81,9 @@ def load_inference_features(
     commodity: str,
     crop_year: int | None = None,
     *,
+    dataset_version: str | None = None,
+    as_of_date: str | date | None = None,
+    snapshot_stage: str | None = None,
     bucket: str | None = None,
     root: str | None = None,
     prefer: str = "gold",
@@ -80,8 +97,12 @@ def load_inference_features(
                      (gold mode) or the current calendar year (compute mode).
         bucket/root: ``root`` (e.g. ``s3://bucket`` or a local path) wins; else
                      ``s3://{bucket}``.
-        prefer:      ``"gold"`` (read the spine output) or ``"compute"``
-                     (rebuild via build_spine for a fresh as-of).
+        dataset_version/as_of_date/snapshot_stage:
+                     Required selectors for ``prefer="gold_v2"``.  Stage is
+                     optional when the version has one row for the as-of date.
+        prefer:      ``"gold"`` (read legacy output), ``"gold_v2"`` (read an
+                     immutable point-in-time matrix), or ``"compute"``
+                     (rebuild via build_spine for a fresh legacy as-of).
         config_dir:  Override registry/feature config dir (compute mode).
 
     Returns:
@@ -103,4 +124,27 @@ def load_inference_features(
         matrix = _compute_matrix(root, commodity, target, config_dir)
         return matrix.loc[matrix["crop_year"] == target].reset_index(drop=True)
 
-    raise ValueError(f"prefer must be 'gold' or 'compute', got {prefer!r}")
+    if prefer == "gold_v2":
+        if not dataset_version:
+            raise ValueError("prefer='gold_v2' requires dataset_version")
+        if as_of_date is None:
+            raise ValueError("prefer='gold_v2' requires as_of_date")
+        matrix = _read_gold_v2_matrix(root, commodity, dataset_version)
+        if matrix.empty:
+            logger.warning(
+                "serving: no gold_v2 matrix for %s version=%s at %s",
+                commodity, dataset_version, root,
+            )
+            return matrix
+        target_as_of = pd.to_datetime(as_of_date).normalize()
+        mask = (
+            pd.to_datetime(matrix["as_of_date"], errors="coerce").dt.normalize()
+            == target_as_of
+        )
+        if crop_year is not None:
+            mask &= matrix["crop_year"].astype(int) == int(crop_year)
+        if snapshot_stage is not None:
+            mask &= matrix["snapshot_stage"].astype(str) == str(snapshot_stage)
+        return matrix.loc[mask].reset_index(drop=True)
+
+    raise ValueError(f"prefer must be 'gold', 'gold_v2', or 'compute', got {prefer!r}")

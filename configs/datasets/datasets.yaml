@@ -146,6 +146,149 @@ datasets:
         SELECT feature FROM "leviathan_dev"."gold_feature_spine"
         WHERE commodity='corn_cbot' LIMIT 1
 
+  - dataset_id: gold_v2_feature_spine
+    layer: gold
+    role: feature_source
+    status: active
+    s3_prefix: gold_v2/feature_spine/dataset_version=
+    format: PARQUET
+    schema:
+      - {name: entity_type, type: string, nullable: false}
+      - {name: entity_id, type: string, nullable: false}
+      - {name: physical_commodity, type: string, nullable: false}
+      - {name: contract_slug, type: string, nullable: false}
+      - {name: origin, type: string, nullable: false}
+      - {name: crop_year, type: int, nullable: false}
+      - {name: as_of_date, type: date, nullable: false}
+      - {name: snapshot_stage, type: string, nullable: false}
+      - {name: feature, type: string, nullable: false}
+      - {name: value, type: double, nullable: true}
+      - {name: feature_available_at, type: date, nullable: false}
+      - {name: source, type: string, nullable: false}
+      - {name: source_vintage, type: string, nullable: false}
+      - {name: is_label, type: boolean, nullable: false}
+      - {name: dataset_version, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key:
+      - dataset_version
+      - commodity
+      - entity_id
+      - origin
+      - crop_year
+      - as_of_date
+      - snapshot_stage
+      - feature
+    partitions:
+      - name: dataset_version
+        type: string
+        projection: {type: injected}
+      - name: commodity
+        type: string
+        projection: {type: enum, values: *commodity_values}
+    owner:
+      transform: leviathan.features.spine_v2.build_spine_v2
+      task: jobs/batch/feature_spine_v2_task.py
+    timestamps: {primary: [as_of_date, feature_available_at]}
+    freshness_days: null
+    historical_range: {start: "1981", end: null}
+    core_fundamental: true
+    athena:
+      table: gold_v2_feature_spine
+      location: gold_v2/feature_spine/
+      storage_template: gold_v2/feature_spine/dataset_version=${dataset_version}/commodity=${commodity}/
+      smoke_query: >-
+        SELECT feature FROM "leviathan_dev"."gold_v2_feature_spine"
+        WHERE dataset_version='__REPLACE_ME__' AND commodity='corn_cbot' LIMIT 1
+
+  - dataset_id: gold_v2_feature_matrix
+    layer: gold
+    role: feature_source
+    status: active
+    s3_prefix: gold_v2/feature_matrix/dataset_version=
+    format: PARQUET
+    schema:
+      - {name: entity_type, type: string, nullable: false}
+      - {name: entity_id, type: string, nullable: false}
+      - {name: physical_commodity, type: string, nullable: false}
+      - {name: contract_slug, type: string, nullable: false}
+      - {name: origin, type: string, nullable: false}
+      - {name: crop_year, type: int, nullable: false}
+      - {name: as_of_date, type: date, nullable: false}
+      - {name: snapshot_stage, type: string, nullable: false}
+      - {name: dataset_version, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key:
+      - dataset_version
+      - commodity
+      - entity_id
+      - origin
+      - crop_year
+      - as_of_date
+      - snapshot_stage
+    partitions:
+      - name: dataset_version
+        type: string
+        projection: {type: injected}
+      - name: commodity
+        type: string
+        projection: {type: enum, values: *commodity_values}
+    owner:
+      transform: leviathan.features.pivot.build_feature_matrix_v2
+      task: jobs/batch/feature_spine_v2_task.py
+    timestamps: {primary: [as_of_date]}
+    freshness_days: null
+    historical_range: {start: "1981", end: null}
+    core_fundamental: true
+    notes: Wide matrix has dynamic feature columns; registry schema intentionally declares stable snapshot identity columns only.
+    athena:
+      table: gold_v2_feature_matrix
+      location: gold_v2/feature_matrix/
+      storage_template: gold_v2/feature_matrix/dataset_version=${dataset_version}/commodity=${commodity}/
+      smoke_query: >-
+        SELECT entity_id FROM "leviathan_dev"."gold_v2_feature_matrix"
+        WHERE dataset_version='__REPLACE_ME__' AND commodity='corn_cbot' LIMIT 1
+
+  - dataset_id: gold_v2_dataset_manifests
+    layer: gold
+    role: metadata
+    status: active
+    s3_prefix: gold_v2/dataset_manifests/dataset_version=
+    format: JSON
+    schema:
+      - {name: dataset_version, type: string, nullable: false}
+      - {name: created_at, type: string, nullable: false}
+      - {name: base_git_sha, type: string, nullable: false}
+      - {name: snapshot_policy, type: string, nullable: false}
+      - {name: commodities, type: string, nullable: false}
+      - {name: certified_sources, type: string, nullable: false}
+      - {name: blocked_sources, type: string, nullable: false}
+      - {name: warning_sources, type: string, nullable: false}
+      - {name: waivers, type: string, nullable: false}
+      - {name: spine_row_count, type: bigint, nullable: false}
+      - {name: matrix_row_count, type: bigint, nullable: false}
+    natural_key: [dataset_version]
+    partitions:
+      - name: dataset_version
+        type: string
+        projection: {type: injected}
+    owner:
+      transform: jobs/batch/feature_spine_v2_task.py
+      task: jobs/batch/feature_spine_v2_task.py
+    timestamps: {primary: [created_at]}
+    freshness_days: null
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena:
+      table: gold_v2_dataset_manifests
+      location: gold_v2/dataset_manifests/
+      storage_template: gold_v2/dataset_manifests/dataset_version=${dataset_version}/
+      serde: org.openx.data.jsonserde.JsonSerDe
+      input_format: org.apache.hadoop.mapred.TextInputFormat
+      output_format: org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat
+      smoke_query: >-
+        SELECT dataset_version FROM "leviathan_dev"."gold_v2_dataset_manifests"
+        WHERE dataset_version='__REPLACE_ME__' LIMIT 1
+
   - dataset_id: gold_training_windows
     layer: gold
     role: metadata

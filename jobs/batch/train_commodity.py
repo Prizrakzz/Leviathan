@@ -305,12 +305,16 @@ def main() -> None:
             ",".join(policy_report["dropped_diagnostic_features"]),
         )
         mlflow.log_param(
-            "policy_allowed_economic_driver_count",
-            len(policy_report["allowed_economic_drivers"]),
+            "policy_certified_economic_driver_count",
+            len(policy_report["certified_economic_drivers"]),
         )
-        for index, driver in enumerate(policy_report["allowed_economic_drivers"]):
+        mlflow.log_param(
+            "policy_allowed_economic_driver_count",
+            len(policy_report["certified_economic_drivers"]),
+        )
+        for index, driver in enumerate(policy_report["certified_economic_drivers"]):
             mlflow.set_tag(
-                f"allowed_economic_driver_{index}",
+                f"certified_economic_driver_{index}",
                 f"{driver['feature']}|{driver['mechanism']}",
             )
         q_dir = quintile_directional_accuracy(result.predictions)

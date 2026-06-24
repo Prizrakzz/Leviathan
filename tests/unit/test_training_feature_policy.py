@@ -16,7 +16,7 @@ def _registry() -> FeaturePolicyRegistry:
         rules=(
             FeaturePolicyRule(
                 pattern="crush_margin_z",
-                policy="allowed_economic_driver",
+                policy="certified_economic_driver",
                 mechanism="soy_crush",
                 eligible_targets=("production_quantity",),
                 reason="processing profitability",
@@ -46,6 +46,7 @@ def test_apply_feature_policy_keeps_fundamentals_and_allowed_drivers() -> None:
         registry=_registry(),
     )
     assert kept == ["gdd_z_us", "crush_margin_z"]
+    assert report["certified_economic_drivers"][0]["feature"] == "crush_margin_z"
     assert report["allowed_economic_drivers"][0]["feature"] == "crush_margin_z"
 
 
@@ -75,3 +76,25 @@ def test_apply_feature_policy_rejects_driver_for_wrong_target() -> None:
             target="yield",
             registry=_registry(),
         )
+
+
+def test_legacy_allowed_economic_driver_alias_is_canonicalized() -> None:
+    registry = FeaturePolicyRegistry(
+        default_policy="fundamental_physical",
+        rules=(
+            FeaturePolicyRule(
+                pattern="pink_sheet_energy_z",
+                policy="allowed_economic_driver",
+                mechanism="energy_cost",
+                eligible_targets=("production_quantity",),
+                reason="energy cost driver",
+            ),
+        ),
+    )
+    kept, report = apply_feature_policy(
+        ["pink_sheet_energy_z"],
+        target="production_quantity",
+        registry=registry,
+    )
+    assert kept == ["pink_sheet_energy_z"]
+    assert report["certified_economic_drivers"][0]["mechanism"] == "energy_cost"

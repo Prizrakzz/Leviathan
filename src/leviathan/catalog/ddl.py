@@ -74,6 +74,20 @@ def ddl_sha256(ddl: str) -> str:
     return hashlib.sha256(ddl.encode("utf-8")).hexdigest()
 
 
+def normalize_ddl_for_comparison(ddl: str) -> str:
+    """Compare DDL semantics while ignoring registry hash comment churn.
+
+    The registry hash covers the entire dataset catalog, so adding an unrelated
+    table otherwise rewrites every checked-in DDL header.  Functional DDL
+    equality should be decided by the table definition itself.
+    """
+    lines = [
+        line for line in ddl.splitlines()
+        if not line.startswith("-- registry_sha256=")
+    ]
+    return "\n".join(lines).strip() + "\n"
+
+
 def render_registry_ddls(registry: DatasetRegistry) -> dict[str, str]:
     return {
         dataset.athena.table: render_ddl(
@@ -99,6 +113,12 @@ def write_registry_ddls(
             stale.unlink()
     for table, ddl in sorted(rendered.items()):
         path = target / f"{table}.sql"
+        if path.exists() and (
+            normalize_ddl_for_comparison(path.read_text(encoding="utf-8"))
+            == normalize_ddl_for_comparison(ddl)
+        ):
+            paths.append(path)
+            continue
         path.write_text(ddl, encoding="utf-8", newline="\n")
         paths.append(path)
     return paths
