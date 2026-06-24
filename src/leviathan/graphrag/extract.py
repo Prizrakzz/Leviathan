@@ -492,6 +492,11 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
         tools=[tool],
         tool_choice={"type": "tool", "name": tool["name"]},
     )
+    if getattr(resp, "stop_reason", None) == "max_tokens":
+        # NEVER silently accept a truncated structured result — a partial tool_use drops trailing fields
+        # (this is what swallowed soybeans' inter_commodity + convergence). Caller must raise max_tokens or stream.
+        raise ValueError(f"output truncated at max_tokens={max_tokens} (stop_reason=max_tokens); "
+                         "raise max_tokens or switch this call to streaming")
     tool_input = next((b.input for b in resp.content if getattr(b, "type", None) == "tool_use"), None)
     if tool_input is None:
         raise ValueError("model returned no tool_use block")

@@ -78,6 +78,26 @@ def test_sanitize_drops_dangling_refs_and_extras():
     assert sq["interactions"][0]["when"] == ["frost"] and sq["interactions"][0]["effect"] == "amplifies"
 
 
+def test_sanitize_maps_direction_synonyms_and_filters_nodes():
+    """The model writes 'bullish'/'bearish' not '+'/'-' and proposes inter-commodity edges outside our universe
+    (crude_oil) — map the synonyms (don't silently drop convergence) and node-filter only when nodes are given."""
+    out = {"drivers": [{"id": "frost", "type": "hazard", "sign": "bullish", "mechanism": "m"},
+                       {"id": "big_crop", "type": "state_marker", "sign": "bearish", "mechanism": "m"}],
+           "inter_commodity": [{"driver_commodity": "robusta_coffee", "relation": "substitutes_for", "sign": "down"},
+                               {"driver_commodity": "crude_oil", "relation": "feedstock_for", "sign": "+"}],
+           "convergence": [{"name": "squeeze", "direction": "bullish", "drivers": ["frost"]},
+                           {"name": "glut", "direction": "bearish", "drivers": ["big_crop"]},
+                           {"name": "muddle", "direction": "ambiguous", "drivers": ["frost"]}]}  # non-directional → drop
+
+    clean = au._sanitize(out, nodes={"robusta_coffee"})
+    assert {d["id"]: d["sign"] for d in clean["drivers"]} == {"frost": "+", "big_crop": "-"}   # sign synonyms
+    assert [(e["driver_commodity"], e["sign"]) for e in clean["inter_commodity"]] == [("robusta_coffee", "-")]
+    assert [(s["name"], s["direction"]) for s in clean["convergence"]] == [("squeeze", "+"), ("glut", "-")]
+
+    clean_no_nodes = au._sanitize(out)                          # nodes=None → no node filtering, crude_oil survives
+    assert {e["driver_commodity"] for e in clean_no_nodes["inter_commodity"]} == {"robusta_coffee", "crude_oil"}
+
+
 def test_draft_assembles_valid_contract(tmp_path, monkeypatch):
     monkeypatch.setattr(au, "_CAUSAL_DIR", tmp_path)              # don't write raw dump into real configs/
     dag = {"target_metrics": ["price"],

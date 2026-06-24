@@ -75,6 +75,20 @@ def test_call_opus_with_fake_client_then_parse():
     assert ex.parse_extraction(tool_input).entities == []
 
 
+def test_call_opus_raises_on_truncation():
+    import pytest
+
+    class _Resp:                                               # stop_reason=max_tokens => structured output truncated
+        stop_reason = "max_tokens"
+        content, usage = [], None
+
+    class _Client:
+        messages = type("M", (), {"create": staticmethod(lambda **kw: _Resp())})()
+
+    with pytest.raises(ValueError, match="truncated"):        # must fail loudly, never return a partial result
+        ex.call_opus(_Client(), "sys", "user")
+
+
 def test_metric_normalization():
     assert ex._norm_metric("harvested_area") == "area"
     assert ex._norm_metric("ending_stocks") == "stock"

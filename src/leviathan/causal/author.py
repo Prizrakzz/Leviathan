@@ -26,6 +26,7 @@ from leviathan.graphrag import extract as ex
 from leviathan.graphrag import harvest as hv
 
 _CAUSAL_DIR = ex._CFG / "causal"
+_DRAFT_MAX_TOKENS = 16384       # headroom for 30+ drivers AND inter_commodity + convergence (8192 truncated soy)
 _DRIVER_TYPES = ("climate_driver", "hazard", "beneficial_weather", "policy_event", "instrument", "state_marker")
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -71,16 +72,18 @@ def seed(node: str) -> dict:
 # ── draft (gated Opus) ─────────────────────────────────────────────────────────────────
 def _causal_tool() -> dict:
     s = {"type": "string"}
+    sign = {"type": "string", "enum": ["+", "-", "0"]}                  # effect on target: raises / lowers / ambiguous
+    direction = {"type": "string", "enum": ["+", "-"]}                  # a convergence regime is bullish(+) or bearish(-)
     arr = lambda props: {"type": "array", "items": {"type": "object", "properties": props}}  # noqa: E731
     return {"name": "emit_causal_dag",
             "description": "Emit the curated causal DAG for the commodity contract.",
             "input_schema": {"type": "object", "properties": {
                 "target_metrics": {"type": "array", "items": s},
-                "drivers": arr({"id": s, "type": s, "sign": s, "mechanism": s, "lag": s, "region": s,
+                "drivers": arr({"id": s, "type": s, "sign": sign, "mechanism": s, "lag": s, "region": s,
                                 "edge_type": s, "target_metric": s, "silver_ref": s, "silver_status": s,
                                 "parents": {"type": "array", "items": s}, "evidence_query": s, "confidence": s}),
-                "inter_commodity": arr({"driver_commodity": s, "relation": s, "sign": s, "mechanism": s, "lag": s}),
-                "convergence": arr({"name": s, "direction": s, "requires_any_n_of": {"type": "integer"},
+                "inter_commodity": arr({"driver_commodity": s, "relation": s, "sign": sign, "mechanism": s, "lag": s}),
+                "convergence": arr({"name": s, "direction": direction, "requires_any_n_of": {"type": "integer"},
                                     "drivers": {"type": "array", "items": s},
                                     "interactions": arr({"when": {"type": "array", "items": s}, "effect": s, "note": s}),
                                     "note": s})}}}
@@ -94,10 +97,12 @@ def _draft_system() -> str:
             "one-sentence mechanism, lag (e.g. '0-2 quarters'), region, an edge_type from the provided list, "
             "parents (drivers that drive THIS driver — e.g. La Nina is a parent of Brazil frost), a silver_ref "
             "from the provided available list (else leave null and set silver_status='planned'), an "
-            "evidence_query, and confidence. Add cross-commodity edges (substitution/competition/crush). Then "
-            "define CONVERGENCE signals: a named confluence (e.g. 'bullish_squeeze') = N aligned drivers, with "
-            "optional interactions (X amplifies Y). Be exhaustive but precise; prune irrelevant candidates. "
-            "Emit via emit_causal_dag.")
+            "evidence_query, and confidence. Add cross-commodity edges (substitution/competition/crush) — these "
+            "MUST target another tracked commodity contract (e.g. corn, soybean_oil, palm_oil); put energy/macro "
+            "influences (crude oil, the dollar) as DRIVERS, not cross-commodity edges. Then define CONVERGENCE "
+            "signals: a named confluence (e.g. 'bullish_squeeze') = N aligned drivers, direction '+' (bullish, "
+            "raises price) or '-' (bearish), with optional interactions (X amplifies Y). Be exhaustive but "
+            "precise; prune irrelevant candidates. Emit via emit_causal_dag.")
 
 
 _DRIVER_KEYS = {"id", "type", "sign", "mechanism", "lag", "region", "edge_type", "target_metric",
@@ -106,19 +111,33 @@ _INTER_KEYS = {"driver_commodity", "relation", "sign", "mechanism", "lag"}
 _CONV_KEYS = {"name", "direction", "requires_any_n_of", "drivers", "interactions", "note"}
 _INTERACTION_KEYS = {"when", "effect", "note"}
 _SIGN, _STATUS, _CONF = {"+", "-", "0"}, {"available", "planned", "none"}, {"high", "medium", "low"}
+# the model writes signs/directions inconsistently ('+' vs 'bullish'); map synonyms instead of silently dropping
+_SIGN_SYN = {"+": "+", "positive": "+", "bullish": "+", "up": "+", "raises": "+", "increase": "+",
+             "-": "-", "negative": "-", "bearish": "-", "down": "-", "lowers": "-", "decrease": "-",
+             "0": "0", "neutral": "0", "ambiguous": "0", "mixed": "0", "none": "0"}
 
 
-def _sanitize(out: dict) -> dict:
-    """Make the LLM output schema-constructible: keep only known keys, coerce enums, and DROP dangling
-    references (parents / convergence drivers / interaction `when` that don't name a declared driver) — the
-    model sometimes names a parent it forgot to list. The curator fixes the rest; we never lose a paid draft."""
+def _norm_sign(v) -> str:
+    return _SIGN_SYN.get(str(v).strip().lower(), "0")
+
+
+def _norm_dir(v) -> str | None:
+    """Convergence direction must be +/- (a regime is directional); return None for unmappable/ambiguous → drop."""
+    m = _SIGN_SYN.get(str(v).strip().lower())
+    return m if m in {"+", "-"} else None
+
+
+def _sanitize(out: dict, nodes: set[str] | None = None) -> dict:
+    """Make the LLM output schema-constructible: keep only known keys, MAP sign/direction synonyms (never silently
+    drop a 'bullish'), drop dangling references (parents / convergence drivers / interaction `when` that don't name
+    a declared driver) and, when `nodes` is given, inter-commodity edges to non-nodes. We never lose a paid draft."""
     drivers = []
     for d in out.get("drivers") or []:
         if isinstance(d, dict) and d.get("id") and d.get("type") and d.get("mechanism"):
             drivers.append({k: v for k, v in d.items() if k in _DRIVER_KEYS})
     ids = {d["id"] for d in drivers}
     for d in drivers:
-        d["sign"] = d.get("sign") if d.get("sign") in _SIGN else "0"
+        d["sign"] = _norm_sign(d.get("sign"))
         d["silver_status"] = (d.get("silver_status") if d.get("silver_status") in _STATUS
                               else ("available" if d.get("silver_ref") else "none"))
         d["confidence"] = d.get("confidence") if d.get("confidence") in _CONF else "medium"
@@ -126,13 +145,17 @@ def _sanitize(out: dict) -> dict:
     inter = []
     for e in out.get("inter_commodity") or []:
         if isinstance(e, dict) and e.get("driver_commodity") and e.get("relation"):
+            if nodes is not None and e["driver_commodity"] not in nodes:
+                continue                                          # not a tracked contract → belongs as a driver
             e = {k: v for k, v in e.items() if k in _INTER_KEYS}
-            e["sign"] = e.get("sign") if e.get("sign") in _SIGN else "0"
+            e["sign"] = _norm_sign(e.get("sign"))
             inter.append(e)
     conv = []
     for s in out.get("convergence") or []:
-        if not isinstance(s, dict) or not s.get("name") or s.get("direction") not in {"+", "-"}:
+        if not isinstance(s, dict) or not s.get("name") or _norm_dir(s.get("direction")) is None:
             continue
+        s = dict(s)
+        s["direction"] = _norm_dir(s["direction"])
         s = {k: v for k, v in s.items() if k in _CONV_KEYS}
         s["drivers"] = [x for x in (s.get("drivers") or []) if x in ids]
         ints = []
@@ -163,10 +186,21 @@ def draft(client, node: str, seed_dict: dict, *, model: str = ex.MODEL,
                 f"INTER-COMMODITY candidates: {json.dumps(seed_dict['inter_commodity_candidates'])}\n"
                 f"AVAILABLE silver feature names (wire silver_ref to these; else status='planned'): "
                 f"{seed_dict['available_silver']}")
-        out, _usage = ex.call_opus(client, _draft_system(), user, model=model, max_tokens=8192, tool=_causal_tool())
+        out, _usage = ex.call_opus(client, _draft_system(), user, model=model,
+                                   max_tokens=_DRAFT_MAX_TOKENS, tool=_causal_tool())
         _CAUSAL_DIR.mkdir(parents=True, exist_ok=True)
         raw_path.write_text(json.dumps(out, indent=2, default=str), encoding="utf-8")  # never lose a paid draft
-    clean = _sanitize(out)
+    nodes = cval._vocab_nodes_edges()[0]
+    clean = _sanitize(out, nodes=nodes)
+    dropped_ic = sorted({e.get("driver_commodity") for e in (out.get("inter_commodity") or [])
+                         if isinstance(e, dict) and e.get("driver_commodity") and e["driver_commodity"] not in nodes})
+    if dropped_ic:                                              # surfaced, not silent — the data lives on in raw.json
+        print(f"  note: dropped inter-commodity edge(s) to non-contract node(s): {dropped_ic} "
+              "(re-add as a driver, or add the commodity to the vocab)")
+    n_raw_conv = sum(1 for s in (out.get("convergence") or []) if isinstance(s, dict))
+    if len(clean["convergence"]) < n_raw_conv:
+        print(f"  note: dropped {n_raw_conv - len(clean['convergence'])} convergence signal(s) "
+              "(non-directional or no surviving drivers)")
     return cs.CausalContract(contract=node, aliases=seed_dict["aliases"],
                              provenance={"authored_by": model, "date": str(date.today()),
                                          "sources": ["domain prior (Opus draft)", "harvested vocab seed"]},
@@ -228,6 +262,7 @@ def main() -> int:
     ap.add_argument("--draft", metavar="NODE")
     ap.add_argument("--gap-mine", dest="gap", metavar="NODE")
     ap.add_argument("--sample", type=int, default=300)
+    ap.add_argument("--from-raw", action="store_true", help="re-assemble --draft from the saved raw.json (no spend)")
     args = ap.parse_args()
 
     if args.seed:
@@ -247,12 +282,14 @@ def main() -> int:
             print(f"  {n:4d}  {term}")
         return 0
     if args.draft:
-        import anthropic
         from leviathan.common import config
-        from leviathan.graphrag import batch_extract as bx
         config.load_env()
-        client = anthropic.Anthropic(api_key=bx._api_key())
-        c = draft(client, args.draft, seed(args.draft))
+        client = None
+        if not args.from_raw:                                  # --from-raw re-assembles offline, no client/spend
+            import anthropic
+            from leviathan.graphrag import batch_extract as bx
+            client = anthropic.Anthropic(api_key=bx._api_key())
+        c = draft(client, args.draft, seed(args.draft), reuse_raw=args.from_raw)
         errs, warns = cval.check(c)
         _CAUSAL_DIR.mkdir(parents=True, exist_ok=True)
         out = _CAUSAL_DIR / f"{args.draft}.yaml"

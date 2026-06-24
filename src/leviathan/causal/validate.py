@@ -73,7 +73,7 @@ def check(c: cs.CausalContract, *, nodes: set[str] | None = None, edges: set[str
 
     cyc = _cycle_node(c.drivers)
     if cyc:
-        errors.append(f"cycle in driver parents (involving {cyc!r}) — the DAG must be acyclic")
+        errors.append(f"cycle in driver parents (involving {cyc!r}) - the DAG must be acyclic")
     for e in c.inter_commodity:
         if e.driver_commodity not in nodes:
             errors.append(f"inter_commodity edge to non-node {e.driver_commodity!r}")
@@ -83,11 +83,11 @@ def check(c: cs.CausalContract, *, nodes: set[str] | None = None, edges: set[str
             warns.append(f"driver {d.id!r}: edge_type {d.edge_type!r} not in the vocab taxonomy")
         if d.silver_ref and d.silver_status == "available" and d.silver_ref not in silver:
             warns.append(f"driver {d.id!r}: silver_ref {d.silver_ref!r} tagged 'available' but not in "
-                         "feature_spine/node_silver_map → retag 'planned'")
+                         "feature_spine/node_silver_map -> retag 'planned'")
         if not d.silver_ref and d.silver_status != "none":
             warns.append(f"driver {d.id!r}: silver_status {d.silver_status!r} but no silver_ref")
     if not c.fan_in_drivers():
-        warns.append("no fan-in drivers (none have parents) — convergence depth is shallow")
+        warns.append("no fan-in drivers (none have parents) - convergence depth is shallow")
     if not c.convergence:
         warns.append("no convergence signals defined")
     return errors, warns
