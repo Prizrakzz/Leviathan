@@ -51,3 +51,11 @@ def test_coverage_and_report():
                    "planned_features": ["vietnam_robusta_stock_z"]}
     rep = cv.report(c)
     assert "planned features (MLOps roadmap)" in rep and "vietnam_robusta_stock_z" in rep
+
+
+def test_coverage_dedups_shared_planned_feature():
+    # two planned drivers wired to ONE target feature (e.g. biennial on/off) → listed once, order preserved
+    c = _c(drivers=[_d("biennial_off", silver_status="planned", silver_ref="biennial_bearing_flag"),
+                    _d("excess_rain", silver_status="planned", silver_ref="excess_rain_z"),
+                    _d("biennial_on", sign="-", silver_status="planned", silver_ref="biennial_bearing_flag")])
+    assert cv.coverage(c)["planned_features"] == ["biennial_bearing_flag", "excess_rain_z"]

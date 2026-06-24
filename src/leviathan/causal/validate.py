@@ -95,7 +95,8 @@ def check(c: cs.CausalContract, *, nodes: set[str] | None = None, edges: set[str
 
 def coverage(c: cs.CausalContract) -> dict:
     by_status = collections.Counter(d.silver_status for d in c.drivers)
-    planned = [d.silver_ref or d.id for d in c.drivers if d.silver_status == "planned"]
+    planned = list(dict.fromkeys(   # dedup, order-preserving: drivers may share one target feature (e.g. biennial)
+        d.silver_ref or d.id for d in c.drivers if d.silver_status == "planned"))
     return {"drivers": len(c.drivers),
             "fan_out_roots": sum(1 for d in c.drivers if not d.parents),
             "fan_in": len(c.fan_in_drivers()),
