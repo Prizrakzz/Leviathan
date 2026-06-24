@@ -1,0 +1,153 @@
+{
+  "verification_name": "Terraform drift verification",
+  "verified_at_local": "2026-06-24T19:36:05+03:00",
+  "terraform_workdir": "C:\\Users\\User\\Desktop\\Leviathan\\infra\\terraform\\envs\\dev",
+  "terraform_version": "1.15.2",
+  "state_source": "local terraform.tfstate in the main worktree",
+  "variables_source": "local terraform.tfvars in the main worktree",
+  "command": "terraform plan -detailed-exitcode -out=$plan",
+  "exit_code": 2,
+  "exit_code_meaning": "Diff present; command completed successfully and no apply was run.",
+  "summary": {
+    "planned_add": 2,
+    "planned_update": 4,
+    "planned_destroy": 2,
+    "planned_replace": 1,
+    "mlflow_ec2_instance_action": "no-op",
+    "mlflow_security_group_action": "no-op",
+    "mlflow_instance_profile_action": "no-op"
+  },
+  "resource_changes": [
+    {
+      "address": "module.ecr.aws_ecr_lifecycle_policy.this",
+      "type": "aws_ecr_lifecycle_policy",
+      "actions": [
+        "delete",
+        "create"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_policy.airflow_permissions",
+      "type": "aws_iam_policy",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_role_policy_attachment.airflow_permissions",
+      "type": "aws_iam_role_policy_attachment",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.s3.aws_s3_bucket_inventory.weekly",
+      "type": "aws_s3_bucket_inventory",
+      "actions": [
+        "delete"
+      ]
+    },
+    {
+      "address": "module.s3.aws_s3_bucket_lifecycle_configuration.data_lake",
+      "type": "aws_s3_bucket_lifecycle_configuration",
+      "actions": [
+        "update"
+      ]
+    },
+    {
+      "address": "module.s3.aws_s3_bucket_policy.data_lake",
+      "type": "aws_s3_bucket_policy",
+      "actions": [
+        "delete"
+      ]
+    },
+    {
+      "address": "module.glue.module.raw_to_bronze_faostat.aws_glue_job.this",
+      "type": "aws_glue_job",
+      "actions": [
+        "update"
+      ]
+    },
+    {
+      "address": "module.glue.module.raw_to_bronze_nasa_power.aws_glue_job.this",
+      "type": "aws_glue_job",
+      "actions": [
+        "update"
+      ]
+    },
+    {
+      "address": "module.glue.module.raw_to_bronze_usda_esr.aws_glue_job.this",
+      "type": "aws_glue_job",
+      "actions": [
+        "update"
+      ]
+    }
+  ],
+  "mlflow_server_resources": [
+    {
+      "address": "module.mlflow_server.aws_iam_instance_profile.mlflow",
+      "type": "aws_iam_instance_profile",
+      "actions": [
+        "no-op"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_policy.airflow_permissions",
+      "type": "aws_iam_policy",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_policy.mlflow_s3",
+      "type": "aws_iam_policy",
+      "actions": [
+        "no-op"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_role.mlflow_instance",
+      "type": "aws_iam_role",
+      "actions": [
+        "no-op"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_role_policy_attachment.airflow_permissions",
+      "type": "aws_iam_role_policy_attachment",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_role_policy_attachment.mlflow_s3",
+      "type": "aws_iam_role_policy_attachment",
+      "actions": [
+        "no-op"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_iam_role_policy_attachment.mlflow_ssm",
+      "type": "aws_iam_role_policy_attachment",
+      "actions": [
+        "no-op"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_instance.mlflow",
+      "type": "aws_instance",
+      "actions": [
+        "no-op"
+      ]
+    },
+    {
+      "address": "module.mlflow_server.aws_security_group.mlflow",
+      "type": "aws_security_group",
+      "actions": [
+        "no-op"
+      ]
+    }
+  ],
+  "apply_run": false,
+  "interpretation": "Terraform drift/config verification completed. The MLflow/Airflow EC2 host is protected in this plan: no instance, security group, IAM role, instance profile, MLflow S3 policy, or SSM attachment changes are proposed. The plan still contains non-MLflow changes and should not be applied casually."
+}

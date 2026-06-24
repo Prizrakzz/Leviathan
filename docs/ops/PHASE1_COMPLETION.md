@@ -1,7 +1,7 @@
 # Phase 1 Completion
 
-Status: complete except Terraform drift verification, which is blocked by
-missing required dev variables.
+Status: complete. Terraform drift exists and is documented; no Terraform apply
+was run.
 
 Completed: 2026-06-24
 
@@ -120,16 +120,43 @@ All smoke queries succeeded.
 
 ## Terraform
 
-`terraform plan -detailed-exitcode` was attempted in
-`infra/terraform/envs/dev`, but Terraform required values that are not present
-in this worktree:
+`terraform plan -detailed-exitcode` was rerun from the main worktree, which
+contains the local Terraform state and approved `terraform.tfvars`.
 
-- `bucket_name`
-- `batch_subnet_ids`
-- `batch_security_group_ids`
+Result:
 
-No Terraform apply was run. The EC2 replacement-safety check remains blocked
-until the approved dev variable values or tfvars file are available.
+```text
+exit code 2
+```
+
+Exit code 2 means Terraform found a diff. No apply was run.
+
+Planned action summary:
+
+- 2 creates;
+- 4 in-place updates;
+- 2 destroys;
+- 1 replacement.
+
+Important MLflow/Airflow finding:
+
+- `module.mlflow_server.aws_instance.mlflow`: `no-op`;
+- `module.mlflow_server.aws_security_group.mlflow`: `no-op`;
+- `module.mlflow_server.aws_iam_instance_profile.mlflow`: `no-op`;
+- MLflow role, S3 policy, and SSM attachment: `no-op`.
+
+The only proposed MLflow-module additions are the Airflow Batch/CloudWatch IAM
+policy and its role attachment. The plan does not propose replacing or
+destroying the EC2 host that contains the SQLite-backed MLflow/Airflow state.
+
+Non-MLflow drift/config changes remain and should be reviewed before any apply:
+
+- replace ECR worker lifecycle policy;
+- create Airflow permissions policy and attachment;
+- delete S3 weekly inventory configuration;
+- delete S3 inventory delivery bucket policy;
+- update S3 lifecycle rules;
+- update default arguments on three legacy Glue jobs.
 
 ## Evidence
 
@@ -140,6 +167,7 @@ until the approved dev variable values or tfvars file are available.
 - `data/system_inventory/mlflow_phase1_20260624T161204Z/mlflow_restore_verify.json`
 - `data/system_inventory/mlflow_phase1_20260624T161204Z/airflow_restore_verify.json`
 - `data/system_inventory/mlflow_phase1_20260624T161204Z/terraform_plan_attempt.txt`
+- `data/system_inventory/mlflow_phase1_20260624T161204Z/terraform_drift_verification_20260624T193605.json`
 
 ## Exit Criteria
 
@@ -147,4 +175,5 @@ until the approved dev variable values or tfvars file are available.
 - Backup restore verification: pass.
 - Active checked-in DDLs missing from Glue: repaired.
 - Athena validation: pass.
-- Terraform replacement-safety check: blocked by missing dev variables.
+- Terraform replacement-safety check: pass for the MLflow/Airflow EC2 host;
+  broader non-MLflow drift remains for review.
