@@ -1,0 +1,45 @@
+version: 1
+
+physical_commodities:
+  maize:
+    balance_sheet_family: grains
+    crop_classes: [corn, white_maize, yellow_maize]
+  wheat:
+    balance_sheet_family: grains
+    crop_classes: [all_wheat, hard_red_winter, hard_red_spring, soft_red_winter, french_milling]
+  rice:
+    balance_sheet_family: grains
+    crop_classes: [rough_rice]
+  soybeans:
+    balance_sheet_family: oilseeds
+    crop_classes: [soybeans]
+  rapeseed:
+    balance_sheet_family: oilseeds
+    crop_classes: [rapeseed]
+  canola:
+    balance_sheet_family: oilseeds
+    crop_classes: [canola]
+  cotton:
+    balance_sheet_family: fiber
+    crop_classes: [upland_cotton]
+  cocoa_beans:
+    balance_sheet_family: tropicals
+    crop_classes: [cocoa_beans]
+  arabica_coffee:
+    balance_sheet_family: coffee
+    crop_classes: [arabica]
+  robusta_coffee:
+    balance_sheet_family: coffee
+    crop_classes: [robusta]
+  green_coffee:
+    balance_sheet_family: coffee
+    crop_classes: [generic_green_coffee]
+  sugarcane:
+    balance_sheet_family: sugar
+    crop_classes: [sugarcane]
+  oranges:
+    balance_sheet_family: citrus
+    crop_classes: [oranges]
+  oil_palm_fruit:
+    balance_sheet_family: palm
+    crop_classes: [oil_palm_fruit]

@@ -1,0 +1,1714 @@
+schema_version: 1
+bucket: leviathan-dev-shahem-001
+database: leviathan_dev
+
+# Tables that are intentionally removed after their definitions are backed up.
+retired_tables:
+  - production_raw
+  - silver_fnc_colombia
+  - silver_weather
+
+x-commodity-values: &commodity_values >-
+  cocoa,corn_cbot,campinas_corn_reference_bmf,french_wheat_matif,
+  french_maize_matif,hard_red_winter_wheat_kcbt,
+  hard_red_spring_wheat_mgex,soft_red_winter_wheat_cbot,
+  rough_rice_cbot,south_african_white_maize_jse,
+  south_african_yellow_maize_jse,soybeans_cbot,soybean_meal_cbot,
+  soybean_oil_cbot,soybeans_no_1_dce,soybeans_no_2_dce,
+  soybean_meal_dce,soybean_oil_dce,french_rapeseed_matif,canola_ice,
+  rapeseed_oil_zce,rapeseed_meal_zce,malaysian_crude_palm_oil_cme,
+  palm_olein_dce,brazilian_arabica_coffee,arabica_coffee,
+  robusta_coffee,cotton,raw_sugar,white_sugar,frozen_orange_juice
+
+x-weather-long-schema: &weather_long_schema
+  - {name: date, type: date, nullable: false}
+  - {name: year, type: bigint, nullable: false}
+  - {name: month, type: bigint, nullable: false}
+  - {name: day, type: bigint, nullable: false}
+  - {name: country, type: string, nullable: false}
+  - {name: region, type: string, nullable: false}
+  - {name: commodity, type: string, nullable: false}
+  - {name: source, type: string, nullable: false}
+  - {name: ingest_date, type: string, nullable: false}
+  - {name: variable, type: string, nullable: false}
+  - {name: value, type: double, nullable: true}
+
+x-graphrag-partitions: &graphrag_partitions
+  - name: source
+    type: string
+    projection:
+      type: enum
+      values: usda_wasde,usda_wap,usda_gain,conab
+  - name: year
+    type: int
+    projection: {type: integer, range: "1973,2035"}
+  - name: month
+    type: int
+    projection: {type: integer, range: "1,12", digits: "2"}
+
+datasets:
+  - dataset_id: metadata_s3_inventory
+    layer: metadata
+    role: metadata
+    status: active
+    s3_prefix: metadata/s3_inventory/
+    format: PARQUET
+    schema:
+      - {name: bucket, type: string, nullable: false}
+      - {name: key, type: string, nullable: false}
+      - {name: size, type: bigint, nullable: false}
+      - {name: last_modified_date, type: timestamp, nullable: false}
+      - {name: e_tag, type: string, nullable: true}
+      - {name: storage_class, type: string, nullable: true}
+      - {name: replication_status, type: string, nullable: true}
+      - {name: encryption_status, type: string, nullable: true}
+      - {name: dt, type: string, nullable: false}
+    natural_key: [bucket, key, dt]
+    partitions:
+      - name: dt
+        type: string
+        projection:
+          type: date
+          format: yyyy-MM-dd-HH-mm
+          range: 2026-06-23-00-00,NOW
+          interval: "1"
+          interval.unit: HOURS
+    owner: {transform: null, task: aws_s3_bucket_inventory}
+    timestamps: {primary: [last_modified_date, dt]}
+    freshness_days: 8
+    historical_range: {start: "2026-06-23", end: null}
+    core_fundamental: true
+    athena:
+      table: metadata_s3_inventory
+      location: metadata/s3_inventory/leviathan-dev-shahem-001/leviathan-dev-weekly/hive/
+      serde: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
+      input_format: org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat
+      output_format: org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat
+      smoke_query: >-
+        SELECT key FROM "leviathan_dev"."metadata_s3_inventory"
+        WHERE dt = date_format(current_timestamp - interval '7' day, '%Y-%m-%d-00-00')
+        LIMIT 1
+
+  - dataset_id: gold_feature_catalog
+    layer: gold
+    role: metadata
+    status: active
+    s3_prefix: gold/feature_catalog/
+    format: PARQUET
+    schema:
+      - {name: feature, type: string, nullable: false}
+      - {name: scope, type: string, nullable: false}
+      - {name: group, type: string, nullable: true}
+      - {name: commodity, type: string, nullable: true}
+      - {name: is_label, type: boolean, nullable: false}
+    natural_key: [feature]
+    partitions: []
+    owner:
+      transform: leviathan.features.pivot.build_feature_catalog
+      task: jobs/batch/feature_spine_task.py
+    timestamps: {primary: []}
+    freshness_days: 30
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena: {table: gold_feature_catalog}
+
+  - dataset_id: gold_feature_spine
+    layer: gold
+    role: feature_source
+    status: active
+    s3_prefix: gold/feature_spine/commodity=
+    format: PARQUET
+    schema:
+      - {name: country, type: string, nullable: false}
+      - {name: crop_year, type: int, nullable: false}
+      - {name: feature, type: string, nullable: false}
+      - {name: value, type: double, nullable: true}
+      - {name: is_label, type: boolean, nullable: false}
+      - {name: event_time, type: date, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [commodity, country, crop_year, feature]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: *commodity_values}
+    owner:
+      transform: leviathan.features.spine.build_spine
+      task: jobs/batch/feature_spine_task.py
+    timestamps: {primary: [event_time]}
+    freshness_days: 30
+    historical_range: {start: "1961", end: null}
+    core_fundamental: true
+    athena:
+      table: gold_feature_spine
+      location: gold/feature_spine/
+      storage_template: gold/feature_spine/commodity=${commodity}/
+      smoke_query: >-
+        SELECT feature FROM "leviathan_dev"."gold_feature_spine"
+        WHERE commodity='corn_cbot' LIMIT 1
+
+  - dataset_id: gold_training_windows
+    layer: gold
+    role: metadata
+    status: active
+    s3_prefix: gold/training_windows/
+    format: PARQUET
+    schema:
+      - {name: commodity, type: string, nullable: false}
+      - {name: tier, type: string, nullable: false}
+      - {name: n_features, type: bigint, nullable: false}
+      - {name: label_first_year, type: bigint, nullable: true}
+      - {name: label_last_year, type: bigint, nullable: true}
+      - {name: n_label_years, type: bigint, nullable: false}
+      - {name: dense_start_year, type: double, nullable: true}
+      - {name: dense_window_years, type: bigint, nullable: false}
+      - {name: present_families, type: string, nullable: true}
+    natural_key: [commodity, tier]
+    partitions: []
+    owner: {transform: null, task: scripts/audit_training_windows.py}
+    timestamps: {primary: []}
+    freshness_days: 30
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena: {table: gold_training_windows}
+
+  - dataset_id: graphrag_entities
+    layer: graphrag
+    role: narrative
+    status: empty_pending_backfill
+    s3_prefix: graphrag/entities/source=
+    format: PARQUET
+    schema:
+      - {name: doc_key, type: string, nullable: false}
+      - {name: document_date, type: string, nullable: true}
+      - {name: section_name, type: string, nullable: true}
+      - {name: chunk_index, type: int, nullable: false}
+      - {name: commodity, type: string, nullable: true}
+      - {name: origin, type: string, nullable: true}
+      - {name: stress_type, type: string, nullable: true}
+      - {name: severity, type: tinyint, nullable: true}
+      - {name: crop_year, type: string, nullable: true}
+      - {name: window, type: string, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: year, type: int, nullable: false}
+      - {name: month, type: int, nullable: false}
+    natural_key: [source, year, month, doc_key, section_name, chunk_index]
+    partitions: *graphrag_partitions
+    owner:
+      transform: leviathan.transforms.text_to_graphrag
+      task: jobs/batch/text_to_graphrag_task.py
+    timestamps: {primary: [document_date]}
+    freshness_days: 30
+    historical_range: {start: "1973", end: null}
+    core_fundamental: false
+    athena:
+      table: graphrag_entities
+      location: graphrag/entities/
+      storage_template: graphrag/entities/source=${source}/year=${year}/month=${month}
+      smoke_query: >-
+        SELECT doc_key FROM "leviathan_dev"."graphrag_entities"
+        WHERE source='usda_wasde' AND year=2024 AND month=1 LIMIT 1
+
+  - dataset_id: graphrag_causal_edges
+    layer: graphrag
+    role: narrative
+    status: empty_pending_backfill
+    s3_prefix: graphrag/causal_edges/source=
+    format: PARQUET
+    schema:
+      - {name: doc_key, type: string, nullable: false}
+      - {name: document_date, type: string, nullable: true}
+      - {name: section_name, type: string, nullable: true}
+      - {name: chunk_index, type: int, nullable: false}
+      - {name: cause, type: string, nullable: false}
+      - {name: effect, type: string, nullable: false}
+      - {name: cause_commodity, type: string, nullable: true}
+      - {name: cause_origin, type: string, nullable: true}
+      - {name: effect_commodity, type: string, nullable: true}
+      - {name: effect_origin, type: string, nullable: true}
+      - {name: lag, type: string, nullable: true}
+      - {name: marker, type: string, nullable: true}
+      - {name: confidence, type: string, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: year, type: int, nullable: false}
+      - {name: month, type: int, nullable: false}
+    natural_key: [source, year, month, doc_key, section_name, chunk_index, cause, effect]
+    partitions: *graphrag_partitions
+    owner:
+      transform: leviathan.transforms.text_to_graphrag
+      task: jobs/batch/text_to_graphrag_task.py
+    timestamps: {primary: [document_date]}
+    freshness_days: 30
+    historical_range: {start: "1973", end: null}
+    core_fundamental: false
+    athena:
+      table: graphrag_causal_edges
+      location: graphrag/causal_edges/
+      storage_template: graphrag/causal_edges/source=${source}/year=${year}/month=${month}
+      smoke_query: >-
+        SELECT doc_key FROM "leviathan_dev"."graphrag_causal_edges"
+        WHERE source='usda_wasde' AND year=2024 AND month=1 LIMIT 1
+
+  - dataset_id: graphrag_forecasts
+    layer: graphrag
+    role: narrative
+    status: empty_pending_backfill
+    s3_prefix: graphrag/forecasts/source=
+    format: PARQUET
+    schema:
+      - {name: doc_key, type: string, nullable: false}
+      - {name: document_date, type: string, nullable: true}
+      - {name: section_name, type: string, nullable: true}
+      - {name: chunk_index, type: int, nullable: false}
+      - {name: commodity, type: string, nullable: true}
+      - {name: origin, type: string, nullable: true}
+      - {name: value, type: double, nullable: true}
+      - {name: unit, type: string, nullable: true}
+      - {name: crop_year, type: string, nullable: true}
+      - {name: direction, type: string, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: year, type: int, nullable: false}
+      - {name: month, type: int, nullable: false}
+    natural_key: [source, year, month, doc_key, section_name, chunk_index, commodity, origin]
+    partitions: *graphrag_partitions
+    owner:
+      transform: leviathan.transforms.text_to_graphrag
+      task: jobs/batch/text_to_graphrag_task.py
+    timestamps: {primary: [document_date]}
+    freshness_days: 30
+    historical_range: {start: "1973", end: null}
+    core_fundamental: false
+    athena:
+      table: graphrag_forecasts
+      location: graphrag/forecasts/
+      storage_template: graphrag/forecasts/source=${source}/year=${year}/month=${month}
+      smoke_query: >-
+        SELECT doc_key FROM "leviathan_dev"."graphrag_forecasts"
+        WHERE source='usda_wasde' AND year=2024 AND month=1 LIMIT 1
+
+  - dataset_id: graphrag_sentiment
+    layer: graphrag
+    role: narrative
+    status: active
+    s3_prefix: graphrag/sentiment/source=
+    format: PARQUET
+    schema:
+      - {name: doc_key, type: string, nullable: false}
+      - {name: document_date, type: string, nullable: true}
+      - {name: section_name, type: string, nullable: true}
+      - {name: chunk_index, type: int, nullable: false}
+      - {name: commodity, type: string, nullable: true}
+      - {name: origin, type: string, nullable: true}
+      - {name: tone_score, type: tinyint, nullable: true}
+      - {name: phrases, type: string, nullable: true}
+      - {name: policy_country, type: string, nullable: true}
+      - {name: policy_commodity, type: string, nullable: true}
+      - {name: policy_type, type: string, nullable: true}
+      - {name: policy_direction, type: string, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: year, type: int, nullable: false}
+      - {name: month, type: int, nullable: false}
+    natural_key: [source, year, month, doc_key, section_name, chunk_index]
+    partitions: *graphrag_partitions
+    owner:
+      transform: leviathan.transforms.text_to_graphrag
+      task: jobs/batch/text_to_graphrag_task.py
+    timestamps: {primary: [document_date]}
+    freshness_days: 30
+    historical_range: {start: "1973", end: null}
+    core_fundamental: false
+    athena:
+      table: graphrag_sentiment
+      location: graphrag/sentiment/
+      storage_template: graphrag/sentiment/source=${source}/year=${year}/month=${month}
+      smoke_query: >-
+        SELECT doc_key FROM "leviathan_dev"."graphrag_sentiment"
+        WHERE source='usda_wasde' AND year=2024 AND month=1 LIMIT 1
+
+  - dataset_id: silver_production
+    layer: silver
+    role: label_source
+    status: active
+    s3_prefix: silver/production/commodity=
+    format: PARQUET
+    schema:
+      - {name: country, type: string, nullable: false}
+      - {name: country_key, type: string, nullable: false}
+      - {name: metric, type: string, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: unit, type: string, nullable: false}
+      - {name: value, type: double, nullable: true}
+      - {name: flag, type: string, nullable: true}
+      - {name: is_official, type: boolean, nullable: false}
+      - {name: note, type: string, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: dataset, type: string, nullable: false}
+      - {name: ingest_date, type: string, nullable: false}
+      - {name: source_file_name, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [commodity, country_key, metric, year]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: *commodity_values}
+      - name: year
+        type: int
+        projection: {type: integer, range: "1961,2035"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.faostat_production
+      task: jobs/glue/bronze_to_silver_faostat.py
+    timestamps: {primary: [year, ingest_date]}
+    freshness_days: 400
+    historical_range: {start: "1961", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_production
+      location: silver/production/
+      storage_template: silver/production/commodity=${commodity}/year=${year}
+      smoke_query: >-
+        SELECT country FROM "leviathan_dev"."silver_production"
+        WHERE commodity='corn_cbot' AND year=2023 LIMIT 1
+
+  - dataset_id: silver_psd
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/psd/
+    format: PARQUET
+    schema:
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: market_year, type: smallint, nullable: false}
+      - {name: wasde_release_month, type: tinyint, nullable: false}
+      - {name: release_date, type: string, nullable: false}
+      - {name: beginning_stocks_mt, type: double, nullable: true}
+      - {name: production_mt, type: double, nullable: true}
+      - {name: imports_mt, type: double, nullable: true}
+      - {name: exports_mt, type: double, nullable: true}
+      - {name: ending_stocks_mt, type: double, nullable: true}
+      - {name: consumption_mt, type: double, nullable: true}
+      - {name: area_harvested_1000ha, type: double, nullable: true}
+      - {name: yield_mt_ha, type: double, nullable: true}
+      - {name: su_ratio, type: double, nullable: true}
+      - {name: su_ratio_yoy_delta, type: double, nullable: true}
+      - {name: production_mt_revision, type: double, nullable: true}
+      - {name: ending_stocks_mt_revision, type: double, nullable: true}
+      - {name: consumption_mt_revision, type: double, nullable: true}
+    natural_key: [leviathan_slug, country, market_year, wasde_release_month, release_date]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.usda_psd
+      task: jobs/batch/psd_silver_task.py
+    timestamps: {primary: [release_date, market_year]}
+    freshness_days: 45
+    historical_range: {start: "1960", end: null}
+    core_fundamental: true
+    athena: {table: silver_psd}
+
+  - dataset_id: silver_wasde
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/wasde/
+    format: PARQUET
+    schema:
+      - {name: release_date, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+      - {name: table_type, type: string, nullable: false}
+      - {name: region, type: string, nullable: false}
+      - {name: marketing_year, type: string, nullable: false}
+      - {name: attribute, type: string, nullable: false}
+      - {name: unit, type: string, nullable: false}
+      - {name: estimate, type: double, nullable: true}
+      - {name: prior_release_date, type: string, nullable: true}
+      - {name: prior_estimate, type: double, nullable: true}
+      - {name: revision, type: double, nullable: true}
+      - {name: revision_direction, type: string, nullable: false}
+      - {name: months_to_marketing_year_end, type: int, nullable: true}
+      - {name: is_first_estimate, type: boolean, nullable: false}
+      - {name: is_final_or_latest, type: boolean, nullable: false}
+      - {name: raw_table_name, type: string, nullable: false}
+      - {name: raw_region, type: string, nullable: false}
+      - {name: raw_attribute, type: string, nullable: false}
+      - {name: raw_status, type: string, nullable: true}
+      - {name: raw_projection_month, type: string, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [release_date, commodity, table_type, region, marketing_year, attribute, unit]
+    partitions:
+      - name: release_date
+        type: string
+        projection:
+          type: date
+          range: "1973-01-01,NOW"
+          format: "yyyy-MM-dd"
+          interval: 1
+          interval.unit: DAYS
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.usda_wasde
+      task: jobs/batch/wasde_silver_task.py
+    timestamps: {primary: [release_date]}
+    freshness_days: 45
+    historical_range: {start: "1973-01-01", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_wasde
+      storage_template: silver/wasde/release_date=${release_date}
+
+  - dataset_id: silver_nasa_power
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/weather/source=nasa_power/
+    format: PARQUET
+    schema:
+      - {name: date, type: date, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: day, type: bigint, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: region, type: string, nullable: false}
+      - {name: source, type: string, nullable: false}
+      - {name: ingest_date, type: string, nullable: false}
+      - {name: source_file_name, type: string, nullable: false}
+      - {name: temperature_2m_mean_c, type: double, nullable: true}
+      - {name: temperature_2m_max_c, type: double, nullable: true}
+      - {name: temperature_2m_min_c, type: double, nullable: true}
+      - {name: precipitation_mm, type: double, nullable: true}
+      - {name: relative_humidity_2m_pct, type: double, nullable: true}
+      - {name: wind_speed_2m_m_s, type: double, nullable: true}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [commodity, country, region, date]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: *commodity_values}
+      - name: country
+        type: string
+        projection: {type: injected}
+      - name: region
+        type: string
+        projection: {type: injected}
+      - name: year
+        type: int
+        projection: {type: integer, range: "1981,2035"}
+      - name: month
+        type: int
+        projection: {type: integer, range: "1,12", digits: "2"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.nasa_power_weather
+      task: jobs/glue/bronze_to_silver_nasa_power.py
+    timestamps: {primary: [date, ingest_date]}
+    freshness_days: 45
+    historical_range: {start: "1981", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_nasa_power
+      storage_template: >-
+        silver/weather/source=nasa_power/commodity=${commodity}/country=${country}/
+        region=${region}/year=${year}/month=${month}
+      smoke_query: >-
+        SELECT date FROM "leviathan_dev"."silver_nasa_power"
+        WHERE commodity='arabica_coffee' AND country='brazil'
+        AND region='br_arabica_bahia_chapada_diamantina'
+        AND year=2024 AND month=1 LIMIT 1
+
+  - dataset_id: silver_chirps
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/weather/source=chirps/
+    format: PARQUET
+    schema: *weather_long_schema
+    natural_key: [commodity, country, region, date, variable]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: *commodity_values}
+      - name: country
+        type: string
+        projection: {type: injected}
+      - name: region
+        type: string
+        projection: {type: injected}
+      - name: year
+        type: int
+        projection: {type: integer, range: "1981,2035"}
+      - name: month
+        type: int
+        projection: {type: integer, range: "1,12", digits: "2"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.chirps
+      task: jobs/batch/bronze_to_silver_chirps_task.py
+    timestamps: {primary: [date, ingest_date]}
+    freshness_days: 45
+    historical_range: {start: "1981", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_chirps
+      storage_template: >-
+        silver/weather/source=chirps/commodity=${commodity}/country=${country}/
+        region=${region}/year=${year}/month=${month}
+      smoke_query: >-
+        SELECT date FROM "leviathan_dev"."silver_chirps"
+        WHERE commodity='arabica_coffee' AND country='brazil'
+        AND region='br_arabica_bahia_chapada_diamantina'
+        AND year=2024 AND month=1 LIMIT 1
+
+  - dataset_id: silver_cpc_soil
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/weather/source=cpc_soil/
+    format: PARQUET
+    schema: *weather_long_schema
+    natural_key: [commodity, country, region, date, variable]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: *commodity_values}
+      - name: country
+        type: string
+        projection: {type: injected}
+      - name: region
+        type: string
+        projection: {type: injected}
+      - name: year
+        type: int
+        projection: {type: integer, range: "2000,2035"}
+      - name: month
+        type: int
+        projection: {type: integer, range: "1,12", digits: "2"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.cpc_soil
+      task: jobs/batch/cpc_bronze_to_silver_task.py
+    timestamps: {primary: [date, ingest_date]}
+    freshness_days: 45
+    historical_range: {start: "2000", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_cpc_soil
+      storage_template: >-
+        silver/weather/source=cpc_soil/commodity=${commodity}/country=${country}/
+        region=${region}/year=${year}/month=${month}
+      smoke_query: >-
+        SELECT date FROM "leviathan_dev"."silver_cpc_soil"
+        WHERE commodity='arabica_coffee' AND country='brazil'
+        AND region='br_arabica_bahia_chapada_diamantina'
+        AND year=2024 AND month=1 LIMIT 1
+
+  - dataset_id: silver_modis_ndvi
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/weather/source=modis_ndvi/
+    format: PARQUET
+    schema:
+      - {name: date, type: date, nullable: false}
+      - {name: year, type: smallint, nullable: false}
+      - {name: period, type: tinyint, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: region, type: string, nullable: false}
+      - {name: latitude, type: float, nullable: false}
+      - {name: longitude, type: float, nullable: false}
+      - {name: ndvi_raw, type: float, nullable: true}
+      - {name: ndvi, type: float, nullable: true}
+      - {name: pixel_reliability, type: tinyint, nullable: true}
+      - {name: ndvi_z_score, type: float, nullable: true}
+      - {name: baseline_mean, type: float, nullable: true}
+      - {name: baseline_std, type: float, nullable: true}
+      - {name: ingest_date, type: string, nullable: false}
+    natural_key: [commodity, country, region, date]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.modis_ndvi
+      task: jobs/batch/modis_ndvi_bronze_to_silver_task.py
+    timestamps: {primary: [date, ingest_date]}
+    freshness_days: 45
+    historical_range: {start: "2000", end: null}
+    core_fundamental: true
+    athena: {table: silver_modis_ndvi}
+
+  - dataset_id: silver_noaa_oni
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/weather/source=noaa_oni/
+    format: PARQUET
+    schema:
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: season, type: string, nullable: false}
+      - {name: oni_anom, type: double, nullable: true}
+      - {name: phase, type: string, nullable: true}
+      - {name: oni_lag3, type: double, nullable: true}
+      - {name: oni_lag6, type: double, nullable: true}
+      - {name: oni_lag9, type: double, nullable: true}
+      - {name: oni_lag12, type: double, nullable: true}
+      - {name: el_nino_flag, type: tinyint, nullable: false}
+      - {name: la_nina_flag, type: tinyint, nullable: false}
+      - {name: la_nina_brazil_flag, type: tinyint, nullable: false}
+      - {name: argentina_la_nina_flag, type: tinyint, nullable: false}
+      - {name: source, type: string, nullable: false}
+    natural_key: [year, month]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.noaa_oni
+      task: jobs/batch/noaa_oni_task.py
+    timestamps: {primary: [year, month]}
+    freshness_days: 45
+    historical_range: {start: "1950", end: null}
+    core_fundamental: true
+    athena: {table: silver_noaa_oni}
+
+  - dataset_id: silver_noaa_iod
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/weather/source=noaa_iod/
+    format: PARQUET
+    schema:
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: date, type: timestamp, nullable: false}
+      - {name: dmi_value, type: float, nullable: true}
+      - {name: iod_dmi_3month_avg, type: float, nullable: true}
+      - {name: iod_phase, type: string, nullable: true}
+      - {name: iod_dmi_ethiopia_lag4, type: float, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [year, month]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.noaa_iod
+      task: jobs/batch/noaa_iod_task.py
+    timestamps: {primary: [date]}
+    freshness_days: 45
+    historical_range: {start: "1958", end: null}
+    core_fundamental: true
+    athena: {table: silver_noaa_iod}
+
+  - dataset_id: silver_nass_annual
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/nass_annual/
+    format: PARQUET
+    schema:
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: state, type: string, nullable: false}
+      - {name: year, type: int, nullable: false}
+      - {name: marketing_year, type: bigint, nullable: false}
+      - {name: area_planted_ha, type: double, nullable: true}
+      - {name: area_harvested_ha, type: double, nullable: true}
+      - {name: yield_t_ha, type: double, nullable: true}
+      - {name: production_mt, type: double, nullable: true}
+      - {name: area_planted_cv_pct, type: double, nullable: true}
+      - {name: area_harvested_cv_pct, type: double, nullable: true}
+      - {name: yield_cv_pct, type: double, nullable: true}
+      - {name: production_cv_pct, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [leviathan_slug, state, year]
+    partitions:
+      - name: commodity
+        type: string
+        projection:
+          type: enum
+          values: corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex
+      - name: year
+        type: int
+        projection: {type: integer, range: "1866,2035"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.usda_nass_annual
+      task: jobs/batch/nass_annual_silver_task.py
+    timestamps: {primary: [year]}
+    freshness_days: 400
+    historical_range: {start: "1866", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_nass_annual
+      storage_template: silver/nass_annual/commodity=${commodity}/year=${year}
+      smoke_query: >-
+        SELECT state FROM "leviathan_dev"."silver_nass_annual"
+        WHERE commodity='corn_cbot' AND year=2024 LIMIT 1
+
+  - dataset_id: silver_nass_crop_progress
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/nass_crop_progress/
+    format: PARQUET
+    schema:
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: state, type: string, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: date, type: date, nullable: false}
+      - {name: week_of_year, type: bigint, nullable: false}
+      - {name: pct_planted, type: double, nullable: true}
+      - {name: pct_emerged, type: double, nullable: true}
+      - {name: pct_good_excellent, type: double, nullable: true}
+      - {name: pct_poor_very_poor, type: double, nullable: true}
+      - {name: pct_harvested, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [leviathan_slug, state, year, date]
+    partitions:
+      - name: commodity
+        type: string
+        projection:
+          type: enum
+          values: corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex
+      - name: year
+        type: int
+        projection: {type: integer, range: "1979,2035"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.usda_nass_crop_progress
+      task: jobs/batch/nass_crop_progress_silver_task.py
+    timestamps: {primary: [date]}
+    freshness_days: 14
+    historical_range: {start: "1979", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_nass_crop_progress
+      storage_template: silver/nass_crop_progress/commodity=${commodity}/year=${year}
+      smoke_query: >-
+        SELECT state FROM "leviathan_dev"."silver_nass_crop_progress"
+        WHERE commodity='corn_cbot' AND year=2024 LIMIT 1
+
+  - dataset_id: silver_nass_citrus
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/nass_citrus/
+    format: PARQUET
+    schema:
+      - {name: season, type: string, nullable: false}
+      - {name: release_date, type: string, nullable: false}
+      - {name: report_month, type: bigint, nullable: false}
+      - {name: crop, type: string, nullable: false}
+      - {name: state, type: string, nullable: false}
+      - {name: forecast_1000_boxes, type: double, nullable: true}
+      - {name: revision_1000_boxes, type: double, nullable: true}
+      - {name: hlb_trend_factor, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [season, release_date, crop, state]
+    partitions: []
+    owner: {transform: null, task: legacy_nass_citrus_silver}
+    timestamps: {primary: [release_date]}
+    freshness_days: 45
+    historical_range: {start: "1996", end: null}
+    core_fundamental: true
+    athena: {table: silver_nass_citrus}
+
+  - dataset_id: silver_ams_cotton_quality
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/ams_cotton_quality/
+    format: PARQUET
+    schema:
+      - {name: commodity, type: string, nullable: false}
+      - {name: season, type: bigint, nullable: false}
+      - {name: geography, type: string, nullable: false}
+      - {name: percent_tenderable, type: double, nullable: true}
+      - {name: samples_classed, type: double, nullable: true}
+      - {name: avg_staple, type: double, nullable: true}
+      - {name: avg_micronaire, type: double, nullable: true}
+      - {name: avg_strength, type: double, nullable: true}
+      - {name: source_pages, type: string, nullable: true}
+      - {name: source_raw_key, type: string, nullable: true}
+      - {name: source_file_etag, type: string, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [season, geography]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.usda_ams_cotton_quality
+      task: jobs/batch/ams_cotton_quality_silver_task.py
+    timestamps: {primary: [season]}
+    freshness_days: 400
+    historical_range: {start: "1986", end: null}
+    core_fundamental: true
+    notes: Annual cadence; not a weekly tenderable-percent source.
+    athena: {table: silver_ams_cotton_quality}
+
+  - dataset_id: silver_conab_coffee
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/conab_coffee/
+    format: PARQUET
+    schema:
+      - {name: commodity, type: string, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: safra_year, type: bigint, nullable: false}
+      - {name: survey_number, type: bigint, nullable: false}
+      - {name: region, type: string, nullable: false}
+      - {name: region_raw, type: string, nullable: false}
+      - {name: area_in_production_ha, type: double, nullable: true}
+      - {name: yield_bags_per_ha, type: double, nullable: true}
+      - {name: production_thousand_bags, type: double, nullable: true}
+      - {name: area_revision_ha, type: double, nullable: true}
+      - {name: yield_revision_bags_per_ha, type: double, nullable: true}
+      - {name: production_revision_thousand_bags, type: double, nullable: true}
+      - {name: production_revision_pct, type: double, nullable: true}
+      - {name: production_revision_streak, type: int, nullable: true}
+      - {name: is_repeated_survey, type: boolean, nullable: false}
+      - {name: repeated_from_survey_number, type: bigint, nullable: true}
+      - {name: survey_content_fingerprint, type: string, nullable: false}
+      - {name: source_raw_key, type: string, nullable: true}
+      - {name: source_file_etag, type: string, nullable: true}
+      - {name: worksheet, type: string, nullable: true}
+      - {name: parser_version, type: string, nullable: false}
+      - {name: source, type: string, nullable: false}
+    natural_key: [commodity, safra_year, survey_number, region]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: "arabica_coffee,robusta_coffee"}
+      - name: safra_year
+        type: bigint
+        projection: {type: integer, range: "2023,2035"}
+      - name: survey_number
+        type: bigint
+        projection: {type: integer, range: "1,10", digits: "2"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.conab_coffee
+      task: jobs/batch/conab_silver_task.py
+    timestamps: {primary: [safra_year, survey_number]}
+    freshness_days: 120
+    historical_range: {start: "2023", end: null}
+    core_fundamental: true
+    notes: Production-estimate sheets only; consecutive repeated accepted surveys are flagged.
+    athena:
+      table: silver_conab_coffee
+      storage_template: silver/conab_coffee/commodity=${commodity}/safra_year=${safra_year}/survey=${survey_number}
+
+  - dataset_id: silver_fnc_colombia_monthly
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/fnc_colombia/monthly/
+    format: PARQUET
+    schema:
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: date, type: date, nullable: false}
+      - {name: production_bags_60kg, type: double, nullable: true}
+      - {name: ex_dock_price_usd_cents_per_lb, type: double, nullable: true}
+      - {name: internal_price_cop_per_125kg, type: double, nullable: true}
+      - {name: exports_bags_60kg, type: double, nullable: true}
+      - {name: exports_value_usd_m, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [leviathan_slug, year, month]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: arabica_coffee}
+      - name: year
+        type: int
+        projection: {type: integer, range: "1913,2035"}
+    owner: {transform: null, task: legacy_fnc_silver}
+    timestamps: {primary: [date]}
+    freshness_days: 45
+    historical_range: {start: "1913", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_fnc_colombia_monthly
+      storage_template: silver/fnc_colombia/monthly/commodity=${commodity}/year=${year}
+      smoke_query: >-
+        SELECT date FROM "leviathan_dev"."silver_fnc_colombia_monthly"
+        WHERE commodity='arabica_coffee' AND year=2024 LIMIT 1
+
+  - dataset_id: silver_fnc_colombia_area_department
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/fnc_colombia/area_department/
+    format: PARQUET
+    schema:
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: department, type: string, nullable: false}
+      - {name: department_raw, type: string, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: area_ha, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [leviathan_slug, department, year]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: arabica_coffee}
+      - name: year
+        type: int
+        projection: {type: integer, range: "2002,2035"}
+    owner: {transform: null, task: legacy_fnc_silver}
+    timestamps: {primary: [year]}
+    freshness_days: 400
+    historical_range: {start: "2002", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_fnc_colombia_area_department
+      storage_template: >-
+        silver/fnc_colombia/area_department/commodity=${commodity}/year=${year}
+      smoke_query: >-
+        SELECT department FROM "leviathan_dev"."silver_fnc_colombia_area_department"
+        WHERE commodity='arabica_coffee' AND year=2024 LIMIT 1
+
+  - dataset_id: silver_fnc_colombia_exports_port_type
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/fnc_colombia/exports_port_type/
+    format: PARQUET
+    schema:
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: date, type: date, nullable: false}
+      - {name: port, type: string, nullable: false}
+      - {name: port_raw, type: string, nullable: false}
+      - {name: coffee_type, type: string, nullable: false}
+      - {name: coffee_type_raw, type: string, nullable: false}
+      - {name: exports_bags_60kg, type: double, nullable: true}
+      - {name: exports_value_usd, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [leviathan_slug, year, month, port, coffee_type]
+    partitions:
+      - name: commodity
+        type: string
+        projection: {type: enum, values: arabica_coffee}
+      - name: year
+        type: int
+        projection: {type: integer, range: "2017,2035"}
+    owner: {transform: null, task: legacy_fnc_silver}
+    timestamps: {primary: [date]}
+    freshness_days: 45
+    historical_range: {start: "2017", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_fnc_colombia_exports_port_type
+      storage_template: >-
+        silver/fnc_colombia/exports_port_type/commodity=${commodity}/year=${year}
+      smoke_query: >-
+        SELECT port FROM "leviathan_dev"."silver_fnc_colombia_exports_port_type"
+        WHERE commodity='arabica_coffee' AND year=2024 LIMIT 1
+
+  - dataset_id: silver_sagis_cec
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/sagis_cec/
+    format: PARQUET
+    schema:
+      - {name: production_year, type: bigint, nullable: false}
+      - {name: report_month, type: bigint, nullable: false}
+      - {name: release_date, type: string, nullable: false}
+      - {name: season_type, type: string, nullable: false}
+      - {name: crop, type: string, nullable: false}
+      - {name: scope, type: string, nullable: false}
+      - {name: estimate_number, type: bigint, nullable: true}
+      - {name: area_planted_ha, type: double, nullable: true}
+      - {name: current_estimate_t, type: double, nullable: true}
+      - {name: prior_estimate_t, type: double, nullable: true}
+      - {name: prior_year_final_t, type: double, nullable: true}
+      - {name: revision_t, type: double, nullable: true}
+      - {name: revision_pct, type: double, nullable: true}
+      - {name: revision_surprise, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [production_year, report_month, crop, scope]
+    partitions: []
+    owner: {transform: null, task: legacy_sagis_cec_silver}
+    timestamps: {primary: [release_date]}
+    freshness_days: 45
+    historical_range: {start: "1999", end: null}
+    core_fundamental: true
+    athena: {table: silver_sagis_cec}
+
+  - dataset_id: silver_sagis_weekly_deliveries
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/sagis_weekly_deliveries/
+    format: PARQUET
+    schema:
+      - {name: season, type: string, nullable: false}
+      - {name: crop, type: string, nullable: false}
+      - {name: week_number, type: bigint, nullable: false}
+      - {name: week_ending, type: string, nullable: false}
+      - {name: prog_total_mt, type: double, nullable: true}
+      - {name: prior_prog_total_mt, type: double, nullable: true}
+      - {name: pct_of_prior_yr, type: double, nullable: true}
+      - {name: z_vs_3yr_avg, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [season, crop, week_number]
+    partitions: []
+    owner: {transform: null, task: legacy_sagis_weekly_silver}
+    timestamps: {primary: [week_ending]}
+    freshness_days: 14
+    historical_range: {start: "1999", end: null}
+    core_fundamental: true
+    athena: {table: silver_sagis_weekly_deliveries}
+
+  - dataset_id: silver_sagis_weekly_exports
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/sagis_weekly_exports/
+    format: PARQUET
+    schema:
+      - {name: season, type: string, nullable: false}
+      - {name: crop, type: string, nullable: false}
+      - {name: week_number, type: bigint, nullable: false}
+      - {name: week_ending, type: string, nullable: false}
+      - {name: prog_exports_mt, type: double, nullable: true}
+      - {name: pct_of_prior_yr, type: double, nullable: true}
+      - {name: z_vs_3yr_avg, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [season, crop, week_number]
+    partitions: []
+    owner: {transform: null, task: legacy_sagis_weekly_silver}
+    timestamps: {primary: [week_ending]}
+    freshness_days: 14
+    historical_range: {start: "1999", end: null}
+    core_fundamental: true
+    athena: {table: silver_sagis_weekly_exports}
+
+  - dataset_id: silver_fgis
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/fgis/
+    format: PARQUET
+    schema:
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: marketing_year, type: int, nullable: false}
+      - {name: week_of_marketing_year, type: int, nullable: false}
+      - {name: week_ending_date, type: date, nullable: false}
+      - {name: destination_country, type: string, nullable: false}
+      - {name: exports_mt_weekly, type: double, nullable: true}
+      - {name: exports_mt_ctd, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [leviathan_slug, marketing_year, week_of_marketing_year, destination_country]
+    partitions:
+      - name: leviathan_slug
+        type: string
+        projection:
+          type: enum
+          values: corn_cbot,soybeans_cbot,hard_red_winter_wheat_kcbt,hard_red_spring_wheat_mgex,soft_red_winter_wheat_cbot
+      - name: marketing_year
+        type: int
+        projection: {type: integer, range: "1982,2035"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.usda_fgis
+      task: jobs/batch/fgis_silver_task.py
+    timestamps: {primary: [week_ending_date]}
+    freshness_days: 14
+    historical_range: {start: "1982", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_fgis
+      storage_template: >-
+        silver/fgis/leviathan_slug=${leviathan_slug}/marketing_year=${marketing_year}
+      smoke_query: >-
+        SELECT week_ending_date FROM "leviathan_dev"."silver_fgis"
+        WHERE leviathan_slug='corn_cbot' AND marketing_year=2024 LIMIT 1
+
+  - dataset_id: silver_esr
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/production/source=usda_esr/
+    format: PARQUET
+    schema:
+      - {name: commodity_code, type: smallint, nullable: false}
+      - {name: commodity_name, type: string, nullable: false}
+      - {name: market_year, type: smallint, nullable: false}
+      - {name: country_code, type: smallint, nullable: false}
+      - {name: week_ending_date, type: date, nullable: false}
+      - {name: outstanding_sales_1000mt, type: float, nullable: true}
+      - {name: weekly_exports_1000mt, type: float, nullable: true}
+      - {name: gross_new_sales_1000mt, type: float, nullable: true}
+      - {name: changes_1000mt, type: float, nullable: true}
+      - {name: source_unit_id, type: smallint, nullable: true}
+      - {name: as_of_date, type: string, nullable: false}
+      - {name: ingest_date, type: string, nullable: false}
+      - {name: source, type: string, nullable: false}
+    natural_key: [commodity_code, market_year, as_of_date, country_code, week_ending_date]
+    partitions:
+      - name: commodity_code
+        type: int
+        projection: {type: enum, values: "101,102,103,104,107,401,701,801,901,902"}
+      - name: market_year
+        type: int
+        projection: {type: integer, range: "1990,2035"}
+      - name: as_of_date
+        type: string
+        projection: {type: date, format: yyyyMMdd, range: "19900101,NOW"}
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.usda_esr
+      task: jobs/batch/bronze_to_silver_esr_task.py
+    timestamps: {primary: [week_ending_date, as_of_date]}
+    freshness_days: 14
+    historical_range: {start: "1990", end: null}
+    core_fundamental: true
+    athena:
+      table: silver_esr
+      storage_template: >-
+        silver/production/source=usda_esr/commodity_code=${commodity_code}/
+        market_year=${market_year}/as_of=${as_of_date}
+      smoke_query: >-
+        SELECT week_ending_date FROM "leviathan_dev"."silver_esr"
+        WHERE commodity_code=101 AND market_year=2024
+        AND as_of_date='20260524' LIMIT 1
+
+  - dataset_id: silver_pink_sheet
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/pink_sheet/
+    format: PARQUET
+    schema:
+      - {name: date, type: timestamp, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: urea_usd_mt, type: double, nullable: true}
+      - {name: dap_usd_mt, type: double, nullable: true}
+      - {name: potassium_usd_mt, type: double, nullable: true}
+      - {name: natural_gas_us_usd_mmbtu, type: double, nullable: true}
+      - {name: natural_gas_eu_usd_mmbtu, type: double, nullable: true}
+      - {name: phosphate_rock_usd_mt, type: double, nullable: true}
+      - {name: brent_crude_usd_bbl, type: double, nullable: true}
+      - {name: blended_npk_index, type: double, nullable: true}
+      - {name: soybeans_usd_t, type: double, nullable: true}
+      - {name: soybean_oil_usd_t, type: double, nullable: true}
+      - {name: soybean_meal_usd_t, type: double, nullable: true}
+      - {name: palm_oil_cpo_usd_t, type: double, nullable: true}
+      - {name: raw_sugar_world_usd_t, type: double, nullable: true}
+      - {name: wheat_us_hrw_usd_t, type: double, nullable: true}
+      - {name: wheat_us_srw_usd_t, type: double, nullable: true}
+      - {name: rapeseed_oil_usd_t, type: double, nullable: true}
+      - {name: urea_usd_mt_zscore_5yr, type: double, nullable: true}
+      - {name: dap_usd_mt_zscore_5yr, type: double, nullable: true}
+      - {name: potassium_usd_mt_zscore_5yr, type: double, nullable: true}
+      - {name: natural_gas_us_usd_mmbtu_zscore_5yr, type: double, nullable: true}
+      - {name: natural_gas_eu_usd_mmbtu_zscore_5yr, type: double, nullable: true}
+      - {name: phosphate_rock_usd_mt_zscore_5yr, type: double, nullable: true}
+      - {name: brent_crude_usd_bbl_zscore_5yr, type: double, nullable: true}
+      - {name: blended_npk_index_zscore_5yr, type: double, nullable: true}
+      - {name: soybeans_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: soybean_oil_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: soybean_meal_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: palm_oil_cpo_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: raw_sugar_world_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: wheat_us_hrw_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: wheat_us_srw_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: rapeseed_oil_usd_t_zscore_5yr, type: double, nullable: true}
+      - {name: latest_release_ym, type: string, nullable: false}
+    natural_key: [date]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.pink_sheet
+      task: jobs/batch/pink_sheet_silver_task.py
+    timestamps: {primary: [date, latest_release_ym]}
+    freshness_days: 45
+    historical_range: {start: "1960", end: null}
+    core_fundamental: true
+    athena: {table: silver_pink_sheet}
+
+  - dataset_id: silver_fred_fx
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/fred_fx/
+    format: PARQUET
+    schema:
+      - {name: date, type: string, nullable: false}
+      - {name: brl_usd, type: double, nullable: true}
+      - {name: brl_usd_pct_change_90d, type: double, nullable: true}
+      - {name: ars_usd, type: double, nullable: true}
+      - {name: ars_usd_pct_change_90d, type: double, nullable: true}
+      - {name: cny_usd, type: double, nullable: true}
+      - {name: cny_usd_pct_change_90d, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [date]
+    partitions: []
+    owner: {transform: null, task: legacy_fred_fx_silver}
+    timestamps: {primary: [date]}
+    freshness_days: 14
+    historical_range: {start: "2005", end: null}
+    core_fundamental: true
+    athena: {table: silver_fred_fx}
+
+  - dataset_id: silver_futures_prices
+    layer: silver
+    role: diagnostic
+    status: diagnostic_only
+    s3_prefix: silver/futures_prices/
+    format: PARQUET
+    schema:
+      - {name: date, type: timestamp, nullable: false}
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: close, type: float, nullable: true}
+      - {name: log_return, type: float, nullable: true}
+      - {name: price_z_2yr, type: float, nullable: true}
+      - {name: realized_vol_30d, type: float, nullable: true}
+      - {name: momentum_60d, type: float, nullable: true}
+      - {name: momentum_1yr, type: float, nullable: true}
+      - {name: vol_regime, type: tinyint, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [date, leviathan_slug]
+    partitions: []
+    owner: {transform: null, task: legacy_futures_silver}
+    timestamps: {primary: [date]}
+    freshness_days: 7
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    notes: Raw market signals are diagnostic; only separately certified economic mechanisms may enter models.
+    athena: {table: silver_futures_prices}
+
+  - dataset_id: silver_cot
+    layer: silver
+    role: diagnostic
+    status: diagnostic_only
+    s3_prefix: silver/cot/
+    format: PARQUET
+    schema:
+      - {name: report_date, type: string, nullable: false}
+      - {name: leviathan_slug, type: string, nullable: false}
+      - {name: open_interest, type: bigint, nullable: true}
+      - {name: mm_long, type: bigint, nullable: true}
+      - {name: mm_short, type: bigint, nullable: true}
+      - {name: mm_spread, type: bigint, nullable: true}
+      - {name: mm_net, type: bigint, nullable: true}
+      - {name: mm_pct_oi, type: double, nullable: true}
+      - {name: mm_net_z_3yr, type: double, nullable: true}
+      - {name: mm_pct_oi_z_3yr, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [report_date, leviathan_slug]
+    partitions: []
+    owner: {transform: null, task: legacy_cot_silver}
+    timestamps: {primary: [report_date]}
+    freshness_days: 14
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena: {table: silver_cot}
+
+  - dataset_id: silver_mpob
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/mpob/
+    format: PARQUET
+    schema:
+      - {name: date, type: string, nullable: false}
+      - {name: production_cpo_mt, type: double, nullable: true}
+      - {name: closing_stocks_palm_oil_mt, type: double, nullable: true}
+      - {name: exports_palm_oil_mt, type: double, nullable: true}
+      - {name: imports_palm_oil_mt, type: double, nullable: true}
+      - {name: ffb_price_myr_per_mt, type: double, nullable: true}
+      - {name: su_ratio, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [date]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.mpob
+      task: jobs/batch/mpob_silver_task.py
+    timestamps: {primary: [date]}
+    freshness_days: 45
+    historical_range: {start: "2016", end: null}
+    core_fundamental: true
+    athena: {table: silver_mpob}
+
+  - dataset_id: silver_mpob_annual
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/mpob_annual/
+    format: PARQUET
+    schema:
+      - {name: year, type: bigint, nullable: false}
+      - {name: production_cpo_mt, type: double, nullable: true}
+      - {name: closing_stocks_palm_oil_mt, type: double, nullable: true}
+      - {name: exports_palm_oil_mt, type: double, nullable: true}
+      - {name: imports_palm_oil_mt, type: double, nullable: true}
+      - {name: ffb_price_myr_per_mt, type: double, nullable: true}
+      - {name: su_ratio, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+    natural_key: [year]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.mpob_annual
+      task: jobs/batch/mpob_annual_silver_task.py
+    timestamps: {primary: [year]}
+    freshness_days: 400
+    historical_range: {start: "2017", end: null}
+    core_fundamental: true
+    athena: {table: silver_mpob_annual}
+
+  - dataset_id: silver_mpoc_exports_by_country
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/mpoc_exports_by_country/
+    format: PARQUET
+    schema:
+      - {name: year, type: bigint, nullable: false}
+      - {name: country, type: string, nullable: false}
+      - {name: exports_mt, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [year, country]
+    partitions: []
+    owner: {transform: null, task: legacy_mpoc_silver}
+    timestamps: {primary: [year]}
+    freshness_days: 400
+    historical_range: {start: null, end: null}
+    core_fundamental: true
+    athena: {table: silver_mpoc_exports_by_country}
+
+  - dataset_id: silver_mpoc_stock_comparison
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/mpoc_stock_comparison/
+    format: PARQUET
+    schema:
+      - {name: country, type: string, nullable: false}
+      - {name: oil_type, type: string, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: ending_stocks_mt, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [country, oil_type, year, month]
+    partitions: []
+    owner: {transform: null, task: legacy_mpoc_silver}
+    timestamps: {primary: [year, month]}
+    freshness_days: 45
+    historical_range: {start: null, end: null}
+    core_fundamental: true
+    athena: {table: silver_mpoc_stock_comparison}
+
+  - dataset_id: silver_mpoc_trade_stats_monthly
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/mpoc_trade_stats_monthly/
+    format: PARQUET
+    schema:
+      - {name: year, type: bigint, nullable: false}
+      - {name: month, type: bigint, nullable: false}
+      - {name: exports_mt, type: double, nullable: true}
+      - {name: imports_mt, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [year, month]
+    partitions: []
+    owner: {transform: null, task: legacy_mpoc_silver}
+    timestamps: {primary: [year, month]}
+    freshness_days: 45
+    historical_range: {start: null, end: null}
+    core_fundamental: true
+    athena: {table: silver_mpoc_trade_stats_monthly}
+
+  - dataset_id: silver_icco_cocoa
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/icco_cocoa/
+    format: PARQUET
+    schema:
+      - {name: cocoa_year, type: string, nullable: false}
+      - {name: latest_release_date, type: string, nullable: false}
+      - {name: production_kt, type: double, nullable: true}
+      - {name: grindings_kt, type: double, nullable: true}
+      - {name: end_stocks_kt, type: double, nullable: true}
+      - {name: surplus_deficit_kt, type: double, nullable: true}
+      - {name: su_ratio, type: double, nullable: true}
+      - {name: grindings_3yr_trend, type: double, nullable: true}
+      - {name: grindings_trend_dev, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [cocoa_year]
+    partitions: []
+    owner: {transform: null, task: legacy_icco_silver}
+    timestamps: {primary: [latest_release_date]}
+    freshness_days: 120
+    historical_range: {start: null, end: null}
+    core_fundamental: true
+    athena: {table: silver_icco_cocoa}
+
+  - dataset_id: silver_unica_annual_state
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/unica_annual_state/
+    format: PARQUET
+    schema:
+      - {name: harvest_year, type: string, nullable: false}
+      - {name: state_region, type: string, nullable: false}
+      - {name: cane_crushed_t, type: bigint, nullable: true}
+      - {name: sugar_produced_t, type: bigint, nullable: true}
+      - {name: ethanol_total_m3, type: bigint, nullable: true}
+      - {name: ethanol_hydrous_m3, type: bigint, nullable: true}
+      - {name: ethanol_anhydrous_m3, type: double, nullable: true}
+      - {name: source, type: string, nullable: false}
+    natural_key: [harvest_year, state_region]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.unica_annual_state
+      task: jobs/batch/unica_annual_state_task.py
+    timestamps: {primary: [harvest_year]}
+    freshness_days: 400
+    historical_range: {start: "1980", end: "2021"}
+    core_fundamental: true
+    athena: {table: silver_unica_annual_state}
+
+  - dataset_id: silver_unica_biweekly_release_series
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/unica_biweekly_release_series/
+    format: PARQUET
+    schema:
+      - {name: harvest_year, type: string, nullable: false}
+      - {name: position_date, type: string, nullable: false}
+      - {name: region, type: string, nullable: false}
+      - {name: cane_crushed_current_t, type: double, nullable: true}
+      - {name: cane_crushed_prior_t, type: double, nullable: true}
+      - {name: sugar_produced_current_t, type: double, nullable: true}
+      - {name: sugar_produced_prior_t, type: double, nullable: true}
+      - {name: ethanol_total_current_m3, type: double, nullable: true}
+      - {name: ethanol_total_prior_m3, type: double, nullable: true}
+      - {name: ethanol_anhydrous_current_m3, type: double, nullable: true}
+      - {name: ethanol_anhydrous_prior_m3, type: double, nullable: true}
+      - {name: ethanol_hydrous_current_m3, type: double, nullable: true}
+      - {name: ethanol_hydrous_prior_m3, type: double, nullable: true}
+    natural_key: [harvest_year, position_date, region]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.unica_biweekly
+      task: jobs/batch/unica_biweekly_silver_task.py
+    timestamps: {primary: [position_date]}
+    freshness_days: 30
+    historical_range: {start: "2021", end: null}
+    core_fundamental: true
+    athena: {table: silver_unica_biweekly_release_series}
+
+  - dataset_id: silver_unica_biweekly_season_history
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/unica_biweekly_season_history/
+    format: PARQUET
+    schema:
+      - {name: harvest_year, type: string, nullable: false}
+      - {name: fortnight_seq, type: bigint, nullable: false}
+      - {name: fortnight_label, type: string, nullable: false}
+      - {name: fortnight_date, type: date, nullable: false}
+      - {name: region, type: string, nullable: false}
+      - {name: cane_crushed_t, type: double, nullable: true}
+      - {name: sugar_produced_t, type: double, nullable: true}
+      - {name: ethanol_total_m3, type: double, nullable: true}
+      - {name: ethanol_anhydrous_m3, type: double, nullable: true}
+      - {name: ethanol_hydrous_m3, type: double, nullable: true}
+      - {name: source_idm, type: string, nullable: false}
+      - {name: source_position_date, type: string, nullable: false}
+    natural_key: [harvest_year, fortnight_seq, region]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.unica_biweekly
+      task: jobs/batch/unica_biweekly_silver_task.py
+    timestamps: {primary: [fortnight_date, source_position_date]}
+    freshness_days: 30
+    historical_range: {start: "2021", end: null}
+    core_fundamental: true
+    athena: {table: silver_unica_biweekly_season_history}
+
+  - dataset_id: silver_unica_corn_ethanol
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/unica_corn_ethanol/
+    format: PARQUET
+    schema:
+      - {name: harvest_year, type: string, nullable: false}
+      - {name: fortnight_seq, type: bigint, nullable: false}
+      - {name: fortnight_label, type: string, nullable: false}
+      - {name: fortnight_date, type: date, nullable: false}
+      - {name: anhydrous_quinzenal_kl, type: double, nullable: true}
+      - {name: hydrous_quinzenal_kl, type: double, nullable: true}
+      - {name: total_quinzenal_kl, type: double, nullable: true}
+      - {name: anhydrous_accum_kl, type: double, nullable: true}
+      - {name: hydrous_accum_kl, type: double, nullable: true}
+      - {name: total_accum_kl, type: double, nullable: true}
+      - {name: source_idm, type: string, nullable: false}
+      - {name: source_position_date, type: string, nullable: false}
+    natural_key: [harvest_year, fortnight_seq]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.unica_biweekly
+      task: jobs/batch/unica_biweekly_silver_task.py
+    timestamps: {primary: [fortnight_date, source_position_date]}
+    freshness_days: 30
+    historical_range: {start: "2021", end: null}
+    core_fundamental: true
+    athena: {table: silver_unica_corn_ethanol}
+
+  - dataset_id: silver_unica_monthly_ethanol_sales
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/unica_monthly_ethanol_sales/
+    format: PARQUET
+    schema:
+      - {name: harvest_year, type: string, nullable: false}
+      - {name: month_num, type: bigint, nullable: false}
+      - {name: month_label, type: string, nullable: false}
+      - {name: month_date, type: string, nullable: false}
+      - {name: is_partial, type: boolean, nullable: false}
+      - {name: total_current_m3, type: double, nullable: true}
+      - {name: total_prior_m3, type: double, nullable: true}
+      - {name: external_current_m3, type: double, nullable: true}
+      - {name: external_prior_m3, type: double, nullable: true}
+      - {name: internal_current_m3, type: double, nullable: true}
+      - {name: internal_prior_m3, type: double, nullable: true}
+      - {name: source_idm, type: string, nullable: false}
+      - {name: source_position_date, type: string, nullable: false}
+    natural_key: [harvest_year, month_num]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.unica_biweekly
+      task: jobs/batch/unica_biweekly_silver_task.py
+    timestamps: {primary: [month_date, source_position_date]}
+    freshness_days: 30
+    historical_range: {start: "2021", end: null}
+    core_fundamental: true
+    athena: {table: silver_unica_monthly_ethanol_sales}
+
+  - dataset_id: silver_wap_table01
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/wap_table01/
+    format: PARQUET
+    schema:
+      - {name: release_month, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+      - {name: row_label, type: string, nullable: false}
+      - {name: marketing_year, type: string, nullable: false}
+      - {name: vintage_type, type: string, nullable: false}
+      - {name: vintage_status, type: string, nullable: false}
+      - {name: month_abbr, type: string, nullable: true}
+      - {name: country, type: string, nullable: false}
+      - {name: value_mmt, type: double, nullable: true}
+    natural_key: [release_month, commodity, row_label, marketing_year, country]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.wap_table01
+      task: jobs/batch/wap_silver_task.py
+    timestamps: {primary: [release_month]}
+    freshness_days: 45
+    historical_range: {start: "2002", end: null}
+    core_fundamental: true
+    athena: {table: silver_wap_table01}
+
+  - dataset_id: silver_wap_table01_revisions
+    layer: silver
+    role: feature_source
+    status: active
+    s3_prefix: silver/wap_table01_revisions/
+    format: PARQUET
+    schema:
+      - {name: release_month, type: string, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+      - {name: row_label, type: string, nullable: false}
+      - {name: marketing_year, type: string, nullable: false}
+      - {name: vintage_type, type: string, nullable: false}
+      - {name: vintage_status, type: string, nullable: false}
+      - {name: month_abbr, type: string, nullable: true}
+      - {name: country, type: string, nullable: false}
+      - {name: value_mmt, type: double, nullable: true}
+      - {name: prior_release_month, type: string, nullable: true}
+      - {name: prior_value_mmt, type: double, nullable: true}
+      - {name: revision_mmt, type: double, nullable: true}
+    natural_key: [release_month, commodity, row_label, marketing_year, country]
+    partitions: []
+    owner:
+      transform: leviathan.transforms.bronze_to_silver.wap_table01
+      task: jobs/batch/wap_silver_task.py
+    timestamps: {primary: [release_month, prior_release_month]}
+    freshness_days: 45
+    historical_range: {start: "2002", end: null}
+    core_fundamental: true
+    athena: {table: silver_wap_table01_revisions}
+
+  - dataset_id: silver_food_cpi
+    layer: silver
+    role: diagnostic
+    status: diagnostic_only
+    s3_prefix: silver/food_cpi/
+    format: PARQUET
+    schema:
+      - {name: country_iso, type: string, nullable: false}
+      - {name: country_name, type: string, nullable: false}
+      - {name: year, type: bigint, nullable: false}
+      - {name: cpi_yoy_pct, type: float, nullable: true}
+      - {name: cpi_yoy_z_5yr, type: float, nullable: true}
+      - {name: cpi_yoy_z_10yr, type: float, nullable: true}
+      - {name: cpi_available, type: tinyint, nullable: false}
+      - {name: source, type: string, nullable: false}
+    natural_key: [country_iso, year]
+    partitions: []
+    owner: {transform: null, task: legacy_food_cpi_silver}
+    timestamps: {primary: [year]}
+    freshness_days: 400
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena: {table: silver_food_cpi}
+
+  - dataset_id: silver_model_predictions
+    layer: silver
+    role: diagnostic
+    status: active
+    s3_prefix: silver/model_predictions/
+    format: PARQUET
+    schema:
+      - {name: country, type: string, nullable: false}
+      - {name: crop_year, type: int, nullable: false}
+      - {name: y_actual, type: double, nullable: true}
+      - {name: y_pred, type: float, nullable: false}
+      - {name: commodity, type: string, nullable: false}
+      - {name: tier, type: string, nullable: false}
+      - {name: target, type: string, nullable: false}
+      - {name: model, type: string, nullable: false}
+      - {name: feature_set_sha, type: string, nullable: false}
+      - {name: run_id, type: string, nullable: false}
+      - {name: as_of_date, type: string, nullable: false}
+      - {name: model_family, type: string, nullable: false}
+      - {name: prediction_date, type: string, nullable: false}
+    natural_key: [model_family, prediction_date, run_id, commodity, country, crop_year]
+    partitions:
+      - name: model_family
+        type: string
+        projection: {type: enum, values: "tier1_production,tier2_sd,tier3_spread,anomaly"}
+      - name: prediction_date
+        type: string
+        projection: {type: date, format: yyyy-MM-dd, range: "2026-01-01,2035-12-31"}
+    owner: {transform: null, task: jobs/batch/train_commodity.py}
+    timestamps: {primary: [as_of_date, prediction_date]}
+    freshness_days: 30
+    historical_range: {start: "2026", end: null}
+    core_fundamental: false
+    athena:
+      table: silver_model_predictions
+      storage_template: >-
+        silver/model_predictions/model_family=${model_family}/prediction_date=${prediction_date}/
+      smoke_query: >-
+        SELECT run_id FROM "leviathan_dev"."silver_model_predictions"
+        WHERE model_family='tier1_production' AND prediction_date='2026-06-17'
+        LIMIT 1

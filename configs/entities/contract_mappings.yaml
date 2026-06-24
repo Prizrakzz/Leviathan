@@ -1,0 +1,251 @@
+version: 1
+
+contracts:
+  cocoa:
+    entity_type: physical_commodity
+    entity_id: cocoa_beans
+    physical_commodity: cocoa_beans
+    origin: global
+    exchange: ICE
+    crop_class: cocoa_beans
+    balance_sheet_family: tropicals
+  corn_cbot:
+    entity_type: physical_commodity
+    entity_id: maize
+    physical_commodity: maize
+    origin: united_states
+    exchange: CBOT
+    crop_class: corn
+    balance_sheet_family: grains
+  campinas_corn_reference_bmf:
+    entity_type: physical_commodity
+    entity_id: maize
+    physical_commodity: maize
+    origin: brazil
+    exchange: BMF
+    crop_class: corn
+    balance_sheet_family: grains
+  french_maize_matif:
+    entity_type: physical_commodity
+    entity_id: maize
+    physical_commodity: maize
+    origin: european_union
+    exchange: MATIF
+    crop_class: corn
+    balance_sheet_family: grains
+  south_african_white_maize_jse:
+    entity_type: physical_commodity
+    entity_id: maize
+    physical_commodity: maize
+    origin: south_africa
+    exchange: JSE
+    crop_class: white_maize
+    balance_sheet_family: grains
+  south_african_yellow_maize_jse:
+    entity_type: physical_commodity
+    entity_id: maize
+    physical_commodity: maize
+    origin: south_africa
+    exchange: JSE
+    crop_class: yellow_maize
+    balance_sheet_family: grains
+  french_wheat_matif:
+    entity_type: physical_commodity
+    entity_id: wheat
+    physical_commodity: wheat
+    origin: european_union
+    exchange: MATIF
+    crop_class: french_milling
+    balance_sheet_family: grains
+  hard_red_winter_wheat_kcbt:
+    entity_type: physical_commodity
+    entity_id: wheat
+    physical_commodity: wheat
+    origin: united_states
+    exchange: KCBT
+    crop_class: hard_red_winter
+    balance_sheet_family: grains
+  hard_red_spring_wheat_mgex:
+    entity_type: physical_commodity
+    entity_id: wheat
+    physical_commodity: wheat
+    origin: united_states
+    exchange: MGEX
+    crop_class: hard_red_spring
+    balance_sheet_family: grains
+  soft_red_winter_wheat_cbot:
+    entity_type: physical_commodity
+    entity_id: wheat
+    physical_commodity: wheat
+    origin: united_states
+    exchange: CBOT
+    crop_class: soft_red_winter
+    balance_sheet_family: grains
+  rough_rice_cbot:
+    entity_type: physical_commodity
+    entity_id: rice
+    physical_commodity: rice
+    origin: united_states
+    exchange: CBOT
+    crop_class: rough_rice
+    balance_sheet_family: grains
+  soybeans_cbot:
+    entity_type: physical_commodity
+    entity_id: soybeans
+    physical_commodity: soybeans
+    origin: united_states
+    exchange: CBOT
+    crop_class: soybeans
+    balance_sheet_family: oilseeds
+  soybeans_no_1_dce:
+    entity_type: physical_commodity
+    entity_id: soybeans
+    physical_commodity: soybeans
+    origin: china
+    exchange: DCE
+    crop_class: soybeans
+    balance_sheet_family: oilseeds
+  soybeans_no_2_dce:
+    entity_type: physical_commodity
+    entity_id: soybeans
+    physical_commodity: soybeans
+    origin: china
+    exchange: DCE
+    crop_class: soybeans
+    balance_sheet_family: oilseeds
+  soybean_meal_cbot:
+    entity_type: processed_product
+    entity_id: soybean_meal
+    physical_commodity: soybeans
+    origin: united_states
+    exchange: CBOT
+    crop_class: processed_product
+    balance_sheet_family: oilseed_meals
+  soybean_meal_dce:
+    entity_type: processed_product
+    entity_id: soybean_meal
+    physical_commodity: soybeans
+    origin: china
+    exchange: DCE
+    crop_class: processed_product
+    balance_sheet_family: oilseed_meals
+  soybean_oil_cbot:
+    entity_type: processed_product
+    entity_id: soybean_oil
+    physical_commodity: soybeans
+    origin: united_states
+    exchange: CBOT
+    crop_class: processed_product
+    balance_sheet_family: vegetable_oils
+  soybean_oil_dce:
+    entity_type: processed_product
+    entity_id: soybean_oil
+    physical_commodity: soybeans
+    origin: china
+    exchange: DCE
+    crop_class: processed_product
+    balance_sheet_family: vegetable_oils
+  french_rapeseed_matif:
+    entity_type: physical_commodity
+    entity_id: rapeseed
+    physical_commodity: rapeseed
+    origin: european_union
+    exchange: MATIF
+    crop_class: rapeseed
+    balance_sheet_family: oilseeds
+  canola_ice:
+    entity_type: physical_commodity
+    entity_id: canola
+    physical_commodity: canola
+    origin: canada
+    exchange: ICE
+    crop_class: canola
+    balance_sheet_family: oilseeds
+  rapeseed_meal_zce:
+    entity_type: processed_product
+    entity_id: rapeseed_meal
+    physical_commodity: rapeseed
+    origin: china
+    exchange: ZCE
+    crop_class: processed_product
+    balance_sheet_family: oilseed_meals
+  rapeseed_oil_zce:
+    entity_type: processed_product
+    entity_id: rapeseed_oil
+    physical_commodity: rapeseed
+    origin: china
+    exchange: ZCE
+    crop_class: processed_product
+    balance_sheet_family: vegetable_oils
+  malaysian_crude_palm_oil_cme:
+    entity_type: processed_product
+    entity_id: palm_oil
+    physical_commodity: oil_palm_fruit
+    origin: malaysia
+    exchange: CME
+    crop_class: processed_product
+    balance_sheet_family: vegetable_oils
+  palm_olein_dce:
+    entity_type: processed_product
+    entity_id: palm_olein
+    physical_commodity: oil_palm_fruit
+    origin: china
+    exchange: DCE
+    crop_class: processed_product
+    balance_sheet_family: vegetable_oils
+  arabica_coffee:
+    entity_type: physical_commodity
+    entity_id: arabica_coffee
+    physical_commodity: arabica_coffee
+    origin: global
+    exchange: ICE
+    crop_class: arabica
+    balance_sheet_family: coffee
+  brazilian_arabica_coffee:
+    entity_type: physical_commodity
+    entity_id: arabica_coffee
+    physical_commodity: arabica_coffee
+    origin: brazil
+    exchange: BMF
+    crop_class: arabica
+    balance_sheet_family: coffee
+  robusta_coffee:
+    entity_type: physical_commodity
+    entity_id: robusta_coffee
+    physical_commodity: robusta_coffee
+    origin: global
+    exchange: ICE
+    crop_class: robusta
+    balance_sheet_family: coffee
+  cotton:
+    entity_type: physical_commodity
+    entity_id: cotton
+    physical_commodity: cotton
+    origin: united_states
+    exchange: ICE
+    crop_class: upland_cotton
+    balance_sheet_family: fiber
+  raw_sugar:
+    entity_type: processed_product
+    entity_id: raw_sugar
+    physical_commodity: sugarcane
+    origin: global
+    exchange: ICE
+    crop_class: processed_product
+    balance_sheet_family: sugar
+  white_sugar:
+    entity_type: processed_product
+    entity_id: white_sugar
+    physical_commodity: sugarcane
+    origin: global
+    exchange: ICE
+    crop_class: processed_product
+    balance_sheet_family: sugar
+  frozen_orange_juice:
+    entity_type: processed_product
+    entity_id: orange_juice
+    physical_commodity: oranges
+    origin: global
+    exchange: ICE
+    crop_class: processed_product
+    balance_sheet_family: citrus

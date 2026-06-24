@@ -1,0 +1,63 @@
+version: 1
+
+targets:
+  production_quantity:
+    target_kind: biological_final
+    allowed_entity_types: [physical_commodity]
+    unit_family: physical_output
+    primary_label_policy: direct_only
+  area_harvested:
+    target_kind: biological_final
+    allowed_entity_types: [physical_commodity]
+    unit_family: area
+    primary_label_policy: direct_only
+  yield:
+    target_kind: biological_final
+    allowed_entity_types: [physical_commodity]
+    unit_family: yield
+    primary_label_policy: direct_only
+  production_revision:
+    target_kind: official_revision
+    allowed_entity_types: [physical_commodity, processed_product]
+    unit_family: physical_output_revision
+    primary_label_policy: direct_only
+  export_revision:
+    target_kind: balance_revision
+    allowed_entity_types: [physical_commodity, processed_product]
+    unit_family: physical_flow_revision
+    primary_label_policy: direct_only
+  crush_consumption_revision:
+    target_kind: balance_revision
+    allowed_entity_types: [physical_commodity, processed_product]
+    unit_family: processing_revision
+    primary_label_policy: direct_only
+  ending_stock_revision:
+    target_kind: balance_revision
+    allowed_entity_types: [physical_commodity, processed_product]
+    unit_family: stock_revision
+    primary_label_policy: direct_only
+  stock_to_use_revision:
+    target_kind: balance_revision
+    allowed_entity_types: [physical_commodity, processed_product]
+    unit_family: ratio_revision
+    primary_label_policy: direct_only
+  product_production_quantity:
+    target_kind: product_balance_final
+    allowed_entity_types: [processed_product]
+    unit_family: physical_output
+    primary_label_policy: direct_only
+  quality_tenderable_pct:
+    target_kind: physical_quality
+    allowed_entity_types: [physical_commodity]
+    unit_family: percent
+    primary_label_policy: direct_only
+  physical_supply_stress:
+    target_kind: contract_facing_output
+    allowed_entity_types: [physical_commodity, processed_product]
+    unit_family: index
+    primary_label_policy: model_output
+  relative_fundamental_differential:
+    target_kind: contract_facing_output
+    allowed_entity_types: [physical_commodity, processed_product]
+    unit_family: index
+    primary_label_policy: model_output

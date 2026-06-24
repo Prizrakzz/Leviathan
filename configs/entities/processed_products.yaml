@@ -1,0 +1,39 @@
+version: 1
+
+processed_products:
+  soybean_meal:
+    parent_physical_commodity: soybeans
+    balance_sheet_family: oilseed_meals
+    conversion_relationship: soybean_crush
+  soybean_oil:
+    parent_physical_commodity: soybeans
+    balance_sheet_family: vegetable_oils
+    conversion_relationship: soybean_crush
+  rapeseed_meal:
+    parent_physical_commodity: rapeseed
+    balance_sheet_family: oilseed_meals
+    conversion_relationship: rapeseed_crush
+  rapeseed_oil:
+    parent_physical_commodity: rapeseed
+    balance_sheet_family: vegetable_oils
+    conversion_relationship: rapeseed_crush
+  palm_oil:
+    parent_physical_commodity: oil_palm_fruit
+    balance_sheet_family: vegetable_oils
+    conversion_relationship: palm_fruit_processing
+  palm_olein:
+    parent_physical_commodity: oil_palm_fruit
+    balance_sheet_family: vegetable_oils
+    conversion_relationship: palm_oil_fractionation
+  raw_sugar:
+    parent_physical_commodity: sugarcane
+    balance_sheet_family: sugar
+    conversion_relationship: cane_crush
+  white_sugar:
+    parent_physical_commodity: sugarcane
+    balance_sheet_family: sugar
+    conversion_relationship: raw_sugar_refining
+  orange_juice:
+    parent_physical_commodity: oranges
+    balance_sheet_family: citrus
+    conversion_relationship: orange_processing

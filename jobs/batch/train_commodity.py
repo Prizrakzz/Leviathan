@@ -38,6 +38,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from leviathan.features.registry import load_registry          # noqa: E402
 from leviathan.features.windows import resolve_tier_families    # noqa: E402
 from leviathan.training.cv import walk_forward_cv               # noqa: E402
+from leviathan.training.feature_policy import (                 # noqa: E402
+    FeaturePolicyError,
+    apply_feature_policy,
+)
 from leviathan.training.slices import (                         # noqa: E402
     evaluate_gaps, gaps_passed, load_gap_rules, quintile_directional_accuracy,
 )
@@ -250,6 +254,21 @@ def main() -> None:
                        args.commodity, args.tier)
         return
 
+    try:
+        feature_cols, policy_report = apply_feature_policy(
+            feature_cols,
+            target=args.target,
+        )
+    except FeaturePolicyError as exc:
+        raise SystemExit(f"feature policy rejected training run: {exc}") from exc
+    if not feature_cols:
+        logger.warning(
+            "%s tier %s left 0 trainable feature columns after policy preflight â€” skipping.",
+            args.commodity,
+            args.tier,
+        )
+        return
+
     registry = load_registry(_CONFIG_DIR)
     run_name = f"{args.commodity}-{args.tier}-{args.target}{'-detrend' if args.detrend else ''}-{args.model}"
 
@@ -281,6 +300,19 @@ def main() -> None:
         mlflow.set_tag("model", args.model)
         mlflow.set_tag("target", args.target)
         mlflow.set_tag("detrend", str(args.detrend))
+        mlflow.log_param(
+            "policy_dropped_diagnostic_features",
+            ",".join(policy_report["dropped_diagnostic_features"]),
+        )
+        mlflow.log_param(
+            "policy_allowed_economic_driver_count",
+            len(policy_report["allowed_economic_drivers"]),
+        )
+        for index, driver in enumerate(policy_report["allowed_economic_drivers"]):
+            mlflow.set_tag(
+                f"allowed_economic_driver_{index}",
+                f"{driver['feature']}|{driver['mechanism']}",
+            )
         q_dir = quintile_directional_accuracy(result.predictions)
         if not np.isnan(q_dir):
             mlflow.log_metric("quintile_directional_accuracy", q_dir)

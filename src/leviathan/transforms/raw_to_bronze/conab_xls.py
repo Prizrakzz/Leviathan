@@ -45,13 +45,13 @@ _OOXML_MAGIC = b"PK\x03\x04"
 
 # Sheet name → leviathan commodity slug (case-insensitive substring match)
 _SHEET_COMMODITY_MAP: dict[str, str] = {
-    "arábica":   "arabica_coffee",
-    "arabica":   "arabica_coffee",
-    "robusta":   "robusta_coffee",
-    "conilon":   "robusta_coffee",
-    "total":     "arabica_coffee",   # aggregate sheet → maps to total
-    "café":      "arabica_coffee",   # fallback
-    "cafe":      "arabica_coffee",
+    "arábica": "arabica_coffee",
+    "arabica": "arabica_coffee",
+    "robusta": "robusta_coffee",
+    "conilon": "robusta_coffee",
+    "total": "total_coffee",
+    "café": "total_coffee",
+    "cafe": "total_coffee",
 }
 
 # Known pt-BR column headers → English element names (substring match)

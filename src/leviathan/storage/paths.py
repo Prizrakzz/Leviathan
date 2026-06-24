@@ -1354,6 +1354,15 @@ def bronze_wasde_key(release_date: str) -> str:
     )
 
 
+def silver_wasde_key(release_date: str) -> str:
+    """S3 key for revision-aware USDA WASDE silver for one release date."""
+    return (
+        f"silver/wasde/"
+        f"release_date={release_date}/"
+        f"part-000.parquet"
+    )
+
+
 def silver_psd_key() -> str:
     """S3 key for the USDA PSD silver Parquet (all commodities, all releases).
 
@@ -1994,8 +2003,7 @@ def silver_conab_key(commodity: str, safra_year: int, survey: int) -> str:
         survey:     Survey number within the season (1–5).
     """
     return (
-        f"silver/production/"
-        f"source=conab/"
+        f"silver/conab_coffee/"
         f"commodity={commodity}/"
         f"safra_year={safra_year}/"
         f"survey={survey:02d}/"

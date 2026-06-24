@@ -8,12 +8,83 @@ resource "aws_s3_bucket" "data_lake" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "data_lake" {
+  statement {
+    sid    = "AllowS3InventoryDelivery"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["s3.amazonaws.com"]
+    }
+
+    actions = ["s3:PutObject"]
+    resources = [
+      "${aws_s3_bucket.data_lake.arn}/metadata/s3_inventory/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [aws_s3_bucket.data_lake.arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.id
+  policy = data.aws_iam_policy_document.data_lake.json
+}
+
 resource "aws_s3_bucket_versioning" "data_lake" {
   bucket = aws_s3_bucket.data_lake.id
 
   versioning_configuration {
     status = "Suspended"
   }
+}
+
+resource "aws_s3_bucket_inventory" "weekly" {
+  bucket = aws_s3_bucket.data_lake.id
+  name   = "${var.project_name}-${var.environment}-weekly"
+
+  included_object_versions = "Current"
+  enabled                  = true
+  optional_fields = [
+    "Size",
+    "LastModifiedDate",
+    "ETag",
+    "StorageClass",
+    "ReplicationStatus",
+    "EncryptionStatus",
+  ]
+
+  schedule {
+    frequency = "Weekly"
+  }
+
+  destination {
+    bucket {
+      account_id = data.aws_caller_identity.current.account_id
+      bucket_arn = aws_s3_bucket.data_lake.arn
+      format     = "Parquet"
+      prefix     = "metadata/s3_inventory"
+
+      encryption {
+        sse_s3 {}
+      }
+    }
+  }
+
+  depends_on = [aws_s3_bucket_policy.data_lake]
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "data_lake" {
@@ -80,6 +151,19 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
 
     noncurrent_version_expiration {
       noncurrent_days = 1
+    }
+  }
+
+  rule {
+    id     = "expire-s3-inventory"
+    status = "Enabled"
+
+    filter {
+      prefix = "metadata/s3_inventory/"
+    }
+
+    expiration {
+      days = 90
     }
   }
 

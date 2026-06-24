@@ -1,0 +1,10 @@
+{
+  "blocking_count": 0,
+  "dataset_count": 47,
+  "findings": [],
+  "generated_at": "2026-06-23T15:04:52.973497+00:00",
+  "live_table_count": 47,
+  "registry_sha256": "17903b7de7391b5c4763e2d65a4d249d0912f0b1171dd33d814883b89a2b7ba9",
+  "schema_version": 1,
+  "warning_count": 0
+}

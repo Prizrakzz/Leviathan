@@ -1,0 +1,414 @@
+{
+  "actions": [
+    {
+      "action": "noop",
+      "dataset_id": "gold_feature_catalog",
+      "ddl_sha256": "c5a28cd0d0e7042a70da2c50353b73ddf0b6ec5a770530880117e58429b31d44",
+      "reasons": [],
+      "table": "gold_feature_catalog"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "gold_feature_spine",
+      "ddl_sha256": "e9f999b3f8358bbf123b8b4bba136850742c221f070d3c7fae8640bbc21ff18d",
+      "reasons": [],
+      "table": "gold_feature_spine"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "gold_training_windows",
+      "ddl_sha256": "667eac49864f6fb7b0397121e682bd3b4ddb54dbfe22198449341ca05b2634ac",
+      "reasons": [],
+      "table": "gold_training_windows"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "graphrag_causal_edges",
+      "ddl_sha256": "cb553656c65d46bc6efc82610696b1e5810cd6f1ac65c5f1717daade94b5c448",
+      "reasons": [
+        "properties"
+      ],
+      "table": "graphrag_causal_edges"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "graphrag_entities",
+      "ddl_sha256": "ced81f80153267454916e867fbbc6af3385a8c926ee1d4c1b832171a2c431904",
+      "reasons": [
+        "columns",
+        "properties"
+      ],
+      "table": "graphrag_entities"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "graphrag_forecasts",
+      "ddl_sha256": "0b0244c67109e23dc7f5856f20f8a200fa53f2d4ecfd474e58f8ad1c11e132e6",
+      "reasons": [
+        "properties"
+      ],
+      "table": "graphrag_forecasts"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "graphrag_sentiment",
+      "ddl_sha256": "430435fe7ef5c921e892672c264960b887de822ddc3b332eed746e088b181ec9",
+      "reasons": [
+        "columns",
+        "properties"
+      ],
+      "table": "graphrag_sentiment"
+    },
+    {
+      "action": "create",
+      "dataset_id": "metadata_s3_inventory",
+      "ddl_sha256": "afb43340a01fa4396c5528fb8a5ff91275a2565422762dc9a3e9fc4cd2052da7",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "metadata_s3_inventory"
+    },
+    {
+      "action": "retire",
+      "dataset_id": null,
+      "ddl_sha256": null,
+      "reasons": [
+        "listed_in_retired_tables"
+      ],
+      "table": "production_raw"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_chirps",
+      "ddl_sha256": "d1a4b3c1bc1030a29937ff64db03f20d1c3b603435751af5168be6ffa5e0b2d5",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_chirps"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_conab_coffee",
+      "ddl_sha256": "75a41baf59ffb653065fb5be73cf9300d34dfa08bf711e9c55f5d7ce91db1358",
+      "reasons": [],
+      "table": "silver_conab_coffee"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_cot",
+      "ddl_sha256": "afd072197b215c5f00dcd9b1cd6d74514a5bd12070708ff0ed674e81cabc04d2",
+      "reasons": [],
+      "table": "silver_cot"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_cpc_soil",
+      "ddl_sha256": "b0e940c7eb750b5226b973acd9cb6e45bd1050eb9948b8114c4a8a09ea2862ee",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_cpc_soil"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_esr",
+      "ddl_sha256": "4dc9a10212bb835a94e2a0a67a8648ea8fd71bb73e5a56c86c48b38b6827bed0",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_esr"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "silver_fgis",
+      "ddl_sha256": "df3fe5f9bf68431e8bbe174965f302a8dde9084b8b9d22350daa527de28f9da3",
+      "reasons": [
+        "columns",
+        "properties"
+      ],
+      "table": "silver_fgis"
+    },
+    {
+      "action": "retire",
+      "dataset_id": null,
+      "ddl_sha256": null,
+      "reasons": [
+        "listed_in_retired_tables"
+      ],
+      "table": "silver_fnc_colombia"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_fnc_colombia_area_department",
+      "ddl_sha256": "fa30fa1a0bbbdff3f68ffb551e65acc7e7c30b53ba343d3b8734345b93dd65b5",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_fnc_colombia_area_department"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_fnc_colombia_exports_port_type",
+      "ddl_sha256": "6293809da8cf3ae8c285dd82cbaff05a1fbea8c0d9870d4f7b3f591fb6ddf4dd",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_fnc_colombia_exports_port_type"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_fnc_colombia_monthly",
+      "ddl_sha256": "1e56dbdf5384c61894e1093036440fd9f1cc9dfb9e8f625e453fcc4975b36462",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_fnc_colombia_monthly"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_food_cpi",
+      "ddl_sha256": "41d0832c35546673f79df20a2a27b42374501cf6c70158edc8249e28082ff58a",
+      "reasons": [],
+      "table": "silver_food_cpi"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_fred_fx",
+      "ddl_sha256": "bcd262990be2c0f4e0af1323efcbe5e69776c320282197b8faf7adc877af952a",
+      "reasons": [],
+      "table": "silver_fred_fx"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_futures_prices",
+      "ddl_sha256": "318d8a8da0787fa272de445bf6aaaf2d8bbc18439b386c5202d0e26924b56a87",
+      "reasons": [],
+      "table": "silver_futures_prices"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_icco_cocoa",
+      "ddl_sha256": "535e3e446c4951c1502922df58bb1355024bf2902da550e74f6c9aea31e1ecce",
+      "reasons": [],
+      "table": "silver_icco_cocoa"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "silver_model_predictions",
+      "ddl_sha256": "51961c265b1d14a82a3dc43ee0140a38a76b161f669317ce3f80444bc09af73b",
+      "reasons": [
+        "columns",
+        "properties"
+      ],
+      "table": "silver_model_predictions"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_modis_ndvi",
+      "ddl_sha256": "cee85ad3ca6ab9595f6d619faaeb635649b860fc7933ad71e332c00e4abb74fe",
+      "reasons": [],
+      "table": "silver_modis_ndvi"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_mpob",
+      "ddl_sha256": "2375d370bf551623fae11d8556864172eebb0ea4b4b06e1e17997d091efbbbb6",
+      "reasons": [],
+      "table": "silver_mpob"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "silver_mpob_annual",
+      "ddl_sha256": "17799bf5b0d8ea802e72664f2abcc8046f7ad2416ecad1573d508076dcf83f55",
+      "reasons": [
+        "columns"
+      ],
+      "table": "silver_mpob_annual"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_mpoc_exports_by_country",
+      "ddl_sha256": "ee56197ff810bc8714e454c4e633b8f0ff04480a30cf66c61941f87675ce321e",
+      "reasons": [],
+      "table": "silver_mpoc_exports_by_country"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_mpoc_stock_comparison",
+      "ddl_sha256": "6c47ec3bf1f5f20df7634c778de36a0921a5ea3402c8437c7d2702499730b872",
+      "reasons": [],
+      "table": "silver_mpoc_stock_comparison"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_mpoc_trade_stats_monthly",
+      "ddl_sha256": "adf4ae7bd4d8e7ceb207a2f87b51dce57493acc2f99095b9a5c28cf603ca797a",
+      "reasons": [],
+      "table": "silver_mpoc_trade_stats_monthly"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_nasa_power",
+      "ddl_sha256": "f8ca43ec1acda230c5c814c38aaa16e5603c3a842e093cac99d5bfdbfff2dc69",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_nasa_power"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "silver_nass_annual",
+      "ddl_sha256": "df3b76e9569b9016427cb7b13b6a212b052b52c7390c037c168b7e9735d44945",
+      "reasons": [
+        "columns",
+        "properties"
+      ],
+      "table": "silver_nass_annual"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_nass_citrus",
+      "ddl_sha256": "e4def60f560a2d19a23f3e0ab12c34627934271dc7d1af3583f4485d29641cc2",
+      "reasons": [],
+      "table": "silver_nass_citrus"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "silver_nass_crop_progress",
+      "ddl_sha256": "d60889d742ac5d71a1034cff8d6d116868267c01942a625337ef7bc05783f2e8",
+      "reasons": [
+        "columns"
+      ],
+      "table": "silver_nass_crop_progress"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_noaa_iod",
+      "ddl_sha256": "5cbbc5b3f114ffa4d771f89a38a282054238b6d56b75800cb6bf06111c8feceb",
+      "reasons": [],
+      "table": "silver_noaa_iod"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_noaa_oni",
+      "ddl_sha256": "0f91dd43c6f1d37e4603c99f50476b44f2c6609b8ed186f3f1bdafbd2cfb9c5f",
+      "reasons": [],
+      "table": "silver_noaa_oni"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_pink_sheet",
+      "ddl_sha256": "51fecf070ddd274dfd4ca84345f614a196fcf6c5e8210398b8af3709d25e2962",
+      "reasons": [],
+      "table": "silver_pink_sheet"
+    },
+    {
+      "action": "replace",
+      "dataset_id": "silver_production",
+      "ddl_sha256": "ca6876dc84350c494dfd3d7154b7b09f619e03d91aed864345ed44620fb32f9b",
+      "reasons": [
+        "columns",
+        "partitions",
+        "location",
+        "properties"
+      ],
+      "table": "silver_production"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_psd",
+      "ddl_sha256": "52c208601ffac25563d001cfef751763a1519dac15ead567fa9b9c3062b07f44",
+      "reasons": [],
+      "table": "silver_psd"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_sagis_cec",
+      "ddl_sha256": "8004f4205a0a7ada55bbb1b111dff83c98c01959807633bcd0f71fac320ea82f",
+      "reasons": [],
+      "table": "silver_sagis_cec"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_sagis_weekly_deliveries",
+      "ddl_sha256": "1e4d18b90018df4b08e4dbaa188f758f6f9e98073c9052530acc44ae62dec088",
+      "reasons": [],
+      "table": "silver_sagis_weekly_deliveries"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_sagis_weekly_exports",
+      "ddl_sha256": "a9e0192600450d3baf218c230c7a1bcab550b75d5dbf0725348a96357d8a5dec",
+      "reasons": [],
+      "table": "silver_sagis_weekly_exports"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_unica_annual_state",
+      "ddl_sha256": "a7577be85a23865a13f965015a2d679928e6d705ac296f18e4e5cf796bda1195",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_unica_annual_state"
+    },
+    {
+      "action": "create",
+      "dataset_id": "silver_unica_biweekly_release_series",
+      "ddl_sha256": "04dfe05903253dd7f49a53d093881e010c7d283169cc634356feb524903e66f5",
+      "reasons": [
+        "table_missing"
+      ],
+      "table": "silver_unica_biweekly_release_series"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_unica_biweekly_season_history",
+      "ddl_sha256": "0b3e5c7473858e8822da194c4e084108f6b9d97b05d1d19c565ce609538fd2df",
+      "reasons": [],
+      "table": "silver_unica_biweekly_season_history"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_unica_corn_ethanol",
+      "ddl_sha256": "e7481d347e84ccd78a092c494b3632aadea53d6c57ecc70d356536e579f2ad94",
+      "reasons": [],
+      "table": "silver_unica_corn_ethanol"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_unica_monthly_ethanol_sales",
+      "ddl_sha256": "d78d5850e53b3a0e820d2c2ff3ed9e0befc55650e8d83cc9172d1de17ac738a2",
+      "reasons": [],
+      "table": "silver_unica_monthly_ethanol_sales"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_wap_table01",
+      "ddl_sha256": "ad9389cb3eefb1c3db5f4de85dec64e144ae5a2d62411caa36385c674eb981ee",
+      "reasons": [],
+      "table": "silver_wap_table01"
+    },
+    {
+      "action": "noop",
+      "dataset_id": "silver_wap_table01_revisions",
+      "ddl_sha256": "1d0b24195879f38c69ec17e1a3f76714d66435332cf0ba57924250d0d798918d",
+      "reasons": [],
+      "table": "silver_wap_table01_revisions"
+    },
+    {
+      "action": "retire",
+      "dataset_id": null,
+      "ddl_sha256": null,
+      "reasons": [
+        "listed_in_retired_tables"
+      ],
+      "table": "silver_weather"
+    }
+  ],
+  "bucket": "leviathan-dev-shahem-001",
+  "database": "leviathan_dev",
+  "generated_at": "2026-06-23T14:40:28.119744+00:00",
+  "plan_sha256": "11956c7449494986165381f1fd96910f7344d66579d808d2c5bebb8e83853376",
+  "registry_sha256": "c12aede0c07e91b71f4a9ddf6945cc0b1e4b1e169dccb743a5cc1004708929b0",
+  "schema_version": 1
+}

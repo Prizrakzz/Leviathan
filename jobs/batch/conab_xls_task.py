@@ -79,6 +79,8 @@ def _process(
         return "skipped", raw_key
 
     try:
+        head = s3.head_object(Bucket=bucket, Key=raw_key)
+        source_file_etag = str(head.get("ETag", "")).strip('"')
         raw_bytes = s3_download_with_retry(bucket, raw_key, s3)
     except Exception as exc:  # noqa: BLE001
         logger.error("S3 download failed  key=%s: %s", raw_key, exc)
@@ -86,6 +88,8 @@ def _process(
 
     try:
         df = extract_conab_xls(raw_bytes, safra_year, survey, ingest_date)
+        df["source_raw_key"] = raw_key
+        df["source_file_etag"] = source_file_etag
     except Exception as exc:  # noqa: BLE001
         logger.error("CONAB XLS transform failed  key=%s: %s", raw_key, exc, exc_info=True)
         return "error", raw_key

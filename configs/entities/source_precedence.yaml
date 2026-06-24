@@ -1,0 +1,41 @@
+version: 1
+
+rules:
+  - id: us_crop_final_nass
+    match: {origin: united_states, target_names: [production_quantity, area_harvested, yield]}
+    sources: [silver_nass_annual, silver_production]
+  - id: us_crop_progress_state
+    match: {origin: united_states, target_names: [physical_supply_stress]}
+    sources: [silver_nass_crop_progress, silver_nass_annual]
+  - id: us_cotton_quality
+    match: {contract_slugs: [cotton], target_names: [quality_tenderable_pct]}
+    sources: [silver_ams_cotton_quality]
+  - id: south_africa_maize
+    match:
+      contract_slugs: [south_african_white_maize_jse, south_african_yellow_maize_jse]
+      target_names: [production_quantity, production_revision]
+    sources: [silver_sagis_cec, silver_production]
+  - id: brazil_coffee_revision
+    match: {contract_slugs: [brazilian_arabica_coffee], target_names: [production_revision]}
+    sources: [silver_conab_coffee]
+  - id: colombia_arabica_monthly
+    match: {entity_ids: [arabica_coffee], origin: colombia, target_names: [production_quantity]}
+    sources: [silver_fnc_colombia_monthly]
+  - id: florida_citrus
+    match: {contract_slugs: [frozen_orange_juice], target_names: [production_revision, physical_supply_stress]}
+    sources: [silver_nass_citrus]
+  - id: malaysia_palm_balance
+    match: {contract_slugs: [malaysian_crude_palm_oil_cme], target_names: [product_production_quantity, ending_stock_revision, stock_to_use_revision]}
+    sources: [silver_mpob, silver_mpob_annual]
+  - id: brazil_sugar_balance
+    match: {contract_slugs: [raw_sugar], target_names: [product_production_quantity, production_revision]}
+    sources: [silver_unica_biweekly_release_series, silver_unica_annual_state]
+  - id: cocoa_balance
+    match: {contract_slugs: [cocoa], target_names: [production_quantity, ending_stock_revision, stock_to_use_revision]}
+    sources: [silver_icco_cocoa, silver_production]
+  - id: global_fallback_final_crop
+    match: {entity_type: physical_commodity, target_names: [production_quantity, area_harvested, yield]}
+    sources: [silver_production]
+  - id: global_fallback_balance
+    match: {target_names: [production_revision, export_revision, crush_consumption_revision, ending_stock_revision, stock_to_use_revision]}
+    sources: [silver_wasde, silver_psd]

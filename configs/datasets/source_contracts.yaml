@@ -1,0 +1,48 @@
+schema_version: 1
+
+contracts:
+  - dataset_id: silver_ams_cotton_quality
+    required_nonzero_revision_columns: []
+    known_limitations:
+      - Annual quality cadence only; does not support weekly tenderable percent.
+
+  - dataset_id: silver_conab_coffee
+    required_nonzero_revision_columns:
+      - area_revision_ha
+      - yield_revision_bags_per_ha
+      - production_revision_thousand_bags
+    known_limitations:
+      - Blocked until Phase 2 proves survey identity and nonzero revision behavior.
+
+  - dataset_id: silver_wap_table01_revisions
+    required_nonzero_revision_columns:
+      - revision_mmt
+
+  - dataset_id: silver_wasde
+    expected_categories:
+      revision_direction: [none, flat, up, down]
+    required_nonzero_revision_columns:
+      - revision
+    known_limitations:
+      - WASDE silver keeps USDA table grain; contract-specific geography mapping happens in gold/features.
+
+  - dataset_id: silver_sagis_cec
+    required_nonzero_revision_columns:
+      - revision_surprise
+
+  - dataset_id: silver_psd
+    required_nonzero_revision_columns:
+      - production_mt_revision
+      - ending_stocks_mt_revision
+
+  - dataset_id: silver_pink_sheet
+    known_limitations:
+      - Economic-driver features only; own-contract price signals remain excluded.
+
+  - dataset_id: silver_futures_prices
+    known_limitations:
+      - Diagnostic market-price source; only mechanism-specific derived drivers such as crush_margin_z may enter training.
+
+  - dataset_id: silver_cot
+    known_limitations:
+      - Diagnostic positioning source; excluded from the fundamental training fit by feature policy.

@@ -1,0 +1,48 @@
+version: 1
+
+rules:
+  - id: processed_products_do_not_use_crop_targets
+    policy: blocked
+    contract_slugs:
+      - soybean_meal_cbot
+      - soybean_meal_dce
+      - soybean_oil_cbot
+      - soybean_oil_dce
+      - rapeseed_meal_zce
+      - rapeseed_oil_zce
+      - malaysian_crude_palm_oil_cme
+      - palm_olein_dce
+      - raw_sugar
+      - white_sugar
+      - frozen_orange_juice
+    target_names: [production_quantity, area_harvested, yield]
+    source_datasets: ["*"]
+    reason: Processed-product contracts need product-balance labels, not parent-crop area, yield, or production labels.
+  - id: wheat_classes_do_not_use_all_wheat_as_direct
+    policy: proxy
+    contract_slugs:
+      - hard_red_winter_wheat_kcbt
+      - hard_red_spring_wheat_mgex
+      - soft_red_winter_wheat_cbot
+      - french_wheat_matif
+    target_names: [production_quantity, area_harvested, yield]
+    source_datasets: [silver_production, faostat]
+    reason: FAOSTAT all-wheat labels are not class-specific wheat targets.
+  - id: coffee_species_do_not_use_generic_green_coffee_as_direct
+    policy: proxy
+    contract_slugs: [arabica_coffee, robusta_coffee, brazilian_arabica_coffee]
+    target_names: [production_quantity, area_harvested, yield]
+    source_datasets: [silver_production, faostat]
+    reason: FAOSTAT green-coffee labels do not distinguish Arabica from Robusta.
+  - id: south_african_maize_class_needs_sagis
+    policy: proxy
+    contract_slugs: [south_african_white_maize_jse, south_african_yellow_maize_jse]
+    target_names: [production_quantity, area_harvested, yield]
+    source_datasets: [silver_production, faostat]
+    reason: FAOSTAT maize does not split South African white and yellow maize.
+  - id: sugar_contracts_need_sugar_balance
+    policy: blocked
+    contract_slugs: [raw_sugar, white_sugar]
+    target_names: [production_quantity, area_harvested, yield]
+    source_datasets: [silver_production, faostat]
+    reason: Sugarcane production is an upstream crop input, not raw or white sugar availability.
