@@ -887,6 +887,50 @@ Each feature set declares:
   features.
 - Economic-driver feature sets include only certified features.
 
+#### Implementation Status
+
+Phase 6 was completed on 2026-06-25 for dataset version:
+
+```text
+20260625T105545Z_2bd0f32c
+```
+
+Implemented:
+
+- `configs/features/feature_sets.yaml`;
+- `src/leviathan/features/feature_sets.py`;
+- `jobs/batch/feature_set_task.py`;
+- `gold_feature_set_versions` Athena DDL;
+- dataset registry entries for feature-set Parquet and JSON summaries;
+- storage helpers for feature-set artifacts;
+- `train_commodity.py` support for optional `--feature-set`;
+- submitter and train job-definition helper support for `feature_set`.
+
+Runtime output:
+
+```text
+gold/feature_set_versions/dataset_version=20260625T105545Z_2bd0f32c/feature_sets.parquet
+gold/feature_set_manifests/dataset_version=20260625T105545Z_2bd0f32c/feature_sets.json
+```
+
+Validation:
+
+- 12 configured feature sets;
+- 4,145 feature-set membership rows;
+- 0 selected label rows;
+- 0 `diagnostic_only` or `excluded_market_signal` rows in core feature sets;
+- Athena table `gold_feature_set_versions` created and smoke-tested.
+
+Completion record:
+
+```text
+docs/ops/PHASE6_COMPLETION.md
+```
+
+Operational note: the registration helper for the live training Batch job now
+contains the `feature_set` parameter, but the live job definition should be
+re-registered only after the trainer image is rebuilt with this code.
+
 ### Phase 7: Add High-Value Existing-Silver Feature Families to Gold
 
 #### Purpose
