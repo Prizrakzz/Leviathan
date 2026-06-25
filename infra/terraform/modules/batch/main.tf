@@ -35,6 +35,43 @@ resource "aws_batch_job_queue" "this" {
   }
 }
 
+resource "aws_batch_compute_environment" "ondemand" {
+  compute_environment_name = "${var.project_name}-${var.environment}-fargate-ondemand"
+  type                     = "MANAGED"
+  state                    = "ENABLED"
+
+  compute_resources {
+    type      = "FARGATE"
+    max_vcpus = min(var.max_vcpus, 8)
+
+    subnets            = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_batch_job_queue" "ondemand" {
+  name     = "${var.project_name}-${var.environment}-queue-ondemand"
+  state    = "ENABLED"
+  priority = 1
+
+  compute_environment_order {
+    order               = 1
+    compute_environment = aws_batch_compute_environment.ondemand.arn
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 # ---------------------------------------------------------------------------
 # Job definition: NASA POWER raw backfill
 # Each task handles one (country, region, year) = 12 monthly API calls.
@@ -1894,6 +1931,8 @@ resource "aws_batch_job_definition" "feature_spine" {
     write_versioned             = "false"
     versioned_only              = "false"
     fail_if_version_exists      = "true"
+    skip_existing_versioned     = "false"
+    write_dataset_artifacts     = "true"
     source_certification_report = "none"
   }
 
@@ -1914,6 +1953,8 @@ resource "aws_batch_job_definition" "feature_spine" {
       "--write-versioned", "Ref::write_versioned",
       "--versioned-only",  "Ref::versioned_only",
       "--fail-if-version-exists", "Ref::fail_if_version_exists",
+      "--skip-existing-versioned", "Ref::skip_existing_versioned",
+      "--write-dataset-artifacts", "Ref::write_dataset_artifacts",
       "--source-certification-report", "Ref::source_certification_report",
     ]
 

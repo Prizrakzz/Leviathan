@@ -48,6 +48,8 @@ def build_tasks(
     write_versioned: bool,
     versioned_only: bool,
     fail_if_version_exists: bool,
+    skip_existing_versioned: bool,
+    write_dataset_artifacts: bool,
     source_certification_report: str,
 ) -> list[dict[str, str]]:
     """One task dict per commodity — all string values for Batch parameters."""
@@ -65,6 +67,8 @@ def build_tasks(
             "write_versioned": str(write_versioned).lower(),
             "versioned_only": str(versioned_only).lower(),
             "fail_if_version_exists": str(fail_if_version_exists).lower(),
+            "skip_existing_versioned": str(skip_existing_versioned).lower(),
+            "write_dataset_artifacts": str(write_dataset_artifacts).lower(),
             "source_certification_report": source_certification_report or "none",
         }
         for c in commodities
@@ -125,6 +129,17 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--sharded", action="store_true", default=False,
+        help=(
+            "Submit one job per commodity for a shared dataset_version. "
+            "Suppresses dataset-level catalog/manifest writes."
+        ),
+    )
+    parser.add_argument(
+        "--job-queue", default=None, dest="job_queue",
+        help="Override Batch queue name/ARN, e.g. an on-demand Fargate queue.",
+    )
+    parser.add_argument(
         "--workers", type=int, default=4,
         help="Internal worker threads for the feature spine Batch task.",
     )
@@ -133,6 +148,7 @@ def main() -> None:
     parser.add_argument("--dataset-version", default="", dest="dataset_version")
     parser.add_argument("--write-versioned", action="store_true", default=False)
     parser.add_argument("--versioned-only", action="store_true", default=False)
+    parser.add_argument("--skip-existing-versioned", action="store_true", default=False)
     parser.add_argument(
         "--allow-existing-version", action="store_true", default=False,
         help="Allow versioned outputs to overwrite. Avoid outside local debugging.",
@@ -159,12 +175,15 @@ def main() -> None:
         args.write_versioned = True
     if args.write_versioned and not args.dataset_version:
         args.dataset_version = _default_dataset_version()
-    if args.write_versioned and len(commodities) > 1 and not args.single_job:
+    if args.single_job and args.sharded:
+        raise SystemExit("ERROR: choose only one of --single-job or --sharded")
+    if args.write_versioned and len(commodities) > 1 and not (args.single_job or args.sharded):
         raise SystemExit(
-            "ERROR: versioned broad builds must use --single-job so one full "
-            "dataset manifest is written. Use one commodity only for a narrow smoke."
+            "ERROR: versioned broad builds must use --single-job or --sharded. "
+            "Use one commodity only for a narrow smoke."
         )
     task_commodities = ["all"] if args.single_job else commodities
+    write_dataset_artifacts = not args.sharded
 
     end_crop_year = args.end_crop_year or date.today().year
     tasks = build_tasks(
@@ -180,19 +199,22 @@ def main() -> None:
         write_versioned=args.write_versioned,
         versioned_only=args.versioned_only,
         fail_if_version_exists=not args.allow_existing_version,
+        skip_existing_versioned=args.skip_existing_versioned,
+        write_dataset_artifacts=write_dataset_artifacts,
         source_certification_report=args.source_certification_report,
     )
+    batch_queue = args.job_queue or batch_queue
 
     logger.info(
         (
             "Submitting %d tasks  queue=%s  definition=%s  crop_years=%d-%d  "
             "dry_run=%s  write_versioned=%s  versioned_only=%s  "
-            "dataset_version=%s  workers=%d  source_years=%s-%s"
+            "dataset_version=%s  workers=%d  source_years=%s-%s  sharded=%s"
         ),
         len(tasks), batch_queue, job_def, args.start_crop_year, end_crop_year,
         args.dry_run, args.write_versioned, args.versioned_only,
         args.dataset_version, max(1, int(args.workers)),
-        args.source_year_min, args.source_year_max,
+        args.source_year_min, args.source_year_max, args.sharded,
     )
 
     submitted = submit_batch_jobs(
@@ -216,6 +238,10 @@ def main() -> None:
                 "dataset_version": args.dataset_version,
                 "write_versioned": args.write_versioned,
                 "versioned_only": args.versioned_only,
+                "skip_existing_versioned": args.skip_existing_versioned,
+                "write_dataset_artifacts": write_dataset_artifacts,
+                "job_queue": batch_queue,
+                "sharded": args.sharded,
                 "workers": max(1, int(args.workers)),
                 "source_year_min": args.source_year_min,
                 "source_year_max": args.source_year_max,

@@ -13,6 +13,16 @@ output "job_queue_name" {
   description = "Name of the shared Batch job queue."
 }
 
+output "ondemand_job_queue_arn" {
+  value       = aws_batch_job_queue.ondemand.arn
+  description = "ARN of the on-demand Fargate Batch job queue."
+}
+
+output "ondemand_job_queue_name" {
+  value       = aws_batch_job_queue.ondemand.name
+  description = "Name of the on-demand Fargate Batch job queue."
+}
+
 output "chirps_to_bronze_backfill_job_definition_arn" {
   value       = aws_batch_job_definition.chirps_to_bronze_backfill.arn
   description = "ARN of the CHIRPS COG → bronze backfill job definition."

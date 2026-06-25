@@ -190,6 +190,10 @@ def _assert_absent(args: argparse.Namespace, key: str) -> None:
         )
 
 
+def _all_targets_exist(args: argparse.Namespace, keys: dict[str, str]) -> bool:
+    return all(_target_exists(args, key) for key in keys.values())
+
+
 def _sha256_bytes(body: bytes) -> str:
     return hashlib.sha256(body).hexdigest()
 
@@ -377,6 +381,18 @@ def _process_commodity(
         return result_log
 
     root = args.local_root if args.local_root else f"s3://{args.bucket}"
+    if args.write_versioned and args.skip_existing_versioned:
+        planned_versioned_keys = {
+            "spine": _spine_version_key(args, commodity),
+            "matrix": _matrix_version_key(args, commodity),
+            "manifest": _versioned_manifest_key(args, commodity),
+        }
+        result_log["versioned_keys"] = planned_versioned_keys
+        if _all_targets_exist(args, planned_versioned_keys):
+            result_log["status"] = "skipped_existing_versioned"
+            logger.info("%-8s  %s (versioned outputs already exist)", "skipped", commodity)
+            return result_log
+
     load_plan = SourceLoadPlan(
         year_min=args.source_year_min,
         year_max=args.source_year_max,
@@ -708,6 +724,16 @@ def _parse_args() -> argparse.Namespace:
         help="Refuse to overwrite existing immutable versioned objects.",
     )
     parser.add_argument(
+        "--skip-existing-versioned", nargs="?", const=True, default=False, type=_bool_arg,
+        dest="skip_existing_versioned",
+        help="Skip a commodity when its versioned spine, matrix, and manifest already exist.",
+    )
+    parser.add_argument(
+        "--write-dataset-artifacts", nargs="?", const=True, default=True, type=_bool_arg,
+        dest="write_dataset_artifacts",
+        help="Write version-level catalog and manifest. Disable for sharded commodity jobs.",
+    )
+    parser.add_argument(
         "--source-certification-report", default="", dest="source_certification_report",
         help="Local path, S3 URI, or bucket key for the Phase 2 source certification report.",
     )
@@ -799,7 +825,12 @@ def main() -> None:
                 feature_commodity_map[feat].add(slug)
                 feature_is_label[feat] = is_lbl
 
-    if feature_commodity_map and not args.dry_run and written_commodities:
+    if (
+        args.write_dataset_artifacts
+        and feature_commodity_map
+        and not args.dry_run
+        and written_commodities
+    ):
         catalog_df = build_feature_catalog(
             feature_commodity_map, feature_is_label, written_commodities
         )
@@ -820,7 +851,7 @@ def main() -> None:
             (catalog_df["scope"] == "commodity").sum(),
         )
 
-    if args.write_versioned and not args.dry_run and written:
+    if args.write_dataset_artifacts and args.write_versioned and not args.dry_run and written:
         manifest_key = _dataset_manifest_key(args)
         _assert_absent(args, manifest_key)
         dataset_manifest = _build_dataset_manifest(
