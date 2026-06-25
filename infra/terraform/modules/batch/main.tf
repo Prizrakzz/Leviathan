@@ -1888,13 +1888,13 @@ resource "aws_batch_job_definition" "feature_spine" {
     start_crop_year             = "1981"
     end_crop_year               = "2026"
     workers                     = "4"
-    source_year_min             = ""
-    source_year_max             = ""
-    dataset_version             = ""
+    source_year_min             = "none"
+    source_year_max             = "none"
+    dataset_version             = "none"
     write_versioned             = "false"
     versioned_only              = "false"
     fail_if_version_exists      = "true"
-    source_certification_report = ""
+    source_certification_report = "none"
   }
 
   container_properties = jsonencode({

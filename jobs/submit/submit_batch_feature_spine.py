@@ -59,13 +59,13 @@ def build_tasks(
             "start_crop_year": str(start_crop_year),
             "end_crop_year": str(end_crop_year),
             "workers": str(workers),
-            "source_year_min": "" if source_year_min is None else str(source_year_min),
-            "source_year_max": "" if source_year_max is None else str(source_year_max),
-            "dataset_version": dataset_version,
+            "source_year_min": "none" if source_year_min is None else str(source_year_min),
+            "source_year_max": "none" if source_year_max is None else str(source_year_max),
+            "dataset_version": dataset_version or "none",
             "write_versioned": str(write_versioned).lower(),
             "versioned_only": str(versioned_only).lower(),
             "fail_if_version_exists": str(fail_if_version_exists).lower(),
-            "source_certification_report": source_certification_report,
+            "source_certification_report": source_certification_report or "none",
         }
         for c in commodities
     ]

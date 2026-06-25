@@ -121,7 +121,7 @@ def _optional_int_arg(value: str | int | None) -> int | None:
     if value is None:
         return None
     text = str(value).strip()
-    if not text:
+    if not text or text.lower() in {"none", "null", "all"}:
         return None
     return int(text)
 
@@ -217,7 +217,7 @@ def _config_fingerprints() -> dict[str, str]:
 
 def _source_certification_metadata(args: argparse.Namespace) -> dict:
     location = (args.source_certification_report or "").strip()
-    if not location:
+    if not location or location.lower() in {"none", "null"}:
         return {"provided": False}
 
     body = _read_bytes(args, location)
@@ -725,6 +725,13 @@ def main() -> None:
 
     if args.versioned_only:
         args.write_versioned = True
+    if args.dataset_version and args.dataset_version.strip().lower() in {"none", "null"}:
+        args.dataset_version = None
+    if (
+        args.source_certification_report
+        and args.source_certification_report.strip().lower() in {"none", "null"}
+    ):
+        args.source_certification_report = ""
 
     if not args.local_root:
         args.bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
