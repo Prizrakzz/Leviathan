@@ -1,0 +1,206 @@
+# Model-purpose feature sets for MLflow experiments.
+#
+# These sets are resolved from the semantic feature catalog generated for an
+# immutable gold dataset version.  They replace era-style tiers for the governed
+# training path while leaving configs/features/feature_tiers.yaml available for
+# legacy/backward-compatible runs.
+
+schema_version: 1
+
+defaults:
+  exclude_labels: true
+  blocked_policies:
+    - excluded_market_signal
+  min_non_null_rate: 0.0
+  min_lag_days: 0
+  allow_empty: false
+  allow_diagnostic: false
+  missingness_policy: tree_models_allow_nan
+
+feature_sets:
+  - id: preseason_physical
+    version: 1
+    description: Long-horizon physical baseline known before or early in the crop year.
+    allowed_policies:
+      - fundamental_physical
+      - certified_economic_driver
+    allowed_semantic_scopes:
+      - origin_production_history
+      - origin_balance_sheet
+      - global_climate
+      - economic_driver
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - production_anomaly
+      - yield_anomaly
+      - balance_sheet_revision
+
+  - id: inseason_weather
+    version: 1
+    description: Weather, soil-moisture, remote-sensing, and climate-stress features.
+    allowed_policies:
+      - fundamental_physical
+    allowed_feature_families:
+      - weather_precipitation
+      - weather_drought
+      - weather_temperature
+      - weather_frost
+      - weather_heat_stress
+      - growing_degree_days
+      - soil_moisture
+      - vegetation_index
+      - enso
+      - indian_ocean_dipole
+      - perennial_capacity
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - production_anomaly
+      - yield_anomaly
+      - tail_event_probability
+
+  - id: crop_condition
+    version: 1
+    description: In-season crop-condition and progress features.
+    allowed_policies:
+      - fundamental_physical
+    allowed_semantic_scopes:
+      - inseason_crop_condition
+    target_compatibility:
+      - production_anomaly
+      - yield_anomaly
+      - finalization_gap
+
+  - id: official_revision
+    version: 1
+    description: Official survey and balance-sheet revisions.
+    allowed_policies:
+      - fundamental_physical
+    allowed_semantic_scopes:
+      - official_revision
+      - official_estimate
+    target_compatibility:
+      - official_estimate_revision
+      - finalization_gap
+
+  - id: physical_flow
+    version: 1
+    description: Export, delivery, crush, and other observable physical-flow pace features.
+    allowed_policies:
+      - fundamental_physical
+    allowed_semantic_scopes:
+      - origin_physical_flow
+    target_compatibility:
+      - physical_flow_trajectory
+      - balance_sheet_revision
+
+  - id: balance_sheet
+    version: 1
+    description: Stocks, use, supply-demand, and stock-use balance features.
+    allowed_policies:
+      - fundamental_physical
+    allowed_semantic_scopes:
+      - origin_balance_sheet
+      - balance_sheet
+    target_compatibility:
+      - balance_sheet_revision
+      - stock_use_revision
+
+  - id: processing_economics
+    version: 1
+    description: Certified lagged processing-economics drivers with a physical-demand mechanism.
+    allowed_policies:
+      - certified_economic_driver
+    allowed_feature_families:
+      - processing_economics
+      - substitution_economics
+    blocked_policies:
+      - fundamental_physical
+      - diagnostic_only
+      - excluded_market_signal
+    min_lag_days: 1
+    target_compatibility:
+      - crush_demand
+      - substitution_demand
+      - balance_sheet_revision
+
+  - id: planting_incentives
+    version: 1
+    description: Certified lagged cost and FX drivers that can affect acreage or producer incentives.
+    allowed_policies:
+      - certified_economic_driver
+    allowed_feature_families:
+      - input_costs
+      - fx_macro
+    blocked_policies:
+      - fundamental_physical
+      - diagnostic_only
+      - excluded_market_signal
+    min_lag_days: 1
+    target_compatibility:
+      - planted_area_anomaly
+      - production_anomaly
+
+  - id: trade_competitiveness
+    version: 1
+    description: Certified lagged FX competitiveness drivers.
+    allowed_policies:
+      - certified_economic_driver
+    allowed_feature_families:
+      - fx_macro
+    blocked_policies:
+      - fundamental_physical
+      - diagnostic_only
+      - excluded_market_signal
+    min_lag_days: 1
+    target_compatibility:
+      - export_pace
+      - balance_sheet_revision
+
+  - id: tail_risk
+    version: 1
+    description: Physical stress and anomaly features useful for downside/upside event classification.
+    allowed_policies:
+      - fundamental_physical
+    allowed_feature_families:
+      - weather_drought
+      - weather_frost
+      - weather_heat_stress
+      - growing_degree_days
+      - soil_moisture
+      - vegetation_index
+      - crop_condition
+    target_compatibility:
+      - tail_event_probability
+      - multivariate_physical_anomaly
+
+  - id: data_quality
+    version: 1
+    description: Availability and lookback diagnostics for experiment slicing and QA.
+    allowed_policies:
+      - fundamental_physical
+    include_feature_patterns:
+      - "_available$"
+      - "^capacity_lookback_truncated_"
+    target_compatibility:
+      - diagnostic_dataset_quality
+    missingness_policy: diagnostic_not_model_input
+
+  - id: diagnostic_market_context
+    version: 1
+    description: Diagnostic-only market context for monitoring and slicing, not core fitting.
+    allowed_policies:
+      - diagnostic_only
+    allowed_semantic_scopes:
+      - diagnostic_market_context
+    allowed_feature_families:
+      - market_positioning
+    blocked_policies:
+      - excluded_market_signal
+    allow_diagnostic: true
+    target_compatibility:
+      - diagnostic_monitoring
+    missingness_policy: diagnostic_only

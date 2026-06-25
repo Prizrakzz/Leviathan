@@ -1924,6 +1924,18 @@ def gold_feature_group_map_version_key(
     )
 
 
+def gold_feature_set_version_key(
+    dataset_version: str,
+    filename: str = "feature_sets.parquet",
+) -> str:
+    """S3 key for model-purpose feature-set membership in a dataset version."""
+    return (
+        f"gold/feature_set_versions/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
 def gold_feature_spine_manifest_key(
     dataset_version: str,
     filename: str = "manifest.json",

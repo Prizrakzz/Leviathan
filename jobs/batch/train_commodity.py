@@ -35,8 +35,10 @@ import pandas as pd
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from leviathan.features.feature_sets import selected_features_for_set  # noqa: E402
 from leviathan.features.registry import load_registry          # noqa: E402
 from leviathan.features.windows import resolve_tier_families    # noqa: E402
+from leviathan.storage.paths import gold_feature_set_version_key  # noqa: E402
 from leviathan.training.cv import walk_forward_cv               # noqa: E402
 from leviathan.training.slices import (                         # noqa: E402
     evaluate_gaps, gaps_passed, load_gap_rules, quintile_directional_accuracy,
@@ -145,12 +147,37 @@ def _tier_feature_cols(matrix: pd.DataFrame, tier: str) -> list[str]:
     return [c for c in candidates if c in fams or any(c.startswith(f + "_") for f in fams)]
 
 
+def _read_feature_set_membership(s3, bucket: str, dataset_version: str) -> pd.DataFrame:
+    key = gold_feature_set_version_key(dataset_version)
+    body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+    return pd.read_parquet(io.BytesIO(body))
+
+
+def _feature_set_cols(
+    matrix: pd.DataFrame,
+    membership: pd.DataFrame,
+    feature_set_id: str,
+) -> tuple[list[str], dict[str, str]]:
+    selected = selected_features_for_set(membership, feature_set_id)
+    feature_cols = [feature for feature in selected if feature in matrix.columns]
+    rows = membership.loc[membership["feature_set_id"] == feature_set_id]
+    if rows.empty:
+        return [], {}
+    return feature_cols, {
+        "feature_set_id": feature_set_id,
+        "feature_set_version": str(rows["feature_set_version"].iloc[0]),
+        "feature_set_catalog_sha": str(rows["feature_set_sha"].iloc[0]),
+    }
+
+
 def _write_predictions(s3, bucket, args, predictions, run_id, feature_set_sha) -> str | None:
     if predictions.empty:
         return None
+    selection_name = args.feature_set or args.tier
     df = predictions.copy()
     df["commodity"] = args.commodity
-    df["tier"] = args.tier
+    df["tier"] = selection_name
+    df["feature_set_id"] = selection_name
     df["target"] = args.target
     df["model"] = args.model
     df["feature_set_sha"] = feature_set_sha
@@ -159,7 +186,7 @@ def _write_predictions(s3, bucket, args, predictions, run_id, feature_set_sha) -
     pred_date = datetime.date.today().isoformat()
     key = (
         f"{_PRED_PREFIX}model_family=tier1_production/prediction_date={pred_date}/"
-        f"{args.commodity}__{args.tier}__{args.target}__{args.model}.parquet"
+        f"{args.commodity}__{selection_name}__{args.target}__{args.model}.parquet"
     )
     buf = io.BytesIO()
     df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
@@ -209,6 +236,15 @@ def main() -> None:
     parser.add_argument("--commodity", required=True)
     parser.add_argument("--tier", default="climate",
                         help="named feature set: fundamentals|climate|trade_condition|full")
+    parser.add_argument(
+        "--feature-set",
+        default=None,
+        dest="feature_set",
+        help=(
+            "Model-purpose feature set resolved from gold/feature_set_versions "
+            "for --dataset-version. Overrides --tier when provided."
+        ),
+    )
     parser.add_argument("--target", default="production_quantity",
                         help="label target (production_quantity|area_harvested|yield)")
     parser.add_argument("--model", default="xgboost", help="xgboost|lightgbm")
@@ -266,14 +302,25 @@ def main() -> None:
             logger.warning("%s: detrend left no usable target — skipping.", args.commodity)
             return
 
-    feature_cols = _tier_feature_cols(matrix, args.tier)
+    feature_set_meta: dict[str, str] = {}
+    if args.feature_set:
+        if not args.dataset_version:
+            raise SystemExit("--feature-set requires --dataset-version")
+        membership = _read_feature_set_membership(s3, args.bucket, args.dataset_version)
+        feature_cols, feature_set_meta = _feature_set_cols(
+            matrix, membership, args.feature_set
+        )
+        selection_name = args.feature_set
+    else:
+        feature_cols = _tier_feature_cols(matrix, args.tier)
+        selection_name = args.tier
     if not feature_cols:
         logger.warning("%s tier %s resolved to 0 feature columns — skipping.",
-                       args.commodity, args.tier)
+                       args.commodity, selection_name)
         return
 
     registry = load_registry(_CONFIG_DIR)
-    run_name = f"{args.commodity}-{args.tier}-{args.target}{'-detrend' if args.detrend else ''}-{args.model}"
+    run_name = f"{args.commodity}-{selection_name}-{args.target}{'-detrend' if args.detrend else ''}-{args.model}"
 
     train_slice = matrix[["country", "crop_year"] + feature_cols + [target_col]].copy()
 
@@ -303,6 +350,9 @@ def main() -> None:
         mlflow.set_tag("model", args.model)
         mlflow.set_tag("target", args.target)
         mlflow.set_tag("detrend", str(args.detrend))
+        mlflow.set_tag("feature_selection_mode", "feature_set" if args.feature_set else "tier")
+        for key, value in feature_set_meta.items():
+            mlflow.set_tag(key, value)
         if args.dataset_version:
             mlflow.set_tag("dataset_version", args.dataset_version)
             mlflow.set_tag(
@@ -317,7 +367,7 @@ def main() -> None:
             mlflow.log_metric("quintile_directional_accuracy", q_dir)
 
         logged = log_training_run(
-            args.commodity, args.tier, train_slice, feature_cols, result,
+            args.commodity, selection_name, train_slice, feature_cols, result,
             target_col=target_col, params_hash=registry.params_hash,
             bucket=args.bucket, aws_region=args.aws_region, mlflow=mlflow,
             snapshot=not args.no_snapshot, gaps=gaps,

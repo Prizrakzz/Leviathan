@@ -45,9 +45,16 @@ def main() -> None:
     parser.add_argument("--commodities", default="all",
                         help='Comma-separated slugs or "all" (commodities with a geography).')
     parser.add_argument("--tiers", default="climate")
+    parser.add_argument(
+        "--feature-sets",
+        default="",
+        dest="feature_sets",
+        help="Comma-separated model-purpose feature_set ids. Requires --dataset-version.",
+    )
     parser.add_argument("--targets", default="production_quantity")
     parser.add_argument("--models", default="xgboost")
     parser.add_argument("--experiment", default="leviathan-tier1-production")
+    parser.add_argument("--dataset-version", default="", dest="dataset_version")
     parser.add_argument("--detrend", action="store_true",
                         help="predict the detrended anomaly target (recommended for stress features)")
     parser.add_argument("--optuna", action="store_true",
@@ -67,24 +74,33 @@ def main() -> None:
         if unknown:
             raise SystemExit(f"ERROR: Unknown commodities: {unknown}")
 
-    tiers = [t.strip() for t in args.tiers.split(",")]
+    tiers = [t.strip() for t in args.tiers.split(",") if t.strip()]
+    feature_sets = [t.strip() for t in args.feature_sets.split(",") if t.strip()]
+    if feature_sets and not args.dataset_version:
+        raise SystemExit("--feature-sets requires --dataset-version")
     targets = [t.strip() for t in args.targets.split(",")]
     models = [m.strip() for m in args.models.split(",")]
+    selectors = feature_sets or tiers
 
     tasks = [
         {
-            "commodity": c, "tier": t, "target": tg, "model": m,
+            "commodity": c,
+            "tier": t if not feature_sets else "climate",
+            "feature_set": t if feature_sets else "",
+            "target": tg,
+            "model": m,
             "bucket": bucket, "aws_region": aws_region, "experiment": args.experiment,
             "detrend": str(args.detrend).lower(),   # Ref::detrend → "true"/"false"
             "optuna": str(args.optuna).lower(),
             "n_trials": str(args.n_trials),
+            "dataset_version": args.dataset_version,
         }
-        for c, t, tg, m in itertools.product(commodities, tiers, targets, models)
+        for c, t, tg, m in itertools.product(commodities, selectors, targets, models)
     ]
 
     logger.info(
         "Submitting %d training tasks  queue=%s  definition=%s  grid=%dx%dx%dx%d  dry_run=%s",
-        len(tasks), batch_queue, job_def, len(commodities), len(tiers), len(targets),
+        len(tasks), batch_queue, job_def, len(commodities), len(selectors), len(targets),
         len(models), args.dry_run,
     )
 
@@ -93,7 +109,7 @@ def main() -> None:
         job_queue=batch_queue,
         job_definition=job_def,
         build_job_name=lambda t: (
-            f"train-{t['commodity']}-{t['tier']}-{t['target']}-{t['model']}".replace("_", "-")
+            f"train-{t['commodity']}-{t['feature_set'] or t['tier']}-{t['target']}-{t['model']}".replace("_", "-")
         ),
         aws_region=aws_region,
         dry_run=args.dry_run,
