@@ -798,6 +798,40 @@ the real feature universe.
 - Scope labels do not change merely because a partial commodity run happened.
 - Catalog rows are keyed by `dataset_version`.
 
+#### Implementation Status
+
+Phase 5 was completed on 2026-06-25 for dataset version:
+
+```text
+20260625T105545Z_2bd0f32c
+```
+
+Implemented:
+
+- `configs/features/feature_taxonomy.yaml`;
+- `configs/features/feature_groups.yaml`;
+- semantic `gold/feature_catalog_versions`;
+- `gold/feature_entity_map_versions`;
+- `gold/feature_group_map_versions`;
+- Athena DDLs for all three semantic catalog/map tables;
+- dataset-manifest patching with semantic catalog summary.
+
+Validation summary:
+
+- 2,705 catalog rows;
+- 4,408 feature/entity map rows;
+- 8,182 feature/group map rows;
+- 0 unknown features;
+- 7 `certified_economic_driver` features;
+- 2 `diagnostic_only` features;
+- 2,696 `fundamental_physical` features.
+
+Completion record:
+
+```text
+docs/ops/PHASE5_COMPLETION.md
+```
+
 ### Phase 6: Replace Era Tiers with Model-Purpose Feature Sets
 
 #### Purpose
