@@ -33,6 +33,7 @@ from leviathan.storage.paths import (
     gold_feature_spine_commodity_manifest_key,
     gold_feature_spine_manifest_key,
     gold_feature_spine_version_key,
+    gold_training_windows_version_key,
 )
 from leviathan.storage.s3 import get_thread_local_s3_client
 
@@ -141,6 +142,13 @@ def _parquet_metadata(options: FinalizeOptions, key: str) -> pq.FileMetaData:
 
 def _read_spine_features(options: FinalizeOptions, key: str) -> pd.DataFrame:
     columns = ["feature", "is_label"]
+    if options.local_root is not None:
+        return pd.read_parquet(_local_path(options, key), columns=columns)
+    return pd.read_parquet(io.BytesIO(_read_bytes(options, key)), columns=columns)
+
+
+def _read_training_windows(options: FinalizeOptions, key: str) -> pd.DataFrame:
+    columns = ["commodity", "tier", "n_label_years", "dense_start_year"]
     if options.local_root is not None:
         return pd.read_parquet(_local_path(options, key), columns=columns)
     return pd.read_parquet(io.BytesIO(_read_bytes(options, key)), columns=columns)
@@ -272,6 +280,45 @@ def _source_summary(commodity_summaries: list[dict]) -> dict[str, dict[str, int]
     return dict(sorted(summary.items()))
 
 
+def _training_windows_summary(options: FinalizeOptions) -> dict:
+    parquet_key = gold_training_windows_version_key(options.dataset_version)
+    markdown_key = gold_training_windows_version_key(
+        options.dataset_version, "training_windows.md"
+    )
+    parquet_exists = _target_exists(options, parquet_key)
+    markdown_exists = _target_exists(options, markdown_key)
+    if not parquet_exists and not markdown_exists:
+        return {
+            "available": False,
+            "training_windows_key": parquet_key,
+            "training_windows_markdown_key": markdown_key,
+            "row_count": 0,
+            "commodity_count": 0,
+            "tier_count": 0,
+            "tiers": [],
+            "label_window_rows": 0,
+            "dense_window_rows": 0,
+        }
+    if not parquet_exists or not markdown_exists:
+        raise FileNotFoundError(
+            "partial training-window artifact set for "
+            f"{options.dataset_version}: parquet={parquet_exists}, markdown={markdown_exists}"
+        )
+
+    windows = _read_training_windows(options, parquet_key)
+    return {
+        "available": True,
+        "training_windows_key": parquet_key,
+        "training_windows_markdown_key": markdown_key,
+        "row_count": int(len(windows)),
+        "commodity_count": int(windows["commodity"].nunique()),
+        "tier_count": int(windows["tier"].nunique()),
+        "tiers": sorted(str(tier) for tier in windows["tier"].dropna().unique()),
+        "label_window_rows": int((windows["n_label_years"].fillna(0) > 0).sum()),
+        "dense_window_rows": int(windows["dense_start_year"].notna().sum()),
+    }
+
+
 def _build_dataset_manifest(
     options: FinalizeOptions,
     commodity_summaries: list[dict],
@@ -288,6 +335,7 @@ def _build_dataset_manifest(
         for summary in commodity_summaries
         if summary.get("git_sha")
     })
+    training_windows = _training_windows_summary(options)
 
     return {
         "task": "feature_spine_finalize_task",
@@ -310,8 +358,12 @@ def _build_dataset_manifest(
             "commodity_feature_count": int((catalog_df["scope"] == "commodity").sum()),
             "warning_count": sum(c["warning_count"] for c in commodity_summaries),
             "hard_failure_count": sum(c["hard_failure_count"] for c in commodity_summaries),
+            "training_windows_available": bool(training_windows["available"]),
+            "training_windows_row_count": int(training_windows["row_count"]),
+            "training_windows_commodity_count": int(training_windows["commodity_count"]),
         },
         "source_summary": _source_summary(commodity_summaries),
+        "training_windows": training_windows,
         "commodities": commodity_summaries,
         "outputs": {
             "feature_spine_prefix": (
@@ -330,6 +382,10 @@ def _build_dataset_manifest(
                 options.dataset_version
             ),
             "manifest_key": gold_feature_spine_manifest_key(options.dataset_version),
+            "training_windows_key": training_windows["training_windows_key"],
+            "training_windows_markdown_key": (
+                training_windows["training_windows_markdown_key"]
+            ),
         },
     }
 

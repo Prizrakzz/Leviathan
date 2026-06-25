@@ -9,6 +9,7 @@ from leviathan.storage.paths import (
     gold_feature_spine_commodity_manifest_key,
     gold_feature_spine_manifest_key,
     gold_feature_spine_version_key,
+    gold_training_windows_version_key,
     parse_hive_key,
     raw_cpc_tif_key,
     raw_production_key,
@@ -196,4 +197,9 @@ class TestGoldVersionedPaths:
             "dataset_version=v1/"
             "commodity=corn_cbot/"
             "run.json"
+        )
+
+    def test_training_windows_version_key(self):
+        assert gold_training_windows_version_key("v1") == (
+            "gold/training_windows_versions/dataset_version=v1/training_windows.parquet"
         )

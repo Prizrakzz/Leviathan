@@ -1926,6 +1926,18 @@ def gold_feature_spine_commodity_manifest_key(
     )
 
 
+def gold_training_windows_version_key(
+    dataset_version: str,
+    filename: str = "training_windows.parquet",
+) -> str:
+    """S3 key for the training-window manifest for an immutable dataset version."""
+    return (
+        f"gold/training_windows_versions/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
 def raw_chris_key(slug: str, tenor: int) -> str:
     """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
 

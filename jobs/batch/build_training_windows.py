@@ -28,6 +28,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from leviathan.features.windows import compute_training_windows  # noqa: E402
+from leviathan.storage.paths import gold_training_windows_version_key  # noqa: E402
 
 _MATRIX_PREFIX = "gold/feature_matrix/"
 _MATRIX_VERSION_PREFIX = "gold/feature_matrix_versions/"
@@ -46,6 +47,42 @@ def _out_prefix(dataset_version: str | None = None) -> str:
     if dataset_version:
         return f"{_OUT_VERSION_PREFIX}dataset_version={dataset_version}/"
     return _OUT_PREFIX
+
+
+def _out_key(dataset_version: str | None, filename: str) -> str:
+    if dataset_version:
+        return gold_training_windows_version_key(dataset_version, filename)
+    return f"{_OUT_PREFIX}{filename}"
+
+
+def _object_exists(s3, bucket: str, key: str) -> bool:
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception as exc:  # noqa: BLE001 - keep boto optional in tests
+        response = getattr(exc, "response", {})
+        code = str(response.get("Error", {}).get("Code", ""))
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        raise
+
+
+def _assert_version_targets_absent(
+    s3,
+    bucket: str,
+    dataset_version: str | None,
+    force_overwrite: bool,
+) -> None:
+    if not dataset_version or force_overwrite:
+        return
+    for key in (
+        _out_key(dataset_version, "training_windows.parquet"),
+        _out_key(dataset_version, "training_windows.md"),
+    ):
+        if _object_exists(s3, bucket, key):
+            raise FileExistsError(
+                f"refusing to overwrite immutable training-window object: {key}"
+            )
 
 
 def _list_commodities(s3, bucket: str, dataset_version: str | None = None) -> list[str]:
@@ -100,6 +137,13 @@ def main() -> None:
         "--dataset-version", default=None, dest="dataset_version",
         help="Read gold/feature_matrix_versions/dataset_version=... instead of mutable latest.",
     )
+    parser.add_argument(
+        "--force-overwrite",
+        action="store_true",
+        default=False,
+        dest="force_overwrite",
+        help="Overwrite existing versioned training-window outputs.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -127,12 +171,18 @@ def main() -> None:
             print(manifest.to_string(index=False))
         return
 
+    _assert_version_targets_absent(
+        s3, args.bucket, args.dataset_version, args.force_overwrite
+    )
+
     buf = io.BytesIO()
     manifest.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    out_prefix = _out_prefix(args.dataset_version)
-    s3.put_object(Bucket=args.bucket, Key=f"{out_prefix}training_windows.parquet", Body=buf.getvalue())
-    s3.put_object(Bucket=args.bucket, Key=f"{out_prefix}training_windows.md",
+    parquet_key = _out_key(args.dataset_version, "training_windows.parquet")
+    markdown_key = _out_key(args.dataset_version, "training_windows.md")
+    s3.put_object(Bucket=args.bucket, Key=parquet_key, Body=buf.getvalue())
+    s3.put_object(Bucket=args.bucket, Key=markdown_key,
                   Body=_to_markdown(manifest).encode("utf-8"))
+    out_prefix = _out_prefix(args.dataset_version)
     print(f"Wrote s3://{args.bucket}/{out_prefix}training_windows.parquet (+ .md)")
 
 

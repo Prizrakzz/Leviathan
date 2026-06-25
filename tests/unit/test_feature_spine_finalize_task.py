@@ -13,6 +13,7 @@ from leviathan.storage.paths import (
     gold_feature_spine_commodity_manifest_key,
     gold_feature_spine_manifest_key,
     gold_feature_spine_version_key,
+    gold_training_windows_version_key,
 )
 
 
@@ -89,6 +90,42 @@ def _write_commodity(
     )
 
 
+def _write_training_windows(root: Path, dataset_version: str) -> None:
+    parquet_key = gold_training_windows_version_key(dataset_version)
+    markdown_key = gold_training_windows_version_key(dataset_version, "training_windows.md")
+    _write_parquet(
+        root,
+        parquet_key,
+        pd.DataFrame([
+            {
+                "commodity": "corn_cbot",
+                "tier": "core",
+                "n_features": 10,
+                "label_first_year": 2020,
+                "label_last_year": 2024,
+                "n_label_years": 5,
+                "dense_start_year": 2021,
+                "dense_window_years": 4,
+                "present_families": "psd",
+            },
+            {
+                "commodity": "soybeans_cbot",
+                "tier": "core",
+                "n_features": 8,
+                "label_first_year": 2020,
+                "label_last_year": 2024,
+                "n_label_years": 5,
+                "dense_start_year": 2022,
+                "dense_window_years": 3,
+                "present_families": "psd",
+            },
+        ]),
+    )
+    path = root / markdown_key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# Training windows\n", encoding="utf-8")
+
+
 def test_finalize_writes_catalog_and_dataset_manifest(tmp_path: Path) -> None:
     version = "v1"
     _write_commodity(
@@ -131,6 +168,7 @@ def test_finalize_writes_catalog_and_dataset_manifest(tmp_path: Path) -> None:
     assert manifest["summary"]["total_matrix_rows"] == 2
     assert manifest["summary"]["feature_count"] == 4
     assert manifest["summary"]["hard_failure_count"] == 0
+    assert manifest["summary"]["training_windows_available"] is False
     assert manifest["source_summary"]["psd"]["seen_in_commodities"] == 2
 
 
@@ -220,3 +258,36 @@ def test_finalize_can_overwrite_when_enabled(tmp_path: Path) -> None:
     )
 
     assert manifest["summary"]["commodity_count"] == 1
+
+
+def test_finalize_includes_training_windows_when_present(tmp_path: Path) -> None:
+    version = "v1"
+    _write_commodity(
+        tmp_path,
+        dataset_version=version,
+        commodity="corn_cbot",
+        features={"common_z": 1.0},
+    )
+    _write_commodity(
+        tmp_path,
+        dataset_version=version,
+        commodity="soybeans_cbot",
+        features={"common_z": 2.0},
+    )
+    _write_training_windows(tmp_path, version)
+
+    manifest = finalize_dataset(
+        FinalizeOptions(
+            dataset_version=version,
+            commodities=["corn_cbot", "soybeans_cbot"],
+            local_root=tmp_path,
+        )
+    )
+
+    assert manifest["summary"]["training_windows_available"] is True
+    assert manifest["summary"]["training_windows_row_count"] == 2
+    assert manifest["summary"]["training_windows_commodity_count"] == 2
+    assert manifest["training_windows"]["tier_count"] == 1
+    assert manifest["outputs"]["training_windows_key"] == gold_training_windows_version_key(
+        version
+    )
