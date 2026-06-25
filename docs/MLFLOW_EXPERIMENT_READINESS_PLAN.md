@@ -617,6 +617,24 @@ Keep useful v2 ideas without letting scratch code define the critical path.
 - Future PIT v2 can be resumed without confusing it with the current MLflow
   readiness path.
 
+#### Implementation Status
+
+Phase 3 was implemented on 2026-06-25.
+
+- v2 scratch was committed and pushed to
+  `codex/gold-v2-scratch-preserved`.
+- Preservation commit:
+  `52934c66 Preserve gold v2 scratch work`.
+- File-by-file audit:
+  `docs/ops/PHASE3_V2_SCRATCH_AUDIT.md`.
+- Completion note:
+  `docs/ops/PHASE3_COMPLETION.md`.
+- Active `main` keeps `gold/feature_spine` as the MLflow path and does not
+  register `gold_v2_*` tables as active MLflow dependencies.
+- Reusable ideas are explicitly classified for later adoption: taxonomy,
+  feature sets, catalog/entity/group maps, source availability, bounded
+  extraction, policy guardrails, and immutable path patterns.
+
 ### Phase 4: Version the Broad Legacy Gold Layer
 
 #### Purpose
