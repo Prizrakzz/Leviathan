@@ -41,6 +41,9 @@ def build_tasks(
     start_crop_year: int,
     end_crop_year: int,
     *,
+    workers: int,
+    source_year_min: int | None,
+    source_year_max: int | None,
     dataset_version: str,
     write_versioned: bool,
     versioned_only: bool,
@@ -55,6 +58,9 @@ def build_tasks(
             "aws_region": aws_region,
             "start_crop_year": str(start_crop_year),
             "end_crop_year": str(end_crop_year),
+            "workers": str(workers),
+            "source_year_min": "" if source_year_min is None else str(source_year_min),
+            "source_year_max": "" if source_year_max is None else str(source_year_max),
             "dataset_version": dataset_version,
             "write_versioned": str(write_versioned).lower(),
             "versioned_only": str(versioned_only).lower(),
@@ -118,6 +124,12 @@ def main() -> None:
             "versioned dataset builds so one manifest is written."
         ),
     )
+    parser.add_argument(
+        "--workers", type=int, default=4,
+        help="Internal worker threads for the feature spine Batch task.",
+    )
+    parser.add_argument("--source-year-min", type=int, default=None, dest="source_year_min")
+    parser.add_argument("--source-year-max", type=int, default=None, dest="source_year_max")
     parser.add_argument("--dataset-version", default="", dest="dataset_version")
     parser.add_argument("--write-versioned", action="store_true", default=False)
     parser.add_argument("--versioned-only", action="store_true", default=False)
@@ -161,6 +173,9 @@ def main() -> None:
         aws_region,
         args.start_crop_year,
         end_crop_year,
+        workers=max(1, int(args.workers)),
+        source_year_min=args.source_year_min,
+        source_year_max=args.source_year_max,
         dataset_version=args.dataset_version,
         write_versioned=args.write_versioned,
         versioned_only=args.versioned_only,
@@ -171,10 +186,13 @@ def main() -> None:
     logger.info(
         (
             "Submitting %d tasks  queue=%s  definition=%s  crop_years=%d-%d  "
-            "dry_run=%s  write_versioned=%s  versioned_only=%s  dataset_version=%s"
+            "dry_run=%s  write_versioned=%s  versioned_only=%s  "
+            "dataset_version=%s  workers=%d  source_years=%s-%s"
         ),
         len(tasks), batch_queue, job_def, args.start_crop_year, end_crop_year,
-        args.dry_run, args.write_versioned, args.versioned_only, args.dataset_version,
+        args.dry_run, args.write_versioned, args.versioned_only,
+        args.dataset_version, max(1, int(args.workers)),
+        args.source_year_min, args.source_year_max,
     )
 
     submitted = submit_batch_jobs(
@@ -198,6 +216,9 @@ def main() -> None:
                 "dataset_version": args.dataset_version,
                 "write_versioned": args.write_versioned,
                 "versioned_only": args.versioned_only,
+                "workers": max(1, int(args.workers)),
+                "source_year_min": args.source_year_min,
+                "source_year_max": args.source_year_max,
                 "start_crop_year": args.start_crop_year,
                 "end_crop_year": end_crop_year,
                 "task_count": len(submitted),

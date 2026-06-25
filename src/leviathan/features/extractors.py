@@ -12,13 +12,20 @@ All readers accept a *root* that is either a local directory (tests) or an
 """
 from __future__ import annotations
 
+import os
+import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlparse
 
 import pandas as pd
 import pyarrow.dataset as ds
+import pyarrow.fs as pafs
 
 from leviathan.common.logging import get_logger
+from leviathan.storage.s3 import get_thread_local_s3_client
 from leviathan.transforms.bronze_to_silver.faostat_production import (
     standardize_country_name,
 )
@@ -39,7 +46,16 @@ class SourceProbe:
     num_files: int
     num_rows: int
     columns: tuple[str, ...]
-    files: tuple[str, ...]  # fragment paths — input fingerprint for the manifest
+    files: tuple[str, ...]  # fragment paths - input fingerprint for the manifest
+    read_paths: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SourceLoadPlan:
+    """Optional bounds and parallelism for one commodity source extraction."""
+    year_min: int | None = None
+    year_max: int | None = None
+    workers: int = 1
 
 
 # Required in-file columns per source family (partition values are duplicated
@@ -84,14 +100,109 @@ _WEATHER_KEY = ["date", "country", "region", "source", "variable"]
 _FAOSTAT_KEY = ["country_key", "metric", "year"]
 _PSD_KEY = ["country", "market_year", "wasde_release_month", "release_date"]
 _ESR_KEY = ["commodity_name", "market_year", "week_ending_date", "country_code"]
+_YEAR_PARTITION_RE = re.compile(r"(?:^|/)year=(\d{4})(?:/|$)")
 
 
 def _location(root: str, relative: str) -> str:
     return f"{root.rstrip('/')}/{relative}"
 
 
-def probe_source(source_key: str, location: str) -> SourceProbe:
+def _aws_region() -> str:
+    return os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
+
+
+def _year_from_path(path: str) -> int | None:
+    match = _YEAR_PARTITION_RE.search(path.replace("\\", "/"))
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _paths_with_year_partitions(
+    location: str, year_min: int | None, year_max: int | None
+) -> tuple[str, ...]:
+    """Return parquet paths under *location* within the requested year range."""
+    parsed = urlparse(location)
+    paths: list[str] = []
+    if parsed.scheme == "s3":
+        bucket = parsed.netloc
+        prefix = parsed.path.lstrip("/").rstrip("/") + "/"
+        s3 = get_thread_local_s3_client(_aws_region())
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if not key.endswith(".parquet"):
+                    continue
+                year = _year_from_path(key)
+                if year is None:
+                    continue
+                if year_min is not None and year < year_min:
+                    continue
+                if year_max is not None and year > year_max:
+                    continue
+                paths.append(f"s3://{bucket}/{key}")
+    else:
+        base = Path(location)
+        if not base.exists():
+            return ()
+        for path in base.rglob("*.parquet"):
+            year = _year_from_path(path.as_posix())
+            if year is None:
+                continue
+            if year_min is not None and year < year_min:
+                continue
+            if year_max is not None and year > year_max:
+                continue
+            paths.append(str(path))
+    return tuple(sorted(paths))
+
+
+def _dataset_from_paths(paths: tuple[str, ...], location: str):
+    if urlparse(location).scheme == "s3":
+        fs = pafs.S3FileSystem(region=_aws_region())
+        normalized = [
+            f"{urlparse(path).netloc}{urlparse(path).path}"
+            for path in paths
+        ]
+        return ds.dataset(normalized, filesystem=fs, format="parquet")
+    return ds.dataset(list(paths), format="parquet")
+
+
+def _path_chunks(paths: tuple[str, ...], chunk_size: int = 64) -> list[tuple[str, ...]]:
+    return [
+        tuple(paths[i:i + chunk_size])
+        for i in range(0, len(paths), chunk_size)
+    ]
+
+
+def probe_source(
+    source_key: str,
+    location: str,
+    *,
+    year_min: int | None = None,
+    year_max: int | None = None,
+) -> SourceProbe:
     """Footer-only probe: existence, file list, row count, schema columns."""
+    if year_min is not None or year_max is not None:
+        read_paths = _paths_with_year_partitions(location, year_min, year_max)
+        if not read_paths:
+            return SourceProbe(source_key, location, False, 0, 0, (), ())
+        try:
+            dataset = _dataset_from_paths((read_paths[0],), location)
+        except (FileNotFoundError, OSError, pd.errors.EmptyDataError):
+            return SourceProbe(source_key, location, False, 0, 0, (), ())
+        return SourceProbe(
+            source_key=source_key,
+            location=location,
+            exists=True,
+            num_files=len(read_paths),
+            num_rows=-1,
+            columns=tuple(dataset.schema.names),
+            files=read_paths,
+            read_paths=read_paths,
+        )
+
     try:
         dataset = ds.dataset(location, format="parquet")
         fragments = list(dataset.get_fragments())
@@ -160,26 +271,66 @@ def _dedup_natural_key(
     )
 
 
-def _load(probe: SourceProbe, columns: list[str],
-          filter_expr: ds.Expression | None = None) -> pd.DataFrame:
-    dataset = ds.dataset(probe.location, format="parquet")
+def _load_dataset_to_pandas(
+    source,
+    columns: list[str],
+    filter_expr: ds.Expression | None,
+) -> pd.DataFrame:
+    dataset = (
+        _dataset_from_paths(source, source[0])
+        if isinstance(source, tuple)
+        else ds.dataset(source, format="parquet")
+    )
     available = [c for c in columns if c in dataset.schema.names]
     table = dataset.to_table(columns=available, filter=filter_expr)
     return table.to_pandas()
 
 
+def _load(probe: SourceProbe, columns: list[str],
+          filter_expr: ds.Expression | None = None, workers: int = 1) -> pd.DataFrame:
+    if not probe.read_paths:
+        return _load_dataset_to_pandas(probe.location, columns, filter_expr)
+
+    if workers <= 1 or len(probe.read_paths) <= 64:
+        return _load_dataset_to_pandas(probe.read_paths, columns, filter_expr)
+
+    frames: list[pd.DataFrame] = []
+    chunks = _path_chunks(probe.read_paths)
+    with ThreadPoolExecutor(max_workers=min(workers, len(chunks))) as executor:
+        futures = [
+            executor.submit(_load_dataset_to_pandas, chunk, columns, filter_expr)
+            for chunk in chunks
+        ]
+        for future in as_completed(futures):
+            frames.append(future.result())
+    if not frames:
+        return pd.DataFrame(columns=columns)
+    return pd.concat(frames, ignore_index=True)
+
+
 def extract_weather(
-    root: str, commodity: str, source: str
+    root: str, commodity: str, source: str, plan: SourceLoadPlan | None = None
 ) -> tuple[pd.DataFrame | None, SourceProbe]:
     """Long-format silver weather for one (source, commodity)."""
+    plan = plan or SourceLoadPlan()
     source_key = f"weather:{source}"
     location = _location(root, f"silver/weather/source={source}/commodity={commodity}")
-    probe = probe_source(source_key, location)
+    probe = probe_source(
+        source_key, location, year_min=plan.year_min, year_max=plan.year_max
+    )
     if not probe.exists or probe.num_rows == 0:
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
 
-    df = _load(probe, list(probe.columns))
+    filter_expr = None
+    if "year" in probe.columns:
+        if plan.year_min is not None:
+            filter_expr = ds.field("year") >= plan.year_min
+        if plan.year_max is not None:
+            upper = ds.field("year") <= plan.year_max
+            filter_expr = upper if filter_expr is None else filter_expr & upper
+
+    df = _load(probe, list(probe.columns), filter_expr=filter_expr, workers=plan.workers)
 
     # Source-specific silver schemas (e.g. MODIS NDVI, on 8-day "period"
     # composites) omit the standard month/source id columns.  Derive them before
@@ -492,86 +643,102 @@ def extract_futures_prices(root: str) -> tuple[pd.DataFrame | None, SourceProbe]
     return df, probe
 
 
+def _extract_one(
+    root: str, commodity: str, key: str, plan: SourceLoadPlan
+) -> tuple[str, pd.DataFrame | None, SourceProbe]:
+    start = time.monotonic()
+    logger.info("%s: extracting source for commodity=%s", key, commodity)
+    if key.startswith("weather:"):
+        df, probe = extract_weather(root, commodity, key.split(":", 1)[1], plan)
+    elif key == "production:faostat":
+        df, probe = extract_faostat(root, commodity)
+    elif key == "psd":
+        df, probe = extract_psd(root, commodity)
+    elif key == "oni":
+        df, probe = extract_oni(root)
+    elif key == "iod":
+        df, probe = extract_iod(root)
+    elif key == "cot":
+        df, probe = extract_cot(root)
+    elif key == "pink_sheet":
+        df, probe = extract_pink_sheet(root)
+    elif key == "nass_crop_progress":
+        df, probe = extract_nass_crop_progress(root, commodity)
+    elif key == "wap_revisions":
+        df, probe = extract_wap_revisions(root)
+    elif key == "mpob":
+        df, probe = extract_mpob(root)
+    elif key == "fred_fx":
+        df, probe = extract_fred_fx(root)
+    elif key == "sagis_deliveries":
+        df, probe = extract_sagis_weekly(root)
+    elif key == "sagis_cec":
+        df, probe = extract_sagis_cec(root)
+    elif key == "futures_prices":
+        df, probe = extract_futures_prices(root)
+    elif key == "conab":
+        df, probe = extract_conab(root, commodity)
+    elif key == "fgis":
+        df, probe = extract_fgis(root, commodity)
+    elif key == "esr":
+        df, probe = extract_esr(root, commodity)
+    else:
+        raise ExtractionContractError(f"Unknown source key in registry: {key!r}")
+
+    elapsed = time.monotonic() - start
+    rows = 0 if df is None else len(df)
+    logger.info(
+        "%s: extracted rows=%d files=%d metadata_rows=%d elapsed=%.1fs",
+        key, rows, probe.num_files, probe.num_rows, elapsed,
+    )
+    return key, df, probe
+
+
 def extract_all(
-    root: str, commodity: str, source_keys: set[str]
+    root: str,
+    commodity: str,
+    source_keys: set[str],
+    *,
+    plan: SourceLoadPlan | None = None,
 ) -> tuple[dict[str, pd.DataFrame], list[SourceProbe]]:
     """Extract every source the registry requires for *commodity*.
 
-    Returns ``(inputs, probes)`` — *inputs* holds only sources that exist;
+    Returns ``(inputs, probes)`` - *inputs* holds only sources that exist;
     *probes* records every attempt (incl. misses) for the run manifest.
     """
+    plan = plan or SourceLoadPlan()
+    keys = sorted(source_keys)
+    results: dict[str, tuple[pd.DataFrame | None, SourceProbe]] = {}
+    errors: dict[str, str] = {}
+
+    if plan.workers <= 1 or len(keys) <= 1:
+        for key in keys:
+            _, df, probe = _extract_one(root, commodity, key, plan)
+            results[key] = (df, probe)
+    else:
+        max_workers = min(plan.workers, len(keys))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_key = {
+                executor.submit(_extract_one, root, commodity, key, plan): key
+                for key in keys
+            }
+            for future in as_completed(future_to_key):
+                key = future_to_key[future]
+                try:
+                    _, df, probe = future.result()
+                    results[key] = (df, probe)
+                except Exception as exc:  # noqa: BLE001 - aggregate after all futures finish
+                    logger.exception("%s: extraction failed for commodity=%s", key, commodity)
+                    errors[key] = str(exc)
+        if errors:
+            raise ExtractionContractError(
+                f"{commodity}: {len(errors)} source extraction failures: {errors}"
+            )
+
     inputs: dict[str, pd.DataFrame] = {}
     probes: list[SourceProbe] = []
-
-    # Commodity-agnostic sources only need to be loaded once regardless of how
-    # many feature families reference them; de-duplicate via the inputs dict.
-    _agnostic_cache: dict[str, tuple[pd.DataFrame | None, SourceProbe]] = {}
-
-    for key in sorted(source_keys):
-        start = time.monotonic()
-        logger.info("%s: extracting source for commodity=%s", key, commodity)
-        if key.startswith("weather:"):
-            df, probe = extract_weather(root, commodity, key.split(":", 1)[1])
-        elif key == "production:faostat":
-            df, probe = extract_faostat(root, commodity)
-        elif key == "psd":
-            df, probe = extract_psd(root, commodity)
-        elif key == "oni":
-            if "oni" not in _agnostic_cache:
-                _agnostic_cache["oni"] = extract_oni(root)
-            df, probe = _agnostic_cache["oni"]
-        elif key == "iod":
-            if "iod" not in _agnostic_cache:
-                _agnostic_cache["iod"] = extract_iod(root)
-            df, probe = _agnostic_cache["iod"]
-        elif key == "cot":
-            if "cot" not in _agnostic_cache:
-                _agnostic_cache["cot"] = extract_cot(root)
-            df, probe = _agnostic_cache["cot"]
-        elif key == "pink_sheet":
-            if "pink_sheet" not in _agnostic_cache:
-                _agnostic_cache["pink_sheet"] = extract_pink_sheet(root)
-            df, probe = _agnostic_cache["pink_sheet"]
-        elif key == "nass_crop_progress":
-            df, probe = extract_nass_crop_progress(root, commodity)
-        elif key == "wap_revisions":
-            if "wap_revisions" not in _agnostic_cache:
-                _agnostic_cache["wap_revisions"] = extract_wap_revisions(root)
-            df, probe = _agnostic_cache["wap_revisions"]
-        elif key == "mpob":
-            if "mpob" not in _agnostic_cache:
-                _agnostic_cache["mpob"] = extract_mpob(root)
-            df, probe = _agnostic_cache["mpob"]
-        elif key == "fred_fx":
-            if "fred_fx" not in _agnostic_cache:
-                _agnostic_cache["fred_fx"] = extract_fred_fx(root)
-            df, probe = _agnostic_cache["fred_fx"]
-        elif key == "sagis_deliveries":
-            if "sagis_deliveries" not in _agnostic_cache:
-                _agnostic_cache["sagis_deliveries"] = extract_sagis_weekly(root)
-            df, probe = _agnostic_cache["sagis_deliveries"]
-        elif key == "sagis_cec":
-            if "sagis_cec" not in _agnostic_cache:
-                _agnostic_cache["sagis_cec"] = extract_sagis_cec(root)
-            df, probe = _agnostic_cache["sagis_cec"]
-        elif key == "futures_prices":
-            if "futures_prices" not in _agnostic_cache:
-                _agnostic_cache["futures_prices"] = extract_futures_prices(root)
-            df, probe = _agnostic_cache["futures_prices"]
-        elif key == "conab":
-            df, probe = extract_conab(root, commodity)
-        elif key == "fgis":
-            df, probe = extract_fgis(root, commodity)
-        elif key == "esr":
-            df, probe = extract_esr(root, commodity)
-        else:
-            raise ExtractionContractError(f"Unknown source key in registry: {key!r}")
-        elapsed = time.monotonic() - start
-        rows = 0 if df is None else len(df)
-        logger.info(
-            "%s: extracted rows=%d files=%d metadata_rows=%d elapsed=%.1fs",
-            key, rows, probe.num_files, probe.num_rows, elapsed,
-        )
+    for key in keys:
+        df, probe = results[key]
         probes.append(probe)
         if df is not None:
             inputs[key] = df

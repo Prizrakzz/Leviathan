@@ -38,6 +38,7 @@ import logging
 import subprocess
 import sys
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -47,7 +48,7 @@ import pandas as pd
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.features.calendar import load_crop_calendars
-from leviathan.features.extractors import SourceProbe, extract_all
+from leviathan.features.extractors import SourceLoadPlan, SourceProbe, extract_all
 from leviathan.features.pivot import build_feature_catalog, build_feature_matrix
 from leviathan.features.registry import load_registry
 from leviathan.features.spine import (
@@ -83,6 +84,13 @@ _CONFIG_FINGERPRINTS = (
 _PIT_BOUNDARY_GUARD_YEARS = 2
 
 
+def _source_year_bounds(crop_years: list[int], registry) -> tuple[int, int]:
+    """Broad enough for trailing-baseline weather features, bounded for smoke runs."""
+    baselines = registry.shared_params.get("baselines", {})
+    lookback = int(baselines.get("window_years", 30))
+    return min(crop_years) - lookback - 2, max(crop_years) + 2
+
+
 def _git_sha() -> str:
     try:
         return subprocess.check_output(
@@ -107,6 +115,15 @@ def _bool_arg(value: bool | str) -> bool:
     if normalized in {"0", "false", "f", "no", "n", "off"}:
         return False
     raise argparse.ArgumentTypeError(f"expected boolean value, got {value!r}")
+
+
+def _optional_int_arg(value: str | int | None) -> int | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return int(text)
 
 
 def _spine_key(commodity: str) -> str:
@@ -349,6 +366,7 @@ def _process_commodity(
     registry,
     calendars,
     git_sha: str,
+    source_workers: int = 1,
 ) -> dict:
     result_log: dict = {"commodity": commodity, "status": "unknown", "rows": 0}
 
@@ -359,7 +377,14 @@ def _process_commodity(
         return result_log
 
     root = args.local_root if args.local_root else f"s3://{args.bucket}"
-    inputs, probes = extract_all(root, commodity, registry.sources_for(commodity))
+    load_plan = SourceLoadPlan(
+        year_min=args.source_year_min,
+        year_max=args.source_year_max,
+        workers=max(1, int(source_workers)),
+    )
+    inputs, probes = extract_all(
+        root, commodity, registry.sources_for(commodity), plan=load_plan
+    )
     if not inputs:
         logger.warning("%s: no silver inputs found — skipping", commodity)
         result_log["status"] = "skipped_no_inputs"
@@ -473,6 +498,58 @@ def _process_commodity(
     return result_log
 
 
+def _process_commodities(
+    args: argparse.Namespace,
+    commodities: list[str],
+    crop_years: list[int],
+    registry,
+    calendars,
+    git_sha: str,
+) -> list[dict]:
+    workers = max(1, int(args.workers))
+    if len(commodities) <= 1 or workers <= 1:
+        return [
+            _process_commodity(
+                args, c, crop_years, registry, calendars, git_sha,
+                source_workers=workers,
+            )
+            for c in commodities
+        ]
+
+    results_by_commodity: dict[str, dict] = {}
+    logger.info(
+        "Processing %d commodities with %d worker threads",
+        len(commodities), min(workers, len(commodities)),
+    )
+    with ThreadPoolExecutor(max_workers=min(workers, len(commodities))) as executor:
+        future_to_commodity = {
+            executor.submit(
+                _process_commodity,
+                args,
+                commodity,
+                crop_years,
+                registry,
+                calendars,
+                git_sha,
+                1,
+            ): commodity
+            for commodity in commodities
+        }
+        for future in as_completed(future_to_commodity):
+            commodity = future_to_commodity[future]
+            try:
+                results_by_commodity[commodity] = future.result()
+            except Exception as exc:  # noqa: BLE001 - keep processing other commodities
+                logger.exception("%s: commodity build failed", commodity)
+                results_by_commodity[commodity] = {
+                    "commodity": commodity,
+                    "status": "error",
+                    "rows": 0,
+                    "error": str(exc),
+                }
+    return [results_by_commodity[c] for c in commodities]
+
+
 def _probe_dict(probe: SourceProbe) -> dict:
     return {
         "source": probe.source_key,
@@ -511,12 +588,14 @@ def _build_dataset_manifest(
             "latest_keys": result.get("latest_keys", {}),
             "versioned_keys": result.get("versioned_keys", {}),
             "report": result.get("report", {}),
+            "error": result.get("error"),
         }
         summaries.append(summary)
         for probe in result.get("inputs", []):
             source = str(probe.get("source", "unknown"))
+            row_count = int(probe.get("num_rows") or 0)
             source_summary[source]["num_files"] += int(probe.get("num_files") or 0)
-            source_summary[source]["num_rows"] += int(probe.get("num_rows") or 0)
+            source_summary[source]["num_rows"] += max(0, row_count)
             source_summary[source]["seen_in_commodities"] += 1
 
     written = [r for r in summaries if r["status"] == "written"]
@@ -524,7 +603,7 @@ def _build_dataset_manifest(
     skipped = [r for r in summaries if str(r["status"]).startswith("skipped")]
     failed = [
         r for r in summaries
-        if r["status"] in ("validation_failed", "pit_check_failed")
+        if r["status"] in ("validation_failed", "pit_check_failed", "error")
     ]
 
     return {
@@ -537,6 +616,11 @@ def _build_dataset_manifest(
         "config_fingerprints": _config_fingerprints(),
         "source_certification": source_certification,
         "crop_years": [min(crop_years), max(crop_years)],
+        "source_years": [
+            getattr(args, "source_year_min", None),
+            getattr(args, "source_year_max", None),
+        ],
+        "workers": int(getattr(args, "workers", 1)),
         "requested_commodities": commodities,
         "summary": {
             "requested_commodity_count": len(commodities),
@@ -581,6 +665,21 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--start-crop-year", type=int,
                         default=_DEFAULT_START_CROP_YEAR, dest="start_crop_year")
     parser.add_argument("--end-crop-year", type=int, default=None, dest="end_crop_year")
+    parser.add_argument(
+        "--workers", type=int, default=4,
+        help=(
+            "Internal worker threads. Single-commodity jobs parallelize source "
+            "extraction; multi-commodity jobs parallelize commodities."
+        ),
+    )
+    parser.add_argument(
+        "--source-year-min", type=_optional_int_arg, default=None, dest="source_year_min",
+        help="Optional lower bound for partitioned source reads; smoke/debug only.",
+    )
+    parser.add_argument(
+        "--source-year-max", type=_optional_int_arg, default=None, dest="source_year_max",
+        help="Optional upper bound for partitioned source reads; smoke/debug only.",
+    )
     parser.add_argument("--dry-run", action="store_true", default=False)
     parser.add_argument(
         "--verify-pit", action="store_true", default=False, dest="verify_pit",
@@ -637,6 +736,14 @@ def main() -> None:
     registry = load_registry()
     calendars = load_crop_calendars()
     git_sha = _git_sha()
+    args.workers = max(1, int(args.workers))
+    computed_source_year_min, computed_source_year_max = _source_year_bounds(
+        crop_years, registry
+    )
+    if args.source_year_min is None:
+        args.source_year_min = computed_source_year_min
+    if args.source_year_max is None:
+        args.source_year_max = computed_source_year_max
     if args.write_versioned and not args.dataset_version:
         args.dataset_version = _default_dataset_version(git_sha)
     source_certification = (
@@ -652,23 +759,23 @@ def main() -> None:
     logger.info(
         (
             "Feature spine task  commodities=%d  crop_years=%d-%d  dry_run=%s  "
-            "verify_pit=%s  write_versioned=%s  versioned_only=%s  dataset_version=%s"
+            "verify_pit=%s  write_versioned=%s  versioned_only=%s  "
+            "dataset_version=%s  workers=%d  source_years=%d-%d"
         ),
         len(commodities), crop_years[0], crop_years[-1], args.dry_run,
         args.verify_pit, args.write_versioned, args.versioned_only,
-        args.dataset_version,
+        args.dataset_version, args.workers, args.source_year_min, args.source_year_max,
     )
 
-    results = [
-        _process_commodity(args, c, crop_years, registry, calendars, git_sha)
-        for c in commodities
-    ]
+    results = _process_commodities(
+        args, commodities, crop_years, registry, calendars, git_sha
+    )
 
     written = sum(1 for r in results if r["status"] == "written")
     dry = sum(1 for r in results if r["status"] == "dry_run")
     skipped = sum(1 for r in results if r["status"].startswith("skipped"))
     failed = sum(1 for r in results
-                 if r["status"] in ("validation_failed", "pit_check_failed"))
+                 if r["status"] in ("validation_failed", "pit_check_failed", "error"))
 
     # Build and write the feature catalog from observed feature→commodity
     # membership across all successfully written commodities.

@@ -1887,6 +1887,9 @@ resource "aws_batch_job_definition" "feature_spine" {
     aws_region                  = var.aws_region
     start_crop_year             = "1981"
     end_crop_year               = "2026"
+    workers                     = "4"
+    source_year_min             = ""
+    source_year_max             = ""
     dataset_version             = ""
     write_versioned             = "false"
     versioned_only              = "false"
@@ -1904,6 +1907,9 @@ resource "aws_batch_job_definition" "feature_spine" {
       "--aws-region",      "Ref::aws_region",
       "--start-crop-year", "Ref::start_crop_year",
       "--end-crop-year",   "Ref::end_crop_year",
+      "--workers",         "Ref::workers",
+      "--source-year-min", "Ref::source_year_min",
+      "--source-year-max", "Ref::source_year_max",
       "--dataset-version", "Ref::dataset_version",
       "--write-versioned", "Ref::write_versioned",
       "--versioned-only",  "Ref::versioned_only",
