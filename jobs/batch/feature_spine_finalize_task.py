@@ -151,6 +151,20 @@ def _require_present(options: FinalizeOptions, key: str, label: str) -> None:
         raise FileNotFoundError(f"missing {label}: {key}")
 
 
+def _summarize_inputs(inputs: list[dict]) -> list[dict]:
+    """Keep source provenance compact enough for a dataset-level manifest."""
+    summarized = []
+    for probe in inputs:
+        summarized.append({
+            "source": probe.get("source"),
+            "location": probe.get("location"),
+            "exists": probe.get("exists"),
+            "num_files": int(probe.get("num_files") or 0),
+            "num_rows": int(probe.get("num_rows") or 0),
+        })
+    return summarized
+
+
 def _validate_commodity(options: FinalizeOptions, commodity: str) -> dict:
     spine_key = gold_feature_spine_version_key(options.dataset_version, commodity)
     matrix_key = gold_feature_matrix_version_key(options.dataset_version, commodity)
@@ -211,7 +225,7 @@ def _validate_commodity(options: FinalizeOptions, commodity: str) -> dict:
         "built_at": manifest.get("built_at"),
         "git_sha": manifest.get("git_sha"),
         "crop_years": manifest.get("crop_years"),
-        "inputs": manifest.get("inputs") or [],
+        "inputs": _summarize_inputs(manifest.get("inputs") or []),
         "spine_version_key": spine_key,
         "matrix_version_key": matrix_key,
         "manifest_key": manifest_key,
