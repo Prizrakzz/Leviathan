@@ -685,6 +685,39 @@ dataset_version, commodity, country, crop_year, feature
 - The mutable latest paths are still readable.
 - MLflow can be pointed at the immutable version.
 
+#### Implementation Status
+
+Phase 4 was completed on 2026-06-25.
+
+Published dataset version:
+
+```text
+20260625T105545Z_2bd0f32c
+```
+
+Live versioned outputs:
+
+- 31 `gold/feature_spine_versions` commodity partitions;
+- 31 `gold/feature_matrix_versions` commodity partitions;
+- 31 per-commodity manifests;
+- one dataset manifest;
+- one versioned feature catalog;
+- one versioned training-window parquet and markdown summary.
+
+Validation summary:
+
+- 144,346 feature-spine rows;
+- 4,370 feature-matrix rows;
+- 2,705 feature catalog rows;
+- 124 training-window rows;
+- 0 hard failures.
+
+Completion record:
+
+```text
+docs/ops/PHASE4_COMPLETION.md
+```
+
 ### Phase 5: Build a Real Feature Taxonomy and Catalog
 
 #### Purpose
