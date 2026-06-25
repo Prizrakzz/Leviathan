@@ -16,7 +16,8 @@ param(
     [string]$Tag       = "latest",
     [string]$Region    = "us-east-1",
     [string]$AccountId = "668891723125",
-    [string]$RepoName  = "leviathan-dev-leviathan-trainer"
+    [string]$RepoName  = "leviathan-dev-leviathan-trainer",
+    [switch]$ForceAmd64Platform
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,10 +38,19 @@ if ($loginExit -ne 0) { throw "ECR login failed (exit $loginExit)" }
 Write-Host "ECR login succeeded." -ForegroundColor Green
 
 Write-Host "==> Building image: $LatestImage" -ForegroundColor Cyan
+$DockerPlatform = docker version --format '{{.Server.Os}}/{{.Server.Arch}}'
+if ($LASTEXITCODE -ne 0) { throw "docker version failed (exit $LASTEXITCODE)" }
+$PlatformArgs = @()
+if ($ForceAmd64Platform -or $DockerPlatform.Trim() -ne "linux/amd64") {
+    $PlatformArgs = @("--platform", "linux/amd64")
+    Write-Host "    Using explicit platform linux/amd64 (Docker server: $DockerPlatform)" -ForegroundColor DarkGray
+} else {
+    Write-Host "    Docker server is already linux/amd64; omitting --platform." -ForegroundColor DarkGray
+}
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "SilentlyContinue"
 docker build `
-    --platform linux/amd64 `
+    @PlatformArgs `
     --tag $LatestImage `
     --file docker/leviathan_trainer/Dockerfile `
     . 2>&1
