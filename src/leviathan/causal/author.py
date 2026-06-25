@@ -50,6 +50,24 @@ def _complex_neighbours(node: str, h: dict) -> list[str]:
     return sorted(set(out))
 
 
+_POLICY_PATH = ex._CFG / "policy_levers.yaml"
+
+
+def _policy_levers(node: str) -> list[dict]:
+    """Per-country policy levers relevant to this contract, from policy_levers.yaml. A lever applies if 'all' is
+    listed, a commodity token == the node, or appears among the node's '_'-split tokens ('coffee' -> arabica_coffee)."""
+    if not _POLICY_PATH.exists():
+        return []
+    data = __import__("yaml").safe_load(_POLICY_PATH.read_text(encoding="utf-8")) or {}
+    toks = set(node.split("_"))
+    out = []
+    for lev in data.get("levers") or []:
+        coms = lev.get("commodities") or []
+        if "all" in coms or any(c == node or c in toks for c in coms):
+            out.append({k: lev.get(k) for k in ("name", "country", "type", "note")})
+    return out
+
+
 def seed(node: str) -> dict:
     """A draft skeleton (not yet a valid CausalContract — `draft` fills sign/mechanism)."""
     v = ex._vocab()
@@ -66,6 +84,7 @@ def seed(node: str) -> dict:
     inter = [{"driver_commodity": m, "suggested_relation": "substitutes_for"} for m in _complex_neighbours(node, h or {})]
     return {"contract": node, "aliases": aliases, "target_metrics": ["price"],
             "driver_candidates": candidates, "inter_commodity_candidates": inter,
+            "policy_candidates": _policy_levers(node),
             "available_silver": sorted(silver), "edge_types": list((v.get("edges") or {}).keys())}
 
 
@@ -184,6 +203,8 @@ def draft(client, node: str, seed_dict: dict, *, model: str = ex.MODEL,
                 f"EDGE TYPES allowed: {seed_dict['edge_types']}\n"
                 f"CANDIDATE drivers from our vocab (prune/extend): {json.dumps(seed_dict['driver_candidates'])}\n"
                 f"INTER-COMMODITY candidates: {json.dumps(seed_dict['inter_commodity_candidates'])}\n"
+                f"POLICY levers for this contract's countries (consider each; don't miss these): "
+                f"{json.dumps(seed_dict.get('policy_candidates') or [])}\n"
                 f"AVAILABLE silver feature names (wire silver_ref to these; else status='planned'): "
                 f"{seed_dict['available_silver']}")
         out, _usage = ex.call_opus(client, _draft_system(), user, model=model,

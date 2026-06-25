@@ -32,6 +32,25 @@ def test_causal_tool_shape():
     assert "sign" in props["drivers"]["items"]["properties"]
 
 
+def test_policy_levers_filters_by_commodity(tmp_path, monkeypatch):
+    p = tmp_path / "policy_levers.yaml"
+    p.write_text(
+        "levers:\n"
+        "- name: china_state_reserves\n  country: China\n  type: state_reserve\n"
+        "  commodities: [corn, soybeans]\n  note: auctions vs accumulation\n"
+        "- name: india_export_ban\n  country: India\n  type: export_restriction\n"
+        "  commodities: [sugar, wheat, rice]\n  note: ban\n"
+        "- name: eudr\n  country: EU\n  type: import_restriction\n"
+        "  commodities: [coffee, cocoa]\n  note: deforestation\n"
+        "- name: global_tariffs\n  country: US\n  type: import_tariff\n"
+        "  commodities: [all]\n  note: 301\n", encoding="utf-8")
+    monkeypatch.setattr(au, "_POLICY_PATH", p)
+    assert {l["name"] for l in au._policy_levers("corn")} == {"china_state_reserves", "global_tariffs"}
+    assert {l["name"] for l in au._policy_levers("arabica_coffee")} == {"eudr", "global_tariffs"}  # token 'coffee'
+    monkeypatch.setattr(au, "_POLICY_PATH", tmp_path / "missing.yaml")
+    assert au._policy_levers("corn") == []                                # graceful when file absent
+
+
 def test_seed_smoke(monkeypatch):
     monkeypatch.setattr(au.ex, "_vocab", lambda: {
         "nodes": {"hazard": ["brazil_frost", "coffee_rust"], "climate_driver": ["la_nina"]},
