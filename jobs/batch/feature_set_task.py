@@ -22,6 +22,7 @@ from leviathan.features.feature_sets import (
 from leviathan.storage.paths import (
     gold_feature_catalog_version_key,
     gold_feature_group_map_version_key,
+    gold_feature_set_summary_key,
     gold_feature_set_version_key,
     gold_feature_spine_manifest_key,
 )
@@ -148,9 +149,7 @@ def build_and_write(args: argparse.Namespace) -> dict:
 
     output_keys = {
         "feature_sets_key": gold_feature_set_version_key(args.dataset_version),
-        "feature_sets_json_key": gold_feature_set_version_key(
-            args.dataset_version, "feature_sets.json"
-        ),
+        "feature_sets_json_key": gold_feature_set_summary_key(args.dataset_version),
     }
 
     if args.dry_run:

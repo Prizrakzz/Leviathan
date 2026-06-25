@@ -16,6 +16,7 @@ from leviathan.features.feature_sets import (
 from leviathan.storage.paths import (
     gold_feature_catalog_version_key,
     gold_feature_group_map_version_key,
+    gold_feature_set_summary_key,
     gold_feature_set_version_key,
     gold_feature_spine_manifest_key,
 )
@@ -150,7 +151,8 @@ def test_feature_set_task_writes_outputs_and_patches_manifest(tmp_path: Path) ->
 
     assert summary["feature_set_count"] == 12
     assert (tmp_path / gold_feature_set_version_key(version)).exists()
-    assert (tmp_path / gold_feature_set_version_key(version, "feature_sets.json")).exists()
+    assert (tmp_path / gold_feature_set_summary_key(version)).exists()
     manifest = json.loads(manifest_path.read_text())
     assert manifest["feature_sets"]["summary"]["feature_set_count"] == 12
     assert manifest["outputs"]["feature_sets_key"] == gold_feature_set_version_key(version)
+    assert manifest["outputs"]["feature_sets_json_key"] == gold_feature_set_summary_key(version)

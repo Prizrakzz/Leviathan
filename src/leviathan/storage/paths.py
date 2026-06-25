@@ -1936,6 +1936,18 @@ def gold_feature_set_version_key(
     )
 
 
+def gold_feature_set_summary_key(
+    dataset_version: str,
+    filename: str = "feature_sets.json",
+) -> str:
+    """S3 key for the JSON summary of model-purpose feature-set membership."""
+    return (
+        f"gold/feature_set_manifests/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
 def gold_feature_spine_manifest_key(
     dataset_version: str,
     filename: str = "manifest.json",
