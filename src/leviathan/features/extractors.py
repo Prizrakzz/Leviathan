@@ -12,6 +12,7 @@ All readers accept a *root* that is either a local directory (tests) or an
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 import pandas as pd
@@ -507,6 +508,8 @@ def extract_all(
     _agnostic_cache: dict[str, tuple[pd.DataFrame | None, SourceProbe]] = {}
 
     for key in sorted(source_keys):
+        start = time.monotonic()
+        logger.info("%s: extracting source for commodity=%s", key, commodity)
         if key.startswith("weather:"):
             df, probe = extract_weather(root, commodity, key.split(":", 1)[1])
         elif key == "production:faostat":
@@ -563,6 +566,12 @@ def extract_all(
             df, probe = extract_esr(root, commodity)
         else:
             raise ExtractionContractError(f"Unknown source key in registry: {key!r}")
+        elapsed = time.monotonic() - start
+        rows = 0 if df is None else len(df)
+        logger.info(
+            "%s: extracted rows=%d files=%d metadata_rows=%d elapsed=%.1fs",
+            key, rows, probe.num_files, probe.num_rows, elapsed,
+        )
         probes.append(probe)
         if df is not None:
             inputs[key] = df
