@@ -48,6 +48,7 @@ logger = logging.getLogger("train_commodity")
 
 _REPO = Path(__file__).resolve().parents[2]
 _MATRIX_PREFIX = "gold/feature_matrix/"
+_MATRIX_VERSION_PREFIX = "gold/feature_matrix_versions/"
 _PRED_PREFIX = "silver/model_predictions/"
 _TIERS_PATH = _REPO / "configs" / "features" / "feature_tiers.yaml"
 _CONFIG_DIR = _REPO / "configs" / "features"
@@ -111,9 +112,22 @@ def _detrend_target(matrix: pd.DataFrame, target_col: str, min_years: int = 5) -
     return df
 
 
-def _read_matrix(s3, bucket: str, commodity: str) -> pd.DataFrame | None:
+def _read_matrix(
+    s3,
+    bucket: str,
+    commodity: str,
+    dataset_version: str | None = None,
+) -> pd.DataFrame | None:
+    if dataset_version:
+        prefix = (
+            f"{_MATRIX_VERSION_PREFIX}"
+            f"dataset_version={dataset_version}/"
+            f"commodity={commodity}/"
+        )
+    else:
+        prefix = f"{_MATRIX_PREFIX}commodity={commodity}/"
     paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=bucket, Prefix=f"{_MATRIX_PREFIX}commodity={commodity}/"):
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             if obj["Key"].endswith(".parquet"):
                 body = s3.get_object(Bucket=bucket, Key=obj["Key"])["Body"].read()
@@ -191,7 +205,7 @@ def _optuna_search(matrix, target_col, feature_cols, args, mlflow) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train one commodity model → MLflow.")
+    parser = argparse.ArgumentParser(description="Train one commodity model to MLflow.")
     parser.add_argument("--commodity", required=True)
     parser.add_argument("--tier", default="climate",
                         help="named feature set: fundamentals|climate|trade_condition|full")
@@ -208,6 +222,13 @@ def main() -> None:
     parser.add_argument("--experiment", default="leviathan-tier1-production")
     parser.add_argument("--tracking-uri", default=os.environ.get("MLFLOW_TRACKING_URI"),
                         dest="tracking_uri")
+    parser.add_argument(
+        "--dataset-version", default=None, dest="dataset_version",
+        help=(
+            "Read immutable gold/feature_matrix_versions/dataset_version=... "
+            "instead of mutable gold/feature_matrix."
+        ),
+    )
     parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
     parser.add_argument("--no-snapshot", action="store_true")
     # manual hyperparameters (ignored under --optuna)
@@ -229,9 +250,10 @@ def main() -> None:
     mlflow.set_experiment(args.experiment)
 
     s3 = boto3.client("s3", region_name=args.aws_region)
-    matrix = _read_matrix(s3, args.bucket, args.commodity)
+    matrix = _read_matrix(s3, args.bucket, args.commodity, args.dataset_version)
     if matrix is None or matrix.empty:
-        raise SystemExit(f"no feature_matrix for {args.commodity}")
+        suffix = f" dataset_version={args.dataset_version}" if args.dataset_version else ""
+        raise SystemExit(f"no feature_matrix for {args.commodity}{suffix}")
 
     target_col = f"label_{args.target}"
     if target_col not in matrix.columns or matrix[target_col].notna().sum() == 0:
@@ -281,6 +303,15 @@ def main() -> None:
         mlflow.set_tag("model", args.model)
         mlflow.set_tag("target", args.target)
         mlflow.set_tag("detrend", str(args.detrend))
+        if args.dataset_version:
+            mlflow.set_tag("dataset_version", args.dataset_version)
+            mlflow.set_tag(
+                "feature_matrix_uri",
+                (
+                    f"s3://{args.bucket}/{_MATRIX_VERSION_PREFIX}"
+                    f"dataset_version={args.dataset_version}/commodity={args.commodity}/"
+                ),
+            )
         q_dir = quintile_directional_accuracy(result.predictions)
         if not np.isnan(q_dir):
             mlflow.log_metric("quintile_directional_accuracy", q_dir)

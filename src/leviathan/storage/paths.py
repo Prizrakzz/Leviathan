@@ -1851,6 +1851,81 @@ def silver_futures_prices_key() -> str:
     return "silver/futures_prices/part-000.parquet"
 
 
+# ---------------------------------------------------------------------------
+# Gold feature-spine versioning
+# ---------------------------------------------------------------------------
+
+def gold_feature_spine_version_key(
+    dataset_version: str,
+    commodity: str,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for an immutable long-format feature spine partition.
+
+    The mutable training surface remains ``gold/feature_spine``.  Versioned
+    partitions live under a dataset_version prefix so MLflow experiments can
+    pin the exact dataset they trained on.
+    """
+    return (
+        f"gold/feature_spine_versions/"
+        f"dataset_version={dataset_version}/"
+        f"commodity={commodity}/"
+        f"{filename}"
+    )
+
+
+def gold_feature_matrix_version_key(
+    dataset_version: str,
+    commodity: str,
+    filename: str = "part-0.parquet",
+) -> str:
+    """S3 key for an immutable wide feature matrix partition."""
+    return (
+        f"gold/feature_matrix_versions/"
+        f"dataset_version={dataset_version}/"
+        f"commodity={commodity}/"
+        f"{filename}"
+    )
+
+
+def gold_feature_catalog_version_key(
+    dataset_version: str,
+    filename: str = "feature_catalog.parquet",
+) -> str:
+    """S3 key for the feature catalog observed in a dataset version."""
+    return (
+        f"gold/feature_catalog_versions/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
+def gold_feature_spine_manifest_key(
+    dataset_version: str,
+    filename: str = "manifest.json",
+) -> str:
+    """S3 key for a dataset-level feature spine manifest."""
+    return (
+        f"gold/feature_spine_manifests/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
+def gold_feature_spine_commodity_manifest_key(
+    dataset_version: str,
+    commodity: str,
+    filename: str = "run.json",
+) -> str:
+    """S3 key for a per-commodity manifest inside a dataset version."""
+    return (
+        f"gold/feature_spine_commodity_manifests/"
+        f"dataset_version={dataset_version}/"
+        f"commodity={commodity}/"
+        f"{filename}"
+    )
+
+
 def raw_chris_key(slug: str, tenor: int) -> str:
     """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
 

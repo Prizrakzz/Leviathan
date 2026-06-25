@@ -1882,11 +1882,16 @@ resource "aws_batch_job_definition" "feature_spine" {
   platform_capabilities = ["FARGATE"]
 
   parameters = {
-    commodity       = "corn_cbot"
-    bucket          = var.leviathan_bucket
-    aws_region      = var.aws_region
-    start_crop_year = "1981"
-    end_crop_year   = "2026"
+    commodity                   = "corn_cbot"
+    bucket                      = var.leviathan_bucket
+    aws_region                  = var.aws_region
+    start_crop_year             = "1981"
+    end_crop_year               = "2026"
+    dataset_version             = ""
+    write_versioned             = "false"
+    versioned_only              = "false"
+    fail_if_version_exists      = "true"
+    source_certification_report = ""
   }
 
   container_properties = jsonencode({
@@ -1899,6 +1904,11 @@ resource "aws_batch_job_definition" "feature_spine" {
       "--aws-region",      "Ref::aws_region",
       "--start-crop-year", "Ref::start_crop_year",
       "--end-crop-year",   "Ref::end_crop_year",
+      "--dataset-version", "Ref::dataset_version",
+      "--write-versioned", "Ref::write_versioned",
+      "--versioned-only",  "Ref::versioned_only",
+      "--fail-if-version-exists", "Ref::fail_if_version_exists",
+      "--source-certification-report", "Ref::source_certification_report",
     ]
 
     environment = [

@@ -1,0 +1,33 @@
+# Keep Docker build contexts small and deterministic.
+.git
+.gitignore
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local environments and editor state
+.venv/
+venv/
+.env
+.env.*
+.vscode/
+.idea/
+
+# Local/runtime artifacts
+data/
+scratch/
+logs/
+tmp/
+*.log
+*.tmp
+
+# Test and analysis-only files are not copied by the Dockerfiles.
+tests/
+notebooks/
+
+# OS noise
+.DS_Store
+Thumbs.db

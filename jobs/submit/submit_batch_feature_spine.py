@@ -14,10 +14,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import datetime
 import logging
 import os
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from leviathan.common.batch_submit import submit_batch_jobs, write_run_record
 from leviathan.common.config import get_required_env, load_env
@@ -35,6 +40,12 @@ def build_tasks(
     aws_region: str,
     start_crop_year: int,
     end_crop_year: int,
+    *,
+    dataset_version: str,
+    write_versioned: bool,
+    versioned_only: bool,
+    fail_if_version_exists: bool,
+    source_certification_report: str,
 ) -> list[dict[str, str]]:
     """One task dict per commodity — all string values for Batch parameters."""
     return [
@@ -44,9 +55,30 @@ def build_tasks(
             "aws_region": aws_region,
             "start_crop_year": str(start_crop_year),
             "end_crop_year": str(end_crop_year),
+            "dataset_version": dataset_version,
+            "write_versioned": str(write_versioned).lower(),
+            "versioned_only": str(versioned_only).lower(),
+            "fail_if_version_exists": str(fail_if_version_exists).lower(),
+            "source_certification_report": source_certification_report,
         }
         for c in commodities
     ]
+
+
+def _git_sha() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, text=True
+        ).strip()
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def _default_dataset_version() -> str:
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    git_sha = _git_sha()
+    suffix = git_sha[:12] if git_sha and git_sha != "unknown" else "unknown"
+    return f"{stamp}_{suffix}"
 
 
 def main() -> None:
@@ -62,7 +94,7 @@ def main() -> None:
     job_def = f"{project}-{env}-feature-spine"
 
     parser = argparse.ArgumentParser(
-        description="Submit silver/* → gold/feature_spine Batch tasks (one per commodity).",
+        description="Submit silver/* to gold/feature_spine Batch tasks (one per commodity).",
     )
     parser.add_argument(
         "--commodities",
@@ -79,6 +111,24 @@ def main() -> None:
         "--end-crop-year", type=int, default=None, dest="end_crop_year",
         help="Last crop year (inclusive). Defaults to the current calendar year.",
     )
+    parser.add_argument(
+        "--single-job", action="store_true", default=False,
+        help=(
+            "Submit one Batch job with --commodity all. Required for broad "
+            "versioned dataset builds so one manifest is written."
+        ),
+    )
+    parser.add_argument("--dataset-version", default="", dest="dataset_version")
+    parser.add_argument("--write-versioned", action="store_true", default=False)
+    parser.add_argument("--versioned-only", action="store_true", default=False)
+    parser.add_argument(
+        "--allow-existing-version", action="store_true", default=False,
+        help="Allow versioned outputs to overwrite. Avoid outside local debugging.",
+    )
+    parser.add_argument(
+        "--source-certification-report", default="", dest="source_certification_report",
+        help="S3 URI or bucket key for the Phase 2 source certification report.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -93,12 +143,38 @@ def main() -> None:
         if unknown:
             raise SystemExit(f"ERROR: Unknown commodities: {unknown}")
 
+    if args.versioned_only:
+        args.write_versioned = True
+    if args.write_versioned and not args.dataset_version:
+        args.dataset_version = _default_dataset_version()
+    if args.write_versioned and len(commodities) > 1 and not args.single_job:
+        raise SystemExit(
+            "ERROR: versioned broad builds must use --single-job so one full "
+            "dataset manifest is written. Use one commodity only for a narrow smoke."
+        )
+    task_commodities = ["all"] if args.single_job else commodities
+
     end_crop_year = args.end_crop_year or date.today().year
-    tasks = build_tasks(commodities, bucket, aws_region, args.start_crop_year, end_crop_year)
+    tasks = build_tasks(
+        task_commodities,
+        bucket,
+        aws_region,
+        args.start_crop_year,
+        end_crop_year,
+        dataset_version=args.dataset_version,
+        write_versioned=args.write_versioned,
+        versioned_only=args.versioned_only,
+        fail_if_version_exists=not args.allow_existing_version,
+        source_certification_report=args.source_certification_report,
+    )
 
     logger.info(
-        "Submitting %d tasks  queue=%s  definition=%s  crop_years=%d-%d  dry_run=%s",
-        len(tasks), batch_queue, job_def, args.start_crop_year, end_crop_year, args.dry_run,
+        (
+            "Submitting %d tasks  queue=%s  definition=%s  crop_years=%d-%d  "
+            "dry_run=%s  write_versioned=%s  versioned_only=%s  dataset_version=%s"
+        ),
+        len(tasks), batch_queue, job_def, args.start_crop_year, end_crop_year,
+        args.dry_run, args.write_versioned, args.versioned_only, args.dataset_version,
     )
 
     submitted = submit_batch_jobs(
@@ -118,6 +194,10 @@ def main() -> None:
                 "run_id": run_id,
                 "job": "feature_spine",
                 "commodities": commodities,
+                "task_commodities": task_commodities,
+                "dataset_version": args.dataset_version,
+                "write_versioned": args.write_versioned,
+                "versioned_only": args.versioned_only,
                 "start_crop_year": args.start_crop_year,
                 "end_crop_year": end_crop_year,
                 "task_count": len(submitted),

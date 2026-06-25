@@ -4,6 +4,11 @@ from __future__ import annotations
 from leviathan.storage.paths import (
     bronze_production_key,
     bronze_weather_key,
+    gold_feature_catalog_version_key,
+    gold_feature_matrix_version_key,
+    gold_feature_spine_commodity_manifest_key,
+    gold_feature_spine_manifest_key,
+    gold_feature_spine_version_key,
     parse_hive_key,
     raw_cpc_tif_key,
     raw_production_key,
@@ -154,3 +159,41 @@ class TestBronzeProductionKey:
         assert "dataset=QCL" in key
         assert "commodity=cocoa" in key
         assert "year=2020" in key
+
+
+class TestGoldVersionedPaths:
+    def test_spine_version_key(self):
+        key = gold_feature_spine_version_key("20260625T120000Z_abc123", "corn_cbot")
+        assert key == (
+            "gold/feature_spine_versions/"
+            "dataset_version=20260625T120000Z_abc123/"
+            "commodity=corn_cbot/"
+            "part-000.parquet"
+        )
+
+    def test_matrix_version_key(self):
+        key = gold_feature_matrix_version_key("v1", "soybeans_cbot")
+        assert key == (
+            "gold/feature_matrix_versions/"
+            "dataset_version=v1/"
+            "commodity=soybeans_cbot/"
+            "part-0.parquet"
+        )
+
+    def test_catalog_version_key(self):
+        assert gold_feature_catalog_version_key("v1") == (
+            "gold/feature_catalog_versions/dataset_version=v1/feature_catalog.parquet"
+        )
+
+    def test_dataset_manifest_key(self):
+        assert gold_feature_spine_manifest_key("v1") == (
+            "gold/feature_spine_manifests/dataset_version=v1/manifest.json"
+        )
+
+    def test_commodity_manifest_key(self):
+        assert gold_feature_spine_commodity_manifest_key("v1", "corn_cbot") == (
+            "gold/feature_spine_commodity_manifests/"
+            "dataset_version=v1/"
+            "commodity=corn_cbot/"
+            "run.json"
+        )

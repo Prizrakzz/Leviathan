@@ -36,6 +36,7 @@ _COMMAND = [
     "--detrend", "Ref::detrend",     # "true"/"false"
     "--optuna", "Ref::optuna",       # "true"/"false"
     "--n-trials", "Ref::n_trials",
+    "--dataset-version", "Ref::dataset_version",
 ]
 
 # Defaults for every Ref:: token — a submission may override any of these.
@@ -49,6 +50,7 @@ _PARAMETERS = {
     "detrend": "false",
     "optuna": "false",
     "n_trials": "30",
+    "dataset_version": "",
 }
 
 _CONTAINER = {

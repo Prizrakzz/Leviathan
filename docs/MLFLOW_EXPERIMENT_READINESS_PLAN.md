@@ -647,8 +647,9 @@ Make the existing broad gold layer reproducible and selectable by MLflow.
   - `gold/feature_spine_versions/...`;
   - `gold/feature_matrix_versions/...`;
   - `gold/feature_spine_manifests/...`;
-  - versioned catalog/entity/group map outputs.
-- Add dataset registry entries and Athena DDLs for versioned legacy gold.
+  - `gold/feature_catalog_versions/...`;
+  - `gold/training_windows_versions/...`.
+- Add Athena DDLs for stable-schema versioned legacy gold tables.
 - Extend or wrap `feature_spine_task.py` so it can:
   - build current mutable latest outputs;
   - write immutable versioned copies;
@@ -667,8 +668,12 @@ dataset_version, commodity, country, crop_year, feature
 #### Deliverables
 
 - `gold_feature_spine_versions` DDL.
-- `gold_feature_matrix_versions` DDL.
+- Versioned wide matrices under `gold/feature_matrix_versions/...`.
+  - These are MLflow/training artifacts, not one stable Athena table, because
+    wide feature columns can change by dataset version.
 - `gold_feature_spine_manifests` DDL or JSON registry entry.
+- `gold_feature_catalog_versions` DDL.
+- `gold_training_windows_versions` DDL.
 - Versioned S3 outputs for all 31 commodities.
 - Manifest for the dataset version.
 

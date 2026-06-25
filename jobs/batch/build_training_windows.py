@@ -30,14 +30,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from leviathan.features.windows import compute_training_windows  # noqa: E402
 
 _MATRIX_PREFIX = "gold/feature_matrix/"
+_MATRIX_VERSION_PREFIX = "gold/feature_matrix_versions/"
 _OUT_PREFIX = "gold/training_windows/"
+_OUT_VERSION_PREFIX = "gold/training_windows_versions/"
 _TIERS = Path(__file__).resolve().parents[2] / "configs" / "features" / "feature_tiers.yaml"
 
 
-def _list_commodities(s3, bucket: str) -> list[str]:
+def _matrix_prefix(dataset_version: str | None = None) -> str:
+    if dataset_version:
+        return f"{_MATRIX_VERSION_PREFIX}dataset_version={dataset_version}/"
+    return _MATRIX_PREFIX
+
+
+def _out_prefix(dataset_version: str | None = None) -> str:
+    if dataset_version:
+        return f"{_OUT_VERSION_PREFIX}dataset_version={dataset_version}/"
+    return _OUT_PREFIX
+
+
+def _list_commodities(s3, bucket: str, dataset_version: str | None = None) -> list[str]:
     out: list[str] = []
     paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=bucket, Prefix=_MATRIX_PREFIX, Delimiter="/"):
+    for page in paginator.paginate(Bucket=bucket, Prefix=_matrix_prefix(dataset_version), Delimiter="/"):
         for pre in page.get("CommonPrefixes", []):
             slug = pre["Prefix"].split("commodity=")[-1].rstrip("/")
             if slug:
@@ -45,9 +59,15 @@ def _list_commodities(s3, bucket: str) -> list[str]:
     return sorted(out)
 
 
-def _read_matrix(s3, bucket: str, commodity: str) -> pd.DataFrame | None:
+def _read_matrix(
+    s3,
+    bucket: str,
+    commodity: str,
+    dataset_version: str | None = None,
+) -> pd.DataFrame | None:
     paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=bucket, Prefix=f"{_MATRIX_PREFIX}commodity={commodity}/"):
+    prefix = f"{_matrix_prefix(dataset_version)}commodity={commodity}/"
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             if obj["Key"].endswith(".parquet"):
                 body = s3.get_object(Bucket=bucket, Key=obj["Key"])["Body"].read()
@@ -76,16 +96,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build the training-window manifest.")
     parser.add_argument("--bucket", required=True)
     parser.add_argument("--aws-region", default="us-east-1", dest="aws_region")
+    parser.add_argument(
+        "--dataset-version", default=None, dest="dataset_version",
+        help="Read gold/feature_matrix_versions/dataset_version=... instead of mutable latest.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     s3 = boto3.client("s3", region_name=args.aws_region)
     tiers_config = yaml.safe_load(_TIERS.read_text(encoding="utf-8"))
 
-    commodities = _list_commodities(s3, args.bucket)
+    commodities = _list_commodities(s3, args.bucket, args.dataset_version)
     frames = []
     for c in commodities:
-        m = _read_matrix(s3, args.bucket, c)
+        m = _read_matrix(s3, args.bucket, c, args.dataset_version)
         if m is None or m.empty:
             print(f"  {c}: no matrix, skipped")
             continue
@@ -105,10 +129,11 @@ def main() -> None:
 
     buf = io.BytesIO()
     manifest.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3.put_object(Bucket=args.bucket, Key=f"{_OUT_PREFIX}training_windows.parquet", Body=buf.getvalue())
-    s3.put_object(Bucket=args.bucket, Key=f"{_OUT_PREFIX}training_windows.md",
+    out_prefix = _out_prefix(args.dataset_version)
+    s3.put_object(Bucket=args.bucket, Key=f"{out_prefix}training_windows.parquet", Body=buf.getvalue())
+    s3.put_object(Bucket=args.bucket, Key=f"{out_prefix}training_windows.md",
                   Body=_to_markdown(manifest).encode("utf-8"))
-    print(f"Wrote s3://{args.bucket}/{_OUT_PREFIX}training_windows.parquet (+ .md)")
+    print(f"Wrote s3://{args.bucket}/{out_prefix}training_windows.parquet (+ .md)")
 
 
 if __name__ == "__main__":
