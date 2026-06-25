@@ -40,6 +40,23 @@ def test_futures_prices_available_next_day() -> None:
     assert out["feature_available_at"].iloc[0] == pd.Timestamp("2024-01-11")
 
 
+def test_oni_monthly_available_month_end_plus_fifteen_days() -> None:
+    out = normalize_availability(
+        "oni",
+        pd.DataFrame({"year": [2024], "month": [6], "oni_anom": [0.8]}),
+    )
+    assert out["observation_date"].iloc[0] == pd.Timestamp("2024-06-30")
+    assert out["feature_available_at"].iloc[0] == pd.Timestamp("2024-07-15")
+
+
+def test_fred_fx_available_next_day() -> None:
+    out = normalize_availability(
+        "fred_fx",
+        pd.DataFrame({"date": ["2024-07-19"], "brl_usd_pct_change_90d": [0.03]}),
+    )
+    assert out["feature_available_at"].iloc[0] == pd.Timestamp("2024-07-20")
+
+
 def test_unknown_source_rejected() -> None:
     with pytest.raises(AvailabilityError, match="unsupported"):
         normalize_availability("mystery_source", pd.DataFrame({"date": ["2024-01-01"]}))

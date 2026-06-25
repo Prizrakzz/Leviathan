@@ -45,6 +45,24 @@ policies:
     eligible_targets: [production_quantity]
     reason: Board crush profitability changes physical soybean crush and product output incentives.
 
+  - pattern: veg_oil_soy_palm_premium_z
+    policy: certified_economic_driver
+    mechanism: vegetable_oil_substitution
+    eligible_targets: [production_quantity]
+    reason: Soy-palm relative value affects vegetable-oil demand switching and stock pressure.
+
+  - pattern: veg_oil_soy_palm_ratio_z
+    policy: certified_economic_driver
+    mechanism: vegetable_oil_substitution
+    eligible_targets: [production_quantity]
+    reason: Scale-normalized soy-palm relative value affects substitution and biodiesel feedstock allocation.
+
+  - pattern: veg_oil_rape_palm_premium_z
+    policy: certified_economic_driver
+    mechanism: vegetable_oil_substitution
+    eligible_targets: [production_quantity]
+    reason: Rapeseed-palm relative value affects vegetable-oil trade switching and substitution pressure.
+
   - pattern: cot_
     policy: diagnostic_only
     mechanism: market_positioning

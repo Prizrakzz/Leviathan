@@ -1,0 +1,116 @@
+schema_version: 1
+
+feature_sets:
+  - feature_set_id: preseason_physical
+    version: 1
+    description: Stable preseason physical drivers and certified economic transmission variables.
+    allowed_semantic_scopes: [global, group, physical_commodity, origin]
+    allowed_policies: [fundamental_physical, certified_economic_driver]
+    allowed_mechanisms:
+      - climate_regime
+      - fertilizer_input_cost
+      - energy_freight_processing_cost
+      - producer_selling_and_input_affordability
+      - importer_purchasing_power
+      - official_revision
+      - palm_balance_sheet
+    excluded_policies: [diagnostic_only, excluded_market_signal]
+    excluded_mechanisms: [market_positioning, market_volatility_regime, market_term_structure, raw_contract_price]
+    required_as_of_policy: point_in_time
+    decision_lag_days: 1
+    minimum_non_null_rate: 0.25
+    maximum_missing_rate: 0.75
+    target_compatibility: [production_quantity, area_harvested, yield, stock_to_use]
+
+  - feature_set_id: crop_condition
+    version: 1
+    description: In-season condition and progress observations.
+    allowed_semantic_scopes: [origin]
+    allowed_policies: [fundamental_physical]
+    allowed_mechanisms: [crop_condition_progress]
+    excluded_policies: [diagnostic_only, excluded_market_signal]
+    excluded_mechanisms: []
+    required_as_of_policy: point_in_time
+    decision_lag_days: 0
+    minimum_non_null_rate: 0.25
+    maximum_missing_rate: 0.75
+    target_compatibility: [yield, production_quantity, harvest_progress]
+
+  - feature_set_id: official_revision
+    version: 1
+    description: Official USDA/WASDE/WAP revision state.
+    allowed_semantic_scopes: [physical_commodity, origin]
+    allowed_policies: [fundamental_physical]
+    allowed_mechanisms: [official_revision]
+    excluded_policies: [diagnostic_only, excluded_market_signal]
+    excluded_mechanisms: []
+    required_as_of_policy: point_in_time
+    decision_lag_days: 0
+    minimum_non_null_rate: 0.20
+    maximum_missing_rate: 0.80
+    target_compatibility: [next_release_revision, finalization_gap, stock_to_use]
+
+  - feature_set_id: physical_flow
+    version: 1
+    description: Observed shipment, export, and delivery pace features.
+    allowed_semantic_scopes: [origin]
+    allowed_policies: [fundamental_physical]
+    allowed_mechanisms: [physical_export_commitment, physical_export_flow]
+    excluded_policies: [diagnostic_only, excluded_market_signal]
+    excluded_mechanisms: []
+    required_as_of_policy: point_in_time
+    decision_lag_days: 0
+    minimum_non_null_rate: 0.20
+    maximum_missing_rate: 0.80
+    target_compatibility: [end_season_flow_total, balance_sheet_revision]
+
+  - feature_set_id: processing_economics
+    version: 1
+    description: Certified processing and substitution economics, never raw price shortcuts.
+    allowed_semantic_scopes: [global, group]
+    allowed_policies: [certified_economic_driver]
+    allowed_mechanisms:
+      - soybean_processing_profitability
+      - vegetable_oil_substitution
+      - energy_freight_processing_cost
+    excluded_policies: [diagnostic_only, excluded_market_signal]
+    excluded_mechanisms: [market_positioning, market_term_structure, raw_contract_price]
+    required_as_of_policy: point_in_time
+    decision_lag_days: 1
+    minimum_non_null_rate: 0.25
+    maximum_missing_rate: 0.75
+    target_compatibility: [production_quantity, crush, stock_to_use]
+
+  - feature_set_id: balance_sheet
+    version: 1
+    description: Official and source-specific balance-sheet pressure.
+    allowed_semantic_scopes: [global, group, physical_commodity, origin]
+    allowed_policies: [fundamental_physical, certified_economic_driver]
+    allowed_mechanisms:
+      - official_revision
+      - physical_export_commitment
+      - physical_export_flow
+      - palm_balance_sheet
+      - energy_freight_processing_cost
+      - vegetable_oil_substitution
+    excluded_policies: [diagnostic_only, excluded_market_signal]
+    excluded_mechanisms: [market_positioning, market_volatility_regime, market_term_structure, raw_contract_price]
+    required_as_of_policy: point_in_time
+    decision_lag_days: 1
+    minimum_non_null_rate: 0.20
+    maximum_missing_rate: 0.80
+    target_compatibility: [stock_to_use, balance_sheet_revision, finalization_gap]
+
+  - feature_set_id: data_quality
+    version: 1
+    description: Diagnostics and availability features for auditing, not core fitting.
+    allowed_semantic_scopes: [global, group, physical_commodity, origin, contract]
+    allowed_policies: [fundamental_physical, certified_economic_driver, diagnostic_only]
+    allowed_mechanisms: []
+    excluded_policies: [excluded_market_signal]
+    excluded_mechanisms: [market_term_structure, raw_contract_price]
+    required_as_of_policy: point_in_time
+    decision_lag_days: 0
+    minimum_non_null_rate: 0.0
+    maximum_missing_rate: 1.0
+    target_compatibility: [diagnostic]

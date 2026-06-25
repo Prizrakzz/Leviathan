@@ -2043,3 +2043,30 @@ def gold_v2_preflight_report_key(dataset_version: str) -> str:
         f"dataset_version={dataset_version}/"
         f"phase4_preflight_report.json"
     )
+
+
+def gold_v2_feature_catalog_key(dataset_version: str) -> str:
+    """Immutable gold_v2 feature catalog key for one dataset version."""
+    return (
+        f"gold_v2/feature_catalog/"
+        f"dataset_version={dataset_version}/"
+        f"part-000.parquet"
+    )
+
+
+def gold_v2_feature_entity_map_key(dataset_version: str) -> str:
+    """Immutable gold_v2 feature-to-entity coverage map key."""
+    return (
+        f"gold_v2/feature_entity_map/"
+        f"dataset_version={dataset_version}/"
+        f"part-000.parquet"
+    )
+
+
+def gold_v2_feature_group_map_key(dataset_version: str) -> str:
+    """Immutable gold_v2 feature-to-commodity-group coverage map key."""
+    return (
+        f"gold_v2/feature_group_map/"
+        f"dataset_version={dataset_version}/"
+        f"part-000.parquet"
+    )

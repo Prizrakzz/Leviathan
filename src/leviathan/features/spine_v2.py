@@ -10,13 +10,19 @@ import datetime as dt
 import math
 import subprocess
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Iterable
 
 import numpy as np
 import pandas as pd
 
+from leviathan.features.calendar import load_crop_calendars
 from leviathan.features.availability import normalize_availability
+from leviathan.features.computations import COMPUTATIONS, FeatureContext
 from leviathan.features.computations.base import trailing_baseline_z
+from leviathan.features.extractors import SourceExtractionPlan
+from leviathan.features.registry import FeatureRegistry, load_registry
+from leviathan.features.spine import default_calendar, load_countries
 
 SPINE_V2_COLUMNS = [
     "entity_type",
@@ -58,24 +64,39 @@ V2_SOURCE_KEYS_BY_COMMODITY = {
         "fgis",
         "wap_revisions",
         "pink_sheet",
+        "oni",
+        "iod",
+        "fred_fx",
     },
     "soybean_oil_cbot": {
         "esr",
         "futures_prices",
         "pink_sheet",
+        "oni",
+        "fred_fx",
     },
     "malaysian_crude_palm_oil_cme": {
         "mpob",
         "futures_prices",
         "pink_sheet",
+        "oni",
+        "iod",
+        "fred_fx",
     },
     "raw_sugar": {
         "pink_sheet",
+        "fred_fx",
         "unica",
     },
 }
 
 SOURCE_DATASET_IDS = {
+    "weather:chirps": "silver_chirps",
+    "weather:nasa_power": "silver_nasa_power",
+    "weather:modis_ndvi": "silver_modis_ndvi",
+    "weather:cpc_soil": "silver_cpc_soil",
+    "production:faostat": "silver_production",
+    "psd": "silver_psd",
     "nass_crop_progress": "silver_nass_crop_progress",
     "esr": "silver_esr",
     "fgis": "silver_fgis",
@@ -84,7 +105,14 @@ SOURCE_DATASET_IDS = {
     "pink_sheet": "silver_pink_sheet",
     "futures_prices": "silver_futures_prices",
     "mpob": "silver_mpob",
+    "oni": "silver_noaa_oni",
+    "iod": "silver_noaa_iod",
+    "fred_fx": "silver_fred_fx",
     "unica": "silver_unica_biweekly_release_series",
+    "cot": "silver_cot",
+    "conab": "silver_conab_coffee",
+    "sagis_deliveries": "silver_sagis_weekly_deliveries",
+    "sagis_cec": "silver_sagis_cec",
 }
 
 _PHYSICAL_COMMODITY = {
@@ -107,6 +135,8 @@ _SOY_CRUSH_LEGS = {
     "oil": "soybean_oil_cbot",
 }
 
+_LEGACY_FAMILY_SOURCES = "legacy_feature_registry"
+
 
 class SpineV2Error(ValueError):
     """gold_v2 spine validation failed."""
@@ -118,6 +148,87 @@ class SpineV2BuildResult:
     df: pd.DataFrame
     report: dict
     passed: bool
+
+
+@lru_cache(maxsize=1)
+def _legacy_registry() -> FeatureRegistry:
+    return load_registry()
+
+
+@lru_cache(maxsize=1)
+def _crop_calendars():
+    return load_crop_calendars()
+
+
+def v2_source_keys_for_commodity(commodity: str) -> set[str]:
+    """All silver sources needed for the broad v2 spine for *commodity*."""
+    return set(V2_SOURCE_KEYS_BY_COMMODITY.get(commodity, set())) | set(
+        _legacy_registry().sources_for(commodity)
+    )
+
+
+def v2_source_extraction_plans(
+    commodity: str,
+    crop_years: Iterable[int],
+    *,
+    lookback_years: int = 40,
+) -> dict[str, SourceExtractionPlan]:
+    """Bound broad v2 source reads to the history needed for trailing baselines."""
+    years = [int(year) for year in crop_years]
+    if not years:
+        return {}
+    calendar = _crop_calendars().get(commodity, default_calendar(commodity))
+    start_year = min(years) - int(lookback_years) - 2
+    end_year = max(years) + (1 if calendar.crop_year_start_month > 1 else 0)
+    weather_ids = (
+        "date",
+        "year",
+        "month",
+        "day",
+        "country",
+        "region",
+        "source",
+        "commodity",
+        "ingest_date",
+        "source_file_name",
+        "variable",
+        "value",
+    )
+    return {
+        "weather:chirps": SourceExtractionPlan(
+            start_year=start_year,
+            end_year=end_year,
+            columns=weather_ids + ("precipitation_mm",),
+        ),
+        "weather:nasa_power": SourceExtractionPlan(
+            start_year=start_year,
+            end_year=end_year,
+            columns=weather_ids + ("temperature_2m_max_c", "temperature_2m_min_c"),
+        ),
+        "weather:modis_ndvi": SourceExtractionPlan(
+            start_year=start_year,
+            end_year=end_year,
+            columns=weather_ids + ("ndvi_z_score",),
+        ),
+        "weather:cpc_soil": SourceExtractionPlan(
+            start_year=start_year,
+            end_year=end_year,
+            columns=weather_ids + ("soil_moisture_mm",),
+        ),
+        "production:faostat": SourceExtractionPlan(
+            start_year=start_year,
+            end_year=max(years),
+            columns=(
+                "country_key",
+                "metric",
+                "year",
+                "value",
+                "unit",
+                "is_official",
+                "ingest_date",
+            ),
+        ),
+    }
 
 
 def git_short_sha() -> str:
@@ -146,9 +257,26 @@ def default_as_of_dates(crop_years: Iterable[int]) -> dict[int, pd.Timestamp]:
     }
 
 
-def snapshot_stage_for(as_of_date: pd.Timestamp, crop_year: int, policy: str) -> str:
+def _commodity_default_as_of_dates(commodity: str, crop_years: Iterable[int]) -> dict[int, pd.Timestamp]:
+    calendar = _crop_calendars().get(commodity, default_calendar(commodity))
+    return {
+        int(year): pd.Timestamp(calendar.crop_year_end(int(year)))
+        for year in crop_years
+    }
+
+
+def snapshot_stage_for(
+    as_of_date: pd.Timestamp,
+    crop_year: int,
+    policy: str,
+    *,
+    crop_year_end: object | None = None,
+) -> str:
     if policy == "default_v1":
-        if as_of_date == pd.Timestamp(dt.date(int(crop_year), 12, 31)):
+        end = pd.Timestamp(crop_year_end).normalize() if crop_year_end is not None else pd.Timestamp(
+            dt.date(int(crop_year), 12, 31)
+        )
+        if as_of_date == end:
             return "crop_year_end"
         return "custom_as_of"
     return policy
@@ -156,6 +284,16 @@ def snapshot_stage_for(as_of_date: pd.Timestamp, crop_year: int, policy: str) ->
 
 def _contract_context(commodity: str) -> dict[str, str]:
     origin = _DEFAULT_ORIGIN.get(commodity, "global")
+    return {
+        "entity_type": "contract_origin",
+        "entity_id": f"{commodity}:{origin}",
+        "physical_commodity": _PHYSICAL_COMMODITY.get(commodity, commodity),
+        "contract_slug": commodity,
+        "origin": origin,
+    }
+
+
+def _origin_context(commodity: str, origin: str) -> dict[str, str]:
     return {
         "entity_type": "contract_origin",
         "entity_id": f"{commodity}:{origin}",
@@ -231,6 +369,92 @@ def _normalize_inputs(inputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame
             continue
         out[source] = normalize_availability(source, df)
     return out
+
+
+def _merge_params(shared: dict, overrides: dict) -> dict:
+    merged = dict(shared)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **value}
+        else:
+            merged[key] = value
+    return merged
+
+
+def _legacy_available_at(spec, calendar, crop_year: int) -> pd.Timestamp:
+    if spec.is_label or spec.visibility == "crop_year_direct":
+        return pd.Timestamp(calendar.crop_year_end(crop_year))
+    if spec.visibility in {"prior_history", "prior_marketing_year"}:
+        return pd.Timestamp(calendar.crop_year_start(crop_year))
+    return pd.Timestamp(calendar.crop_year_end(crop_year))
+
+
+def _feature_legacy_registry(
+    rows: list[dict],
+    normalized_inputs: dict[str, pd.DataFrame],
+    commodity: str,
+    crop_years: list[int],
+    as_of_dates: dict[int, object],
+    snapshot_policy: str,
+) -> None:
+    """Run the existing broad feature registry and translate rows to gold_v2."""
+    registry = _legacy_registry()
+    calendar = _crop_calendars().get(commodity, default_calendar(commodity))
+    countries = load_countries(commodity) or [_DEFAULT_ORIGIN.get(commodity, "global")]
+    visible_inputs_by_year = {
+        int(crop_year): {
+            source: _eligible(df, _date(as_of_dates[int(crop_year)]))
+            for source, df in normalized_inputs.items()
+        }
+        for crop_year in crop_years
+    }
+
+    for spec in registry.specs_for(commodity):
+        for crop_year in crop_years:
+            as_of = _date(as_of_dates[crop_year])
+            spec_inputs = (
+                normalized_inputs
+                if spec.is_label
+                else visible_inputs_by_year[int(crop_year)]
+            )
+            ctx = FeatureContext(
+                commodity=commodity,
+                crop_years=[int(crop_year)],
+                countries=list(countries),
+                calendar=calendar,
+                inputs=spec_inputs,
+                params=_merge_params(registry.shared_params, spec.params),
+            )
+            result = COMPUTATIONS[spec.family](ctx, spec)
+            if result.empty:
+                continue
+            result = result.copy()
+            result["crop_year"] = pd.to_numeric(result["crop_year"], errors="coerce").astype("Int64")
+            result["value"] = pd.to_numeric(result["value"], errors="coerce")
+            result = result.dropna(subset=["country", "crop_year", "feature", "value"])
+            available_at = _legacy_available_at(spec, calendar, int(crop_year))
+            if available_at > as_of:
+                continue
+            snapshot_stage = snapshot_stage_for(
+                as_of,
+                int(crop_year),
+                snapshot_policy,
+                crop_year_end=calendar.crop_year_end(int(crop_year)),
+            )
+            for item in result.itertuples(index=False):
+                _emit(
+                    rows,
+                    ctx=_origin_context(commodity, str(item.country)),
+                    crop_year=int(crop_year),
+                    as_of_date=as_of,
+                    snapshot_stage=snapshot_stage,
+                    feature=str(item.feature),
+                    value=item.value,
+                    available_at=available_at,
+                    source=",".join(spec.sources) or _LEGACY_FAMILY_SOURCES,
+                    source_vintage=f"{spec.family}:{available_at.date().isoformat()}",
+                    is_label=spec.is_label,
+                )
 
 
 def _feature_nass_crop_progress(
@@ -448,14 +672,6 @@ def _feature_pink_sheet(
     latest = _latest(work)
     if latest is None:
         return
-    if "brent_crude_usd_bbl_zscore_5yr" in latest:
-        _emit(
-            rows, ctx=ctx, crop_year=crop_year, as_of_date=as_of_date,
-            snapshot_stage=snapshot_stage, feature="pink_sheet_energy_z",
-            value=latest["brent_crude_usd_bbl_zscore_5yr"],
-            available_at=latest["feature_available_at"], source="pink_sheet",
-            source_vintage=latest["source_vintage"],
-        )
     if {"soybean_oil_usd_t", "palm_oil_cpo_usd_t"} <= set(work.columns):
         premium = (
             pd.to_numeric(work["soybean_oil_usd_t"], errors="coerce")
@@ -479,6 +695,81 @@ def _feature_pink_sheet(
             value=ratio_z.iloc[-1], available_at=latest["feature_available_at"],
             source="pink_sheet", source_vintage=latest["source_vintage"],
         )
+    if {"rapeseed_oil_usd_t", "palm_oil_cpo_usd_t"} <= set(work.columns):
+        premium = (
+            pd.to_numeric(work["rapeseed_oil_usd_t"], errors="coerce")
+            - pd.to_numeric(work["palm_oil_cpo_usd_t"], errors="coerce")
+        )
+        premium_z = _rolling_latest_z(premium)
+        _emit(
+            rows, ctx=ctx, crop_year=crop_year, as_of_date=as_of_date,
+            snapshot_stage=snapshot_stage, feature="veg_oil_rape_palm_premium_z",
+            value=premium_z.iloc[-1], available_at=latest["feature_available_at"],
+            source="pink_sheet", source_vintage=latest["source_vintage"],
+        )
+
+
+def _feature_fred_fx(
+    rows: list[dict],
+    inputs: dict[str, pd.DataFrame],
+    ctx: dict[str, str],
+    crop_year: int,
+    as_of_date: pd.Timestamp,
+    snapshot_stage: str,
+) -> None:
+    df = inputs.get("fred_fx")
+    if df is None or df.empty:
+        return
+    work = _eligible(df, as_of_date).sort_values("observation_date").copy()
+    latest = _latest(work)
+    if latest is None:
+        return
+    for column, feature in [
+        ("brl_usd_pct_change_90d", "brl_fx_pct_90d"),
+        ("cny_usd_pct_change_90d", "cny_fx_pct_90d"),
+    ]:
+        if column in latest:
+            _emit(
+                rows, ctx=ctx, crop_year=crop_year, as_of_date=as_of_date,
+                snapshot_stage=snapshot_stage, feature=feature, value=latest[column],
+                available_at=latest["feature_available_at"], source="fred_fx",
+                source_vintage=latest["source_vintage"],
+            )
+
+
+def _feature_climate(
+    rows: list[dict],
+    inputs: dict[str, pd.DataFrame],
+    ctx: dict[str, str],
+    crop_year: int,
+    as_of_date: pd.Timestamp,
+    snapshot_stage: str,
+) -> None:
+    for source, columns in {
+        "oni": [
+            ("oni_anom", "oni_anom_latest"),
+            ("el_nino_flag", "oni_el_nino_flag_latest"),
+            ("la_nina_flag", "oni_la_nina_flag_latest"),
+        ],
+        "iod": [
+            ("iod_dmi_3month_avg", "iod_dmi_3month_avg_latest"),
+        ],
+    }.items():
+        df = inputs.get(source)
+        if df is None or df.empty:
+            continue
+        work = _eligible(df, as_of_date).sort_values("observation_date").copy()
+        latest = _latest(work)
+        if latest is None:
+            continue
+        for column, feature in columns:
+            if column in latest:
+                _emit(
+                    rows, ctx=ctx, crop_year=crop_year, as_of_date=as_of_date,
+                    snapshot_stage=snapshot_stage, feature=feature, value=latest[column],
+                    available_at=latest["feature_available_at"], source=source,
+                    source_vintage=latest["source_vintage"],
+                )
 
 
 def _feature_crush(
@@ -578,23 +869,35 @@ def build_spine_v2(
     as_of_dates: dict[int, object] | None = None,
     snapshot_policy: str = "default_v1",
 ) -> SpineV2BuildResult:
-    """Build the Phase 4 thin gold_v2 spine for one contract slug."""
+    """Build the broad registry-backed gold_v2 spine for one contract slug."""
     crop_years = [int(year) for year in crop_years]
-    as_of_dates = as_of_dates or default_as_of_dates(crop_years)
+    as_of_dates = as_of_dates or _commodity_default_as_of_dates(commodity, crop_years)
     normalized_inputs = _normalize_inputs(inputs)
     ctx = _contract_context(commodity)
     rows: list[dict] = []
 
+    _feature_legacy_registry(
+        rows,
+        normalized_inputs,
+        commodity,
+        crop_years,
+        as_of_dates,
+        snapshot_policy,
+    )
+
     for crop_year in crop_years:
         as_of = _date(as_of_dates[int(crop_year)])
-        snapshot_stage = snapshot_stage_for(as_of, crop_year, snapshot_policy)
+        calendar = _crop_calendars().get(commodity, default_calendar(commodity))
+        snapshot_stage = snapshot_stage_for(
+            as_of,
+            crop_year,
+            snapshot_policy,
+            crop_year_end=calendar.crop_year_end(crop_year),
+        )
         _feature_nass_crop_progress(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
-        _feature_esr(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
-        _feature_fgis(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
         _feature_wasde_revisions(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
         _feature_pink_sheet(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
-        _feature_crush(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
-        _feature_mpob(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
+        _feature_climate(rows, normalized_inputs, ctx, crop_year, as_of, snapshot_stage)
 
     df = pd.DataFrame(rows, columns=SPINE_V2_COLUMNS)
     report = validate_spine_v2(df, commodity=commodity)

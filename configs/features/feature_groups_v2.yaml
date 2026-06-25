@@ -1,0 +1,85 @@
+schema_version: 1
+
+groups:
+  grains:
+    commodities:
+      - corn_cbot
+      - campinas_corn_reference_bmf
+      - french_maize_matif
+      - soft_red_winter_wheat_cbot
+      - hard_red_winter_wheat_kcbt
+      - hard_red_spring_wheat_mgex
+      - french_wheat_matif
+      - rough_rice_cbot
+      - south_african_white_maize_jse
+      - south_african_yellow_maize_jse
+
+  oilseeds:
+    commodities:
+      - soybeans_cbot
+      - soybean_meal_cbot
+      - soybean_oil_cbot
+      - soybeans_no_1_dce
+      - soybeans_no_2_dce
+      - soybean_meal_dce
+      - soybean_oil_dce
+      - french_rapeseed_matif
+      - canola_ice
+      - rapeseed_oil_zce
+      - rapeseed_meal_zce
+      - malaysian_crude_palm_oil_cme
+      - palm_olein_dce
+
+  soy_complex:
+    commodities:
+      - soybeans_cbot
+      - soybean_meal_cbot
+      - soybean_oil_cbot
+      - soybeans_no_1_dce
+      - soybeans_no_2_dce
+      - soybean_meal_dce
+      - soybean_oil_dce
+
+  palm:
+    commodities:
+      - malaysian_crude_palm_oil_cme
+      - palm_olein_dce
+
+  coffee:
+    commodities:
+      - arabica_coffee
+      - brazilian_arabica_coffee
+      - robusta_coffee
+
+  sugar_and_biofuel:
+    commodities:
+      - raw_sugar
+      - white_sugar
+
+  softs:
+    commodities:
+      - arabica_coffee
+      - brazilian_arabica_coffee
+      - robusta_coffee
+      - cocoa
+      - cotton
+      - raw_sugar
+      - white_sugar
+      - frozen_orange_juice
+
+  us_row_crops:
+    commodities:
+      - corn_cbot
+      - soybeans_cbot
+      - soybean_meal_cbot
+      - soybean_oil_cbot
+      - soft_red_winter_wheat_cbot
+      - hard_red_winter_wheat_kcbt
+      - hard_red_spring_wheat_mgex
+      - rough_rice_cbot
+      - cotton
+
+  south_african_grains:
+    commodities:
+      - south_african_white_maize_jse
+      - south_african_yellow_maize_jse

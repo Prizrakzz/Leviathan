@@ -67,5 +67,47 @@ def test_feature_matrix_v2_pivots_snapshot_identity() -> None:
         },
     )
     matrix = build_feature_matrix_v2(result.df)
-    assert matrix["entity_id"].tolist() == ["corn_cbot:united_states"]
-    assert matrix["nass_ge_pct_latest"].iloc[0] == 62.0
+    us = matrix.loc[matrix["entity_id"] == "corn_cbot:united_states"].iloc[0]
+    assert us["nass_ge_pct_latest"] == 62.0
+    assert "faostat_available" in matrix.columns
+
+
+def test_spine_v2_emits_broader_global_and_economic_drivers() -> None:
+    result = build_spine_v2(
+        commodity="soybean_oil_cbot",
+        crop_years=[2024],
+        as_of_dates={2024: "2024-12-31"},
+        inputs={
+            "pink_sheet": pd.DataFrame({
+                "year": [2023],
+                "month": [12],
+                "date": ["2023-12-31"],
+                "brent_crude_usd_bbl_zscore_5yr": [0.7],
+                "blended_npk_index_zscore_5yr": [1.1],
+                "urea_usd_mt_zscore_5yr": [1.2],
+                "dap_usd_mt_zscore_5yr": [1.3],
+            }),
+            "fred_fx": pd.DataFrame({
+                "date": ["2023-12-29"],
+                "brl_usd_pct_change_90d": [0.04],
+                "cny_usd_pct_change_90d": [-0.02],
+            }),
+            "oni": pd.DataFrame({
+                "year": [2024],
+                "month": [6],
+                "oni_anom": [0.8],
+                "el_nino_flag": [1],
+                "la_nina_flag": [0],
+            }),
+        },
+    )
+    assert result.passed
+    features = result.df.set_index("feature")["value"].to_dict()
+    assert features["pink_sheet_energy_z"] == 0.7
+    assert features["pink_sheet_npk_z"] == 1.1
+    assert features["pink_sheet_urea_z"] == 1.2
+    assert features["pink_sheet_dap_z"] == 1.3
+    assert features["brl_fx_pct_90d"] == 0.04
+    assert features["cny_fx_pct_90d"] == -0.02
+    assert features["oni_anom_latest"] == 0.8
+    assert features["oni_el_nino_flag_latest"] == 1.0

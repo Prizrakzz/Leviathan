@@ -28,10 +28,10 @@ from leviathan.features.pivot import build_feature_matrix_v2  # noqa: E402
 from leviathan.features.spine_v2 import (  # noqa: E402
     DEFAULT_V2_COMMODITIES,
     SOURCE_DATASET_IDS,
-    V2_SOURCE_KEYS_BY_COMMODITY,
     build_spine_v2,
     default_as_of_dates,
     default_dataset_version,
+    v2_source_keys_for_commodity,
 )
 from leviathan.storage.paths import (  # noqa: E402
     gold_v2_dataset_manifest_key,
@@ -191,7 +191,7 @@ def _load_commodity_inputs(
     args: argparse.Namespace,
     commodity: str,
 ) -> tuple[dict[str, pd.DataFrame], list[dict], list[SourceProbe]]:
-    requested = set(V2_SOURCE_KEYS_BY_COMMODITY.get(commodity, set()))
+    requested = v2_source_keys_for_commodity(commodity)
     extractable = requested - _UNSUPPORTED_READY_LATER
     inputs, probes = extract_all(_root(args), commodity, extractable)
     by_source = {probe.source_key: probe for probe in probes}

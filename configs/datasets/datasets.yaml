@@ -289,6 +289,120 @@ datasets:
         SELECT dataset_version FROM "leviathan_dev"."gold_v2_dataset_manifests"
         WHERE dataset_version='__REPLACE_ME__' LIMIT 1
 
+  - dataset_id: gold_v2_feature_catalog
+    layer: gold
+    role: metadata
+    status: active
+    s3_prefix: gold_v2/feature_catalog/dataset_version=
+    format: PARQUET
+    schema:
+      - {name: dataset_version, type: string, nullable: false}
+      - {name: feature, type: string, nullable: false}
+      - {name: semantic_scope, type: string, nullable: false}
+      - {name: mechanism, type: string, nullable: false}
+      - {name: policy, type: string, nullable: false}
+      - {name: sources, type: string, nullable: false}
+      - {name: groups, type: string, nullable: false}
+      - {name: entity_count, type: bigint, nullable: false}
+      - {name: commodity_count, type: bigint, nullable: false}
+      - {name: origin_count, type: bigint, nullable: false}
+      - {name: row_count, type: bigint, nullable: false}
+      - {name: non_null_rate, type: double, nullable: false}
+      - {name: first_as_of_date, type: date, nullable: true}
+      - {name: last_as_of_date, type: date, nullable: true}
+      - {name: first_available_at, type: date, nullable: true}
+      - {name: last_available_at, type: date, nullable: true}
+      - {name: is_label, type: boolean, nullable: false}
+    natural_key: [dataset_version, feature]
+    partitions:
+      - name: dataset_version
+        type: string
+        projection: {type: injected}
+    owner:
+      transform: leviathan.features.catalog_v2.build_feature_catalog_v2
+      task: jobs/batch/feature_catalog_v2_task.py
+    timestamps: {primary: [last_as_of_date, last_available_at]}
+    freshness_days: null
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena:
+      table: gold_v2_feature_catalog
+      location: gold_v2/feature_catalog/
+      storage_template: gold_v2/feature_catalog/dataset_version=${dataset_version}/
+      smoke_query: >-
+        SELECT feature FROM "leviathan_dev"."gold_v2_feature_catalog"
+        WHERE dataset_version='__REPLACE_ME__' LIMIT 1
+
+  - dataset_id: gold_v2_feature_entity_map
+    layer: gold
+    role: metadata
+    status: active
+    s3_prefix: gold_v2/feature_entity_map/dataset_version=
+    format: PARQUET
+    schema:
+      - {name: dataset_version, type: string, nullable: false}
+      - {name: feature, type: string, nullable: false}
+      - {name: entity_id, type: string, nullable: false}
+      - {name: contract_slug, type: string, nullable: false}
+      - {name: physical_commodity, type: string, nullable: false}
+      - {name: origin, type: string, nullable: false}
+      - {name: row_count, type: bigint, nullable: false}
+      - {name: non_null_count, type: bigint, nullable: false}
+      - {name: first_as_of_date, type: date, nullable: true}
+      - {name: last_as_of_date, type: date, nullable: true}
+    natural_key: [dataset_version, feature, entity_id]
+    partitions:
+      - name: dataset_version
+        type: string
+        projection: {type: injected}
+    owner:
+      transform: leviathan.features.catalog_v2.build_feature_catalog_v2
+      task: jobs/batch/feature_catalog_v2_task.py
+    timestamps: {primary: [last_as_of_date]}
+    freshness_days: null
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena:
+      table: gold_v2_feature_entity_map
+      location: gold_v2/feature_entity_map/
+      storage_template: gold_v2/feature_entity_map/dataset_version=${dataset_version}/
+      smoke_query: >-
+        SELECT feature FROM "leviathan_dev"."gold_v2_feature_entity_map"
+        WHERE dataset_version='__REPLACE_ME__' LIMIT 1
+
+  - dataset_id: gold_v2_feature_group_map
+    layer: gold
+    role: metadata
+    status: active
+    s3_prefix: gold_v2/feature_group_map/dataset_version=
+    format: PARQUET
+    schema:
+      - {name: dataset_version, type: string, nullable: false}
+      - {name: feature, type: string, nullable: false}
+      - {name: group, type: string, nullable: false}
+      - {name: entity_count, type: bigint, nullable: false}
+      - {name: commodity_count, type: bigint, nullable: false}
+      - {name: row_count, type: bigint, nullable: false}
+    natural_key: [dataset_version, feature, group]
+    partitions:
+      - name: dataset_version
+        type: string
+        projection: {type: injected}
+    owner:
+      transform: leviathan.features.catalog_v2.build_feature_catalog_v2
+      task: jobs/batch/feature_catalog_v2_task.py
+    timestamps: {primary: []}
+    freshness_days: null
+    historical_range: {start: null, end: null}
+    core_fundamental: false
+    athena:
+      table: gold_v2_feature_group_map
+      location: gold_v2/feature_group_map/
+      storage_template: gold_v2/feature_group_map/dataset_version=${dataset_version}/
+      smoke_query: >-
+        SELECT feature FROM "leviathan_dev"."gold_v2_feature_group_map"
+        WHERE dataset_version='__REPLACE_ME__' LIMIT 1
+
   - dataset_id: gold_training_windows
     layer: gold
     role: metadata

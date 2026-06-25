@@ -1,0 +1,149 @@
+schema_version: 1
+
+default:
+  semantic_scope: origin
+  mechanism: physical_fundamental
+  policy: fundamental_physical
+  sources: []
+  groups: []
+
+rules:
+  - pattern: oni_
+    semantic_scope: global
+    mechanism: climate_regime
+    policy: fundamental_physical
+    sources: [oni]
+    groups: [grains, oilseeds, softs, palm]
+
+  - pattern: iod_
+    semantic_scope: global
+    mechanism: climate_regime
+    policy: fundamental_physical
+    sources: [iod]
+    groups: [oilseeds, palm, coffee]
+
+  - pattern: pink_sheet_energy_z
+    semantic_scope: global
+    mechanism: energy_freight_processing_cost
+    policy: certified_economic_driver
+    sources: [pink_sheet]
+    groups: [grains, oilseeds, softs, palm]
+
+  - pattern: pink_sheet_npk_z
+    semantic_scope: global
+    mechanism: fertilizer_input_cost
+    policy: certified_economic_driver
+    sources: [pink_sheet]
+    groups: [grains, oilseeds, softs]
+
+  - pattern: pink_sheet_urea_z
+    semantic_scope: global
+    mechanism: fertilizer_input_cost
+    policy: certified_economic_driver
+    sources: [pink_sheet]
+    groups: [grains, oilseeds]
+
+  - pattern: pink_sheet_dap_z
+    semantic_scope: global
+    mechanism: fertilizer_input_cost
+    policy: certified_economic_driver
+    sources: [pink_sheet]
+    groups: [grains, oilseeds]
+
+  - pattern: brl_fx_pct_90d
+    semantic_scope: global
+    mechanism: producer_selling_and_input_affordability
+    policy: certified_economic_driver
+    sources: [fred_fx]
+    groups: [soy_complex, sugar_and_biofuel, coffee]
+
+  - pattern: cny_fx_pct_90d
+    semantic_scope: global
+    mechanism: importer_purchasing_power
+    policy: certified_economic_driver
+    sources: [fred_fx]
+    groups: [grains, oilseeds, palm]
+
+  - pattern: crush_margin_z
+    semantic_scope: group
+    mechanism: soybean_processing_profitability
+    policy: certified_economic_driver
+    sources: [futures_prices]
+    groups: [soy_complex]
+
+  - pattern: veg_oil_soy_palm_
+    semantic_scope: group
+    mechanism: vegetable_oil_substitution
+    policy: certified_economic_driver
+    sources: [pink_sheet]
+    groups: [oilseeds, palm]
+
+  - pattern: veg_oil_rape_palm_
+    semantic_scope: group
+    mechanism: vegetable_oil_substitution
+    policy: certified_economic_driver
+    sources: [pink_sheet]
+    groups: [oilseeds, palm]
+
+  - pattern: nass_
+    semantic_scope: origin
+    mechanism: crop_condition_progress
+    policy: fundamental_physical
+    sources: [nass_crop_progress]
+    groups: [us_row_crops]
+
+  - pattern: esr_
+    semantic_scope: origin
+    mechanism: physical_export_commitment
+    policy: fundamental_physical
+    sources: [esr]
+    groups: [us_row_crops]
+
+  - pattern: fgis_
+    semantic_scope: origin
+    mechanism: physical_export_flow
+    policy: fundamental_physical
+    sources: [fgis]
+    groups: [us_row_crops]
+
+  - pattern: wasde_
+    semantic_scope: physical_commodity
+    mechanism: official_revision
+    policy: fundamental_physical
+    sources: [wasde, wap_revisions]
+    groups: [grains, oilseeds, softs]
+
+  - pattern: mpob_
+    semantic_scope: origin
+    mechanism: palm_balance_sheet
+    policy: fundamental_physical
+    sources: [mpob]
+    groups: [palm]
+
+  - pattern: cot_
+    semantic_scope: contract
+    mechanism: market_positioning
+    policy: diagnostic_only
+    sources: [cot]
+    groups: []
+
+  - pattern: vol_regime
+    semantic_scope: contract
+    mechanism: market_volatility_regime
+    policy: diagnostic_only
+    sources: [futures_prices]
+    groups: []
+
+  - pattern: calendar_spread
+    semantic_scope: contract
+    mechanism: market_term_structure
+    policy: excluded_market_signal
+    sources: [calendar_spreads]
+    groups: []
+
+  - pattern: close
+    semantic_scope: contract
+    mechanism: raw_contract_price
+    policy: excluded_market_signal
+    sources: [futures_prices]
+    groups: []

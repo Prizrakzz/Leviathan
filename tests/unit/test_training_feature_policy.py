@@ -98,3 +98,12 @@ def test_legacy_allowed_economic_driver_alias_is_canonicalized() -> None:
     )
     assert kept == ["pink_sheet_energy_z"]
     assert report["certified_economic_drivers"][0]["mechanism"] == "energy_cost"
+
+
+def test_vegetable_oil_substitution_driver_is_admitted_for_production() -> None:
+    kept, report = apply_feature_policy(
+        ["veg_oil_soy_palm_ratio_z"],
+        target="production_quantity",
+    )
+    assert kept == ["veg_oil_soy_palm_ratio_z"]
+    assert report["certified_economic_drivers"][0]["mechanism"] == "vegetable_oil_substitution"

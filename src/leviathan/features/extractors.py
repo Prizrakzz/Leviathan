@@ -13,6 +13,7 @@ All readers accept a *root* that is either a local directory (tests) or an
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 import pandas as pd
 import pyarrow.dataset as ds
@@ -39,6 +40,14 @@ class SourceProbe:
     num_rows: int
     columns: tuple[str, ...]
     files: tuple[str, ...]  # fragment paths — input fingerprint for the manifest
+
+
+@dataclass(frozen=True)
+class SourceExtractionPlan:
+    """Optional bounded extraction hints for expensive silver readers."""
+    start_year: int | None = None
+    end_year: int | None = None
+    columns: tuple[str, ...] = ()
 
 
 # Required in-file columns per source family (partition values are duplicated
@@ -89,7 +98,7 @@ def _location(root: str, relative: str) -> str:
     return f"{root.rstrip('/')}/{relative}"
 
 
-def probe_source(source_key: str, location: str) -> SourceProbe:
+def probe_source(source_key: str, location: str, *, count_rows: bool = True) -> SourceProbe:
     """Footer-only probe: existence, file list, row count, schema columns."""
     try:
         dataset = ds.dataset(location, format="parquet")
@@ -99,7 +108,7 @@ def probe_source(source_key: str, location: str) -> SourceProbe:
     if not fragments:
         return SourceProbe(source_key, location, False, 0, 0, (), ())
 
-    num_rows = sum(f.count_rows() for f in fragments)
+    num_rows = sum(f.count_rows() for f in fragments) if count_rows else -1
     return SourceProbe(
         source_key=source_key,
         location=location,
@@ -159,7 +168,38 @@ def _dedup_natural_key(
     )
 
 
-def _load(probe: SourceProbe, columns: list[str],
+def _combine_expr(
+    left: ds.Expression | None,
+    right: ds.Expression | None,
+) -> ds.Expression | None:
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return left & right
+
+
+def _plan_filter(probe: SourceProbe, plan: SourceExtractionPlan | None) -> ds.Expression | None:
+    if plan is None or "year" not in probe.columns:
+        return None
+    expr: ds.Expression | None = None
+    if plan.start_year is not None:
+        expr = _combine_expr(expr, ds.field("year") >= int(plan.start_year))
+    if plan.end_year is not None:
+        expr = _combine_expr(expr, ds.field("year") <= int(plan.end_year))
+    return expr
+
+
+def _planned_columns(
+    probe: SourceProbe,
+    default_columns: list[str] | tuple[str, ...],
+    plan: SourceExtractionPlan | None,
+) -> list[str]:
+    requested = list(plan.columns) if plan and plan.columns else list(default_columns)
+    return [column for column in requested if column in probe.columns]
+
+
+def _load(probe: SourceProbe, columns: list[str] | tuple[str, ...],
           filter_expr: ds.Expression | None = None) -> pd.DataFrame:
     dataset = ds.dataset(probe.location, format="parquet")
     available = [c for c in columns if c in dataset.schema.names]
@@ -168,17 +208,24 @@ def _load(probe: SourceProbe, columns: list[str],
 
 
 def extract_weather(
-    root: str, commodity: str, source: str
+    root: str,
+    commodity: str,
+    source: str,
+    plan: SourceExtractionPlan | None = None,
 ) -> tuple[pd.DataFrame | None, SourceProbe]:
     """Long-format silver weather for one (source, commodity)."""
     source_key = f"weather:{source}"
     location = _location(root, f"silver/weather/source={source}/commodity={commodity}")
-    probe = probe_source(source_key, location)
+    probe = probe_source(source_key, location, count_rows=plan is None)
     if not probe.exists or probe.num_rows == 0:
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
 
-    df = _load(probe, list(probe.columns))
+    df = _load(
+        probe,
+        _planned_columns(probe, list(probe.columns), plan),
+        _plan_filter(probe, plan),
+    )
 
     # Source-specific silver schemas (e.g. MODIS NDVI, on 8-day "period"
     # composites) omit the standard month/source id columns.  Derive them before
@@ -215,18 +262,27 @@ _FAOSTAT_COUNTRY_ALIASES = {
 
 
 def extract_faostat(
-    root: str, commodity: str
+    root: str,
+    commodity: str,
+    plan: SourceExtractionPlan | None = None,
 ) -> tuple[pd.DataFrame | None, SourceProbe]:
     """Long-format FAOSTAT production silver for one commodity."""
     source_key = "production:faostat"
     location = _location(root, f"silver/production/commodity={commodity}")
-    probe = probe_source(source_key, location)
+    probe = probe_source(source_key, location, count_rows=plan is None)
     if not probe.exists or probe.num_rows == 0:
         logger.info("%s: no data at %s — structural missingness", source_key, location)
         return None, probe
 
-    df = _load(probe, ["country_key", "metric", "year", "value", "unit",
-                       "is_official", "ingest_date"])
+    df = _load(
+        probe,
+        _planned_columns(
+            probe,
+            ["country_key", "metric", "year", "value", "unit", "is_official", "ingest_date"],
+            plan,
+        ),
+        _plan_filter(probe, plan),
+    )
     _check_contract(df, source_key, _FAOSTAT_REQUIRED, _FAOSTAT_KEY)
     # Normalize to pipeline-standard names used by all computation functions.
     df = df.rename(columns={"country_key": "country", "metric": "variable"})
@@ -492,7 +548,13 @@ def extract_futures_prices(root: str) -> tuple[pd.DataFrame | None, SourceProbe]
 
 
 def extract_all(
-    root: str, commodity: str, source_keys: set[str]
+    root: str,
+    commodity: str,
+    source_keys: set[str],
+    *,
+    plans: dict[str, SourceExtractionPlan] | None = None,
+    agnostic_cache: dict[str, tuple[pd.DataFrame | None, SourceProbe]] | None = None,
+    agnostic_lock=None,
 ) -> tuple[dict[str, pd.DataFrame], list[SourceProbe]]:
     """Extract every source the registry requires for *commodity*.
 
@@ -501,60 +563,56 @@ def extract_all(
     """
     inputs: dict[str, pd.DataFrame] = {}
     probes: list[SourceProbe] = []
+    plans = plans or {}
 
     # Commodity-agnostic sources only need to be loaded once regardless of how
     # many feature families reference them; de-duplicate via the inputs dict.
-    _agnostic_cache: dict[str, tuple[pd.DataFrame | None, SourceProbe]] = {}
+    _agnostic_cache: dict[str, tuple[pd.DataFrame | None, SourceProbe]] = (
+        agnostic_cache if agnostic_cache is not None else {}
+    )
+
+    def _cached(
+        cache_key: str,
+        loader: Callable[[], tuple[pd.DataFrame | None, SourceProbe]],
+    ) -> tuple[pd.DataFrame | None, SourceProbe]:
+        if agnostic_lock is None:
+            if cache_key not in _agnostic_cache:
+                _agnostic_cache[cache_key] = loader()
+            return _agnostic_cache[cache_key]
+        with agnostic_lock:
+            if cache_key not in _agnostic_cache:
+                _agnostic_cache[cache_key] = loader()
+            return _agnostic_cache[cache_key]
 
     for key in sorted(source_keys):
         if key.startswith("weather:"):
-            df, probe = extract_weather(root, commodity, key.split(":", 1)[1])
+            df, probe = extract_weather(root, commodity, key.split(":", 1)[1], plans.get(key))
         elif key == "production:faostat":
-            df, probe = extract_faostat(root, commodity)
+            df, probe = extract_faostat(root, commodity, plans.get(key))
         elif key == "psd":
             df, probe = extract_psd(root, commodity)
         elif key == "oni":
-            if "oni" not in _agnostic_cache:
-                _agnostic_cache["oni"] = extract_oni(root)
-            df, probe = _agnostic_cache["oni"]
+            df, probe = _cached("oni", lambda: extract_oni(root))
         elif key == "iod":
-            if "iod" not in _agnostic_cache:
-                _agnostic_cache["iod"] = extract_iod(root)
-            df, probe = _agnostic_cache["iod"]
+            df, probe = _cached("iod", lambda: extract_iod(root))
         elif key == "cot":
-            if "cot" not in _agnostic_cache:
-                _agnostic_cache["cot"] = extract_cot(root)
-            df, probe = _agnostic_cache["cot"]
+            df, probe = _cached("cot", lambda: extract_cot(root))
         elif key == "pink_sheet":
-            if "pink_sheet" not in _agnostic_cache:
-                _agnostic_cache["pink_sheet"] = extract_pink_sheet(root)
-            df, probe = _agnostic_cache["pink_sheet"]
+            df, probe = _cached("pink_sheet", lambda: extract_pink_sheet(root))
         elif key == "nass_crop_progress":
             df, probe = extract_nass_crop_progress(root, commodity)
         elif key == "wap_revisions":
-            if "wap_revisions" not in _agnostic_cache:
-                _agnostic_cache["wap_revisions"] = extract_wap_revisions(root)
-            df, probe = _agnostic_cache["wap_revisions"]
+            df, probe = _cached("wap_revisions", lambda: extract_wap_revisions(root))
         elif key == "mpob":
-            if "mpob" not in _agnostic_cache:
-                _agnostic_cache["mpob"] = extract_mpob(root)
-            df, probe = _agnostic_cache["mpob"]
+            df, probe = _cached("mpob", lambda: extract_mpob(root))
         elif key == "fred_fx":
-            if "fred_fx" not in _agnostic_cache:
-                _agnostic_cache["fred_fx"] = extract_fred_fx(root)
-            df, probe = _agnostic_cache["fred_fx"]
+            df, probe = _cached("fred_fx", lambda: extract_fred_fx(root))
         elif key == "sagis_deliveries":
-            if "sagis_deliveries" not in _agnostic_cache:
-                _agnostic_cache["sagis_deliveries"] = extract_sagis_weekly(root)
-            df, probe = _agnostic_cache["sagis_deliveries"]
+            df, probe = _cached("sagis_deliveries", lambda: extract_sagis_weekly(root))
         elif key == "sagis_cec":
-            if "sagis_cec" not in _agnostic_cache:
-                _agnostic_cache["sagis_cec"] = extract_sagis_cec(root)
-            df, probe = _agnostic_cache["sagis_cec"]
+            df, probe = _cached("sagis_cec", lambda: extract_sagis_cec(root))
         elif key == "futures_prices":
-            if "futures_prices" not in _agnostic_cache:
-                _agnostic_cache["futures_prices"] = extract_futures_prices(root)
-            df, probe = _agnostic_cache["futures_prices"]
+            df, probe = _cached("futures_prices", lambda: extract_futures_prices(root))
         elif key == "conab":
             df, probe = extract_conab(root, commodity)
         elif key == "fgis":

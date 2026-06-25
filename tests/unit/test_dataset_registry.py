@@ -10,7 +10,7 @@ from leviathan.catalog.registry import DatasetRegistryError, load_dataset_regist
 
 def test_repository_registry_loads_and_is_complete() -> None:
     registry = load_dataset_registry()
-    assert len(registry.datasets) == 52
+    assert len(registry.datasets) == 55
     assert registry.bucket == "leviathan-dev-shahem-001"
     assert len(registry.by_id()) == len(registry.datasets)
     assert len(registry.by_table()) == len(registry.datasets)
@@ -44,6 +44,9 @@ def test_registry_expresses_model_eligibility() -> None:
     assert datasets["gold_v2_feature_spine"].s3_prefix == "gold_v2/feature_spine/dataset_version="
     assert datasets["gold_v2_feature_matrix"].s3_prefix == "gold_v2/feature_matrix/dataset_version="
     assert datasets["gold_v2_dataset_manifests"].file_format == "JSON"
+    assert datasets["gold_v2_feature_catalog"].s3_prefix == "gold_v2/feature_catalog/dataset_version="
+    assert datasets["gold_v2_feature_entity_map"].s3_prefix == "gold_v2/feature_entity_map/dataset_version="
+    assert datasets["gold_v2_feature_group_map"].s3_prefix == "gold_v2/feature_group_map/dataset_version="
     assert datasets["silver_production"].s3_prefix.endswith("commodity=")
     assert datasets["graphrag_entities"].status == "empty_pending_backfill"
     assert datasets["graphrag_causal_edges"].status == "empty_pending_backfill"
