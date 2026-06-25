@@ -1900,6 +1900,30 @@ def gold_feature_catalog_version_key(
     )
 
 
+def gold_feature_entity_map_version_key(
+    dataset_version: str,
+    filename: str = "feature_entity_map.parquet",
+) -> str:
+    """S3 key for feature-to-entity coverage in a dataset version."""
+    return (
+        f"gold/feature_entity_map_versions/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
+def gold_feature_group_map_version_key(
+    dataset_version: str,
+    filename: str = "feature_group_map.parquet",
+) -> str:
+    """S3 key for feature-to-commodity-group coverage in a dataset version."""
+    return (
+        f"gold/feature_group_map_versions/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
 def gold_feature_spine_manifest_key(
     dataset_version: str,
     filename: str = "manifest.json",

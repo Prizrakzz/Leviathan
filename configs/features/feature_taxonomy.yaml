@@ -1,0 +1,364 @@
+# Semantic feature taxonomy for versioned gold catalogs.
+#
+# Rules are evaluated in order.  Patterns are Python regular expressions
+# matched against the full feature name.
+
+rules:
+  - id: labels
+    patterns: ["^label_"]
+    feature_family: labels
+    semantic_scope: target_label
+    policy: fundamental_physical
+    mechanism: supervised_target
+    sources: ["production:faostat"]
+    source_cadence: annual
+    notes: "Training target; never served as a model input."
+
+  - id: stage_precip
+    patterns: ["^chirps_precip_"]
+    feature_family: weather_precipitation
+    semantic_scope: origin_stage_weather
+    policy: fundamental_physical
+    mechanism: water_availability
+    sources: ["weather:chirps"]
+    source_cadence: daily_to_crop_stage
+    notes: "CHIRPS precipitation anomaly or z-score by crop region and stage."
+
+  - id: drought
+    patterns: ["^drought_z_"]
+    feature_family: weather_drought
+    semantic_scope: origin_stage_weather
+    policy: fundamental_physical
+    mechanism: drought_stress
+    sources: ["weather:chirps"]
+    source_cadence: daily_to_crop_stage
+    notes: "Precipitation-deficit drought stress by crop region and stage."
+
+  - id: nasa_temperature
+    patterns: ["^nasa_tmax_anomaly_", "^nasa_tmin_anomaly_"]
+    feature_family: weather_temperature
+    semantic_scope: origin_stage_weather
+    policy: fundamental_physical
+    mechanism: heat_cold_stress
+    sources: ["weather:nasa_power"]
+    source_cadence: daily_to_crop_stage
+    notes: "NASA POWER temperature anomaly by crop region and stage."
+
+  - id: frost
+    patterns: ["^frost_event_flag_"]
+    feature_family: weather_frost
+    semantic_scope: origin_weather
+    policy: fundamental_physical
+    mechanism: frost_damage_risk
+    sources: ["weather:nasa_power"]
+    source_cadence: daily_to_crop_year
+    notes: "Binary frost-event flag by perennial crop region."
+
+  - id: gdd
+    patterns: ["^gdd_z_"]
+    feature_family: growing_degree_days
+    semantic_scope: origin_weather
+    policy: fundamental_physical
+    mechanism: crop_development_speed
+    sources: ["weather:nasa_power"]
+    source_cadence: daily_to_crop_year
+    notes: "Growing-degree-day deviation by crop region."
+
+  - id: heat_stress
+    patterns: ["^heat_stress_z_"]
+    feature_family: weather_heat_stress
+    semantic_scope: origin_weather
+    policy: fundamental_physical
+    mechanism: heat_stress
+    sources: ["weather:nasa_power"]
+    source_cadence: daily_to_crop_year
+    notes: "Heat-stress deviation by crop region."
+
+  - id: modis_ndvi
+    patterns: ["^modis_ndvi_z_"]
+    feature_family: vegetation_index
+    semantic_scope: origin_stage_remote_sensing
+    policy: fundamental_physical
+    mechanism: canopy_vigor
+    sources: ["weather:modis_ndvi"]
+    source_cadence: remote_sensing_to_crop_stage
+    notes: "MODIS NDVI z-score by crop region and stage."
+
+  - id: cpc_soil
+    patterns: ["^cpc_soil_z_"]
+    feature_family: soil_moisture
+    semantic_scope: origin_soil_moisture
+    policy: fundamental_physical
+    mechanism: root_zone_water_availability
+    sources: ["weather:cpc_soil"]
+    source_cadence: daily_to_crop_year
+    notes: "CPC soil-moisture z-score by crop region."
+
+  - id: perennial_capacity
+    patterns: ["^capacity_recovery_index_", "^capacity_lookback_truncated_"]
+    feature_family: perennial_capacity
+    semantic_scope: origin_perennial_capacity
+    policy: fundamental_physical
+    mechanism: perennial_tree_recovery
+    sources: ["weather:nasa_power"]
+    source_cadence: annual
+    notes: "Coffee tree recovery and truncated-lookback diagnostics."
+
+  - id: faostat_features
+    patterns: ["^faostat_"]
+    feature_family: faostat_production
+    semantic_scope: origin_production_history
+    policy: fundamental_physical
+    mechanism: production_trend_baseline
+    sources: ["production:faostat"]
+    source_cadence: annual
+    notes: "FAOSTAT prior-history production feature."
+
+  - id: psd_balance
+    patterns: ["^psd_"]
+    feature_family: balance_sheet
+    semantic_scope: origin_balance_sheet
+    policy: fundamental_physical
+    mechanism: stock_use_balance
+    sources: ["psd"]
+    source_cadence: annual
+    notes: "USDA PSD prior marketing-year balance-sheet feature."
+
+  - id: wasde_revisions
+    patterns: ["^wasde_"]
+    feature_family: official_revisions
+    semantic_scope: official_revision
+    policy: fundamental_physical
+    mechanism: official_estimate_revision
+    sources: ["wasde"]
+    source_cadence: monthly
+    notes: "Future WASDE revision feature family."
+
+  - id: wap_revisions
+    patterns: ["^wap_"]
+    feature_family: official_revisions
+    semantic_scope: official_revision
+    policy: fundamental_physical
+    mechanism: non_us_production_revision
+    sources: ["wap_revisions"]
+    source_cadence: monthly
+    notes: "USDA FAS WAP non-US production revision feature."
+
+  - id: oni
+    patterns: ["^oni_"]
+    feature_family: enso
+    semantic_scope: global_climate
+    policy: fundamental_physical
+    mechanism: enso_teleconnection
+    sources: ["oni"]
+    source_cadence: monthly
+    notes: "NOAA ONI ENSO feature."
+
+  - id: iod
+    patterns: ["^iod_"]
+    feature_family: indian_ocean_dipole
+    semantic_scope: global_climate
+    policy: fundamental_physical
+    mechanism: iod_teleconnection
+    sources: ["iod"]
+    source_cadence: monthly
+    notes: "Indian Ocean Dipole climate feature."
+
+  - id: fred_fx
+    patterns: ["^(brl|cny)_fx_"]
+    feature_family: fx_macro
+    semantic_scope: economic_driver
+    policy: certified_economic_driver
+    mechanism: producer_export_incentive
+    sources: ["fred_fx"]
+    source_cadence: daily_to_crop_year_start
+    notes: "Lagged FX move used as a physical incentive driver."
+
+  - id: pink_sheet
+    patterns: ["^pink_sheet_"]
+    feature_family: input_costs
+    semantic_scope: economic_driver
+    policy: certified_economic_driver
+    mechanism: energy_fertilizer_cost
+    sources: ["pink_sheet"]
+    source_cadence: monthly
+    notes: "World Bank Pink Sheet input-cost feature."
+
+  - id: crush_margin
+    patterns: ["^crush_margin_"]
+    feature_family: processing_economics
+    semantic_scope: economic_driver
+    policy: certified_economic_driver
+    mechanism: oilseed_processing_margin
+    sources: ["futures_prices"]
+    source_cadence: daily_to_crop_year_start
+    notes: "Lagged board crush margin as a processing-demand driver."
+
+  - id: cot_positioning
+    patterns: ["^cot_"]
+    feature_family: market_positioning
+    semantic_scope: diagnostic_market_context
+    policy: diagnostic_only
+    mechanism: positioning_context
+    sources: ["cot"]
+    source_cadence: weekly
+    notes: "CFTC COT positioning; diagnostic only, not core fundamental fitting."
+
+  - id: sagis
+    patterns: ["^sagis_"]
+    feature_family: south_africa_grain
+    semantic_scope: origin_physical_flow
+    policy: fundamental_physical
+    mechanism: delivery_and_estimate_revision
+    sources: ["sagis_deliveries", "sagis_cec"]
+    source_cadence: weekly_or_survey
+    notes: "SAGIS delivery pace or CEC revision feature."
+
+  - id: conab
+    patterns: ["^conab_"]
+    feature_family: conab_coffee
+    semantic_scope: official_revision
+    policy: fundamental_physical
+    mechanism: brazil_coffee_survey_revision
+    sources: ["conab"]
+    source_cadence: survey_revision
+    notes: "CONAB Brazil coffee production revision feature."
+
+  - id: mpob
+    patterns: ["^mpob_"]
+    feature_family: palm_oil_fundamentals
+    semantic_scope: origin_balance_sheet
+    policy: fundamental_physical
+    mechanism: palm_oil_supply_demand
+    sources: ["mpob"]
+    source_cadence: monthly
+    notes: "MPOB monthly palm oil fundamentals."
+
+  - id: mpoc
+    patterns: ["^mpoc_"]
+    feature_family: palm_oil_trade
+    semantic_scope: origin_physical_flow
+    policy: fundamental_physical
+    mechanism: palm_oil_trade_flow
+    sources: ["mpoc"]
+    source_cadence: monthly_or_annual
+    notes: "Future MPOC trade/statistics feature family."
+
+  - id: fgis
+    patterns: ["^fgis_"]
+    feature_family: export_pace
+    semantic_scope: origin_physical_flow
+    policy: fundamental_physical
+    mechanism: export_inspection_pace
+    sources: ["fgis"]
+    source_cadence: weekly_to_annual
+    notes: "US FGIS export inspection pace feature."
+
+  - id: esr
+    patterns: ["^esr_"]
+    feature_family: export_commitments
+    semantic_scope: origin_physical_flow
+    policy: fundamental_physical
+    mechanism: export_sales_commitment_pace
+    sources: ["esr"]
+    source_cadence: weekly_to_annual
+    notes: "USDA ESR export commitment feature."
+
+  - id: nass_crop_progress
+    patterns: ["^nass_ge_", "^nass_crop_progress_"]
+    feature_family: crop_condition
+    semantic_scope: inseason_crop_condition
+    policy: fundamental_physical
+    mechanism: good_excellent_condition
+    sources: ["nass_crop_progress"]
+    source_cadence: weekly
+    notes: "USDA NASS crop progress condition feature."
+
+  - id: nass_annual
+    patterns: ["^nass_annual_"]
+    feature_family: official_annual_production
+    semantic_scope: official_estimate
+    policy: fundamental_physical
+    mechanism: annual_area_yield_production
+    sources: ["nass_annual"]
+    source_cadence: annual
+    notes: "Future USDA NASS annual feature family."
+
+  - id: nass_citrus
+    patterns: ["^nass_citrus_"]
+    feature_family: citrus_forecast
+    semantic_scope: official_revision
+    policy: fundamental_physical
+    mechanism: citrus_forecast_revision
+    sources: ["nass_citrus"]
+    source_cadence: monthly_or_seasonal
+    notes: "Future USDA NASS citrus forecast feature family."
+
+  - id: ams_cotton_quality
+    patterns: ["^ams_"]
+    feature_family: cotton_quality
+    semantic_scope: quality_tenderability
+    policy: fundamental_physical
+    mechanism: cotton_quality_tenderable_supply
+    sources: ["ams_cotton_quality"]
+    source_cadence: annual
+    notes: "Future AMS cotton classing quality feature family."
+
+  - id: unica
+    patterns: ["^unica_"]
+    feature_family: sugar_biofuel
+    semantic_scope: origin_physical_flow
+    policy: fundamental_physical
+    mechanism: cane_crush_sugar_ethanol_mix
+    sources: ["unica"]
+    source_cadence: biweekly_or_monthly
+    notes: "Future UNICA sugarcane crush and allocation feature family."
+
+  - id: fnc
+    patterns: ["^fnc_"]
+    feature_family: colombia_coffee
+    semantic_scope: origin_physical_flow
+    policy: fundamental_physical
+    mechanism: colombia_coffee_production_exports
+    sources: ["fnc_colombia"]
+    source_cadence: monthly_or_annual
+    notes: "Future FNC Colombia coffee feature family."
+
+  - id: icco
+    patterns: ["^icco_"]
+    feature_family: cocoa_balance
+    semantic_scope: balance_sheet
+    policy: fundamental_physical
+    mechanism: cocoa_grindings_stocks_balance
+    sources: ["icco_cocoa"]
+    source_cadence: quarterly_or_annual
+    notes: "Future ICCO cocoa balance feature family."
+
+  - id: food_cpi
+    patterns: ["^food_cpi_"]
+    feature_family: food_policy_risk
+    semantic_scope: policy_risk
+    policy: fundamental_physical
+    mechanism: food_security_policy_pressure
+    sources: ["food_cpi"]
+    source_cadence: monthly
+    notes: "Future food-CPI policy-risk feature family."
+
+  - id: vegetable_oil_substitution
+    patterns: ["^veg_oil_"]
+    feature_family: substitution_economics
+    semantic_scope: economic_driver
+    policy: certified_economic_driver
+    mechanism: vegetable_oil_substitution
+    sources: ["futures_prices", "pink_sheet"]
+    source_cadence: daily_or_monthly
+    notes: "Future lagged vegetable-oil relative-value driver."
+
+defaults:
+  feature_family: unknown
+  semantic_scope: unknown_review_required
+  policy: diagnostic_only
+  mechanism: unknown
+  sources: []
+  source_cadence: unknown
+  notes: "No taxonomy rule matched; review required before model use."

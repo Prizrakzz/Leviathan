@@ -5,6 +5,8 @@ from leviathan.storage.paths import (
     bronze_production_key,
     bronze_weather_key,
     gold_feature_catalog_version_key,
+    gold_feature_entity_map_version_key,
+    gold_feature_group_map_version_key,
     gold_feature_matrix_version_key,
     gold_feature_spine_commodity_manifest_key,
     gold_feature_spine_manifest_key,
@@ -184,6 +186,16 @@ class TestGoldVersionedPaths:
     def test_catalog_version_key(self):
         assert gold_feature_catalog_version_key("v1") == (
             "gold/feature_catalog_versions/dataset_version=v1/feature_catalog.parquet"
+        )
+
+    def test_entity_map_version_key(self):
+        assert gold_feature_entity_map_version_key("v1") == (
+            "gold/feature_entity_map_versions/dataset_version=v1/feature_entity_map.parquet"
+        )
+
+    def test_group_map_version_key(self):
+        assert gold_feature_group_map_version_key("v1") == (
+            "gold/feature_group_map_versions/dataset_version=v1/feature_group_map.parquet"
         )
 
     def test_dataset_manifest_key(self):

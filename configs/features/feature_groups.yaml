@@ -1,0 +1,162 @@
+# Commodity groups used by the semantic feature catalog and later feature sets.
+#
+# Groups intentionally overlap: a contract can belong to a broad physical group
+# and to a narrower processing or regional complex.
+
+groups:
+  grains:
+    commodities:
+      - corn_cbot
+      - campinas_corn_reference_bmf
+      - french_maize_matif
+      - hard_red_winter_wheat_kcbt
+      - hard_red_spring_wheat_mgex
+      - soft_red_winter_wheat_cbot
+      - french_wheat_matif
+      - rough_rice_cbot
+      - south_african_white_maize_jse
+      - south_african_yellow_maize_jse
+
+  maize_complex:
+    commodities:
+      - corn_cbot
+      - campinas_corn_reference_bmf
+      - french_maize_matif
+      - south_african_white_maize_jse
+      - south_african_yellow_maize_jse
+
+  wheat_complex:
+    commodities:
+      - hard_red_winter_wheat_kcbt
+      - hard_red_spring_wheat_mgex
+      - soft_red_winter_wheat_cbot
+      - french_wheat_matif
+
+  oilseeds:
+    commodities:
+      - soybeans_cbot
+      - soybeans_no_1_dce
+      - soybeans_no_2_dce
+      - soybean_meal_cbot
+      - soybean_meal_dce
+      - soybean_oil_cbot
+      - soybean_oil_dce
+      - canola_ice
+      - french_rapeseed_matif
+      - rapeseed_meal_zce
+      - rapeseed_oil_zce
+      - malaysian_crude_palm_oil_cme
+      - palm_olein_dce
+
+  soy_complex:
+    commodities:
+      - soybeans_cbot
+      - soybeans_no_1_dce
+      - soybeans_no_2_dce
+      - soybean_meal_cbot
+      - soybean_meal_dce
+      - soybean_oil_cbot
+      - soybean_oil_dce
+
+  rapeseed_canola_complex:
+    commodities:
+      - canola_ice
+      - french_rapeseed_matif
+      - rapeseed_meal_zce
+      - rapeseed_oil_zce
+
+  vegetable_oils:
+    commodities:
+      - soybean_oil_cbot
+      - soybean_oil_dce
+      - rapeseed_oil_zce
+      - malaysian_crude_palm_oil_cme
+      - palm_olein_dce
+
+  palm:
+    commodities:
+      - malaysian_crude_palm_oil_cme
+      - palm_olein_dce
+
+  coffee:
+    commodities:
+      - arabica_coffee
+      - brazilian_arabica_coffee
+      - robusta_coffee
+
+  sugar_and_biofuel:
+    commodities:
+      - raw_sugar
+      - white_sugar
+
+  cotton:
+    commodities:
+      - cotton
+
+  rice:
+    commodities:
+      - rough_rice_cbot
+
+  cocoa:
+    commodities:
+      - cocoa
+
+  citrus:
+    commodities:
+      - frozen_orange_juice
+
+  tree_crops:
+    commodities:
+      - arabica_coffee
+      - brazilian_arabica_coffee
+      - robusta_coffee
+      - cocoa
+      - frozen_orange_juice
+      - malaysian_crude_palm_oil_cme
+      - palm_olein_dce
+
+  us_row_crops:
+    commodities:
+      - corn_cbot
+      - soybeans_cbot
+      - soybean_meal_cbot
+      - soybean_oil_cbot
+      - hard_red_winter_wheat_kcbt
+      - hard_red_spring_wheat_mgex
+      - soft_red_winter_wheat_cbot
+      - rough_rice_cbot
+      - cotton
+
+  south_african_grains:
+    commodities:
+      - south_african_white_maize_jse
+      - south_african_yellow_maize_jse
+
+  chinese_ag_contracts:
+    commodities:
+      - soybeans_no_1_dce
+      - soybeans_no_2_dce
+      - soybean_meal_dce
+      - soybean_oil_dce
+      - rapeseed_meal_zce
+      - rapeseed_oil_zce
+      - palm_olein_dce
+
+  european_ag_contracts:
+    commodities:
+      - french_wheat_matif
+      - french_maize_matif
+      - french_rapeseed_matif
+
+  north_american_ag_contracts:
+    commodities:
+      - corn_cbot
+      - soybeans_cbot
+      - soybean_meal_cbot
+      - soybean_oil_cbot
+      - hard_red_winter_wheat_kcbt
+      - hard_red_spring_wheat_mgex
+      - soft_red_winter_wheat_cbot
+      - rough_rice_cbot
+      - cotton
+      - canola_ice

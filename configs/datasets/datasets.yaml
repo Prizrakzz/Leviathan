@@ -41,6 +41,30 @@ datasets:
     versioned: true
     mutable_latest_table: gold_feature_catalog
 
+  - dataset_key: gold_feature_entity_map_versions
+    title: Feature-to-entity coverage per immutable gold dataset version
+    layer: gold
+    format: parquet
+    grain: dataset_version x feature x commodity x country
+    s3_prefix: s3://leviathan-dev-shahem-001/gold/feature_entity_map_versions/
+    athena_table: gold_feature_entity_map_versions
+    partition_keys: [dataset_version]
+    natural_key: [dataset_version, feature, commodity, country]
+    versioned: true
+    mutable_latest_table: null
+
+  - dataset_key: gold_feature_group_map_versions
+    title: Feature-to-group coverage per immutable gold dataset version
+    layer: gold
+    format: parquet
+    grain: dataset_version x feature x group
+    s3_prefix: s3://leviathan-dev-shahem-001/gold/feature_group_map_versions/
+    athena_table: gold_feature_group_map_versions
+    partition_keys: [dataset_version]
+    natural_key: [dataset_version, feature, group]
+    versioned: true
+    mutable_latest_table: null
+
   - dataset_key: gold_feature_spine_manifests
     title: Immutable feature spine dataset manifests
     layer: gold
