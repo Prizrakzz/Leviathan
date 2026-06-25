@@ -46,13 +46,13 @@ _PARAMETERS = {
     "aws_region": _REGION,
     "experiment": "leviathan-tier1-production",
     "tier": "climate",
-    "feature_set": "",
+    "feature_set": "none",
     "target": "production_quantity",
     "model": "xgboost",
     "detrend": "false",
     "optuna": "false",
     "n_trials": "30",
-    "dataset_version": "",
+    "dataset_version": "none",
 }
 
 _CONTAINER = {

@@ -67,6 +67,20 @@ def _str2bool(v) -> bool:
     return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
+def _optional_ref(value: str | None) -> str | None:
+    """Normalize optional AWS Batch Ref parameters.
+
+    Batch job definitions cannot reliably preserve empty-string defaults.  Use
+    ``none`` in the job definition and normalize it back to ``None`` here.
+    """
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if normalized.lower() in {"", "none", "null"}:
+        return None
+    return normalized
+
+
 def _make_model(name: str, **hp):
     """Tree regressors — NaN-native, no scaling needed (missingness-as-signal)."""
     common = dict(
@@ -277,6 +291,8 @@ def main() -> None:
                         help="search hyperparameters with Optuna (bare flag or 'true'/'false')")
     parser.add_argument("--n-trials", type=int, default=30, dest="n_trials")
     args = parser.parse_args()
+    args.dataset_version = _optional_ref(args.dataset_version)
+    args.feature_set = _optional_ref(args.feature_set)
     if not args.bucket:
         raise SystemExit("LEVIATHAN_BUCKET (or --bucket) is required")
 

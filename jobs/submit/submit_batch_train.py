@@ -86,14 +86,14 @@ def main() -> None:
         {
             "commodity": c,
             "tier": t if not feature_sets else "climate",
-            "feature_set": t if feature_sets else "",
+            "feature_set": t if feature_sets else "none",
             "target": tg,
             "model": m,
             "bucket": bucket, "aws_region": aws_region, "experiment": args.experiment,
             "detrend": str(args.detrend).lower(),   # Ref::detrend → "true"/"false"
             "optuna": str(args.optuna).lower(),
             "n_trials": str(args.n_trials),
-            "dataset_version": args.dataset_version,
+            "dataset_version": args.dataset_version or "none",
         }
         for c, t, tg, m in itertools.product(commodities, selectors, targets, models)
     ]
