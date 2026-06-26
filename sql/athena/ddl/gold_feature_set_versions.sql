@@ -1,4 +1,4 @@
--- Model-purpose feature-set membership for each immutable feature-spine version.
+-- GENERATED from live Glue table leviathan_dev.gold_feature_set_versions; keep in sync with the S3 layout.
 CREATE EXTERNAL TABLE IF NOT EXISTS gold_feature_set_versions (
     feature_set_id       string,
     feature_set_version  string,
@@ -22,10 +22,11 @@ CREATE EXTERNAL TABLE IF NOT EXISTS gold_feature_set_versions (
 )
 PARTITIONED BY (dataset_version string)
 STORED AS PARQUET
-LOCATION 's3://leviathan-dev-shahem-001/gold/feature_set_versions/'
+LOCATION 's3://leviathan-dev-shahem-001/gold/feature_set_versions'
 TBLPROPERTIES (
+    'EXTERNAL' = 'TRUE',
     'parquet.compression' = 'SNAPPY',
-    'projection.enabled' = 'true',
     'projection.dataset_version.type' = 'injected',
+    'projection.enabled' = 'true',
     'storage.location.template' = 's3://leviathan-dev-shahem-001/gold/feature_set_versions/dataset_version=${dataset_version}/'
 );

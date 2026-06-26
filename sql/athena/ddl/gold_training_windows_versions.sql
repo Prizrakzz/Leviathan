@@ -1,4 +1,4 @@
--- Training-window summaries computed from immutable feature matrix versions.
+-- GENERATED from live Glue table leviathan_dev.gold_training_windows_versions; keep in sync with the S3 layout.
 CREATE EXTERNAL TABLE IF NOT EXISTS gold_training_windows_versions (
     commodity          string,
     tier               string,
@@ -12,10 +12,11 @@ CREATE EXTERNAL TABLE IF NOT EXISTS gold_training_windows_versions (
 )
 PARTITIONED BY (dataset_version string)
 STORED AS PARQUET
-LOCATION 's3://leviathan-dev-shahem-001/gold/training_windows_versions/'
+LOCATION 's3://leviathan-dev-shahem-001/gold/training_windows_versions'
 TBLPROPERTIES (
+    'EXTERNAL' = 'TRUE',
     'parquet.compression' = 'SNAPPY',
-    'projection.enabled' = 'true',
     'projection.dataset_version.type' = 'injected',
+    'projection.enabled' = 'true',
     'storage.location.template' = 's3://leviathan-dev-shahem-001/gold/training_windows_versions/dataset_version=${dataset_version}/'
 );

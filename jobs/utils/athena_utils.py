@@ -7,7 +7,7 @@ Usage:
     from athena_utils import ensure_catalog, run_query, ATHENA_DB
 
     athena = ensure_catalog()
-    rows = run_query(athena, "SELECT COUNT(*) AS n FROM leviathan_dev.silver_weather")
+    rows = run_query(athena, "SELECT COUNT(*) AS n FROM leviathan_dev.silver_nasa_power")
     print(rows[0]["n"])
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 ATHENA_RESULTS = f"s3://{BUCKET}/athena-results/"
 
 WEATHER_START_YEAR = 1981
-WEATHER_END_YEAR = 2024
+WEATHER_END_YEAR = 2035
 FAOSTAT_START_YEAR = 1961
 FAOSTAT_END_YEAR = 2023
 
@@ -137,18 +137,18 @@ def ensure_catalog() -> boto3.client:
         )
         print(f"  [catalog] Created Glue database: {ATHENA_DB}")
 
-    # ---- silver_weather ----
+    # ---- silver_nasa_power ----
     weather_base = f"s3://{BUCKET}/silver/weather/source=nasa_power/"
     weather_template = (
         weather_base
         + "commodity=${commodity}/country=${country}/region=${region}/year=${year}/month=${month}"
     )
 
-    run_query(athena, f"DROP TABLE IF EXISTS {ATHENA_DB}.silver_weather", database=None)
+    run_query(athena, f"DROP TABLE IF EXISTS {ATHENA_DB}.silver_nasa_power", database=None)
     run_query(
         athena,
         f"""
-CREATE EXTERNAL TABLE {ATHENA_DB}.silver_weather (
+CREATE EXTERNAL TABLE {ATHENA_DB}.silver_nasa_power (
     date                       DATE,
     day                        INT,
     source                     STRING,
@@ -159,8 +159,7 @@ CREATE EXTERNAL TABLE {ATHENA_DB}.silver_weather (
     temperature_2m_min_c       DOUBLE,
     precipitation_mm           DOUBLE,
     relative_humidity_2m_pct   DOUBLE,
-    wind_speed_2m_m_s          DOUBLE,
-    solar_radiation_mj_m2_day  DOUBLE
+    wind_speed_2m_m_s          DOUBLE
 )
 PARTITIONED BY (commodity STRING, country STRING, region STRING, year INT, month INT)
 STORED AS PARQUET
@@ -220,7 +219,7 @@ TBLPROPERTIES (
     )
 
     print(
-        f"  [catalog] Tables ready: {ATHENA_DB}.silver_weather,"
+        f"  [catalog] Tables ready: {ATHENA_DB}.silver_nasa_power,"
         f" {ATHENA_DB}.silver_production"
     )
     return athena

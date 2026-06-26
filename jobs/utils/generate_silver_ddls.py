@@ -43,7 +43,6 @@ _SOURCES = {
     "silver_sagis_weekly_exports": "silver/sagis_weekly_exports/",
     # production / origin
     "silver_conab_coffee": "silver/conab_coffee/",
-    "silver_fnc_colombia": "silver/fnc_colombia/",
     "silver_nass_crop_progress": "silver/nass_crop_progress/",
     "silver_nass_citrus": "silver/nass_citrus/",
     "silver_icco_cocoa": "silver/icco_cocoa/",
