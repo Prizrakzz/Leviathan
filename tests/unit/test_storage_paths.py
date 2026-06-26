@@ -13,6 +13,10 @@ from leviathan.storage.paths import (
     gold_feature_spine_commodity_manifest_key,
     gold_feature_spine_manifest_key,
     gold_feature_spine_version_key,
+    gold_model_ready_baseline_metrics_key,
+    gold_model_ready_manifest_key,
+    gold_model_ready_matrix_key,
+    gold_model_ready_target_key,
     gold_training_windows_version_key,
     parse_hive_key,
     raw_cpc_tif_key,
@@ -226,4 +230,35 @@ class TestGoldVersionedPaths:
     def test_training_windows_version_key(self):
         assert gold_training_windows_version_key("v1") == (
             "gold/training_windows_versions/dataset_version=v1/training_windows.parquet"
+        )
+
+    def test_model_ready_target_key(self):
+        assert gold_model_ready_target_key("m1", "annual_physical_anomaly", "corn_cbot") == (
+            "gold/model_ready_targets/"
+            "dataset_version=m1/"
+            "dataset_key=annual_physical_anomaly/"
+            "commodity=corn_cbot/"
+            "part-000.parquet"
+        )
+
+    def test_model_ready_matrix_key(self):
+        assert gold_model_ready_matrix_key(
+            "m1", "annual_physical_anomaly", "corn_cbot", "production_anomaly_pct"
+        ) == (
+            "gold/model_ready_matrices/"
+            "dataset_version=m1/"
+            "dataset_key=annual_physical_anomaly/"
+            "commodity=corn_cbot/"
+            "target=production_anomaly_pct/"
+            "part-000.parquet"
+        )
+
+    def test_model_ready_baseline_metrics_key(self):
+        assert gold_model_ready_baseline_metrics_key("m1") == (
+            "gold/model_ready_baselines/dataset_version=m1/baseline_metrics.parquet"
+        )
+
+    def test_model_ready_manifest_key(self):
+        assert gold_model_ready_manifest_key("m1") == (
+            "gold/model_ready_manifests/dataset_version=m1/manifest.json"
         )

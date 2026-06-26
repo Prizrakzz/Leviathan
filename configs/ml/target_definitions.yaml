@@ -1,0 +1,95 @@
+# MLflow-ready target definitions derived from immutable gold matrices.
+#
+# Phase 8 deliberately starts with annual physical anomaly targets because
+# final production/yield/area levels are mostly trend and scale.  These targets
+# ask the model to predict the surprise versus a trailing expectation.
+
+schema_version: 1
+
+defaults:
+  source_dataset_version: "20260626T010217Z_6725de02_phase7_full"
+  min_history_years: 5
+  target_type: trailing_trend_pct_anomaly
+  feature_set_policy: compatible_union
+  baselines:
+    - zero_anomaly
+    - prior_year
+    - trailing_mean
+    - trailing_linear_trend
+  compatible_feature_sets:
+    - preseason_physical
+    - inseason_weather
+    - crop_condition
+    - official_revision
+    - physical_flow
+    - balance_sheet
+    - planting_incentives
+    - trade_competitiveness
+    - tail_risk
+    - data_quality
+
+target_definitions:
+  - target_key: production_anomaly_pct
+    dataset_key: annual_physical_anomaly
+    title: Production anomaly versus trailing trend
+    label_column: label_production_quantity
+    actual_column: production_quantity
+    target_unit: pct_deviation
+    horizon: final_crop_year
+    grain:
+      - commodity
+      - country
+      - crop_year
+    as_of_rule: features_available_before_or_during_crop_year
+    target_compatibility:
+      - production_anomaly
+      - tail_event_probability
+
+  - target_key: yield_anomaly_pct
+    dataset_key: annual_physical_anomaly
+    title: Yield anomaly versus trailing trend
+    label_column: label_yield
+    actual_column: yield
+    target_unit: pct_deviation
+    horizon: final_crop_year
+    grain:
+      - commodity
+      - country
+      - crop_year
+    as_of_rule: features_available_before_or_during_crop_year
+    target_compatibility:
+      - yield_anomaly
+      - tail_event_probability
+
+  - target_key: area_harvested_anomaly_pct
+    dataset_key: annual_physical_anomaly
+    title: Harvested-area anomaly versus trailing trend
+    label_column: label_area_harvested
+    actual_column: area_harvested
+    target_unit: pct_deviation
+    horizon: final_crop_year
+    grain:
+      - commodity
+      - country
+      - crop_year
+    as_of_rule: features_available_before_or_during_crop_year
+    target_compatibility:
+      - harvested_area_anomaly
+      - planted_area_anomaly
+
+future_target_families:
+  - dataset_key: official_revision
+    status: planned
+    note: Build from release-date silver panels such as WASDE and NASS citrus.
+
+  - dataset_key: weekly_or_fortnightly_trajectory
+    status: planned
+    note: Build from ESR, FGIS, SAGIS weekly, and UNICA cadence-aligned panels.
+
+  - dataset_key: quality_event
+    status: planned
+    note: Build event labels from AMS cotton quality thresholds.
+
+  - dataset_key: anomaly_detection_panel
+    status: planned
+    note: Build unsupervised panels after supervised annual anomaly datasets are certified.

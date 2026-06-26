@@ -112,3 +112,52 @@ datasets:
     natural_key: [dataset_version, commodity, tier]
     versioned: true
     mutable_latest_table: gold_training_windows
+
+  - dataset_key: gold_model_ready_targets
+    title: Model-ready target rows per immutable model dataset version
+    layer: gold
+    format: parquet
+    grain: dataset_version x dataset_key x commodity x country x crop_year x target_key
+    s3_prefix: s3://leviathan-dev-shahem-001/gold/model_ready_targets/
+    athena_table: gold_model_ready_targets
+    partition_keys: [dataset_version, dataset_key, commodity]
+    natural_key: [dataset_version, dataset_key, commodity, country, crop_year, target_key]
+    versioned: true
+    mutable_latest_table: null
+
+  - dataset_key: gold_model_ready_matrices
+    title: Model-ready wide matrices per immutable model dataset version
+    layer: gold
+    format: parquet
+    grain: dataset_version x dataset_key x commodity x target_key x country x crop_year
+    s3_prefix: s3://leviathan-dev-shahem-001/gold/model_ready_matrices/
+    athena_table: null
+    partition_keys: [dataset_version, dataset_key, commodity, target]
+    natural_key: [dataset_version, dataset_key, commodity, target_key, country, crop_year]
+    versioned: true
+    mutable_latest_table: null
+    note: Wide feature columns vary by target and dataset version; consume as an MLflow training artifact.
+
+  - dataset_key: gold_model_ready_baselines
+    title: Baseline metrics for model-ready targets
+    layer: gold
+    format: parquet
+    grain: dataset_version x dataset_key x commodity x target_key x baseline_name
+    s3_prefix: s3://leviathan-dev-shahem-001/gold/model_ready_baselines/
+    athena_table: gold_model_ready_baselines
+    partition_keys: [dataset_version]
+    natural_key: [dataset_version, dataset_key, commodity, target_key, baseline_name]
+    versioned: true
+    mutable_latest_table: null
+
+  - dataset_key: gold_model_ready_manifests
+    title: Model-ready dataset manifests
+    layer: gold
+    format: json
+    grain: dataset_version
+    s3_prefix: s3://leviathan-dev-shahem-001/gold/model_ready_manifests/
+    athena_table: null
+    partition_keys: [dataset_version]
+    natural_key: [dataset_version]
+    versioned: true
+    mutable_latest_table: null

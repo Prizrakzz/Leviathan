@@ -1997,6 +1997,82 @@ resource "aws_batch_job_definition" "feature_spine" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Job definition: versioned gold matrices -> model-ready target/matrix datasets
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "model_ready_datasets" {
+  name = "${var.project_name}-${var.environment}-model-ready-datasets"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  parameters = {
+    bucket                    = var.leviathan_bucket
+    aws_region                = var.aws_region
+    source_dataset_version    = "none"
+    model_dataset_version     = "none"
+    commodities               = "all"
+    target_keys               = "none"
+    workers                   = "8"
+    skip_existing_versioned   = "false"
+    force_overwrite           = "false"
+  }
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    command = [
+      "jobs/batch/build_model_ready_datasets.py",
+      "--bucket",                 "Ref::bucket",
+      "--aws-region",             "Ref::aws_region",
+      "--source-dataset-version", "Ref::source_dataset_version",
+      "--model-dataset-version",  "Ref::model_dataset_version",
+      "--commodities",            "Ref::commodities",
+      "--target-keys",            "Ref::target_keys",
+      "--workers",                "Ref::workers",
+      "--skip-existing-versioned", "Ref::skip_existing_versioned",
+      "--force-overwrite",        "Ref::force_overwrite",
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION",       value = var.aws_region },
+      { name = "LEVIATHAN_ENV",    value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU",   value = "2" },
+      { type = "MEMORY", value = "8192" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "model-ready-datasets"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 resource "aws_batch_job_definition" "unica_annual_state" {
   name = "${var.project_name}-${var.environment}-unica-annual-state"
   type = "container"

@@ -1986,6 +1986,64 @@ def gold_training_windows_version_key(
     )
 
 
+def gold_model_ready_target_key(
+    dataset_version: str,
+    dataset_key: str,
+    commodity: str,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for long model-ready target rows."""
+    return (
+        f"gold/model_ready_targets/"
+        f"dataset_version={dataset_version}/"
+        f"dataset_key={dataset_key}/"
+        f"commodity={commodity}/"
+        f"{filename}"
+    )
+
+
+def gold_model_ready_matrix_key(
+    dataset_version: str,
+    dataset_key: str,
+    commodity: str,
+    target_key: str,
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for a model-ready wide matrix for one target."""
+    return (
+        f"gold/model_ready_matrices/"
+        f"dataset_version={dataset_version}/"
+        f"dataset_key={dataset_key}/"
+        f"commodity={commodity}/"
+        f"target={target_key}/"
+        f"{filename}"
+    )
+
+
+def gold_model_ready_baseline_metrics_key(
+    dataset_version: str,
+    filename: str = "baseline_metrics.parquet",
+) -> str:
+    """S3 key for baseline metrics computed for model-ready targets."""
+    return (
+        f"gold/model_ready_baselines/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
+def gold_model_ready_manifest_key(
+    dataset_version: str,
+    filename: str = "manifest.json",
+) -> str:
+    """S3 key for a model-ready dataset manifest."""
+    return (
+        f"gold/model_ready_manifests/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
 def raw_chris_key(slug: str, tenor: int) -> str:
     """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
 
