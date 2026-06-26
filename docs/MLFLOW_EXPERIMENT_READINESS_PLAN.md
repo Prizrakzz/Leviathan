@@ -1132,6 +1132,63 @@ Every supervised dataset must include baseline predictions:
 - Baselines are materialized, not computed informally in notebooks.
 - Datasets can be selected by `dataset_version`.
 
+#### Implementation Status
+
+Phase 8 was implemented on 2026-06-26 for the first model-ready dataset
+family: `annual_physical_anomaly`.
+
+Source gold version:
+
+```text
+20260626T010217Z_6725de02_phase7_full
+```
+
+Model-ready dataset version:
+
+```text
+20260626T104732Z_a2576e84_phase8_model_ready
+```
+
+Implemented targets:
+
+- `production_anomaly_pct`;
+- `yield_anomaly_pct`;
+- `area_harvested_anomaly_pct`.
+
+Implementation details:
+
+- target definitions live in `configs/ml/target_definitions.yaml`;
+- target and baseline logic lives in `src/leviathan/model_datasets/`;
+- `jobs/batch/build_model_ready_datasets.py` builds immutable target tables,
+  target-specific matrices, baseline metrics, and a manifest;
+- `jobs/submit/submit_batch_model_ready_datasets.py` and a Terraform Batch job
+  definition were added for reproducible Batch execution;
+- stable Athena DDLs were added for `gold_model_ready_targets` and
+  `gold_model_ready_baselines`.
+
+Validated outputs:
+
+- 31 target-table Parquet objects;
+- 83 target-specific matrix Parquet objects;
+- 11,822 target rows;
+- 83 built target panels;
+- 332 baseline metric rows;
+- 0 failed commodities;
+- sample `corn_cbot` production anomaly matrix has 184 rows, 479 columns, and
+  no leaked `label_` columns.
+
+Operational note:
+
+- The S3 model-ready dataset was built directly from committed local code.
+- The Batch job definition is present in Terraform code but still requires the
+  usual worker image rebuild and Terraform apply before it is live in AWS Batch.
+
+Completion note:
+
+```text
+docs/ops/PHASE8_COMPLETION.md
+```
+
 ### Phase 9: Upgrade MLflow Training
 
 #### Purpose
