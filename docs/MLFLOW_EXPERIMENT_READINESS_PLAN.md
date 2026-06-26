@@ -1007,7 +1007,10 @@ already present:
 
 #### Implementation Status
 
-Phase 7A was implemented on 2026-06-25 in code.
+Phase 7 was completed in two steps:
+
+- code implementation on 2026-06-25;
+- runtime rollout and artifact validation on 2026-06-26.
 
 Implemented first-batch feature families:
 
@@ -1027,13 +1030,24 @@ Validation:
 
 - targeted unit tests pass;
 - live S3 source smoke emitted WASDE, NASS citrus, AMS cotton, and UNICA
-  features.
+  features;
+- worker image was rebuilt and pushed as
+  `668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-worker:6725de02`;
+- full immutable gold version
+  `20260626T010217Z_6725de02_phase7_full` was built on the on-demand Batch
+  queue with 31 successful commodity shards;
+- versioned training windows, dataset manifest, semantic catalog, entity map,
+  group map, and feature-set artifacts were rebuilt for that version;
+- S3 validation found 31 spine shards, 31 matrices, 31 commodity manifests,
+  2,722 semantic catalog features, zero unknown taxonomy rows, 4,165
+  feature-set membership rows, and 124 training-window rows;
+- trainer-facing validation confirmed representative feature-set selections
+  resolve usable columns and `submit_batch_train.py --dry-run` accepts
+  `--feature-sets` with the new `--dataset-version`.
 
-Remaining before the Phase 7 exit criteria is fully satisfied:
-
-- rebuild and push the worker image;
-- publish a new immutable versioned gold dataset containing these features;
-- rebuild semantic catalog and feature-set artifacts for that dataset version.
+Phase 7 exit criteria are satisfied. Phase 8 should use
+`20260626T010217Z_6725de02_phase7_full` as the current experiment-ready gold
+baseline unless a newer immutable version is produced.
 
 Completion note:
 
