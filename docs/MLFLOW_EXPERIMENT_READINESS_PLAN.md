@@ -1005,6 +1005,42 @@ already present:
 - New features have policy metadata.
 - New features do not leak future information under the declared as-of rule.
 
+#### Implementation Status
+
+Phase 7A was implemented on 2026-06-25 in code.
+
+Implemented first-batch feature families:
+
+- `wasde_direct_revisions`;
+- `nass_citrus_revisions`;
+- `ams_cotton_quality`;
+- `unica_sugar_biweekly`.
+
+Governance updates:
+
+- feature registry now has 36 families;
+- taxonomy metadata covers the implemented Phase 7 families;
+- `quality_tenderability` was added as a model-purpose feature set;
+- cotton quality was added to `tail_risk`.
+
+Validation:
+
+- targeted unit tests pass;
+- live S3 source smoke emitted WASDE, NASS citrus, AMS cotton, and UNICA
+  features.
+
+Remaining before the Phase 7 exit criteria is fully satisfied:
+
+- rebuild and push the worker image;
+- publish a new immutable versioned gold dataset containing these features;
+- rebuild semantic catalog and feature-set artifacts for that dataset version.
+
+Completion note:
+
+```text
+docs/ops/PHASE7_COMPLETION.md
+```
+
 ### Phase 8: Build Model-Ready Targets and Datasets
 
 #### Purpose

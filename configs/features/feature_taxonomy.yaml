@@ -132,7 +132,7 @@ rules:
     mechanism: official_estimate_revision
     sources: ["wasde"]
     source_cadence: monthly
-    notes: "Future WASDE revision feature family."
+    notes: "WASDE direct estimate and balance-sheet revision features."
 
   - id: wap_revisions
     patterns: ["^wap_"]
@@ -292,7 +292,7 @@ rules:
     mechanism: citrus_forecast_revision
     sources: ["nass_citrus"]
     source_cadence: monthly_or_seasonal
-    notes: "Future USDA NASS citrus forecast feature family."
+    notes: "USDA NASS citrus forecast revision feature family."
 
   - id: ams_cotton_quality
     patterns: ["^ams_"]
@@ -302,7 +302,7 @@ rules:
     mechanism: cotton_quality_tenderable_supply
     sources: ["ams_cotton_quality"]
     source_cadence: annual
-    notes: "Future AMS cotton classing quality feature family."
+    notes: "AMS cotton classing quality and tenderability feature family."
 
   - id: unica
     patterns: ["^unica_"]
@@ -310,9 +310,9 @@ rules:
     semantic_scope: origin_physical_flow
     policy: fundamental_physical
     mechanism: cane_crush_sugar_ethanol_mix
-    sources: ["unica"]
+    sources: ["unica_biweekly"]
     source_cadence: biweekly_or_monthly
-    notes: "Future UNICA sugarcane crush and allocation feature family."
+    notes: "UNICA sugarcane crush and sugar/ethanol allocation feature family."
 
   - id: fnc
     patterns: ["^fnc_"]

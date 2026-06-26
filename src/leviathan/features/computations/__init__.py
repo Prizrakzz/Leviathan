@@ -20,6 +20,12 @@ from leviathan.features.computations.macro_climate import (
     compute_oni_lag,
     compute_pink_sheet_input_costs,
 )
+from leviathan.features.computations.phase7_fundamentals import (
+    compute_ams_cotton_quality,
+    compute_nass_citrus_revisions,
+    compute_unica_sugar_biweekly,
+    compute_wasde_direct_revisions,
+)
 from leviathan.features.computations.production import (
     compute_faostat_available,
     compute_faostat_labels,
@@ -89,6 +95,10 @@ COMPUTATIONS: dict[str, ComputeFn] = {
     "sagis_cec_revision": compute_sagis_cec_revision,
     "esr_exports": compute_esr_exports,
     "nass_crop_progress_ge_z": compute_nass_crop_progress_ge_z,
+    "wasde_direct_revisions": compute_wasde_direct_revisions,
+    "nass_citrus_revisions": compute_nass_citrus_revisions,
+    "ams_cotton_quality": compute_ams_cotton_quality,
+    "unica_sugar_biweekly": compute_unica_sugar_biweekly,
 }
 
 __all__ = ["COMPUTATIONS", "FeatureContext"]

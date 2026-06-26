@@ -31,6 +31,7 @@ def _catalog() -> pd.DataFrame:
         ("cot_mm_net_pct_oi_z", "market_positioning", "diagnostic_market_context", "diagnostic_only", "positioning_context", "cot", "weekly", "universal", "grains", False, 9, 2, 0.9),
         ("nass_ge_pct_z", "crop_condition", "inseason_crop_condition", "fundamental_physical", "good_excellent_condition", "nass_crop_progress", "weekly", "commodity", "us_row_crops", False, 5, 1, 0.5),
         ("wasde_latest_revision", "official_revisions", "official_revision", "fundamental_physical", "official_estimate_revision", "wasde", "monthly", "commodity", "grains", False, 5, 1, 0.5),
+        ("ams_percent_tenderable", "cotton_quality", "quality_tenderability", "fundamental_physical", "cotton_quality_tenderable_supply", "ams_cotton_quality", "annual", "commodity", "cotton", False, 5, 1, 0.5),
         ("fgis_export_pace_yoy", "export_pace", "origin_physical_flow", "fundamental_physical", "export_inspection_pace", "fgis", "weekly", "commodity", "us_row_crops", False, 5, 1, 0.5),
         ("psd_available", "balance_sheet", "origin_balance_sheet", "fundamental_physical", "stock_use_balance", "psd", "annual", "universal", "grains", False, 10, 2, 1.0),
         ("faostat_available", "faostat_production", "origin_production_history", "fundamental_physical", "production_trend_baseline", "production:faostat", "annual", "universal", "grains", False, 10, 2, 1.0),
@@ -77,7 +78,7 @@ def test_feature_sets_exclude_labels_and_core_diagnostics() -> None:
         _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
     )
 
-    assert summary["feature_set_count"] == 12
+    assert summary["feature_set_count"] == 13
     assert "label_production_quantity" not in set(membership["feature"])
     core = membership.loc[membership["feature_set_id"] != "diagnostic_market_context"]
     assert "diagnostic_only" not in set(core["policy"])
@@ -100,6 +101,17 @@ def test_economic_driver_sets_are_certified_only() -> None:
     ]
     assert set(economic_sets["policy"]) == {"certified_economic_driver"}
     assert selected_features_for_set(membership, "processing_economics") == ["crush_margin_z"]
+
+
+def test_quality_tenderability_selects_cotton_quality_only() -> None:
+    specs, config_sha = load_feature_set_config()
+    membership, _ = build_feature_set_membership(
+        _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
+    )
+
+    assert selected_features_for_set(membership, "quality_tenderability") == [
+        "ams_percent_tenderable"
+    ]
 
 
 def test_zero_feature_set_fails(tmp_path: Path) -> None:
@@ -149,10 +161,10 @@ def test_feature_set_task_writes_outputs_and_patches_manifest(tmp_path: Path) ->
 
     summary = build_and_write(args)
 
-    assert summary["feature_set_count"] == 12
+    assert summary["feature_set_count"] == 13
     assert (tmp_path / gold_feature_set_version_key(version)).exists()
     assert (tmp_path / gold_feature_set_summary_key(version)).exists()
     manifest = json.loads(manifest_path.read_text())
-    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 12
+    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 13
     assert manifest["outputs"]["feature_sets_key"] == gold_feature_set_version_key(version)
     assert manifest["outputs"]["feature_sets_json_key"] == gold_feature_set_summary_key(version)

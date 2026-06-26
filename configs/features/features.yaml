@@ -344,3 +344,69 @@
     - soybean_meal_cbot
     - soybean_oil_cbot
   value_range: null
+
+# ---------------------------------------------------------------------------
+# Phase 7: High-value existing-silver feature families
+# ---------------------------------------------------------------------------
+
+- family: wasde_direct_revisions
+  sources: ["wasde"]
+  visibility: prior_marketing_year
+  commodities:
+    - corn_cbot
+    - campinas_corn_reference_bmf
+    - french_maize_matif
+    - hard_red_winter_wheat_kcbt
+    - hard_red_spring_wheat_mgex
+    - soft_red_winter_wheat_cbot
+    - french_wheat_matif
+    - rough_rice_cbot
+    - soybeans_cbot
+    - soybean_meal_cbot
+    - soybean_oil_cbot
+    - soybeans_no_1_dce
+    - soybeans_no_2_dce
+    - soybean_meal_dce
+    - soybean_oil_dce
+    - cotton
+    - raw_sugar
+    - white_sugar
+  value_range: null
+  params:
+    baselines:
+      window_years: 30
+      min_years: 5
+
+- family: nass_citrus_revisions
+  sources: ["nass_citrus"]
+  visibility: prior_marketing_year
+  commodities:
+    - frozen_orange_juice
+  value_range: null
+  params:
+    baselines:
+      window_years: 20
+      min_years: 5
+
+- family: ams_cotton_quality
+  sources: ["ams_cotton_quality"]
+  visibility: prior_marketing_year
+  commodities:
+    - cotton
+  value_range: null
+  params:
+    baselines:
+      window_years: 20
+      min_years: 5
+
+- family: unica_sugar_biweekly
+  sources: ["unica_biweekly"]
+  visibility: prior_marketing_year
+  commodities:
+    - raw_sugar
+    - white_sugar
+  value_range: null
+  params:
+    baselines:
+      window_years: 10
+      min_years: 4

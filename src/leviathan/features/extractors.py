@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import re
+import io
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -87,6 +88,21 @@ _ESR_REQUIRED = (
     "commodity_name", "market_year", "week_ending_date",
     "outstanding_sales_1000mt", "weekly_exports_1000mt", "gross_new_sales_1000mt",
 )
+_WASDE_REQUIRED = (
+    "release_date", "commodity", "table_type", "region", "marketing_year",
+    "attribute", "estimate", "revision",
+)
+_NASS_CITRUS_REQUIRED = (
+    "season", "release_date", "report_month", "crop", "state",
+    "forecast_1000_boxes", "revision_1000_boxes",
+)
+_AMS_COTTON_QUALITY_REQUIRED = (
+    "commodity", "season", "geography", "percent_tenderable",
+)
+_UNICA_BIWEEKLY_REQUIRED = (
+    "harvest_year", "fortnight_seq", "fortnight_date", "region",
+    "cane_crushed_t", "sugar_produced_t", "source_position_date",
+)
 
 # Columns that are metadata/identifiers in wide-format weather files.
 # Everything else is a climate variable to be melted into (variable, value).
@@ -101,6 +117,26 @@ _FAOSTAT_KEY = ["country_key", "metric", "year"]
 _PSD_KEY = ["country", "market_year", "wasde_release_month", "release_date"]
 _ESR_KEY = ["commodity_name", "market_year", "week_ending_date", "country_code"]
 _YEAR_PARTITION_RE = re.compile(r"(?:^|/)year=(\d{4})(?:/|$)")
+_SLUG_TO_WASDE_COMMODITY: dict[str, str] = {
+    "corn_cbot": "corn",
+    "campinas_corn_reference_bmf": "corn",
+    "french_maize_matif": "corn",
+    "soft_red_winter_wheat_cbot": "wheat",
+    "hard_red_winter_wheat_kcbt": "wheat",
+    "hard_red_spring_wheat_mgex": "wheat",
+    "french_wheat_matif": "wheat",
+    "soybeans_cbot": "soybeans",
+    "soybeans_no_1_dce": "soybeans",
+    "soybeans_no_2_dce": "soybeans",
+    "soybean_meal_cbot": "soybean_meal",
+    "soybean_meal_dce": "soybean_meal",
+    "soybean_oil_cbot": "soybean_oil",
+    "soybean_oil_dce": "soybean_oil",
+    "rough_rice_cbot": "rice",
+    "cotton": "cotton",
+    "raw_sugar": "sugar",
+    "white_sugar": "sugar",
+}
 
 
 def _location(root: str, relative: str) -> str:
@@ -156,6 +192,68 @@ def _paths_with_year_partitions(
                 continue
             paths.append(str(path))
     return tuple(sorted(paths))
+
+
+def _parquet_paths(location: str) -> tuple[str, ...]:
+    """Return every parquet object/path under *location*.
+
+    Used by source-specific readers when ``pyarrow.dataset`` schema unification
+    is too brittle for legacy shards (currently WASDE).
+    """
+    parsed = urlparse(location)
+    paths: list[str] = []
+    if parsed.scheme == "s3":
+        bucket = parsed.netloc
+        prefix = parsed.path.lstrip("/").rstrip("/") + "/"
+        s3 = get_thread_local_s3_client(_aws_region())
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if key.endswith(".parquet"):
+                    paths.append(f"s3://{bucket}/{key}")
+    else:
+        base = Path(location)
+        if not base.exists():
+            return ()
+        paths = [str(path) for path in base.rglob("*.parquet")]
+    return tuple(sorted(paths))
+
+
+def _read_parquet_path(path: str, columns: list[str]) -> pd.DataFrame:
+    parsed = urlparse(path)
+    if parsed.scheme == "s3":
+        s3 = get_thread_local_s3_client(_aws_region())
+        body = s3.get_object(
+            Bucket=parsed.netloc,
+            Key=parsed.path.lstrip("/"),
+        )["Body"].read()
+        return pd.read_parquet(io.BytesIO(body), columns=columns)
+    return pd.read_parquet(path, columns=columns)
+
+
+def _load_parquet_paths(
+    paths: tuple[str, ...],
+    columns: list[str],
+    *,
+    workers: int = 1,
+) -> pd.DataFrame:
+    if not paths:
+        return pd.DataFrame(columns=columns)
+    if workers <= 1 or len(paths) <= 1:
+        frames = [_read_parquet_path(path, columns) for path in paths]
+    else:
+        frames = []
+        with ThreadPoolExecutor(max_workers=min(workers, len(paths))) as executor:
+            futures = [
+                executor.submit(_read_parquet_path, path, columns)
+                for path in paths
+            ]
+            for future in as_completed(futures):
+                frames.append(future.result())
+    if not frames:
+        return pd.DataFrame(columns=columns)
+    return pd.concat(frames, ignore_index=True)
 
 
 def _dataset_from_paths(paths: tuple[str, ...], location: str):
@@ -623,6 +721,96 @@ def extract_esr(
     return df, probe
 
 
+def extract_wasde(
+    root: str, commodity: str, plan: SourceLoadPlan | None = None
+) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """USDA WASDE direct monthly estimate/revision silver.
+
+    Loaded commodity-agnostic at the S3 prefix but filtered to the WASDE
+    commodity categories relevant to the requested Leviathan slug.  The
+    computation layer performs the final region/attribute filtering.
+    """
+    source_key = "wasde"
+    plan = plan or SourceLoadPlan()
+    location = _location(root, "silver/wasde")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s â€” structural missingness", source_key, location)
+        return None, probe
+    wasde_commodity = _SLUG_TO_WASDE_COMMODITY.get(commodity)
+    if wasde_commodity is None:
+        logger.info("%s: no WASDE commodity mapping for slug=%s", source_key, commodity)
+        return None, probe
+    paths = _parquet_paths(location)
+    columns = [c for c in [
+        "release_date", "commodity", "table_type", "region", "marketing_year",
+        "attribute", "unit", "estimate", "prior_release_date", "prior_estimate",
+        "revision", "revision_direction", "months_to_marketing_year_end",
+        "is_first_estimate", "is_final_or_latest", "source",
+    ] if c in probe.columns]
+    df = _load_parquet_paths(paths, columns, workers=plan.workers)
+    df = df[df["commodity"] == wasde_commodity].copy()
+    if df.empty:
+        logger.info("%s: no rows for slug=%s commodity=%s",
+                    source_key, commodity, wasde_commodity)
+        return None, probe
+    _check_contract(
+        df,
+        source_key,
+        _WASDE_REQUIRED,
+        ["release_date", "commodity", "table_type", "region", "marketing_year", "attribute"],
+    )
+    return df, probe
+
+
+def extract_nass_citrus(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """USDA NASS citrus monthly forecast silver."""
+    source_key = "nass_citrus"
+    location = _location(root, "silver/nass_citrus")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s â€” structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(
+        df, source_key, _NASS_CITRUS_REQUIRED,
+        ["season", "release_date", "crop", "state"],
+    )
+    return df, probe
+
+
+def extract_ams_cotton_quality(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """USDA AMS annual cotton classing quality silver."""
+    source_key = "ams_cotton_quality"
+    location = _location(root, "silver/ams_cotton_quality")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s â€” structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(
+        df, source_key, _AMS_COTTON_QUALITY_REQUIRED,
+        ["commodity", "geography", "season"],
+    )
+    return df, probe
+
+
+def extract_unica_biweekly(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
+    """UNICA Center-South biweekly sugarcane season-history silver."""
+    source_key = "unica_biweekly"
+    location = _location(root, "silver/unica_biweekly_season_history")
+    probe = probe_source(source_key, location)
+    if not probe.exists or probe.num_rows == 0:
+        logger.info("%s: no data at %s â€” structural missingness", source_key, location)
+        return None, probe
+    df = _load(probe, list(probe.columns))
+    _check_contract(
+        df, source_key, _UNICA_BIWEEKLY_REQUIRED,
+        ["harvest_year", "region", "fortnight_seq"],
+    )
+    return df, probe
+
+
 def extract_futures_prices(root: str) -> tuple[pd.DataFrame | None, SourceProbe]:
     """Daily futures-price silver (all contracts; computation filters by slug).
 
@@ -682,6 +870,14 @@ def _extract_one(
         df, probe = extract_fgis(root, commodity)
     elif key == "esr":
         df, probe = extract_esr(root, commodity)
+    elif key == "wasde":
+        df, probe = extract_wasde(root, commodity, plan)
+    elif key == "nass_citrus":
+        df, probe = extract_nass_citrus(root)
+    elif key == "ams_cotton_quality":
+        df, probe = extract_ams_cotton_quality(root)
+    elif key == "unica_biweekly":
+        df, probe = extract_unica_biweekly(root)
     else:
         raise ExtractionContractError(f"Unknown source key in registry: {key!r}")
 

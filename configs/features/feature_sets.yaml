@@ -97,6 +97,19 @@ feature_sets:
       - physical_flow_trajectory
       - balance_sheet_revision
 
+  - id: quality_tenderability
+    version: 1
+    description: Quality and tenderable-supply features for commodities where headline production overstates usable supply.
+    allowed_policies:
+      - fundamental_physical
+    allowed_semantic_scopes:
+      - quality_tenderability
+    allowed_feature_families:
+      - cotton_quality
+    target_compatibility:
+      - quality_tenderability_event
+      - tail_event_probability
+
   - id: balance_sheet
     version: 1
     description: Stocks, use, supply-demand, and stock-use balance features.
@@ -173,6 +186,7 @@ feature_sets:
       - soil_moisture
       - vegetation_index
       - crop_condition
+      - cotton_quality
     target_compatibility:
       - tail_event_probability
       - multivariate_physical_anomaly
