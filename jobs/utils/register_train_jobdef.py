@@ -38,6 +38,10 @@ _COMMAND = [
     "--optuna", "Ref::optuna",       # "true"/"false"
     "--n-trials", "Ref::n_trials",
     "--dataset-version", "Ref::dataset_version",
+    "--model-dataset-version", "Ref::model_dataset_version",
+    "--dataset-key", "Ref::dataset_key",
+    "--target-key", "Ref::target_key",
+    "--source-dataset-version", "Ref::source_dataset_version",
 ]
 
 # Defaults for every Ref:: token — a submission may override any of these.
@@ -53,6 +57,10 @@ _PARAMETERS = {
     "optuna": "false",
     "n_trials": "30",
     "dataset_version": "none",
+    "model_dataset_version": "none",
+    "dataset_key": "annual_physical_anomaly",
+    "target_key": "none",
+    "source_dataset_version": "none",
 }
 
 _CONTAINER = {

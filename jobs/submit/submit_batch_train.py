@@ -52,9 +52,13 @@ def main() -> None:
         help="Comma-separated model-purpose feature_set ids. Requires --dataset-version.",
     )
     parser.add_argument("--targets", default="production_quantity")
+    parser.add_argument("--target-keys", default="production_anomaly_pct", dest="target_keys")
+    parser.add_argument("--dataset-keys", default="annual_physical_anomaly", dest="dataset_keys")
     parser.add_argument("--models", default="xgboost")
     parser.add_argument("--experiment", default="leviathan-tier1-production")
     parser.add_argument("--dataset-version", default="", dest="dataset_version")
+    parser.add_argument("--model-dataset-version", default="", dest="model_dataset_version")
+    parser.add_argument("--source-dataset-version", default="", dest="source_dataset_version")
     parser.add_argument("--detrend", action="store_true",
                         help="predict the detrended anomaly target (recommended for stress features)")
     parser.add_argument("--optuna", action="store_true",
@@ -76,9 +80,14 @@ def main() -> None:
 
     tiers = [t.strip() for t in args.tiers.split(",") if t.strip()]
     feature_sets = [t.strip() for t in args.feature_sets.split(",") if t.strip()]
-    if feature_sets and not args.dataset_version:
-        raise SystemExit("--feature-sets requires --dataset-version")
+    model_ready_mode = bool(args.model_dataset_version.strip())
+    if feature_sets and not (args.dataset_version or model_ready_mode):
+        raise SystemExit("--feature-sets requires --dataset-version or --model-dataset-version")
+    if model_ready_mode and args.detrend:
+        raise SystemExit("--detrend is not valid with --model-dataset-version")
     targets = [t.strip() for t in args.targets.split(",")]
+    target_keys = [t.strip() for t in args.target_keys.split(",") if t.strip()]
+    dataset_keys = [t.strip() for t in args.dataset_keys.split(",") if t.strip()]
     models = [m.strip() for m in args.models.split(",")]
     selectors = feature_sets or tiers
 
@@ -97,20 +106,52 @@ def main() -> None:
         }
         for c, t, tg, m in itertools.product(commodities, selectors, targets, models)
     ]
+    if model_ready_mode:
+        tasks = [
+            {
+                "commodity": c,
+                "tier": t if not feature_sets else "climate",
+                "feature_set": t if feature_sets else "none",
+                "target": "production_quantity",
+                "model": m,
+                "bucket": bucket, "aws_region": aws_region, "experiment": args.experiment,
+                "detrend": "false",
+                "optuna": str(args.optuna).lower(),
+                "n_trials": str(args.n_trials),
+                "dataset_version": "none",
+                "model_dataset_version": args.model_dataset_version,
+                "source_dataset_version": args.source_dataset_version or "none",
+                "dataset_key": dk,
+                "target_key": tk,
+            }
+            for c, t, dk, tk, m in itertools.product(
+                commodities, selectors, dataset_keys, target_keys, models
+            )
+        ]
 
+    grid_target_count = len(dataset_keys) * len(target_keys) if model_ready_mode else len(targets)
     logger.info(
-        "Submitting %d training tasks  queue=%s  definition=%s  grid=%dx%dx%dx%d  dry_run=%s",
-        len(tasks), batch_queue, job_def, len(commodities), len(selectors), len(targets),
-        len(models), args.dry_run,
+        "Submitting %d training tasks  queue=%s  definition=%s  model_ready=%s  grid=%dx%dx%dx%d  dry_run=%s",
+        len(tasks), batch_queue, job_def, model_ready_mode,
+        len(commodities), len(selectors), grid_target_count, len(models), args.dry_run,
     )
+
+    def _job_name(task: dict) -> str:
+        selector = task["feature_set"] if task.get("feature_set") != "none" else task["tier"]
+        if task.get("target_key", "none") != "none":
+            raw = (
+                f"train-{task['commodity']}-{selector}-{task['dataset_key']}-"
+                f"{task['target_key']}-{task['model']}"
+            )
+        else:
+            raw = f"train-{task['commodity']}-{selector}-{task['target']}-{task['model']}"
+        return raw.replace("_", "-")
 
     submitted = submit_batch_jobs(
         tasks=tasks,
         job_queue=batch_queue,
         job_definition=job_def,
-        build_job_name=lambda t: (
-            f"train-{t['commodity']}-{t['feature_set'] or t['tier']}-{t['target']}-{t['model']}".replace("_", "-")
-        ),
+        build_job_name=_job_name,
         aws_region=aws_region,
         dry_run=args.dry_run,
     )

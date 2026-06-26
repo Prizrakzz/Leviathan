@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import re
 
 import pandas as pd
 
@@ -94,13 +95,15 @@ def load_spine_provenance(
 
 def snapshot_training_data(
     df: pd.DataFrame, bucket: str, run_id: str, commodity: str,
-    *, aws_region: str | None = None,
+    *, aws_region: str | None = None, snapshot_name: str | None = None,
 ) -> str:
     """Freeze the training slice to an immutable S3 path; return its URI."""
     import boto3
 
     s3 = boto3.client("s3", region_name=aws_region)
-    key = f"model_artifacts/training_snapshots/{run_id}/{commodity}.parquet"
+    name = snapshot_name or commodity
+    safe_name = re.sub(r"[^A-Za-z0-9_.=-]+", "_", name).strip("_") or commodity
+    key = f"model_artifacts/training_snapshots/{run_id}/{safe_name}.parquet"
     buf = io.BytesIO()
     df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
     s3.put_object(Bucket=bucket, Key=key, Body=buf.getvalue())
@@ -125,6 +128,9 @@ def log_training_run(
     mlflow=None,
     snapshot: bool = True,
     gaps: pd.DataFrame | None = None,
+    extra_tags: dict[str, object] | None = None,
+    extra_params: dict[str, object] | None = None,
+    snapshot_name: str | None = None,
 ) -> dict:
     """Log a walk-forward run to MLflow with full reproducibility metadata.
 
@@ -154,6 +160,9 @@ def log_training_run(
         "feature_set_sha": fs_sha,
         "data_fingerprint": data_fp,
     }
+    for key, value in (extra_tags or {}).items():
+        if value is not None:
+            tags[str(key)] = str(value)
     for key in ("spine_params_hash", "spine_git_sha", "spine_built_at",
                 "spine_input_fingerprint"):
         if prov.get(key) is not None:
@@ -163,7 +172,8 @@ def log_training_run(
         run = mlflow.active_run()
         run_id = run.info.run_id if run is not None else "no-active-run"
         tags["snapshot_uri"] = snapshot_training_data(
-            train_df, bucket, run_id, commodity, aws_region=aws_region
+            train_df, bucket, run_id, commodity,
+            aws_region=aws_region, snapshot_name=snapshot_name,
         )
 
     params = {
@@ -172,6 +182,9 @@ def log_training_run(
         "train_first_year": years[0] if years else None,
         "train_last_year": years[-1] if years else None,
     }
+    for key, value in (extra_params or {}).items():
+        if value is not None:
+            params[str(key)] = value
 
     for key, value in tags.items():
         mlflow.set_tag(key, value)
