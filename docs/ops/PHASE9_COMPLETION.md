@@ -3,9 +3,8 @@
 ## Status
 
 Phase 9 upgrades the training runner to consume Phase 8 model-ready datasets
-directly. The code path is implemented and covered by focused unit tests. Runtime
-Batch smoke still requires a fresh worker/trainer image containing this commit
-and a new `leviathan-dev-train` job-definition revision.
+directly. The code path is implemented, covered by focused unit tests, deployed
+to the trainer ECR image, registered in AWS Batch, and smoke-tested successfully.
 
 ## Implemented
 
@@ -61,21 +60,53 @@ python jobs/submit/submit_batch_train.py `
   --models xgboost
 ```
 
-## Runtime To Do
+## Runtime Rollout
 
-1. Rebuild and push the trainer/worker image with this commit.
-2. Register a new `leviathan-dev-train` job-definition revision:
+Trainer image pushed:
 
-```powershell
-python jobs/utils/register_train_jobdef.py
+```text
+668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-trainer:latest
+668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-trainer:737818a1
+digest: sha256:b5a1fd7234f0ab2122ea211ee522315979137be48eaef915bcaf070acc8b2fa7
+compressed size: 343,778,471 bytes
 ```
 
-3. Submit the one-job Batch smoke above.
-4. Confirm:
-   - MLflow run appears.
-   - Baseline comparison metrics are present.
-   - Model artifact logs successfully.
-   - Prediction parquet writes to `silver/model_predictions/`.
+Batch job definition:
+
+```text
+arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-train:5
+```
+
+Smoke job:
+
+```text
+job_name: train-corn-cbot-preseason-physical-annual-physical-anomaly-production-anomaly-pct-xgboost
+job_id: 8412bd1d-ab7e-4644-b7bc-dc377f617c59
+status: SUCCEEDED
+exit_code: 0
+log_stream: leviathan-dev-train/default/44104b5692aa44b3931a98045ea4f100
+mlflow_run_id: ba92f81e348d4069ba4367b2e44dffe5
+```
+
+Smoke log summary:
+
+```text
+rmse=0.3332
+directional_accuracy=0.6580459770114943
+quintile_directional_accuracy=0.783
+gaps_passed=False
+folds=29
+```
+
+Prediction output:
+
+```text
+s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=tier1_production/prediction_date=2026-06-26/corn_cbot__preseason_physical__annual_physical_anomaly__production_anomaly_pct__xgboost.parquet
+```
+
+Operational note: the container emitted non-fatal MLflow warnings because `git`
+is not installed in the lean trainer image. The run succeeded and Leviathan's
+own dataset/model provenance tags were logged by the trainer.
 
 ## Next Phase
 
