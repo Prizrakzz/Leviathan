@@ -130,12 +130,59 @@ Result:
 - The model-ready dataset was built directly from committed local code against
   S3. This is cheap because it reads only versioned wide matrices, not raw
   weather partitions.
-- A Terraform Batch job definition for
-  `leviathan-dev-model-ready-datasets` was added to code, but it was not applied
-  in this run because Terraform/OpenTofu was not available in the local shell.
-- Before running this builder through AWS Batch, rebuild and push the worker
-  image so the container contains `jobs/batch/build_model_ready_datasets.py`,
-  then apply the Terraform job definition.
+- The worker image was rebuilt and pushed after Phase 8 code landed:
+
+```text
+668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-worker:38ffa8b3
+668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-worker:latest
+digest: sha256:8471aa8083f845ed2bcf0a0fca0b7e37884caa1785a4fd11bae51d52b0f245cd
+```
+
+- Terraform v1.9.8 was used locally to initialize and validate the dev config.
+  Validation passed after building the expected local Glue wheel artifact:
+
+```text
+dist/leviathan-0.1.0-py3-none-any.whl
+```
+
+- A normal Terraform apply was intentionally not run from this checkout because
+  there is no Terraform state file or backend configuration present. Applying
+  from empty state would risk recreating unrelated infrastructure. The Terraform
+  job definition remains committed in code, and the single new Batch job
+  definition was registered directly through AWS Batch instead.
+
+Registered Batch job definition:
+
+```text
+arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-model-ready-datasets:1
+```
+
+Batch smoke version:
+
+```text
+20260626T110249Z_38ffa8b3_phase8_batch_smoke
+```
+
+Batch smoke job:
+
+```text
+job_id: f091de8e-fdc9-485e-9a40-14d7703b0ff9
+status: SUCCEEDED
+exit_code: 0
+log_stream: model-ready-datasets/default/85254b128a744567b98da3d71c26be9b
+```
+
+Smoke validation:
+
+```text
+commodity: corn_cbot
+target_key: production_anomaly_pct
+target rows: 184
+trainable rows: 145
+matrix shape: 184 x 479
+label columns in model-ready matrix: 0
+baseline metric rows: 4
+```
 
 ## Next Phase
 

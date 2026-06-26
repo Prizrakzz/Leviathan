@@ -1180,8 +1180,16 @@ Validated outputs:
 Operational note:
 
 - The S3 model-ready dataset was built directly from committed local code.
-- The Batch job definition is present in Terraform code but still requires the
-  usual worker image rebuild and Terraform apply before it is live in AWS Batch.
+- The worker image was rebuilt and pushed as `:38ffa8b3` and `:latest`.
+- The model-ready Batch job definition is live as
+  `leviathan-dev-model-ready-datasets:1`.
+- A one-commodity Batch smoke for `corn_cbot` /
+  `production_anomaly_pct` succeeded and wrote valid model-ready targets,
+  matrix, baselines, and manifest under
+  `20260626T110249Z_38ffa8b3_phase8_batch_smoke`.
+- Terraform configuration validated locally, but a Terraform apply was not run
+  from this checkout because no Terraform state/backend was present. Applying
+  from empty state would risk recreating unrelated infrastructure.
 
 Completion note:
 
