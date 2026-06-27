@@ -92,3 +92,8 @@ output "usda_nass_annual_silver_job_definition_arn" {
   value       = aws_batch_job_definition.usda_nass_annual_silver.arn
   description = "ARN of the USDA NASS annual bronze Parquet -> silver Parquet job definition."
 }
+
+output "usda_nass_crop_progress_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.usda_nass_crop_progress_silver.arn
+  description = "ARN of the USDA NASS crop-progress bronze Parquet -> silver Parquet job definition."
+}
