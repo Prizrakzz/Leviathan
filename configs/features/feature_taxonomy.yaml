@@ -114,6 +114,17 @@ rules:
     source_cadence: annual
     notes: "FAOSTAT prior-history production feature."
 
+  - id: psd_monthly_vintage
+    patterns:
+      - "^psd_(production|ending_stocks|su_ratio|exports|imports|domestic_use)_(latest_estimate_as_of|mom_revision|revision_since_first_forecast|consecutive_revision_count|current_vs_trend|month_code|release_count_for_market_year)$"
+    feature_family: psd_monthly_vintage
+    semantic_scope: official_revision
+    policy: fundamental_physical
+    mechanism: official_balance_sheet_vintage_revision
+    sources: ["psd"]
+    source_cadence: monthly
+    notes: "PSD monthly release-vintage feature clipped to the annual snapshot date; not a monthly realized target."
+
   - id: psd_balance
     patterns: ["^psd_"]
     feature_family: balance_sheet

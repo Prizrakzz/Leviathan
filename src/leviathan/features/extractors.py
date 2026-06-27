@@ -498,8 +498,10 @@ def extract_psd(
     df = _load(
         probe,
         ["leviathan_slug", "country", "market_year", "wasde_release_month",
-         "release_date", "su_ratio", "su_ratio_yoy_delta",
-         "production_mt_revision", "ending_stocks_mt_revision"],
+         "release_date", "production_mt", "imports_mt", "exports_mt",
+         "ending_stocks_mt", "consumption_mt", "su_ratio", "su_ratio_yoy_delta",
+         "production_mt_revision", "ending_stocks_mt_revision",
+         "consumption_mt_revision"],
         filter_expr=ds.field("leviathan_slug") == commodity,
     )
     if df.empty:

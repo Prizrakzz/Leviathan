@@ -86,6 +86,22 @@ feature_sets:
       - official_estimate_revision
       - finalization_gap
 
+  - id: psd_monthly_vintage_features
+    version: 1
+    description: Point-in-time monthly PSD release-vintage features for annual PSD target models.
+    allowed_policies:
+      - fundamental_physical
+    allowed_feature_families:
+      - psd_monthly_vintage
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - psd_balance_sheet_anomaly
+      - official_estimate_revision
+      - finalization_gap
+
   - id: physical_flow
     version: 1
     description: Export, delivery, crush, and other observable physical-flow pace features.

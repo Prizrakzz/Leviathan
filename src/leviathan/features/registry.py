@@ -23,7 +23,12 @@ logger = get_logger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parents[3] / "configs" / "features"
 
-VISIBILITY_CLASSES = ("crop_year_direct", "prior_history", "prior_marketing_year")
+VISIBILITY_CLASSES = (
+    "crop_year_direct",
+    "prior_history",
+    "prior_marketing_year",
+    "psd_vintage_snapshot",
+)
 
 
 class RegistryError(Exception):

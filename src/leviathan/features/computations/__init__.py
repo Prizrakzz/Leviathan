@@ -26,6 +26,7 @@ from leviathan.features.computations.phase7_fundamentals import (
     compute_unica_sugar_biweekly,
     compute_wasde_direct_revisions,
 )
+from leviathan.features.computations.psd_vintages import compute_psd_monthly_vintage_features
 from leviathan.features.computations.production import (
     compute_faostat_available,
     compute_faostat_labels,
@@ -83,6 +84,7 @@ COMPUTATIONS: dict[str, ComputeFn] = {
     "wap_nonUS_revision": compute_wap_nonUS_production_revision,
     "psd_su_ratio_yoy_delta": compute_psd_su_ratio_yoy_delta,
     "psd_available": compute_psd_available,
+    "psd_monthly_vintage_features": compute_psd_monthly_vintage_features,
     "oni_climate": compute_oni_climate,
     "oni_lag_climate": compute_oni_lag,
     "iod_climate": compute_iod_climate,

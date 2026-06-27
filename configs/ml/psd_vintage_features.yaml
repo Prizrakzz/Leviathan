@@ -1,0 +1,78 @@
+# PSD monthly vintage feature policy.
+#
+# PSD monthly releases are annual marketing-year estimates revised through time.
+# They are useful point-in-time features, but they are not independent monthly
+# realized physical targets.  The annual PSD anomaly target policy remains the
+# supervised-label default.
+
+schema_version: 1
+
+defaults:
+  snapshot_policy: crop_year_start
+  market_year_policy: target_market_year
+  min_history_years: 5
+  near_zero_trend_epsilon: 1.0e-9
+  allowed_as_feature: true
+  allowed_as_target: false
+
+feature_columns:
+  - psd_attribute: production_mt
+    feature_prefix: psd_production
+    unit: metric_tons
+    allowed_as_feature: true
+
+  - psd_attribute: ending_stocks_mt
+    feature_prefix: psd_ending_stocks
+    unit: metric_tons
+    allowed_as_feature: true
+
+  - psd_attribute: su_ratio
+    feature_prefix: psd_su_ratio
+    unit: ratio
+    allowed_as_feature: true
+
+  - psd_attribute: exports_mt
+    feature_prefix: psd_exports
+    unit: metric_tons
+    allowed_as_feature: true
+
+  - psd_attribute: imports_mt
+    feature_prefix: psd_imports
+    unit: metric_tons
+    allowed_as_feature: true
+
+  - psd_attribute: consumption_mt
+    feature_prefix: psd_domestic_use
+    unit: metric_tons
+    allowed_as_feature: true
+
+features:
+  - name: latest_estimate_as_of
+    description: Latest PSD annual estimate visible at the snapshot date.
+
+  - name: mom_revision
+    description: Change from the previous PSD release for the same market year.
+
+  - name: revision_since_first_forecast
+    description: Change from the first visible PSD release for the same market year.
+
+  - name: consecutive_revision_count
+    description: Signed count of consecutive same-direction visible monthly revisions.
+
+  - name: current_vs_trend
+    description: Latest visible estimate versus a trailing trend fitted only on prior final-ish years.
+
+  - name: month_code
+    description: Calendar month number of the selected visible PSD release.
+
+  - name: release_count_for_market_year
+    description: Count of PSD releases visible for the selected market year.
+
+revision_targets_design:
+  status: designed_not_default
+  target_families:
+    - psd_next_release_revision
+    - psd_final_vs_current_error
+    - psd_revision_direction
+    - psd_revision_magnitude
+  note: Implement revision targets only as a separate monthly/release-grain dataset after annual PSD anomaly experiments are benchmarked.

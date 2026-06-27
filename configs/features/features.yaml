@@ -124,6 +124,12 @@
   commodities: all
   value_range: [0.0, 1.0]
 
+- family: psd_monthly_vintage_features
+  sources: ["psd"]
+  visibility: psd_vintage_snapshot
+  commodities: all
+  value_range: null
+
 - family: faostat_labels
   sources: ["production:faostat"]
   visibility: crop_year_direct

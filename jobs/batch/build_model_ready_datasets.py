@@ -20,6 +20,7 @@ from leviathan.common.logging import get_logger
 from leviathan.features.spine import load_countries
 from leviathan.model_datasets.builder import build_commodity_model_datasets
 from leviathan.model_datasets.psd_model_ready import (
+    PSDModelReadyBuildConfig,
     PSD_MATRIX_ID_COLUMNS,
     build_psd_commodity_model_datasets,
 )
@@ -103,6 +104,15 @@ def _parse_commodities(raw: str) -> list[str]:
     if unknown:
         raise SystemExit(f"ERROR: Unknown commodities: {unknown}")
     return commodities
+
+
+def _parse_csv_tuple(raw: str | None) -> tuple[str, ...]:
+    if raw is None:
+        return ()
+    normalized = raw.strip()
+    if not normalized or normalized.lower() in {"none", "null", "default"}:
+        return ()
+    return tuple(part.strip() for part in normalized.split(",") if part.strip())
 
 
 def _local_path(args: argparse.Namespace, key: str) -> Path:
@@ -278,6 +288,12 @@ def _process_psd_commodity(
         psd_targets,
         commodity=commodity,
         feature_membership=feature_membership,
+        config=(
+            PSDModelReadyBuildConfig(
+                compatible_feature_sets=args.compatible_feature_sets_tuple
+            )
+            if args.compatible_feature_sets_tuple else None
+        ),
         target_keys=target_keys,
     )
     result["summaries"] = built.summaries
@@ -406,6 +422,10 @@ def _build_manifest(
         manifest["psd_metric_target_config"] = (
             args.psd_target_config or "configs/ml/psd_metric_targets.yaml"
         )
+        manifest["psd_compatible_feature_sets"] = (
+            list(args.compatible_feature_sets_tuple)
+            if args.compatible_feature_sets_tuple else "default"
+        )
     return manifest
 
 
@@ -433,6 +453,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--psd-target-config", default=None, dest="psd_target_config")
     parser.add_argument("--commodities", default="all")
     parser.add_argument("--target-keys", default="", dest="target_keys")
+    parser.add_argument(
+        "--compatible-feature-sets",
+        default="",
+        dest="compatible_feature_sets",
+        help=(
+            "Comma-separated feature-set ids to materialize into PSD matrices. "
+            "Default keeps the built-in PSD-compatible feature sets."
+        ),
+    )
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument(
         "--skip-existing-versioned",
@@ -496,6 +525,7 @@ def main() -> None:
         args.model_dataset_version or _default_model_dataset_version()
     )
     args.workers = max(1, int(args.workers))
+    args.compatible_feature_sets_tuple = _parse_csv_tuple(args.compatible_feature_sets)
 
     if not args.local_root:
         args.bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
