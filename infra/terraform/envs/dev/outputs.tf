@@ -40,6 +40,11 @@ output "usda_nass_crop_progress_silver_job_definition_arn" {
   description = "ARN of the USDA NASS crop-progress bronze Parquet -> silver Parquet job definition."
 }
 
+output "fnc_colombia_silver_job_definition_arn" {
+  value       = module.batch.fnc_colombia_silver_job_definition_arn
+  description = "ARN of the FNC Colombia bronze Parquet -> silver Parquet job definition."
+}
+
 output "glue_raw_to_bronze_nasa_power_job" {
   value       = module.glue.raw_to_bronze_nasa_power_job_name
   description = "Glue job: raw → bronze NASA POWER."

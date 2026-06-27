@@ -1481,6 +1481,48 @@ def bronze_fnc_key(series: str) -> str:
     )
 
 
+def silver_fnc_colombia_monthly_key(
+    year: int,
+    commodity: str = "arabica_coffee",
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for FNC Colombia monthly coffee silver features."""
+    return (
+        f"silver/fnc_colombia/monthly/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
+def silver_fnc_colombia_area_department_key(
+    year: int,
+    commodity: str = "arabica_coffee",
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for FNC Colombia annual department area silver features."""
+    return (
+        f"silver/fnc_colombia/area_department/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
+def silver_fnc_colombia_exports_port_type_key(
+    year: int,
+    commodity: str = "arabica_coffee",
+    filename: str = "part-000.parquet",
+) -> str:
+    """S3 key for FNC Colombia export port/type silver features."""
+    return (
+        f"silver/fnc_colombia/exports_port_type/"
+        f"commodity={commodity}/"
+        f"year={year}/"
+        f"{filename}"
+    )
+
+
 def bronze_mpob_annual_key(year: int) -> str:
     """S3 key for an MPOB BEPI annual summary bronze Parquet.
 
