@@ -95,7 +95,10 @@ def _psd_source(values: list[float] | None = None) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _psd_source_with_monthly_vintages() -> pd.DataFrame:
+def _psd_source_with_monthly_vintages(
+    *,
+    include_future_revision: bool = False,
+) -> pd.DataFrame:
     rows = []
     for year in range(2000, 2005):
         value = 10.0 + float(year - 2000)
@@ -127,6 +130,19 @@ def _psd_source_with_monthly_vintages() -> pd.DataFrame:
             "exports_mt": value + 30.0,
             "imports_mt": value + 40.0,
             "consumption_mt": value + 50.0,
+        })
+    if include_future_revision:
+        rows.append({
+            "leviathan_slug": "corn_cbot",
+            "country": "United States",
+            "market_year": 2005,
+            "release_date": "2005-12-10",
+            "production_mt": 999.0,
+            "ending_stocks_mt": 1019.0,
+            "su_ratio": 9.99,
+            "exports_mt": 1029.0,
+            "imports_mt": 1039.0,
+            "consumption_mt": 1049.0,
         })
     return pd.DataFrame(rows)
 
@@ -370,6 +386,78 @@ def test_psd_snapshot_model_ready_builds_named_stage_rows() -> None:
     assert "snapshot_stage" in matrix.columns
     assert "as_of_date" in matrix.columns
     assert matrix["dataset_key"].eq(PSD_SNAPSHOT_DATASET_KEY).all()
+
+
+def test_psd_snapshot_model_ready_explicit_as_of_uses_only_visible_releases() -> None:
+    psd_source = _psd_source_with_monthly_vintages(include_future_revision=True)
+    psd_targets = build_psd_target_panel(
+        _psd_source_with_monthly_vintages(),
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity="corn_cbot",
+        feature_membership=_membership_with_psd_vintage(),
+        calendar=load_crop_calendars()["corn_cbot"],
+        snapshot_config=load_snapshot_stage_config(),
+        as_of_date="2005-07-01",
+        include_named_stages=False,
+        target_keys=("psd_production_anomaly_pct",),
+    )
+
+    matrix = built.matrices[
+        (PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")
+    ]
+    row = matrix.loc[matrix["crop_year"] == 2005].iloc[0]
+
+    assert row["snapshot_stage"] == "explicit_as_of"
+    assert row["as_of_date"] == pd.Timestamp("2005-07-01").date()
+    assert row["snapshot_policy"] == "explicit_as_of_date"
+    assert row["psd_production_latest_estimate_as_of"] == 20.0
+    assert pd.isna(row["psd_production_mom_revision"])
+
+
+def test_psd_snapshot_features_are_invariant_to_future_revisions() -> None:
+    base_source = _psd_source_with_monthly_vintages()
+    future_source = _psd_source_with_monthly_vintages(include_future_revision=True)
+    psd_targets = build_psd_target_panel(
+        base_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    kwargs = {
+        "commodity": "corn_cbot",
+        "feature_membership": _membership_with_psd_vintage(),
+        "calendar": load_crop_calendars()["corn_cbot"],
+        "snapshot_config": load_snapshot_stage_config(),
+        "snapshot_stage_ids": ("early_inseason", "midseason"),
+        "target_keys": ("psd_production_anomaly_pct",),
+    }
+    without_future = build_psd_commodity_snapshot_model_datasets(
+        base_source, psd_targets, **kwargs
+    ).matrices[(PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")]
+    with_future = build_psd_commodity_snapshot_model_datasets(
+        future_source, psd_targets, **kwargs
+    ).matrices[(PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")]
+
+    compare_cols = [
+        "country",
+        "crop_year",
+        "snapshot_stage",
+        "as_of_date",
+        "psd_production_latest_estimate_as_of",
+        "psd_production_mom_revision",
+    ]
+    pd.testing.assert_frame_equal(
+        without_future[compare_cols].reset_index(drop=True),
+        with_future[compare_cols].reset_index(drop=True),
+    )
 
 
 def test_model_ready_cli_writes_local_psd_snapshot_version(tmp_path: Path) -> None:

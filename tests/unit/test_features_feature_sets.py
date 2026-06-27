@@ -37,6 +37,7 @@ def _catalog() -> pd.DataFrame:
         ("psd_available", "balance_sheet", "origin_balance_sheet", "fundamental_physical", "stock_use_balance", "psd", "annual", "universal", "grains", False, 10, 2, 1.0),
         ("faostat_available", "faostat_production", "origin_production_history", "fundamental_physical", "production_trend_baseline", "production:faostat", "annual", "universal", "grains", False, 10, 2, 1.0),
         ("gdd_z_us_midwest", "growing_degree_days", "origin_weather", "fundamental_physical", "crop_development_speed", "weather:nasa_power", "daily", "commodity", "grains", False, 4, 1, 0.4),
+        ("corn_dec_mar_spread_z", "calendar_spreads", "excluded_market_signal", "excluded_market_signal", "futures_term_structure", "futures_prices", "daily", "commodity", "grains", False, 9, 1, 0.9),
     ]
     return pd.DataFrame(rows, columns=[
         "feature",
@@ -83,6 +84,7 @@ def test_feature_sets_exclude_labels_and_core_diagnostics() -> None:
     assert "label_production_quantity" not in set(membership["feature"])
     core = membership.loc[membership["feature_set_id"] != "diagnostic_market_context"]
     assert "diagnostic_only" not in set(core["policy"])
+    assert "excluded_market_signal" not in set(membership["policy"])
     diagnostic = selected_features_for_set(membership, "diagnostic_market_context")
     assert diagnostic == ["cot_mm_net_pct_oi_z"]
 
@@ -102,6 +104,15 @@ def test_economic_driver_sets_are_certified_only() -> None:
     ]
     assert set(economic_sets["policy"]) == {"certified_economic_driver"}
     assert selected_features_for_set(membership, "processing_economics") == ["crush_margin_z"]
+
+
+def test_excluded_market_signals_do_not_enter_any_feature_set() -> None:
+    specs, config_sha = load_feature_set_config()
+    membership, _ = build_feature_set_membership(
+        _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
+    )
+
+    assert "corn_dec_mar_spread_z" not in set(membership["feature"])
 
 
 def test_quality_tenderability_selects_cotton_quality_only() -> None:
