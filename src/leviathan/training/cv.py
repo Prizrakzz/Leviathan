@@ -40,6 +40,9 @@ class FoldResult:
     rmse: float
     mae: float
     directional_accuracy: float | None  # None when prior-year actuals are unavailable
+    fold_start_train_year: int | None = None
+    train_year_count: int | None = None
+    cv_policy: str = "expanding_full_history"
 
 
 @dataclass
@@ -52,6 +55,10 @@ class WalkForwardResult:
     directional_accuracy: float | None  # fraction of folds with correct sign, or None
     n_folds: int
     sliced_metrics: "pd.DataFrame | None" = None  # populated by with_slices()
+    cv_policy: str = "expanding_full_history"
+    min_train_years: int = 5
+    train_start_year: int | None = None
+    rolling_window_years: int | None = None
 
     def with_slices(self, commodity: str, config_dir: str | None = None) -> "WalkForwardResult":
         """Attach per-slice metrics (country, year_type, plus this commodity's
@@ -86,12 +93,52 @@ class WalkForwardResult:
         return m
 
 
+_CV_POLICIES: dict[str, dict[str, int | None]] = {
+    "expanding_full_history": {"train_start_year": None, "rolling_window_years": None},
+    "expanding_post_1990": {"train_start_year": 1990, "rolling_window_years": None},
+    "expanding_post_2000": {"train_start_year": 2000, "rolling_window_years": None},
+    "rolling_25y": {"train_start_year": None, "rolling_window_years": 25},
+    "rolling_30y": {"train_start_year": None, "rolling_window_years": 30},
+}
+
+
+def resolve_cv_policy(
+    cv_policy: str,
+    *,
+    train_start_year: int | None = None,
+    rolling_window_years: int | None = None,
+) -> tuple[str, int | None, int | None]:
+    """Resolve a named CV policy plus optional explicit overrides."""
+    name = (cv_policy or "expanding_full_history").strip()
+    if name not in _CV_POLICIES:
+        raise ValueError(
+            f"unknown cv_policy {name!r}; expected one of {sorted(_CV_POLICIES)}"
+        )
+    spec = _CV_POLICIES[name]
+    resolved_start = train_start_year if train_start_year is not None else spec["train_start_year"]
+    resolved_window = (
+        rolling_window_years
+        if rolling_window_years is not None else spec["rolling_window_years"]
+    )
+    if resolved_window is not None and int(resolved_window) <= 0:
+        raise ValueError("rolling_window_years must be positive")
+    return name, resolved_start, resolved_window
+
+
+def available_cv_policies() -> tuple[str, ...]:
+    """Return supported CV policy names for CLIs/tests."""
+    return tuple(sorted(_CV_POLICIES))
+
+
 def walk_forward_cv(
     df: pd.DataFrame,
     target_col: str,
     feature_cols: list[str],
     model: object,
     min_train_years: int = 5,
+    cv_policy: str = "expanding_full_history",
+    train_start_year: int | None = None,
+    rolling_window_years: int | None = None,
 ) -> WalkForwardResult:
     """Walk-forward cross-validation with anti-leakage guarantees.
 
@@ -122,6 +169,12 @@ def walk_forward_cv(
                           Must support sklearn.base.clone().
         min_train_years:  Minimum number of unique crop years required before
                           the first test fold is created.  Default 5.
+        cv_policy:        Named training-window policy.  Default preserves the
+                          historical expanding-window behavior.
+        train_start_year: Optional lower bound for training years.
+        rolling_window_years:
+                          Optional rolling lookback window, e.g. 25 means
+                          train on years T-25 through T-1.
 
     Returns:
         WalkForwardResult with per-fold metrics and a combined predictions
@@ -131,7 +184,12 @@ def walk_forward_cv(
         ValueError: If fewer than min_train_years + 1 years are present, or
                     if no folds produce any predictions.
     """
-    years = sorted(df["crop_year"].unique())
+    policy_name, resolved_start, resolved_window = resolve_cv_policy(
+        cv_policy,
+        train_start_year=train_start_year,
+        rolling_window_years=rolling_window_years,
+    )
+    years = sorted(int(y) for y in df["crop_year"].dropna().unique())
     if len(years) < min_train_years + 1:
         raise ValueError(
             f"walk_forward_cv needs at least {min_train_years + 1} unique crop_years; "
@@ -146,9 +204,16 @@ def walk_forward_cv(
     all_pred_frames: list[pd.DataFrame] = []
     fold_results: list[FoldResult] = []
 
-    for fold_idx, test_year in enumerate(years[min_train_years:], start=min_train_years):
-        train_years = set(years[:fold_idx])
-        train_df = df[df["crop_year"].isin(train_years)]
+    for test_year in years:
+        train_years = [year for year in years if year < test_year]
+        if resolved_start is not None:
+            train_years = [year for year in train_years if year >= int(resolved_start)]
+        if resolved_window is not None:
+            lower_bound = test_year - int(resolved_window)
+            train_years = [year for year in train_years if year >= lower_bound]
+        if len(train_years) < min_train_years:
+            continue
+        train_df = df[df["crop_year"].isin(set(train_years))]
         test_df = df[df["crop_year"] == test_year]
 
         # Drop rows where the target is NaN — a NaN label is not a training
@@ -199,18 +264,22 @@ def walk_forward_cv(
 
         fold_results.append(FoldResult(
             test_year=test_year,
-            fold_end_train_year=years[fold_idx - 1],
+            fold_end_train_year=max(train_years),
             n_train_rows=len(train_df),
             n_test_rows=len(test_df),
             rmse=fold_rmse,
             mae=fold_mae,
             directional_accuracy=dir_acc,
+            fold_start_train_year=min(train_years),
+            train_year_count=len(train_years),
+            cv_policy=policy_name,
         ))
 
     if not fold_results:
         raise ValueError(
             "walk_forward_cv produced no folds. "
-            "Check that target_col has non-NaN values in enough crop years."
+            "Check that target_col has non-NaN values in enough crop years "
+            "after applying the CV policy."
         )
 
     predictions = pd.concat(all_pred_frames, ignore_index=True)
@@ -229,4 +298,8 @@ def walk_forward_cv(
         mae=agg_mae,
         directional_accuracy=agg_dir_acc,
         n_folds=len(fold_results),
+        cv_policy=policy_name,
+        min_train_years=min_train_years,
+        train_start_year=resolved_start,
+        rolling_window_years=resolved_window,
     )

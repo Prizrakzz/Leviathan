@@ -212,6 +212,8 @@ def log_fitted_model(
     feature_cols: list[str],
     target_col: str,
     artifact_path: str = "model",
+    registered_model_name: str | None = None,
+    registered_model_tags: dict[str, Any] | None = None,
 ) -> None:
     """Log the fitted estimator with the matching MLflow flavor."""
     input_example = train_df[feature_cols].head(5).copy()
@@ -242,6 +244,8 @@ def log_fitted_model(
         kwargs["signature"] = signature
     if "input_example" in params:
         kwargs["input_example"] = input_example
+    if "serialization_format" in params:
+        kwargs["serialization_format"] = "cloudpickle"
     if "pip_requirements" in params:
         kwargs["pip_requirements"] = [
             "pandas",
@@ -249,9 +253,44 @@ def log_fitted_model(
             "scikit-learn",
             "xgboost" if model_family == "xgboost" else "lightgbm",
         ]
-    flavor.log_model(model, **kwargs)
+    if registered_model_name and "registered_model_name" in params:
+        kwargs["registered_model_name"] = registered_model_name
+    model_info = flavor.log_model(model, **kwargs)
+    if registered_model_name and "registered_model_name" not in params:
+        model_uri = getattr(model_info, "model_uri", None)
+        if not model_uri:
+            run = mlflow.active_run()
+            if run is not None:
+                model_uri = f"runs:/{run.info.run_id}/{artifact_path}"
+        if model_uri:
+            mlflow.register_model(model_uri, registered_model_name)
     mlflow.set_tag("fitted_model_artifact_path", artifact_path)
     mlflow.set_tag("fitted_model_flavor", flavor_name)
+    if registered_model_name:
+        mlflow.set_tag("registered_model_name", registered_model_name)
+    if registered_model_name and registered_model_tags:
+        try:
+            from mlflow.tracking import MlflowClient
+
+            run = mlflow.active_run()
+            run_id = run.info.run_id if run is not None else None
+            client = MlflowClient()
+            versions = client.search_model_versions(f"name='{registered_model_name}'")
+            for version in versions:
+                if run_id is not None and version.run_id != run_id:
+                    continue
+                for key, value in registered_model_tags.items():
+                    if value is not None:
+                        client.set_model_version_tag(
+                            registered_model_name,
+                            version.version,
+                            str(key),
+                            str(value),
+                        )
+                mlflow.set_tag("registered_model_version", str(version.version))
+                break
+        except Exception as exc:  # noqa: BLE001 - run tags still preserve provenance
+            mlflow.set_tag("registered_model_tagging_error", str(exc))
 
 
 def build_training_log_text(
@@ -282,6 +321,10 @@ def build_training_log_text(
         f"dataset_version={getattr(args, 'dataset_version', None)}",
         f"model_dataset_version={getattr(args, 'model_dataset_version', None)}",
         f"source_dataset_version={getattr(args, 'source_dataset_version', None)}",
+        f"cv_policy={getattr(args, 'cv_policy', '')}",
+        f"min_train_years={getattr(args, 'min_train_years', '')}",
+        f"train_start_year={getattr(args, 'train_start_year', '')}",
+        f"rolling_window_years={getattr(args, 'rolling_window_years', '')}",
         f"n_train_rows={len(train_df)}",
         f"n_features={len(feature_cols)}",
         f"n_folds={result.n_folds}",

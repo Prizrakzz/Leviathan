@@ -37,6 +37,12 @@ _COMMAND = [
     "--detrend", "Ref::detrend",     # "true"/"false"
     "--optuna", "Ref::optuna",       # "true"/"false"
     "--n-trials", "Ref::n_trials",
+    "--min-train-years", "Ref::min_train_years",
+    "--cv-policy", "Ref::cv_policy",
+    "--train-start-year", "Ref::train_start_year",
+    "--rolling-window-years", "Ref::rolling_window_years",
+    "--register-model", "Ref::register_model",
+    "--registered-model-name", "Ref::registered_model_name",
     "--dataset-version", "Ref::dataset_version",
     "--model-dataset-version", "Ref::model_dataset_version",
     "--dataset-key", "Ref::dataset_key",
@@ -56,6 +62,12 @@ _PARAMETERS = {
     "detrend": "false",
     "optuna": "false",
     "n_trials": "30",
+    "min_train_years": "10",
+    "cv_policy": "expanding_full_history",
+    "train_start_year": "none",
+    "rolling_window_years": "none",
+    "register_model": "false",
+    "registered_model_name": "none",
     "dataset_version": "none",
     "model_dataset_version": "none",
     "dataset_key": "annual_physical_anomaly",
@@ -79,6 +91,7 @@ _CONTAINER = {
         {"name": "LEVIATHAN_BUCKET", "value": "leviathan-dev-shahem-001"},
         {"name": "LEVIATHAN_ENV", "value": "dev"},
         {"name": "MLFLOW_TRACKING_URI", "value": "http://172.31.29.109:5000"},
+        {"name": "PYTHONIOENCODING", "value": "utf-8"},
     ],
 }
 

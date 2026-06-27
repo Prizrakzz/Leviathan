@@ -59,6 +59,17 @@ def main() -> None:
     parser.add_argument("--dataset-version", default="", dest="dataset_version")
     parser.add_argument("--model-dataset-version", default="", dest="model_dataset_version")
     parser.add_argument("--source-dataset-version", default="", dest="source_dataset_version")
+    parser.add_argument("--cv-policies", default="expanding_full_history", dest="cv_policies")
+    parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
+    parser.add_argument("--train-start-year", default="", dest="train_start_year")
+    parser.add_argument("--rolling-window-years", default="", dest="rolling_window_years")
+    parser.add_argument(
+        "--register-model",
+        action="store_true",
+        dest="register_model",
+        help="Register model versions. Keep off for broad sweeps.",
+    )
+    parser.add_argument("--registered-model-name", default="", dest="registered_model_name")
     parser.add_argument("--detrend", action="store_true",
                         help="predict the detrended anomaly target (recommended for stress features)")
     parser.add_argument("--optuna", action="store_true",
@@ -89,6 +100,7 @@ def main() -> None:
     target_keys = [t.strip() for t in args.target_keys.split(",") if t.strip()]
     dataset_keys = [t.strip() for t in args.dataset_keys.split(",") if t.strip()]
     models = [m.strip() for m in args.models.split(",")]
+    cv_policies = [p.strip() for p in args.cv_policies.split(",") if p.strip()]
     selectors = feature_sets or tiers
 
     tasks = [
@@ -102,9 +114,17 @@ def main() -> None:
             "detrend": str(args.detrend).lower(),   # Ref::detrend → "true"/"false"
             "optuna": str(args.optuna).lower(),
             "n_trials": str(args.n_trials),
+            "min_train_years": str(args.min_train_years),
             "dataset_version": args.dataset_version or "none",
+            "cv_policy": cvp,
+            "train_start_year": args.train_start_year or "none",
+            "rolling_window_years": args.rolling_window_years or "none",
+            "register_model": str(args.register_model).lower(),
+            "registered_model_name": args.registered_model_name or "none",
         }
-        for c, t, tg, m in itertools.product(commodities, selectors, targets, models)
+        for c, t, tg, m, cvp in itertools.product(
+            commodities, selectors, targets, models, cv_policies
+        )
     ]
     if model_ready_mode:
         tasks = [
@@ -118,22 +138,29 @@ def main() -> None:
                 "detrend": "false",
                 "optuna": str(args.optuna).lower(),
                 "n_trials": str(args.n_trials),
+                "min_train_years": str(args.min_train_years),
                 "dataset_version": "none",
                 "model_dataset_version": args.model_dataset_version,
                 "source_dataset_version": args.source_dataset_version or "none",
                 "dataset_key": dk,
                 "target_key": tk,
+                "cv_policy": cvp,
+                "train_start_year": args.train_start_year or "none",
+                "rolling_window_years": args.rolling_window_years or "none",
+                "register_model": str(args.register_model).lower(),
+                "registered_model_name": args.registered_model_name or "none",
             }
-            for c, t, dk, tk, m in itertools.product(
-                commodities, selectors, dataset_keys, target_keys, models
+            for c, t, dk, tk, m, cvp in itertools.product(
+                commodities, selectors, dataset_keys, target_keys, models, cv_policies
             )
         ]
 
     grid_target_count = len(dataset_keys) * len(target_keys) if model_ready_mode else len(targets)
     logger.info(
-        "Submitting %d training tasks  queue=%s  definition=%s  model_ready=%s  grid=%dx%dx%dx%d  dry_run=%s",
+        "Submitting %d training tasks  queue=%s  definition=%s  model_ready=%s  grid=%dx%dx%dx%dx%d  dry_run=%s",
         len(tasks), batch_queue, job_def, model_ready_mode,
-        len(commodities), len(selectors), grid_target_count, len(models), args.dry_run,
+        len(commodities), len(selectors), grid_target_count, len(models),
+        len(cv_policies), args.dry_run,
     )
 
     def _job_name(task: dict) -> str:
@@ -141,10 +168,13 @@ def main() -> None:
         if task.get("target_key", "none") != "none":
             raw = (
                 f"train-{task['commodity']}-{selector}-{task['dataset_key']}-"
-                f"{task['target_key']}-{task['model']}"
+                f"{task['target_key']}-{task['model']}-{task['cv_policy']}"
             )
         else:
-            raw = f"train-{task['commodity']}-{selector}-{task['target']}-{task['model']}"
+            raw = (
+                f"train-{task['commodity']}-{selector}-{task['target']}-"
+                f"{task['model']}-{task['cv_policy']}"
+            )
         return raw.replace("_", "-")
 
     submitted = submit_batch_jobs(

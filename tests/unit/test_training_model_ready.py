@@ -171,5 +171,9 @@ def test_train_job_definition_exposes_model_ready_parameters() -> None:
     assert "--model-dataset-version" in command
     assert "--dataset-key" in command
     assert "--target-key" in command
+    assert "--cv-policy" in command
+    assert "--register-model" in command
     assert params["model_dataset_version"] == "none"
     assert params["dataset_key"] == "annual_physical_anomaly"
+    assert params["cv_policy"] == "expanding_full_history"
+    assert params["register_model"] == "false"

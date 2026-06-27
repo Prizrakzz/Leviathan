@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --no-compile --upgrade pip \
     && pip install --no-cache-dir --no-compile \
         boto3 \
         "lightgbm>=4.0" \
-        "mlflow-skinny>=2.9" \
+        "mlflow-skinny==3.14.0" \
         numpy \
         "optuna>=3.5" \
         pandas \

@@ -39,7 +39,7 @@ from leviathan.features.feature_sets import selected_features_for_set  # noqa: E
 from leviathan.features.registry import load_registry          # noqa: E402
 from leviathan.features.windows import resolve_tier_families    # noqa: E402
 from leviathan.storage.paths import gold_feature_set_version_key  # noqa: E402
-from leviathan.training.cv import walk_forward_cv               # noqa: E402
+from leviathan.training.cv import available_cv_policies, walk_forward_cv  # noqa: E402
 from leviathan.training.model_ready import (                    # noqa: E402
     attach_model_ready_baselines_to_predictions,
     load_model_ready_training_dataset,
@@ -93,6 +93,55 @@ def _optional_ref(value: str | None) -> str | None:
     if normalized.lower() in {"", "none", "null"}:
         return None
     return normalized
+
+
+def _optional_int(value: str | int | None) -> int | None:
+    normalized = _optional_ref(None if value is None else str(value))
+    if normalized is None:
+        return None
+    return int(normalized)
+
+
+def _compact_unique(values: pd.Series, *, max_items: int = 20) -> str | None:
+    """Return a compact deterministic tag value for one-or-many metadata values."""
+    cleaned = sorted({str(v) for v in values.dropna().unique() if str(v)})
+    if not cleaned:
+        return None
+    if len(cleaned) <= max_items:
+        return ",".join(cleaned)
+    return ",".join(cleaned[:max_items]) + f",...(+{len(cleaned) - max_items})"
+
+
+def _model_ready_metadata_tags(dataset) -> dict[str, str]:
+    """Extract stable source/target metadata tags from a model-ready matrix."""
+    matrix = dataset.matrix
+    tags: dict[str, str] = {}
+    for col in (
+        "target_source",
+        "target_family",
+        "target_attribute",
+        "target_status",
+        "mapping_confidence",
+        "psd_source_slug",
+        "psd_commodity",
+        "psd_country",
+        "origin_key",
+        "origin_role",
+        "target_release_context",
+        "psd_mapping_sha",
+    ):
+        if col in matrix.columns:
+            value = _compact_unique(matrix[col])
+            if value:
+                tags[col] = value
+    if "psd_country" in matrix.columns:
+        tags["psd_country_count"] = str(matrix["psd_country"].dropna().astype(str).nunique())
+    return tags
+
+
+def _registered_model_name(args, target_family: str | None = None) -> str:
+    target = args.target_key or args.target
+    return f"leviathan.{args.commodity}.{target}.{args.model}"
 
 
 def _make_model(name: str, **hp):
@@ -215,13 +264,16 @@ def _write_predictions(s3, bucket, args, predictions, run_id, feature_set_sha) -
         if args.source_dataset_version:
             df["source_dataset_version"] = args.source_dataset_version
     df["model"] = args.model
+    df["cv_policy"] = args.cv_policy
     df["feature_set_sha"] = feature_set_sha
     df["run_id"] = run_id
     df["as_of_date"] = datetime.date.today().isoformat()
     pred_date = datetime.date.today().isoformat()
     dataset_part = f"{args.dataset_key}__" if args.model_dataset_version else ""
+    model_family = getattr(args, "prediction_model_family", None) or "tier1_production"
     key = (
-        f"{_PRED_PREFIX}model_family=tier1_production/prediction_date={pred_date}/"
+        f"{_PRED_PREFIX}model_family={sanitize_artifact_name(model_family)}/"
+        f"prediction_date={pred_date}/"
         f"{args.commodity}__{selection_name}__{dataset_part}{target_name}__{args.model}.parquet"
     )
     buf = io.BytesIO()
@@ -250,7 +302,10 @@ def _optuna_search(matrix, target_col, feature_cols, args, mlflow) -> dict:
         try:
             res = walk_forward_cv(matrix, target_col, feature_cols,
                                   _make_model(args.model, **hp),
-                                  min_train_years=args.min_train_years)
+                                  min_train_years=args.min_train_years,
+                                  cv_policy=args.cv_policy,
+                                  train_start_year=args.train_start_year,
+                                  rolling_window_years=args.rolling_window_years)
         except ValueError:
             return -1.0
         score = quintile_directional_accuracy(res.predictions)
@@ -333,6 +388,42 @@ def main() -> None:
         ),
     )
     parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
+    parser.add_argument(
+        "--cv-policy",
+        default="expanding_full_history",
+        choices=available_cv_policies(),
+        dest="cv_policy",
+        help="Walk-forward training-window policy.",
+    )
+    parser.add_argument(
+        "--train-start-year",
+        type=_optional_int,
+        default=None,
+        dest="train_start_year",
+        help="Optional explicit first training year override for CV.",
+    )
+    parser.add_argument(
+        "--rolling-window-years",
+        type=_optional_int,
+        default=None,
+        dest="rolling_window_years",
+        help="Optional explicit rolling lookback window override for CV.",
+    )
+    parser.add_argument(
+        "--register-model",
+        nargs="?",
+        const=True,
+        default=False,
+        type=_str2bool,
+        dest="register_model",
+        help="Register the fitted MLflow model version. Defaults off for broad sweeps.",
+    )
+    parser.add_argument(
+        "--registered-model-name",
+        default=None,
+        dest="registered_model_name",
+        help="Optional MLflow registered model name override.",
+    )
     parser.add_argument("--no-snapshot", action="store_true")
     # manual hyperparameters (ignored under --optuna)
     parser.add_argument("--max-depth", type=int, default=4, dest="max_depth")
@@ -350,6 +441,7 @@ def main() -> None:
     args.target_key = _optional_ref(args.target_key)
     args.source_dataset_version = _optional_ref(args.source_dataset_version)
     args.feature_set = _optional_ref(args.feature_set)
+    args.registered_model_name = _optional_ref(args.registered_model_name)
     if not args.bucket:
         raise SystemExit("LEVIATHAN_BUCKET (or --bucket) is required")
 
@@ -361,6 +453,7 @@ def main() -> None:
     s3 = boto3.client("s3", region_name=args.aws_region)
     model_ready_dataset = None
     model_ready_mode = bool(args.model_dataset_version)
+    target_tags: dict[str, str] = {}
 
     if model_ready_mode:
         if args.dataset_version:
@@ -393,6 +486,8 @@ def main() -> None:
         target_col = model_ready_dataset.target_col
         feature_cols = model_ready_dataset.feature_cols
         feature_set_meta = model_ready_dataset.feature_set_meta
+        target_tags = _model_ready_metadata_tags(model_ready_dataset)
+        args.prediction_model_family = target_tags.get("target_family")
         if train_slice.empty:
             logger.warning(
                 "%s %s/%s has no trainable model-ready rows - skipping.",
@@ -467,12 +562,21 @@ def main() -> None:
             result = walk_forward_cv(
                 training_matrix, target_col, feature_cols, model,
                 min_train_years=args.min_train_years,
+                cv_policy=args.cv_policy,
+                train_start_year=args.train_start_year,
+                rolling_window_years=args.rolling_window_years,
             )
         except ValueError as exc:
             logger.warning("%s: insufficient data for walk-forward CV — %s", args.commodity, exc)
             mlflow.set_tag("status", "skipped_insufficient_data")
             return
 
+        mlflow.log_param("cv_policy_resolved", result.cv_policy)
+        mlflow.log_param("fold_count", result.n_folds)
+        if result.train_start_year is not None:
+            mlflow.log_param("cv_train_start_year_resolved", result.train_start_year)
+        if result.rolling_window_years is not None:
+            mlflow.log_param("cv_rolling_window_years_resolved", result.rolling_window_years)
         result.with_slices(args.commodity)
         gaps = evaluate_gaps(result.sliced_metrics, load_gap_rules()) \
             if result.sliced_metrics is not None else None
@@ -480,6 +584,13 @@ def main() -> None:
         mlflow.set_tag("model", args.model)
         mlflow.set_tag("target", target_name)
         mlflow.set_tag("detrend", str(args.detrend))
+        mlflow.set_tag("cv_policy", args.cv_policy)
+        mlflow.set_tag("register_model_requested", str(args.register_model).lower())
+        mlflow.log_param("min_train_years", args.min_train_years)
+        if args.train_start_year is not None:
+            mlflow.log_param("train_start_year", args.train_start_year)
+        if args.rolling_window_years is not None:
+            mlflow.log_param("rolling_window_years", args.rolling_window_years)
         mlflow.set_tag("feature_selection_mode", "feature_set" if args.feature_set else "tier")
         for key, value in feature_set_meta.items():
             mlflow.set_tag(key, value)
@@ -500,6 +611,8 @@ def main() -> None:
                 model_ready_tags["target_config_sha"] = str(
                     model_ready_dataset.manifest["target_config_sha"]
                 )
+            for key, value in target_tags.items():
+                model_ready_tags[key] = value
             model_ready_params = {
                 "model_ready_total_rows": int(len(model_ready_dataset.matrix)),
                 "model_ready_trainable_rows": int(len(train_slice)),
@@ -557,6 +670,27 @@ def main() -> None:
         replay_sample = build_model_replay_sample(
             final_model, train_slice, feature_cols, target_col,
         )
+        registered_model_name = None
+        registered_model_tags = {}
+        if args.register_model:
+            registered_model_name = args.registered_model_name or _registered_model_name(
+                args, target_tags.get("target_family")
+            )
+            registered_model_tags = {
+                "commodity": args.commodity,
+                "model": args.model,
+                "target": str(target_name),
+                "target_key": str(args.target_key or ""),
+                "dataset_key": str(args.dataset_key if model_ready_mode else ""),
+                "feature_set_id": str(selection_name),
+                "cv_policy": str(args.cv_policy),
+                "model_dataset_version": str(args.model_dataset_version or ""),
+                "source_gold_dataset_version": str(args.source_dataset_version or ""),
+                "target_source": target_tags.get("target_source"),
+                "target_family": target_tags.get("target_family"),
+                "target_attribute": target_tags.get("target_attribute"),
+                "psd_mapping_sha": target_tags.get("psd_mapping_sha"),
+            }
         log_fitted_model(
             mlflow,
             model=final_model,
@@ -564,6 +698,8 @@ def main() -> None:
             train_df=train_slice,
             feature_cols=feature_cols,
             target_col=target_col,
+            registered_model_name=registered_model_name,
+            registered_model_tags=registered_model_tags,
         )
         pred_uri = _write_predictions(
             s3, args.bucket, args, predictions_to_write, run.info.run_id,
