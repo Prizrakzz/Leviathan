@@ -43,6 +43,7 @@ def main() -> None:
     parser.add_argument("--dataset-key", required=True, dest="dataset_key")
     parser.add_argument("--target-key", required=True, dest="target_key")
     parser.add_argument("--model", default="lightgbm", choices=["xgboost", "lightgbm"])
+    parser.add_argument("--model-params-json", default="{}", dest="model_params_json")
     parser.add_argument("--cv-policy", default="expanding_post_2000", dest="cv_policy")
     parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
     parser.add_argument("--source-dataset-version", default=None, dest="source_dataset_version")
@@ -56,6 +57,12 @@ def main() -> None:
 
     if not args.bucket:
         raise SystemExit("LEVIATHAN_BUCKET or --bucket is required")
+    try:
+        model_params = json.loads(args.model_params_json or "{}")
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"--model-params-json is not valid JSON: {exc}") from exc
+    if not isinstance(model_params, dict):
+        raise SystemExit("--model-params-json must decode to a JSON object")
 
     s3 = boto3.client("s3", region_name=args.aws_region)
     dataset = load_model_ready_training_dataset(
@@ -78,6 +85,7 @@ def main() -> None:
         model_dataset_version=args.model_dataset_version,
         source_dataset_version=dataset.source_dataset_version,
         min_train_years=args.min_train_years,
+        model_params=model_params,
     )
     report = build_candidate_certification_report(
         spec=spec,
@@ -85,7 +93,7 @@ def main() -> None:
         train_df=dataset.train_df,
         feature_cols=dataset.feature_cols,
         target_col=dataset.target_col,
-        model=make_tree_model(args.model),
+        model=make_tree_model(args.model, **model_params),
         stress_years=_stress_years(args.stress_years),
         permutation_trials=args.permutation_trials,
     )
@@ -95,9 +103,10 @@ def main() -> None:
         "baseline_metrics_uri": dataset.baseline_metrics_uri,
     }
 
-    body = json.dumps(report, indent=2, sort_keys=True).encode("utf-8")
     key = model_candidate_certification_key(spec.candidate_id)
     uri = f"s3://{args.bucket}/{key}"
+    report["inputs"]["certification_report_uri"] = uri
+    body = json.dumps(report, indent=2, sort_keys=True).encode("utf-8")
     if args.dry_run:
         print(json.dumps({"dry_run": True, "report_uri": uri, "report": report}, indent=2))
         return

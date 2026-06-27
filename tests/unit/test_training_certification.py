@@ -100,7 +100,9 @@ def test_build_candidate_certification_report_flags_unvalidated_extreme_sample()
 
     assert report["candidate"]["candidate_id"].startswith("corn_cbot__preseason_physical")
     assert report["aggregate_metrics"]["n_folds"] > 0
+    assert report["fold_metrics"]
     assert report["extreme_metrics"]["n_extreme_independent_country_years"] < 30
+    assert report["bad_production_year_metrics"]["n_bad_year_rows"] > 0
     assert report["promotion_gate"]["recommendation"] in {
         "do_not_promote",
         "hold_for_more_validation",
@@ -108,3 +110,5 @@ def test_build_candidate_certification_report_flags_unvalidated_extreme_sample()
     assert report["leakage_audit"]["status"] == "pass"
     assert "baseline_comparison" in report
     assert "permutation_sanity" in report
+    assert report["promotion_questions"]["ready_for_model_registration"] is False
+    assert report["candidate"]["model_params_sha"] == "default_params"

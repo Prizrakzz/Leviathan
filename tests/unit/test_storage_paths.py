@@ -19,6 +19,7 @@ from leviathan.storage.paths import (
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
     gold_model_ready_target_key,
+    model_candidate_certification_summary_key,
     gold_training_windows_version_key,
     model_candidate_certification_key,
     parse_hive_key,
@@ -307,4 +308,10 @@ class TestGoldVersionedPaths:
         assert model_candidate_certification_key("corn_candidate") == (
             "model_artifacts/candidate_certification/"
             "candidate_id=corn_candidate/certification_report.json"
+        )
+
+    def test_model_candidate_certification_summary_key(self):
+        assert model_candidate_certification_summary_key("phase10-run") == (
+            "model_artifacts/candidate_certification_summaries/"
+            "run_id=phase10-run/candidate_ranking.parquet"
         )

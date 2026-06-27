@@ -43,6 +43,7 @@ def main() -> None:
     parser.add_argument("--dataset-keys", default="psd_snd_anomaly", dest="dataset_keys")
     parser.add_argument("--target-keys", default="psd_production_anomaly_pct", dest="target_keys")
     parser.add_argument("--models", default="lightgbm")
+    parser.add_argument("--model-params-json", default="{}", dest="model_params_json")
     parser.add_argument("--cv-policies", default="expanding_post_2000", dest="cv_policies")
     parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
     parser.add_argument("--permutation-trials", type=int, default=20, dest="permutation_trials")
@@ -95,6 +96,7 @@ def main() -> None:
             "dataset_key": dataset_key,
             "target_key": target_key,
             "model": model,
+            "model_params_json": args.model_params_json or "{}",
             "cv_policy": cv_policy,
             "min_train_years": str(args.min_train_years),
             "permutation_trials": str(args.permutation_trials),

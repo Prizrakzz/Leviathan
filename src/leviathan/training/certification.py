@@ -7,6 +7,8 @@ leakage-safe, and materially better than simple baselines.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import math
 from typing import Any
 
@@ -38,15 +40,18 @@ class CandidateSpec:
     model_dataset_version: str
     source_dataset_version: str | None = None
     min_train_years: int = 10
+    model_params: dict[str, Any] | None = None
 
     @property
     def candidate_id(self) -> str:
+        model_params_sha = _params_sha(self.model_params)
         parts = [
             self.commodity,
             self.feature_set_id,
             self.dataset_key,
             self.target_key,
             self.model_name,
+            model_params_sha,
             self.cv_policy,
             self.model_dataset_version,
         ]
@@ -57,6 +62,13 @@ def _safe_fragment(value: object) -> str:
     text = "" if value is None else str(value)
     out = "".join(ch if ch.isalnum() or ch in "_.=-" else "_" for ch in text)
     return out.strip("_") or "none"
+
+
+def _params_sha(model_params: dict[str, Any] | None) -> str:
+    if not model_params:
+        return "default_params"
+    payload = json.dumps(model_params, sort_keys=True, default=str)
+    return "params_" + hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
 
 
 def _json_safe(value: Any) -> Any:
@@ -92,6 +104,81 @@ def regression_metrics(actual: pd.Series, pred: pd.Series) -> dict[str, float]:
         "sign_accuracy": float(
             (np.sign(actual_f[valid]) == np.sign(pred_f[valid])).mean()
         ),
+    }
+
+
+def fold_metric_rows(result) -> list[dict[str, Any]]:
+    """Return per-fold metrics in a JSON-friendly shape."""
+    rows: list[dict[str, Any]] = []
+    for fold in result.folds:
+        rows.append({
+            "test_year": fold.test_year,
+            "fold_start_train_year": fold.fold_start_train_year,
+            "fold_end_train_year": fold.fold_end_train_year,
+            "train_year_count": fold.train_year_count,
+            "n_train_rows": fold.n_train_rows,
+            "n_test_rows": fold.n_test_rows,
+            "rmse": fold.rmse,
+            "mae": fold.mae,
+            "directional_accuracy": fold.directional_accuracy,
+            "cv_policy": fold.cv_policy,
+        })
+    return rows
+
+
+def bad_production_year_metrics(
+    predictions: pd.DataFrame,
+    q: float = 0.2,
+    *,
+    min_independent_country_years: int = 30,
+) -> dict[str, float]:
+    """Directional recall on the worst production-anomaly years.
+
+    ``extreme_directional_metrics`` scores high-magnitude upside and downside
+    events together.  For production-risk work we also need the downside view:
+    when the actual target is in the bottom quintile, did the model call the
+    anomaly negative?
+    """
+    df = predictions.dropna(subset=["y_actual", "y_pred"]).copy()
+    empty = {
+        "bad_year_threshold_actual": float("nan"),
+        "n_bad_year_rows": 0.0,
+        "n_bad_year_independent_country_years": 0.0,
+        "n_bad_year_countries": 0.0,
+        "n_bad_year_years": 0.0,
+        "bad_year_negative_recall": float("nan"),
+        "bad_year_sign_accuracy": float("nan"),
+        "validated": 0.0,
+        "min_independent_country_years": float(min_independent_country_years),
+    }
+    if df.empty:
+        return empty
+    threshold = float(df["y_actual"].quantile(q))
+    bad = df.loc[df["y_actual"] <= threshold].copy()
+    if bad.empty:
+        out = dict(empty)
+        out["bad_year_threshold_actual"] = threshold
+        return out
+
+    identity_cols = [
+        col for col in ("commodity", "country", "crop_year") if col in bad.columns
+    ]
+    independent = (
+        int(bad.drop_duplicates(identity_cols).shape[0])
+        if identity_cols else int(len(bad))
+    )
+    predicted_negative = bad["y_pred"].astype(float) < 0.0
+    sign_correct = np.sign(bad["y_pred"].astype(float)) == np.sign(bad["y_actual"].astype(float))
+    return {
+        "bad_year_threshold_actual": threshold,
+        "n_bad_year_rows": float(len(bad)),
+        "n_bad_year_independent_country_years": float(independent),
+        "n_bad_year_countries": float(bad["country"].nunique()) if "country" in bad.columns else 0.0,
+        "n_bad_year_years": float(bad["crop_year"].nunique()) if "crop_year" in bad.columns else 0.0,
+        "bad_year_negative_recall": float(predicted_negative.mean()),
+        "bad_year_sign_accuracy": float(sign_correct.mean()),
+        "validated": float(independent >= min_independent_country_years),
+        "min_independent_country_years": float(min_independent_country_years),
     }
 
 
@@ -379,6 +466,76 @@ def promotion_gate(
     }
 
 
+def promotion_questions(
+    *,
+    aggregate_metrics: dict[str, Any],
+    extreme_metrics: dict[str, float],
+    bad_year_metrics: dict[str, float],
+    baseline: dict[str, Any],
+    leakage_audit: dict[str, Any],
+    permutation: dict[str, Any],
+    country_blocked: dict[str, Any],
+    stress: dict[str, Any],
+    gate: dict[str, Any],
+) -> dict[str, Any]:
+    """Phase 10 checklist answers for manual candidate review."""
+    model_rmse = aggregate_metrics.get("rmse")
+    model_mae = aggregate_metrics.get("mae")
+    rows = baseline.get("rows", []) or []
+
+    def _beats(name: str, metric: str) -> bool | None:
+        if model_rmse is None or model_mae is None:
+            return None
+        for row in rows:
+            if row.get("baseline_name") == name:
+                baseline_value = row.get(metric)
+                model_value = aggregate_metrics.get(metric)
+                if baseline_value is None or model_value is None:
+                    return None
+                try:
+                    if not np.isfinite(float(baseline_value)) or not np.isfinite(float(model_value)):
+                        return None
+                    return float(model_value) < float(baseline_value)
+                except Exception:  # noqa: BLE001
+                    return None
+        return None
+
+    country_rmse = (country_blocked.get("aggregate") or {}).get("rmse")
+    stress_rmse = (stress.get("metrics") or {}).get("rmse")
+    return {
+        "beats_zero_baseline_rmse": _beats("zero_anomaly", "rmse"),
+        "beats_zero_baseline_mae": _beats("zero_anomaly", "mae"),
+        "beats_prior_year_baseline_rmse": _beats("prior_year", "rmse"),
+        "beats_prior_year_baseline_mae": _beats("prior_year", "mae"),
+        "beats_trailing_mean_baseline_rmse": _beats("trailing_mean", "rmse"),
+        "beats_trailing_mean_baseline_mae": _beats("trailing_mean", "mae"),
+        "beats_trailing_trend_baseline_rmse": _beats("trailing_linear_trend", "rmse"),
+        "beats_trailing_trend_baseline_mae": _beats("trailing_linear_trend", "mae"),
+        "bad_year_detection_validated": bool(bad_year_metrics.get("validated")),
+        "bad_year_negative_recall": bad_year_metrics.get("bad_year_negative_recall"),
+        "extreme_metric_sample_validated": bool(extreme_metrics.get("validated")),
+        "quintile_directional_accuracy": extreme_metrics.get("directional_accuracy"),
+        "leakage_audit_passed": leakage_audit.get("status") == "pass",
+        "permutation_sanity_passed": permutation.get("status") == "pass",
+        "country_blocked_rmse": country_rmse,
+        "country_blocked_rmse_delta_vs_walk_forward": (
+            float(country_rmse) - float(model_rmse)
+            if country_rmse is not None and model_rmse is not None
+            and np.isfinite(float(country_rmse)) and np.isfinite(float(model_rmse))
+            else None
+        ),
+        "stress_year_rmse": stress_rmse,
+        "stress_year_rmse_delta_vs_walk_forward": (
+            float(stress_rmse) - float(model_rmse)
+            if stress_rmse is not None and model_rmse is not None
+            and np.isfinite(float(stress_rmse)) and np.isfinite(float(model_rmse))
+            else None
+        ),
+        "feature_importance_review_required": True,
+        "ready_for_model_registration": gate.get("status") == "pass",
+    }
+
+
 def build_candidate_certification_report(
     *,
     spec: CandidateSpec,
@@ -403,8 +560,16 @@ def build_candidate_certification_report(
     predictions = result.predictions.copy()
     predictions["commodity"] = spec.commodity
     extreme = extreme_directional_metrics(predictions)
+    bad_years = bad_production_year_metrics(predictions)
     leakage = audit_feature_leakage(feature_cols, target_col=target_col)
     baseline = baseline_comparison(result.predictions, matrix)
+    stress = stress_year_summary(predictions, stress_years)
+    country_blocked = country_blocked_validation(
+        train_df,
+        target_col=target_col,
+        feature_cols=feature_cols,
+        model=model,
+    )
     permutation = permutation_sanity_check(
         train_df,
         target_col=target_col,
@@ -422,6 +587,13 @@ def build_candidate_certification_report(
         baseline=baseline,
         permutation=permutation,
     )
+    aggregate = {
+        "rmse": result.rmse,
+        "mae": result.mae,
+        "directional_accuracy": result.directional_accuracy,
+        "n_folds": result.n_folds,
+        "n_prediction_rows": int(len(result.predictions)),
+    }
     report = {
         "candidate": {
             "candidate_id": spec.candidate_id,
@@ -434,24 +606,17 @@ def build_candidate_certification_report(
             "model_dataset_version": spec.model_dataset_version,
             "source_dataset_version": spec.source_dataset_version,
             "min_train_years": spec.min_train_years,
+            "model_params": spec.model_params or {},
+            "model_params_sha": _params_sha(spec.model_params),
         },
-        "aggregate_metrics": {
-            "rmse": result.rmse,
-            "mae": result.mae,
-            "directional_accuracy": result.directional_accuracy,
-            "n_folds": result.n_folds,
-            "n_prediction_rows": int(len(result.predictions)),
-        },
+        "aggregate_metrics": aggregate,
+        "fold_metrics": fold_metric_rows(result),
         "extreme_metrics": extreme,
+        "bad_production_year_metrics": bad_years,
         "baseline_comparison": baseline,
         "leakage_audit": leakage,
-        "stress_year_summary": stress_year_summary(predictions, stress_years),
-        "country_blocked_validation": country_blocked_validation(
-            train_df,
-            target_col=target_col,
-            feature_cols=feature_cols,
-            model=model,
-        ),
+        "stress_year_summary": stress,
+        "country_blocked_validation": country_blocked,
         "leave_stress_year_out_sensitivity": leave_year_out_sensitivity(
             train_df,
             target_col=target_col,
@@ -463,5 +628,16 @@ def build_candidate_certification_report(
         ),
         "permutation_sanity": permutation,
         "promotion_gate": gate,
+        "promotion_questions": promotion_questions(
+            aggregate_metrics=aggregate,
+            extreme_metrics=extreme,
+            bad_year_metrics=bad_years,
+            baseline=baseline,
+            leakage_audit=leakage,
+            permutation=permutation,
+            country_blocked=country_blocked,
+            stress=stress,
+            gate=gate,
+        ),
     }
     return _json_safe(report)

@@ -23,6 +23,7 @@ def make_tree_model(name: str, **hp):
         return XGBRegressor(
             **common,
             colsample_bytree=hp.get("colsample_bytree", 0.8),
+            reg_alpha=hp.get("reg_alpha", hp.get("lambda_l1", 0.0)),
             n_jobs=-1,
         )
     if name == "lightgbm":
@@ -30,7 +31,12 @@ def make_tree_model(name: str, **hp):
 
         return LGBMRegressor(
             **common,
+            num_leaves=hp.get("num_leaves", 31),
+            min_data_in_leaf=hp.get("min_data_in_leaf", hp.get("min_child_samples", 20)),
             colsample_bytree=hp.get("colsample_bytree", 0.8),
+            feature_fraction=hp.get("feature_fraction", hp.get("colsample_bytree", 0.8)),
+            lambda_l1=hp.get("lambda_l1", hp.get("reg_alpha", 0.0)),
+            lambda_l2=hp.get("lambda_l2", hp.get("reg_lambda", 1.0)),
             n_jobs=-1,
             verbose=-1,
         )

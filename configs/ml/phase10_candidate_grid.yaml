@@ -1,0 +1,119 @@
+# Phase 10 controlled candidate-certification grid.
+#
+# This config is intentionally conservative.  Broad hyperparameter sweeps come
+# after a candidate beats baselines, survives permutation/country/stress checks,
+# and has economically sensible feature importance.
+
+schema_version: 1
+
+defaults:
+  model_dataset_version: latest
+  source_dataset_version: none
+  commodities:
+    - corn_cbot
+  target_keys:
+    - psd_production_anomaly_pct
+  models:
+    - lightgbm
+    - xgboost
+  cv_policies:
+    - expanding_post_2000
+  min_train_years: 10
+  permutation_trials: 20
+  stress_years:
+    - 2010
+    - 2011
+    - 2012
+    - 2020
+    - 2021
+    - 2022
+
+model_param_profiles:
+  - id: default
+    models:
+      - lightgbm
+      - xgboost
+    params: {}
+
+  - id: regularized_small_tree
+    models:
+      - lightgbm
+      - xgboost
+    params:
+      n_estimators: 300
+      max_depth: 2
+      learning_rate: 0.03
+      subsample: 0.8
+      colsample_bytree: 0.7
+      min_child_weight: 5
+      reg_alpha: 0.1
+      reg_lambda: 5.0
+
+  - id: lightgbm_leaf_regularized
+    models:
+      - lightgbm
+    params:
+      n_estimators: 300
+      max_depth: 3
+      learning_rate: 0.03
+      subsample: 0.8
+      colsample_bytree: 0.7
+      num_leaves: 7
+      min_data_in_leaf: 10
+      lambda_l1: 0.1
+      lambda_l2: 5.0
+
+hypotheses:
+  - id: psd_vintage_signal
+    description: Test whether monthly PSD release-vintage features add signal to corn production-anomaly prediction.
+    dataset_keys:
+      - psd_snd_anomaly_snapshot
+    feature_sets:
+      - psd_monthly_vintage_features
+      - preseason_physical_plus_psd_vintage
+    model_param_profiles:
+      - default
+      - regularized_small_tree
+      - lightgbm_leaf_regularized
+
+  - id: annual_static_feature_ablation
+    description: Test annual model-ready feature families before relying on snapshot-vintage features.
+    dataset_keys:
+      - psd_snd_anomaly
+    feature_sets:
+      - preseason_physical
+      - inseason_weather
+      - balance_sheet
+      - planting_incentives
+      - tail_risk
+    model_param_profiles:
+      - default
+      - regularized_small_tree
+      - lightgbm_leaf_regularized
+
+  - id: baseline_hardening_reference
+    description: Freeze the current most promising feature mix as the reference candidate.
+    dataset_keys:
+      - psd_snd_anomaly_snapshot
+    feature_sets:
+      - preseason_physical_plus_psd_vintage
+    models:
+      - lightgbm
+    cv_policies:
+      - expanding_post_2000
+    model_param_profiles:
+      - default
+
+  - id: cv_policy_sensitivity
+    description: Check whether the reference candidate is stable under a rolling training window.
+    dataset_keys:
+      - psd_snd_anomaly_snapshot
+    feature_sets:
+      - preseason_physical_plus_psd_vintage
+    models:
+      - lightgbm
+    cv_policies:
+      - rolling_25y
+    model_param_profiles:
+      - default
+      - lightgbm_leaf_regularized

@@ -2173,6 +2173,18 @@ def model_candidate_certification_key(
     )
 
 
+def model_candidate_certification_summary_key(
+    run_id: str,
+    filename: str = "candidate_ranking.parquet",
+) -> str:
+    """S3 key for a Phase 10 candidate-certification ranking table."""
+    return (
+        f"model_artifacts/candidate_certification_summaries/"
+        f"run_id={run_id}/"
+        f"{filename}"
+    )
+
+
 def raw_chris_key(slug: str, tenor: int) -> str:
     """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
 
