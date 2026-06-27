@@ -20,6 +20,7 @@ from leviathan.storage.paths import (
     gold_model_ready_matrix_key,
     gold_model_ready_target_key,
     gold_training_windows_version_key,
+    model_candidate_certification_key,
     parse_hive_key,
     raw_cpc_tif_key,
     raw_production_key,
@@ -300,4 +301,10 @@ class TestGoldVersionedPaths:
     def test_model_ready_manifest_key(self):
         assert gold_model_ready_manifest_key("m1") == (
             "gold/model_ready_manifests/dataset_version=m1/manifest.json"
+        )
+
+    def test_model_candidate_certification_key(self):
+        assert model_candidate_certification_key("corn_candidate") == (
+            "model_artifacts/candidate_certification/"
+            "candidate_id=corn_candidate/certification_report.json"
         )

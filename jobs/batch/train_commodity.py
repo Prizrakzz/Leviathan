@@ -54,8 +54,13 @@ from leviathan.training.mlflow_artifacts import (               # noqa: E402
     log_experiment_review_bundle,
     log_fitted_model,
 )
+from leviathan.training.models import make_tree_model           # noqa: E402
 from leviathan.training.slices import (                         # noqa: E402
-    evaluate_gaps, gaps_passed, load_gap_rules, quintile_directional_accuracy,
+    evaluate_gaps,
+    extreme_directional_metrics,
+    gaps_passed,
+    load_gap_rules,
+    quintile_directional_accuracy,
 )
 from leviathan.training.tracking import log_training_run        # noqa: E402
 
@@ -163,23 +168,11 @@ def _prediction_model_family(args, target_tags: dict[str, str], model_ready_data
 
 
 def _make_model(name: str, **hp):
-    """Tree regressors — NaN-native, no scaling needed (missingness-as-signal)."""
-    common = dict(
-        n_estimators=hp.get("n_estimators", 400),
-        max_depth=hp.get("max_depth", 4),
-        learning_rate=hp.get("learning_rate", 0.03),
-        subsample=hp.get("subsample", 0.8),
-        reg_lambda=hp.get("reg_lambda", 1.0),
-        min_child_weight=hp.get("min_child_weight", 1),
-    )
-    if name == "xgboost":
-        from xgboost import XGBRegressor
-        return XGBRegressor(**common, colsample_bytree=hp.get("colsample_bytree", 0.8), n_jobs=-1)
-    if name == "lightgbm":
-        from lightgbm import LGBMRegressor
-        return LGBMRegressor(**common, colsample_bytree=hp.get("colsample_bytree", 0.8),
-                             n_jobs=-1, verbose=-1)
-    raise SystemExit(f"unknown --model {name!r} (xgboost|lightgbm)")
+    """Tree regressors: NaN-native, no scaling needed."""
+    try:
+        return make_tree_model(name, **hp)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def _detrend_target(matrix: pd.DataFrame, target_col: str, min_years: int = 5) -> pd.DataFrame:
@@ -659,9 +652,34 @@ def main() -> None:
                     f"dataset_version={args.dataset_version}/commodity={args.commodity}/"
                 ),
             )
-        q_dir = quintile_directional_accuracy(result.predictions)
+        q_metrics = extreme_directional_metrics(result.predictions)
+        q_dir = q_metrics["directional_accuracy"]
         if not np.isnan(q_dir):
             mlflow.log_metric("quintile_directional_accuracy", q_dir)
+        for metric_name, metric_value in (
+            ("quintile_n_extreme_rows", q_metrics["n_extreme_rows"]),
+            (
+                "quintile_n_extreme_independent_country_years",
+                q_metrics["n_extreme_independent_country_years"],
+            ),
+            ("quintile_n_extreme_countries", q_metrics["n_extreme_countries"]),
+            ("quintile_n_extreme_years", q_metrics["n_extreme_years"]),
+            (
+                "quintile_extreme_threshold_abs_actual",
+                q_metrics["extreme_threshold_abs_actual"],
+            ),
+            ("quintile_directional_accuracy_validated", q_metrics["validated"]),
+        ):
+            if not np.isnan(metric_value):
+                mlflow.log_metric(metric_name, float(metric_value))
+        mlflow.set_tag(
+            "quintile_directional_accuracy_validated",
+            str(bool(q_metrics["validated"])).lower(),
+        )
+        mlflow.set_tag(
+            "quintile_min_independent_country_years",
+            str(int(q_metrics["min_independent_country_years"])),
+        )
 
         predictions_to_write = result.predictions
         baseline_eval = None

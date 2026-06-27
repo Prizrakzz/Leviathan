@@ -164,16 +164,66 @@ def quintile_directional_accuracy(predictions: pd.DataFrame, q: float = 0.2) -> 
     the top ``q`` of the distribution, the fraction where sign(y_pred) matches
     sign(y_actual).  Returns NaN if too few rows.
     """
+    return float(extreme_directional_metrics(predictions, q=q)["directional_accuracy"])
+
+
+def extreme_directional_metrics(
+    predictions: pd.DataFrame,
+    q: float = 0.2,
+    *,
+    min_rows: int = 5,
+    min_independent_country_years: int = 30,
+) -> dict[str, float]:
+    """Extreme-outcome directional metrics with honest sample-size accounting.
+
+    Snapshot datasets can repeat one annual target across several
+    ``snapshot_stage`` rows.  Counting raw rows alone therefore overstates the
+    amount of independent evidence.  This helper reports both literal extreme
+    rows and unique ``(commodity, country, crop_year)`` observations.
+    """
     df = predictions.dropna(subset=["y_actual", "y_pred"]).copy()
+    empty = {
+        "directional_accuracy": float("nan"),
+        "n_extreme_rows": 0.0,
+        "n_extreme_independent_country_years": 0.0,
+        "n_extreme_countries": 0.0,
+        "n_extreme_years": 0.0,
+        "extreme_threshold_abs_actual": float("nan"),
+        "validated": 0.0,
+        "min_independent_country_years": float(min_independent_country_years),
+    }
     if df.empty:
-        return float("nan")
+        return empty
+
     mag = df["y_actual"].abs()
     threshold = mag.quantile(1.0 - q)
     extreme = df[mag >= threshold]
-    if len(extreme) < 5:
-        return float("nan")
+    if len(extreme) < min_rows:
+        out = dict(empty)
+        out["n_extreme_rows"] = float(len(extreme))
+        out["extreme_threshold_abs_actual"] = float(threshold)
+        return out
+
+    identity_cols = [
+        col for col in ("commodity", "country", "crop_year") if col in extreme.columns
+    ]
+    if identity_cols:
+        independent = int(extreme.drop_duplicates(identity_cols).shape[0])
+    else:
+        independent = int(len(extreme))
     correct = np.sign(extreme["y_pred"]) == np.sign(extreme["y_actual"])
-    return float(correct.mean())
+    countries = int(extreme["country"].nunique()) if "country" in extreme.columns else 0
+    years = int(extreme["crop_year"].nunique()) if "crop_year" in extreme.columns else 0
+    return {
+        "directional_accuracy": float(correct.mean()),
+        "n_extreme_rows": float(len(extreme)),
+        "n_extreme_independent_country_years": float(independent),
+        "n_extreme_countries": float(countries),
+        "n_extreme_years": float(years),
+        "extreme_threshold_abs_actual": float(threshold),
+        "validated": float(independent >= min_independent_country_years),
+        "min_independent_country_years": float(min_independent_country_years),
+    }
 
 
 def compute_slice_metrics(

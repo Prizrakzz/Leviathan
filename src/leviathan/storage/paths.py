@@ -2161,6 +2161,18 @@ def gold_model_ready_manifest_key(
     )
 
 
+def model_candidate_certification_key(
+    candidate_id: str,
+    filename: str = "certification_report.json",
+) -> str:
+    """S3 key for a model candidate certification report."""
+    return (
+        f"model_artifacts/candidate_certification/"
+        f"candidate_id={candidate_id}/"
+        f"{filename}"
+    )
+
+
 def raw_chris_key(slug: str, tenor: int) -> str:
     """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
 

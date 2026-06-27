@@ -8,6 +8,7 @@ from leviathan.training.slices import (
     classify_stress_years,
     compute_slice_metrics,
     evaluate_gaps,
+    extreme_directional_metrics,
     flatten_for_mlflow,
     gaps_passed,
     load_gap_rules,
@@ -98,3 +99,30 @@ def test_evaluate_gaps_pass_and_hard_fail() -> None:
     assert g.loc["country_directional_floor", "status"] == "fail"       # vietnam 0.40 < 0.45
     # two HARD failures -> disqualified
     assert gaps_passed(evaluate_gaps(_gap_slices(), load_gap_rules())) is False
+
+
+def test_extreme_directional_metrics_counts_independent_snapshot_country_years() -> None:
+    rows = []
+    for country, year, actual in [
+        ("argentina", 2020, -0.8),
+        ("brazil", 2021, 0.9),
+    ]:
+        for stage in ["preseason", "early_inseason", "midseason", "late_inseason"]:
+            rows.append({
+                "commodity": "corn_cbot",
+                "country": country,
+                "crop_year": year,
+                "snapshot_stage": stage,
+                "y_actual": actual,
+                "y_pred": actual * 0.5,
+            })
+    metrics = extreme_directional_metrics(
+        pd.DataFrame(rows),
+        q=1.0,
+        min_independent_country_years=3,
+    )
+
+    assert metrics["directional_accuracy"] == 1.0
+    assert metrics["n_extreme_rows"] == 8
+    assert metrics["n_extreme_independent_country_years"] == 2
+    assert metrics["validated"] == 0.0
