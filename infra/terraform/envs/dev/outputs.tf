@@ -45,6 +45,11 @@ output "fnc_colombia_silver_job_definition_arn" {
   description = "ARN of the FNC Colombia bronze Parquet -> silver Parquet job definition."
 }
 
+output "conab_coffee_silver_job_definition_arn" {
+  value       = module.batch.conab_coffee_silver_job_definition_arn
+  description = "ARN of the CONAB coffee bronze Parquet -> silver Parquet job definition."
+}
+
 output "glue_raw_to_bronze_nasa_power_job" {
   value       = module.glue.raw_to_bronze_nasa_power_job_name
   description = "Glue job: raw → bronze NASA POWER."

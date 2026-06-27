@@ -102,3 +102,8 @@ output "fnc_colombia_silver_job_definition_arn" {
   value       = aws_batch_job_definition.fnc_colombia_silver.arn
   description = "ARN of the FNC Colombia bronze Parquet -> silver Parquet job definition."
 }
+
+output "conab_coffee_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.conab_coffee_silver.arn
+  description = "ARN of the CONAB coffee bronze Parquet -> silver Parquet job definition."
+}
