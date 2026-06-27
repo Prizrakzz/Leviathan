@@ -1917,7 +1917,8 @@ What not to do:
 
 Objective:
 
-- Define when a PSD-first model can become a production candidate.
+- Define when a PSD-first model can become a production candidate, using a
+  formal certification checklist rather than one attractive headline metric.
 
 Detailed tasks:
 
@@ -1925,6 +1926,14 @@ Detailed tasks:
 - Define champion/challenger registry policy.
 - Define model freshness and inference cadence.
 - Define frontend chart-readiness fields later, after production-readiness.
+- Require a candidate certification report before `--register-model true`.
+- Promote only from frozen candidates, not broad sweep runs.
+- Evaluate the model as a forecasting system:
+  - did it beat trivial baselines;
+  - did it generalize across folds, origins, and stress years;
+  - did it catch bad production years;
+  - did added feature families improve signal or add noise;
+  - does feature importance make economic sense.
 
 Files/configs likely affected:
 
@@ -1932,36 +1941,126 @@ Files/configs likely affected:
 - potential `configs/ml/promotion_criteria.yaml`
 - `docs/ops/`
 - MLflow registry scripts if added.
+- `src/leviathan/training/certification.py`
+- `jobs/batch/certify_model_candidate.py`
+- `jobs/submit/submit_batch_candidate_certification.py`
 
 S3 prefixes affected:
 
 - Additive:
   - `silver/model_predictions/model_family=psd_*`
+  - `model_artifacts/candidate_certification/candidate_id={candidate_id}/`
   - future champion manifest prefix, if created
 
 Risks:
 
 - Promoting a model that beats RMSE but fails stress-year direction.
 - Promoting aggregate PSD proxy targets as contract-specific truth.
+- Promoting a model whose `quintile_directional_accuracy` is high only because
+  of a tiny or repeated extreme sample.
+- Promoting a model whose performance survives neither country-blocked nor
+  leave-stress-year-out validation.
+- Treating feature importance as economic explanation without analyst review.
+- Over-tuning hyperparameters against a noisy tail metric before leakage,
+  permutation, and baseline gates pass.
 
 Validation/tests:
 
-- Champion report generation.
+- Candidate certification report generation.
 - MLflow run completeness check.
 - Replay check.
 - Slice gap check.
 - Baseline comparison.
+- Fold-level metrics:
+  - `fold_mae`;
+  - `fold_rmse`;
+  - `fold_directional_accuracy`;
+  - fold train/test years and row counts.
+- Aggregate metrics:
+  - `aggregate_mae`;
+  - `aggregate_rmse`;
+  - `aggregate_sign_accuracy`;
+  - `aggregate_tail_recall`;
+  - `quintile_directional_accuracy`.
+- Tail and bad-year diagnostics:
+  - independent extreme sample count;
+  - bad-production-year recall and precision;
+  - bottom-quintile target recall;
+  - stress-year MAE/RMSE/sign accuracy.
+- Out-of-fold prediction review:
+  - prediction rows exist for every evaluated fold;
+  - predictions include identity columns, target, prediction, model, feature set,
+    dataset version, and run ID.
+- Baseline expansion:
+  - zero-anomaly baseline;
+  - prior-year anomaly baseline;
+  - trailing-mean anomaly baseline;
+  - trailing-linear-trend anomaly baseline.
+- Robustness diagnostics:
+  - permutation sanity test;
+  - leakage audit;
+  - country-blocked validation;
+  - leave-stress-year-out sensitivity;
+  - sparse/rich origin and stress/normal slice gaps.
+- Feature-family ablations:
+  - base/preseason physical features;
+  - weather-only or weather-added comparison;
+  - PSD monthly-vintage features;
+  - combined static plus vintage features;
+  - no-weather control where practical.
+- MLflow provenance completeness:
+  - model dataset version;
+  - source gold dataset version;
+  - feature-set ID and SHA;
+  - target config SHA;
+  - PSD mapping SHA;
+  - data fingerprint;
+  - snapshot URI;
+  - predictions URI;
+  - selected feature list;
+  - feature importance;
+  - fitted model artifact and replay sample.
 
 Acceptance criteria:
 
-- Candidate beats zero/trend baseline.
-- Candidate is competitive with prior-year baseline.
-- Hard gap checks pass or are explicitly waived.
+- Candidate has a passing certification report or a documented manual waiver.
+- Candidate beats the zero-anomaly and trailing-trend baselines on MAE/RMSE.
+- Candidate is competitive with, or clearly complementary to, the prior-year
+  anomaly baseline.
+- Candidate improves at least one economically important metric such as bad-year
+  recall, stress-year direction, or tail recall without unacceptable MAE/RMSE
+  degradation.
+- Candidate has acceptable walk-forward CV across many folds, not one lucky year.
+- `quintile_directional_accuracy` is sample-size validated:
+  - independent extreme country-years are counted;
+  - repeated snapshot stages do not inflate evidence;
+  - candidate is not promoted on tail metrics with too few independent events.
+- Permutation sanity test passes.
+- Feature leakage audit has zero hard findings.
+- Country-blocked and leave-stress-year-out validation do not collapse.
+- Hard gap checks pass or are explicitly waived with rationale.
 - SHAP/feature importance is economically plausible.
 - Target metadata is complete.
 - Model artifact replays.
 - Data version, feature set SHA, target config SHA, and PSD mapping SHA are
   logged.
+- Adding weather or any larger feature family must be justified by ablation:
+  it should improve signal, robustness, or economically meaningful slices rather
+  than merely adding noisy columns.
+
+Promotion checklist questions:
+
+- Did it beat the zero-anomaly baseline?
+- Did it improve MAE/RMSE against the relevant Phase 8/PSD baselines?
+- Did it correctly identify bad production years?
+- Did it work across many folds or one lucky year?
+- Did the candidate survive stress-year and country-blocked diagnostics?
+- Did feature importance make economic sense?
+- Did adding weather, monthly-vintage, or other feature families improve the
+  model, or just add noise?
+- Are all out-of-fold predictions and MLflow provenance artifacts present?
+- Is the final decision reproducible from the logged dataset, feature-set,
+  target, and mapping hashes?
 
 Reversibility:
 
@@ -1972,6 +2071,11 @@ What not to do:
 
 - Do not promote based on one headline metric.
 - Do not promote if target source or proxy status is ambiguous.
+- Do not register models from broad sweeps by default.
+- Do not use hyperparameter tuning to chase a tail metric before certification
+  gates pass.
+- Do not treat high snapshot-row tail accuracy as independent evidence unless
+  unique `(country, crop_year)` extreme counts are sufficient.
 
 ## L. Risks And Open Questions
 
