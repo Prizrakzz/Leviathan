@@ -47,6 +47,13 @@ from leviathan.training.model_ready import (                    # noqa: E402
     model_ready_metric_log_values,
     sanitize_artifact_name,
 )
+from leviathan.training.mlflow_artifacts import (               # noqa: E402
+    build_model_replay_sample,
+    fit_final_model,
+    log_dataframe_artifacts,
+    log_experiment_review_bundle,
+    log_fitted_model,
+)
 from leviathan.training.slices import (                         # noqa: E402
     evaluate_gaps, gaps_passed, load_gap_rules, quintile_directional_accuracy,
 )
@@ -256,6 +263,15 @@ def _optuna_search(matrix, target_col, feature_cols, args, mlflow) -> dict:
     mlflow.log_metric("best_quintile_dir_acc", study.best_value)
     for k, v in study.best_params.items():
         mlflow.log_param(f"hp_{k}", v)
+    try:
+        log_dataframe_artifacts(
+            mlflow,
+            study.trials_dataframe(),
+            name="optuna_trials",
+            max_rows=None,
+        )
+    except Exception as exc:  # noqa: BLE001 - trial table is useful but non-critical
+        logger.warning("failed to log Optuna trial table: %s", exc)
     logger.info("optuna best quintile_dir_acc=%.3f params=%s", study.best_value, study.best_params)
     return study.best_params
 
@@ -508,6 +524,7 @@ def main() -> None:
             mlflow.log_metric("quintile_directional_accuracy", q_dir)
 
         predictions_to_write = result.predictions
+        baseline_eval = None
         if model_ready_dataset is not None:
             baseline_eval = model_ready_baseline_metrics_for_predictions(
                 result.predictions,
@@ -536,12 +553,40 @@ def main() -> None:
                 if model_ready_dataset is not None else None
             ),
         )
+        final_model = fit_final_model(model, train_slice, feature_cols, target_col)
+        replay_sample = build_model_replay_sample(
+            final_model, train_slice, feature_cols, target_col,
+        )
+        log_fitted_model(
+            mlflow,
+            model=final_model,
+            model_family=args.model,
+            train_df=train_slice,
+            feature_cols=feature_cols,
+            target_col=target_col,
+        )
         pred_uri = _write_predictions(
             s3, args.bucket, args, predictions_to_write, run.info.run_id,
             logged["feature_set_sha"],
         )
         if pred_uri:
             mlflow.set_tag("predictions_uri", pred_uri)
+        log_experiment_review_bundle(
+            mlflow,
+            result=result,
+            predictions=predictions_to_write,
+            train_df=train_slice,
+            feature_cols=feature_cols,
+            target_col=target_col,
+            final_model=final_model,
+            replay_sample=replay_sample,
+            baseline_metrics=baseline_eval,
+            gaps=gaps,
+            args=args,
+            run_id=run.info.run_id,
+            predictions_uri=pred_uri,
+            logged_metadata=logged,
+        )
 
         passed = gaps_passed(gaps) if gaps is not None else None
         logger.info(

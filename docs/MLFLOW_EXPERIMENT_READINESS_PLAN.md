@@ -1270,17 +1270,60 @@ Make the experiment lifecycle repeatable.
   - feature sets validate;
   - MLflow backup exists;
   - one smoke training run succeeds.
+- Add an MLflow run-completeness gate for the smoke run:
+  - a fitted model is logged through the correct MLflow model flavor;
+  - the logged model includes signature, input example, dependency metadata, and
+    enough preprocessing state to reproduce predictions;
+  - compact prediction, fold-metric, slice-metric, baseline-comparison, gap, and
+    tuning-trial tables are logged as MLflow artifacts, not only written to
+    external S3 paths;
+  - per-fold and per-year metrics are logged with meaningful `step` values so
+    MLflow charts show learning and validation behavior instead of only one
+    scalar point;
+  - supported models log feature-importance or explanation artifacts;
+  - a `training.log` artifact captures Batch job ID, CloudWatch log stream,
+    dataset version, feature-set version, image digest, and selected feature
+    count;
+  - external S3 prediction and training-snapshot URIs remain tagged on the run,
+    but MLflow still contains enough compact artifacts for review in the UI.
+- Add a model replay check:
+  - download the fitted MLflow artifact;
+  - load the exact model and preprocessing pipeline;
+  - rerun predictions on the logged compact evaluation sample;
+  - compare predictions and metrics against the stored smoke output within a
+    declared tolerance.
+- Add an MLflow UI usability check:
+  - the run page must show model artifacts, tables, and useful metric charts;
+  - the comparison view must distinguish dataset version, feature-set version,
+    target, model class, image digest, and primary metric;
+  - the run must not be eligible for candidate promotion if the fitted artifact,
+    replay check, or baseline comparison is missing.
+- Add an access and idle-session check for the experiment UI:
+  - MLflow service health check passes on the EC2 host;
+  - the local SSM port-forward helper can start or restart the tunnel to
+    `http://localhost:5000`;
+  - Session Manager idle timeout is set to the maximum acceptable value for the
+    account, or a documented local watchdog restarts the tunnel when it drops;
+  - do not open the MLflow port publicly unless authentication and network
+    controls are added first.
 
 #### Deliverables
 
 - Airflow DAGs.
 - Readiness certification report.
 - Smoke training run.
+- MLflow run-completeness report.
+- MLflow replay verification report.
+- MLflow UI access/runbook note.
 
 #### Exit Criteria
 
 - The project can run a controlled MLflow experiment from a versioned dataset
   without manual S3 spelunking.
+- The smoke run is reviewable inside MLflow without jumping to CloudWatch or raw
+  S3 for the normal model-comparison workflow.
+- The fitted artifact can reproduce its logged predictions.
+- The MLflow UI tunnel can be restored without restarting the EC2 instance.
 
 ## 7. Recommended Execution Order
 

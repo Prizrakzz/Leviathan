@@ -1,0 +1,10 @@
+{
+  "max_abs_error": 0.0,
+  "mean_abs_error": 0.0,
+  "model_uri": "runs:/c57a0563b725439ea96f7a96b668e8c0/model",
+  "n_rows": 145,
+  "run_id": "c57a0563b725439ea96f7a96b668e8c0",
+  "sample_artifact": "tables/model_replay_sample.parquet",
+  "status": "pass",
+  "tolerance": 1e-08
+}
