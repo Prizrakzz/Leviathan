@@ -1483,20 +1483,37 @@ Objective:
 
 Detailed tasks:
 
+- Back up the MLflow backend database and confirm the S3 artifact root is
+  reachable before any MLflow package upgrade.
+- Upgrade the EC2 MLflow tracking server from the observed `3.1.4` install to a
+  current pinned MLflow 3 release, and record the exact version in the runbook.
+- Pin the trainer/client dependency to the same MLflow release family, using
+  `mlflow-skinny` in the trainer image because Batch jobs are MLflow clients,
+  not the tracking server.
+- Rebuild and push the trainer image after the MLflow client pin and PSD
+  training changes are present in `main`.
+- Verify the SSM tunnel, tracking API, model registry page, metrics charts,
+  artifact browser, and logged-model display before launching broad sweeps.
 - Add PSD target tags to training.
 - Add PSD mapping SHA to run tags and artifacts.
 - Add `leakage_audit.json`.
 - Add target distribution artifact.
 - Update experiment names.
 - Add champion-selection report format.
+- Run the first PSD Batch smoke only after the server/client versions and
+  trainer image are aligned.
 
 Files/configs likely affected:
 
+- `docker/leviathan_trainer/Dockerfile`
 - `jobs/batch/train_commodity.py`
 - `jobs/submit/submit_batch_train.py`
+- `jobs/utils/register_train_jobdef.py`
 - `src/leviathan/training/model_ready.py`
 - `src/leviathan/training/mlflow_artifacts.py`
 - `src/leviathan/training/tracking.py`
+- `docs/ops/MLFLOW_UI_ACCESS.md`
+- `docs/ops/MLFLOW_AIRFLOW_STATE_RECONCILIATION.md`
 - `docs/ops/`
 
 S3 prefixes affected:
@@ -1509,27 +1526,44 @@ S3 prefixes affected:
 
 Risks:
 
+- MLflow backend schema migration risk if the EC2 server is upgraded without a
+  fresh SQLite backup.
+- MLflow server/client mismatch causing missing artifacts, registry failures, or
+  confusing UI behavior.
 - Mixing old and new runs in MLflow UI.
 - Promoting a model with missing target metadata.
 
 Validation/tests:
 
+- `mlflow --version` on the EC2 tracking host reports the pinned release.
+- Trainer container imports the pinned `mlflow-skinny` version and can log a
+  fitted LightGBM/XGBoost model.
+- SSM tunnel opens `http://localhost:5000`; the UI shows runs, artifacts,
+  metric charts, and logged-model entries for the smoke run.
 - `tests/unit/test_training_mlflow_artifacts.py`
 - `tests/unit/test_training_model_ready.py`
 - MLflow replay smoke.
 
 Acceptance criteria:
 
+- MLflow server and trainer client versions are explicitly pinned, documented,
+  and compatible.
+- MLflow backend backup exists before upgrade and rollback steps are documented.
 - One PSD smoke run logs fitted model, tags, artifacts, predictions, and replay
   sample.
 - Old FAOSTAT run and new PSD run are clearly distinguishable in MLflow.
 
 Reversibility:
 
-- Safe and reversible; MLflow runs are additive.
+- Mostly safe and reversible if the backend DB is backed up before the MLflow
+  upgrade; MLflow runs remain additive.
 
 What not to do:
 
+- Do not upgrade MLflow in place without a backend backup and a rollback path.
+- Do not launch broad Batch sweeps until the upgraded UI and trainer image pass a
+  one-run PSD smoke.
+- Do not expose the MLflow port publicly while improving UI access.
 - Do not register/promote production model aliases yet.
 
 ### Phase 7 - Cleanup And Deprecation
@@ -1874,4 +1908,3 @@ No deletion command should be run from this plan.
 If cleanup is later approved, first perform only inventory and archive-copy
 operations. S3 deletion commands should be written in a separate, reviewed
 cleanup runbook with exact approved prefixes and rollback expectations.
-
