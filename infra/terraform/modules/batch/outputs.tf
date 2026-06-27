@@ -87,3 +87,8 @@ output "mpob_annual_silver_job_definition_arn" {
   value       = aws_batch_job_definition.mpob_annual_silver.arn
   description = "ARN of the MPOB overview_pdf bronze -> annual silver job definition."
 }
+
+output "usda_nass_annual_silver_job_definition_arn" {
+  value       = aws_batch_job_definition.usda_nass_annual_silver.arn
+  description = "ARN of the USDA NASS annual bronze Parquet -> silver Parquet job definition."
+}

@@ -22,6 +22,7 @@ from leviathan.storage.paths import (
     raw_cpc_tif_key,
     raw_production_key,
     raw_weather_key,
+    silver_nass_annual_key,
     silver_production_key,
     silver_weather_key,
 )
@@ -155,6 +156,16 @@ class TestSilverProductionKey:
         key = silver_production_key("cocoa", 2020, "part.parquet")
         assert "commodity=cocoa" in key
         assert "year=2020" in key
+
+
+class TestSilverNassAnnualKey:
+    def test_uses_non_conflicting_prefix(self):
+        key = silver_nass_annual_key("corn_cbot", 2024)
+        assert key == "silver/nass_annual/commodity=corn_cbot/year=2024/part-000.parquet"
+
+    def test_does_not_overlap_silver_production_prefix(self):
+        key = silver_nass_annual_key("corn_cbot", 2024)
+        assert not key.startswith("silver/production/")
 
 
 class TestBronzeProductionKey:

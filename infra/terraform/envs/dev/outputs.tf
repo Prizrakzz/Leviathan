@@ -30,6 +30,11 @@ output "nasa_power_backfill_job_definition_arn" {
   description = "ARN of the NASA POWER backfill Batch job definition."
 }
 
+output "usda_nass_annual_silver_job_definition_arn" {
+  value       = module.batch.usda_nass_annual_silver_job_definition_arn
+  description = "ARN of the USDA NASS annual bronze Parquet -> silver Parquet job definition."
+}
+
 output "glue_raw_to_bronze_nasa_power_job" {
   value       = module.glue.raw_to_bronze_nasa_power_job_name
   description = "Glue job: raw → bronze NASA POWER."

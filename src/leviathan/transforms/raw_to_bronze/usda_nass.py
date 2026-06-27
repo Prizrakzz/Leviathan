@@ -75,6 +75,8 @@ _PROGRESS_COMMODITY_MAP: dict[str, str] = {
 _ANNUAL_KEEP_COLS = [
     "source_desc", "sector_desc", "group_desc", "commodity_desc",
     "class_desc", "prodn_practice_desc", "util_practice_desc",
+    "domain_desc", "domaincat_desc", "short_desc", "freq_desc",
+    "reference_period_desc",
     "statisticcat_desc", "unit_desc",
     "agg_level_desc", "state_alpha", "state_name",
     "county_code", "county_name",
