@@ -33,8 +33,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Submit Phase 8 model-ready dataset build.")
     parser.add_argument("--source-dataset-version", required=True, dest="source_dataset_version")
     parser.add_argument("--model-dataset-version", required=True, dest="model_dataset_version")
+    parser.add_argument(
+        "--target-source",
+        choices=["faostat", "psd"],
+        default="psd",
+        dest="target_source",
+    )
+    parser.add_argument("--psd-source-key", default="silver/psd/part-000.parquet", dest="psd_source_key")
     parser.add_argument("--commodities", default="all")
     parser.add_argument("--target-keys", default="", dest="target_keys")
+    parser.add_argument("--snapshot-mode", action="store_true", default=False, dest="snapshot_mode")
+    parser.add_argument("--snapshot-stages", default="", dest="snapshot_stages")
+    parser.add_argument("--as-of-date", default="", dest="as_of_date")
+    parser.add_argument(
+        "--compatible-feature-sets",
+        default="",
+        dest="compatible_feature_sets",
+    )
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--job-queue", default=None, dest="job_queue")
     parser.add_argument("--skip-existing-versioned", action="store_true", default=False)
@@ -49,8 +64,14 @@ def main() -> None:
         "aws_region": aws_region,
         "source_dataset_version": args.source_dataset_version,
         "model_dataset_version": args.model_dataset_version,
+        "target_source": args.target_source,
+        "psd_source_key": args.psd_source_key,
         "commodities": args.commodities,
         "target_keys": args.target_keys or "none",
+        "snapshot_mode": str(args.snapshot_mode).lower(),
+        "snapshot_stages": args.snapshot_stages or "none",
+        "as_of_date": args.as_of_date or "none",
+        "compatible_feature_sets": args.compatible_feature_sets or "none",
         "workers": str(max(1, int(args.workers))),
         "skip_existing_versioned": str(args.skip_existing_versioned).lower(),
         "force_overwrite": str(args.force_overwrite).lower(),

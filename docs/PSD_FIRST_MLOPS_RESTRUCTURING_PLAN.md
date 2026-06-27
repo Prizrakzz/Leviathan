@@ -1823,11 +1823,13 @@ Status: completed 2026-06-27.
 Completion note:
 
 - `docs/ops/PHASE9_PSD_CORN_EXPERIMENT_COMPLETION.md`
+- `docs/ops/PHASE9_PSD_SNAPSHOT_VINTAGE_COMPLETION.md`
 - Controlled corn PSD production-anomaly sweep completed for
   `preseason_physical`.
-- `psd_monthly_vintage_features` was intentionally blocked from completion
-  because the active feature-set artifact and model-ready matrix do not yet
-  contain that feature set.
+- `psd_monthly_vintage_features` is now supported through the additive
+  `psd_snd_anomaly_snapshot` model-ready dataset surface.
+- `preseason_physical_plus_psd_vintage` is available for combined static
+  physical plus point-in-time PSD revision experiments.
 - No model was promoted.
 
 Objective:

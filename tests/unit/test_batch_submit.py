@@ -10,7 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from leviathan.common.batch_submit import submit_batch_jobs, write_run_record
+from leviathan.common.batch_submit import (
+    sanitize_batch_job_name,
+    submit_batch_jobs,
+    write_run_record,
+)
 
 _TASKS: list[dict[str, str]] = [
     {"year": "2023", "commodity": "cocoa"},
@@ -23,6 +27,15 @@ _TASKS: list[dict[str, str]] = [
 # ---------------------------------------------------------------------------
 
 class TestSubmitBatchJobs:
+    def test_sanitize_batch_job_name_truncates_and_hashes_long_names(self) -> None:
+        raw = "train-" + ("very_long_name+" * 20)
+
+        sanitized = sanitize_batch_job_name(raw)
+
+        assert len(sanitized) <= 128
+        assert "+" not in sanitized
+        assert sanitized.startswith("train-")
+
     def test_dry_run_returns_all_tasks_without_boto3_call(self) -> None:
         with patch("leviathan.common.batch_submit.boto3") as mock_boto3:
             mock_client = MagicMock()

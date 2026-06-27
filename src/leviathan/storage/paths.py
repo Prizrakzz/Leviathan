@@ -2125,6 +2125,30 @@ def gold_model_ready_baseline_metrics_key(
     )
 
 
+def gold_model_ready_feature_set_version_key(
+    dataset_version: str,
+    filename: str = "feature_sets.parquet",
+) -> str:
+    """S3 key for model-ready-specific feature-set membership."""
+    return (
+        f"gold/model_ready_feature_sets/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
+def gold_model_ready_feature_set_summary_key(
+    dataset_version: str,
+    filename: str = "feature_sets.json",
+) -> str:
+    """S3 key for the JSON summary of model-ready-specific feature sets."""
+    return (
+        f"gold/model_ready_feature_set_manifests/"
+        f"dataset_version={dataset_version}/"
+        f"{filename}"
+    )
+
+
 def gold_model_ready_manifest_key(
     dataset_version: str,
     filename: str = "manifest.json",

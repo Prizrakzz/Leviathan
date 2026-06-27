@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import io
 import json
 import subprocess
@@ -18,12 +19,16 @@ from leviathan.common.config import get_required_env, load_env
 from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 from leviathan.features.calendar import load_crop_calendars
+from leviathan.features.feature_sets import FEATURE_SET_COLUMNS, selected_features_for_set
 from leviathan.features.spine import load_countries
 from leviathan.model_datasets.builder import build_commodity_model_datasets
 from leviathan.model_datasets.psd_model_ready import (
+    PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,
     PSDModelReadyBuildConfig,
     PSD_MATRIX_ID_COLUMNS,
+    PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
     PSD_SNAPSHOT_MATRIX_ID_COLUMNS,
+    psd_vintage_feature_columns,
     build_psd_commodity_model_datasets,
     build_psd_commodity_snapshot_model_datasets,
 )
@@ -37,6 +42,8 @@ from leviathan.model_datasets.targets import (
 from leviathan.storage.paths import (
     gold_feature_matrix_version_key,
     gold_feature_set_version_key,
+    gold_model_ready_feature_set_summary_key,
+    gold_model_ready_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
@@ -190,6 +197,198 @@ def _parquet_bytes(df: pd.DataFrame) -> bytes:
     buf = io.BytesIO()
     df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
     return buf.getvalue()
+
+
+def _model_ready_feature_set_sha(
+    model_dataset_version: str,
+    feature_set_id: str,
+    features: list[str],
+) -> str:
+    payload = {
+        "model_dataset_version": model_dataset_version,
+        "feature_set_id": feature_set_id,
+        "feature_set_version": "1",
+        "features": sorted(features),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _source_feature_metadata(feature_membership: pd.DataFrame) -> dict[str, dict]:
+    if feature_membership.empty or "feature" not in feature_membership.columns:
+        return {}
+    metadata: dict[str, dict] = {}
+    for row in feature_membership.drop_duplicates("feature").to_dict("records"):
+        metadata[str(row["feature"])] = row
+    return metadata
+
+
+def _source_features_for_set(
+    feature_membership: pd.DataFrame,
+    feature_set_id: str,
+    matrix_cols: set[str],
+) -> list[str]:
+    try:
+        selected = selected_features_for_set(feature_membership, feature_set_id)
+    except ValueError:
+        return []
+    return sorted(
+        feature
+        for feature in selected
+        if feature in matrix_cols and not str(feature).startswith("label_")
+    )
+
+
+def _feature_observation(
+    *,
+    model_dataset_version: str,
+    feature_set_id: str,
+    feature: str,
+    matrix_df: pd.DataFrame,
+    source_meta: dict[str, dict],
+    commodity: str,
+) -> dict:
+    meta = source_meta.get(feature, {})
+    is_psd_vintage = feature.startswith("psd_")
+    row_count = int(len(matrix_df))
+    non_null_count = int(pd.to_numeric(matrix_df[feature], errors="coerce").notna().sum())
+    return {
+        "dataset_version": model_dataset_version,
+        "feature_set_id": feature_set_id,
+        "feature_set_version": "1",
+        "feature_set_sha": "",
+        "feature": feature,
+        "feature_family": str(
+            meta.get("feature_family")
+            or ("psd_monthly_vintage" if is_psd_vintage else "model_ready_dynamic")
+        ),
+        "semantic_scope": str(
+            meta.get("semantic_scope")
+            or ("official_revision" if is_psd_vintage else "model_ready_snapshot")
+        ),
+        "policy": str(
+            meta.get("policy")
+            or ("fundamental_physical" if is_psd_vintage else "fundamental_physical")
+        ),
+        "mechanism": str(
+            meta.get("mechanism")
+            or (
+                "official_balance_sheet_vintage_revision"
+                if is_psd_vintage else "snapshot_static_context"
+            )
+        ),
+        "sources": str(meta.get("sources") or ("psd" if is_psd_vintage else "")),
+        "source_cadence": str(meta.get("source_cadence") or ("monthly" if is_psd_vintage else "")),
+        "empirical_scope": str(meta.get("empirical_scope") or "commodity"),
+        "groups": str(meta.get("groups") or ""),
+        "is_label": False,
+        "row_count": row_count,
+        "commodity_count": 1,
+        "non_null_count": non_null_count,
+        "non_null_rate": float(non_null_count / row_count) if row_count else 0.0,
+        "target_compatibility": (
+            "psd_production_anomaly,psd_balance_sheet_anomaly,"
+            "official_estimate_revision,finalization_gap"
+        ),
+        "missingness_policy": "tree_models_allow_nan",
+        "min_lag_days": 0,
+        "commodity": commodity,
+    }
+
+
+def _snapshot_feature_set_observations(
+    *,
+    args: argparse.Namespace,
+    matrix_df: pd.DataFrame,
+    feature_membership: pd.DataFrame,
+    commodity: str,
+) -> list[dict]:
+    source_meta = _source_feature_metadata(feature_membership)
+    matrix_cols = set(str(col) for col in matrix_df.columns)
+    requested = tuple(args.compatible_feature_sets_tuple or (PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,))
+    psd_features = psd_vintage_feature_columns(matrix_df)
+    preseason_features = _source_features_for_set(
+        feature_membership, "preseason_physical", matrix_cols
+    )
+    observations: list[dict] = []
+
+    for feature_set_id in requested:
+        if feature_set_id == PSD_MONTHLY_VINTAGE_FEATURE_SET_ID:
+            selected = psd_features
+        elif feature_set_id == PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID:
+            selected = sorted(set(psd_features) | set(preseason_features))
+        else:
+            selected = _source_features_for_set(feature_membership, feature_set_id, matrix_cols)
+        for feature in selected:
+            observations.append(
+                _feature_observation(
+                    model_dataset_version=args.model_dataset_version,
+                    feature_set_id=feature_set_id,
+                    feature=feature,
+                    matrix_df=matrix_df,
+                    source_meta=source_meta,
+                    commodity=commodity,
+                )
+            )
+    return observations
+
+
+def _build_model_ready_feature_sets(
+    args: argparse.Namespace,
+    results: list[dict],
+) -> tuple[pd.DataFrame, dict]:
+    observations = [
+        observation
+        for result in results
+        for observation in result.get("model_ready_feature_observations", [])
+    ]
+    if not observations:
+        return pd.DataFrame(columns=FEATURE_SET_COLUMNS), {}
+
+    raw = pd.DataFrame(observations)
+    rows: list[dict] = []
+    for (feature_set_id, feature), group in raw.groupby(["feature_set_id", "feature"], sort=True):
+        first = group.iloc[0].to_dict()
+        total_rows = int(group["row_count"].sum())
+        non_null_count = int(group["non_null_count"].sum())
+        out = {column: first.get(column) for column in FEATURE_SET_COLUMNS}
+        out["dataset_version"] = args.model_dataset_version
+        out["feature_set_id"] = str(feature_set_id)
+        out["feature_set_version"] = "1"
+        out["feature"] = str(feature)
+        out["row_count"] = total_rows
+        out["commodity_count"] = int(group["commodity"].nunique())
+        out["non_null_rate"] = float(non_null_count / total_rows) if total_rows else 0.0
+        rows.append(out)
+
+    membership = pd.DataFrame(rows)
+    for feature_set_id, group in membership.groupby("feature_set_id"):
+        features = sorted(group["feature"].astype(str).unique())
+        feature_set_sha = _model_ready_feature_set_sha(
+            args.model_dataset_version, str(feature_set_id), features
+        )
+        membership.loc[
+            membership["feature_set_id"] == feature_set_id, "feature_set_sha"
+        ] = feature_set_sha
+
+    membership = membership[FEATURE_SET_COLUMNS].sort_values(
+        ["feature_set_id", "feature"]
+    ).reset_index(drop=True)
+    summary = {
+        "dataset_version": args.model_dataset_version,
+        "feature_set_count": int(membership["feature_set_id"].nunique()),
+        "selected_row_count": int(len(membership)),
+        "feature_count_by_set": {
+            str(feature_set_id): int(group["feature"].nunique())
+            for feature_set_id, group in membership.groupby("feature_set_id", sort=True)
+        },
+        "feature_set_shas": {
+            str(feature_set_id): str(group["feature_set_sha"].iloc[0])
+            for feature_set_id, group in membership.groupby("feature_set_id", sort=True)
+        },
+    }
+    return membership, summary
 
 
 def _process_commodity(
@@ -370,11 +569,22 @@ def _process_psd_snapshot_commodity(
         "target_outputs": [],
         "matrix_outputs": [],
         "summaries": [],
+        "model_ready_feature_observations": [],
     }
     calendar = args.crop_calendars.get(commodity)
     if calendar is None:
         result["status"] = "skipped_missing_crop_calendar"
         return result
+
+    static_feature_matrix = None
+    if any(
+        feature_set_id in {"preseason_physical", PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID}
+        for feature_set_id in args.compatible_feature_sets_tuple
+    ):
+        static_feature_matrix = _read_parquet(
+            args,
+            gold_feature_matrix_version_key(args.source_dataset_version, commodity),
+        )
 
     built = build_psd_commodity_snapshot_model_datasets(
         psd_source,
@@ -386,6 +596,7 @@ def _process_psd_snapshot_commodity(
         snapshot_stage_ids=args.snapshot_stage_ids,
         as_of_date=args.as_of_date,
         include_named_stages=args.include_named_snapshot_stages,
+        static_feature_matrix=static_feature_matrix,
         config=(
             PSDModelReadyBuildConfig(
                 compatible_feature_sets=args.compatible_feature_sets_tuple
@@ -431,6 +642,14 @@ def _process_psd_snapshot_commodity(
                 len([c for c in matrix_df.columns if c not in MODEL_READY_NON_FEATURE_COLUMNS])
             ),
         })
+        result["model_ready_feature_observations"].extend(
+            _snapshot_feature_set_observations(
+                args=args,
+                matrix_df=matrix_df,
+                feature_membership=feature_membership,
+                commodity=commodity,
+            )
+        )
 
     result["baseline_metrics"] = built.baseline_metrics
     result["status"] = "written"
@@ -447,6 +666,7 @@ def _build_manifest(
     baseline_metrics: pd.DataFrame,
     target_source: str,
     psd_mapping_sha: str | None = None,
+    model_ready_feature_set_summary: dict | None = None,
 ) -> dict:
     built = [r for r in results if r["status"] in {"written", "dry_run"}]
     failed = [r for r in results if r["status"] == "error"]
@@ -515,6 +735,21 @@ def _build_manifest(
         },
         "commodities": results,
     }
+    if model_ready_feature_set_summary:
+        feature_sets_key = gold_model_ready_feature_set_version_key(args.model_dataset_version)
+        feature_sets_json_key = gold_model_ready_feature_set_summary_key(
+            args.model_dataset_version
+        )
+        manifest["outputs"].update({
+            "model_ready_feature_sets_key": feature_sets_key,
+            "model_ready_feature_sets_json_key": feature_sets_json_key,
+        })
+        manifest["model_ready_feature_sets"] = {
+            "task": "build_model_ready_datasets",
+            "key": feature_sets_key,
+            "summary_key": feature_sets_json_key,
+            "summary": model_ready_feature_set_summary,
+        }
     if psd_mapping_sha:
         manifest["psd_mapping_sha"] = psd_mapping_sha
         manifest["psd_metric_target_config"] = (
@@ -804,6 +1039,9 @@ def main() -> None:
             ]
         )
     )
+    model_ready_feature_sets, model_ready_feature_set_summary = _build_model_ready_feature_sets(
+        args, results
+    )
     manifest = _build_manifest(
         args,
         target_config_sha=target_config_sha,
@@ -813,9 +1051,32 @@ def main() -> None:
         baseline_metrics=baseline_metrics,
         target_source=args.target_source,
         psd_mapping_sha=psd_mapping_sha,
+        model_ready_feature_set_summary=(
+            model_ready_feature_set_summary
+            if not model_ready_feature_sets.empty else None
+        ),
     )
 
     if not args.dry_run:
+        if not model_ready_feature_sets.empty:
+            feature_sets_key = gold_model_ready_feature_set_version_key(
+                args.model_dataset_version
+            )
+            _write_bytes(
+                args,
+                feature_sets_key,
+                _parquet_bytes(model_ready_feature_sets),
+                "application/octet-stream",
+            )
+            feature_sets_json_key = gold_model_ready_feature_set_summary_key(
+                args.model_dataset_version
+            )
+            _write_bytes(
+                args,
+                feature_sets_json_key,
+                json.dumps(model_ready_feature_set_summary, indent=2, default=str).encode("utf-8"),
+                "application/json",
+            )
         baseline_key = gold_model_ready_baseline_metrics_key(args.model_dataset_version)
         _write_bytes(
             args,

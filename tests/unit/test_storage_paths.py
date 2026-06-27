@@ -14,6 +14,8 @@ from leviathan.storage.paths import (
     gold_feature_spine_manifest_key,
     gold_feature_spine_version_key,
     gold_model_ready_baseline_metrics_key,
+    gold_model_ready_feature_set_summary_key,
+    gold_model_ready_feature_set_version_key,
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
     gold_model_ready_target_key,
@@ -283,6 +285,16 @@ class TestGoldVersionedPaths:
     def test_model_ready_baseline_metrics_key(self):
         assert gold_model_ready_baseline_metrics_key("m1") == (
             "gold/model_ready_baselines/dataset_version=m1/baseline_metrics.parquet"
+        )
+
+    def test_model_ready_feature_set_version_key(self):
+        assert gold_model_ready_feature_set_version_key("m1") == (
+            "gold/model_ready_feature_sets/dataset_version=m1/feature_sets.parquet"
+        )
+
+    def test_model_ready_feature_set_summary_key(self):
+        assert gold_model_ready_feature_set_summary_key("m1") == (
+            "gold/model_ready_feature_set_manifests/dataset_version=m1/feature_sets.json"
         )
 
     def test_model_ready_manifest_key(self):

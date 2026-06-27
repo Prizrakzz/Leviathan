@@ -11,6 +11,8 @@ import pytest
 from leviathan.model_datasets.psd_model_ready import (
     PSD_DATASET_KEY,
     PSD_MATRIX_ID_COLUMNS,
+    PSDModelReadyBuildConfig,
+    PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
     PSD_SNAPSHOT_DATASET_KEY,
     build_psd_commodity_model_datasets,
     build_psd_commodity_snapshot_model_datasets,
@@ -20,6 +22,8 @@ from leviathan.model_datasets.snapshot_stages import load_snapshot_stage_config
 from leviathan.storage.paths import (
     gold_feature_matrix_version_key,
     gold_feature_set_version_key,
+    gold_model_ready_feature_set_version_key,
+    gold_model_ready_feature_set_summary_key,
     gold_model_ready_baseline_metrics_key,
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
@@ -388,6 +392,69 @@ def test_psd_snapshot_model_ready_builds_named_stage_rows() -> None:
     assert matrix["dataset_key"].eq(PSD_SNAPSHOT_DATASET_KEY).all()
 
 
+def test_psd_snapshot_model_ready_infers_vintage_features_without_source_feature_set() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity="corn_cbot",
+        feature_membership=_membership(),
+        calendar=load_crop_calendars()["corn_cbot"],
+        snapshot_config=load_snapshot_stage_config(),
+        snapshot_stage_ids=("early_inseason", "midseason"),
+        target_keys=("psd_production_anomaly_pct",),
+    )
+    matrix = built.matrices[
+        (PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")
+    ]
+
+    assert "psd_production_latest_estimate_as_of" in matrix.columns
+    assert "psd_production_mom_revision" in matrix.columns
+    assert built.summaries[0]["feature_count_by_set"]["psd_monthly_vintage_features"] > 0
+
+
+def test_psd_snapshot_model_ready_can_combine_preseason_and_vintage_features() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity="corn_cbot",
+        feature_membership=_membership(),
+        calendar=load_crop_calendars()["corn_cbot"],
+        snapshot_config=load_snapshot_stage_config(),
+        snapshot_stage_ids=("early_inseason", "midseason"),
+        static_feature_matrix=_feature_matrix(),
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=(PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,)
+        ),
+        target_keys=("psd_production_anomaly_pct",),
+    )
+    matrix = built.matrices[
+        (PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")
+    ]
+
+    assert "feature_a" in matrix.columns
+    assert "feature_b" in matrix.columns
+    assert "psd_production_latest_estimate_as_of" in matrix.columns
+    assert built.summaries[0]["feature_count_by_set"][
+        PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID
+    ] >= 3
+
+
 def test_psd_snapshot_model_ready_explicit_as_of_uses_only_visible_releases() -> None:
     psd_source = _psd_source_with_monthly_vintages(include_future_revision=True)
     psd_targets = build_psd_target_panel(
@@ -507,3 +574,52 @@ def test_model_ready_cli_writes_local_psd_snapshot_version(tmp_path: Path) -> No
     assert "psd_production_latest_estimate_as_of" in matrix.columns
     assert manifest["snapshot_mode"] is True
     assert manifest["snapshot_stages"] == ["early_inseason", "midseason"]
+
+
+def test_model_ready_cli_writes_snapshot_model_ready_feature_sets(tmp_path: Path) -> None:
+    source_version = "g"
+    model_version = "mps_feature_sets"
+    membership_key = gold_feature_set_version_key(source_version)
+    psd_key = "silver/psd/part-000.parquet"
+    (tmp_path / membership_key).parent.mkdir(parents=True)
+    _membership().to_parquet(tmp_path / membership_key, index=False)
+    (tmp_path / psd_key).parent.mkdir(parents=True)
+    _psd_source_with_monthly_vintages().to_parquet(tmp_path / psd_key, index=False)
+
+    subprocess.run(
+        [
+            sys.executable,
+            "jobs/batch/build_model_ready_datasets.py",
+            "--local-root",
+            str(tmp_path),
+            "--target-source",
+            "psd",
+            "--snapshot-mode",
+            "true",
+            "--snapshot-stages",
+            "early_inseason,midseason",
+            "--source-dataset-version",
+            source_version,
+            "--model-dataset-version",
+            model_version,
+            "--commodities",
+            "corn_cbot",
+            "--target-keys",
+            "psd_production_anomaly_pct",
+            "--workers",
+            "2",
+        ],
+        check=True,
+    )
+
+    feature_sets = pd.read_parquet(
+        tmp_path / gold_model_ready_feature_set_version_key(model_version)
+    )
+    manifest = json.loads((tmp_path / gold_model_ready_manifest_key(model_version)).read_text())
+
+    assert (tmp_path / gold_model_ready_feature_set_summary_key(model_version)).exists()
+    assert set(feature_sets["feature_set_id"]) == {"psd_monthly_vintage_features"}
+    assert "psd_production_latest_estimate_as_of" in set(feature_sets["feature"])
+    assert manifest["outputs"]["model_ready_feature_sets_key"] == (
+        gold_model_ready_feature_set_version_key(model_version)
+    )

@@ -30,6 +30,7 @@ from leviathan.model_datasets.version_status import (
 )
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
+    gold_model_ready_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
@@ -73,6 +74,13 @@ def _read_s3_parquet(s3, bucket: str, key: str) -> pd.DataFrame:
 
 def _read_s3_json(s3, bucket: str, key: str) -> dict[str, Any]:
     return json.loads(_read_s3_bytes(s3, bucket, key).decode("utf-8"))
+
+
+def _try_read_s3_parquet(s3, bucket: str, key: str) -> pd.DataFrame | None:
+    try:
+        return _read_s3_parquet(s3, bucket, key)
+    except Exception:  # noqa: BLE001 - optional compatibility path
+        return None
 
 
 def _safe_str(value: object) -> str:
@@ -186,7 +194,13 @@ def load_model_ready_training_dataset(
         manifest, matrix, explicit=source_dataset_version
     )
     version_status = get_model_dataset_version_status(model_dataset_version)
-    membership = _read_s3_parquet(s3, bucket, gold_feature_set_version_key(source_version))
+    model_ready_feature_set_key = (
+        (manifest.get("outputs") or {}).get("model_ready_feature_sets_key")
+        or gold_model_ready_feature_set_version_key(model_dataset_version)
+    )
+    membership = _try_read_s3_parquet(s3, bucket, model_ready_feature_set_key)
+    if membership is None:
+        membership = _read_s3_parquet(s3, bucket, gold_feature_set_version_key(source_version))
     feature_cols, feature_set_meta = select_model_ready_features(
         matrix, membership, feature_set_id
     )

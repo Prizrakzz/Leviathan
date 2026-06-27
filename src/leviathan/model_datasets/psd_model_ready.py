@@ -79,7 +79,14 @@ PSD_TARGET_NATURAL_KEY = ["commodity", "country", "crop_year", "target_key"]
 PSD_SNAPSHOT_COLUMNS = ["snapshot_stage", "as_of_date", "snapshot_policy"]
 PSD_SNAPSHOT_MATRIX_ID_COLUMNS = PSD_MATRIX_ID_COLUMNS + PSD_SNAPSHOT_COLUMNS
 PSD_SNAPSHOT_TARGET_COLUMNS = PSD_TARGET_COLUMNS + PSD_SNAPSHOT_COLUMNS
-DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = ("psd_monthly_vintage_features",)
+PSD_MONTHLY_VINTAGE_FEATURE_SET_ID = "psd_monthly_vintage_features"
+PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID = "preseason_physical_plus_psd_vintage"
+DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,)
+PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS = {"country", "crop_year", "snapshot_stage", "as_of_date"}
+PSD_SNAPSHOT_STATIC_FEATURE_SETS = {
+    "preseason_physical",
+    PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
+}
 
 
 @dataclass(frozen=True)
@@ -107,6 +114,73 @@ def _feature_union(
         for feature in features
         if feature in matrix_cols and not feature.startswith("label_")
     )
+
+
+def psd_vintage_feature_columns(matrix: pd.DataFrame) -> list[str]:
+    """Return dynamic PSD monthly-vintage feature columns from a snapshot matrix."""
+    return sorted(
+        str(col)
+        for col in matrix.columns
+        if str(col).startswith("psd_")
+        and str(col) not in PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS
+    )
+
+
+def _snapshot_static_feature_set_ids(feature_set_ids: Iterable[str]) -> tuple[str, ...]:
+    ids = set(str(feature_set_id) for feature_set_id in feature_set_ids)
+    out: set[str] = set()
+    if PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID in ids:
+        out.add("preseason_physical")
+    out.update(feature_set_id for feature_set_id in ids if feature_set_id in PSD_SNAPSHOT_STATIC_FEATURE_SETS)
+    return tuple(sorted(out))
+
+
+def _snapshot_feature_columns(
+    dynamic_features: pd.DataFrame,
+    feature_membership: pd.DataFrame,
+    feature_set_ids: Iterable[str],
+    *,
+    static_feature_matrix: pd.DataFrame | None = None,
+) -> tuple[pd.DataFrame, list[str], dict[str, list[str]]]:
+    """Resolve dynamic and optional static feature columns for snapshot matrices."""
+    requested = tuple(str(feature_set_id) for feature_set_id in feature_set_ids)
+    dynamic_cols = psd_vintage_feature_columns(dynamic_features)
+    static_cols: list[str] = []
+    feature_matrix = dynamic_features.copy()
+
+    static_set_ids = _snapshot_static_feature_set_ids(requested)
+    if static_feature_matrix is not None and static_set_ids:
+        _validate_feature_matrix(static_feature_matrix, "snapshot_static_features")
+        static_cols = _feature_union(
+            static_feature_matrix, feature_membership, static_set_ids
+        )
+        if static_cols:
+            static_frame = static_feature_matrix[
+                ["country", "crop_year"] + static_cols
+            ].copy()
+            static_frame = static_frame.drop_duplicates(["country", "crop_year"])
+            feature_matrix = feature_matrix.merge(
+                static_frame,
+                on=["country", "crop_year"],
+                how="left",
+                validate="many_to_one",
+            )
+
+    selected_by_set: dict[str, list[str]] = {}
+    for feature_set_id in requested:
+        if feature_set_id == PSD_MONTHLY_VINTAGE_FEATURE_SET_ID:
+            selected_by_set[feature_set_id] = dynamic_cols
+        elif feature_set_id == PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID:
+            selected_by_set[feature_set_id] = sorted(set(dynamic_cols) | set(static_cols))
+        else:
+            selected_by_set[feature_set_id] = _feature_union(
+                feature_matrix, feature_membership, (feature_set_id,)
+            )
+
+    feature_cols = sorted({
+        feature for features in selected_by_set.values() for feature in features
+    })
+    return feature_matrix, feature_cols, selected_by_set
 
 
 def _validate_feature_matrix(matrix: pd.DataFrame, commodity: str) -> None:
@@ -393,6 +467,7 @@ def build_psd_commodity_snapshot_model_datasets(
     snapshot_stage_ids: tuple[str, ...] = (),
     as_of_date: str | None = None,
     include_named_stages: bool = True,
+    static_feature_matrix: pd.DataFrame | None = None,
     config: PSDModelReadyBuildConfig | None = None,
     target_keys: tuple[str, ...] = (),
 ) -> CommodityModelDataset:
@@ -451,8 +526,11 @@ def build_psd_commodity_snapshot_model_datasets(
         countries=countries,
         snapshots=snapshots,
     )
-    feature_cols = _feature_union(
-        dynamic_features, feature_membership, build_config.compatible_feature_sets
+    feature_matrix, feature_cols, selected_by_set = _snapshot_feature_columns(
+        dynamic_features,
+        feature_membership,
+        build_config.compatible_feature_sets,
+        static_feature_matrix=static_feature_matrix,
     )
 
     matrices: dict[tuple[str, str], pd.DataFrame] = {}
@@ -463,7 +541,7 @@ def build_psd_commodity_snapshot_model_datasets(
     for target_key, target_group in target_df.groupby("target_key", sort=True):
         target_group = target_group.sort_values(["country", "crop_year"]).reset_index(drop=True)
         snapshot_targets = _expand_targets_to_snapshots(target_group, snapshots)
-        matrix_df = _matrix_for_snapshot_target(dynamic_features, snapshot_targets, feature_cols)
+        matrix_df = _matrix_for_snapshot_target(feature_matrix, snapshot_targets, feature_cols)
         matrices[(snapshot_dataset_key, str(target_key))] = matrix_df
         target_tables[snapshot_dataset_key].append(
             snapshot_targets[PSD_SNAPSHOT_TARGET_COLUMNS]
@@ -493,6 +571,10 @@ def build_psd_commodity_snapshot_model_datasets(
             "snapshot_stages": sorted(matrix_df["snapshot_stage"].astype(str).unique()),
             "snapshot_count_per_target_row": int(len(snapshots["snapshot_stage"].unique())),
             "compatible_feature_sets": list(build_config.compatible_feature_sets),
+            "feature_count_by_set": {
+                feature_set_id: int(len(features))
+                for feature_set_id, features in selected_by_set.items()
+            },
             "target_status_counts": {
                 str(k): int(v)
                 for k, v in target_group["target_status"].value_counts().sort_index().items()

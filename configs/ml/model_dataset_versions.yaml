@@ -33,6 +33,20 @@ versions:
     default_priority: 100
     notes: Current PSD-first smoke research surface for corn, soybeans, soybean oil, and soft red winter wheat. Replace with a full PSD-first version when built.
 
+  - dataset_version: 20260627T190257Z_1a042698_phase9_psd_snapshot_corn
+    status: active
+    default_discovery_allowed: true
+    target_source: psd
+    dataset_keys:
+      - psd_snd_anomaly_snapshot
+    source_gold_dataset_version: 20260626T010217Z_6725de02_phase7_full
+    scope: snapshot_smoke
+    commodity_count: 1
+    matrix_count: 1
+    target_count: 1
+    default_priority: 90
+    notes: Corn PSD production-anomaly snapshot surface with point-in-time monthly PSD vintage features and combined preseason-plus-vintage feature-set membership.
+
   - dataset_version: 20260626T104732Z_a2576e84_phase8_model_ready
     status: legacy
     default_discovery_allowed: false

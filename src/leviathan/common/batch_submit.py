@@ -8,8 +8,10 @@ repeated boto3 submit loop and run-record file writer across every script::
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Callable, TypedDict
@@ -18,6 +20,8 @@ import boto3
 
 logger = logging.getLogger(__name__)
 
+_MAX_BATCH_JOB_NAME_LENGTH = 128
+
 
 class BatchJobRecord(TypedDict):
     """Record returned by :func:`submit_batch_jobs` for each submitted task."""
@@ -25,6 +29,20 @@ class BatchJobRecord(TypedDict):
     job_name: str
     parameters: dict[str, str]
     job_id: str | None
+
+
+def sanitize_batch_job_name(raw_name: str) -> str:
+    """Return an AWS Batch-safe job name while preserving useful context."""
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", str(raw_name)).strip("-_")
+    if not cleaned:
+        cleaned = "job"
+    if not cleaned[0].isalnum():
+        cleaned = f"job-{cleaned}"
+    if len(cleaned) <= _MAX_BATCH_JOB_NAME_LENGTH:
+        return cleaned
+    digest = hashlib.sha1(cleaned.encode("utf-8")).hexdigest()[:10]
+    prefix_len = _MAX_BATCH_JOB_NAME_LENGTH - len(digest) - 1
+    return f"{cleaned[:prefix_len].rstrip('-_')}-{digest}"
 
 
 def submit_batch_jobs(
@@ -57,7 +75,7 @@ def submit_batch_jobs(
     submitted: list[BatchJobRecord] = []
 
     for task in tasks:
-        job_name = build_job_name(task)
+        job_name = sanitize_batch_job_name(build_job_name(task))
 
         if dry_run:
             logger.info("[DRY RUN] Would submit: %s  params=%s", job_name, task)

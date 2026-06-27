@@ -2300,8 +2300,14 @@ resource "aws_batch_job_definition" "model_ready_datasets" {
     aws_region                = var.aws_region
     source_dataset_version    = "none"
     model_dataset_version     = "none"
+    target_source             = "psd"
+    psd_source_key            = "silver/psd/part-000.parquet"
     commodities               = "all"
     target_keys               = "none"
+    snapshot_mode             = "false"
+    snapshot_stages           = "none"
+    as_of_date                = "none"
+    compatible_feature_sets   = "none"
     workers                   = "8"
     skip_existing_versioned   = "false"
     force_overwrite           = "false"
@@ -2314,10 +2320,16 @@ resource "aws_batch_job_definition" "model_ready_datasets" {
       "jobs/batch/build_model_ready_datasets.py",
       "--bucket",                 "Ref::bucket",
       "--aws-region",             "Ref::aws_region",
+      "--target-source",          "Ref::target_source",
+      "--psd-source-key",         "Ref::psd_source_key",
       "--source-dataset-version", "Ref::source_dataset_version",
       "--model-dataset-version",  "Ref::model_dataset_version",
       "--commodities",            "Ref::commodities",
       "--target-keys",            "Ref::target_keys",
+      "--snapshot-mode",          "Ref::snapshot_mode",
+      "--snapshot-stages",        "Ref::snapshot_stages",
+      "--as-of-date",             "Ref::as_of_date",
+      "--compatible-feature-sets", "Ref::compatible_feature_sets",
       "--workers",                "Ref::workers",
       "--skip-existing-versioned", "Ref::skip_existing_versioned",
       "--force-overwrite",        "Ref::force_overwrite",

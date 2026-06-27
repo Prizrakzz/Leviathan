@@ -12,6 +12,7 @@ from jobs.batch.train_commodity import _prediction_model_family, _write_predicti
 from leviathan.model_datasets.version_status import ModelDatasetVersionStatus
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
+    gold_model_ready_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
@@ -164,6 +165,72 @@ def test_loader_reads_manifest_matrix_feature_sets_and_baselines() -> None:
     assert loaded.manifest_uri.endswith(gold_model_ready_manifest_key(model_version))
     assert not loaded.baseline_metrics.empty
     assert loaded.model_dataset_status.status == "unknown"
+
+
+def test_loader_prefers_model_ready_feature_sets_when_manifest_declares_them() -> None:
+    model_version = "model_snapshot_v"
+    source_version = "gold_v"
+    matrix = _snapshot_matrix().assign(
+        psd_production_latest_estimate_as_of=[float(i) for i in range(len(_snapshot_matrix()))],
+        psd_production_mom_revision=[0.1] * len(_snapshot_matrix()),
+    )
+    model_ready_membership = pd.DataFrame({
+        "dataset_version": [model_version, model_version],
+        "feature_set_id": ["psd_monthly_vintage_features"] * 2,
+        "feature_set_version": ["1", "1"],
+        "feature_set_sha": ["snapshot-sha", "snapshot-sha"],
+        "feature": [
+            "psd_production_latest_estimate_as_of",
+            "psd_production_mom_revision",
+        ],
+        "feature_family": ["psd_monthly_vintage", "psd_monthly_vintage"],
+        "semantic_scope": ["official_revision", "official_revision"],
+        "policy": ["fundamental_physical", "fundamental_physical"],
+        "mechanism": [
+            "official_balance_sheet_vintage_revision",
+            "official_balance_sheet_vintage_revision",
+        ],
+        "sources": ["psd", "psd"],
+        "source_cadence": ["monthly", "monthly"],
+        "empirical_scope": ["commodity", "commodity"],
+        "groups": ["", ""],
+        "is_label": [False, False],
+        "row_count": [len(matrix), len(matrix)],
+        "commodity_count": [1, 1],
+        "non_null_rate": [1.0, 1.0],
+        "target_compatibility": ["psd_production_anomaly", "psd_production_anomaly"],
+        "missingness_policy": ["tree_models_allow_nan", "tree_models_allow_nan"],
+        "min_lag_days": [0, 0],
+    })
+    feature_sets_key = gold_model_ready_feature_set_version_key(model_version)
+    objects = {
+        gold_model_ready_matrix_key(
+            model_version, "psd_snd_anomaly_snapshot", "corn_cbot", "psd_production_anomaly_pct"
+        ): _parquet_bytes(matrix),
+        gold_model_ready_manifest_key(model_version): json.dumps({
+            "source_dataset_version": source_version,
+            "outputs": {"model_ready_feature_sets_key": feature_sets_key},
+        }).encode("utf-8"),
+        feature_sets_key: _parquet_bytes(model_ready_membership),
+        gold_feature_set_version_key(source_version): _parquet_bytes(_membership()),
+        gold_model_ready_baseline_metrics_key(model_version): _parquet_bytes(pd.DataFrame()),
+    }
+
+    loaded = load_model_ready_training_dataset(
+        _FakeS3(objects),
+        bucket="bucket",
+        model_dataset_version=model_version,
+        dataset_key="psd_snd_anomaly_snapshot",
+        commodity="corn_cbot",
+        target_key="psd_production_anomaly_pct",
+        feature_set_id="psd_monthly_vintage_features",
+    )
+
+    assert loaded.feature_cols == [
+        "psd_production_latest_estimate_as_of",
+        "psd_production_mom_revision",
+    ]
+    assert loaded.feature_set_meta["feature_set_catalog_sha"] == "snapshot-sha"
 
 
 def test_loader_attaches_configured_model_dataset_status() -> None:
