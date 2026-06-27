@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -123,3 +126,77 @@ class TestWriteRunRecord:
         out.write_text('{"old": true}')
         write_run_record(out, {"new": True})
         assert json.loads(out.read_text()) == {"new": True}
+
+
+class TestSubmitBatchTrainLatestModelDataset:
+    def test_latest_resolves_to_active_psd_dataset_in_dry_run(self) -> None:
+        env = os.environ.copy()
+        env.update({
+            "LEVIATHAN_BUCKET": "bucket",
+            "AWS_REGION": "us-east-1",
+        })
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "jobs/submit/submit_batch_train.py",
+                "--commodities",
+                "corn_cbot",
+                "--feature-sets",
+                "preseason_physical",
+                "--model-dataset-version",
+                "latest",
+                "--target-source",
+                "psd",
+                "--dataset-keys",
+                "psd_snd_anomaly",
+                "--target-keys",
+                "psd_production_anomaly_pct",
+                "--models",
+                "lightgbm",
+                "--dry-run",
+            ],
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        combined = completed.stdout + completed.stderr
+        assert "20260627T121215Z_phase5_psd_smoke" in combined
+
+    def test_latest_refuses_legacy_faostat_dataset_in_dry_run(self) -> None:
+        env = os.environ.copy()
+        env.update({
+            "LEVIATHAN_BUCKET": "bucket",
+            "AWS_REGION": "us-east-1",
+        })
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "jobs/submit/submit_batch_train.py",
+                "--commodities",
+                "corn_cbot",
+                "--feature-sets",
+                "preseason_physical",
+                "--model-dataset-version",
+                "latest",
+                "--target-source",
+                "faostat",
+                "--dataset-keys",
+                "annual_physical_anomaly",
+                "--target-keys",
+                "production_anomaly_pct",
+                "--models",
+                "lightgbm",
+                "--dry-run",
+            ],
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        assert completed.returncode != 0
+        assert "no active model-ready dataset version" in completed.stderr

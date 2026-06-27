@@ -24,6 +24,10 @@ from leviathan.model_datasets.psd_model_ready import (
     PSD_MATRIX_ID_COLUMNS,
     PSD_SNAPSHOT_COLUMNS,
 )
+from leviathan.model_datasets.version_status import (
+    ModelDatasetVersionStatus,
+    get_model_dataset_version_status,
+)
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
@@ -56,6 +60,7 @@ class ModelReadyTrainingDataset:
     baseline_metrics: pd.DataFrame
     baseline_metrics_uri: str
     source_dataset_version: str
+    model_dataset_status: ModelDatasetVersionStatus
 
 
 def _read_s3_bytes(s3, bucket: str, key: str) -> bytes:
@@ -180,6 +185,7 @@ def load_model_ready_training_dataset(
     source_version = infer_source_dataset_version(
         manifest, matrix, explicit=source_dataset_version
     )
+    version_status = get_model_dataset_version_status(model_dataset_version)
     membership = _read_s3_parquet(s3, bucket, gold_feature_set_version_key(source_version))
     feature_cols, feature_set_meta = select_model_ready_features(
         matrix, membership, feature_set_id
@@ -204,6 +210,7 @@ def load_model_ready_training_dataset(
         baseline_metrics=baseline_metrics,
         baseline_metrics_uri=f"s3://{bucket}/{baseline_key}",
         source_dataset_version=source_version,
+        model_dataset_status=version_status,
     )
 
 

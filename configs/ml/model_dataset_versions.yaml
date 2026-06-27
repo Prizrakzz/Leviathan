@@ -1,0 +1,64 @@
+# Model-ready dataset version status registry.
+#
+# This file is the non-destructive control plane for MLflow experiment surfaces.
+# It does not move, delete, or mutate S3 objects.  It tells readers which
+# immutable model-ready versions are active research surfaces and which are
+# retained only for legacy/replay comparisons.
+
+schema_version: 1
+
+defaults:
+  default_status: unknown
+  active_statuses:
+    - active
+  non_default_statuses:
+    - legacy
+    - deprecated
+    - archived_reference
+    - blocked
+    - unknown
+
+versions:
+  - dataset_version: 20260627T121215Z_phase5_psd_smoke
+    status: active
+    default_discovery_allowed: true
+    target_source: psd
+    dataset_keys:
+      - psd_snd_anomaly
+    source_gold_dataset_version: 20260626T010217Z_6725de02_phase7_full
+    scope: smoke
+    commodity_count: 4
+    matrix_count: 24
+    target_count: 24
+    default_priority: 100
+    notes: Current PSD-first smoke research surface for corn, soybeans, soybean oil, and soft red winter wheat. Replace with a full PSD-first version when built.
+
+  - dataset_version: 20260626T104732Z_a2576e84_phase8_model_ready
+    status: legacy
+    default_discovery_allowed: false
+    target_source: faostat
+    dataset_keys:
+      - annual_physical_anomaly
+    source_gold_dataset_version: 20260626T010217Z_6725de02_phase7_full
+    scope: full
+    commodity_count: 31
+    matrix_count: 83
+    target_count: 83
+    legacy_reason: FAOSTAT-derived annual production, yield, and area targets. Useful as an engineering benchmark but not the PSD-first futures-linked target surface.
+    replaced_by: 20260627T121215Z_phase5_psd_smoke
+    default_priority: 0
+
+  - dataset_version: 20260626T110249Z_38ffa8b3_phase8_batch_smoke
+    status: archived_reference
+    default_discovery_allowed: false
+    target_source: faostat
+    dataset_keys:
+      - annual_physical_anomaly
+    source_gold_dataset_version: 20260626T010217Z_6725de02_phase7_full
+    scope: smoke
+    commodity_count: 1
+    matrix_count: 1
+    target_count: 1
+    legacy_reason: Phase 8 Batch smoke artifact for FAOSTAT-derived annual physical anomaly target.
+    replaced_by: 20260627T121215Z_phase5_psd_smoke
+    default_priority: 0

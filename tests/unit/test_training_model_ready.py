@@ -4,9 +4,12 @@ import io
 import json
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pandas as pd
 
+from jobs.batch.train_commodity import _prediction_model_family
+from leviathan.model_datasets.version_status import ModelDatasetVersionStatus
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
@@ -156,6 +159,68 @@ def test_loader_reads_manifest_matrix_feature_sets_and_baselines() -> None:
     assert len(loaded.train_df) == 4
     assert loaded.manifest_uri.endswith(gold_model_ready_manifest_key(model_version))
     assert not loaded.baseline_metrics.empty
+    assert loaded.model_dataset_status.status == "unknown"
+
+
+def test_loader_attaches_configured_model_dataset_status() -> None:
+    model_version = "20260627T121215Z_phase5_psd_smoke"
+    objects = {
+        gold_model_ready_matrix_key(
+            model_version, "annual_physical_anomaly", "corn_cbot", "production_anomaly_pct"
+        ): _parquet_bytes(_matrix()),
+        gold_model_ready_manifest_key(model_version): json.dumps({
+            "source_dataset_version": "gold_v",
+            "target_config_sha": "target-sha",
+        }).encode("utf-8"),
+        gold_feature_set_version_key("gold_v"): _parquet_bytes(_membership()),
+        gold_model_ready_baseline_metrics_key(model_version): _parquet_bytes(pd.DataFrame()),
+    }
+
+    loaded = load_model_ready_training_dataset(
+        _FakeS3(objects),
+        bucket="bucket",
+        model_dataset_version=model_version,
+        dataset_key="annual_physical_anomaly",
+        commodity="corn_cbot",
+        target_key="production_anomaly_pct",
+        feature_set_id="preseason_physical",
+    )
+
+    assert loaded.model_dataset_status.status == "active"
+    assert loaded.model_dataset_status.target_source == "psd"
+
+
+def test_prediction_model_family_routes_psd_legacy_and_snapshot_outputs() -> None:
+    active = SimpleNamespace(
+        model_dataset_status=ModelDatasetVersionStatus(
+            dataset_version="active_v",
+            status="active",
+            default_discovery_allowed=True,
+        )
+    )
+    legacy = SimpleNamespace(
+        model_dataset_status=ModelDatasetVersionStatus(
+            dataset_version="legacy_v",
+            status="legacy",
+            default_discovery_allowed=False,
+        )
+    )
+
+    assert _prediction_model_family(
+        SimpleNamespace(dataset_key="psd_snd_anomaly"),
+        {"target_source": "psd", "target_family": "psd_production_anomaly"},
+        active,
+    ) == "psd_production_anomaly"
+    assert _prediction_model_family(
+        SimpleNamespace(dataset_key="psd_snd_anomaly_snapshot"),
+        {"target_source": "psd", "target_family": "psd_production_anomaly"},
+        active,
+    ) == "psd_snd_anomaly_snapshot"
+    assert _prediction_model_family(
+        SimpleNamespace(dataset_key="annual_physical_anomaly"),
+        {},
+        legacy,
+    ) == "legacy_faostat_annual_anomaly"
 
 
 def test_baseline_metrics_are_fold_aligned_and_logged_flat() -> None:

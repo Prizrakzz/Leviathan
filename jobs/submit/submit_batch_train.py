@@ -26,6 +26,10 @@ from leviathan.common.config import get_required_env, load_env
 from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 from leviathan.features.spine import load_countries
+from leviathan.model_datasets.version_status import (
+    get_model_dataset_version_status,
+    load_model_dataset_version_registry,
+)
 from leviathan.storage.metadata import utc_now_iso
 
 logger = get_logger("submit_batch_train")
@@ -58,6 +62,13 @@ def main() -> None:
     parser.add_argument("--experiment", default="leviathan-tier1-production")
     parser.add_argument("--dataset-version", default="", dest="dataset_version")
     parser.add_argument("--model-dataset-version", default="", dest="model_dataset_version")
+    parser.add_argument(
+        "--target-source",
+        default="psd",
+        choices=["psd", "faostat"],
+        dest="target_source",
+        help="Target source to use when resolving --model-dataset-version latest.",
+    )
     parser.add_argument("--source-dataset-version", default="", dest="source_dataset_version")
     parser.add_argument("--cv-policies", default="expanding_full_history", dest="cv_policies")
     parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
@@ -92,6 +103,36 @@ def main() -> None:
     tiers = [t.strip() for t in args.tiers.split(",") if t.strip()]
     feature_sets = [t.strip() for t in args.feature_sets.split(",") if t.strip()]
     model_ready_mode = bool(args.model_dataset_version.strip())
+    if args.model_dataset_version.strip().lower() in {"latest", "active", "default"}:
+        registry = load_model_dataset_version_registry()
+        raw_dataset_keys = [
+            t.strip() for t in args.dataset_keys.split(",") if t.strip()
+        ]
+        if len(raw_dataset_keys) != 1:
+            raise SystemExit(
+                "--model-dataset-version latest requires exactly one --dataset-keys value"
+            )
+        selected = registry.select_default(
+            target_source=args.target_source,
+            dataset_key=raw_dataset_keys[0],
+        )
+        args.model_dataset_version = selected.dataset_version
+        model_ready_mode = True
+        logger.info(
+            "Resolved active model dataset version=%s status=%s target_source=%s dataset_key=%s",
+            selected.dataset_version,
+            selected.status,
+            selected.target_source,
+            raw_dataset_keys[0],
+        )
+    elif model_ready_mode:
+        selected = get_model_dataset_version_status(args.model_dataset_version)
+        logger.info(
+            "Using explicit model dataset version=%s status=%s default_allowed=%s",
+            selected.dataset_version,
+            selected.status,
+            selected.default_discovery_allowed,
+        )
     if feature_sets and not (args.dataset_version or model_ready_mode):
         raise SystemExit("--feature-sets requires --dataset-version or --model-dataset-version")
     if model_ready_mode and args.detrend:

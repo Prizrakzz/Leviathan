@@ -144,6 +144,24 @@ def _registered_model_name(args, target_family: str | None = None) -> str:
     return f"leviathan.{args.commodity}.{target}.{args.model}"
 
 
+def _prediction_model_family(args, target_tags: dict[str, str], model_ready_dataset) -> str:
+    """Route prediction outputs to target-family-specific S3 prefixes."""
+    if model_ready_dataset is not None:
+        status = model_ready_dataset.model_dataset_status
+        if args.dataset_key == "psd_snd_anomaly_snapshot":
+            return "psd_snd_anomaly_snapshot"
+        if target_tags.get("target_source") == "psd":
+            family = target_tags.get("target_family")
+            if family:
+                return family
+            return "psd_snd_anomaly"
+        if status.status in {"legacy", "deprecated", "archived_reference"}:
+            return "legacy_faostat_annual_anomaly"
+        if args.dataset_key == "annual_physical_anomaly":
+            return "legacy_faostat_annual_anomaly"
+    return target_tags.get("target_family") or "tier1_production"
+
+
 def _make_model(name: str, **hp):
     """Tree regressors — NaN-native, no scaling needed (missingness-as-signal)."""
     common = dict(
@@ -490,7 +508,9 @@ def main() -> None:
         feature_cols = model_ready_dataset.feature_cols
         feature_set_meta = model_ready_dataset.feature_set_meta
         target_tags = _model_ready_metadata_tags(model_ready_dataset)
-        args.prediction_model_family = target_tags.get("target_family")
+        args.prediction_model_family = _prediction_model_family(
+            args, target_tags, model_ready_dataset
+        )
         if train_slice.empty:
             logger.warning(
                 "%s %s/%s has no trainable model-ready rows - skipping.",
@@ -614,6 +634,8 @@ def main() -> None:
                 model_ready_tags["target_config_sha"] = str(
                     model_ready_dataset.manifest["target_config_sha"]
                 )
+            for key, value in model_ready_dataset.model_dataset_status.as_tags().items():
+                model_ready_tags[key] = value
             for key, value in target_tags.items():
                 model_ready_tags[key] = value
             model_ready_params = {
