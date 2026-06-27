@@ -1494,6 +1494,25 @@ Detailed tasks:
   training changes are present in `main`.
 - Verify the SSM tunnel, tracking API, model registry page, metrics charts,
   artifact browser, and logged-model display before launching broad sweeps.
+- Add configurable walk-forward CV policies for annual PSD experiments:
+  - `expanding_full_history`;
+  - `expanding_post_1990`;
+  - `expanding_post_2000`;
+  - `rolling_25y`;
+  - `rolling_30y`.
+- Log `cv_policy`, `min_train_years`, `train_start_year`,
+  `rolling_window_years`, and `fold_count` to MLflow so model comparisons do not
+  mix incompatible validation designs.
+- Keep expanding walk-forward as the default first policy, but make rolling
+  policies first-class experiment knobs for commodities where old regimes hurt
+  current predictive value.
+- Add optional MLflow model-registration capability:
+  - trainer CLI flag: `--register-model true|false`;
+  - default: `false` for broad sweeps;
+  - register only candidate/champion-quality runs after replay, leakage, baseline,
+    and data-coverage gates pass;
+  - use explicit names such as
+    `leviathan.corn_cbot.psd_production_anomaly_pct.lightgbm`.
 - Add PSD target tags to training.
 - Add PSD mapping SHA to run tags and artifacts.
 - Add `leakage_audit.json`.
@@ -1509,9 +1528,11 @@ Files/configs likely affected:
 - `jobs/batch/train_commodity.py`
 - `jobs/submit/submit_batch_train.py`
 - `jobs/utils/register_train_jobdef.py`
+- `src/leviathan/training/cv.py`
 - `src/leviathan/training/model_ready.py`
 - `src/leviathan/training/mlflow_artifacts.py`
 - `src/leviathan/training/tracking.py`
+- possible new `configs/ml/cv_policies.yaml`
 - `docs/ops/MLFLOW_UI_ACCESS.md`
 - `docs/ops/MLFLOW_AIRFLOW_STATE_RECONCILIATION.md`
 - `docs/ops/`
@@ -1530,6 +1551,9 @@ Risks:
   fresh SQLite backup.
 - MLflow server/client mismatch causing missing artifacts, registry failures, or
   confusing UI behavior.
+- Overstating old-history performance if full-history expanding CV is the only
+  policy tested.
+- Polluting the MLflow registry if every sweep run registers a model version.
 - Mixing old and new runs in MLflow UI.
 - Promoting a model with missing target metadata.
 
@@ -1540,7 +1564,12 @@ Validation/tests:
   fitted LightGBM/XGBoost model.
 - SSM tunnel opens `http://localhost:5000`; the UI shows runs, artifacts,
   metric charts, and logged-model entries for the smoke run.
+- Walk-forward unit tests cover expanding and rolling policies.
+- A smoke run logs CV-policy metadata and the train/test years used per fold.
+- Registry smoke proves `--register-model false` does not register and
+  `--register-model true` can register a deliberately selected candidate.
 - `tests/unit/test_training_mlflow_artifacts.py`
+- `tests/unit/test_training_cv.py`
 - `tests/unit/test_training_model_ready.py`
 - MLflow replay smoke.
 
@@ -1549,6 +1578,9 @@ Acceptance criteria:
 - MLflow server and trainer client versions are explicitly pinned, documented,
   and compatible.
 - MLflow backend backup exists before upgrade and rollback steps are documented.
+- PSD smoke experiments can compare at least two CV policies without changing
+  the model-ready dataset.
+- Registry support exists but broad sweeps do not auto-register every run.
 - One PSD smoke run logs fitted model, tags, artifacts, predictions, and replay
   sample.
 - Old FAOSTAT run and new PSD run are clearly distinguishable in MLflow.
@@ -1564,7 +1596,114 @@ What not to do:
 - Do not launch broad Batch sweeps until the upgraded UI and trainer image pass a
   one-run PSD smoke.
 - Do not expose the MLflow port publicly while improving UI access.
+- Do not register every sweep run by default.
 - Do not register/promote production model aliases yet.
+
+### Phase 6.5 - PSD Monthly Vintage Features And Revision Targets
+
+Objective:
+
+- Use PSD's monthly release vintages professionally without confusing monthly
+  estimates with independent monthly realized targets.
+
+Rationale:
+
+- `silver/psd` is not purely annual in availability: each row has a
+  `release_date`.
+- The values are still annual marketing-year balance-sheet estimates, so the
+  current annual target policy remains valid for final annual anomaly labels.
+- Monthly vintages are valuable as point-in-time features and as a separate
+  revision/nowcast modeling family.
+
+Detailed tasks:
+
+- Preserve the annual target policy:
+  - `market_year` remains the annual target year;
+  - latest release for a completed market year remains the final-ish annual
+    label for `psd_*_anomaly_pct`.
+- Add a point-in-time PSD vintage feature builder keyed by
+  `(contract_key, psd_country, market_year, as_of_date=release_date)`.
+- Add first monthly PSD vintage features:
+  - `psd_latest_estimate_as_of`;
+  - `psd_mom_revision`;
+  - `psd_revision_since_first_forecast`;
+  - `psd_consecutive_revision_count`;
+  - `psd_current_vs_trend`;
+  - `psd_month_code`;
+  - `psd_release_count_for_market_year`.
+- Add leakage tests proving a July snapshot cannot see later August/September
+  PSD revisions.
+- Add explicit monthly/revision target-family designs, but implement them only
+  after the annual PSD smoke path is stable:
+  - `psd_next_release_revision`;
+  - `psd_final_vs_current_error`;
+  - `psd_revision_direction`;
+  - `psd_revision_magnitude`.
+- Add model-ready dataset keys only when the feature layer is certified:
+  - `psd_monthly_vintage_features`;
+  - later `psd_revision_nowcast`.
+
+Files/configs likely affected:
+
+- `configs/ml/psd_metric_targets.yaml`
+- possible new `configs/ml/psd_vintage_features.yaml`
+- `configs/features/feature_taxonomy.yaml`
+- `configs/features/feature_sets.yaml`
+- `src/leviathan/model_datasets/psd_target_builder.py`
+- possible new `src/leviathan/features/computations/psd_vintages.py`
+- possible new `src/leviathan/model_datasets/psd_revision_targets.py`
+- `jobs/batch/build_model_ready_datasets.py`
+- `tests/unit/test_model_datasets_psd_targets.py`
+- possible new `tests/unit/test_psd_vintage_features.py`
+- possible new `tests/unit/test_psd_revision_targets.py`
+
+S3 prefixes affected:
+
+- Additive only, under new immutable dataset versions:
+  - `gold/feature_spine_versions/dataset_version=...`
+  - `gold/feature_matrix_versions/dataset_version=...`
+  - `gold/model_ready_matrices/dataset_version=...`
+  - `gold/model_ready_targets/dataset_version=...`
+- No mutation to `silver/psd/`.
+
+Risks:
+
+- Leakage from future PSD revisions into earlier as-of snapshots.
+- Row multiplication if monthly vintages are joined to annual labels without an
+  explicit `as_of_date`.
+- Confusing a monthly USDA estimate revision with a realized monthly physical
+  production value.
+
+Validation/tests:
+
+- Unit tests with synthetic PSD vintages where the same market year has multiple
+  releases.
+- Assert every vintage feature obeys `feature_available_at <= as_of_date`.
+- Assert monthly vintage features do not change the annual target label count.
+- Assert annual PSD target model-ready matrices still have one label per
+  `(contract_key, origin, market_year, target_key)`.
+- Assert revision-target fixtures use only adjacent or final releases permitted
+  by the declared target policy.
+
+Acceptance criteria:
+
+- Annual PSD target experiments remain reproducible and unchanged unless the
+  researcher explicitly selects monthly PSD vintage feature sets.
+- Monthly PSD vintage features are available for annual models as
+  point-in-time inputs.
+- Revision/nowcast target families are designed and tested before any broad
+  training sweep uses them.
+
+Reversibility:
+
+- Safe and reversible if built only into new immutable dataset versions.
+
+What not to do:
+
+- Do not treat each monthly PSD release as a separate realized annual target.
+- Do not use future revisions as features for earlier snapshots.
+- Do not make monthly revision/nowcast targets the default before annual PSD
+  target experiments are benchmarked.
 
 ### Phase 7 - Cleanup And Deprecation
 
@@ -1703,7 +1842,18 @@ Detailed tasks:
   - models:
     - `xgboost`
     - `lightgbm`
+  - CV policies:
+    - `expanding_full_history`
+    - `rolling_25y`
+    - `rolling_30y`
+  - primary annual PSD target keys:
+    - `psd_production_anomaly_pct`
+    - `psd_stock_to_use_anomaly_pct`
 - Compare against baselines.
+- Do not include monthly PSD revision/nowcast targets until Phase 6.5 vintage
+  features and leakage tests are complete.
+- Register no models from the broad dry-run grid by default; only rerun the best
+  candidate with `--register-model true` after replay and baseline gates pass.
 
 Files/configs likely affected:
 
@@ -1735,6 +1885,9 @@ Acceptance criteria:
 - Fitted model artifact replays exactly.
 - Baseline comparisons are logged.
 - Target metadata tags are present.
+- MLflow comparison separates target key, feature set, model class, and CV
+  policy.
+- Any registered candidate is deliberate, not a byproduct of the broad sweep.
 - No legacy FAOSTAT target source confusion in MLflow.
 
 Reversibility:
