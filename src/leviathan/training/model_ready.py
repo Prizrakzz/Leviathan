@@ -20,7 +20,10 @@ import pandas as pd
 from leviathan.features.feature_sets import selected_features_for_set
 from leviathan.model_datasets.baselines import BASELINE_COLUMNS
 from leviathan.model_datasets.builder import MATRIX_ID_COLUMNS
-from leviathan.model_datasets.psd_model_ready import PSD_MATRIX_ID_COLUMNS
+from leviathan.model_datasets.psd_model_ready import (
+    PSD_MATRIX_ID_COLUMNS,
+    PSD_SNAPSHOT_COLUMNS,
+)
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
@@ -33,7 +36,8 @@ MODEL_READY_TARGET_COL = "target_value"
 MODEL_READY_EXCLUDED_FEATURE_COLUMNS = set(MATRIX_ID_COLUMNS) | set(PSD_MATRIX_ID_COLUMNS) | {
     "target_title",
     "target_unit",
-}
+} | set(PSD_SNAPSHOT_COLUMNS)
+MODEL_READY_ROW_ID_COLUMNS = ["country", "crop_year", "snapshot_stage", "as_of_date"]
 
 
 @dataclass(frozen=True)
@@ -125,6 +129,10 @@ def select_model_ready_features(
     return sorted(feature_cols), meta
 
 
+def _row_identity_columns(df: pd.DataFrame) -> list[str]:
+    return [col for col in MODEL_READY_ROW_ID_COLUMNS if col in df.columns]
+
+
 def training_frame_from_model_ready_matrix(
     matrix: pd.DataFrame,
     feature_cols: list[str],
@@ -141,8 +149,9 @@ def training_frame_from_model_ready_matrix(
 
     trainable = matrix.loc[matrix["is_trainable"].fillna(False).astype(bool)].copy()
     trainable = trainable.loc[trainable[target_col].notna()].copy()
-    cols = ["country", "crop_year"] + feature_cols + [target_col]
-    return trainable[cols].sort_values(["country", "crop_year"]).reset_index(drop=True)
+    id_cols = _row_identity_columns(trainable)
+    cols = id_cols + feature_cols + [target_col]
+    return trainable[cols].sort_values(id_cols).reset_index(drop=True)
 
 
 def load_model_ready_training_dataset(
@@ -230,13 +239,17 @@ def model_ready_baseline_metrics_for_predictions(
             columns=["baseline_name", "n_rows", "rmse", "mae", "sign_accuracy"]
         )
     names = baseline_names or tuple(BASELINE_COLUMNS)
-    cols = ["country", "crop_year"] + [
+    join_cols = [
+        col for col in ("country", "crop_year", "snapshot_stage", "as_of_date")
+        if col in predictions.columns and col in matrix.columns
+    ]
+    cols = join_cols + [
         col for name, col in BASELINE_COLUMNS.items()
         if name in names and col in matrix.columns
     ]
     joined = predictions.merge(
         matrix[cols],
-        on=["country", "crop_year"],
+        on=join_cols,
         how="left",
         validate="one_to_one",
     )
@@ -300,9 +313,13 @@ def attach_model_ready_baselines_to_predictions(
     ]
     if not baseline_cols or predictions.empty:
         return predictions.copy()
+    join_cols = [
+        col for col in ("country", "crop_year", "snapshot_stage", "as_of_date")
+        if col in predictions.columns and col in matrix.columns
+    ]
     return predictions.merge(
-        matrix[["country", "crop_year"] + baseline_cols],
-        on=["country", "crop_year"],
+        matrix[join_cols + baseline_cols],
+        on=join_cols,
         how="left",
         validate="one_to_one",
     )

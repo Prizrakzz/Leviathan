@@ -267,7 +267,10 @@ def _write_predictions(s3, bucket, args, predictions, run_id, feature_set_sha) -
     df["cv_policy"] = args.cv_policy
     df["feature_set_sha"] = feature_set_sha
     df["run_id"] = run_id
-    df["as_of_date"] = datetime.date.today().isoformat()
+    if "as_of_date" in df.columns:
+        df["prediction_as_of_date"] = datetime.date.today().isoformat()
+    else:
+        df["as_of_date"] = datetime.date.today().isoformat()
     pred_date = datetime.date.today().isoformat()
     dataset_part = f"{args.dataset_key}__" if args.model_dataset_version else ""
     model_family = getattr(args, "prediction_model_family", None) or "tier1_production"

@@ -17,15 +17,19 @@ import pandas as pd
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
+from leviathan.features.calendar import load_crop_calendars
 from leviathan.features.spine import load_countries
 from leviathan.model_datasets.builder import build_commodity_model_datasets
 from leviathan.model_datasets.psd_model_ready import (
     PSDModelReadyBuildConfig,
     PSD_MATRIX_ID_COLUMNS,
+    PSD_SNAPSHOT_MATRIX_ID_COLUMNS,
     build_psd_commodity_model_datasets,
+    build_psd_commodity_snapshot_model_datasets,
 )
 from leviathan.model_datasets.psd_target_builder import build_psd_target_panel
 from leviathan.model_datasets.psd_targets import load_psd_metric_targets
+from leviathan.model_datasets.snapshot_stages import load_snapshot_stage_config
 from leviathan.model_datasets.targets import (
     default_source_dataset_version,
     load_target_definitions,
@@ -66,6 +70,7 @@ MODEL_READY_NON_FEATURE_COLUMNS = {
         "target_unit",
     },
     *PSD_MATRIX_ID_COLUMNS,
+    *PSD_SNAPSHOT_MATRIX_ID_COLUMNS,
 }
 
 
@@ -113,6 +118,17 @@ def _parse_csv_tuple(raw: str | None) -> tuple[str, ...]:
     if not normalized or normalized.lower() in {"none", "null", "default"}:
         return ()
     return tuple(part.strip() for part in normalized.split(",") if part.strip())
+
+
+def _parse_snapshot_stages(raw: str | None) -> tuple[tuple[str, ...], bool]:
+    if raw is None:
+        return (), False
+    normalized = raw.strip()
+    if not normalized or normalized.lower() in {"none", "null"}:
+        return (), False
+    if normalized.lower() in {"all", "default"}:
+        return (), True
+    return tuple(part.strip() for part in normalized.split(",") if part.strip()), True
 
 
 def _local_path(args: argparse.Namespace, key: str) -> Path:
@@ -339,6 +355,88 @@ def _process_psd_commodity(
     return result
 
 
+def _process_psd_snapshot_commodity(
+    args: argparse.Namespace,
+    commodity: str,
+    psd_source: pd.DataFrame,
+    psd_targets: pd.DataFrame,
+    feature_membership: pd.DataFrame,
+    target_keys: tuple[str, ...],
+) -> dict:
+    result = {
+        "commodity": commodity,
+        "status": "unknown",
+        "matrix_key": args.psd_source_key,
+        "target_outputs": [],
+        "matrix_outputs": [],
+        "summaries": [],
+    }
+    calendar = args.crop_calendars.get(commodity)
+    if calendar is None:
+        result["status"] = "skipped_missing_crop_calendar"
+        return result
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity=commodity,
+        feature_membership=feature_membership,
+        calendar=calendar,
+        snapshot_config=args.snapshot_config_obj,
+        snapshot_stage_ids=args.snapshot_stage_ids,
+        as_of_date=args.as_of_date,
+        include_named_stages=args.include_named_snapshot_stages,
+        config=(
+            PSDModelReadyBuildConfig(
+                compatible_feature_sets=args.compatible_feature_sets_tuple
+            )
+            if args.compatible_feature_sets_tuple else None
+        ),
+        target_keys=target_keys,
+    )
+    result["summaries"] = built.summaries
+    if args.dry_run:
+        result["status"] = "dry_run"
+        return result
+
+    for dataset_key, target_df in built.target_tables.items():
+        key = gold_model_ready_target_key(
+            args.model_dataset_version, dataset_key, commodity
+        )
+        status = _write_bytes(
+            args, key, _parquet_bytes(target_df), "application/octet-stream"
+        )
+        result["target_outputs"].append({
+            "dataset_key": dataset_key,
+            "key": key,
+            "status": status,
+            "row_count": int(len(target_df)),
+        })
+
+    for (dataset_key, target_key), matrix_df in built.matrices.items():
+        key = gold_model_ready_matrix_key(
+            args.model_dataset_version, dataset_key, commodity, target_key
+        )
+        status = _write_bytes(
+            args, key, _parquet_bytes(matrix_df), "application/octet-stream"
+        )
+        result["matrix_outputs"].append({
+            "dataset_key": dataset_key,
+            "target_key": target_key,
+            "key": key,
+            "status": status,
+            "row_count": int(len(matrix_df)),
+            "column_count": int(len(matrix_df.columns)),
+            "feature_count": int(
+                len([c for c in matrix_df.columns if c not in MODEL_READY_NON_FEATURE_COLUMNS])
+            ),
+        })
+
+    result["baseline_metrics"] = built.baseline_metrics
+    result["status"] = "written"
+    return result
+
+
 def _build_manifest(
     args: argparse.Namespace,
     *,
@@ -426,6 +524,22 @@ def _build_manifest(
             list(args.compatible_feature_sets_tuple)
             if args.compatible_feature_sets_tuple else "default"
         )
+    if getattr(args, "snapshot_mode", False):
+        manifest["snapshot_mode"] = True
+        manifest["snapshot_config"] = (
+            args.snapshot_config or "configs/ml/snapshot_stages.yaml"
+        )
+        manifest["snapshot_config_sha"] = args.snapshot_config_obj.config_sha
+        manifest["snapshot_policy"] = args.snapshot_config_obj.snapshot_policy
+        manifest["snapshot_dataset_key"] = args.snapshot_config_obj.default_dataset_key
+        manifest["snapshot_stages"] = (
+            list(args.snapshot_stage_ids)
+            if args.snapshot_stage_ids else (
+                "all_named"
+                if args.include_named_snapshot_stages else "explicit_as_of_only"
+            )
+        )
+        manifest["explicit_as_of_date"] = args.as_of_date
     return manifest
 
 
@@ -451,8 +565,34 @@ def _parse_args() -> argparse.Namespace:
         dest="psd_source_key",
     )
     parser.add_argument("--psd-target-config", default=None, dest="psd_target_config")
+    parser.add_argument("--snapshot-config", default=None, dest="snapshot_config")
     parser.add_argument("--commodities", default="all")
     parser.add_argument("--target-keys", default="", dest="target_keys")
+    parser.add_argument(
+        "--snapshot-mode",
+        nargs="?",
+        const=True,
+        default=False,
+        type=_bool_arg,
+        dest="snapshot_mode",
+        help=(
+            "Build additive snapshot-stage PSD matrices instead of annual PSD "
+            "matrices. Uses all configured stages unless --snapshot-stages or "
+            "--as-of-date narrows the request."
+        ),
+    )
+    parser.add_argument(
+        "--snapshot-stages",
+        default="",
+        dest="snapshot_stages",
+        help="Comma-separated named snapshot stages, 'all', or blank.",
+    )
+    parser.add_argument(
+        "--as-of-date",
+        default=None,
+        dest="as_of_date",
+        help="Optional explicit as-of date for PSD snapshot matrices.",
+    )
     parser.add_argument(
         "--compatible-feature-sets",
         default="",
@@ -486,6 +626,7 @@ def main() -> None:
     args = _parse_args()
     target_definitions = []
     psd_targets = pd.DataFrame()
+    psd_source = pd.DataFrame()
     psd_mapping_sha = None
     if args.target_source == "faostat":
         target_definitions, target_config_sha, target_config = load_target_definitions(
@@ -526,6 +667,31 @@ def main() -> None:
     )
     args.workers = max(1, int(args.workers))
     args.compatible_feature_sets_tuple = _parse_csv_tuple(args.compatible_feature_sets)
+    args.snapshot_stage_ids, requested_named_stages = _parse_snapshot_stages(
+        args.snapshot_stages
+    )
+    requested_snapshot_mode = bool(args.snapshot_mode)
+    args.as_of_date = (
+        None
+        if args.as_of_date is None or str(args.as_of_date).strip().lower() in {"", "none", "null"}
+        else str(args.as_of_date).strip()
+    )
+    args.snapshot_mode = bool(
+        requested_snapshot_mode or requested_named_stages or args.as_of_date
+    )
+    args.include_named_snapshot_stages = bool(
+        requested_snapshot_mode or requested_named_stages
+    )
+    if args.snapshot_mode and args.target_source != "psd":
+        raise SystemExit("--snapshot-mode/--snapshot-stages/--as-of-date require --target-source psd")
+    if args.snapshot_mode:
+        args.snapshot_config_obj = load_snapshot_stage_config(args.snapshot_config)
+        args.crop_calendars = load_crop_calendars()
+        if not args.compatible_feature_sets_tuple:
+            args.compatible_feature_sets_tuple = ("psd_monthly_vintage_features",)
+    else:
+        args.snapshot_config_obj = None
+        args.crop_calendars = {}
 
     if not args.local_root:
         args.bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
@@ -553,7 +719,7 @@ def main() -> None:
     logger.info(
         (
             "Building model-ready datasets version=%s source=%s target_source=%s "
-            "commodities=%d targets=%d workers=%d dry_run=%s"
+            "commodities=%d targets=%d workers=%d snapshot_mode=%s dry_run=%s"
         ),
         args.model_dataset_version,
         args.source_dataset_version,
@@ -563,22 +729,42 @@ def main() -> None:
             len(requested_target_keys) if requested_target_keys else len(psd_config.metrics)
         ),
         args.workers,
+        args.snapshot_mode,
         args.dry_run,
     )
 
     results_by_commodity: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=min(args.workers, len(commodities))) as executor:
-        future_to_commodity = {
-            executor.submit(
-                _process_commodity if args.target_source == "faostat" else _process_psd_commodity,
-                args,
-                commodity,
-                target_definitions if args.target_source == "faostat" else psd_targets,
-                feature_membership,
-                *(() if args.target_source == "faostat" else (requested_target_keys,)),
-            ): commodity
-            for commodity in commodities
-        }
+        future_to_commodity = {}
+        for commodity in commodities:
+            if args.target_source == "faostat":
+                future = executor.submit(
+                    _process_commodity,
+                    args,
+                    commodity,
+                    target_definitions,
+                    feature_membership,
+                )
+            elif args.snapshot_mode:
+                future = executor.submit(
+                    _process_psd_snapshot_commodity,
+                    args,
+                    commodity,
+                    psd_source,
+                    psd_targets,
+                    feature_membership,
+                    requested_target_keys,
+                )
+            else:
+                future = executor.submit(
+                    _process_psd_commodity,
+                    args,
+                    commodity,
+                    psd_targets,
+                    feature_membership,
+                    requested_target_keys,
+                )
+            future_to_commodity[future] = commodity
         for future in as_completed(future_to_commodity):
             commodity = future_to_commodity[future]
             try:

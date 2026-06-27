@@ -6,12 +6,21 @@ from typing import Iterable
 
 import pandas as pd
 
+from leviathan.features.calendar import CropCalendar
+from leviathan.features.computations.psd_vintages import (
+    build_psd_vintage_snapshot_feature_matrix,
+)
 from leviathan.features.feature_sets import selected_features_for_set
 from leviathan.model_datasets.baselines import compute_baseline_metrics
 from leviathan.model_datasets.builder import CommodityModelDataset
 from leviathan.model_datasets.psd_target_builder import PSD_TARGET_COLUMNS
+from leviathan.model_datasets.snapshot_stages import (
+    SnapshotStageConfig,
+    resolve_snapshot_dates,
+)
 
 PSD_DATASET_KEY = "psd_snd_anomaly"
+PSD_SNAPSHOT_DATASET_KEY = "psd_snd_anomaly_snapshot"
 PSD_BASELINES = ("zero_anomaly", "prior_year", "trailing_mean", "trailing_linear_trend")
 DEFAULT_PSD_FEATURE_SETS = (
     "preseason_physical",
@@ -67,6 +76,10 @@ PSD_MATRIX_ID_COLUMNS = [
 ]
 
 PSD_TARGET_NATURAL_KEY = ["commodity", "country", "crop_year", "target_key"]
+PSD_SNAPSHOT_COLUMNS = ["snapshot_stage", "as_of_date", "snapshot_policy"]
+PSD_SNAPSHOT_MATRIX_ID_COLUMNS = PSD_MATRIX_ID_COLUMNS + PSD_SNAPSHOT_COLUMNS
+PSD_SNAPSHOT_TARGET_COLUMNS = PSD_TARGET_COLUMNS + PSD_SNAPSHOT_COLUMNS
+DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = ("psd_monthly_vintage_features",)
 
 
 @dataclass(frozen=True)
@@ -156,6 +169,92 @@ def _matrix_for_target(
     merged = _mark_missing_features(merged)
     return merged[PSD_MATRIX_ID_COLUMNS + feature_cols].sort_values(
         ["country", "crop_year"]
+    ).reset_index(drop=True)
+
+
+def _psd_source_for_target_origins(
+    psd_source: pd.DataFrame,
+    target_df: pd.DataFrame,
+    *,
+    commodity: str,
+) -> pd.DataFrame:
+    required = {"leviathan_slug", "country", "market_year", "release_date"}
+    missing = required - set(psd_source.columns)
+    if missing:
+        raise ValueError(f"{commodity}: PSD source missing columns {sorted(missing)}")
+
+    frames: list[pd.DataFrame] = []
+    mappings = target_df[
+        ["origin_key", "psd_source_slug", "psd_country"]
+    ].drop_duplicates()
+    for mapping in mappings.itertuples(index=False):
+        subset = psd_source.loc[
+            (psd_source["leviathan_slug"] == mapping.psd_source_slug)
+            & (psd_source["country"] == mapping.psd_country)
+        ].copy()
+        if subset.empty:
+            subset = psd_source.loc[
+                (psd_source["leviathan_slug"] == mapping.psd_source_slug)
+                & (psd_source["country"] == mapping.origin_key)
+            ].copy()
+        if subset.empty:
+            continue
+        subset["country"] = str(mapping.origin_key)
+        frames.append(subset)
+
+    if not frames:
+        return pd.DataFrame(columns=list(psd_source.columns))
+    return pd.concat(frames, ignore_index=True).drop_duplicates().reset_index(drop=True)
+
+
+def _expand_targets_to_snapshots(
+    target_group: pd.DataFrame,
+    snapshots: pd.DataFrame,
+) -> pd.DataFrame:
+    target = target_group.copy()
+    snapshot_frame = snapshots[PSD_SNAPSHOT_COLUMNS[:2] + ["crop_year", "snapshot_policy"]].copy()
+    expanded = target.merge(
+        snapshot_frame,
+        on="crop_year",
+        how="inner",
+        validate="many_to_many",
+    )
+    duplicates = expanded.duplicated(
+        ["commodity", "country", "crop_year", "target_key", "snapshot_stage", "as_of_date"],
+        keep=False,
+    )
+    if duplicates.any():
+        keys = (
+            expanded.loc[
+                duplicates,
+                ["commodity", "country", "crop_year", "target_key", "snapshot_stage", "as_of_date"],
+            ]
+            .drop_duplicates()
+            .sort_values(["commodity", "country", "crop_year", "target_key", "snapshot_stage"])
+            .to_dict("records")
+        )
+        raise ValueError(f"duplicate PSD snapshot target keys {keys[:5]}")
+    return expanded
+
+
+def _matrix_for_snapshot_target(
+    feature_matrix: pd.DataFrame,
+    target_df: pd.DataFrame,
+    feature_cols: list[str],
+) -> pd.DataFrame:
+    feature_frame = feature_matrix[
+        ["country", "crop_year", "snapshot_stage", "as_of_date"] + feature_cols
+    ].copy()
+    feature_frame["_features_available"] = True
+    merged = target_df[PSD_SNAPSHOT_MATRIX_ID_COLUMNS].merge(
+        feature_frame,
+        on=["country", "crop_year", "snapshot_stage", "as_of_date"],
+        how="left",
+        validate="many_to_one",
+    )
+    merged = _mark_missing_features(merged)
+    return merged[PSD_SNAPSHOT_MATRIX_ID_COLUMNS + feature_cols].sort_values(
+        ["country", "crop_year", "snapshot_stage"]
     ).reset_index(drop=True)
 
 
@@ -277,6 +376,148 @@ def build_psd_commodity_model_datasets(
     return CommodityModelDataset(
         commodity=commodity,
         target_tables={PSD_DATASET_KEY: target_df[PSD_TARGET_COLUMNS]},
+        matrices=matrices,
+        baseline_metrics=baseline_metrics,
+        summaries=summaries,
+    )
+
+
+def build_psd_commodity_snapshot_model_datasets(
+    psd_source: pd.DataFrame,
+    psd_targets: pd.DataFrame,
+    *,
+    commodity: str,
+    feature_membership: pd.DataFrame,
+    calendar: CropCalendar,
+    snapshot_config: SnapshotStageConfig,
+    snapshot_stage_ids: tuple[str, ...] = (),
+    as_of_date: str | None = None,
+    include_named_stages: bool = True,
+    config: PSDModelReadyBuildConfig | None = None,
+    target_keys: tuple[str, ...] = (),
+) -> CommodityModelDataset:
+    """Build additive PSD snapshot-stage model-ready matrices for one commodity."""
+    snapshot_dataset_key = snapshot_config.default_dataset_key or PSD_SNAPSHOT_DATASET_KEY
+    build_config = config or PSDModelReadyBuildConfig(
+        compatible_feature_sets=DEFAULT_PSD_SNAPSHOT_FEATURE_SETS
+    )
+    target_df = psd_targets.loc[psd_targets["commodity"] == commodity].copy()
+    if target_keys:
+        target_df = target_df.loc[target_df["target_key"].isin(set(target_keys))].copy()
+    if target_df.empty:
+        summaries = [{
+            "commodity": commodity,
+            "dataset_key": snapshot_dataset_key,
+            "status": "skipped_no_selected_psd_targets",
+        }]
+        return CommodityModelDataset(
+            commodity=commodity,
+            target_tables={},
+            matrices={},
+            baseline_metrics=pd.DataFrame(
+                columns=[
+                    "dataset_key",
+                    "commodity",
+                    "target_key",
+                    "baseline_name",
+                    "n_rows",
+                    "rmse",
+                    "mae",
+                    "directional_accuracy",
+                ]
+            ),
+            summaries=summaries,
+        )
+
+    _validate_psd_targets(target_df, commodity)
+    target_df["dataset_key"] = snapshot_dataset_key
+    crop_years = sorted(
+        int(year) for year in pd.to_numeric(target_df["crop_year"], errors="coerce").dropna().unique()
+    )
+    snapshots = resolve_snapshot_dates(
+        calendar=calendar,
+        crop_years=crop_years,
+        config=snapshot_config,
+        stage_ids=snapshot_stage_ids,
+        as_of_date=as_of_date,
+        include_named_stages=include_named_stages,
+    )
+    feature_source = _psd_source_for_target_origins(
+        psd_source, target_df, commodity=commodity
+    )
+    countries = sorted(target_df["country"].astype(str).unique())
+    dynamic_features = build_psd_vintage_snapshot_feature_matrix(
+        feature_source,
+        countries=countries,
+        snapshots=snapshots,
+    )
+    feature_cols = _feature_union(
+        dynamic_features, feature_membership, build_config.compatible_feature_sets
+    )
+
+    matrices: dict[tuple[str, str], pd.DataFrame] = {}
+    target_tables: dict[str, list[pd.DataFrame]] = {snapshot_dataset_key: []}
+    metrics_frames: list[pd.DataFrame] = []
+    summaries: list[dict] = []
+
+    for target_key, target_group in target_df.groupby("target_key", sort=True):
+        target_group = target_group.sort_values(["country", "crop_year"]).reset_index(drop=True)
+        snapshot_targets = _expand_targets_to_snapshots(target_group, snapshots)
+        matrix_df = _matrix_for_snapshot_target(dynamic_features, snapshot_targets, feature_cols)
+        matrices[(snapshot_dataset_key, str(target_key))] = matrix_df
+        target_tables[snapshot_dataset_key].append(
+            snapshot_targets[PSD_SNAPSHOT_TARGET_COLUMNS]
+        )
+        metrics_frames.append(
+            compute_baseline_metrics(
+                matrix_df,
+                dataset_key=snapshot_dataset_key,
+                commodity=commodity,
+                target_key=str(target_key),
+                baseline_names=build_config.baselines,
+            )
+        )
+        trainable_rows = int(matrix_df["is_trainable"].fillna(False).astype(bool).sum())
+        summaries.append({
+            "commodity": commodity,
+            "dataset_key": snapshot_dataset_key,
+            "target_key": str(target_key),
+            "status": "built",
+            "row_count": int(len(matrix_df)),
+            "trainable_row_count": trainable_rows,
+            "feature_count": int(len(feature_cols)),
+            "target_source": "psd",
+            "target_family": str(target_group["target_family"].iloc[0]),
+            "target_attribute": str(target_group["target_attribute"].iloc[0]),
+            "snapshot_policy": snapshot_config.snapshot_policy,
+            "snapshot_stages": sorted(matrix_df["snapshot_stage"].astype(str).unique()),
+            "snapshot_count_per_target_row": int(len(snapshots["snapshot_stage"].unique())),
+            "compatible_feature_sets": list(build_config.compatible_feature_sets),
+            "target_status_counts": {
+                str(k): int(v)
+                for k, v in target_group["target_status"].value_counts().sort_index().items()
+            },
+            "mapping_confidence_counts": {
+                str(k): int(v)
+                for k, v in target_group["mapping_confidence"].value_counts().sort_index().items()
+            },
+            "origin_count": int(target_group["origin_key"].nunique()),
+            "target_market_year_min": int(target_group["target_market_year"].min()),
+            "target_market_year_max": int(target_group["target_market_year"].max()),
+        })
+
+    baseline_metrics = (
+        pd.concat(metrics_frames, ignore_index=True)
+        if metrics_frames else pd.DataFrame()
+    )
+    final_target_tables = {
+        dataset_key: pd.concat(frames, ignore_index=True)
+        for dataset_key, frames in target_tables.items()
+        if frames
+    }
+    return CommodityModelDataset(
+        commodity=commodity,
+        target_tables=final_target_tables,
         matrices=matrices,
         baseline_metrics=baseline_metrics,
         summaries=summaries,

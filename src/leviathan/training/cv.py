@@ -102,6 +102,14 @@ _CV_POLICIES: dict[str, dict[str, int | None]] = {
 }
 
 
+def _prediction_identity_columns(df: pd.DataFrame) -> list[str]:
+    cols = ["country", "crop_year"]
+    for col in ("snapshot_stage", "as_of_date"):
+        if col in df.columns:
+            cols.append(col)
+    return cols
+
+
 def resolve_cv_policy(
     cv_policy: str,
     *,
@@ -196,9 +204,15 @@ def walk_forward_cv(
             f"got {len(years)} ({years[0]}–{years[-1]})."
         )
 
-    # Pre-index by year for O(1) lookup of prior-year actuals.
+    identity_cols = _prediction_identity_columns(df)
+    # Pre-index by year for O(1) lookup of prior-year actuals. Snapshot-stage
+    # datasets repeat annual labels across stages, so the prior-year reference
+    # must collapse to one value per country.
     by_year: dict[int, pd.DataFrame] = {
-        yr: grp.set_index("country") for yr, grp in df.groupby("crop_year")
+        yr: grp.sort_values(identity_cols)
+        .drop_duplicates("country", keep="first")
+        .set_index("country")
+        for yr, grp in df.groupby("crop_year")
     }
 
     all_pred_frames: list[pd.DataFrame] = []
@@ -254,12 +268,9 @@ def walk_forward_cv(
                     (np.sign(actual_change[valid]) == np.sign(pred_change[valid])).mean()
                 )
 
-        fold_pred = pd.DataFrame({
-            "country": test_df["country"].values,
-            "crop_year": test_year,
-            "y_actual": y_test.to_numpy(),
-            "y_pred": y_pred,
-        })
+        fold_pred = test_df[identity_cols].copy()
+        fold_pred["y_actual"] = y_test.to_numpy()
+        fold_pred["y_pred"] = y_pred
         all_pred_frames.append(fold_pred)
 
         fold_results.append(FoldResult(

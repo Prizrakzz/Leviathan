@@ -182,9 +182,12 @@ def build_model_replay_sample(
     max_rows: int = 200,
 ) -> pd.DataFrame:
     """Build a compact sample whose predictions must replay from the model artifact."""
-    cols = ["country", "crop_year"] + feature_cols + [target_col]
+    id_cols = ["country", "crop_year"] + [
+        col for col in ("snapshot_stage", "as_of_date") if col in train_df.columns
+    ]
+    cols = id_cols + feature_cols + [target_col]
     sample = train_df.loc[train_df[target_col].notna(), cols].sort_values(
-        ["country", "crop_year"]
+        id_cols
     )
     if len(sample) > max_rows:
         sample = sample.tail(max_rows)

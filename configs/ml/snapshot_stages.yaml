@@ -1,0 +1,42 @@
+# Named model-ready snapshot stages.
+#
+# These stages let annual PSD targets be trained at several explicit as-of
+# dates without changing the target definition.  The first implementation is
+# designed for PSD monthly-vintage features; broader in-season feature families
+# should opt in only after their own point-in-time availability policies exist.
+
+schema_version: 1
+
+defaults:
+  dataset_key: psd_snd_anomaly_snapshot
+  snapshot_policy: named_stages_v1
+
+stages:
+  - id: preseason
+    rule: crop_year_start
+    description: Crop-year start snapshot.
+
+  - id: early_inseason
+    rule: crop_year_start_plus_days
+    days: 45
+    description: Early in-season snapshot, 45 days after crop-year start.
+
+  - id: midseason
+    rule: crop_year_start_plus_days
+    days: 90
+    description: Midseason snapshot, 90 days after crop-year start.
+
+  - id: late_inseason
+    rule: crop_year_start_plus_days
+    days: 135
+    description: Late in-season snapshot, 135 days after crop-year start.
+
+  - id: harvest
+    rule: crop_year_end_minus_days
+    days: 30
+    description: Harvest-period snapshot, 30 days before crop-year end.
+
+  - id: postseason
+    rule: crop_year_end_plus_days
+    days: 30
+    description: Postseason snapshot, 30 days after crop-year end.

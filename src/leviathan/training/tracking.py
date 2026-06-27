@@ -25,6 +25,7 @@ import re
 import pandas as pd
 
 _KEY_COLS = ["country", "crop_year"]
+_OPTIONAL_KEY_COLS = ["snapshot_stage", "as_of_date"]
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +42,10 @@ def feature_set_sha(feature_cols: list[str], params_hash: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _key_cols(df: pd.DataFrame) -> list[str]:
+    return _KEY_COLS + [col for col in _OPTIONAL_KEY_COLS if col in df.columns]
+
+
 def data_fingerprint(
     df: pd.DataFrame, feature_cols: list[str], target_col: str
 ) -> str:
@@ -51,10 +56,11 @@ def data_fingerprint(
     value — feature or label — changes.  This is what surfaces a silent upstream
     revision between two rebuilds of the same logical dataset.
     """
-    cols = list(_KEY_COLS) + sorted(c for c in feature_cols if c in df.columns)
+    key_cols = _key_cols(df)
+    cols = key_cols + sorted(c for c in feature_cols if c in df.columns)
     if target_col in df.columns:
         cols.append(target_col)
-    sub = df.loc[:, cols].sort_values(_KEY_COLS).reset_index(drop=True)
+    sub = df.loc[:, cols].sort_values(key_cols).reset_index(drop=True)
     row_hashes = pd.util.hash_pandas_object(sub, index=False).to_numpy()
     return hashlib.sha256(row_hashes.tobytes()).hexdigest()
 

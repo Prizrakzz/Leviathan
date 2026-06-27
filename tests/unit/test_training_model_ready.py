@@ -21,6 +21,7 @@ from leviathan.training.model_ready import (
     select_model_ready_features,
     training_frame_from_model_ready_matrix,
 )
+from leviathan.training.cv import walk_forward_cv
 
 
 class _FakeS3:
@@ -77,6 +78,25 @@ def _membership() -> pd.DataFrame:
         ],
         "is_label": [False, True, False, False],
     })
+
+
+def _snapshot_matrix() -> pd.DataFrame:
+    base = _matrix().loc[_matrix()["crop_year"] >= 2019].copy()
+    rows = []
+    for _, row in base.iterrows():
+        for stage, date_value, offset in (
+            ("early_inseason", "06-01", 0.0),
+            ("midseason", "08-01", 0.5),
+        ):
+            out = row.copy()
+            out["dataset_key"] = "psd_snd_anomaly_snapshot"
+            out["target_key"] = "psd_production_anomaly_pct"
+            out["snapshot_stage"] = stage
+            out["as_of_date"] = f"{int(row['crop_year'])}-{date_value}"
+            out["snapshot_policy"] = "named_stages_v1"
+            out["feature_a"] = float(out["feature_a"]) + offset
+            rows.append(out)
+    return pd.DataFrame(rows)
 
 
 def test_model_ready_feature_selection_excludes_labels_targets_and_baselines() -> None:
@@ -154,6 +174,36 @@ def test_baseline_metrics_are_fold_aligned_and_logged_flat() -> None:
     assert "target_space_model_rmse" in metrics
     assert "best_baseline_rmse" in metrics
     assert "model_vs_best_baseline_rmse_delta" in metrics
+    assert "zero_anomaly_baseline" in enriched.columns
+
+
+def test_snapshot_model_ready_training_frame_preserves_row_identity() -> None:
+    matrix = _snapshot_matrix()
+    frame = training_frame_from_model_ready_matrix(matrix, ["feature_a"])
+
+    assert {"snapshot_stage", "as_of_date"}.issubset(frame.columns)
+    assert len(frame) == 8
+    assert frame.duplicated(
+        ["country", "crop_year", "snapshot_stage", "as_of_date"]
+    ).sum() == 0
+
+
+def test_snapshot_predictions_join_baselines_on_snapshot_identity() -> None:
+    from sklearn.dummy import DummyRegressor
+
+    matrix = _snapshot_matrix()
+    frame = training_frame_from_model_ready_matrix(matrix, ["feature_a"])
+    result = walk_forward_cv(
+        frame,
+        "target_value",
+        ["feature_a"],
+        DummyRegressor(strategy="mean"),
+        min_train_years=2,
+    )
+    enriched = attach_model_ready_baselines_to_predictions(result.predictions, matrix)
+
+    assert {"snapshot_stage", "as_of_date"}.issubset(result.predictions.columns)
+    assert len(enriched) == len(result.predictions)
     assert "zero_anomaly_baseline" in enriched.columns
 
 

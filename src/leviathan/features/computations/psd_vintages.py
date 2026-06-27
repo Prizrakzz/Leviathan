@@ -19,6 +19,7 @@ from leviathan.features.computations.base import FeatureContext, empty_result, m
 _CONFIG_PATH = Path(__file__).resolve().parents[4] / "configs" / "ml" / "psd_vintage_features.yaml"
 
 _REQUIRED_COLUMNS = {"country", "market_year", "release_date"}
+SNAPSHOT_ID_COLUMNS = ["country", "crop_year", "snapshot_stage", "as_of_date"]
 
 
 def _finite(value: object) -> bool:
@@ -131,6 +132,142 @@ def _prepare_psd(df: pd.DataFrame, columns: list[dict[str, str]]) -> pd.DataFram
     return out.sort_values(["country", "market_year", "release_date"]).reset_index(drop=True)
 
 
+def _feature_values_for_visible_snapshot(
+    country_df: pd.DataFrame,
+    columns: list[dict[str, str]],
+    *,
+    crop_year: int,
+    market_year: int,
+    snapshot: pd.Timestamp,
+    min_history_years: int,
+    epsilon: float,
+) -> dict[str, float] | None:
+    visible = country_df.loc[
+        (country_df["market_year"] == int(market_year))
+        & (country_df["release_date"] <= snapshot)
+    ].sort_values("release_date")
+    if visible.empty:
+        return None
+
+    latest = visible.iloc[-1]
+    release_count = float(len(visible))
+    month_code = float(pd.Timestamp(latest["release_date"]).month)
+    features: dict[str, float] = {}
+
+    for item in columns:
+        attr = item["attribute"]
+        prefix = item["prefix"]
+        values = pd.to_numeric(visible[attr], errors="coerce")
+        latest_value = values.iloc[-1] if len(values) else np.nan
+        previous_value = values.iloc[-2] if len(values) >= 2 else np.nan
+        first_value = values.iloc[0] if len(values) else np.nan
+        historical_values = _latest_history_as_of(
+            country_df,
+            attr,
+            snapshot=snapshot,
+            market_year=market_year,
+        )
+        trend = _trend_prediction(
+            historical_values,
+            market_year,
+            min_history_years=min_history_years,
+        )
+
+        features.update({
+            f"{prefix}_latest_estimate_as_of": float(latest_value)
+            if _finite(latest_value) else np.nan,
+            f"{prefix}_mom_revision": (
+                float(latest_value) - float(previous_value)
+                if _finite(latest_value) and _finite(previous_value) else np.nan
+            ),
+            f"{prefix}_revision_since_first_forecast": (
+                float(latest_value) - float(first_value)
+                if _finite(latest_value) and _finite(first_value) else np.nan
+            ),
+            f"{prefix}_consecutive_revision_count": _revision_count(values),
+            f"{prefix}_current_vs_trend": _current_vs_trend(
+                latest_value, trend, epsilon
+            ),
+            f"{prefix}_month_code": month_code,
+            f"{prefix}_release_count_for_market_year": release_count,
+        })
+    return features
+
+
+def build_psd_vintage_snapshot_feature_matrix(
+    psd_df: pd.DataFrame,
+    *,
+    countries: list[str] | tuple[str, ...] | set[str],
+    snapshots: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return wide PSD vintage features evaluated at explicit snapshots.
+
+    ``snapshots`` must contain ``crop_year``, ``snapshot_stage``, and
+    ``as_of_date``.  This function is intentionally independent of the feature
+    spine because snapshot-stage model-ready matrices can need multiple rows
+    per annual target year.
+    """
+    config = _load_config()
+    defaults = config.get("defaults") or {}
+    columns = [
+        item for item in _allowed_columns(config)
+        if item["attribute"] in psd_df.columns
+    ]
+    if not columns:
+        return pd.DataFrame(columns=SNAPSHOT_ID_COLUMNS)
+
+    required_snapshot_cols = {"crop_year", "snapshot_stage", "as_of_date"}
+    missing = required_snapshot_cols - set(snapshots.columns)
+    if missing:
+        raise ValueError(f"snapshot frame missing columns: {sorted(missing)}")
+
+    source = _prepare_psd(psd_df, columns)
+    min_history_years = int(defaults.get("min_history_years", 5))
+    epsilon = float(defaults.get("near_zero_trend_epsilon", 1e-9))
+
+    snapshot_frame = snapshots[["crop_year", "snapshot_stage", "as_of_date"]].copy()
+    snapshot_frame["crop_year"] = pd.to_numeric(
+        snapshot_frame["crop_year"], errors="coerce"
+    )
+    snapshot_frame["as_of_date"] = pd.to_datetime(
+        snapshot_frame["as_of_date"], errors="coerce"
+    )
+    snapshot_frame = snapshot_frame.dropna(subset=["crop_year", "as_of_date"])
+    snapshot_frame["crop_year"] = snapshot_frame["crop_year"].astype(int)
+    snapshot_frame["snapshot_stage"] = snapshot_frame["snapshot_stage"].astype(str)
+
+    rows: list[dict[str, object]] = []
+    for country in sorted({str(country) for country in countries}):
+        country_df = source.loc[source["country"] == country].copy()
+        for snap in snapshot_frame.itertuples(index=False):
+            crop_year = int(snap.crop_year)
+            row: dict[str, object] = {
+                "country": country,
+                "crop_year": crop_year,
+                "snapshot_stage": str(snap.snapshot_stage),
+                "as_of_date": pd.Timestamp(snap.as_of_date).date(),
+            }
+            if not country_df.empty:
+                feature_values = _feature_values_for_visible_snapshot(
+                    country_df,
+                    columns,
+                    crop_year=crop_year,
+                    market_year=crop_year,
+                    snapshot=pd.Timestamp(snap.as_of_date),
+                    min_history_years=min_history_years,
+                    epsilon=epsilon,
+                )
+                if feature_values:
+                    row.update(feature_values)
+            rows.append(row)
+
+    if not rows:
+        return pd.DataFrame(columns=SNAPSHOT_ID_COLUMNS)
+    return pd.DataFrame(rows).sort_values(
+        ["country", "crop_year", "snapshot_stage", "as_of_date"]
+    ).reset_index(drop=True)
+
+
 def compute_psd_monthly_vintage_features(ctx: FeatureContext, spec) -> pd.DataFrame:
     """Emit PSD vintage features visible at each crop-year snapshot.
 
@@ -164,71 +301,20 @@ def compute_psd_monthly_vintage_features(ctx: FeatureContext, spec) -> pd.DataFr
         for crop_year in ctx.crop_years:
             market_year = _target_market_year(ctx, int(crop_year))
             snapshot = _snapshot_date(ctx, int(crop_year))
-            visible = country_df.loc[
-                (country_df["market_year"] == market_year)
-                & (country_df["release_date"] <= snapshot)
-            ].sort_values("release_date")
-            if visible.empty:
+            feature_values = _feature_values_for_visible_snapshot(
+                country_df,
+                columns,
+                crop_year=int(crop_year),
+                market_year=market_year,
+                snapshot=snapshot,
+                min_history_years=min_history_years,
+                epsilon=epsilon,
+            )
+            if not feature_values:
                 continue
-
-            latest = visible.iloc[-1]
-            release_count = float(len(visible))
-            month_code = float(pd.Timestamp(latest["release_date"]).month)
-
-            for item in columns:
-                attr = item["attribute"]
-                prefix = item["prefix"]
-                values = pd.to_numeric(visible[attr], errors="coerce")
-                latest_value = values.iloc[-1] if len(values) else np.nan
-                previous_value = values.iloc[-2] if len(values) >= 2 else np.nan
-                first_value = values.iloc[0] if len(values) else np.nan
-                historical_values = _latest_history_as_of(
-                    country_df,
-                    attr,
-                    snapshot=snapshot,
-                    market_year=market_year,
-                )
-                trend = _trend_prediction(
-                    historical_values,
-                    market_year,
-                    min_history_years=min_history_years,
-                )
-
-                rows.extend([
-                    (country, int(crop_year), f"{prefix}_latest_estimate_as_of", latest_value),
-                    (
-                        country,
-                        int(crop_year),
-                        f"{prefix}_mom_revision",
-                        latest_value - previous_value
-                        if _finite(latest_value) and _finite(previous_value) else np.nan,
-                    ),
-                    (
-                        country,
-                        int(crop_year),
-                        f"{prefix}_revision_since_first_forecast",
-                        latest_value - first_value
-                        if _finite(latest_value) and _finite(first_value) else np.nan,
-                    ),
-                    (
-                        country,
-                        int(crop_year),
-                        f"{prefix}_consecutive_revision_count",
-                        _revision_count(values),
-                    ),
-                    (
-                        country,
-                        int(crop_year),
-                        f"{prefix}_current_vs_trend",
-                        _current_vs_trend(latest_value, trend, epsilon),
-                    ),
-                    (country, int(crop_year), f"{prefix}_month_code", month_code),
-                    (
-                        country,
-                        int(crop_year),
-                        f"{prefix}_release_count_for_market_year",
-                        release_count,
-                    ),
-                ])
+            rows.extend(
+                (country, int(crop_year), feature, value)
+                for feature, value in feature_values.items()
+            )
 
     return make_result(rows)

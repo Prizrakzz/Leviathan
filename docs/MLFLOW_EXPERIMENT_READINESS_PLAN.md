@@ -931,6 +931,31 @@ Operational note: the registration helper for the live training Batch job now
 contains the `feature_set` parameter, but the live job definition should be
 re-registered only after the trainer image is rebuilt with this code.
 
+Phase 6.5 added optional PSD monthly-vintage feature families. Phase 6.6 added
+opt-in PSD snapshot-stage model-ready matrices under:
+
+```text
+dataset_key=psd_snd_anomaly_snapshot
+```
+
+Default annual PSD model-ready matrices remain:
+
+```text
+dataset_key=psd_snd_anomaly
+```
+
+Snapshot matrices repeat the annual PSD target across named or explicit
+`as_of_date` rows, while recomputing PSD monthly-vintage features with only
+releases visible by that date. They are for in-season experiments and do not
+replace the annual PSD default.
+
+Completion records:
+
+```text
+docs/ops/PHASE6_5_PSD_VINTAGE_FEATURES.md
+docs/ops/PHASE6_6_PSD_SNAPSHOT_MATRICES.md
+```
+
 ### Phase 7: Add High-Value Existing-Silver Feature Families to Gold
 
 #### Purpose

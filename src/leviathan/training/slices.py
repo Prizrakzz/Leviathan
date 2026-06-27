@@ -124,7 +124,12 @@ def _augment(predictions: pd.DataFrame) -> pd.DataFrame:
     df["y_pred"] = pd.to_numeric(df["y_pred"], errors="coerce")
     df["residual"] = df["y_actual"] - df["y_pred"]
 
-    prior = df[["commodity", "country", "crop_year", "y_actual"]].copy()
+    prior = (
+        df[["commodity", "country", "crop_year", "y_actual"]]
+        .sort_values(["commodity", "country", "crop_year"])
+        .drop_duplicates(["commodity", "country", "crop_year"], keep="first")
+        .copy()
+    )
     prior["crop_year"] = prior["crop_year"] + 1
     prior = prior.rename(columns={"y_actual": "prior_actual"})
     df = df.merge(prior, on=["commodity", "country", "crop_year"], how="left")
