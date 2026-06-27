@@ -1,0 +1,802 @@
+# PSD-first supervised target mapping.
+#
+# This file is the target-source truth table for the next model-ready target
+# family. It does not build targets by itself; Phase 3 uses this contract to
+# build target panels from silver/psd.
+
+schema_version: 1
+
+source:
+  source_key: psd
+  target_source: psd
+  source_table: silver_psd
+  s3_prefix: s3://leviathan-dev-shahem-001/silver/psd/
+  source_slug_field: leviathan_slug
+  country_field: country
+  year_field: market_year
+  release_date_field: release_date
+  source_vintage_field: release_date
+
+defaults:
+  dataset_key: psd_snd_anomaly
+  target_type: trailing_trend_pct_anomaly
+  min_history_years: 5
+  target_year_field: market_year
+  model_year_field: crop_year
+  target_revision_policy: latest_release_for_market_year
+  target_release_context: latest_available_psd_release
+  near_zero_trend_epsilon: 1.0e-9
+  allowed_as_feature: true
+  allowed_as_target: true
+  target_grain:
+    - contract_key
+    - psd_country
+    - market_year
+    - target_key
+
+target_metrics:
+  - target_key: psd_production_anomaly_pct
+    target_family: psd_production_anomaly
+    psd_attribute: production_mt
+    title: PSD production anomaly versus trailing trend
+    unit: pct_deviation
+    value_unit: metric_tons
+    allowed_as_target: true
+
+  - target_key: psd_ending_stocks_anomaly_pct
+    target_family: psd_balance_sheet_anomaly
+    psd_attribute: ending_stocks_mt
+    title: PSD ending-stocks anomaly versus trailing trend
+    unit: pct_deviation
+    value_unit: metric_tons
+    allowed_as_target: true
+
+  - target_key: psd_stock_to_use_anomaly_pct
+    target_family: psd_balance_sheet_anomaly
+    psd_attribute: su_ratio
+    title: PSD stock-to-use anomaly versus trailing trend
+    unit: pct_deviation
+    value_unit: ratio
+    allowed_as_target: true
+
+  - target_key: psd_exports_anomaly_pct
+    target_family: psd_balance_sheet_anomaly
+    psd_attribute: exports_mt
+    title: PSD exports anomaly versus trailing trend
+    unit: pct_deviation
+    value_unit: metric_tons
+    allowed_as_target: true
+
+  - target_key: psd_imports_anomaly_pct
+    target_family: psd_balance_sheet_anomaly
+    psd_attribute: imports_mt
+    title: PSD imports anomaly versus trailing trend
+    unit: pct_deviation
+    value_unit: metric_tons
+    allowed_as_target: true
+
+  - target_key: psd_domestic_use_anomaly_pct
+    target_family: psd_balance_sheet_anomaly
+    psd_attribute: consumption_mt
+    title: PSD domestic-use anomaly versus trailing trend
+    unit: pct_deviation
+    value_unit: metric_tons
+    allowed_as_target: true
+
+legacy_target_family:
+  dataset_key: annual_physical_anomaly
+  status: legacy_baseline
+  target_source: faostat
+  source_key: production:faostat
+  note: Existing production/yield/area anomaly targets are FAOSTAT-derived engineering baselines, not PSD-first futures-linked targets.
+  target_keys:
+    - production_anomaly_pct
+    - yield_anomaly_pct
+    - area_harvested_anomaly_pct
+
+contract_mappings:
+  - contract_key: arabica_coffee
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: arabica_coffee
+    psd_commodity: coffee_green
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: brazil
+        psd_country: Brazil
+        role: primary_origin
+      - origin_key: colombia
+        psd_country: Colombia
+        role: primary_origin
+      - origin_key: honduras
+        psd_country: Honduras
+        role: primary_origin
+    note: PSD coffee is green-coffee aggregate; it does not cleanly split arabica from robusta.
+
+  - contract_key: brazilian_arabica_coffee
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: brazilian_arabica_coffee
+    psd_commodity: coffee_green
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: brazil
+        psd_country: Brazil
+        role: contract_origin
+    note: Brazil coffee PSD is still green-coffee aggregate, not pure arabica.
+
+  - contract_key: campinas_corn_reference_bmf
+    target_status: direct
+    target_source: psd
+    psd_source_slug: campinas_corn_reference_bmf
+    psd_commodity: corn
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: brazil
+        psd_country: Brazil
+        role: contract_origin
+    note: Brazilian corn cash reference maps to Brazil PSD corn.
+
+  - contract_key: canola_ice
+    target_status: direct
+    target_source: psd
+    psd_source_slug: canola_ice
+    psd_commodity: rapeseed
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: canada
+        psd_country: Canada
+        role: contract_origin
+    note: PSD rapeseed/canola is the closest direct target for ICE canola.
+
+  - contract_key: cocoa
+    target_status: unmapped
+    target_source: psd
+    psd_source_slug: null
+    psd_commodity: null
+    mapping_confidence: none
+    allowed_as_target: false
+    allowed_as_feature: false
+    allowed_targets: []
+    target_origins: []
+    non_psd_target_source: icco_cocoa
+    note: Current PSD silver has no cocoa slug; cocoa needs ICCO or another non-PSD S&D target source.
+
+  - contract_key: corn_cbot
+    target_status: direct
+    target_source: psd
+    psd_source_slug: corn_cbot
+    psd_commodity: corn
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: global_origin
+      - origin_key: argentina
+        psd_country: Argentina
+        role: global_origin
+      - origin_key: ukraine
+        psd_country: Ukraine
+        role: global_origin
+    note: CBOT corn can train against US and major export-origin PSD corn rows.
+
+  - contract_key: cotton
+    target_status: direct
+    target_source: psd
+    psd_source_slug: cotton
+    psd_commodity: cotton
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: india
+        psd_country: India
+        role: global_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: global_origin
+    note: ICE cotton maps cleanly to PSD cotton country balance sheets.
+
+  - contract_key: french_maize_matif
+    target_status: direct
+    target_source: psd
+    psd_source_slug: french_maize_matif
+    psd_commodity: corn
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: france
+        psd_country: France
+        role: contract_origin
+      - origin_key: european_union
+        psd_country: European Union
+        role: regional_context
+    note: MATIF maize is represented by French and EU PSD corn rows.
+
+  - contract_key: french_rapeseed_matif
+    target_status: direct
+    target_source: psd
+    psd_source_slug: french_rapeseed_matif
+    psd_commodity: rapeseed
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: france
+        psd_country: France
+        role: contract_origin
+      - origin_key: european_union
+        psd_country: European Union
+        role: regional_context
+    note: MATIF rapeseed is represented by French and EU PSD rapeseed rows.
+
+  - contract_key: french_wheat_matif
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: french_wheat_matif
+    psd_commodity: wheat
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: france
+        psd_country: France
+        role: contract_origin
+      - origin_key: european_union
+        psd_country: European Union
+        role: regional_context
+    note: PSD wheat is aggregate wheat, not MATIF milling-wheat grade.
+
+  - contract_key: frozen_orange_juice
+    target_status: unmapped
+    target_source: psd
+    psd_source_slug: null
+    psd_commodity: null
+    mapping_confidence: none
+    allowed_as_target: false
+    allowed_as_feature: false
+    allowed_targets: []
+    target_origins: []
+    non_psd_target_source: nass_citrus
+    note: Current PSD silver has no FCOJ/orange-juice slug; FCOJ needs NASS citrus or WASDE citrus targets.
+
+  - contract_key: hard_red_spring_wheat_mgex
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: hard_red_spring_wheat_mgex
+    psd_commodity: wheat
+    mapping_confidence: low
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+      - origin_key: canada
+        psd_country: Canada
+        role: regional_context
+    note: PSD wheat is all-wheat; it does not isolate hard red spring wheat.
+
+  - contract_key: hard_red_winter_wheat_kcbt
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: hard_red_winter_wheat_kcbt
+    psd_commodity: wheat
+    mapping_confidence: low
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+    note: PSD wheat is all-wheat; it does not isolate hard red winter wheat.
+
+  - contract_key: malaysian_crude_palm_oil_cme
+    target_status: direct
+    target_source: psd
+    psd_source_slug: malaysian_crude_palm_oil_cme
+    psd_commodity: palm_oil
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: malaysia
+        psd_country: Malaysia
+        role: contract_origin
+      - origin_key: indonesia
+        psd_country: Indonesia
+        role: global_origin
+    note: PSD palm oil is broad palm oil, but it is the closest direct S&D target for CPO.
+
+  - contract_key: palm_olein_dce
+    target_status: proxy
+    target_source: psd
+    psd_source_slug: palm_olein_dce
+    psd_commodity: palm_oil
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: malaysia
+        psd_country: Malaysia
+        role: supply_origin
+      - origin_key: indonesia
+        psd_country: Indonesia
+        role: supply_origin
+    note: DCE palm olein is a refined-product contract; PSD palm oil is a product proxy.
+
+  - contract_key: rapeseed_meal_zce
+    target_status: proxy
+    target_source: psd
+    psd_source_slug: rapeseed_meal_zce
+    psd_commodity: rapeseed_meal
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: canada
+        psd_country: Canada
+        role: supply_origin
+    note: ZCE rapeseed meal maps to PSD rapeseed meal where available, with China demand as the key target context.
+
+  - contract_key: rapeseed_oil_zce
+    target_status: proxy
+    target_source: psd
+    psd_source_slug: rapeseed_oil_zce
+    psd_commodity: rapeseed_oil
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: canada
+        psd_country: Canada
+        role: supply_origin
+      - origin_key: european_union
+        psd_country: European Union
+        role: supply_origin
+    note: ZCE rapeseed oil maps to PSD rapeseed oil where available, with China demand and export-origin context.
+
+  - contract_key: raw_sugar
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: raw_sugar
+    psd_commodity: sugar
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: brazil
+        psd_country: Brazil
+        role: contract_origin
+      - origin_key: india
+        psd_country: India
+        role: global_origin
+      - origin_key: thailand
+        psd_country: Thailand
+        role: global_origin
+    note: PSD sugar is aggregate sugar and does not split raw versus refined sugar.
+
+  - contract_key: robusta_coffee
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: robusta_coffee
+    psd_commodity: coffee_green
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: vietnam
+        psd_country: Vietnam
+        role: contract_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: global_origin
+      - origin_key: indonesia
+        psd_country: Indonesia
+        role: global_origin
+    note: PSD coffee is green-coffee aggregate; it does not cleanly split robusta from arabica.
+
+  - contract_key: rough_rice_cbot
+    target_status: direct
+    target_source: psd
+    psd_source_slug: rough_rice_cbot
+    psd_commodity: rice
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+      - origin_key: thailand
+        psd_country: Thailand
+        role: global_origin
+      - origin_key: vietnam
+        psd_country: Vietnam
+        role: global_origin
+      - origin_key: india
+        psd_country: India
+        role: global_origin
+    note: CBOT rough rice maps cleanly to PSD rice country balance sheets.
+
+  - contract_key: soft_red_winter_wheat_cbot
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: soft_red_winter_wheat_cbot
+    psd_commodity: wheat
+    mapping_confidence: low
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+    note: PSD wheat is all-wheat; it does not isolate soft red winter wheat.
+
+  - contract_key: south_african_white_maize_jse
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: south_african_white_maize_jse
+    psd_commodity: corn
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: south_africa
+        psd_country: South Africa
+        role: contract_origin
+    note: PSD corn is aggregate maize and does not split South African white maize.
+
+  - contract_key: south_african_yellow_maize_jse
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: south_african_yellow_maize_jse
+    psd_commodity: corn
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: south_africa
+        psd_country: South Africa
+        role: contract_origin
+    note: PSD corn is aggregate maize and does not split South African yellow maize.
+
+  - contract_key: soybean_meal_cbot
+    target_status: direct
+    target_source: psd
+    psd_source_slug: soybean_meal_cbot
+    psd_commodity: soybean_meal
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+      - origin_key: argentina
+        psd_country: Argentina
+        role: global_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: global_origin
+    note: CBOT soybean meal maps to PSD soybean meal product balance sheets.
+
+  - contract_key: soybean_meal_dce
+    target_status: direct
+    target_source: psd
+    psd_source_slug: soybean_meal_dce
+    psd_commodity: soybean_meal
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: united_states
+        psd_country: United States
+        role: supply_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: supply_origin
+      - origin_key: argentina
+        psd_country: Argentina
+        role: supply_origin
+    note: DCE soybean meal uses China demand plus major meal/oilseed supply origins.
+
+  - contract_key: soybean_oil_cbot
+    target_status: direct
+    target_source: psd
+    psd_source_slug: soybean_oil_cbot
+    psd_commodity: soybean_oil
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+      - origin_key: argentina
+        psd_country: Argentina
+        role: global_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: global_origin
+    note: CBOT soybean oil maps to PSD soybean oil product balance sheets.
+
+  - contract_key: soybean_oil_dce
+    target_status: direct
+    target_source: psd
+    psd_source_slug: soybean_oil_dce
+    psd_commodity: soybean_oil
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: united_states
+        psd_country: United States
+        role: supply_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: supply_origin
+      - origin_key: argentina
+        psd_country: Argentina
+        role: supply_origin
+    note: DCE soybean oil uses China demand plus major product and crush supply origins.
+
+  - contract_key: soybeans_cbot
+    target_status: direct
+    target_source: psd
+    psd_source_slug: soybeans_cbot
+    psd_commodity: soybeans
+    mapping_confidence: high
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: united_states
+        psd_country: United States
+        role: contract_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: global_origin
+      - origin_key: argentina
+        psd_country: Argentina
+        role: global_origin
+    note: CBOT soybeans maps cleanly to PSD soybean country balance sheets.
+
+  - contract_key: soybeans_no_1_dce
+    target_status: proxy
+    target_source: psd
+    psd_source_slug: soybeans_no_1_dce
+    psd_commodity: soybeans
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: united_states
+        psd_country: United States
+        role: supply_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: supply_origin
+    note: DCE No. 1 soybeans are domestic/non-GMO style; PSD soybeans are broader aggregate soybean balance sheets.
+
+  - contract_key: soybeans_no_2_dce
+    target_status: proxy
+    target_source: psd
+    psd_source_slug: soybeans_no_2_dce
+    psd_commodity: soybeans
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: china
+        psd_country: China
+        role: demand_origin
+      - origin_key: united_states
+        psd_country: United States
+        role: supply_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: supply_origin
+    note: DCE No. 2 soybeans are import/GMO style; PSD soybeans are broader aggregate soybean balance sheets.
+
+  - contract_key: white_sugar
+    target_status: aggregate_proxy
+    target_source: psd
+    psd_source_slug: white_sugar
+    psd_commodity: sugar
+    mapping_confidence: medium
+    allowed_targets:
+      - psd_production_anomaly_pct
+      - psd_ending_stocks_anomaly_pct
+      - psd_stock_to_use_anomaly_pct
+      - psd_exports_anomaly_pct
+      - psd_imports_anomaly_pct
+      - psd_domestic_use_anomaly_pct
+    target_origins:
+      - origin_key: european_union
+        psd_country: European Union
+        role: contract_origin
+      - origin_key: india
+        psd_country: India
+        role: global_origin
+      - origin_key: brazil
+        psd_country: Brazil
+        role: global_origin
+    note: PSD sugar is aggregate sugar and does not split raw versus refined sugar.

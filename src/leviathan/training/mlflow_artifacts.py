@@ -13,6 +13,7 @@ import json
 import math
 from pathlib import Path
 import tempfile
+import time
 from typing import Any
 
 import numpy as np
@@ -123,6 +124,30 @@ def feature_importance_frame(model: object, feature_cols: list[str]) -> pd.DataF
 
 def log_fold_step_metrics(mlflow, result) -> None:
     """Log fold metrics with test_year as the MLflow metric step."""
+    try:
+        run = mlflow.active_run()
+        if run is not None:
+            from mlflow.entities import Metric
+            from mlflow.tracking import MlflowClient
+
+            timestamp = int(time.time() * 1000)
+            metrics = []
+            for fold in result.folds:
+                step = int(fold.test_year)
+                for name, value in (
+                    ("fold_rmse", fold.rmse),
+                    ("fold_mae", fold.mae),
+                    ("fold_directional_accuracy", fold.directional_accuracy),
+                ):
+                    if value is None or not np.isfinite(value):
+                        continue
+                    metrics.append(Metric(name, float(value), timestamp, step))
+            if metrics:
+                MlflowClient().log_batch(run.info.run_id, metrics=metrics)
+            return
+    except Exception:  # noqa: BLE001 - fall back to fluent calls for older clients
+        pass
+
     for fold in result.folds:
         step = int(fold.test_year)
         for name, value in (

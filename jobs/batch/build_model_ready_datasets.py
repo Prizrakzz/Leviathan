@@ -19,6 +19,12 @@ from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 from leviathan.features.spine import load_countries
 from leviathan.model_datasets.builder import build_commodity_model_datasets
+from leviathan.model_datasets.psd_model_ready import (
+    PSD_MATRIX_ID_COLUMNS,
+    build_psd_commodity_model_datasets,
+)
+from leviathan.model_datasets.psd_target_builder import build_psd_target_panel
+from leviathan.model_datasets.psd_targets import load_psd_metric_targets
 from leviathan.model_datasets.targets import (
     default_source_dataset_version,
     load_target_definitions,
@@ -34,6 +40,32 @@ from leviathan.storage.paths import (
 from leviathan.storage.s3 import get_thread_local_s3_client
 
 logger = get_logger("build_model_ready_datasets")
+
+MODEL_READY_NON_FEATURE_COLUMNS = {
+    *{
+        "source_dataset_version",
+        "dataset_key",
+        "commodity",
+        "target_key",
+        "country",
+        "crop_year",
+        "target_value",
+        "actual_value",
+        "trend_prediction",
+        "prior_year_value",
+        "trailing_mean_prediction",
+        "zero_anomaly_baseline",
+        "prior_year_anomaly_baseline",
+        "trailing_mean_anomaly_baseline",
+        "trailing_trend_anomaly_baseline",
+        "history_years",
+        "is_trainable",
+        "excluded_reason",
+        "target_title",
+        "target_unit",
+    },
+    *PSD_MATRIX_ID_COLUMNS,
+}
 
 
 def _git_sha() -> str:
@@ -203,29 +235,86 @@ def _process_commodity(
             "row_count": int(len(matrix_df)),
             "column_count": int(len(matrix_df.columns)),
             "feature_count": int(
-                len([
-                    c for c in matrix_df.columns
-                    if c not in {
-                        "source_dataset_version",
-                        "dataset_key",
-                        "commodity",
-                        "target_key",
-                        "country",
-                        "crop_year",
-                        "target_value",
-                        "actual_value",
-                        "trend_prediction",
-                        "prior_year_value",
-                        "trailing_mean_prediction",
-                        "zero_anomaly_baseline",
-                        "prior_year_anomaly_baseline",
-                        "trailing_mean_anomaly_baseline",
-                        "trailing_trend_anomaly_baseline",
-                        "history_years",
-                        "is_trainable",
-                        "excluded_reason",
-                    }
-                ])
+                len([c for c in matrix_df.columns if c not in MODEL_READY_NON_FEATURE_COLUMNS])
+            ),
+        })
+
+    result["baseline_metrics"] = built.baseline_metrics
+    result["status"] = "written"
+    return result
+
+
+def _process_psd_commodity(
+    args: argparse.Namespace,
+    commodity: str,
+    psd_targets: pd.DataFrame,
+    feature_membership: pd.DataFrame,
+    target_keys: tuple[str, ...],
+) -> dict:
+    matrix_key = gold_feature_matrix_version_key(args.source_dataset_version, commodity)
+    result = {
+        "commodity": commodity,
+        "status": "unknown",
+        "matrix_key": matrix_key,
+        "target_outputs": [],
+        "matrix_outputs": [],
+        "summaries": [],
+    }
+    try:
+        matrix = _read_parquet(args, matrix_key)
+    except FileNotFoundError:
+        result["status"] = "skipped_missing_matrix"
+        return result
+    except Exception as exc:  # noqa: BLE001
+        response = getattr(exc, "response", {})
+        code = str(response.get("Error", {}).get("Code", ""))
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            result["status"] = "skipped_missing_matrix"
+            return result
+        raise
+
+    built = build_psd_commodity_model_datasets(
+        matrix,
+        psd_targets,
+        commodity=commodity,
+        feature_membership=feature_membership,
+        target_keys=target_keys,
+    )
+    result["summaries"] = built.summaries
+    if args.dry_run:
+        result["status"] = "dry_run"
+        return result
+
+    for dataset_key, target_df in built.target_tables.items():
+        key = gold_model_ready_target_key(
+            args.model_dataset_version, dataset_key, commodity
+        )
+        status = _write_bytes(
+            args, key, _parquet_bytes(target_df), "application/octet-stream"
+        )
+        result["target_outputs"].append({
+            "dataset_key": dataset_key,
+            "key": key,
+            "status": status,
+            "row_count": int(len(target_df)),
+        })
+
+    for (dataset_key, target_key), matrix_df in built.matrices.items():
+        key = gold_model_ready_matrix_key(
+            args.model_dataset_version, dataset_key, commodity, target_key
+        )
+        status = _write_bytes(
+            args, key, _parquet_bytes(matrix_df), "application/octet-stream"
+        )
+        result["matrix_outputs"].append({
+            "dataset_key": dataset_key,
+            "target_key": target_key,
+            "key": key,
+            "status": status,
+            "row_count": int(len(matrix_df)),
+            "column_count": int(len(matrix_df.columns)),
+            "feature_count": int(
+                len([c for c in matrix_df.columns if c not in MODEL_READY_NON_FEATURE_COLUMNS])
             ),
         })
 
@@ -242,6 +331,8 @@ def _build_manifest(
     commodities: list[str],
     results: list[dict],
     baseline_metrics: pd.DataFrame,
+    target_source: str,
+    psd_mapping_sha: str | None = None,
 ) -> dict:
     built = [r for r in results if r["status"] in {"written", "dry_run"}]
     failed = [r for r in results if r["status"] == "error"]
@@ -253,9 +344,20 @@ def _build_manifest(
     ]
     built_targets = [s for s in target_summaries if s.get("status") == "built"]
 
-    return {
+    target_status_counts: dict[str, int] = {}
+    mapping_confidence_counts: dict[str, int] = {}
+    for summary in built_targets:
+        for key, value in (summary.get("target_status_counts") or {}).items():
+            target_status_counts[str(key)] = target_status_counts.get(str(key), 0) + int(value)
+        for key, value in (summary.get("mapping_confidence_counts") or {}).items():
+            mapping_confidence_counts[str(key)] = (
+                mapping_confidence_counts.get(str(key), 0) + int(value)
+            )
+
+    manifest = {
         "task": "build_model_ready_datasets",
         "dataset_kind": "gold_model_ready_dataset_version",
+        "target_source": target_source,
         "model_dataset_version": args.model_dataset_version,
         "source_dataset_version": args.source_dataset_version,
         "built_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -275,6 +377,8 @@ def _build_manifest(
             )),
             "matrix_count": int(sum(len(r.get("matrix_outputs", [])) for r in results)),
             "baseline_metric_count": int(len(baseline_metrics)),
+            "target_status_counts": target_status_counts,
+            "mapping_confidence_counts": mapping_confidence_counts,
         },
         "targets": target_summaries,
         "baseline_metrics": {
@@ -297,6 +401,12 @@ def _build_manifest(
         },
         "commodities": results,
     }
+    if psd_mapping_sha:
+        manifest["psd_mapping_sha"] = psd_mapping_sha
+        manifest["psd_metric_target_config"] = (
+            args.psd_target_config or "configs/ml/psd_metric_targets.yaml"
+        )
+    return manifest
 
 
 def _parse_args() -> argparse.Namespace:
@@ -309,6 +419,18 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--source-dataset-version", default=None, dest="source_dataset_version")
     parser.add_argument("--model-dataset-version", default=None, dest="model_dataset_version")
     parser.add_argument("--target-config", default=None, dest="target_config")
+    parser.add_argument(
+        "--target-source",
+        choices=["faostat", "psd"],
+        default="faostat",
+        dest="target_source",
+    )
+    parser.add_argument(
+        "--psd-source-key",
+        default="silver/psd/part-000.parquet",
+        dest="psd_source_key",
+    )
+    parser.add_argument("--psd-target-config", default=None, dest="psd_target_config")
     parser.add_argument("--commodities", default="all")
     parser.add_argument("--target-keys", default="", dest="target_keys")
     parser.add_argument("--workers", type=int, default=4)
@@ -333,25 +455,41 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     load_env()
     args = _parse_args()
-    target_definitions, target_config_sha, target_config = load_target_definitions(
-        args.target_config
-    )
-    if args.target_keys and args.target_keys.strip().lower() not in {"none", "null"}:
-        allowed = {part.strip() for part in args.target_keys.split(",") if part.strip()}
-        target_definitions = [
-            definition for definition in target_definitions
-            if definition.target_key in allowed
-        ]
-        missing = allowed - {definition.target_key for definition in target_definitions}
+    target_definitions = []
+    psd_targets = pd.DataFrame()
+    psd_mapping_sha = None
+    if args.target_source == "faostat":
+        target_definitions, target_config_sha, target_config = load_target_definitions(
+            args.target_config
+        )
+        if args.target_keys and args.target_keys.strip().lower() not in {"none", "null"}:
+            allowed = {part.strip() for part in args.target_keys.split(",") if part.strip()}
+            target_definitions = [
+                definition for definition in target_definitions
+                if definition.target_key in allowed
+            ]
+            missing = allowed - {definition.target_key for definition in target_definitions}
+            if missing:
+                raise SystemExit(f"unknown target keys: {sorted(missing)}")
+        if not target_definitions:
+            raise SystemExit("no target definitions selected")
+        args.source_dataset_version = (
+            args.source_dataset_version
+            or default_source_dataset_version(target_config)
+        )
+    else:
+        psd_config = load_psd_metric_targets(args.psd_target_config)
+        target_config_sha = psd_config.config_sha
+        target_config = psd_config.raw
+        psd_mapping_sha = psd_config.config_sha
+        requested_target_keys = (
+            tuple(part.strip() for part in args.target_keys.split(",") if part.strip())
+            if args.target_keys and args.target_keys.strip().lower() not in {"none", "null"}
+            else ()
+        )
+        missing = set(requested_target_keys) - set(psd_config.metrics)
         if missing:
-            raise SystemExit(f"unknown target keys: {sorted(missing)}")
-    if not target_definitions:
-        raise SystemExit("no target definitions selected")
-
-    args.source_dataset_version = (
-        args.source_dataset_version
-        or default_source_dataset_version(target_config)
-    )
+            raise SystemExit(f"unknown PSD target keys: {sorted(missing)}")
     if not args.source_dataset_version:
         raise SystemExit("--source-dataset-version is required")
     args.model_dataset_version = (
@@ -367,15 +505,33 @@ def main() -> None:
     feature_membership = _read_parquet(
         args, gold_feature_set_version_key(args.source_dataset_version)
     )
+    if args.target_source == "psd":
+        psd_source = _read_parquet(args, args.psd_source_key)
+        psd_targets = build_psd_target_panel(
+            psd_source,
+            source_dataset_version=args.source_dataset_version,
+            config=psd_config,
+            commodities=commodities,
+        )
+        if requested_target_keys:
+            psd_targets = psd_targets.loc[
+                psd_targets["target_key"].isin(set(requested_target_keys))
+            ].copy()
+    else:
+        requested_target_keys = ()
+
     logger.info(
         (
-            "Building model-ready datasets version=%s source=%s commodities=%d "
-            "targets=%d workers=%d dry_run=%s"
+            "Building model-ready datasets version=%s source=%s target_source=%s "
+            "commodities=%d targets=%d workers=%d dry_run=%s"
         ),
         args.model_dataset_version,
         args.source_dataset_version,
+        args.target_source,
         len(commodities),
-        len(target_definitions),
+        len(target_definitions) if args.target_source == "faostat" else (
+            len(requested_target_keys) if requested_target_keys else len(psd_config.metrics)
+        ),
         args.workers,
         args.dry_run,
     )
@@ -384,11 +540,12 @@ def main() -> None:
     with ThreadPoolExecutor(max_workers=min(args.workers, len(commodities))) as executor:
         future_to_commodity = {
             executor.submit(
-                _process_commodity,
+                _process_commodity if args.target_source == "faostat" else _process_psd_commodity,
                 args,
                 commodity,
-                target_definitions,
+                target_definitions if args.target_source == "faostat" else psd_targets,
                 feature_membership,
+                *(() if args.target_source == "faostat" else (requested_target_keys,)),
             ): commodity
             for commodity in commodities
         }
@@ -438,6 +595,8 @@ def main() -> None:
         commodities=commodities,
         results=results,
         baseline_metrics=baseline_metrics,
+        target_source=args.target_source,
+        psd_mapping_sha=psd_mapping_sha,
     )
 
     if not args.dry_run:

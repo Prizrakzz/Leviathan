@@ -1,0 +1,283 @@
+"""Build model-ready matrices from PSD target panels."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Iterable
+
+import pandas as pd
+
+from leviathan.features.feature_sets import selected_features_for_set
+from leviathan.model_datasets.baselines import compute_baseline_metrics
+from leviathan.model_datasets.builder import CommodityModelDataset
+from leviathan.model_datasets.psd_target_builder import PSD_TARGET_COLUMNS
+
+PSD_DATASET_KEY = "psd_snd_anomaly"
+PSD_BASELINES = ("zero_anomaly", "prior_year", "trailing_mean", "trailing_linear_trend")
+DEFAULT_PSD_FEATURE_SETS = (
+    "preseason_physical",
+    "inseason_weather",
+    "crop_condition",
+    "official_revision",
+    "physical_flow",
+    "balance_sheet",
+    "planting_incentives",
+    "trade_competitiveness",
+    "tail_risk",
+    "data_quality",
+)
+
+PSD_MATRIX_ID_COLUMNS = [
+    "source_dataset_version",
+    "dataset_key",
+    "commodity",
+    "contract_key",
+    "target_key",
+    "target_source",
+    "target_family",
+    "target_attribute",
+    "target_source_table",
+    "target_unit",
+    "target_value_unit",
+    "target_status",
+    "mapping_confidence",
+    "psd_source_slug",
+    "psd_commodity",
+    "psd_country",
+    "origin_key",
+    "origin_role",
+    "country",
+    "crop_year",
+    "target_market_year",
+    "target_value",
+    "actual_value",
+    "trend_prediction",
+    "prior_year_value",
+    "trailing_mean_prediction",
+    "zero_anomaly_baseline",
+    "prior_year_anomaly_baseline",
+    "trailing_mean_anomaly_baseline",
+    "trailing_trend_anomaly_baseline",
+    "history_years",
+    "is_trainable",
+    "excluded_reason",
+    "target_release_context",
+    "target_observation_release_date",
+    "target_source_vintage",
+    "psd_mapping_sha",
+]
+
+PSD_TARGET_NATURAL_KEY = ["commodity", "country", "crop_year", "target_key"]
+
+
+@dataclass(frozen=True)
+class PSDModelReadyBuildConfig:
+    """Configuration for PSD model-ready matrix materialization."""
+
+    compatible_feature_sets: tuple[str, ...] = DEFAULT_PSD_FEATURE_SETS
+    baselines: tuple[str, ...] = PSD_BASELINES
+
+
+def _feature_union(
+    matrix: pd.DataFrame,
+    membership_df: pd.DataFrame,
+    feature_set_ids: Iterable[str],
+) -> list[str]:
+    features: set[str] = set()
+    for feature_set_id in feature_set_ids:
+        try:
+            features.update(selected_features_for_set(membership_df, feature_set_id))
+        except ValueError:
+            continue
+    matrix_cols = set(matrix.columns)
+    return sorted(
+        feature
+        for feature in features
+        if feature in matrix_cols and not feature.startswith("label_")
+    )
+
+
+def _validate_feature_matrix(matrix: pd.DataFrame, commodity: str) -> None:
+    required = {"country", "crop_year"}
+    missing = required - set(matrix.columns)
+    if missing:
+        raise ValueError(f"{commodity}: feature matrix missing columns {sorted(missing)}")
+    duplicates = matrix.duplicated(["country", "crop_year"], keep=False)
+    if duplicates.any():
+        keys = (
+            matrix.loc[duplicates, ["country", "crop_year"]]
+            .drop_duplicates()
+            .sort_values(["country", "crop_year"])
+            .to_dict("records")
+        )
+        raise ValueError(f"{commodity}: duplicate feature matrix keys {keys[:5]}")
+
+
+def _validate_psd_targets(targets: pd.DataFrame, commodity: str) -> None:
+    required = set(PSD_MATRIX_ID_COLUMNS) | {"target_title"}
+    missing = required - set(targets.columns)
+    if missing:
+        raise ValueError(f"{commodity}: PSD target panel missing columns {sorted(missing)}")
+    duplicates = targets.duplicated(PSD_TARGET_NATURAL_KEY, keep=False)
+    if duplicates.any():
+        keys = (
+            targets.loc[duplicates, PSD_TARGET_NATURAL_KEY]
+            .drop_duplicates()
+            .sort_values(PSD_TARGET_NATURAL_KEY)
+            .to_dict("records")
+        )
+        raise ValueError(f"{commodity}: duplicate PSD target keys {keys[:5]}")
+
+
+def _mark_missing_features(model_df: pd.DataFrame) -> pd.DataFrame:
+    out = model_df.copy()
+    if "_features_available" not in out.columns:
+        return out
+    missing = out["_features_available"].ne(True)
+    if missing.any():
+        out.loc[missing, "is_trainable"] = False
+        blank_reason = out["excluded_reason"].fillna("").astype(str).str.len() == 0
+        out.loc[missing & blank_reason, "excluded_reason"] = "missing_features"
+    return out.drop(columns=["_features_available"])
+
+
+def _matrix_for_target(
+    feature_matrix: pd.DataFrame,
+    target_df: pd.DataFrame,
+    feature_cols: list[str],
+) -> pd.DataFrame:
+    feature_frame = feature_matrix[["country", "crop_year"] + feature_cols].copy()
+    feature_frame["_features_available"] = True
+    merged = target_df[PSD_MATRIX_ID_COLUMNS].merge(
+        feature_frame,
+        on=["country", "crop_year"],
+        how="left",
+        validate="many_to_one",
+    )
+    merged = _mark_missing_features(merged)
+    return merged[PSD_MATRIX_ID_COLUMNS + feature_cols].sort_values(
+        ["country", "crop_year"]
+    ).reset_index(drop=True)
+
+
+def build_psd_commodity_model_datasets(
+    feature_matrix: pd.DataFrame,
+    psd_targets: pd.DataFrame,
+    *,
+    commodity: str,
+    feature_membership: pd.DataFrame,
+    config: PSDModelReadyBuildConfig | None = None,
+    target_keys: tuple[str, ...] = (),
+) -> CommodityModelDataset:
+    """Build model-ready PSD target/matrix artifacts for one commodity."""
+    build_config = config or PSDModelReadyBuildConfig()
+    _validate_feature_matrix(feature_matrix, commodity)
+    if psd_targets.empty:
+        summaries = [{
+            "commodity": commodity,
+            "dataset_key": PSD_DATASET_KEY,
+            "status": "skipped_no_psd_targets",
+        }]
+        return CommodityModelDataset(
+            commodity=commodity,
+            target_tables={},
+            matrices={},
+            baseline_metrics=pd.DataFrame(
+                columns=[
+                    "dataset_key",
+                    "commodity",
+                    "target_key",
+                    "baseline_name",
+                    "n_rows",
+                    "rmse",
+                    "mae",
+                    "directional_accuracy",
+                ]
+            ),
+            summaries=summaries,
+        )
+
+    target_df = psd_targets.loc[psd_targets["commodity"] == commodity].copy()
+    if target_keys:
+        target_df = target_df.loc[target_df["target_key"].isin(set(target_keys))].copy()
+    if target_df.empty:
+        summaries = [{
+            "commodity": commodity,
+            "dataset_key": PSD_DATASET_KEY,
+            "status": "skipped_no_selected_psd_targets",
+        }]
+        return CommodityModelDataset(
+            commodity=commodity,
+            target_tables={},
+            matrices={},
+            baseline_metrics=pd.DataFrame(
+                columns=[
+                    "dataset_key",
+                    "commodity",
+                    "target_key",
+                    "baseline_name",
+                    "n_rows",
+                    "rmse",
+                    "mae",
+                    "directional_accuracy",
+                ]
+            ),
+            summaries=summaries,
+        )
+
+    _validate_psd_targets(target_df, commodity)
+    feature_cols = _feature_union(
+        feature_matrix, feature_membership, build_config.compatible_feature_sets
+    )
+    matrices: dict[tuple[str, str], pd.DataFrame] = {}
+    metrics_frames: list[pd.DataFrame] = []
+    summaries: list[dict] = []
+
+    for target_key, target_group in target_df.groupby("target_key", sort=True):
+        target_group = target_group.sort_values(["country", "crop_year"]).reset_index(drop=True)
+        matrix_df = _matrix_for_target(feature_matrix, target_group, feature_cols)
+        matrices[(PSD_DATASET_KEY, str(target_key))] = matrix_df
+        metrics_frames.append(
+            compute_baseline_metrics(
+                matrix_df,
+                dataset_key=PSD_DATASET_KEY,
+                commodity=commodity,
+                target_key=str(target_key),
+                baseline_names=build_config.baselines,
+            )
+        )
+        trainable_rows = int(matrix_df["is_trainable"].fillna(False).astype(bool).sum())
+        summaries.append({
+            "commodity": commodity,
+            "dataset_key": PSD_DATASET_KEY,
+            "target_key": str(target_key),
+            "status": "built",
+            "row_count": int(len(matrix_df)),
+            "trainable_row_count": trainable_rows,
+            "feature_count": int(len(feature_cols)),
+            "target_source": "psd",
+            "target_family": str(target_group["target_family"].iloc[0]),
+            "target_attribute": str(target_group["target_attribute"].iloc[0]),
+            "target_status_counts": {
+                str(k): int(v)
+                for k, v in target_group["target_status"].value_counts().sort_index().items()
+            },
+            "mapping_confidence_counts": {
+                str(k): int(v)
+                for k, v in target_group["mapping_confidence"].value_counts().sort_index().items()
+            },
+            "origin_count": int(target_group["origin_key"].nunique()),
+            "target_market_year_min": int(target_group["target_market_year"].min()),
+            "target_market_year_max": int(target_group["target_market_year"].max()),
+        })
+
+    baseline_metrics = (
+        pd.concat(metrics_frames, ignore_index=True)
+        if metrics_frames else pd.DataFrame()
+    )
+    return CommodityModelDataset(
+        commodity=commodity,
+        target_tables={PSD_DATASET_KEY: target_df[PSD_TARGET_COLUMNS]},
+        matrices=matrices,
+        baseline_metrics=baseline_metrics,
+        summaries=summaries,
+    )

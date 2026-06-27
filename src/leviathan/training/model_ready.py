@@ -20,6 +20,7 @@ import pandas as pd
 from leviathan.features.feature_sets import selected_features_for_set
 from leviathan.model_datasets.baselines import BASELINE_COLUMNS
 from leviathan.model_datasets.builder import MATRIX_ID_COLUMNS
+from leviathan.model_datasets.psd_model_ready import PSD_MATRIX_ID_COLUMNS
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
@@ -29,7 +30,7 @@ from leviathan.storage.paths import (
 
 MODEL_READY_TARGET_COL = "target_value"
 
-MODEL_READY_EXCLUDED_FEATURE_COLUMNS = set(MATRIX_ID_COLUMNS) | {
+MODEL_READY_EXCLUDED_FEATURE_COLUMNS = set(MATRIX_ID_COLUMNS) | set(PSD_MATRIX_ID_COLUMNS) | {
     "target_title",
     "target_unit",
 }
