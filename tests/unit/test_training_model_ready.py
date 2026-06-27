@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from jobs.batch.train_commodity import _prediction_model_family
+from jobs.batch.train_commodity import _prediction_model_family, _write_predictions
 from leviathan.model_datasets.version_status import ModelDatasetVersionStatus
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
@@ -33,6 +33,10 @@ class _FakeS3:
 
     def get_object(self, *, Bucket: str, Key: str):  # noqa: N803
         return {"Body": io.BytesIO(self.objects[Key])}
+
+    def put_object(self, *, Bucket: str, Key: str, Body: bytes):  # noqa: N803
+        self.objects[Key] = Body
+        return {"ETag": '"fake"'}
 
 
 def _parquet_bytes(df: pd.DataFrame) -> bytes:
@@ -221,6 +225,41 @@ def test_prediction_model_family_routes_psd_legacy_and_snapshot_outputs() -> Non
         {},
         legacy,
     ) == "legacy_faostat_annual_anomaly"
+
+
+def test_prediction_writer_keys_include_cv_policy_to_preserve_sweep_variants() -> None:
+    s3 = _FakeS3({})
+    args = SimpleNamespace(
+        commodity="corn_cbot",
+        feature_set="preseason_physical",
+        tier=None,
+        target_key="psd_production_anomaly_pct",
+        target=None,
+        model_dataset_version="model_v",
+        dataset_key="psd_snd_anomaly",
+        source_dataset_version="gold_v",
+        model="xgboost",
+        cv_policy="rolling_25y",
+        prediction_model_family="psd_production_anomaly",
+    )
+    predictions = pd.DataFrame({
+        "country": ["united_states"],
+        "crop_year": [2024],
+        "y_actual": [0.01],
+        "y_pred": [0.02],
+    })
+
+    uri = _write_predictions(s3, "bucket", args, predictions, "run-1", "sha-1")
+
+    assert uri is not None
+    assert uri.endswith(
+        "corn_cbot__preseason_physical__psd_snd_anomaly__"
+        "psd_production_anomaly_pct__xgboost__rolling_25y.parquet"
+    )
+    key = uri.removeprefix("s3://bucket/")
+    written = pd.read_parquet(io.BytesIO(s3.objects[key]))
+    assert written.loc[0, "cv_policy"] == "rolling_25y"
+    assert written.loc[0, "model_dataset_version"] == "model_v"
 
 
 def test_baseline_metrics_are_fold_aligned_and_logged_flat() -> None:

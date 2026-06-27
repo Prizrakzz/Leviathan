@@ -292,10 +292,12 @@ def _write_predictions(s3, bucket, args, predictions, run_id, feature_set_sha) -
     pred_date = datetime.date.today().isoformat()
     dataset_part = f"{args.dataset_key}__" if args.model_dataset_version else ""
     model_family = getattr(args, "prediction_model_family", None) or "tier1_production"
+    cv_policy = sanitize_artifact_name(str(args.cv_policy))
     key = (
         f"{_PRED_PREFIX}model_family={sanitize_artifact_name(model_family)}/"
         f"prediction_date={pred_date}/"
-        f"{args.commodity}__{selection_name}__{dataset_part}{target_name}__{args.model}.parquet"
+        f"{args.commodity}__{selection_name}__{dataset_part}{target_name}__"
+        f"{args.model}__{cv_policy}.parquet"
     )
     buf = io.BytesIO()
     df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")

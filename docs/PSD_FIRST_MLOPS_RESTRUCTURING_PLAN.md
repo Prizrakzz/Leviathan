@@ -1818,6 +1818,18 @@ What not to do:
 
 ### Phase 9 - Dry-Run Experiment Plan
 
+Status: completed 2026-06-27.
+
+Completion note:
+
+- `docs/ops/PHASE9_PSD_CORN_EXPERIMENT_COMPLETION.md`
+- Controlled corn PSD production-anomaly sweep completed for
+  `preseason_physical`.
+- `psd_monthly_vintage_features` was intentionally blocked from completion
+  because the active feature-set artifact and model-ready matrix do not yet
+  contain that feature set.
+- No model was promoted.
+
 Objective:
 
 - Prove PSD-first targets train end-to-end before any promotion or cleanup.
