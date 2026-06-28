@@ -48,6 +48,7 @@ def _feature_matrix(years: list[int] | None = None) -> pd.DataFrame:
         "feature_a": [float(i) for i in range(len(years))],
         "feature_b": [float(i + 10) for i in range(len(years))],
         "psd_production_mom_revision": [float(i + 20) for i in range(len(years))],
+        "wasde_latest_revision": [float(i + 30) for i in range(len(years))],
         "label_production_quantity": [100.0 + i for i in range(len(years))],
     })
 
@@ -94,15 +95,17 @@ def _membership_with_corn_composite() -> pd.DataFrame:
             "feature_set_id": [
                 "corn_preseason_core_plus_wasde",
                 "corn_preseason_core_plus_wasde",
+                "corn_preseason_core_plus_wasde",
             ],
             "feature": [
                 "feature_a",
                 "feature_b",
+                "wasde_latest_revision",
             ],
-            "is_label": [False, False],
-            "feature_set_version": ["1", "1"],
-            "feature_set_sha": ["corn_wasde_sha", "corn_wasde_sha"],
-            "dataset_version": ["gold_v", "gold_v"],
+            "is_label": [False, False, False],
+            "feature_set_version": ["1", "1", "1"],
+            "feature_set_sha": ["corn_wasde_sha", "corn_wasde_sha", "corn_wasde_sha"],
+            "dataset_version": ["gold_v", "gold_v", "gold_v"],
         }),
     ], ignore_index=True)
 
@@ -878,6 +881,8 @@ def test_psd_snapshot_model_ready_supports_corn_composite_with_wasde() -> None:
     assert "feature_a" in matrix.columns
     assert "feature_b" in matrix.columns
     assert "wasde_latest_revision" in matrix.columns
+    assert "wasde_latest_revision_x" not in matrix.columns
+    assert "wasde_latest_revision_y" not in matrix.columns
     assert built.summaries[0]["feature_count_by_set"][
         "corn_preseason_core_plus_wasde"
     ] >= 3
