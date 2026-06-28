@@ -91,7 +91,7 @@ PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID = "preseason_physical_plus_psd_vintage
 PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID = "preseason_physical_plus_psd_snapshot"
 WASDE_MONTHLY_REVISION_FEATURE_SET_ID = "wasde_monthly_revision"
 PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID = "preseason_physical_plus_wasde_revision"
-DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
 PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS = {"country", "crop_year", "snapshot_stage", "as_of_date"}
 PSD_VINTAGE_FEATURE_SUFFIXES = (
     "latest_estimate_as_of",
@@ -112,6 +112,18 @@ PSD_SNAPSHOT_FEATURE_SET_ALIASES = {
     PSD_MONTHLY_VINTAGE_FEATURE_SET_ID: PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID: PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
 }
+PSD_CANONICAL_SNAPSHOT_FEATURE_SETS = {
+    PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
+    WASDE_MONTHLY_REVISION_FEATURE_SET_ID,
+    PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+}
+PSD_LEGACY_SNAPSHOT_FEATURE_SETS = set(PSD_SNAPSHOT_FEATURE_SET_ALIASES)
+PSD_SUPPORTED_SNAPSHOT_FEATURE_SETS = {
+    *PSD_CANONICAL_SNAPSHOT_FEATURE_SETS,
+    *PSD_LEGACY_SNAPSHOT_FEATURE_SETS,
+    "preseason_physical",
+    PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+}
 
 
 @dataclass(frozen=True)
@@ -120,6 +132,58 @@ class PSDModelReadyBuildConfig:
 
     compatible_feature_sets: tuple[str, ...] = DEFAULT_PSD_FEATURE_SETS
     baselines: tuple[str, ...] = PSD_BASELINES
+
+
+def snapshot_feature_set_contract_notes(feature_set_ids: Iterable[str]) -> list[dict[str, str]]:
+    """Return canonical/legacy status notes for requested snapshot feature sets."""
+    notes: list[dict[str, str]] = []
+    for feature_set_id in tuple(str(feature_set_id) for feature_set_id in feature_set_ids):
+        canonical = PSD_SNAPSHOT_FEATURE_SET_ALIASES.get(feature_set_id, feature_set_id)
+        status = "legacy_alias" if feature_set_id in PSD_LEGACY_SNAPSHOT_FEATURE_SETS else "canonical"
+        note = {
+            "feature_set_id": feature_set_id,
+            "status": status,
+            "canonical_feature_set_id": canonical,
+        }
+        if feature_set_id == PSD_MONTHLY_VINTAGE_FEATURE_SET_ID:
+            note["message"] = (
+                "Legacy compatibility alias. Current silver/psd is latest-bulk, "
+                "not true monthly release history; use psd_balance_sheet_snapshot "
+                "for PSD context and wasde_monthly_revision for revision signal."
+            )
+        elif feature_set_id == PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID:
+            note["message"] = (
+                "Legacy compatibility alias for preseason physical context plus PSD "
+                "snapshot context. Use preseason_physical_plus_wasde_revision for "
+                "the current monthly revision signal."
+            )
+        elif feature_set_id == PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID:
+            note["message"] = (
+                "PSD snapshot context requires visible PSD balance-sheet snapshot "
+                "features. It is not a monthly revision signal unless archived PSD "
+                "monthly releases are ingested."
+            )
+        elif feature_set_id == WASDE_MONTHLY_REVISION_FEATURE_SET_ID:
+            note["message"] = "Canonical monthly official revision feature set from WASDE."
+        elif feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
+            note["message"] = "Canonical combined static physical context plus WASDE revision feature set."
+        else:
+            note["message"] = "Supported snapshot feature set."
+        notes.append(note)
+    return notes
+
+
+def validate_snapshot_feature_set_ids(feature_set_ids: Iterable[str]) -> tuple[str, ...]:
+    """Fail fast on unsupported snapshot feature-set ids."""
+    requested = tuple(str(feature_set_id) for feature_set_id in feature_set_ids)
+    unknown = sorted(set(requested) - PSD_SUPPORTED_SNAPSHOT_FEATURE_SETS)
+    if unknown:
+        supported = sorted(PSD_SUPPORTED_SNAPSHOT_FEATURE_SETS)
+        raise ValueError(
+            "unsupported PSD snapshot feature sets "
+            f"{unknown}; supported snapshot feature sets are {supported}"
+        )
+    return requested
 
 
 def _feature_union(
@@ -206,7 +270,7 @@ def _snapshot_feature_columns(
     static_feature_matrix: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, list[str], dict[str, list[str]], dict[str, list[str]]]:
     """Resolve dynamic and optional static feature columns for snapshot matrices."""
-    requested = tuple(str(feature_set_id) for feature_set_id in feature_set_ids)
+    requested = validate_snapshot_feature_set_ids(feature_set_ids)
     raw_psd_cols = psd_vintage_feature_columns(dynamic_features)
     psd_cols, dropped_psd_cols = _drop_all_missing_feature_columns(
         dynamic_features,
@@ -258,6 +322,34 @@ def _snapshot_feature_columns(
             selected_by_set[feature_set_id] = _feature_union(
                 feature_matrix, feature_membership, (feature_set_id,)
             )
+
+    for feature_set_id in requested:
+        selected = selected_by_set.get(feature_set_id, [])
+        if feature_set_id == PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID and not psd_cols:
+            raise ValueError(
+                "PSD snapshot feature set psd_balance_sheet_snapshot emitted zero "
+                "usable PSD snapshot features. Current silver/psd may be latest-bulk "
+                "only; use wasde_monthly_revision for monthly revision signal."
+            )
+        if feature_set_id == WASDE_MONTHLY_REVISION_FEATURE_SET_ID and not wasde_cols:
+            raise ValueError(
+                "WASDE snapshot feature set wasde_monthly_revision emitted zero "
+                "usable WASDE revision features. Provide silver/wasde rows with "
+                "release_date <= snapshot as_of_date."
+            )
+        if feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
+            if not wasde_cols:
+                raise ValueError(
+                    "preseason_physical_plus_wasde_revision requires non-empty "
+                    "WASDE revision features."
+                )
+            if not static_cols:
+                raise ValueError(
+                    "preseason_physical_plus_wasde_revision requires non-empty "
+                    "preseason_physical static features."
+                )
+        if feature_set_id == "preseason_physical" and not selected:
+            raise ValueError("snapshot feature set preseason_physical emitted zero features")
 
     feature_cols = sorted({
         feature for features in selected_by_set.values() for feature in features
@@ -607,6 +699,10 @@ def build_psd_commodity_snapshot_model_datasets(
     build_config = config or PSDModelReadyBuildConfig(
         compatible_feature_sets=DEFAULT_PSD_SNAPSHOT_FEATURE_SETS
     )
+    compatible_feature_sets = validate_snapshot_feature_set_ids(
+        build_config.compatible_feature_sets
+    )
+    contract_notes = snapshot_feature_set_contract_notes(compatible_feature_sets)
     target_df = psd_targets.loc[psd_targets["commodity"] == commodity].copy()
     if target_keys:
         target_df = target_df.loc[target_df["target_key"].isin(set(target_keys))].copy()
@@ -681,7 +777,7 @@ def build_psd_commodity_snapshot_model_datasets(
     feature_matrix, feature_cols, selected_by_set, dropped_dynamic_cols = _snapshot_feature_columns(
         dynamic_features,
         feature_membership,
-        build_config.compatible_feature_sets,
+        compatible_feature_sets,
         static_feature_matrix=static_feature_matrix,
     )
     dynamic_cols = psd_vintage_feature_columns(dynamic_features)
@@ -760,7 +856,8 @@ def build_psd_commodity_snapshot_model_datasets(
             "snapshot_policy": snapshot_config.snapshot_policy,
             "snapshot_stages": sorted(matrix_df["snapshot_stage"].astype(str).unique()),
             "snapshot_count_per_target_row": int(len(snapshots["snapshot_stage"].unique())),
-            "compatible_feature_sets": list(build_config.compatible_feature_sets),
+            "compatible_feature_sets": list(compatible_feature_sets),
+            "snapshot_feature_set_contracts": contract_notes,
             "feature_count_by_set": {
                 feature_set_id: int(len(features))
                 for feature_set_id, features in selected_by_set.items()

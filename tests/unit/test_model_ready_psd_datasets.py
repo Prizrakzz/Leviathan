@@ -443,6 +443,9 @@ def test_psd_snapshot_model_ready_builds_named_stage_rows() -> None:
         calendar=load_crop_calendars()["corn_cbot"],
         snapshot_config=load_snapshot_stage_config(),
         snapshot_stage_ids=("early_inseason", "midseason"),
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=(PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+        ),
         target_keys=("psd_production_anomaly_pct",),
     )
 
@@ -460,6 +463,7 @@ def test_psd_snapshot_model_ready_builds_named_stage_rows() -> None:
     assert matrix["dataset_key"].eq(PSD_SNAPSHOT_DATASET_KEY).all()
     assert built.summaries[0]["vintage_feature_quality"]["feature_count"] > 0
     assert built.summaries[0]["vintage_join_audit"]["row_count"] > 0
+    assert built.summaries[0]["snapshot_feature_set_contracts"][0]["status"] == "canonical"
 
 
 def test_psd_vintage_snapshot_uses_explicit_target_market_year() -> None:
@@ -566,6 +570,9 @@ def test_psd_snapshot_model_ready_infers_vintage_features_without_source_feature
         calendar=load_crop_calendars()["corn_cbot"],
         snapshot_config=load_snapshot_stage_config(),
         snapshot_stage_ids=("early_inseason", "midseason"),
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=(PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+        ),
         target_keys=("psd_production_anomaly_pct",),
     )
     matrix = built.matrices[
@@ -575,6 +582,83 @@ def test_psd_snapshot_model_ready_infers_vintage_features_without_source_feature
     assert "psd_production_latest_estimate_as_of" in matrix.columns
     assert "psd_production_mom_revision" in matrix.columns
     assert built.summaries[0]["feature_count_by_set"][PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID] > 0
+
+
+def test_psd_snapshot_model_ready_rejects_unknown_feature_set() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    with pytest.raises(ValueError, match="unsupported PSD snapshot feature sets"):
+        build_psd_commodity_snapshot_model_datasets(
+            psd_source,
+            psd_targets,
+            commodity="corn_cbot",
+            feature_membership=_membership(),
+            calendar=load_crop_calendars()["corn_cbot"],
+            snapshot_config=load_snapshot_stage_config(),
+            snapshot_stage_ids=("early_inseason",),
+            config=PSDModelReadyBuildConfig(
+                compatible_feature_sets=("typo_snapshot_set",)
+            ),
+            target_keys=("psd_production_anomaly_pct",),
+        )
+
+
+def test_psd_snapshot_model_ready_rejects_empty_canonical_wasde_features() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    with pytest.raises(ValueError, match="wasde_monthly_revision emitted zero"):
+        build_psd_commodity_snapshot_model_datasets(
+            psd_source,
+            psd_targets,
+            commodity="corn_cbot",
+            feature_membership=_membership(),
+            calendar=load_crop_calendars()["corn_cbot"],
+            snapshot_config=load_snapshot_stage_config(),
+            as_of_date="1999-01-01",
+            include_named_stages=False,
+            config=PSDModelReadyBuildConfig(
+                compatible_feature_sets=(WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
+            ),
+            target_keys=("psd_production_anomaly_pct",),
+        )
+
+
+def test_psd_snapshot_model_ready_rejects_empty_canonical_psd_snapshot_features() -> None:
+    psd_source = _psd_source()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    with pytest.raises(ValueError, match="psd_balance_sheet_snapshot emitted zero"):
+        build_psd_commodity_snapshot_model_datasets(
+            psd_source,
+            psd_targets,
+            commodity="corn_cbot",
+            feature_membership=_membership(),
+            calendar=load_crop_calendars()["corn_cbot"],
+            snapshot_config=load_snapshot_stage_config(),
+            as_of_date="1999-01-01",
+            include_named_stages=False,
+            config=PSDModelReadyBuildConfig(
+                compatible_feature_sets=(PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+            ),
+            target_keys=("psd_production_anomaly_pct",),
+        )
 
 
 def test_psd_snapshot_model_ready_can_combine_preseason_and_vintage_features() -> None:
@@ -610,6 +694,10 @@ def test_psd_snapshot_model_ready_can_combine_preseason_and_vintage_features() -
     assert built.summaries[0]["feature_count_by_set"][
         PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID
     ] >= 3
+    assert built.summaries[0]["snapshot_feature_set_contracts"][0]["status"] == "legacy_alias"
+    assert built.summaries[0]["snapshot_feature_set_contracts"][0][
+        "canonical_feature_set_id"
+    ] == "preseason_physical_plus_psd_snapshot"
 
 
 def test_psd_snapshot_model_ready_adds_visible_wasde_revisions() -> None:
@@ -704,6 +792,9 @@ def test_psd_snapshot_model_ready_explicit_as_of_uses_only_visible_releases() ->
         snapshot_config=load_snapshot_stage_config(),
         as_of_date="2005-07-01",
         include_named_stages=False,
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=(PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+        ),
         target_keys=("psd_production_anomaly_pct",),
     )
 
@@ -737,6 +828,9 @@ def test_psd_snapshot_model_ready_prunes_all_missing_vintage_features() -> None:
         snapshot_config=load_snapshot_stage_config(),
         as_of_date="2005-07-01",
         include_named_stages=False,
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=(PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+        ),
         target_keys=("psd_production_anomaly_pct",),
     )
 
@@ -767,6 +861,9 @@ def test_psd_snapshot_features_are_invariant_to_future_revisions() -> None:
         "calendar": load_crop_calendars()["corn_cbot"],
         "snapshot_config": load_snapshot_stage_config(),
         "snapshot_stage_ids": ("early_inseason", "midseason"),
+        "config": PSDModelReadyBuildConfig(
+            compatible_feature_sets=(PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+        ),
         "target_keys": ("psd_production_anomaly_pct",),
     }
     without_future = build_psd_commodity_snapshot_model_datasets(
@@ -795,10 +892,13 @@ def test_model_ready_cli_writes_local_psd_snapshot_version(tmp_path: Path) -> No
     model_version = "mps"
     membership_key = gold_feature_set_version_key(source_version)
     psd_key = "silver/psd/part-000.parquet"
+    wasde_key = "silver/wasde/release_date=2005-06-10/part-000.parquet"
     (tmp_path / membership_key).parent.mkdir(parents=True)
     _membership_with_psd_vintage().to_parquet(tmp_path / membership_key, index=False)
     (tmp_path / psd_key).parent.mkdir(parents=True)
     _psd_source_with_monthly_vintages().to_parquet(tmp_path / psd_key, index=False)
+    (tmp_path / wasde_key).parent.mkdir(parents=True)
+    _wasde_source_with_revisions().to_parquet(tmp_path / wasde_key, index=False)
 
     subprocess.run(
         [
@@ -834,9 +934,12 @@ def test_model_ready_cli_writes_local_psd_snapshot_version(tmp_path: Path) -> No
 
     assert matrix["dataset_key"].eq(PSD_SNAPSHOT_DATASET_KEY).all()
     assert set(matrix["snapshot_stage"]) == {"early_inseason", "midseason"}
-    assert "psd_production_latest_estimate_as_of" in matrix.columns
+    assert "wasde_latest_revision" in matrix.columns
     assert manifest["snapshot_mode"] is True
     assert manifest["snapshot_stages"] == ["early_inseason", "midseason"]
+    assert manifest["snapshot_feature_set_contracts"][0]["feature_set_id"] == (
+        WASDE_MONTHLY_REVISION_FEATURE_SET_ID
+    )
 
 
 def test_model_ready_cli_writes_snapshot_model_ready_feature_sets(tmp_path: Path) -> None:
@@ -869,6 +972,8 @@ def test_model_ready_cli_writes_snapshot_model_ready_feature_sets(tmp_path: Path
             "corn_cbot",
             "--target-keys",
             "psd_production_anomaly_pct",
+            "--compatible-feature-sets",
+            PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
             "--workers",
             "2",
         ],

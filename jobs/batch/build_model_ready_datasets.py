@@ -31,7 +31,9 @@ from leviathan.model_datasets.psd_model_ready import (
     PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
     PSD_SNAPSHOT_MATRIX_ID_COLUMNS,
+    snapshot_feature_set_contract_notes,
     psd_vintage_feature_columns,
+    validate_snapshot_feature_set_ids,
     wasde_snapshot_feature_columns,
     WASDE_MONTHLY_REVISION_FEATURE_SET_ID,
     build_psd_commodity_model_datasets,
@@ -362,7 +364,7 @@ def _snapshot_feature_set_observations(
     source_meta = _source_feature_metadata(feature_membership)
     matrix_cols = set(str(col) for col in matrix_df.columns)
     requested = tuple(
-        args.compatible_feature_sets_tuple or (PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+        args.compatible_feature_sets_tuple or (WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
     )
     psd_features = psd_vintage_feature_columns(matrix_df)
     wasde_features = wasde_snapshot_feature_columns(matrix_df)
@@ -850,6 +852,9 @@ def _build_manifest(
             )
         )
         manifest["explicit_as_of_date"] = args.as_of_date
+        manifest["snapshot_feature_set_contracts"] = snapshot_feature_set_contract_notes(
+            args.compatible_feature_sets_tuple
+        )
     return manifest
 
 
@@ -1005,7 +1010,10 @@ def main() -> None:
         args.snapshot_config_obj = load_snapshot_stage_config(args.snapshot_config)
         args.crop_calendars = load_crop_calendars()
         if not args.compatible_feature_sets_tuple:
-            args.compatible_feature_sets_tuple = (PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+            args.compatible_feature_sets_tuple = (WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
+        args.compatible_feature_sets_tuple = validate_snapshot_feature_set_ids(
+            args.compatible_feature_sets_tuple
+        )
     else:
         args.snapshot_config_obj = None
         args.crop_calendars = {}
