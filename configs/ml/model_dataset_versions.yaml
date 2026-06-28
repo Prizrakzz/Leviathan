@@ -34,6 +34,22 @@ versions:
     notes: Current PSD-first smoke research surface for corn, soybeans, soybean oil, and soft red winter wheat. Replace with a full PSD-first version when built.
 
   - dataset_version: 20260627T190257Z_1a042698_phase9_psd_snapshot_corn
+    status: legacy
+    default_discovery_allowed: false
+    target_source: psd
+    dataset_keys:
+      - psd_snd_anomaly_snapshot
+    source_gold_dataset_version: 20260626T010217Z_6725de02_phase7_full
+    scope: snapshot_smoke
+    commodity_count: 1
+    matrix_count: 1
+    target_count: 1
+    legacy_reason: Superseded by the Phase 1 PSD vintage-pruned snapshot surface; retained for replay because it exposed all-missing MoM revision columns from the current silver/psd source.
+    replaced_by: 20260628T012959Z_57a6b3ea_phase1_psd_vintage_pruned
+    default_priority: 0
+    notes: Corn PSD production-anomaly snapshot surface with point-in-time monthly PSD vintage features and combined preseason-plus-vintage feature-set membership.
+
+  - dataset_version: 20260628T012959Z_57a6b3ea_phase1_psd_vintage_pruned
     status: active
     default_discovery_allowed: true
     target_source: psd
@@ -44,8 +60,8 @@ versions:
     commodity_count: 1
     matrix_count: 1
     target_count: 1
-    default_priority: 90
-    notes: Corn PSD production-anomaly snapshot surface with point-in-time monthly PSD vintage features and combined preseason-plus-vintage feature-set membership.
+    default_priority: 95
+    notes: Phase 1 corn PSD production-anomaly snapshot surface. Uses explicit target-market-year snapshot context, records PSD vintage join/quality audit metadata, and prunes all-missing MoM revision features caused by the current silver/psd one-release-per-market-year limitation.
 
   - dataset_version: 20260626T104732Z_a2576e84_phase8_model_ready
     status: legacy

@@ -9,7 +9,8 @@ from leviathan.model_datasets.version_status import (
 
 
 PSD_SMOKE_VERSION = "20260627T121215Z_phase5_psd_smoke"
-PSD_SNAPSHOT_VERSION = "20260627T190257Z_1a042698_phase9_psd_snapshot_corn"
+LEGACY_PSD_SNAPSHOT_VERSION = "20260627T190257Z_1a042698_phase9_psd_snapshot_corn"
+PSD_SNAPSHOT_VERSION = "20260628T012959Z_57a6b3ea_phase1_psd_vintage_pruned"
 FAOSTAT_FULL_VERSION = "20260626T104732Z_a2576e84_phase8_model_ready"
 
 
@@ -17,9 +18,11 @@ def test_registry_loads_known_model_dataset_versions() -> None:
     registry = load_model_dataset_version_registry()
 
     assert PSD_SMOKE_VERSION in registry.versions
+    assert LEGACY_PSD_SNAPSHOT_VERSION in registry.versions
     assert PSD_SNAPSHOT_VERSION in registry.versions
     assert FAOSTAT_FULL_VERSION in registry.versions
     assert registry.versions[PSD_SMOKE_VERSION].status == "active"
+    assert registry.versions[LEGACY_PSD_SNAPSHOT_VERSION].status == "legacy"
     assert registry.versions[PSD_SNAPSHOT_VERSION].status == "active"
     assert registry.versions[FAOSTAT_FULL_VERSION].status == "legacy"
 

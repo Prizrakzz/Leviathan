@@ -20,6 +20,16 @@ _CONFIG_PATH = Path(__file__).resolve().parents[4] / "configs" / "ml" / "psd_vin
 
 _REQUIRED_COLUMNS = {"country", "market_year", "release_date"}
 SNAPSHOT_ID_COLUMNS = ["country", "crop_year", "snapshot_stage", "as_of_date"]
+SNAPSHOT_CONTEXT_COLUMNS = SNAPSHOT_ID_COLUMNS + ["target_market_year"]
+_FEATURE_SUFFIXES = (
+    "latest_estimate_as_of",
+    "mom_revision",
+    "revision_since_first_forecast",
+    "consecutive_revision_count",
+    "current_vs_trend",
+    "month_code",
+    "release_count_for_market_year",
+)
 
 
 def _finite(value: object) -> bool:
@@ -132,6 +142,56 @@ def _prepare_psd(df: pd.DataFrame, columns: list[dict[str, str]]) -> pd.DataFram
     return out.sort_values(["country", "market_year", "release_date"]).reset_index(drop=True)
 
 
+def _prepare_snapshot_context(
+    snapshots: pd.DataFrame,
+    countries: list[str] | tuple[str, ...] | set[str],
+) -> pd.DataFrame:
+    required_snapshot_cols = {"crop_year", "snapshot_stage", "as_of_date"}
+    missing = required_snapshot_cols - set(snapshots.columns)
+    if missing:
+        raise ValueError(f"snapshot frame missing columns: {sorted(missing)}")
+
+    base = snapshots.copy()
+    base["crop_year"] = pd.to_numeric(base["crop_year"], errors="coerce")
+    base["as_of_date"] = pd.to_datetime(base["as_of_date"], errors="coerce")
+    base = base.dropna(subset=["crop_year", "as_of_date"])
+    base["crop_year"] = base["crop_year"].astype(int)
+    base["snapshot_stage"] = base["snapshot_stage"].astype(str)
+
+    if "target_market_year" not in base.columns:
+        if "market_year" in base.columns:
+            base["target_market_year"] = pd.to_numeric(
+                base["market_year"], errors="coerce"
+            )
+        else:
+            base["target_market_year"] = base["crop_year"]
+    else:
+        base["target_market_year"] = pd.to_numeric(
+            base["target_market_year"], errors="coerce"
+        )
+    base["target_market_year"] = base["target_market_year"].fillna(base["crop_year"]).astype(int)
+
+    country_values = sorted({str(country) for country in countries})
+    if "country" in base.columns:
+        base["country"] = base["country"].astype(str)
+        base = base.loc[base["country"].isin(country_values)].copy()
+    else:
+        country_frame = pd.DataFrame({"country": country_values})
+        base = country_frame.merge(base, how="cross")
+
+    out = base[SNAPSHOT_CONTEXT_COLUMNS].copy()
+    duplicates = out.duplicated(SNAPSHOT_ID_COLUMNS, keep=False)
+    if duplicates.any():
+        keys = (
+            out.loc[duplicates, SNAPSHOT_ID_COLUMNS]
+            .drop_duplicates()
+            .sort_values(SNAPSHOT_ID_COLUMNS)
+            .to_dict("records")
+        )
+        raise ValueError(f"duplicate PSD vintage snapshot context keys {keys[:5]}")
+    return out.sort_values(SNAPSHOT_ID_COLUMNS).reset_index(drop=True)
+
+
 def _feature_values_for_visible_snapshot(
     country_df: pd.DataFrame,
     columns: list[dict[str, str]],
@@ -194,6 +254,183 @@ def _feature_values_for_visible_snapshot(
     return features
 
 
+def build_psd_vintage_snapshot_join_audit(
+    psd_df: pd.DataFrame,
+    *,
+    countries: list[str] | tuple[str, ...] | set[str],
+    snapshots: pd.DataFrame,
+) -> pd.DataFrame:
+    """Explain PSD monthly-vintage source coverage at every snapshot.
+
+    The audit is intentionally row-grain and mechanical.  It lets model-ready
+    builds distinguish "no country mapping", "no market-year row", "no visible
+    release yet", and "visible release exists but the metric is null" instead
+    of collapsing every failure into an empty feature column.
+    """
+    config = _load_config()
+    columns = [
+        item for item in _allowed_columns(config)
+        if item["attribute"] in psd_df.columns
+    ]
+    audit_columns = SNAPSHOT_CONTEXT_COLUMNS + [
+        "psd_attribute",
+        "feature_prefix",
+        "country_source_rows",
+        "market_year_rows",
+        "visible_rows",
+        "visible_non_null_rows",
+        "selected_release_date",
+        "prior_release_date",
+        "first_release_date",
+        "missing_reason",
+    ]
+    if not columns:
+        return pd.DataFrame(columns=audit_columns)
+
+    source = _prepare_psd(psd_df, columns)
+    snapshot_context = _prepare_snapshot_context(snapshots, countries)
+    rows: list[dict[str, object]] = []
+
+    source_by_country = {
+        str(country): group.copy()
+        for country, group in source.groupby(source["country"].astype(str), sort=False)
+    }
+    for snap in snapshot_context.itertuples(index=False):
+        country = str(snap.country)
+        country_df = source_by_country.get(country)
+        market_year = int(snap.target_market_year)
+        snapshot = pd.Timestamp(snap.as_of_date)
+        for item in columns:
+            attr = item["attribute"]
+            prefix = item["prefix"]
+            country_rows = 0 if country_df is None else int(len(country_df))
+            if country_df is None or country_df.empty:
+                rows.append({
+                    "country": country,
+                    "crop_year": int(snap.crop_year),
+                    "snapshot_stage": str(snap.snapshot_stage),
+                    "as_of_date": snapshot.date(),
+                    "target_market_year": market_year,
+                    "psd_attribute": attr,
+                    "feature_prefix": prefix,
+                    "country_source_rows": country_rows,
+                    "market_year_rows": 0,
+                    "visible_rows": 0,
+                    "visible_non_null_rows": 0,
+                    "selected_release_date": pd.NaT,
+                    "prior_release_date": pd.NaT,
+                    "first_release_date": pd.NaT,
+                    "missing_reason": "no_country_source_rows",
+                })
+                continue
+
+            market_rows = country_df.loc[country_df["market_year"] == market_year]
+            visible = market_rows.loc[market_rows["release_date"] <= snapshot].sort_values(
+                "release_date"
+            )
+            visible_values = pd.to_numeric(visible[attr], errors="coerce")
+            visible_non_null = visible.loc[visible_values.notna()]
+
+            if market_rows.empty:
+                reason = "no_market_year_rows"
+            elif visible.empty:
+                reason = "no_visible_rows_as_of_snapshot"
+            elif visible_non_null.empty:
+                reason = "no_visible_non_null_metric"
+            else:
+                reason = ""
+
+            rows.append({
+                "country": country,
+                "crop_year": int(snap.crop_year),
+                "snapshot_stage": str(snap.snapshot_stage),
+                "as_of_date": snapshot.date(),
+                "target_market_year": market_year,
+                "psd_attribute": attr,
+                "feature_prefix": prefix,
+                "country_source_rows": country_rows,
+                "market_year_rows": int(len(market_rows)),
+                "visible_rows": int(len(visible)),
+                "visible_non_null_rows": int(len(visible_non_null)),
+                "selected_release_date": (
+                    pd.Timestamp(visible_non_null["release_date"].iloc[-1]).date()
+                    if not visible_non_null.empty else pd.NaT
+                ),
+                "prior_release_date": (
+                    pd.Timestamp(visible_non_null["release_date"].iloc[-2]).date()
+                    if len(visible_non_null) >= 2 else pd.NaT
+                ),
+                "first_release_date": (
+                    pd.Timestamp(visible_non_null["release_date"].iloc[0]).date()
+                    if not visible_non_null.empty else pd.NaT
+                ),
+                "missing_reason": reason,
+            })
+
+    return pd.DataFrame(rows, columns=audit_columns)
+
+
+def summarize_psd_vintage_feature_quality(
+    matrix: pd.DataFrame,
+    *,
+    feature_cols: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, object]:
+    """Return compact quality metadata for PSD monthly-vintage feature columns."""
+    if feature_cols is None:
+        feature_cols = [
+            str(col)
+            for col in matrix.columns
+            if str(col).startswith("psd_")
+            and any(str(col).endswith(suffix) for suffix in _FEATURE_SUFFIXES)
+        ]
+    feature_cols = [str(col) for col in feature_cols if str(col) in matrix.columns]
+    row_count = int(len(matrix))
+    rates: dict[str, float] = {}
+    all_missing: list[str] = []
+    constant: list[str] = []
+    for feature in feature_cols:
+        series = pd.to_numeric(matrix[feature], errors="coerce")
+        non_null = int(series.notna().sum())
+        rates[feature] = float(non_null / row_count) if row_count else 0.0
+        if non_null == 0:
+            all_missing.append(feature)
+        elif series.dropna().nunique() <= 1:
+            constant.append(feature)
+    return {
+        "row_count": row_count,
+        "feature_count": int(len(feature_cols)),
+        "all_missing_feature_count": int(len(all_missing)),
+        "constant_feature_count": int(len(constant)),
+        "all_missing_features": all_missing,
+        "constant_features": constant,
+        "non_null_rates": rates,
+    }
+
+
+def validate_psd_vintage_feature_quality(
+    matrix: pd.DataFrame,
+    *,
+    feature_cols: list[str] | tuple[str, ...] | None = None,
+    require_suffixes: tuple[str, ...] = ("latest_estimate_as_of",),
+) -> dict[str, object]:
+    """Raise when required PSD vintage feature families have no usable values."""
+    quality = summarize_psd_vintage_feature_quality(matrix, feature_cols=feature_cols)
+    missing_required = []
+    for suffix in require_suffixes:
+        suffix_cols = [
+            feature for feature in quality["non_null_rates"]
+            if str(feature).endswith(suffix)
+        ]
+        if suffix_cols and all(quality["non_null_rates"][feature] == 0.0 for feature in suffix_cols):
+            missing_required.append(suffix)
+    if missing_required:
+        raise ValueError(
+            "PSD vintage feature quality failed: no non-null values for required "
+            f"feature suffixes {missing_required}"
+        )
+    return quality
+
+
 def build_psd_vintage_snapshot_feature_matrix(
     psd_df: pd.DataFrame,
     *,
@@ -216,50 +453,40 @@ def build_psd_vintage_snapshot_feature_matrix(
     if not columns:
         return pd.DataFrame(columns=SNAPSHOT_ID_COLUMNS)
 
-    required_snapshot_cols = {"crop_year", "snapshot_stage", "as_of_date"}
-    missing = required_snapshot_cols - set(snapshots.columns)
-    if missing:
-        raise ValueError(f"snapshot frame missing columns: {sorted(missing)}")
-
     source = _prepare_psd(psd_df, columns)
     min_history_years = int(defaults.get("min_history_years", 5))
     epsilon = float(defaults.get("near_zero_trend_epsilon", 1e-9))
-
-    snapshot_frame = snapshots[["crop_year", "snapshot_stage", "as_of_date"]].copy()
-    snapshot_frame["crop_year"] = pd.to_numeric(
-        snapshot_frame["crop_year"], errors="coerce"
-    )
-    snapshot_frame["as_of_date"] = pd.to_datetime(
-        snapshot_frame["as_of_date"], errors="coerce"
-    )
-    snapshot_frame = snapshot_frame.dropna(subset=["crop_year", "as_of_date"])
-    snapshot_frame["crop_year"] = snapshot_frame["crop_year"].astype(int)
-    snapshot_frame["snapshot_stage"] = snapshot_frame["snapshot_stage"].astype(str)
+    snapshot_context = _prepare_snapshot_context(snapshots, countries)
 
     rows: list[dict[str, object]] = []
-    for country in sorted({str(country) for country in countries}):
-        country_df = source.loc[source["country"] == country].copy()
-        for snap in snapshot_frame.itertuples(index=False):
-            crop_year = int(snap.crop_year)
-            row: dict[str, object] = {
-                "country": country,
-                "crop_year": crop_year,
-                "snapshot_stage": str(snap.snapshot_stage),
-                "as_of_date": pd.Timestamp(snap.as_of_date).date(),
-            }
-            if not country_df.empty:
-                feature_values = _feature_values_for_visible_snapshot(
-                    country_df,
-                    columns,
-                    crop_year=crop_year,
-                    market_year=crop_year,
-                    snapshot=pd.Timestamp(snap.as_of_date),
-                    min_history_years=min_history_years,
-                    epsilon=epsilon,
-                )
-                if feature_values:
-                    row.update(feature_values)
-            rows.append(row)
+    source_by_country = {
+        str(country): group.copy()
+        for country, group in source.groupby(source["country"].astype(str), sort=False)
+    }
+    for snap in snapshot_context.itertuples(index=False):
+        country = str(snap.country)
+        crop_year = int(snap.crop_year)
+        market_year = int(snap.target_market_year)
+        row: dict[str, object] = {
+            "country": country,
+            "crop_year": crop_year,
+            "snapshot_stage": str(snap.snapshot_stage),
+            "as_of_date": pd.Timestamp(snap.as_of_date).date(),
+        }
+        country_df = source_by_country.get(country)
+        if country_df is not None and not country_df.empty:
+            feature_values = _feature_values_for_visible_snapshot(
+                country_df,
+                columns,
+                crop_year=crop_year,
+                market_year=market_year,
+                snapshot=pd.Timestamp(snap.as_of_date),
+                min_history_years=min_history_years,
+                epsilon=epsilon,
+            )
+            if feature_values:
+                row.update(feature_values)
+        rows.append(row)
 
     if not rows:
         return pd.DataFrame(columns=SNAPSHOT_ID_COLUMNS)

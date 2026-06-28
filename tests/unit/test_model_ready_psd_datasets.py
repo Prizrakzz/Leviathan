@@ -8,6 +8,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from leviathan.features.computations.psd_vintages import (
+    build_psd_vintage_snapshot_feature_matrix,
+    build_psd_vintage_snapshot_join_audit,
+    validate_psd_vintage_feature_quality,
+)
 from leviathan.model_datasets.psd_model_ready import (
     PSD_DATASET_KEY,
     PSD_MATRIX_ID_COLUMNS,
@@ -390,6 +395,95 @@ def test_psd_snapshot_model_ready_builds_named_stage_rows() -> None:
     assert "snapshot_stage" in matrix.columns
     assert "as_of_date" in matrix.columns
     assert matrix["dataset_key"].eq(PSD_SNAPSHOT_DATASET_KEY).all()
+    assert built.summaries[0]["vintage_feature_quality"]["feature_count"] > 0
+    assert built.summaries[0]["vintage_join_audit"]["row_count"] > 0
+
+
+def test_psd_vintage_snapshot_uses_explicit_target_market_year() -> None:
+    psd_source = pd.DataFrame([
+        {
+            "country": "united_states",
+            "market_year": 2005,
+            "release_date": "2005-07-10",
+            "production_mt": 50.0,
+        },
+        {
+            "country": "united_states",
+            "market_year": 2006,
+            "release_date": "2006-05-10",
+            "production_mt": 100.0,
+        },
+        {
+            "country": "united_states",
+            "market_year": 2006,
+            "release_date": "2006-07-10",
+            "production_mt": 110.0,
+        },
+    ])
+    snapshots = pd.DataFrame([
+        {
+            "country": "united_states",
+            "crop_year": 2005,
+            "target_market_year": 2006,
+            "snapshot_stage": "explicit_as_of",
+            "as_of_date": "2006-08-01",
+        }
+    ])
+
+    matrix = build_psd_vintage_snapshot_feature_matrix(
+        psd_source,
+        countries=["united_states"],
+        snapshots=snapshots,
+    )
+    row = matrix.iloc[0]
+
+    assert row["crop_year"] == 2005
+    assert row["psd_production_latest_estimate_as_of"] == 110.0
+    assert row["psd_production_mom_revision"] == 10.0
+
+
+def test_psd_vintage_join_audit_reports_no_visible_rows() -> None:
+    psd_source = pd.DataFrame([
+        {
+            "country": "united_states",
+            "market_year": 2005,
+            "release_date": "2005-10-10",
+            "production_mt": 50.0,
+        }
+    ])
+    snapshots = pd.DataFrame([
+        {
+            "country": "united_states",
+            "crop_year": 2005,
+            "target_market_year": 2005,
+            "snapshot_stage": "early",
+            "as_of_date": "2005-07-01",
+        }
+    ])
+
+    audit = build_psd_vintage_snapshot_join_audit(
+        psd_source,
+        countries=["united_states"],
+        snapshots=snapshots,
+    )
+    row = audit.loc[audit["psd_attribute"] == "production_mt"].iloc[0]
+
+    assert row["market_year_rows"] == 1
+    assert row["visible_rows"] == 0
+    assert row["missing_reason"] == "no_visible_rows_as_of_snapshot"
+
+
+def test_psd_vintage_quality_rejects_all_missing_required_family() -> None:
+    matrix = pd.DataFrame({
+        "country": ["united_states"],
+        "crop_year": [2005],
+        "snapshot_stage": ["early"],
+        "as_of_date": [pd.Timestamp("2005-07-01").date()],
+        "psd_production_latest_estimate_as_of": [float("nan")],
+    })
+
+    with pytest.raises(ValueError, match="PSD vintage feature quality failed"):
+        validate_psd_vintage_feature_quality(matrix)
 
 
 def test_psd_snapshot_model_ready_infers_vintage_features_without_source_feature_set() -> None:
@@ -485,7 +579,39 @@ def test_psd_snapshot_model_ready_explicit_as_of_uses_only_visible_releases() ->
     assert row["as_of_date"] == pd.Timestamp("2005-07-01").date()
     assert row["snapshot_policy"] == "explicit_as_of_date"
     assert row["psd_production_latest_estimate_as_of"] == 20.0
-    assert pd.isna(row["psd_production_mom_revision"])
+    assert "psd_production_mom_revision" not in matrix.columns
+
+
+def test_psd_snapshot_model_ready_prunes_all_missing_vintage_features() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        _psd_source_with_monthly_vintages(),
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity="corn_cbot",
+        feature_membership=_membership_with_psd_vintage(),
+        calendar=load_crop_calendars()["corn_cbot"],
+        snapshot_config=load_snapshot_stage_config(),
+        as_of_date="2005-07-01",
+        include_named_stages=False,
+        target_keys=("psd_production_anomaly_pct",),
+    )
+
+    matrix = built.matrices[
+        (PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")
+    ]
+
+    assert "psd_production_latest_estimate_as_of" in matrix.columns
+    assert "psd_production_mom_revision" not in matrix.columns
+    assert "psd_production_mom_revision" in built.summaries[0][
+        "dropped_empty_vintage_features"
+    ]
 
 
 def test_psd_snapshot_features_are_invariant_to_future_revisions() -> None:

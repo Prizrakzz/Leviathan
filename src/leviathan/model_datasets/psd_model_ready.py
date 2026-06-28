@@ -8,7 +8,10 @@ import pandas as pd
 
 from leviathan.features.calendar import CropCalendar
 from leviathan.features.computations.psd_vintages import (
+    build_psd_vintage_snapshot_join_audit,
     build_psd_vintage_snapshot_feature_matrix,
+    summarize_psd_vintage_feature_quality,
+    validate_psd_vintage_feature_quality,
 )
 from leviathan.features.feature_sets import selected_features_for_set
 from leviathan.model_datasets.baselines import compute_baseline_metrics
@@ -83,6 +86,15 @@ PSD_MONTHLY_VINTAGE_FEATURE_SET_ID = "psd_monthly_vintage_features"
 PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID = "preseason_physical_plus_psd_vintage"
 DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,)
 PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS = {"country", "crop_year", "snapshot_stage", "as_of_date"}
+PSD_VINTAGE_FEATURE_SUFFIXES = (
+    "latest_estimate_as_of",
+    "mom_revision",
+    "revision_since_first_forecast",
+    "consecutive_revision_count",
+    "current_vs_trend",
+    "month_code",
+    "release_count_for_market_year",
+)
 PSD_SNAPSHOT_STATIC_FEATURE_SETS = {
     "preseason_physical",
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
@@ -123,7 +135,24 @@ def psd_vintage_feature_columns(matrix: pd.DataFrame) -> list[str]:
         for col in matrix.columns
         if str(col).startswith("psd_")
         and str(col) not in PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS
+        and any(str(col).endswith(suffix) for suffix in PSD_VINTAGE_FEATURE_SUFFIXES)
     )
+
+
+def _drop_all_missing_feature_columns(
+    matrix: pd.DataFrame,
+    feature_cols: Iterable[str],
+) -> tuple[list[str], list[str]]:
+    kept: list[str] = []
+    dropped: list[str] = []
+    for feature in feature_cols:
+        if feature not in matrix.columns:
+            continue
+        if matrix[feature].notna().any():
+            kept.append(str(feature))
+        else:
+            dropped.append(str(feature))
+    return sorted(kept), sorted(dropped)
 
 
 def _snapshot_static_feature_set_ids(feature_set_ids: Iterable[str]) -> tuple[str, ...]:
@@ -141,10 +170,14 @@ def _snapshot_feature_columns(
     feature_set_ids: Iterable[str],
     *,
     static_feature_matrix: pd.DataFrame | None = None,
-) -> tuple[pd.DataFrame, list[str], dict[str, list[str]]]:
+) -> tuple[pd.DataFrame, list[str], dict[str, list[str]], list[str]]:
     """Resolve dynamic and optional static feature columns for snapshot matrices."""
     requested = tuple(str(feature_set_id) for feature_set_id in feature_set_ids)
-    dynamic_cols = psd_vintage_feature_columns(dynamic_features)
+    raw_dynamic_cols = psd_vintage_feature_columns(dynamic_features)
+    dynamic_cols, dropped_dynamic_cols = _drop_all_missing_feature_columns(
+        dynamic_features,
+        raw_dynamic_cols,
+    )
     static_cols: list[str] = []
     feature_matrix = dynamic_features.copy()
 
@@ -180,7 +213,7 @@ def _snapshot_feature_columns(
     feature_cols = sorted({
         feature for features in selected_by_set.values() for feature in features
     })
-    return feature_matrix, feature_cols, selected_by_set
+    return feature_matrix, feature_cols, selected_by_set, dropped_dynamic_cols
 
 
 def _validate_feature_matrix(matrix: pd.DataFrame, commodity: str) -> None:
@@ -309,6 +342,50 @@ def _expand_targets_to_snapshots(
         )
         raise ValueError(f"duplicate PSD snapshot target keys {keys[:5]}")
     return expanded
+
+
+def _snapshot_context_for_targets(
+    target_df: pd.DataFrame,
+    snapshots: pd.DataFrame,
+) -> pd.DataFrame:
+    """Attach target-origin market-year mapping to named snapshot dates."""
+    required = {"country", "crop_year", "target_market_year"}
+    missing = required - set(target_df.columns)
+    if missing:
+        raise ValueError(f"PSD snapshot targets missing columns {sorted(missing)}")
+
+    context = target_df[["country", "crop_year", "target_market_year"]].drop_duplicates()
+    conflicts = context.groupby(["country", "crop_year"], sort=False)[
+        "target_market_year"
+    ].nunique()
+    conflicts = conflicts.loc[conflicts > 1]
+    if not conflicts.empty:
+        raise ValueError(
+            "PSD snapshot target market-year conflicts "
+            f"{conflicts.reset_index()[['country', 'crop_year']].to_dict('records')[:5]}"
+        )
+
+    out = context.merge(
+        snapshots[["crop_year", "snapshot_stage", "as_of_date", "snapshot_policy"]],
+        on="crop_year",
+        how="inner",
+        validate="many_to_many",
+    )
+    duplicates = out.duplicated(
+        ["country", "crop_year", "snapshot_stage", "as_of_date"], keep=False
+    )
+    if duplicates.any():
+        keys = (
+            out.loc[
+                duplicates,
+                ["country", "crop_year", "snapshot_stage", "as_of_date"],
+            ]
+            .drop_duplicates()
+            .sort_values(["country", "crop_year", "snapshot_stage"])
+            .to_dict("records")
+        )
+        raise ValueError(f"duplicate PSD snapshot context keys {keys[:5]}")
+    return out.reset_index(drop=True)
 
 
 def _matrix_for_snapshot_target(
@@ -521,17 +598,56 @@ def build_psd_commodity_snapshot_model_datasets(
         psd_source, target_df, commodity=commodity
     )
     countries = sorted(target_df["country"].astype(str).unique())
+    snapshot_context = _snapshot_context_for_targets(target_df, snapshots)
     dynamic_features = build_psd_vintage_snapshot_feature_matrix(
         feature_source,
         countries=countries,
-        snapshots=snapshots,
+        snapshots=snapshot_context,
     )
-    feature_matrix, feature_cols, selected_by_set = _snapshot_feature_columns(
+    vintage_join_audit = build_psd_vintage_snapshot_join_audit(
+        feature_source,
+        countries=countries,
+        snapshots=snapshot_context,
+    )
+    feature_matrix, feature_cols, selected_by_set, dropped_dynamic_cols = _snapshot_feature_columns(
         dynamic_features,
         feature_membership,
         build_config.compatible_feature_sets,
         static_feature_matrix=static_feature_matrix,
     )
+    dynamic_cols = psd_vintage_feature_columns(dynamic_features)
+    vintage_quality = summarize_psd_vintage_feature_quality(
+        feature_matrix,
+        feature_cols=dynamic_cols,
+    )
+    if include_named_stages and dynamic_cols:
+        validate_psd_vintage_feature_quality(
+            feature_matrix,
+            feature_cols=dynamic_cols,
+            require_suffixes=("latest_estimate_as_of",),
+        )
+    vintage_join_audit_summary = {
+        "row_count": int(len(vintage_join_audit)),
+        "missing_reason_counts": (
+            {
+                str(k): int(v)
+                for k, v in vintage_join_audit["missing_reason"]
+                .fillna("")
+                .value_counts()
+                .sort_index()
+                .items()
+            }
+            if "missing_reason" in vintage_join_audit.columns else {}
+        ),
+        "visible_rows": (
+            int((vintage_join_audit["visible_rows"] > 0).sum())
+            if "visible_rows" in vintage_join_audit.columns else 0
+        ),
+        "visible_non_null_rows": (
+            int((vintage_join_audit["visible_non_null_rows"] > 0).sum())
+            if "visible_non_null_rows" in vintage_join_audit.columns else 0
+        ),
+    }
 
     matrices: dict[tuple[str, str], pd.DataFrame] = {}
     target_tables: dict[str, list[pd.DataFrame]] = {snapshot_dataset_key: []}
@@ -575,6 +691,9 @@ def build_psd_commodity_snapshot_model_datasets(
                 feature_set_id: int(len(features))
                 for feature_set_id, features in selected_by_set.items()
             },
+            "vintage_feature_quality": vintage_quality,
+            "dropped_empty_vintage_features": dropped_dynamic_cols,
+            "vintage_join_audit": vintage_join_audit_summary,
             "target_status_counts": {
                 str(k): int(v)
                 for k, v in target_group["target_status"].value_counts().sort_index().items()
