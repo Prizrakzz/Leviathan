@@ -36,7 +36,7 @@ def test_answer_assembles_context_and_returns_trace():
         captured.update(system=system, user=user, model=model)
         return "Frost raises price (GAIN, 2021-07)."
 
-    def fake_retrieve(q, contract, *, k, asof=None):
+    def fake_retrieve(q, contract, *, k, asof=None, near=None):
         return [{"date": "2021-07-20", "source": "GAIN", "source_key": "s3://k1",
                  "text": "July frost hit Sul de Minas"}]
 
@@ -44,10 +44,27 @@ def test_answer_assembles_context_and_returns_trace():
                     retrieve=fake_retrieve, chat=fake_chat)
     assert out["contract"] == "arabica_coffee" and out["model"] == "claude-sonnet-4-6"
     assert out["evidence"][0]["source"] == "GAIN" and out["trace"]["evidence_ids"] == ["s3://k1"]
-    assert "squeeze" in out["trace"]["regimes"]
+    assert "squeeze" in out["trace"]["regimes"] and out["trace"]["contracts"] == ["arabica_coffee"]
     # the serving model was fed the driver mechanism, the regime, and the dated evidence
     assert "frost kills trees" in captured["user"] and "July frost hit Sul de Minas" in captured["user"]
     assert "2021-07-20" in captured["user"] and captured["model"] == "claude-sonnet-4-6"
+
+
+def test_answer_multi_contract_synthesis():
+    gr = _graph()                                          # coffee (alias arabica) + corn (alias maize)
+    seen = {}
+
+    def fake_retrieve(q, contract, *, k, asof=None, near=None):
+        return [{"date": "2022-01-01", "source": "WASDE", "source_key": f"s3://{contract}", "text": f"{contract} note"}]
+
+    def fake_chat(system, user, *, model, **kw):
+        seen["user"] = user
+        return "synthesis"
+
+    out = an.answer("how does the maize vs arabica spread move", graph=gr, retrieve=fake_retrieve, chat=fake_chat)
+    assert set(out["trace"]["contracts"]) == {"corn", "arabica_coffee"}        # both routed contracts synthesized
+    assert {e["contract"] for e in out["evidence"]} == {"corn", "arabica_coffee"}
+    assert "corn note" in seen["user"] and "arabica_coffee note" in seen["user"]
 
 
 def test_answer_no_contract_match_short_circuits():

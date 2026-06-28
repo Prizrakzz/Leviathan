@@ -41,6 +41,29 @@ def test_cosine_and_doc_date():
     assert ev._doc_date({}, "text/x/2014/y/document.json").year == 2014   # year-from-key fallback
 
 
+def test_pub_date_parses_exact_dates():
+    assert ev._pub_date("text/source=usda_gain_coffee/publication_date=20210519/document=x/document.json") == date(2021, 5, 19)
+    assert ev._pub_date("text/.../coffee_annual_mexico_05-15-2021/document.json") == date(2021, 5, 15)
+    assert ev._pub_date("text/coffee/2021/x/document.json") is None        # year-only key -> no exact date
+
+
+def test_near_proximity_breaks_cosine_tie(monkeypatch):
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0, 0.0] for _ in texts])   # identical vectors -> cosine ties
+    recs = [{"id": "old", "date": "2012-06-01", "source": "S", "source_key": "k1", "text": "t", "vector": [1.0, 0.0]},
+            {"id": "new", "date": "2018-06-01", "source": "S", "source_key": "k2", "text": "t", "vector": [1.0, 0.0]}]
+    assert ev.retrieve("q", "node", k=1, near="2018", records=recs)[0]["date"] == "2018-06-01"
+    assert ev.retrieve("q", "node", k=1, near="2012", records=recs)[0]["date"] == "2012-06-01"
+
+
+def test_restamp_updates_dates_from_keys(tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    rec = {"id": "a", "date": "2021-01-01", "source": "S", "text": "t", "vector": [0.1], "backend": "x",
+           "source_key": "text/source=usda_gain_coffee/publication_date=20210519/document=x/document.json"}
+    (tmp_path / "arabica_coffee.jsonl").write_text(json.dumps(rec), encoding="utf-8")
+    assert ev.restamp("arabica_coffee") == 1
+    assert ev.load_index("arabica_coffee")[0]["date"] == "2021-05-19"
+
+
 def test_retrieve_cosine_ranking_and_pit(monkeypatch):
     monkeypatch.setattr(ev, "embed", _bow_embed)
     recs = [{"id": i, "date": d, "source": "GAIN", "source_key": f"k{i}", "text": t,

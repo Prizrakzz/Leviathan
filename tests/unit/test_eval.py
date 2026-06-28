@@ -29,7 +29,7 @@ def test_run_and_report():
     queries = [{"id": "q1", "type": "convergence", "contract": "arabica_coffee", "question": "what caused the spike",
                 "expect": {"drivers": ["frost"], "regime": "bullish_supply_squeeze", "needs_evidence": True}}]
 
-    def fake_answer(question, *, graph, model, k, asof=None):
+    def fake_answer(question, *, graph, model, k, asof=None, near=None):
         return {"answer": "Frost drove the bullish supply squeeze.", "contract": "arabica_coffee",
                 "evidence": [{"source": "GAIN", "date": "2021-07-20"}], "model": model, "trace": {}}
 
@@ -37,6 +37,23 @@ def test_run_and_report():
     assert rows[0]["rubric"]["routed_right"] and rows[0]["rubric"]["regime_named"]
     rep = gev.report(rows, model="claude-sonnet-4-6")
     assert "bullish supply squeeze" in rep and "GAIN" in rep and "routed correctly: **1/1**" in rep
+
+
+def test_judge_scores_and_report():
+    q = {"id": "q1", "type": "convergence", "contract": "arabica_coffee", "question": "what caused the spike",
+         "expect": {"drivers": ["frost"], "regime": "bullish_supply_squeeze", "needs_evidence": True}}
+    out = {"answer": "Frost ...", "contract": "arabica_coffee", "evidence": [{"source": "GAIN", "date": "2021-07-20"}]}
+    scores = {"groundedness": 5, "driver_coverage": 5, "evidence_use": 4, "overall": 5,
+              "regime_correct": True, "hallucination": False, "rationale": "well grounded"}
+
+    def fake_call(client, system, user, *, model, max_tokens, tool):    # mimic ex.call_opus -> (input, usage)
+        assert tool["name"] == "score_answer" and "frost" in user.lower()
+        return scores, None
+
+    j = gev.judge(q, out, client=None, model="claude-opus-4-8", call=fake_call)
+    assert j["overall"] == 5 and j["hallucination"] is False
+    rep = gev.report([{"q": q, "out": out, "rubric": gev.score(q, out), "judge": j}], model="claude-sonnet-4-6")
+    assert "LLM-judge overall: **5.0/5**" in rep and "well grounded" in rep
 
 
 def test_estimate_cost_scales_with_model():

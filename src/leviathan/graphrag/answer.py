@@ -51,14 +51,18 @@ def _context_block(graph: gph.CausalGraph, contract: str) -> str:
     return "\n".join(lines)
 
 
-def _prompt(query: str, contract: str, ctx: str, evidence: list[dict]) -> str:
-    ev_block = "\n".join(f"- ({e['source']}, {e['date']}) {e['text']}" for e in evidence) or "(no evidence retrieved)"
-    return (f"QUESTION: {query}\n\n=== CAUSAL GRAPH for {contract} ===\n{ctx}\n\n"
-            f"=== DATED EVIDENCE (most relevant) ===\n{ev_block}\n\n"
-            "Answer the question using only the graph and evidence above.")
+def _ev_block(evidence: list[dict]) -> str:
+    return "\n".join(f"- ({e['source']}, {e['date']}) {e['text']}" for e in evidence) or "(no evidence retrieved)"
 
 
-def _chat(system: str, user: str, *, model: str, max_tokens: int = 1500) -> str:
+def _prompt(query: str, contracts: list[str], blocks: list[str]) -> str:
+    scope = contracts[0] if len(contracts) == 1 else f"{len(contracts)} related contracts {contracts}"
+    tail = ("Answer using only the graph(s) and evidence above." if len(contracts) == 1 else
+            "Multiple related contracts are shown — synthesize the cross-commodity linkage between them.")
+    return f"QUESTION: {query}\n\n=== CAUSAL GRAPH + DATED EVIDENCE ({scope}) ===\n" + "\n\n".join(blocks) + f"\n\n{tail}"
+
+
+def _chat(system: str, user: str, *, model: str, max_tokens: int = 2800) -> str:   # 1500 truncated table answers
     import anthropic
     from leviathan.graphrag import batch_extract as bx
     client = anthropic.Anthropic(api_key=bx._api_key())
@@ -69,18 +73,25 @@ def _chat(system: str, user: str, *, model: str, max_tokens: int = 1500) -> str:
 
 
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
-           retrieve=None, chat=None) -> dict:
-    """Answer a question grounded in the graph + dated evidence. Returns {answer, contract, evidence, model, trace}."""
+           near: str | None = None, max_contracts: int = 2, retrieve=None, chat=None) -> dict:
+    """Answer grounded in the graph(s) + dated evidence. Routes to up to `max_contracts` (so a soy<->corn
+    question synthesizes both); single-commodity questions touch one. Returns {answer, contract, evidence, trace}."""
     retrieve = retrieve or ev.retrieve
     chat = chat or _chat
     routed = route(query, graph)
     if not routed:
         return {"answer": "No tracked contract matched this question.", "contract": None,
-                "evidence": [], "model": model, "trace": {"routed": []}}
-    contract = routed[0]                              # primary contract; multi-contract synthesis is a later step
-    ev_hits = retrieve(query, contract, k=k, asof=asof)
-    text = chat(_SYSTEM, _prompt(query, contract, _context_block(graph, contract), ev_hits), model=model)
-    return {"answer": text, "contract": contract, "evidence": ev_hits, "model": model,
-            "trace": {"routed": routed, "contract": contract, "n_drivers": len(graph.contracts[contract].drivers),
-                      "regimes": [s.name for s in graph.contracts[contract].convergence],
-                      "evidence_ids": [e["source_key"] for e in ev_hits], "model": model}}
+                "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
+    contracts = routed[:max_contracts]
+    blocks, evidence, ev_ids, regimes = [], [], [], []
+    for c in contracts:
+        hits = retrieve(query, c, k=k, asof=asof, near=near)
+        blocks.append(_context_block(graph, c) + f"\n\n--- DATED EVIDENCE for {c} ---\n" + _ev_block(hits))
+        evidence += [{**h, "contract": c} for h in hits]
+        ev_ids += [h["source_key"] for h in hits]
+        regimes += [s.name for s in graph.contracts[c].convergence]
+    text = chat(_SYSTEM, _prompt(query, contracts, blocks), model=model)
+    return {"answer": text, "contract": contracts[0], "contracts": contracts, "evidence": evidence, "model": model,
+            "trace": {"routed": routed, "contracts": contracts,
+                      "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts),
+                      "regimes": regimes, "evidence_ids": ev_ids, "model": model}}

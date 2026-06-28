@@ -70,15 +70,37 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
+def _pub_date(key: str) -> date | None:
+    """Exact publication date from the S3 key — `publication_date=YYYYMMDD` (our keys), or an MM-DD-YYYY
+    fragment in the document folder name. None when neither is present."""
+    import re
+    m = re.search(r"publication_date=(\d{4})(\d{2})(\d{2})", key)
+    if m:
+        try:
+            return date(int(m[1]), int(m[2]), int(m[3]))
+        except ValueError:
+            pass
+    m = re.search(r"(?<!\d)(\d{2})-(\d{2})-(20\d{2})(?!\d)", key)     # e.g. ...mexico_05-15-2021
+    if m:
+        try:
+            return date(int(m[3]), int(m[1]), int(m[2]))
+        except ValueError:
+            pass
+    return None
+
+
 def _doc_date(doc: dict, key: str) -> date:
-    """Best-effort document date: an explicit field, else year-from-key at Jan 1 (coarse but PIT-safe)."""
-    from leviathan.graphrag import batch_extract as bx
+    """Document date: exact publication date from the key, else an explicit doc field, else year->Jan-1."""
+    d = _pub_date(key)
+    if d:
+        return d
     raw = doc.get("document_date") or doc.get("date")
     if raw:
         try:
             return date.fromisoformat(str(raw)[:10])
         except ValueError:
             pass
+    from leviathan.graphrag import batch_extract as bx
     y = bx._year_of(key)
     return date(int(y), 1, 1) if y not in (None, "unknown") else date(1970, 1, 1)
 
@@ -139,18 +161,42 @@ def load_index(node: str) -> list[dict]:
     return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
-def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, bedrock=None,
-             records: list[dict] | None = None) -> list[dict]:
-    """Top-k props by cosine to the query, point-in-time filtered (date <= asof). Returns date+source+text."""
+def _proximity(date_str: str, near: str, *, half_life_days: float = 365.0) -> float:
+    """1.0 at `near`, decaying to 0.5 one half-life away — a gentle recency-to-episode bonus in [0,1]."""
+    try:
+        d = date.fromisoformat(date_str[:10])
+        n = date.fromisoformat((near + "-07-01")[:10]) if len(near) == 4 else date.fromisoformat(near[:10])
+    except ValueError:
+        return 0.0
+    return 0.5 ** (abs((d - n).days) / half_life_days)
+
+
+def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,
+             beta: float = 0.25, bedrock=None, records: list[dict] | None = None) -> list[dict]:
+    """Top-k props by cosine to the query, point-in-time filtered (date <= asof). When `near` (an episode
+    date/year) is given, blend in a date-proximity bonus: score = cosine + beta*proximity(date, near)."""
     records = load_index(node) if records is None else records
     if asof:
         records = [r for r in records if r["date"] <= asof]
     if not records:
         return []
     qv = embed([query], backend=records[0].get("backend"), bedrock=bedrock)[0]   # same space as the index
-    ranked = sorted(records, key=lambda r: _cosine(qv, r["vector"]), reverse=True)
+    def _score(r):
+        return _cosine(qv, r["vector"]) + (beta * _proximity(r["date"], near) if near else 0.0)
+    ranked = sorted(records, key=_score, reverse=True)
     return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"]}
             for r in ranked[:k]]
+
+
+def restamp(node: str) -> int:
+    """Re-derive each record's date from its stored source_key (precise publication_date) — no re-chunk/embed."""
+    recs = load_index(node)
+    for r in recs:
+        d = _pub_date(r["source_key"])
+        if d:
+            r["date"] = str(d)
+    (_EVID_DIR / f"{node}.jsonl").write_text("\n".join(json.dumps(r) for r in recs), encoding="utf-8")
+    return len(recs)
 
 
 # ── build CLI (gated: Haiku chunking is billed) ───────────────────────────────────────
@@ -170,10 +216,15 @@ def _aliases(node: str) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Build the dated-evidence slice (gated: Haiku chunking billed).")
     ap.add_argument("--build", metavar="NODE", help="contract id or 'all'")
+    ap.add_argument("--restamp", metavar="NODE", help="re-derive dates from keys (no spend); id or 'all'")
     ap.add_argument("--n-docs", type=int, default=40)
     ap.add_argument("--backend", default=DEFAULT_BACKEND)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    if args.restamp:
+        for node in (list(_WINDOWS) if args.restamp == "all" else [args.restamp]):
+            print(f"  {node}: restamped {restamp(node)} props from publication_date keys")
+        return 0
     nodes = list(_WINDOWS) if args.build == "all" else [args.build]
     if args.dry_run or not args.build:
         emb = "local/free" if args.backend.startswith("bge_local") else "billed (tiny)"
