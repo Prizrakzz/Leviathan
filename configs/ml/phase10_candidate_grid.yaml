@@ -135,6 +135,27 @@ hypotheses:
       - regularized_small_tree
       - lightgbm_leaf_regularized
 
+  - id: corn_persistence_alert_reframe
+    description: Test whether prior-year anomaly persistence plus pruned fundamentals improves corn downside-alert recall without leaking raw baseline columns.
+    dataset_keys:
+      - psd_snd_anomaly
+    commodities:
+      - corn_cbot
+    target_keys:
+      - psd_production_anomaly_pct
+    feature_sets:
+      - corn_persistence_core
+      - corn_persistence_weather_pruned
+      - corn_persistence_flow
+    models:
+      - lightgbm
+      - xgboost
+    cv_policies:
+      - expanding_post_2000
+    model_param_profiles:
+      - regularized_small_tree
+      - lightgbm_leaf_regularized
+
   - id: baseline_hardening_reference
     description: Freeze the current most promising feature mix as the reference candidate.
     dataset_keys:

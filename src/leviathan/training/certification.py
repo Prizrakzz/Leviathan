@@ -182,6 +182,95 @@ def bad_production_year_metrics(
     }
 
 
+def _safe_divide(numerator: float, denominator: float) -> float:
+    if denominator == 0:
+        return math.nan
+    return float(numerator / denominator)
+
+
+def _fbeta_score(precision: float, recall: float, beta: float = 2.0) -> float:
+    if not np.isfinite(precision) or not np.isfinite(recall):
+        return math.nan
+    beta_sq = beta ** 2
+    denom = (beta_sq * precision) + recall
+    if denom == 0:
+        return math.nan
+    return float((1 + beta_sq) * precision * recall / denom)
+
+
+def downside_alert_metrics(
+    predictions: pd.DataFrame,
+    *,
+    thresholds: tuple[float, ...] = (-0.05, -0.10),
+    min_event_rows: int = 5,
+) -> dict[str, Any]:
+    """Evaluate fixed-threshold downside alert policies on OOF predictions."""
+    df = predictions.dropna(subset=["y_actual", "y_pred"]).copy()
+    if df.empty:
+        return {
+            "thresholds": list(thresholds),
+            "rows": [],
+            "summary": {},
+            "min_event_rows": min_event_rows,
+        }
+
+    rows: list[dict[str, Any]] = []
+    for threshold in thresholds:
+        actual = df["y_actual"].astype(float)
+        pred = df["y_pred"].astype(float)
+        actual_event = actual <= threshold
+        alert_policies = {
+            "pred_lt_0": pred < 0.0,
+            "pred_le_event_threshold": pred <= threshold,
+        }
+        for policy_name, alert in alert_policies.items():
+            tp = int((actual_event & alert).sum())
+            fp = int((~actual_event & alert).sum())
+            fn = int((actual_event & ~alert).sum())
+            tn = int((~actual_event & ~alert).sum())
+            precision = _safe_divide(tp, tp + fp)
+            recall = _safe_divide(tp, tp + fn)
+            false_negative_rate = _safe_divide(fn, tp + fn)
+            false_positive_rate = _safe_divide(fp, fp + tn)
+            rows.append({
+                "threshold": float(threshold),
+                "alert_policy": policy_name,
+                "n_rows": int(len(df)),
+                "n_events": int(actual_event.sum()),
+                "n_alerts": int(alert.sum()),
+                "true_positives": tp,
+                "false_positives": fp,
+                "false_negatives": fn,
+                "true_negatives": tn,
+                "precision": precision,
+                "recall": recall,
+                "false_negative_rate": false_negative_rate,
+                "false_positive_rate": false_positive_rate,
+                "f2_score": _fbeta_score(precision, recall, beta=2.0),
+                "validated": bool(int(actual_event.sum()) >= min_event_rows),
+                "min_event_rows": int(min_event_rows),
+            })
+
+    summary: dict[str, Any] = {}
+    for row in rows:
+        suffix = str(abs(row["threshold"])).replace(".", "p")
+        policy = row["alert_policy"]
+        prefix = f"downside_{suffix}_{policy}"
+        summary[f"{prefix}_n_events"] = row["n_events"]
+        summary[f"{prefix}_recall"] = row["recall"]
+        summary[f"{prefix}_precision"] = row["precision"]
+        summary[f"{prefix}_false_negatives"] = row["false_negatives"]
+        summary[f"{prefix}_f2_score"] = row["f2_score"]
+        summary[f"{prefix}_validated"] = row["validated"]
+
+    return {
+        "thresholds": list(thresholds),
+        "rows": rows,
+        "summary": summary,
+        "min_event_rows": min_event_rows,
+    }
+
+
 def audit_feature_leakage(
     feature_cols: list[str],
     *,
@@ -471,6 +560,7 @@ def promotion_questions(
     aggregate_metrics: dict[str, Any],
     extreme_metrics: dict[str, float],
     bad_year_metrics: dict[str, float],
+    downside_alerts: dict[str, Any],
     baseline: dict[str, Any],
     leakage_audit: dict[str, Any],
     permutation: dict[str, Any],
@@ -502,6 +592,7 @@ def promotion_questions(
 
     country_rmse = (country_blocked.get("aggregate") or {}).get("rmse")
     stress_rmse = (stress.get("metrics") or {}).get("rmse")
+    alert_summary = downside_alerts.get("summary", {}) or {}
     return {
         "beats_zero_baseline_rmse": _beats("zero_anomaly", "rmse"),
         "beats_zero_baseline_mae": _beats("zero_anomaly", "mae"),
@@ -513,6 +604,18 @@ def promotion_questions(
         "beats_trailing_trend_baseline_mae": _beats("trailing_linear_trend", "mae"),
         "bad_year_detection_validated": bool(bad_year_metrics.get("validated")),
         "bad_year_negative_recall": bad_year_metrics.get("bad_year_negative_recall"),
+        "downside_5pct_pred_lt_0_recall": alert_summary.get(
+            "downside_0p05_pred_lt_0_recall"
+        ),
+        "downside_5pct_pred_lt_0_false_negatives": alert_summary.get(
+            "downside_0p05_pred_lt_0_false_negatives"
+        ),
+        "downside_10pct_pred_lt_0_recall": alert_summary.get(
+            "downside_0p1_pred_lt_0_recall"
+        ),
+        "downside_10pct_pred_lt_0_false_negatives": alert_summary.get(
+            "downside_0p1_pred_lt_0_false_negatives"
+        ),
         "extreme_metric_sample_validated": bool(extreme_metrics.get("validated")),
         "quintile_directional_accuracy": extreme_metrics.get("directional_accuracy"),
         "leakage_audit_passed": leakage_audit.get("status") == "pass",
@@ -561,6 +664,7 @@ def build_candidate_certification_report(
     predictions["commodity"] = spec.commodity
     extreme = extreme_directional_metrics(predictions)
     bad_years = bad_production_year_metrics(predictions)
+    downside_alerts = downside_alert_metrics(predictions)
     leakage = audit_feature_leakage(feature_cols, target_col=target_col)
     baseline = baseline_comparison(result.predictions, matrix)
     stress = stress_year_summary(predictions, stress_years)
@@ -613,6 +717,7 @@ def build_candidate_certification_report(
         "fold_metrics": fold_metric_rows(result),
         "extreme_metrics": extreme,
         "bad_production_year_metrics": bad_years,
+        "downside_alert_metrics": downside_alerts,
         "baseline_comparison": baseline,
         "leakage_audit": leakage,
         "stress_year_summary": stress,
@@ -632,6 +737,7 @@ def build_candidate_certification_report(
             aggregate_metrics=aggregate,
             extreme_metrics=extreme,
             bad_year_metrics=bad_years,
+            downside_alerts=downside_alerts,
             baseline=baseline,
             leakage_audit=leakage,
             permutation=permutation,

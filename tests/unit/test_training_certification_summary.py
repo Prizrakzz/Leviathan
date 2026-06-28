@@ -38,6 +38,18 @@ def _report(candidate_id: str, status: str, rmse: float, delta: float) -> dict:
             "bad_year_sign_accuracy": 0.75,
             "validated": 0.0,
         },
+        "downside_alert_metrics": {
+            "summary": {
+                "downside_0p05_pred_lt_0_recall": 0.6,
+                "downside_0p05_pred_lt_0_precision": 0.5,
+                "downside_0p05_pred_lt_0_false_negatives": 2,
+                "downside_0p05_pred_lt_0_f2_score": 0.57,
+                "downside_0p1_pred_lt_0_recall": 0.4,
+                "downside_0p1_pred_lt_0_precision": 0.8,
+                "downside_0p1_pred_lt_0_false_negatives": 3,
+                "downside_0p1_pred_lt_0_f2_score": 0.44,
+            }
+        },
         "baseline_comparison": {
             "metrics": {
                 "best_baseline_rmse": 0.4,
@@ -65,6 +77,8 @@ def test_flatten_certification_report_keeps_promotion_fields() -> None:
     assert row["promotion_gate_status"] == "pass"
     assert row["ready_for_model_registration"] is True
     assert row["model_vs_best_baseline_rmse_delta"] == -0.1
+    assert row["downside_5pct_pred_lt_0_recall"] == 0.6
+    assert row["downside_10pct_pred_lt_0_false_negatives"] == 3
     assert row["certification_report_uri"] == "s3://bucket/c1.json"
 
 

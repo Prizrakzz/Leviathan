@@ -15,6 +15,7 @@ from leviathan.features.computations.psd_vintages import (
 )
 from leviathan.model_datasets.psd_model_ready import (
     PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+    PERSISTENCE_PRIOR_YEAR_FEATURE,
     PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
     PSD_DATASET_KEY,
     PSD_MATRIX_ID_COLUMNS,
@@ -106,6 +107,30 @@ def _membership_with_corn_composite() -> pd.DataFrame:
             "feature_set_version": ["1", "1", "1"],
             "feature_set_sha": ["corn_wasde_sha", "corn_wasde_sha", "corn_wasde_sha"],
             "dataset_version": ["gold_v", "gold_v", "gold_v"],
+        }),
+    ], ignore_index=True)
+
+
+def _membership_with_corn_persistence() -> pd.DataFrame:
+    return pd.concat([
+        _membership(),
+        pd.DataFrame({
+            "feature_set_id": [
+                "corn_preseason_core",
+                "corn_preseason_core",
+                "corn_persistence_core",
+                "corn_persistence_core",
+            ],
+            "feature": [
+                "feature_a",
+                "feature_b",
+                "feature_a",
+                "feature_b",
+            ],
+            "is_label": [False, False, False, False],
+            "feature_set_version": ["1", "1", "1", "1"],
+            "feature_set_sha": ["corn_core_sha", "corn_core_sha", "corn_persist_sha", "corn_persist_sha"],
+            "dataset_version": ["gold_v", "gold_v", "gold_v", "gold_v"],
         }),
     ], ignore_index=True)
 
@@ -291,6 +316,29 @@ def test_psd_model_ready_builds_matrices_and_baselines() -> None:
     }
     assert built.summaries[0]["target_source"] == "psd"
     assert built.summaries[0]["target_attribute"] == "production_mt"
+
+
+def test_psd_model_ready_adds_persistence_feature_for_persistence_sets() -> None:
+    built = build_psd_commodity_model_datasets(
+        _feature_matrix(),
+        _psd_targets(),
+        commodity="corn_cbot",
+        feature_membership=_membership_with_corn_persistence(),
+        config=PSDModelReadyBuildConfig(compatible_feature_sets=("corn_persistence_core",)),
+        target_keys=("psd_production_anomaly_pct",),
+    )
+
+    matrix = built.matrices[(PSD_DATASET_KEY, "psd_production_anomaly_pct")]
+
+    assert PERSISTENCE_PRIOR_YEAR_FEATURE in matrix.columns
+    assert "feature_a" in matrix.columns
+    assert "feature_b" in matrix.columns
+    pd.testing.assert_series_equal(
+        matrix[PERSISTENCE_PRIOR_YEAR_FEATURE],
+        matrix["prior_year_anomaly_baseline"],
+        check_names=False,
+    )
+    assert built.summaries[0]["feature_count"] == 3
 
 
 def test_psd_model_ready_prunes_ultra_sparse_dense_weather_features() -> None:
@@ -1104,6 +1152,64 @@ def test_model_ready_cli_writes_snapshot_model_ready_feature_sets(tmp_path: Path
     assert (tmp_path / gold_model_ready_feature_set_summary_key(model_version)).exists()
     assert set(feature_sets["feature_set_id"]) == {PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID}
     assert "psd_production_latest_estimate_as_of" in set(feature_sets["feature"])
+    assert manifest["outputs"]["model_ready_feature_sets_key"] == (
+        gold_model_ready_feature_set_version_key(model_version)
+    )
+
+
+def test_model_ready_cli_writes_annual_persistence_model_ready_feature_sets(
+    tmp_path: Path,
+) -> None:
+    source_version = "g"
+    model_version = "annual_persistence_sets"
+    membership_key = gold_feature_set_version_key(source_version)
+    matrix_key = gold_feature_matrix_version_key(source_version, "corn_cbot")
+    psd_key = "silver/psd/part-000.parquet"
+    (tmp_path / membership_key).parent.mkdir(parents=True)
+    _membership_with_corn_persistence().to_parquet(tmp_path / membership_key, index=False)
+    (tmp_path / matrix_key).parent.mkdir(parents=True)
+    _feature_matrix().to_parquet(tmp_path / matrix_key, index=False)
+    (tmp_path / psd_key).parent.mkdir(parents=True)
+    _psd_source().to_parquet(tmp_path / psd_key, index=False)
+
+    subprocess.run(
+        [
+            sys.executable,
+            "jobs/batch/build_model_ready_datasets.py",
+            "--local-root",
+            str(tmp_path),
+            "--target-source",
+            "psd",
+            "--source-dataset-version",
+            source_version,
+            "--model-dataset-version",
+            model_version,
+            "--commodities",
+            "corn_cbot",
+            "--target-keys",
+            "psd_production_anomaly_pct",
+            "--compatible-feature-sets",
+            "corn_persistence_core",
+            "--workers",
+            "2",
+        ],
+        check=True,
+    )
+
+    matrix = pd.read_parquet(tmp_path / gold_model_ready_matrix_key(
+        model_version,
+        PSD_DATASET_KEY,
+        "corn_cbot",
+        "psd_production_anomaly_pct",
+    ))
+    feature_sets = pd.read_parquet(
+        tmp_path / gold_model_ready_feature_set_version_key(model_version)
+    )
+    manifest = json.loads((tmp_path / gold_model_ready_manifest_key(model_version)).read_text())
+
+    assert PERSISTENCE_PRIOR_YEAR_FEATURE in matrix.columns
+    assert set(feature_sets["feature_set_id"]) == {"corn_persistence_core"}
+    assert PERSISTENCE_PRIOR_YEAR_FEATURE in set(feature_sets["feature"])
     assert manifest["outputs"]["model_ready_feature_sets_key"] == (
         gold_model_ready_feature_set_version_key(model_version)
     )

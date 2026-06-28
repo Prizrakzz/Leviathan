@@ -13,6 +13,7 @@ DENSE_WEATHER_FEATURE_SETS = {
     "corn_weather_wasde",
     "corn_weather_flow",
     "corn_full_fundamental_stack",
+    "corn_persistence_weather_pruned",
 }
 DENSE_WEATHER_PREFIX = "weather_dense_"
 DENSE_WEATHER_CORE_MIN_NON_NULL_RATE = 0.20

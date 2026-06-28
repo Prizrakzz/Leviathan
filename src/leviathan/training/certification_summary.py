@@ -21,6 +21,9 @@ def flatten_certification_report(report: dict[str, Any]) -> dict[str, Any]:
     aggregate = report.get("aggregate_metrics", {}) or {}
     extreme = report.get("extreme_metrics", {}) or {}
     bad_years = report.get("bad_production_year_metrics", {}) or {}
+    downside_alerts = (
+        (report.get("downside_alert_metrics", {}) or {}).get("summary", {}) or {}
+    )
     gate = report.get("promotion_gate", {}) or {}
     questions = report.get("promotion_questions", {}) or {}
     baseline_metrics = (report.get("baseline_comparison", {}) or {}).get("metrics", {}) or {}
@@ -50,6 +53,30 @@ def flatten_certification_report(report: dict[str, Any]) -> dict[str, Any]:
         "bad_year_negative_recall": bad_years.get("bad_year_negative_recall"),
         "bad_year_sign_accuracy": bad_years.get("bad_year_sign_accuracy"),
         "bad_year_metric_validated": bool(bad_years.get("validated")),
+        "downside_5pct_pred_lt_0_recall": downside_alerts.get(
+            "downside_0p05_pred_lt_0_recall"
+        ),
+        "downside_5pct_pred_lt_0_precision": downside_alerts.get(
+            "downside_0p05_pred_lt_0_precision"
+        ),
+        "downside_5pct_pred_lt_0_false_negatives": downside_alerts.get(
+            "downside_0p05_pred_lt_0_false_negatives"
+        ),
+        "downside_5pct_pred_lt_0_f2": downside_alerts.get(
+            "downside_0p05_pred_lt_0_f2_score"
+        ),
+        "downside_10pct_pred_lt_0_recall": downside_alerts.get(
+            "downside_0p1_pred_lt_0_recall"
+        ),
+        "downside_10pct_pred_lt_0_precision": downside_alerts.get(
+            "downside_0p1_pred_lt_0_precision"
+        ),
+        "downside_10pct_pred_lt_0_false_negatives": downside_alerts.get(
+            "downside_0p1_pred_lt_0_false_negatives"
+        ),
+        "downside_10pct_pred_lt_0_f2": downside_alerts.get(
+            "downside_0p1_pred_lt_0_f2_score"
+        ),
         "best_baseline_rmse": baseline_metrics.get("best_baseline_rmse"),
         "model_vs_best_baseline_rmse_delta": baseline_metrics.get(
             "model_vs_best_baseline_rmse_delta"

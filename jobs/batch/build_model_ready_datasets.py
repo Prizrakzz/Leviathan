@@ -34,6 +34,7 @@ from leviathan.model_datasets.psd_model_ready import (
     PSD_SNAPSHOT_MATRIX_ID_COLUMNS,
     PSD_SNAPSHOT_STATIC_FEATURE_SETS,
     snapshot_feature_set_contract_notes,
+    annual_model_ready_features_for_set,
     psd_vintage_feature_columns,
     validate_snapshot_feature_set_ids,
     wasde_snapshot_feature_columns,
@@ -302,6 +303,7 @@ def _feature_observation(
     meta = source_meta.get(feature, {})
     is_psd_snapshot = feature.startswith("psd_")
     is_wasde_revision = feature.startswith("wasde_")
+    is_persistence = feature.startswith("persistence_")
     row_count = int(len(matrix_df))
     non_null_count = int(pd.to_numeric(matrix_df[feature], errors="coerce").notna().sum())
     return {
@@ -315,13 +317,23 @@ def _feature_observation(
             or (
                 "psd_balance_sheet_snapshot"
                 if is_psd_snapshot else (
-                    "official_revisions" if is_wasde_revision else "model_ready_dynamic"
+                    "official_revisions"
+                    if is_wasde_revision else (
+                        "persistence_context"
+                        if is_persistence else "model_ready_dynamic"
+                    )
                 )
             )
         ),
         "semantic_scope": str(
             meta.get("semantic_scope")
-            or ("official_revision" if (is_psd_snapshot or is_wasde_revision) else "model_ready_snapshot")
+            or (
+                "official_revision"
+                if (is_psd_snapshot or is_wasde_revision) else (
+                    "target_history_context"
+                    if is_persistence else "model_ready_snapshot"
+                )
+            )
         ),
         "policy": str(
             meta.get("policy") or "fundamental_physical"
@@ -332,17 +344,32 @@ def _feature_observation(
                 "official_balance_sheet_snapshot_context"
                 if is_psd_snapshot else (
                     "official_estimate_revision"
-                    if is_wasde_revision else "snapshot_static_context"
+                    if is_wasde_revision else (
+                        "prior_year_target_persistence"
+                        if is_persistence else "snapshot_static_context"
+                    )
                 )
             )
         ),
         "sources": str(
             meta.get("sources")
-            or ("psd" if is_psd_snapshot else ("wasde" if is_wasde_revision else ""))
+            or (
+                "psd"
+                if is_psd_snapshot else (
+                    "wasde" if is_wasde_revision else (
+                        "model_ready_target_history" if is_persistence else ""
+                    )
+                )
+            )
         ),
         "source_cadence": str(
             meta.get("source_cadence")
-            or ("monthly" if (is_psd_snapshot or is_wasde_revision) else "")
+            or (
+                "monthly"
+                if (is_psd_snapshot or is_wasde_revision) else (
+                    "annual" if is_persistence else ""
+                )
+            )
         ),
         "empirical_scope": str(meta.get("empirical_scope") or "commodity"),
         "groups": str(meta.get("groups") or ""),
@@ -356,9 +383,40 @@ def _feature_observation(
             "official_estimate_revision,finalization_gap"
         ),
         "missingness_policy": "tree_models_allow_nan",
-        "min_lag_days": 0,
+        "min_lag_days": 365 if is_persistence else 0,
         "commodity": commodity,
     }
+
+
+def _annual_feature_set_observations(
+    *,
+    args: argparse.Namespace,
+    matrix_df: pd.DataFrame,
+    feature_membership: pd.DataFrame,
+    commodity: str,
+) -> list[dict]:
+    source_meta = _source_feature_metadata(feature_membership)
+    requested = tuple(
+        args.compatible_feature_sets_tuple
+        or tuple(PSDModelReadyBuildConfig().compatible_feature_sets)
+    )
+    observations: list[dict] = []
+    for feature_set_id in requested:
+        selected = annual_model_ready_features_for_set(
+            matrix_df, feature_membership, feature_set_id
+        )
+        for feature in selected:
+            observations.append(
+                _feature_observation(
+                    model_dataset_version=args.model_dataset_version,
+                    feature_set_id=feature_set_id,
+                    feature=feature,
+                    matrix_df=matrix_df,
+                    source_meta=source_meta,
+                    commodity=commodity,
+                )
+            )
+    return observations
 
 
 def _snapshot_feature_set_observations(
@@ -648,6 +706,7 @@ def _process_psd_commodity(
         "target_outputs": [],
         "matrix_outputs": [],
         "summaries": [],
+        "model_ready_feature_observations": [],
     }
     try:
         matrix = _read_parquet(args, matrix_key)
@@ -728,6 +787,14 @@ def _process_psd_commodity(
                 len([c for c in matrix_df.columns if c not in MODEL_READY_NON_FEATURE_COLUMNS])
             ),
         })
+        result["model_ready_feature_observations"].extend(
+            _annual_feature_set_observations(
+                args=args,
+                matrix_df=matrix_df,
+                feature_membership=feature_membership,
+                commodity=commodity,
+            )
+        )
 
     result["baseline_metrics"] = built.baseline_metrics
     result["status"] = "written"

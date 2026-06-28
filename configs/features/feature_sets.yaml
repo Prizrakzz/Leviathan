@@ -126,6 +126,69 @@ feature_sets:
       - psd_production_anomaly
       - production_anomaly
 
+  - id: persistence_context
+    version: 1
+    description: Model-ready-only prior-year target anomaly context for persistence-aware annual experiments.
+    allow_empty: true
+    allowed_policies:
+      - fundamental_physical
+    allowed_feature_families:
+      - persistence_context
+    include_feature_patterns:
+      - "^persistence_"
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    min_lag_days: 365
+    target_compatibility:
+      - psd_production_anomaly
+      - psd_balance_sheet_anomaly
+      - tail_event_probability
+
+  - id: corn_persistence_core
+    version: 1
+    description: Corn preseason core plus prior-year target anomaly persistence context.
+    component_feature_sets:
+      - corn_preseason_core
+      - persistence_context
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - production_anomaly
+      - tail_event_probability
+
+  - id: corn_persistence_weather_pruned
+    version: 1
+    description: Corn persistence core plus dense weather features that pass model-ready sparsity gates.
+    component_feature_sets:
+      - corn_persistence_core
+      - inseason_weather_dense
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    min_non_null_rate: 0.6
+    target_compatibility:
+      - psd_production_anomaly
+      - production_anomaly
+      - tail_event_probability
+
+  - id: corn_persistence_flow
+    version: 1
+    description: Corn persistence core plus observable physical-flow pace features.
+    component_feature_sets:
+      - corn_persistence_core
+      - physical_flow
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - production_anomaly
+      - balance_sheet_revision
+      - tail_event_probability
+
   - id: corn_preseason_core_plus_weather_dense
     version: 1
     description: Corn preseason baseline plus dense origin-level in-season weather aggregates.

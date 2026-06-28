@@ -105,6 +105,23 @@ CORN_WASDE_COMPOSITE_FEATURE_SET_IDS = {
     "corn_preseason_core_plus_wasde",
     "corn_weather_wasde",
 }
+PERSISTENCE_CONTEXT_FEATURE_SET_ID = "persistence_context"
+PERSISTENCE_PRIOR_YEAR_FEATURE = "persistence_prior_year_anomaly"
+CORN_PERSISTENCE_FEATURE_SET_IDS = {
+    "corn_persistence_core",
+    "corn_persistence_weather_pruned",
+    "corn_persistence_flow",
+}
+PERSISTENCE_FEATURE_SET_IDS = {
+    PERSISTENCE_CONTEXT_FEATURE_SET_ID,
+    *CORN_PERSISTENCE_FEATURE_SET_IDS,
+}
+PERSISTENCE_FEATURE_SET_COMPONENTS = {
+    PERSISTENCE_CONTEXT_FEATURE_SET_ID: (),
+    "corn_persistence_core": ("corn_preseason_core",),
+    "corn_persistence_weather_pruned": ("corn_preseason_core", "inseason_weather_dense"),
+    "corn_persistence_flow": ("corn_preseason_core", "physical_flow"),
+}
 DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
 PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS = {"country", "crop_year", "snapshot_stage", "as_of_date"}
 PSD_VINTAGE_FEATURE_SUFFIXES = (
@@ -225,6 +242,72 @@ def _feature_union(
         for feature in features
         if feature in matrix_cols and not feature.startswith("label_")
     )
+
+
+def _source_feature_sets_for_annual_set(feature_set_id: str) -> tuple[str, ...]:
+    """Return gold/source feature-set ids needed for an annual model-ready set."""
+    return PERSISTENCE_FEATURE_SET_COMPONENTS.get(feature_set_id, (feature_set_id,))
+
+
+def _annual_static_feature_union(
+    matrix: pd.DataFrame,
+    membership_df: pd.DataFrame,
+    feature_set_ids: Iterable[str],
+) -> list[str]:
+    """Resolve source-backed annual features, excluding model-ready dynamic columns."""
+    source_sets: list[str] = []
+    for feature_set_id in feature_set_ids:
+        source_sets.extend(_source_feature_sets_for_annual_set(str(feature_set_id)))
+    return _feature_union(matrix, membership_df, source_sets)
+
+
+def persistence_feature_columns_for_sets(feature_set_ids: Iterable[str]) -> list[str]:
+    """Return model-ready dynamic persistence features requested by feature sets."""
+    requested = {str(feature_set_id) for feature_set_id in feature_set_ids}
+    if requested & PERSISTENCE_FEATURE_SET_IDS:
+        return [PERSISTENCE_PRIOR_YEAR_FEATURE]
+    return []
+
+
+def annual_model_ready_features_for_set(
+    matrix: pd.DataFrame,
+    membership_df: pd.DataFrame,
+    feature_set_id: str,
+) -> list[str]:
+    """Resolve annual model-ready features for one set, including dynamic features.
+
+    Persistence features are target-history features created only in the
+    model-ready layer.  They do not exist in the shared gold feature matrix, so
+    source membership is used for the static component blocks and the matrix
+    columns are used for the dynamic persistence column.
+    """
+    matrix_cols = set(matrix.columns)
+    features: set[str] = set(
+        _annual_static_feature_union(matrix, membership_df, (feature_set_id,))
+    )
+    if feature_set_id in PERSISTENCE_FEATURE_SET_IDS:
+        features.update(
+            feature
+            for feature in persistence_feature_columns_for_sets((feature_set_id,))
+            if feature in matrix_cols
+        )
+    return sorted(features)
+
+
+def _add_persistence_features(
+    matrix: pd.DataFrame,
+    feature_set_ids: Iterable[str],
+) -> pd.DataFrame:
+    """Add target-history persistence features requested by feature sets."""
+    dynamic_features = persistence_feature_columns_for_sets(feature_set_ids)
+    if not dynamic_features:
+        return matrix
+    out = matrix.copy()
+    if PERSISTENCE_PRIOR_YEAR_FEATURE in dynamic_features:
+        out[PERSISTENCE_PRIOR_YEAR_FEATURE] = pd.to_numeric(
+            out["prior_year_anomaly_baseline"], errors="coerce"
+        )
+    return out
 
 
 def _is_snapshot_dynamic_feature(feature: str) -> bool:
@@ -669,7 +752,7 @@ def build_psd_commodity_model_datasets(
         )
 
     _validate_psd_targets(target_df, commodity)
-    feature_cols = _feature_union(
+    feature_cols = _annual_static_feature_union(
         feature_matrix, feature_membership, build_config.compatible_feature_sets
     )
     matrices: dict[tuple[str, str], pd.DataFrame] = {}
@@ -679,9 +762,20 @@ def build_psd_commodity_model_datasets(
     for target_key, target_group in target_df.groupby("target_key", sort=True):
         target_group = target_group.sort_values(["country", "crop_year"]).reset_index(drop=True)
         matrix_df = _matrix_for_target(feature_matrix, target_group, feature_cols)
+        matrix_df = _add_persistence_features(
+            matrix_df, build_config.compatible_feature_sets
+        )
+        requested_dynamic_cols = [
+            feature
+            for feature in persistence_feature_columns_for_sets(
+                build_config.compatible_feature_sets
+            )
+            if feature in matrix_df.columns
+        ]
+        candidate_feature_cols = sorted(set(feature_cols) | set(requested_dynamic_cols))
         pruning = prune_model_ready_features(
             matrix_df,
-            feature_cols,
+            candidate_feature_cols,
             selected_feature_sets=build_config.compatible_feature_sets,
         )
         if pruning.dropped_features:

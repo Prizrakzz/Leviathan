@@ -9,6 +9,7 @@ from leviathan.training.certification import (
     audit_feature_leakage,
     build_candidate_certification_report,
     country_blocked_validation,
+    downside_alert_metrics,
 )
 
 
@@ -67,6 +68,23 @@ def test_country_blocked_validation_scores_each_country() -> None:
     assert out["aggregate"]["n_rows"] == len(matrix)
 
 
+def test_downside_alert_metrics_are_reported_for_fixed_thresholds() -> None:
+    predictions = pd.DataFrame({
+        "country": ["a", "b", "c"],
+        "crop_year": [2020, 2020, 2020],
+        "y_actual": [-0.12, -0.08, 0.03],
+        "y_pred": [-0.02, 0.01, -0.01],
+    })
+
+    metrics = downside_alert_metrics(
+        predictions, thresholds=(-0.05,), min_event_rows=1
+    )
+    summary = metrics["summary"]
+
+    assert summary["downside_0p05_pred_lt_0_recall"] == 0.5
+    assert summary["downside_0p05_pred_lt_0_false_negatives"] == 1
+
+
 def test_build_candidate_certification_report_flags_unvalidated_extreme_sample() -> None:
     matrix = _matrix()
     spec = CandidateSpec(
@@ -103,6 +121,8 @@ def test_build_candidate_certification_report_flags_unvalidated_extreme_sample()
     assert report["fold_metrics"]
     assert report["extreme_metrics"]["n_extreme_independent_country_years"] < 30
     assert report["bad_production_year_metrics"]["n_bad_year_rows"] > 0
+    assert "downside_alert_metrics" in report
+    assert "downside_0p05_pred_lt_0_recall" in report["downside_alert_metrics"]["summary"]
     assert report["promotion_gate"]["recommendation"] in {
         "do_not_promote",
         "hold_for_more_validation",

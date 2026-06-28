@@ -82,7 +82,7 @@ def test_feature_sets_exclude_labels_and_core_diagnostics() -> None:
         _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
     )
 
-    assert summary["feature_set_count"] == 25
+    assert summary["feature_set_count"] == 29
     assert "label_production_quantity" not in set(membership["feature"])
     core = membership.loc[membership["feature_set_id"] != "diagnostic_market_context"]
     assert "diagnostic_only" not in set(core["policy"])
@@ -210,6 +210,30 @@ def test_corn_composite_feature_sets_union_component_blocks() -> None:
     assert "corn_dec_mar_spread_z" not in set(full)
 
 
+def test_corn_persistence_sets_resolve_static_components_in_source_catalog() -> None:
+    specs, config_sha = load_feature_set_config()
+    membership, _ = build_feature_set_membership(
+        _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
+    )
+
+    persistence_context = membership.loc[
+        membership["feature_set_id"] == "persistence_context"
+    ]
+    core = selected_features_for_set(membership, "corn_preseason_core")
+    persistence_core = selected_features_for_set(membership, "corn_persistence_core")
+    persistence_weather = selected_features_for_set(
+        membership, "corn_persistence_weather_pruned"
+    )
+    persistence_flow = selected_features_for_set(membership, "corn_persistence_flow")
+
+    assert persistence_context.empty
+    assert set(core).issubset(set(persistence_core))
+    assert "weather_dense_precip_z_mean_silking" in persistence_weather
+    assert "weather_dense_ndvi_z_coverage_share_silking" not in persistence_weather
+    assert "fgis_export_pace_yoy" in persistence_flow
+    assert not any(feature.startswith("persistence_") for feature in persistence_core)
+
+
 def test_zero_feature_set_fails(tmp_path: Path) -> None:
     config = tmp_path / "sets.yaml"
     config.write_text(
@@ -257,10 +281,10 @@ def test_feature_set_task_writes_outputs_and_patches_manifest(tmp_path: Path) ->
 
     summary = build_and_write(args)
 
-    assert summary["feature_set_count"] == 25
+    assert summary["feature_set_count"] == 29
     assert (tmp_path / gold_feature_set_version_key(version)).exists()
     assert (tmp_path / gold_feature_set_summary_key(version)).exists()
     manifest = json.loads(manifest_path.read_text())
-    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 25
+    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 29
     assert manifest["outputs"]["feature_sets_key"] == gold_feature_set_version_key(version)
     assert manifest["outputs"]["feature_sets_json_key"] == gold_feature_set_summary_key(version)
