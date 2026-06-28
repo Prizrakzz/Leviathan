@@ -7,10 +7,10 @@ The default grid lives in:
 configs/ml/phase10_candidate_grid.yaml
 ```
 
-It tests the current corn PSD production-anomaly setup against three hypotheses:
+It tests the current corn PSD production-anomaly setup against four hypotheses:
 
 - `baseline_hardening_reference`: freeze the current reference candidate.
-- `psd_vintage_signal`: compare monthly PSD vintage-only vs preseason plus PSD vintage features.
+- `wasde_revision_signal`: compare monthly WASDE revision-only vs preseason plus WASDE revision features.
 - `annual_static_feature_ablation`: compare annual static feature families.
 - `cv_policy_sensitivity`: check the reference candidate under a rolling window.
 
@@ -40,7 +40,7 @@ python jobs/submit/submit_batch_phase10_certification_grid.py `
 
 ```powershell
 python jobs/submit/submit_batch_phase10_certification_grid.py `
-  --include-hypotheses psd_vintage_signal `
+  --include-hypotheses wasde_revision_signal `
   --permutation-trials 20 `
   --max-jobs 10
 ```

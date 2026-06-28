@@ -31,7 +31,7 @@ def _catalog() -> pd.DataFrame:
         ("cot_mm_net_pct_oi_z", "market_positioning", "diagnostic_market_context", "diagnostic_only", "positioning_context", "cot", "weekly", "universal", "grains", False, 9, 2, 0.9),
         ("nass_ge_pct_z", "crop_condition", "inseason_crop_condition", "fundamental_physical", "good_excellent_condition", "nass_crop_progress", "weekly", "commodity", "us_row_crops", False, 5, 1, 0.5),
         ("wasde_latest_revision", "official_revisions", "official_revision", "fundamental_physical", "official_estimate_revision", "wasde", "monthly", "commodity", "grains", False, 5, 1, 0.5),
-        ("psd_production_mom_revision", "psd_monthly_vintage", "official_revision", "fundamental_physical", "official_balance_sheet_vintage_revision", "psd", "monthly", "commodity", "grains", False, 5, 1, 0.5),
+        ("psd_production_mom_revision", "psd_balance_sheet_snapshot", "origin_balance_sheet", "fundamental_physical", "official_balance_sheet_snapshot_context", "psd", "monthly", "commodity", "grains", False, 5, 1, 0.5),
         ("ams_percent_tenderable", "cotton_quality", "quality_tenderability", "fundamental_physical", "cotton_quality_tenderable_supply", "ams_cotton_quality", "annual", "commodity", "cotton", False, 5, 1, 0.5),
         ("fgis_export_pace_yoy", "export_pace", "origin_physical_flow", "fundamental_physical", "export_inspection_pace", "fgis", "weekly", "commodity", "us_row_crops", False, 5, 1, 0.5),
         ("psd_available", "balance_sheet", "origin_balance_sheet", "fundamental_physical", "stock_use_balance", "psd", "annual", "universal", "grains", False, 10, 2, 1.0),
@@ -80,7 +80,7 @@ def test_feature_sets_exclude_labels_and_core_diagnostics() -> None:
         _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
     )
 
-    assert summary["feature_set_count"] == 14
+    assert summary["feature_set_count"] == 16
     assert "label_production_quantity" not in set(membership["feature"])
     core = membership.loc[membership["feature_set_id"] != "diagnostic_market_context"]
     assert "diagnostic_only" not in set(core["policy"])
@@ -135,6 +135,20 @@ def test_psd_monthly_vintage_feature_set_selects_only_vintage_features() -> None
     assert selected_features_for_set(membership, "psd_monthly_vintage_features") == [
         "psd_production_mom_revision"
     ]
+    assert selected_features_for_set(membership, "psd_balance_sheet_snapshot") == [
+        "psd_production_mom_revision"
+    ]
+
+
+def test_wasde_monthly_revision_feature_set_selects_wasde_revisions() -> None:
+    specs, config_sha = load_feature_set_config()
+    membership, _ = build_feature_set_membership(
+        _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
+    )
+
+    assert selected_features_for_set(membership, "wasde_monthly_revision") == [
+        "wasde_latest_revision"
+    ]
 
 
 def test_zero_feature_set_fails(tmp_path: Path) -> None:
@@ -184,10 +198,10 @@ def test_feature_set_task_writes_outputs_and_patches_manifest(tmp_path: Path) ->
 
     summary = build_and_write(args)
 
-    assert summary["feature_set_count"] == 14
+    assert summary["feature_set_count"] == 16
     assert (tmp_path / gold_feature_set_version_key(version)).exists()
     assert (tmp_path / gold_feature_set_summary_key(version)).exists()
     manifest = json.loads(manifest_path.read_text())
-    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 14
+    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 16
     assert manifest["outputs"]["feature_sets_key"] == gold_feature_set_version_key(version)
     assert manifest["outputs"]["feature_sets_json_key"] == gold_feature_set_summary_key(version)

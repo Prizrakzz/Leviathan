@@ -21,6 +21,9 @@ from leviathan.model_datasets.snapshot_stages import (
     SnapshotStageConfig,
     resolve_snapshot_dates,
 )
+from leviathan.model_datasets.wasde_snapshot import (
+    build_wasde_snapshot_feature_matrix,
+)
 
 PSD_DATASET_KEY = "psd_snd_anomaly"
 PSD_SNAPSHOT_DATASET_KEY = "psd_snd_anomaly_snapshot"
@@ -80,11 +83,15 @@ PSD_MATRIX_ID_COLUMNS = [
 
 PSD_TARGET_NATURAL_KEY = ["commodity", "country", "crop_year", "target_key"]
 PSD_SNAPSHOT_COLUMNS = ["snapshot_stage", "as_of_date", "snapshot_policy"]
+PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID = "psd_balance_sheet_snapshot"
 PSD_SNAPSHOT_MATRIX_ID_COLUMNS = PSD_MATRIX_ID_COLUMNS + PSD_SNAPSHOT_COLUMNS
 PSD_SNAPSHOT_TARGET_COLUMNS = PSD_TARGET_COLUMNS + PSD_SNAPSHOT_COLUMNS
 PSD_MONTHLY_VINTAGE_FEATURE_SET_ID = "psd_monthly_vintage_features"
 PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID = "preseason_physical_plus_psd_vintage"
-DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,)
+PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID = "preseason_physical_plus_psd_snapshot"
+WASDE_MONTHLY_REVISION_FEATURE_SET_ID = "wasde_monthly_revision"
+PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID = "preseason_physical_plus_wasde_revision"
+DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
 PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS = {"country", "crop_year", "snapshot_stage", "as_of_date"}
 PSD_VINTAGE_FEATURE_SUFFIXES = (
     "latest_estimate_as_of",
@@ -98,6 +105,12 @@ PSD_VINTAGE_FEATURE_SUFFIXES = (
 PSD_SNAPSHOT_STATIC_FEATURE_SETS = {
     "preseason_physical",
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
+    PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+    PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+}
+PSD_SNAPSHOT_FEATURE_SET_ALIASES = {
+    PSD_MONTHLY_VINTAGE_FEATURE_SET_ID: PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
+    PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID: PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
 }
 
 
@@ -139,6 +152,23 @@ def psd_vintage_feature_columns(matrix: pd.DataFrame) -> list[str]:
     )
 
 
+def wasde_snapshot_feature_columns(matrix: pd.DataFrame) -> list[str]:
+    """Return dynamic WASDE revision columns from a snapshot matrix."""
+    return sorted(
+        str(col)
+        for col in matrix.columns
+        if str(col).startswith("wasde_")
+        and str(col) not in PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS
+    )
+
+
+def _normalize_snapshot_key_dates(matrix: pd.DataFrame) -> pd.DataFrame:
+    out = matrix.copy()
+    if "as_of_date" in out.columns:
+        out["as_of_date"] = pd.to_datetime(out["as_of_date"], errors="coerce").dt.date
+    return out
+
+
 def _drop_all_missing_feature_columns(
     matrix: pd.DataFrame,
     feature_cols: Iterable[str],
@@ -158,7 +188,11 @@ def _drop_all_missing_feature_columns(
 def _snapshot_static_feature_set_ids(feature_set_ids: Iterable[str]) -> tuple[str, ...]:
     ids = set(str(feature_set_id) for feature_set_id in feature_set_ids)
     out: set[str] = set()
-    if PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID in ids:
+    if {
+        PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
+        PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+        PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+    } & ids:
         out.add("preseason_physical")
     out.update(feature_set_id for feature_set_id in ids if feature_set_id in PSD_SNAPSHOT_STATIC_FEATURE_SETS)
     return tuple(sorted(out))
@@ -170,13 +204,18 @@ def _snapshot_feature_columns(
     feature_set_ids: Iterable[str],
     *,
     static_feature_matrix: pd.DataFrame | None = None,
-) -> tuple[pd.DataFrame, list[str], dict[str, list[str]], list[str]]:
+) -> tuple[pd.DataFrame, list[str], dict[str, list[str]], dict[str, list[str]]]:
     """Resolve dynamic and optional static feature columns for snapshot matrices."""
     requested = tuple(str(feature_set_id) for feature_set_id in feature_set_ids)
-    raw_dynamic_cols = psd_vintage_feature_columns(dynamic_features)
-    dynamic_cols, dropped_dynamic_cols = _drop_all_missing_feature_columns(
+    raw_psd_cols = psd_vintage_feature_columns(dynamic_features)
+    psd_cols, dropped_psd_cols = _drop_all_missing_feature_columns(
         dynamic_features,
-        raw_dynamic_cols,
+        raw_psd_cols,
+    )
+    raw_wasde_cols = wasde_snapshot_feature_columns(dynamic_features)
+    wasde_cols, dropped_wasde_cols = _drop_all_missing_feature_columns(
+        dynamic_features,
+        raw_wasde_cols,
     )
     static_cols: list[str] = []
     feature_matrix = dynamic_features.copy()
@@ -201,10 +240,20 @@ def _snapshot_feature_columns(
 
     selected_by_set: dict[str, list[str]] = {}
     for feature_set_id in requested:
-        if feature_set_id == PSD_MONTHLY_VINTAGE_FEATURE_SET_ID:
-            selected_by_set[feature_set_id] = dynamic_cols
-        elif feature_set_id == PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID:
-            selected_by_set[feature_set_id] = sorted(set(dynamic_cols) | set(static_cols))
+        if feature_set_id in {
+            PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,
+            PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
+        }:
+            selected_by_set[feature_set_id] = psd_cols
+        elif feature_set_id in {
+            PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
+            PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+        }:
+            selected_by_set[feature_set_id] = sorted(set(psd_cols) | set(static_cols))
+        elif feature_set_id == WASDE_MONTHLY_REVISION_FEATURE_SET_ID:
+            selected_by_set[feature_set_id] = wasde_cols
+        elif feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
+            selected_by_set[feature_set_id] = sorted(set(wasde_cols) | set(static_cols))
         else:
             selected_by_set[feature_set_id] = _feature_union(
                 feature_matrix, feature_membership, (feature_set_id,)
@@ -213,7 +262,11 @@ def _snapshot_feature_columns(
     feature_cols = sorted({
         feature for features in selected_by_set.values() for feature in features
     })
-    return feature_matrix, feature_cols, selected_by_set, dropped_dynamic_cols
+    dropped = {
+        "psd": dropped_psd_cols,
+        "wasde": dropped_wasde_cols,
+    }
+    return feature_matrix, feature_cols, selected_by_set, dropped
 
 
 def _validate_feature_matrix(matrix: pd.DataFrame, commodity: str) -> None:
@@ -545,6 +598,7 @@ def build_psd_commodity_snapshot_model_datasets(
     as_of_date: str | None = None,
     include_named_stages: bool = True,
     static_feature_matrix: pd.DataFrame | None = None,
+    wasde_source: pd.DataFrame | None = None,
     config: PSDModelReadyBuildConfig | None = None,
     target_keys: tuple[str, ...] = (),
 ) -> CommodityModelDataset:
@@ -604,6 +658,21 @@ def build_psd_commodity_snapshot_model_datasets(
         countries=countries,
         snapshots=snapshot_context,
     )
+    dynamic_features = _normalize_snapshot_key_dates(dynamic_features)
+    wasde_features = build_wasde_snapshot_feature_matrix(
+        wasde_source,
+        commodity=commodity,
+        countries=countries,
+        snapshots=snapshot_context,
+    )
+    wasde_features = _normalize_snapshot_key_dates(wasde_features)
+    if wasde_snapshot_feature_columns(wasde_features):
+        dynamic_features = dynamic_features.merge(
+            wasde_features,
+            on=["country", "crop_year", "snapshot_stage", "as_of_date"],
+            how="left",
+            validate="one_to_one",
+        )
     vintage_join_audit = build_psd_vintage_snapshot_join_audit(
         feature_source,
         countries=countries,
@@ -616,9 +685,14 @@ def build_psd_commodity_snapshot_model_datasets(
         static_feature_matrix=static_feature_matrix,
     )
     dynamic_cols = psd_vintage_feature_columns(dynamic_features)
+    wasde_cols = wasde_snapshot_feature_columns(dynamic_features)
     vintage_quality = summarize_psd_vintage_feature_quality(
         feature_matrix,
         feature_cols=dynamic_cols,
+    )
+    wasde_quality = summarize_psd_vintage_feature_quality(
+        feature_matrix,
+        feature_cols=wasde_cols,
     )
     if include_named_stages and dynamic_cols:
         validate_psd_vintage_feature_quality(
@@ -692,7 +766,9 @@ def build_psd_commodity_snapshot_model_datasets(
                 for feature_set_id, features in selected_by_set.items()
             },
             "vintage_feature_quality": vintage_quality,
-            "dropped_empty_vintage_features": dropped_dynamic_cols,
+            "wasde_feature_quality": wasde_quality,
+            "dropped_empty_vintage_features": dropped_dynamic_cols.get("psd", []),
+            "dropped_empty_wasde_features": dropped_dynamic_cols.get("wasde", []),
             "vintage_join_audit": vintage_join_audit_summary,
             "target_status_counts": {
                 str(k): int(v)

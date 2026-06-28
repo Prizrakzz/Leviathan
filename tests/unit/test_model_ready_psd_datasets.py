@@ -14,11 +14,14 @@ from leviathan.features.computations.psd_vintages import (
     validate_psd_vintage_feature_quality,
 )
 from leviathan.model_datasets.psd_model_ready import (
+    PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+    PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
     PSD_DATASET_KEY,
     PSD_MATRIX_ID_COLUMNS,
     PSDModelReadyBuildConfig,
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
     PSD_SNAPSHOT_DATASET_KEY,
+    WASDE_MONTHLY_REVISION_FEATURE_SET_ID,
     build_psd_commodity_model_datasets,
     build_psd_commodity_snapshot_model_datasets,
 )
@@ -152,6 +155,66 @@ def _psd_source_with_monthly_vintages(
             "exports_mt": 1029.0,
             "imports_mt": 1039.0,
             "consumption_mt": 1049.0,
+        })
+    return pd.DataFrame(rows)
+
+
+def _wasde_source_with_revisions(include_future_revision: bool = False) -> pd.DataFrame:
+    rows = []
+    for year, revisions in {
+        2000: [1.0, 2.0],
+        2001: [2.0, 3.0],
+        2002: [3.0, 4.0],
+        2003: [4.0, 5.0],
+        2004: [5.0, 6.0],
+        2005: [7.0, 9.0],
+    }.items():
+        for month, revision in zip((5, 6), revisions):
+            rows.append({
+                "release_date": f"{year}-{month:02d}-10",
+                "commodity": "corn",
+                "table_type": "world",
+                "region": "united_states",
+                "marketing_year": f"{year}/{str(year + 1)[-2:]}",
+                "attribute": "production",
+                "unit": "million_metric_tons",
+                "estimate": 100.0 + revision,
+                "prior_release_date": f"{year}-{month - 1:02d}-10",
+                "prior_estimate": 100.0,
+                "revision": revision,
+                "revision_direction": "up",
+                "source": "usda_wasde",
+            })
+            rows.append({
+                "release_date": f"{year}-{month:02d}-10",
+                "commodity": "corn",
+                "table_type": "world",
+                "region": "united_states",
+                "marketing_year": f"{year}/{str(year + 1)[-2:]}",
+                "attribute": "ending_stocks",
+                "unit": "million_metric_tons",
+                "estimate": 50.0 + revision,
+                "prior_release_date": f"{year}-{month - 1:02d}-10",
+                "prior_estimate": 50.0,
+                "revision": revision / 2.0,
+                "revision_direction": "up",
+                "source": "usda_wasde",
+            })
+    if include_future_revision:
+        rows.append({
+            "release_date": "2005-08-10",
+            "commodity": "corn",
+            "table_type": "world",
+            "region": "united_states",
+            "marketing_year": "2005/06",
+            "attribute": "production",
+            "unit": "million_metric_tons",
+            "estimate": 999.0,
+            "prior_release_date": "2005-07-10",
+            "prior_estimate": 100.0,
+            "revision": 999.0,
+            "revision_direction": "up",
+            "source": "usda_wasde",
         })
     return pd.DataFrame(rows)
 
@@ -511,7 +574,7 @@ def test_psd_snapshot_model_ready_infers_vintage_features_without_source_feature
 
     assert "psd_production_latest_estimate_as_of" in matrix.columns
     assert "psd_production_mom_revision" in matrix.columns
-    assert built.summaries[0]["feature_count_by_set"]["psd_monthly_vintage_features"] > 0
+    assert built.summaries[0]["feature_count_by_set"][PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID] > 0
 
 
 def test_psd_snapshot_model_ready_can_combine_preseason_and_vintage_features() -> None:
@@ -546,6 +609,80 @@ def test_psd_snapshot_model_ready_can_combine_preseason_and_vintage_features() -
     assert "psd_production_latest_estimate_as_of" in matrix.columns
     assert built.summaries[0]["feature_count_by_set"][
         PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID
+    ] >= 3
+
+
+def test_psd_snapshot_model_ready_adds_visible_wasde_revisions() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity="corn_cbot",
+        feature_membership=_membership(),
+        calendar=load_crop_calendars()["corn_cbot"],
+        snapshot_config=load_snapshot_stage_config(),
+        as_of_date="2005-07-01",
+        include_named_stages=False,
+        wasde_source=_wasde_source_with_revisions(include_future_revision=True),
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=(WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
+        ),
+        target_keys=("psd_production_anomaly_pct",),
+    )
+    matrix = built.matrices[
+        (PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")
+    ]
+    row = matrix.loc[matrix["crop_year"] == 2005].iloc[0]
+
+    assert "wasde_latest_revision" in matrix.columns
+    assert "wasde_production_revision_z" in matrix.columns
+    assert row["wasde_latest_revision"] == 9.0
+    assert row["wasde_consecutive_revision_count"] == 2.0
+    assert row["wasde_production_revision_z"] < 999.0
+    assert built.summaries[0]["feature_count_by_set"][WASDE_MONTHLY_REVISION_FEATURE_SET_ID] > 0
+
+
+def test_psd_snapshot_model_ready_can_combine_preseason_and_wasde_features() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity="corn_cbot",
+        feature_membership=_membership(),
+        calendar=load_crop_calendars()["corn_cbot"],
+        snapshot_config=load_snapshot_stage_config(),
+        as_of_date="2005-07-01",
+        include_named_stages=False,
+        static_feature_matrix=_feature_matrix(),
+        wasde_source=_wasde_source_with_revisions(),
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=(PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,)
+        ),
+        target_keys=("psd_production_anomaly_pct",),
+    )
+    matrix = built.matrices[
+        (PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")
+    ]
+
+    assert "feature_a" in matrix.columns
+    assert "feature_b" in matrix.columns
+    assert "wasde_latest_revision" in matrix.columns
+    assert built.summaries[0]["feature_count_by_set"][
+        PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID
     ] >= 3
 
 
@@ -744,8 +881,65 @@ def test_model_ready_cli_writes_snapshot_model_ready_feature_sets(tmp_path: Path
     manifest = json.loads((tmp_path / gold_model_ready_manifest_key(model_version)).read_text())
 
     assert (tmp_path / gold_model_ready_feature_set_summary_key(model_version)).exists()
-    assert set(feature_sets["feature_set_id"]) == {"psd_monthly_vintage_features"}
+    assert set(feature_sets["feature_set_id"]) == {PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID}
     assert "psd_production_latest_estimate_as_of" in set(feature_sets["feature"])
     assert manifest["outputs"]["model_ready_feature_sets_key"] == (
         gold_model_ready_feature_set_version_key(model_version)
     )
+
+
+def test_model_ready_cli_can_materialize_wasde_snapshot_feature_set(tmp_path: Path) -> None:
+    source_version = "g"
+    model_version = "mps_wasde_snapshot"
+    membership_key = gold_feature_set_version_key(source_version)
+    psd_key = "silver/psd/part-000.parquet"
+    wasde_key = "silver/wasde/release_date=2005-06-10/part-000.parquet"
+    (tmp_path / membership_key).parent.mkdir(parents=True)
+    _membership().to_parquet(tmp_path / membership_key, index=False)
+    (tmp_path / psd_key).parent.mkdir(parents=True)
+    _psd_source_with_monthly_vintages().to_parquet(tmp_path / psd_key, index=False)
+    (tmp_path / wasde_key).parent.mkdir(parents=True)
+    _wasde_source_with_revisions().to_parquet(tmp_path / wasde_key, index=False)
+
+    subprocess.run(
+        [
+            sys.executable,
+            "jobs/batch/build_model_ready_datasets.py",
+            "--local-root",
+            str(tmp_path),
+            "--target-source",
+            "psd",
+            "--snapshot-mode",
+            "true",
+            "--as-of-date",
+            "2005-07-01",
+            "--source-dataset-version",
+            source_version,
+            "--model-dataset-version",
+            model_version,
+            "--commodities",
+            "corn_cbot",
+            "--target-keys",
+            "psd_production_anomaly_pct",
+            "--compatible-feature-sets",
+            WASDE_MONTHLY_REVISION_FEATURE_SET_ID,
+            "--workers",
+            "2",
+        ],
+        check=True,
+    )
+
+    matrix = pd.read_parquet(tmp_path / gold_model_ready_matrix_key(
+        model_version,
+        PSD_SNAPSHOT_DATASET_KEY,
+        "corn_cbot",
+        "psd_production_anomaly_pct",
+    ))
+    feature_sets = pd.read_parquet(
+        tmp_path / gold_model_ready_feature_set_version_key(model_version)
+    )
+
+    assert "wasde_latest_revision" in matrix.columns
+    assert matrix.loc[matrix["crop_year"] == 2005, "wasde_latest_revision"].iloc[0] == 9.0
+    assert set(feature_sets["feature_set_id"]) == {WASDE_MONTHLY_REVISION_FEATURE_SET_ID}
+    assert "wasde_latest_revision" in set(feature_sets["feature"])

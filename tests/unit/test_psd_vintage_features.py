@@ -120,8 +120,8 @@ def test_psd_monthly_vintage_taxonomy_classifies_before_generic_psd() -> None:
     taxonomy = load_taxonomy()
     rule = taxonomy.classify("psd_production_mom_revision")
 
-    assert rule.feature_family == "psd_monthly_vintage"
-    assert rule.semantic_scope == "official_revision"
+    assert rule.feature_family == "psd_balance_sheet_snapshot"
+    assert rule.semantic_scope == "origin_balance_sheet"
     assert rule.source_cadence == "monthly"
 
 

@@ -64,13 +64,13 @@ model_param_profiles:
       lambda_l2: 5.0
 
 hypotheses:
-  - id: psd_vintage_signal
-    description: Test whether monthly PSD release-vintage features add signal to corn production-anomaly prediction.
+  - id: wasde_revision_signal
+    description: Test whether point-in-time WASDE monthly revision features add signal to corn production-anomaly prediction.
     dataset_keys:
       - psd_snd_anomaly_snapshot
     feature_sets:
-      - psd_monthly_vintage_features
-      - preseason_physical_plus_psd_vintage
+      - wasde_monthly_revision
+      - preseason_physical_plus_wasde_revision
     model_param_profiles:
       - default
       - regularized_small_tree
@@ -96,7 +96,7 @@ hypotheses:
     dataset_keys:
       - psd_snd_anomaly_snapshot
     feature_sets:
-      - preseason_physical_plus_psd_vintage
+      - preseason_physical_plus_wasde_revision
     models:
       - lightgbm
     cv_policies:
@@ -109,7 +109,7 @@ hypotheses:
     dataset_keys:
       - psd_snd_anomaly_snapshot
     feature_sets:
-      - preseason_physical_plus_psd_vintage
+      - preseason_physical_plus_wasde_revision
     models:
       - lightgbm
     cv_policies:

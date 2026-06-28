@@ -50,6 +50,22 @@ versions:
     notes: Corn PSD production-anomaly snapshot surface with point-in-time monthly PSD vintage features and combined preseason-plus-vintage feature-set membership.
 
   - dataset_version: 20260628T012959Z_57a6b3ea_phase1_psd_vintage_pruned
+    status: legacy
+    default_discovery_allowed: false
+    target_source: psd
+    dataset_keys:
+      - psd_snd_anomaly_snapshot
+    source_gold_dataset_version: 20260626T010217Z_6725de02_phase7_full
+    scope: snapshot_smoke
+    commodity_count: 1
+    matrix_count: 1
+    target_count: 1
+    legacy_reason: Superseded by the Phase 0 source-truth corrected WASDE snapshot surface. Retained for replay because it documents why current bulk-only silver/psd cannot produce true monthly revision features.
+    replaced_by: 20260628T021248Z_phase0_wasde_snapshot
+    default_priority: 0
+    notes: Phase 1 corn PSD production-anomaly snapshot surface. Uses explicit target-market-year snapshot context, records PSD vintage join/quality audit metadata, and prunes all-missing MoM revision features caused by the current silver/psd one-release-per-market-year limitation.
+
+  - dataset_version: 20260628T021248Z_phase0_wasde_snapshot
     status: active
     default_discovery_allowed: true
     target_source: psd
@@ -61,7 +77,7 @@ versions:
     matrix_count: 1
     target_count: 1
     default_priority: 95
-    notes: Phase 1 corn PSD production-anomaly snapshot surface. Uses explicit target-market-year snapshot context, records PSD vintage join/quality audit metadata, and prunes all-missing MoM revision features caused by the current silver/psd one-release-per-market-year limitation.
+    notes: Phase 0 source-truth corrected corn PSD production-anomaly snapshot surface. Uses WASDE release-date revisions for monthly official revision signal and treats PSD as balance-sheet snapshot context only until monthly PSD archive history is ingested.
 
   - dataset_version: 20260626T104732Z_a2576e84_phase8_model_ready
     status: legacy

@@ -88,11 +88,47 @@ feature_sets:
 
   - id: psd_monthly_vintage_features
     version: 1
-    description: Point-in-time monthly PSD release-vintage features for annual PSD target models.
+    description: Legacy alias for PSD balance-sheet snapshot context. Current silver/psd does not retain true monthly PSD release history.
     allowed_policies:
       - fundamental_physical
     allowed_feature_families:
-      - psd_monthly_vintage
+      - psd_balance_sheet_snapshot
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - psd_balance_sheet_anomaly
+      - official_estimate_revision
+      - finalization_gap
+
+  - id: psd_balance_sheet_snapshot
+    version: 1
+    description: Point-in-time PSD balance-sheet snapshot context for annual PSD target models.
+    allowed_policies:
+      - fundamental_physical
+    allowed_feature_families:
+      - psd_balance_sheet_snapshot
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - psd_balance_sheet_anomaly
+      - official_estimate_revision
+      - finalization_gap
+
+  - id: wasde_monthly_revision
+    version: 1
+    description: Point-in-time monthly WASDE revision features available by the model snapshot date.
+    allowed_policies:
+      - fundamental_physical
+    allowed_feature_families:
+      - official_revisions
+    allowed_sources:
+      - wasde
+    include_feature_patterns:
+      - "^wasde_"
     blocked_policies:
       - diagnostic_only
       - excluded_market_signal

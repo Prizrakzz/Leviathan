@@ -23,12 +23,17 @@ from leviathan.features.feature_sets import FEATURE_SET_COLUMNS, selected_featur
 from leviathan.features.spine import load_countries
 from leviathan.model_datasets.builder import build_commodity_model_datasets
 from leviathan.model_datasets.psd_model_ready import (
+    PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+    PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
     PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,
     PSDModelReadyBuildConfig,
     PSD_MATRIX_ID_COLUMNS,
+    PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
     PSD_SNAPSHOT_MATRIX_ID_COLUMNS,
     psd_vintage_feature_columns,
+    wasde_snapshot_feature_columns,
+    WASDE_MONTHLY_REVISION_FEATURE_SET_ID,
     build_psd_commodity_model_datasets,
     build_psd_commodity_snapshot_model_datasets,
 )
@@ -156,6 +161,42 @@ def _read_parquet(args: argparse.Namespace, key: str) -> pd.DataFrame:
     return pd.read_parquet(io.BytesIO(body))
 
 
+def _read_parquet_prefix(args: argparse.Namespace, prefix: str) -> pd.DataFrame:
+    """Read all parquet files under a local or S3 prefix."""
+    normalized = prefix.strip("/")
+    if args.local_root:
+        root = Path(args.local_root)
+        prefix_path = root / normalized
+        if not prefix_path.exists():
+            return pd.DataFrame()
+        keys = sorted(
+            path.relative_to(root).as_posix()
+            for path in prefix_path.rglob("*.parquet")
+            if path.is_file()
+        )
+    else:
+        s3 = get_thread_local_s3_client(args.aws_region)
+        keys: list[str] = []
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=args.bucket, Prefix=prefix.rstrip("/") + "/"):
+            for obj in page.get("Contents", []):
+                key = str(obj["Key"])
+                if key.endswith(".parquet"):
+                    keys.append(key)
+        keys = sorted(keys)
+    if not keys:
+        return pd.DataFrame()
+
+    frames: list[pd.DataFrame] = []
+    with ThreadPoolExecutor(max_workers=min(max(1, int(args.workers)), len(keys))) as executor:
+        futures = [executor.submit(_read_parquet, args, key) for key in keys]
+        for future in as_completed(futures):
+            frame = future.result()
+            if not frame.empty:
+                frames.append(frame)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
 def _target_exists(args: argparse.Namespace, key: str) -> bool:
     if args.local_root:
         return _local_path(args, key).exists()
@@ -250,7 +291,8 @@ def _feature_observation(
     commodity: str,
 ) -> dict:
     meta = source_meta.get(feature, {})
-    is_psd_vintage = feature.startswith("psd_")
+    is_psd_snapshot = feature.startswith("psd_")
+    is_wasde_revision = feature.startswith("wasde_")
     row_count = int(len(matrix_df))
     non_null_count = int(pd.to_numeric(matrix_df[feature], errors="coerce").notna().sum())
     return {
@@ -261,25 +303,38 @@ def _feature_observation(
         "feature": feature,
         "feature_family": str(
             meta.get("feature_family")
-            or ("psd_monthly_vintage" if is_psd_vintage else "model_ready_dynamic")
+            or (
+                "psd_balance_sheet_snapshot"
+                if is_psd_snapshot else (
+                    "official_revisions" if is_wasde_revision else "model_ready_dynamic"
+                )
+            )
         ),
         "semantic_scope": str(
             meta.get("semantic_scope")
-            or ("official_revision" if is_psd_vintage else "model_ready_snapshot")
+            or ("official_revision" if (is_psd_snapshot or is_wasde_revision) else "model_ready_snapshot")
         ),
         "policy": str(
-            meta.get("policy")
-            or ("fundamental_physical" if is_psd_vintage else "fundamental_physical")
+            meta.get("policy") or "fundamental_physical"
         ),
         "mechanism": str(
             meta.get("mechanism")
             or (
-                "official_balance_sheet_vintage_revision"
-                if is_psd_vintage else "snapshot_static_context"
+                "official_balance_sheet_snapshot_context"
+                if is_psd_snapshot else (
+                    "official_estimate_revision"
+                    if is_wasde_revision else "snapshot_static_context"
+                )
             )
         ),
-        "sources": str(meta.get("sources") or ("psd" if is_psd_vintage else "")),
-        "source_cadence": str(meta.get("source_cadence") or ("monthly" if is_psd_vintage else "")),
+        "sources": str(
+            meta.get("sources")
+            or ("psd" if is_psd_snapshot else ("wasde" if is_wasde_revision else ""))
+        ),
+        "source_cadence": str(
+            meta.get("source_cadence")
+            or ("monthly" if (is_psd_snapshot or is_wasde_revision) else "")
+        ),
         "empirical_scope": str(meta.get("empirical_scope") or "commodity"),
         "groups": str(meta.get("groups") or ""),
         "is_label": False,
@@ -306,18 +361,31 @@ def _snapshot_feature_set_observations(
 ) -> list[dict]:
     source_meta = _source_feature_metadata(feature_membership)
     matrix_cols = set(str(col) for col in matrix_df.columns)
-    requested = tuple(args.compatible_feature_sets_tuple or (PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,))
+    requested = tuple(
+        args.compatible_feature_sets_tuple or (PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
+    )
     psd_features = psd_vintage_feature_columns(matrix_df)
+    wasde_features = wasde_snapshot_feature_columns(matrix_df)
     preseason_features = _source_features_for_set(
         feature_membership, "preseason_physical", matrix_cols
     )
     observations: list[dict] = []
 
     for feature_set_id in requested:
-        if feature_set_id == PSD_MONTHLY_VINTAGE_FEATURE_SET_ID:
+        if feature_set_id in {
+            PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,
+            PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
+        }:
             selected = psd_features
-        elif feature_set_id == PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID:
+        elif feature_set_id in {
+            PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
+            PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+        }:
             selected = sorted(set(psd_features) | set(preseason_features))
+        elif feature_set_id == WASDE_MONTHLY_REVISION_FEATURE_SET_ID:
+            selected = wasde_features
+        elif feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
+            selected = sorted(set(wasde_features) | set(preseason_features))
         else:
             selected = _source_features_for_set(feature_membership, feature_set_id, matrix_cols)
         for feature in selected:
@@ -559,6 +627,7 @@ def _process_psd_snapshot_commodity(
     commodity: str,
     psd_source: pd.DataFrame,
     psd_targets: pd.DataFrame,
+    wasde_source: pd.DataFrame | None,
     feature_membership: pd.DataFrame,
     target_keys: tuple[str, ...],
 ) -> dict:
@@ -578,7 +647,12 @@ def _process_psd_snapshot_commodity(
 
     static_feature_matrix = None
     if any(
-        feature_set_id in {"preseason_physical", PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID}
+        feature_set_id in {
+            "preseason_physical",
+            PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
+            PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+            PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+        }
         for feature_set_id in args.compatible_feature_sets_tuple
     ):
         static_feature_matrix = _read_parquet(
@@ -597,6 +671,7 @@ def _process_psd_snapshot_commodity(
         as_of_date=args.as_of_date,
         include_named_stages=args.include_named_snapshot_stages,
         static_feature_matrix=static_feature_matrix,
+        wasde_source=wasde_source,
         config=(
             PSDModelReadyBuildConfig(
                 compatible_feature_sets=args.compatible_feature_sets_tuple
@@ -799,6 +874,12 @@ def _parse_args() -> argparse.Namespace:
         default="silver/psd/part-000.parquet",
         dest="psd_source_key",
     )
+    parser.add_argument(
+        "--wasde-source-prefix",
+        default="silver/wasde/",
+        dest="wasde_source_prefix",
+        help="Parquet prefix for WASDE silver rows used by snapshot revision features.",
+    )
     parser.add_argument("--psd-target-config", default=None, dest="psd_target_config")
     parser.add_argument("--snapshot-config", default=None, dest="snapshot_config")
     parser.add_argument("--commodities", default="all")
@@ -862,6 +943,7 @@ def main() -> None:
     target_definitions = []
     psd_targets = pd.DataFrame()
     psd_source = pd.DataFrame()
+    wasde_source: pd.DataFrame | None = None
     psd_mapping_sha = None
     if args.target_source == "faostat":
         target_definitions, target_config_sha, target_config = load_target_definitions(
@@ -923,7 +1005,7 @@ def main() -> None:
         args.snapshot_config_obj = load_snapshot_stage_config(args.snapshot_config)
         args.crop_calendars = load_crop_calendars()
         if not args.compatible_feature_sets_tuple:
-            args.compatible_feature_sets_tuple = ("psd_monthly_vintage_features",)
+            args.compatible_feature_sets_tuple = (PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,)
     else:
         args.snapshot_config_obj = None
         args.crop_calendars = {}
@@ -948,6 +1030,17 @@ def main() -> None:
             psd_targets = psd_targets.loc[
                 psd_targets["target_key"].isin(set(requested_target_keys))
             ].copy()
+        if args.snapshot_mode and any(
+            feature_set_id in {
+                WASDE_MONTHLY_REVISION_FEATURE_SET_ID,
+                PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+                "official_revision",
+            }
+            for feature_set_id in args.compatible_feature_sets_tuple
+        ):
+            logger.info("Loading WASDE silver prefix %s", args.wasde_source_prefix)
+            wasde_source = _read_parquet_prefix(args, args.wasde_source_prefix)
+            logger.info("Loaded WASDE rows=%d", len(wasde_source))
     else:
         requested_target_keys = ()
 
@@ -987,6 +1080,7 @@ def main() -> None:
                     commodity,
                     psd_source,
                     psd_targets,
+                    wasde_source,
                     feature_membership,
                     requested_target_keys,
                 )

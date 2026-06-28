@@ -114,16 +114,16 @@ rules:
     source_cadence: annual
     notes: "FAOSTAT prior-history production feature."
 
-  - id: psd_monthly_vintage
+  - id: psd_balance_sheet_snapshot
     patterns:
       - "^psd_(production|ending_stocks|su_ratio|exports|imports|domestic_use)_(latest_estimate_as_of|mom_revision|revision_since_first_forecast|consecutive_revision_count|current_vs_trend|month_code|release_count_for_market_year)$"
-    feature_family: psd_monthly_vintage
-    semantic_scope: official_revision
+    feature_family: psd_balance_sheet_snapshot
+    semantic_scope: origin_balance_sheet
     policy: fundamental_physical
-    mechanism: official_balance_sheet_vintage_revision
+    mechanism: official_balance_sheet_snapshot_context
     sources: ["psd"]
     source_cadence: monthly
-    notes: "PSD monthly release-vintage feature clipped to the annual snapshot date; not a monthly realized target."
+    notes: "PSD balance-sheet snapshot context clipped to the annual model snapshot date. Current silver/psd has one latest bulk release per market year, so true monthly PSD revision features require archived PSD monthly releases before use."
 
   - id: psd_balance
     patterns: ["^psd_"]

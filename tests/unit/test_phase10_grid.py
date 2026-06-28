@@ -12,18 +12,18 @@ def test_phase10_grid_config_expands_controlled_candidates() -> None:
 
     tasks = expand_phase10_grid(
         config,
-        include_hypotheses=["psd_vintage_signal"],
+        include_hypotheses=["wasde_revision_signal"],
         bucket="bucket",
         aws_region="us-east-1",
         permutation_trials=3,
     )
 
     assert tasks
-    assert {task["hypothesis_id"] for task in tasks} == {"psd_vintage_signal"}
+    assert {task["hypothesis_id"] for task in tasks} == {"wasde_revision_signal"}
     assert {task["dataset_key"] for task in tasks} == {"psd_snd_anomaly_snapshot"}
     assert {task["feature_set"] for task in tasks} == {
-        "psd_monthly_vintage_features",
-        "preseason_physical_plus_psd_vintage",
+        "wasde_monthly_revision",
+        "preseason_physical_plus_wasde_revision",
     }
     assert {task["permutation_trials"] for task in tasks} == {"3"}
     assert all(task["bucket"] == "bucket" for task in tasks)
