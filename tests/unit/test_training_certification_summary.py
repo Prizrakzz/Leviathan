@@ -38,6 +38,29 @@ def _report(candidate_id: str, status: str, rmse: float, delta: float) -> dict:
             "bad_year_sign_accuracy": 0.75,
             "validated": 0.0,
         },
+        "target_event_policy": {
+            "stress_event_direction": "higher_is_stress",
+            "stress_event_label": "upside",
+        },
+        "target_stress_event_metrics": {
+            "stress_event_direction": "higher_is_stress",
+            "stress_event_label": "upside",
+            "stress_event_directional_recall": 0.55,
+            "stress_event_sign_accuracy": 0.65,
+            "validated": 1.0,
+        },
+        "target_alert_metrics": {
+            "summary": {
+                "target_stress_0p05_pred_stress_direction_recall": 0.7,
+                "target_stress_0p05_pred_stress_direction_precision": 0.4,
+                "target_stress_0p05_pred_stress_direction_false_negatives": 1,
+                "target_stress_0p05_pred_stress_direction_f2_score": 0.6,
+                "target_stress_0p1_pred_stress_direction_recall": 0.5,
+                "target_stress_0p1_pred_stress_direction_precision": 0.5,
+                "target_stress_0p1_pred_stress_direction_false_negatives": 2,
+                "target_stress_0p1_pred_stress_direction_f2_score": 0.5,
+            }
+        },
         "downside_alert_metrics": {
             "summary": {
                 "downside_0p05_pred_lt_0_recall": 0.6,
@@ -77,6 +100,10 @@ def test_flatten_certification_report_keeps_promotion_fields() -> None:
     assert row["promotion_gate_status"] == "pass"
     assert row["ready_for_model_registration"] is True
     assert row["model_vs_best_baseline_rmse_delta"] == -0.1
+    assert row["target_stress_event_direction"] == "higher_is_stress"
+    assert row["target_stress_event_recall"] == 0.55
+    assert row["target_stress_5pct_pred_direction_recall"] == 0.7
+    assert row["target_stress_10pct_pred_direction_false_negatives"] == 2
     assert row["downside_5pct_pred_lt_0_recall"] == 0.6
     assert row["downside_10pct_pred_lt_0_false_negatives"] == 3
     assert row["certification_report_uri"] == "s3://bucket/c1.json"

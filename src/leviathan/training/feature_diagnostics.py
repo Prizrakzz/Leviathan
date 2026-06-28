@@ -14,6 +14,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from leviathan.training.certification import (
+    TargetEventPolicy,
+    target_event_policy_for_key,
+)
 from leviathan.training.certification_summary import flatten_certification_report
 
 
@@ -195,12 +199,14 @@ def build_missingness_target_association(
     *,
     target_col: str,
     bad_quantile: float = 0.2,
+    target_policy: TargetEventPolicy | None = None,
 ) -> pd.DataFrame:
     """Measure whether missingness correlates with target level or tail events."""
     if target_col not in train_df.columns:
         raise ValueError(f"missing target column: {target_col}")
+    policy = target_policy or TargetEventPolicy(target_key="unknown")
     target = _numeric(train_df[target_col])
-    threshold = float(target.quantile(bad_quantile)) if target.notna().any() else float("nan")
+    threshold = _stress_threshold(target, bad_quantile, policy=policy)
     rows: list[dict[str, Any]] = []
     for feature in feature_cols:
         if feature not in train_df.columns:
@@ -211,12 +217,13 @@ def build_missingness_target_association(
         present_n = int(present.sum())
         missing_mean = _safe_float(target[missing].mean()) if missing_n else float("nan")
         present_mean = _safe_float(target[present].mean()) if present_n else float("nan")
+        event = _event_mask_for_policy(target, threshold, policy=policy)
         missing_bad = (
-            float((target[missing] <= threshold).mean())
+            float(event[missing].mean())
             if missing_n and np.isfinite(threshold) else float("nan")
         )
         present_bad = (
-            float((target[present] <= threshold).mean())
+            float(event[present].mean())
             if present_n and np.isfinite(threshold) else float("nan")
         )
         rows.append({
@@ -232,6 +239,7 @@ def build_missingness_target_association(
                 else float("nan")
             ),
             "bad_quantile": bad_quantile,
+            "stress_event_direction": policy.stress_event_direction,
             "bad_year_threshold_actual": threshold,
             "missing_bad_year_rate": missing_bad,
             "present_bad_year_rate": present_bad,
@@ -251,19 +259,50 @@ def _identity_count(df: pd.DataFrame) -> int:
     return int(df.drop_duplicates(cols).shape[0]) if cols else int(len(df))
 
 
+def _stress_threshold(
+    target: pd.Series,
+    bad_quantile: float,
+    *,
+    policy: TargetEventPolicy,
+) -> float:
+    if not target.notna().any():
+        return float("nan")
+    if policy.stress_event_direction == "higher_is_stress":
+        return float(target.quantile(1.0 - bad_quantile))
+    if policy.stress_event_direction == "two_sided":
+        return float(target.abs().quantile(1.0 - bad_quantile))
+    return float(target.quantile(bad_quantile))
+
+
+def _event_mask_for_policy(
+    target: pd.Series,
+    threshold: float,
+    *,
+    policy: TargetEventPolicy,
+) -> pd.Series:
+    if policy.stress_event_direction == "higher_is_stress":
+        return target >= threshold
+    if policy.stress_event_direction == "two_sided":
+        return target.abs() >= abs(threshold)
+    return target <= threshold
+
+
 def _event_rows(
     train_df: pd.DataFrame,
     target_col: str,
     *,
     name: str,
     threshold: float,
+    target_policy: TargetEventPolicy,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     target = _numeric(train_df[target_col])
-    event = target <= threshold
+    event = _event_mask_for_policy(target, threshold, policy=target_policy)
     subset = train_df.loc[event].copy()
     total = int(target.notna().sum())
     row = {
         "event_definition": name,
+        "stress_event_direction": target_policy.stress_event_direction,
+        "stress_event_label": target_policy.stress_label,
         "threshold": threshold,
         "row_count": int(len(train_df)),
         "target_non_null_count": total,
@@ -285,16 +324,23 @@ def build_target_tail_reports(
     target_col: str,
     bad_quantile: float = 0.2,
     thresholds: tuple[float, ...] = (-0.05, -0.10, -0.15),
+    target_policy: TargetEventPolicy | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Return target tail imbalance summaries overall, by country, and by year."""
     if target_col not in train_df.columns:
         raise ValueError(f"missing target column: {target_col}")
+    policy = target_policy or TargetEventPolicy(target_key="unknown")
     target = _numeric(train_df[target_col])
-    quantile_threshold = (
-        float(target.quantile(bad_quantile)) if target.notna().any() else float("nan")
-    )
-    event_specs = [(f"bottom_quantile_{bad_quantile:.2f}", quantile_threshold)]
-    event_specs.extend((f"target_le_{value:g}", float(value)) for value in thresholds)
+    quantile_threshold = _stress_threshold(target, bad_quantile, policy=policy)
+    if policy.stress_event_direction == "higher_is_stress":
+        event_specs = [(f"top_quantile_{bad_quantile:.2f}", quantile_threshold)]
+        event_specs.extend((f"target_ge_{abs(float(value)):g}", abs(float(value))) for value in thresholds)
+    elif policy.stress_event_direction == "two_sided":
+        event_specs = [(f"abs_top_quantile_{bad_quantile:.2f}", quantile_threshold)]
+        event_specs.extend((f"target_abs_ge_{abs(float(value)):g}", abs(float(value))) for value in thresholds)
+    else:
+        event_specs = [(f"bottom_quantile_{bad_quantile:.2f}", quantile_threshold)]
+        event_specs.extend((f"target_le_{-abs(float(value)):g}", -abs(float(value))) for value in thresholds)
 
     summary_rows: list[dict[str, Any]] = []
     country_rows: list[dict[str, Any]] = []
@@ -302,9 +348,15 @@ def build_target_tail_reports(
     for name, threshold in event_specs:
         if not np.isfinite(threshold):
             continue
-        row, _ = _event_rows(train_df, target_col, name=name, threshold=threshold)
+        row, _ = _event_rows(
+            train_df,
+            target_col,
+            name=name,
+            threshold=threshold,
+            target_policy=policy,
+        )
         summary_rows.append(row)
-        event = target <= threshold
+        event = _event_mask_for_policy(target, threshold, policy=policy)
         if "country" in train_df.columns:
             for country, group in train_df.assign(_event=event).groupby("country", dropna=False):
                 n = int(len(group))
@@ -480,6 +532,14 @@ def candidate_recall_audit_from_reports(
         "n_prediction_rows",
         "quintile_directional_accuracy",
         "n_extreme_independent_country_years",
+        "target_stress_event_direction",
+        "target_stress_event_recall",
+        "target_stress_event_sign_accuracy",
+        "target_stress_event_validated",
+        "target_stress_5pct_pred_direction_recall",
+        "target_stress_5pct_pred_direction_false_negatives",
+        "target_stress_10pct_pred_direction_recall",
+        "target_stress_10pct_pred_direction_false_negatives",
         "bad_year_negative_recall",
         "bad_year_sign_accuracy",
         "bad_year_metric_validated",
@@ -514,12 +574,17 @@ def build_feature_diagnostics(
     correlation_threshold: float = 0.95,
 ) -> FeatureDiagnosticsArtifacts:
     """Build the complete feature diagnostics bundle."""
+    target_policy = (
+        target_event_policy_for_key(target_key)
+        if target_key else TargetEventPolicy(target_key="unknown")
+    )
     inventory = build_feature_inventory(train_df, feature_cols, membership=membership)
     target_tail_summary, target_tail_by_country, target_tail_by_year = build_target_tail_reports(
         train_df,
         target_col=target_col,
         bad_quantile=bad_quantile,
         thresholds=event_thresholds,
+        target_policy=target_policy,
     )
     return FeatureDiagnosticsArtifacts(
         feature_inventory=inventory,
@@ -530,6 +595,7 @@ def build_feature_diagnostics(
             feature_cols,
             target_col=target_col,
             bad_quantile=bad_quantile,
+            target_policy=target_policy,
         ),
         target_tail_summary=target_tail_summary,
         target_tail_by_country=target_tail_by_country,

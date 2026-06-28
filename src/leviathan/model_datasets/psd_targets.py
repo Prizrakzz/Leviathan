@@ -13,6 +13,7 @@ _CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "configs" / "ml" / "psd_metric_targets.yaml"
 )
 
+STRESS_EVENT_DIRECTIONS = {"lower_is_stress", "higher_is_stress", "two_sided"}
 MAPPING_STATUSES = {"direct", "proxy", "aggregate_proxy", "unmapped", "deferred"}
 MAPPING_CONFIDENCE = {"high", "medium", "low", "none"}
 REQUIRED_SOURCE_FIELDS = {
@@ -34,6 +35,8 @@ class PSDTargetMetric:
     psd_attribute: str
     unit: str
     value_unit: str
+    stress_event_direction: str
+    stress_event_note: str
     allowed_as_target: bool
 
 
@@ -98,12 +101,22 @@ def _load_metrics(raw_metrics: list[dict[str, Any]]) -> dict[str, PSDTargetMetri
         psd_attribute = str(item.get("psd_attribute") or "")
         if not psd_attribute:
             raise ValueError(f"{target_key}: missing psd_attribute")
+        stress_event_direction = str(
+            item.get("stress_event_direction") or "lower_is_stress"
+        )
+        if stress_event_direction not in STRESS_EVENT_DIRECTIONS:
+            raise ValueError(
+                f"{target_key}: stress_event_direction must be one of "
+                f"{sorted(STRESS_EVENT_DIRECTIONS)}"
+            )
         metrics[target_key] = PSDTargetMetric(
             target_key=target_key,
             target_family=str(item.get("target_family") or ""),
             psd_attribute=psd_attribute,
             unit=str(item.get("unit") or ""),
             value_unit=str(item.get("value_unit") or ""),
+            stress_event_direction=stress_event_direction,
+            stress_event_note=str(item.get("stress_event_note") or ""),
             allowed_as_target=_as_bool(item.get("allowed_as_target"), True),
         )
     if not metrics:

@@ -12,6 +12,7 @@ from leviathan.training.feature_diagnostics import (
     build_target_tail_reports,
     write_feature_diagnostics,
 )
+from leviathan.training.certification import TargetEventPolicy
 
 
 def _frame() -> pd.DataFrame:
@@ -97,6 +98,23 @@ def test_target_tail_reports_count_downside_events_by_origin_and_year() -> None:
     assert bottom["event_count"] > 0
     assert "argentina" in set(by_country["country"])
     assert 2010 in set(by_year["crop_year"])
+
+
+def test_target_tail_reports_support_higher_is_stress_events() -> None:
+    summary, by_country, _ = build_target_tail_reports(
+        _frame(),
+        target_col="target_value",
+        bad_quantile=0.25,
+        thresholds=(0.10,),
+        target_policy=TargetEventPolicy(
+            target_key="psd_exports_anomaly_pct",
+            stress_event_direction="higher_is_stress",
+        ),
+    )
+
+    assert set(summary["event_definition"]) == {"top_quantile_0.25", "target_ge_0.1"}
+    assert set(summary["stress_event_direction"]) == {"higher_is_stress"}
+    assert "brazil" in set(by_country["country"])
 
 
 def test_missingness_target_association_measures_missing_target_delta() -> None:

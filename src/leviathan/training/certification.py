@@ -17,6 +17,7 @@ import pandas as pd
 from sklearn.base import clone
 
 from leviathan.model_datasets.baselines import BASELINE_COLUMNS
+from leviathan.model_datasets.psd_targets import load_psd_metric_targets
 from leviathan.training.cv import walk_forward_cv
 from leviathan.training.model_ready import (
     MODEL_READY_EXCLUDED_FEATURE_COLUMNS,
@@ -27,6 +28,8 @@ from leviathan.training.model_ready import (
 from leviathan.training.slices import extreme_directional_metrics
 
 DEFAULT_STRESS_YEARS = (2010, 2011, 2012, 2020, 2021, 2022)
+DEFAULT_STRESS_EVENT_DIRECTION = "lower_is_stress"
+STRESS_EVENT_DIRECTIONS = {"lower_is_stress", "higher_is_stress", "two_sided"}
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,47 @@ class CandidateSpec:
             self.model_dataset_version,
         ]
         return "__".join(_safe_fragment(part) for part in parts)
+
+
+@dataclass(frozen=True)
+class TargetEventPolicy:
+    """Economic event semantics for target-specific alert evaluation."""
+
+    target_key: str
+    stress_event_direction: str = DEFAULT_STRESS_EVENT_DIRECTION
+    stress_event_note: str = ""
+
+    @property
+    def stress_label(self) -> str:
+        if self.stress_event_direction == "higher_is_stress":
+            return "upside"
+        if self.stress_event_direction == "two_sided":
+            return "two_sided"
+        return "downside"
+
+
+def target_event_policy_for_key(target_key: str) -> TargetEventPolicy:
+    """Return configured stress semantics for a target key.
+
+    Legacy FAOSTAT-style anomaly targets did not carry explicit policy, so
+    they retain the old downside interpretation.  PSD targets use
+    ``configs/ml/psd_metric_targets.yaml``.
+    """
+    try:
+        cfg = load_psd_metric_targets()
+    except Exception:  # noqa: BLE001 - certification should not fail legacy targets
+        return TargetEventPolicy(target_key=str(target_key))
+    metric = cfg.metrics.get(str(target_key))
+    if metric is None:
+        return TargetEventPolicy(target_key=str(target_key))
+    direction = metric.stress_event_direction or DEFAULT_STRESS_EVENT_DIRECTION
+    if direction not in STRESS_EVENT_DIRECTIONS:
+        direction = DEFAULT_STRESS_EVENT_DIRECTION
+    return TargetEventPolicy(
+        target_key=metric.target_key,
+        stress_event_direction=direction,
+        stress_event_note=metric.stress_event_note,
+    )
 
 
 def _safe_fragment(value: object) -> str:
@@ -182,6 +226,106 @@ def bad_production_year_metrics(
     }
 
 
+def _target_event_mask(
+    actual: pd.Series,
+    *,
+    policy: TargetEventPolicy,
+    threshold: float,
+) -> pd.Series:
+    if policy.stress_event_direction == "higher_is_stress":
+        return actual >= threshold
+    if policy.stress_event_direction == "two_sided":
+        return actual.abs() >= abs(threshold)
+    return actual <= threshold
+
+
+def _target_predicted_stress(
+    pred: pd.Series,
+    *,
+    policy: TargetEventPolicy,
+    threshold: float | None = None,
+) -> pd.Series:
+    if policy.stress_event_direction == "higher_is_stress":
+        return pred >= (threshold if threshold is not None else 0.0)
+    if policy.stress_event_direction == "two_sided":
+        return pred.abs() >= abs(threshold if threshold is not None else 0.0)
+    return pred <= (threshold if threshold is not None else 0.0)
+
+
+def target_stress_event_metrics(
+    predictions: pd.DataFrame,
+    *,
+    policy: TargetEventPolicy,
+    q: float = 0.2,
+    min_independent_country_years: int = 30,
+) -> dict[str, float | str]:
+    """Target-aware recall on economically adverse anomaly years.
+
+    Production and stocks are usually lower-is-stress.  Exports/domestic-use can
+    be higher-is-stress.  This metric keeps that direction explicit so balance
+    sheet experiments are not judged by production-only downside rules.
+    """
+    df = predictions.dropna(subset=["y_actual", "y_pred"]).copy()
+    empty: dict[str, float | str] = {
+        "target_key": policy.target_key,
+        "stress_event_direction": policy.stress_event_direction,
+        "stress_event_label": policy.stress_label,
+        "stress_event_note": policy.stress_event_note,
+        "stress_event_threshold_actual": float("nan"),
+        "n_stress_event_rows": 0.0,
+        "n_stress_event_independent_country_years": 0.0,
+        "n_stress_event_countries": 0.0,
+        "n_stress_event_years": 0.0,
+        "stress_event_directional_recall": float("nan"),
+        "stress_event_sign_accuracy": float("nan"),
+        "validated": 0.0,
+        "min_independent_country_years": float(min_independent_country_years),
+    }
+    if df.empty:
+        return empty
+
+    actual = df["y_actual"].astype(float)
+    if policy.stress_event_direction == "higher_is_stress":
+        threshold = float(actual.quantile(1.0 - q))
+    elif policy.stress_event_direction == "two_sided":
+        threshold = float(actual.abs().quantile(1.0 - q))
+    else:
+        threshold = float(actual.quantile(q))
+
+    event_mask = _target_event_mask(actual, policy=policy, threshold=threshold)
+    events = df.loc[event_mask].copy()
+    if events.empty:
+        out = dict(empty)
+        out["stress_event_threshold_actual"] = threshold
+        return out
+
+    identity_cols = [
+        col for col in ("commodity", "country", "crop_year") if col in events.columns
+    ]
+    independent = (
+        int(events.drop_duplicates(identity_cols).shape[0])
+        if identity_cols else int(len(events))
+    )
+    pred = events["y_pred"].astype(float)
+    predicted_stress = _target_predicted_stress(pred, policy=policy)
+    sign_correct = np.sign(pred) == np.sign(events["y_actual"].astype(float))
+    return {
+        "target_key": policy.target_key,
+        "stress_event_direction": policy.stress_event_direction,
+        "stress_event_label": policy.stress_label,
+        "stress_event_note": policy.stress_event_note,
+        "stress_event_threshold_actual": threshold,
+        "n_stress_event_rows": float(len(events)),
+        "n_stress_event_independent_country_years": float(independent),
+        "n_stress_event_countries": float(events["country"].nunique()) if "country" in events.columns else 0.0,
+        "n_stress_event_years": float(events["crop_year"].nunique()) if "crop_year" in events.columns else 0.0,
+        "stress_event_directional_recall": float(predicted_stress.mean()),
+        "stress_event_sign_accuracy": float(sign_correct.mean()),
+        "validated": float(independent >= min_independent_country_years),
+        "min_independent_country_years": float(min_independent_country_years),
+    }
+
+
 def _safe_divide(numerator: float, denominator: float) -> float:
     if denominator == 0:
         return math.nan
@@ -198,16 +342,20 @@ def _fbeta_score(precision: float, recall: float, beta: float = 2.0) -> float:
     return float((1 + beta_sq) * precision * recall / denom)
 
 
-def downside_alert_metrics(
+def target_alert_metrics(
     predictions: pd.DataFrame,
     *,
-    thresholds: tuple[float, ...] = (-0.05, -0.10),
+    policy: TargetEventPolicy,
+    thresholds: tuple[float, ...] = (0.05, 0.10),
     min_event_rows: int = 5,
 ) -> dict[str, Any]:
-    """Evaluate fixed-threshold downside alert policies on OOF predictions."""
+    """Evaluate fixed-threshold alert policies using target stress semantics."""
     df = predictions.dropna(subset=["y_actual", "y_pred"]).copy()
     if df.empty:
         return {
+            "target_key": policy.target_key,
+            "stress_event_direction": policy.stress_event_direction,
+            "stress_event_label": policy.stress_label,
             "thresholds": list(thresholds),
             "rows": [],
             "summary": {},
@@ -215,14 +363,35 @@ def downside_alert_metrics(
         }
 
     rows: list[dict[str, Any]] = []
-    for threshold in thresholds:
+    for raw_threshold in thresholds:
+        threshold = abs(float(raw_threshold))
         actual = df["y_actual"].astype(float)
         pred = df["y_pred"].astype(float)
-        actual_event = actual <= threshold
-        alert_policies = {
-            "pred_lt_0": pred < 0.0,
-            "pred_le_event_threshold": pred <= threshold,
-        }
+        if policy.stress_event_direction == "higher_is_stress":
+            actual_event = actual >= threshold
+            alert_policies = {
+                "pred_stress_direction": pred > 0.0,
+                "pred_event_threshold": pred >= threshold,
+                "pred_gt_0": pred > 0.0,
+                "pred_ge_event_threshold": pred >= threshold,
+            }
+            threshold_for_row = threshold
+        elif policy.stress_event_direction == "two_sided":
+            actual_event = actual.abs() >= threshold
+            alert_policies = {
+                "pred_stress_direction": pred.abs() > 0.0,
+                "pred_event_threshold": pred.abs() >= threshold,
+            }
+            threshold_for_row = threshold
+        else:
+            actual_event = actual <= -threshold
+            alert_policies = {
+                "pred_stress_direction": pred < 0.0,
+                "pred_event_threshold": pred <= -threshold,
+                "pred_lt_0": pred < 0.0,
+                "pred_le_event_threshold": pred <= -threshold,
+            }
+            threshold_for_row = -threshold
         for policy_name, alert in alert_policies.items():
             tp = int((actual_event & alert).sum())
             fp = int((~actual_event & alert).sum())
@@ -233,7 +402,10 @@ def downside_alert_metrics(
             false_negative_rate = _safe_divide(fn, tp + fn)
             false_positive_rate = _safe_divide(fp, fp + tn)
             rows.append({
-                "threshold": float(threshold),
+                "target_key": policy.target_key,
+                "stress_event_direction": policy.stress_event_direction,
+                "stress_event_label": policy.stress_label,
+                "threshold": float(threshold_for_row),
                 "alert_policy": policy_name,
                 "n_rows": int(len(df)),
                 "n_events": int(actual_event.sum()),
@@ -253,22 +425,64 @@ def downside_alert_metrics(
 
     summary: dict[str, Any] = {}
     for row in rows:
-        suffix = str(abs(row["threshold"])).replace(".", "p")
-        policy = row["alert_policy"]
-        prefix = f"downside_{suffix}_{policy}"
+        suffix = str(abs(float(row["threshold"]))).replace(".", "p")
+        alert_policy_name = row["alert_policy"]
+        prefix = f"target_stress_{suffix}_{alert_policy_name}"
         summary[f"{prefix}_n_events"] = row["n_events"]
         summary[f"{prefix}_recall"] = row["recall"]
         summary[f"{prefix}_precision"] = row["precision"]
         summary[f"{prefix}_false_negatives"] = row["false_negatives"]
         summary[f"{prefix}_f2_score"] = row["f2_score"]
         summary[f"{prefix}_validated"] = row["validated"]
+        if row["stress_event_direction"] == "lower_is_stress" and alert_policy_name in {
+            "pred_lt_0",
+            "pred_le_event_threshold",
+        }:
+            legacy_prefix = f"downside_{suffix}_{alert_policy_name}"
+            summary[f"{legacy_prefix}_n_events"] = row["n_events"]
+            summary[f"{legacy_prefix}_recall"] = row["recall"]
+            summary[f"{legacy_prefix}_precision"] = row["precision"]
+            summary[f"{legacy_prefix}_false_negatives"] = row["false_negatives"]
+            summary[f"{legacy_prefix}_f2_score"] = row["f2_score"]
+            summary[f"{legacy_prefix}_validated"] = row["validated"]
+        if row["stress_event_direction"] == "higher_is_stress" and alert_policy_name in {
+            "pred_gt_0",
+            "pred_ge_event_threshold",
+        }:
+            legacy_prefix = f"upside_{suffix}_{alert_policy_name}"
+            summary[f"{legacy_prefix}_n_events"] = row["n_events"]
+            summary[f"{legacy_prefix}_recall"] = row["recall"]
+            summary[f"{legacy_prefix}_precision"] = row["precision"]
+            summary[f"{legacy_prefix}_false_negatives"] = row["false_negatives"]
+            summary[f"{legacy_prefix}_f2_score"] = row["f2_score"]
+            summary[f"{legacy_prefix}_validated"] = row["validated"]
 
     return {
+        "target_key": policy.target_key,
+        "stress_event_direction": policy.stress_event_direction,
+        "stress_event_label": policy.stress_label,
+        "stress_event_note": policy.stress_event_note,
         "thresholds": list(thresholds),
         "rows": rows,
         "summary": summary,
         "min_event_rows": min_event_rows,
     }
+
+
+def downside_alert_metrics(
+    predictions: pd.DataFrame,
+    *,
+    thresholds: tuple[float, ...] = (-0.05, -0.10),
+    min_event_rows: int = 5,
+) -> dict[str, Any]:
+    """Evaluate fixed-threshold downside alert policies on OOF predictions."""
+    positive_thresholds = tuple(abs(float(threshold)) for threshold in thresholds)
+    return target_alert_metrics(
+        predictions,
+        policy=TargetEventPolicy(target_key="legacy_downside"),
+        thresholds=positive_thresholds,
+        min_event_rows=min_event_rows,
+    )
 
 
 def audit_feature_leakage(
@@ -560,6 +774,8 @@ def promotion_questions(
     aggregate_metrics: dict[str, Any],
     extreme_metrics: dict[str, float],
     bad_year_metrics: dict[str, float],
+    target_event_metrics: dict[str, Any],
+    target_alerts: dict[str, Any],
     downside_alerts: dict[str, Any],
     baseline: dict[str, Any],
     leakage_audit: dict[str, Any],
@@ -592,6 +808,7 @@ def promotion_questions(
 
     country_rmse = (country_blocked.get("aggregate") or {}).get("rmse")
     stress_rmse = (stress.get("metrics") or {}).get("rmse")
+    target_alert_summary = target_alerts.get("summary", {}) or {}
     alert_summary = downside_alerts.get("summary", {}) or {}
     return {
         "beats_zero_baseline_rmse": _beats("zero_anomaly", "rmse"),
@@ -604,6 +821,27 @@ def promotion_questions(
         "beats_trailing_trend_baseline_mae": _beats("trailing_linear_trend", "mae"),
         "bad_year_detection_validated": bool(bad_year_metrics.get("validated")),
         "bad_year_negative_recall": bad_year_metrics.get("bad_year_negative_recall"),
+        "target_stress_event_direction": target_event_metrics.get("stress_event_direction"),
+        "target_stress_event_label": target_event_metrics.get("stress_event_label"),
+        "target_stress_event_validated": bool(target_event_metrics.get("validated")),
+        "target_stress_event_recall": target_event_metrics.get(
+            "stress_event_directional_recall"
+        ),
+        "target_stress_event_sign_accuracy": target_event_metrics.get(
+            "stress_event_sign_accuracy"
+        ),
+        "target_stress_5pct_pred_direction_recall": target_alert_summary.get(
+            "target_stress_0p05_pred_stress_direction_recall"
+        ),
+        "target_stress_5pct_pred_direction_false_negatives": target_alert_summary.get(
+            "target_stress_0p05_pred_stress_direction_false_negatives"
+        ),
+        "target_stress_10pct_pred_direction_recall": target_alert_summary.get(
+            "target_stress_0p1_pred_stress_direction_recall"
+        ),
+        "target_stress_10pct_pred_direction_false_negatives": target_alert_summary.get(
+            "target_stress_0p1_pred_stress_direction_false_negatives"
+        ),
         "downside_5pct_pred_lt_0_recall": alert_summary.get(
             "downside_0p05_pred_lt_0_recall"
         ),
@@ -662,8 +900,17 @@ def build_candidate_certification_report(
     )
     predictions = result.predictions.copy()
     predictions["commodity"] = spec.commodity
+    target_policy = target_event_policy_for_key(spec.target_key)
     extreme = extreme_directional_metrics(predictions)
     bad_years = bad_production_year_metrics(predictions)
+    target_events = target_stress_event_metrics(
+        predictions,
+        policy=target_policy,
+    )
+    target_alerts = target_alert_metrics(
+        predictions,
+        policy=target_policy,
+    )
     downside_alerts = downside_alert_metrics(predictions)
     leakage = audit_feature_leakage(feature_cols, target_col=target_col)
     baseline = baseline_comparison(result.predictions, matrix)
@@ -717,6 +964,14 @@ def build_candidate_certification_report(
         "fold_metrics": fold_metric_rows(result),
         "extreme_metrics": extreme,
         "bad_production_year_metrics": bad_years,
+        "target_event_policy": {
+            "target_key": target_policy.target_key,
+            "stress_event_direction": target_policy.stress_event_direction,
+            "stress_event_label": target_policy.stress_label,
+            "stress_event_note": target_policy.stress_event_note,
+        },
+        "target_stress_event_metrics": target_events,
+        "target_alert_metrics": target_alerts,
         "downside_alert_metrics": downside_alerts,
         "baseline_comparison": baseline,
         "leakage_audit": leakage,
@@ -737,6 +992,8 @@ def build_candidate_certification_report(
             aggregate_metrics=aggregate,
             extreme_metrics=extreme,
             bad_year_metrics=bad_years,
+            target_event_metrics=target_events,
+            target_alerts=target_alerts,
             downside_alerts=downside_alerts,
             baseline=baseline,
             leakage_audit=leakage,

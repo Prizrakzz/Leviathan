@@ -51,6 +51,12 @@ def test_psd_target_config_loads_with_sha_and_metric_families() -> None:
         "psd_production_anomaly"
     )
     assert cfg.metrics["psd_stock_to_use_anomaly_pct"].psd_attribute == "su_ratio"
+    assert cfg.metrics["psd_stock_to_use_anomaly_pct"].stress_event_direction == (
+        "lower_is_stress"
+    )
+    assert cfg.metrics["psd_exports_anomaly_pct"].stress_event_direction == (
+        "higher_is_stress"
+    )
 
 
 def test_psd_target_mapping_covers_every_commodity_config() -> None:
@@ -151,4 +157,14 @@ def test_unmapped_contracts_cannot_define_trainable_targets(tmp_path: Path) -> N
     bad_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
 
     with pytest.raises(ValueError, match="unmapped rows cannot be trainable"):
+        load_psd_metric_targets(bad_path)
+
+
+def test_invalid_stress_event_direction_fails_validation(tmp_path: Path) -> None:
+    raw = yaml.safe_load(PSD_CONFIG.read_text(encoding="utf-8"))
+    raw["target_metrics"][0]["stress_event_direction"] = "sideways"
+    bad_path = tmp_path / "bad_psd_metric_targets.yaml"
+    bad_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="stress_event_direction"):
         load_psd_metric_targets(bad_path)

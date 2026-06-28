@@ -6,10 +6,14 @@ from sklearn.linear_model import LinearRegression
 from leviathan.model_datasets.baselines import BASELINE_COLUMNS
 from leviathan.training.certification import (
     CandidateSpec,
+    TargetEventPolicy,
     audit_feature_leakage,
     build_candidate_certification_report,
     country_blocked_validation,
     downside_alert_metrics,
+    target_alert_metrics,
+    target_event_policy_for_key,
+    target_stress_event_metrics,
 )
 
 
@@ -85,6 +89,60 @@ def test_downside_alert_metrics_are_reported_for_fixed_thresholds() -> None:
     assert summary["downside_0p05_pred_lt_0_false_negatives"] == 1
 
 
+def test_target_event_policy_loads_balance_sheet_stress_direction() -> None:
+    policy = target_event_policy_for_key("psd_exports_anomaly_pct")
+
+    assert policy.stress_event_direction == "higher_is_stress"
+    assert policy.stress_label == "upside"
+
+
+def test_target_alert_metrics_handle_higher_is_stress_targets() -> None:
+    predictions = pd.DataFrame({
+        "country": ["a", "b", "c"],
+        "crop_year": [2020, 2020, 2020],
+        "y_actual": [0.12, 0.08, -0.03],
+        "y_pred": [0.02, -0.01, 0.01],
+    })
+    policy = TargetEventPolicy(
+        target_key="psd_exports_anomaly_pct",
+        stress_event_direction="higher_is_stress",
+    )
+
+    metrics = target_alert_metrics(
+        predictions, policy=policy, thresholds=(0.05,), min_event_rows=1
+    )
+    summary = metrics["summary"]
+
+    assert summary["target_stress_0p05_pred_stress_direction_recall"] == 0.5
+    assert summary["target_stress_0p05_pred_stress_direction_false_negatives"] == 1
+    assert summary["upside_0p05_pred_gt_0_recall"] == 0.5
+
+
+def test_target_stress_event_metrics_use_target_direction() -> None:
+    predictions = pd.DataFrame({
+        "commodity": ["corn_cbot"] * 5,
+        "country": ["a", "b", "c", "d", "e"],
+        "crop_year": [2020] * 5,
+        "y_actual": [0.20, 0.15, 0.04, -0.01, -0.08],
+        "y_pred": [0.03, -0.02, 0.01, 0.01, -0.04],
+    })
+    policy = TargetEventPolicy(
+        target_key="psd_exports_anomaly_pct",
+        stress_event_direction="higher_is_stress",
+    )
+
+    metrics = target_stress_event_metrics(
+        predictions,
+        policy=policy,
+        q=0.4,
+        min_independent_country_years=1,
+    )
+
+    assert metrics["stress_event_direction"] == "higher_is_stress"
+    assert metrics["n_stress_event_rows"] == 2.0
+    assert metrics["stress_event_directional_recall"] == 0.5
+
+
 def test_build_candidate_certification_report_flags_unvalidated_extreme_sample() -> None:
     matrix = _matrix()
     spec = CandidateSpec(
@@ -121,6 +179,11 @@ def test_build_candidate_certification_report_flags_unvalidated_extreme_sample()
     assert report["fold_metrics"]
     assert report["extreme_metrics"]["n_extreme_independent_country_years"] < 30
     assert report["bad_production_year_metrics"]["n_bad_year_rows"] > 0
+    assert report["target_event_policy"]["stress_event_direction"] == "lower_is_stress"
+    assert "target_alert_metrics" in report
+    assert "target_stress_0p05_pred_stress_direction_recall" in (
+        report["target_alert_metrics"]["summary"]
+    )
     assert "downside_alert_metrics" in report
     assert "downside_0p05_pred_lt_0_recall" in report["downside_alert_metrics"]["summary"]
     assert report["promotion_gate"]["recommendation"] in {

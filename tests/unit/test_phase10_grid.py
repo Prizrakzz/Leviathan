@@ -116,3 +116,32 @@ def test_phase10_grid_expands_corn_snapshot_wasde_stacks() -> None:
         "corn_preseason_core_plus_wasde",
         "preseason_physical_plus_wasde_revision",
     }
+
+
+def test_phase10_grid_expands_corn_balance_sheet_target_fit_audit() -> None:
+    config = load_phase10_grid_config()
+    tasks = expand_phase10_grid(
+        config,
+        include_hypotheses=["corn_balance_sheet_target_fit_audit"],
+        bucket="bucket",
+        aws_region="us-east-1",
+        permutation_trials=5,
+    )
+
+    assert len(tasks) == 32
+    assert {task["dataset_key"] for task in tasks} == {"psd_snd_anomaly"}
+    assert {task["commodity"] for task in tasks} == {"corn_cbot"}
+    assert {task["target_key"] for task in tasks} == {
+        "psd_ending_stocks_anomaly_pct",
+        "psd_stock_to_use_anomaly_pct",
+        "psd_exports_anomaly_pct",
+        "psd_domestic_use_anomaly_pct",
+    }
+    assert {task["feature_set"] for task in tasks} == {
+        "corn_preseason_core",
+        "corn_preseason_core_plus_flow",
+        "corn_preseason_core_plus_wasde",
+        "corn_full_fundamental_stack",
+    }
+    assert {task["model"] for task in tasks} == {"lightgbm"}
+    assert {task["permutation_trials"] for task in tasks} == {"5"}

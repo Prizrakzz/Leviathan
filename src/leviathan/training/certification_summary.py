@@ -21,6 +21,11 @@ def flatten_certification_report(report: dict[str, Any]) -> dict[str, Any]:
     aggregate = report.get("aggregate_metrics", {}) or {}
     extreme = report.get("extreme_metrics", {}) or {}
     bad_years = report.get("bad_production_year_metrics", {}) or {}
+    target_policy = report.get("target_event_policy", {}) or {}
+    target_events = report.get("target_stress_event_metrics", {}) or {}
+    target_alerts = (
+        (report.get("target_alert_metrics", {}) or {}).get("summary", {}) or {}
+    )
     downside_alerts = (
         (report.get("downside_alert_metrics", {}) or {}).get("summary", {}) or {}
     )
@@ -53,6 +58,45 @@ def flatten_certification_report(report: dict[str, Any]) -> dict[str, Any]:
         "bad_year_negative_recall": bad_years.get("bad_year_negative_recall"),
         "bad_year_sign_accuracy": bad_years.get("bad_year_sign_accuracy"),
         "bad_year_metric_validated": bool(bad_years.get("validated")),
+        "target_stress_event_direction": target_policy.get(
+            "stress_event_direction",
+            target_events.get("stress_event_direction"),
+        ),
+        "target_stress_event_label": target_policy.get(
+            "stress_event_label",
+            target_events.get("stress_event_label"),
+        ),
+        "target_stress_event_recall": target_events.get(
+            "stress_event_directional_recall"
+        ),
+        "target_stress_event_sign_accuracy": target_events.get(
+            "stress_event_sign_accuracy"
+        ),
+        "target_stress_event_validated": bool(target_events.get("validated")),
+        "target_stress_5pct_pred_direction_recall": target_alerts.get(
+            "target_stress_0p05_pred_stress_direction_recall"
+        ),
+        "target_stress_5pct_pred_direction_precision": target_alerts.get(
+            "target_stress_0p05_pred_stress_direction_precision"
+        ),
+        "target_stress_5pct_pred_direction_false_negatives": target_alerts.get(
+            "target_stress_0p05_pred_stress_direction_false_negatives"
+        ),
+        "target_stress_5pct_pred_direction_f2": target_alerts.get(
+            "target_stress_0p05_pred_stress_direction_f2_score"
+        ),
+        "target_stress_10pct_pred_direction_recall": target_alerts.get(
+            "target_stress_0p1_pred_stress_direction_recall"
+        ),
+        "target_stress_10pct_pred_direction_precision": target_alerts.get(
+            "target_stress_0p1_pred_stress_direction_precision"
+        ),
+        "target_stress_10pct_pred_direction_false_negatives": target_alerts.get(
+            "target_stress_0p1_pred_stress_direction_false_negatives"
+        ),
+        "target_stress_10pct_pred_direction_f2": target_alerts.get(
+            "target_stress_0p1_pred_stress_direction_f2_score"
+        ),
         "downside_5pct_pred_lt_0_recall": downside_alerts.get(
             "downside_0p05_pred_lt_0_recall"
         ),

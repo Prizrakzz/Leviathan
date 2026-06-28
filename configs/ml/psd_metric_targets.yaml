@@ -41,6 +41,8 @@ target_metrics:
     title: PSD production anomaly versus trailing trend
     unit: pct_deviation
     value_unit: metric_tons
+    stress_event_direction: lower_is_stress
+    stress_event_note: Lower production versus trend is the supply-shock event.
     allowed_as_target: true
 
   - target_key: psd_ending_stocks_anomaly_pct
@@ -49,6 +51,8 @@ target_metrics:
     title: PSD ending-stocks anomaly versus trailing trend
     unit: pct_deviation
     value_unit: metric_tons
+    stress_event_direction: lower_is_stress
+    stress_event_note: Lower ending stocks versus trend indicate tighter supply.
     allowed_as_target: true
 
   - target_key: psd_stock_to_use_anomaly_pct
@@ -57,6 +61,8 @@ target_metrics:
     title: PSD stock-to-use anomaly versus trailing trend
     unit: pct_deviation
     value_unit: ratio
+    stress_event_direction: lower_is_stress
+    stress_event_note: Lower stock-to-use versus trend indicates tighter supply.
     allowed_as_target: true
 
   - target_key: psd_exports_anomaly_pct
@@ -65,6 +71,8 @@ target_metrics:
     title: PSD exports anomaly versus trailing trend
     unit: pct_deviation
     value_unit: metric_tons
+    stress_event_direction: higher_is_stress
+    stress_event_note: Higher exports versus trend can tighten origin balance sheets.
     allowed_as_target: true
 
   - target_key: psd_imports_anomaly_pct
@@ -73,6 +81,8 @@ target_metrics:
     title: PSD imports anomaly versus trailing trend
     unit: pct_deviation
     value_unit: metric_tons
+    stress_event_direction: higher_is_stress
+    stress_event_note: Higher imports versus trend can indicate demand pressure or domestic shortage.
     allowed_as_target: true
 
   - target_key: psd_domestic_use_anomaly_pct
@@ -81,6 +91,8 @@ target_metrics:
     title: PSD domestic-use anomaly versus trailing trend
     unit: pct_deviation
     value_unit: metric_tons
+    stress_event_direction: higher_is_stress
+    stress_event_note: Higher domestic use versus trend can tighten available supply.
     allowed_as_target: true
 
 legacy_target_family:
