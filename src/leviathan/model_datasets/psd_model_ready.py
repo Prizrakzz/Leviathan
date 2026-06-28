@@ -101,6 +101,10 @@ CORN_COMPOSITE_FEATURE_SET_IDS = {
     "corn_weather_flow",
     "corn_full_fundamental_stack",
 }
+CORN_WASDE_COMPOSITE_FEATURE_SET_IDS = {
+    "corn_preseason_core_plus_wasde",
+    "corn_weather_wasde",
+}
 DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
 PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS = {"country", "crop_year", "snapshot_stage", "as_of_date"}
 PSD_VINTAGE_FEATURE_SUFFIXES = (
@@ -336,6 +340,8 @@ def _snapshot_feature_columns(
             selected_by_set[feature_set_id] = wasde_cols
         elif feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
             selected_by_set[feature_set_id] = sorted(set(wasde_cols) | set(static_cols))
+        elif feature_set_id in CORN_WASDE_COMPOSITE_FEATURE_SET_IDS:
+            selected_by_set[feature_set_id] = sorted(set(wasde_cols) | set(static_cols))
         else:
             selected_by_set[feature_set_id] = _feature_union(
                 feature_matrix, feature_membership, (feature_set_id,)
@@ -365,6 +371,15 @@ def _snapshot_feature_columns(
                 raise ValueError(
                     "preseason_physical_plus_wasde_revision requires non-empty "
                     "preseason_physical static features."
+                )
+        if feature_set_id in CORN_WASDE_COMPOSITE_FEATURE_SET_IDS:
+            if not wasde_cols:
+                raise ValueError(
+                    f"{feature_set_id} requires non-empty WASDE revision features."
+                )
+            if not static_cols:
+                raise ValueError(
+                    f"{feature_set_id} requires non-empty static component features."
                 )
         if feature_set_id == "preseason_physical" and not selected:
             raise ValueError("snapshot feature set preseason_physical emitted zero features")

@@ -94,17 +94,15 @@ def _membership_with_corn_composite() -> pd.DataFrame:
             "feature_set_id": [
                 "corn_preseason_core_plus_wasde",
                 "corn_preseason_core_plus_wasde",
-                "corn_preseason_core_plus_wasde",
             ],
             "feature": [
                 "feature_a",
                 "feature_b",
-                "wasde_latest_revision",
             ],
-            "is_label": [False, False, False],
-            "feature_set_version": ["1", "1", "1"],
-            "feature_set_sha": ["corn_wasde_sha", "corn_wasde_sha", "corn_wasde_sha"],
-            "dataset_version": ["gold_v", "gold_v", "gold_v"],
+            "is_label": [False, False],
+            "feature_set_version": ["1", "1"],
+            "feature_set_sha": ["corn_wasde_sha", "corn_wasde_sha"],
+            "dataset_version": ["gold_v", "gold_v"],
         }),
     ], ignore_index=True)
 

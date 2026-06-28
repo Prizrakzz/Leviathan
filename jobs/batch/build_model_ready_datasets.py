@@ -24,6 +24,7 @@ from leviathan.features.spine import load_countries
 from leviathan.model_datasets.builder import build_commodity_model_datasets
 from leviathan.model_datasets.psd_model_ready import (
     PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+    CORN_WASDE_COMPOSITE_FEATURE_SET_IDS,
     PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
     PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,
     PSDModelReadyBuildConfig,
@@ -425,6 +426,9 @@ def _snapshot_features_for_set(
         return wasde_features
     if feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
         return sorted(set(wasde_features) | set(preseason_features))
+    if feature_set_id in CORN_WASDE_COMPOSITE_FEATURE_SET_IDS:
+        static_features = _source_features_for_set(feature_membership, feature_set_id, matrix_cols)
+        return sorted(set(wasde_features) | set(static_features))
     return _source_features_for_set(feature_membership, feature_set_id, matrix_cols)
 
 
