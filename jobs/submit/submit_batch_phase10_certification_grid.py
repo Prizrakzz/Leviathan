@@ -141,6 +141,7 @@ def main() -> None:
     parser.add_argument("--exclude-hypotheses", default="", dest="exclude_hypotheses")
     parser.add_argument("--model-dataset-version", default=None, dest="model_dataset_version")
     parser.add_argument("--source-dataset-version", default=None, dest="source_dataset_version")
+    parser.add_argument("--job-queue", default=None, dest="job_queue")
     parser.add_argument("--target-source", default="psd", choices=["psd", "faostat"],
                         dest="target_source")
     parser.add_argument("--permutation-trials", type=int, default=None, dest="permutation_trials")
@@ -193,7 +194,7 @@ def main() -> None:
 
     submitted = submit_batch_jobs(
         tasks=tasks,
-        job_queue=batch_queue,
+        job_queue=args.job_queue or batch_queue,
         job_definition=job_def,
         build_job_name=_job_name,
         aws_region=aws_region,
