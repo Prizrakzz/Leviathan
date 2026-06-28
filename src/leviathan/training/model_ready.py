@@ -62,6 +62,7 @@ class ModelReadyTrainingDataset:
     baseline_metrics_uri: str
     source_dataset_version: str
     model_dataset_status: ModelDatasetVersionStatus
+    feature_membership: pd.DataFrame | None = None
 
 
 def _read_s3_bytes(s3, bucket: str, key: str) -> bytes:
@@ -225,6 +226,7 @@ def load_model_ready_training_dataset(
         baseline_metrics_uri=f"s3://{bucket}/{baseline_key}",
         source_dataset_version=source_version,
         model_dataset_status=version_status,
+        feature_membership=membership,
     )
 
 
