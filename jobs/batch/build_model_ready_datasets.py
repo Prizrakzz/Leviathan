@@ -57,6 +57,11 @@ from leviathan.storage.paths import (
     gold_model_ready_target_key,
 )
 from leviathan.storage.s3 import get_thread_local_s3_client
+from leviathan.training.feature_quality import (  # noqa: E402
+    FeatureQualityPolicy,
+    build_feature_quality_report,
+    enforce_feature_quality,
+)
 
 logger = get_logger("build_model_ready_datasets")
 
@@ -374,22 +379,11 @@ def _snapshot_feature_set_observations(
     observations: list[dict] = []
 
     for feature_set_id in requested:
-        if feature_set_id in {
-            PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,
-            PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
-        }:
-            selected = psd_features
-        elif feature_set_id in {
-            PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
-            PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
-        }:
-            selected = sorted(set(psd_features) | set(preseason_features))
-        elif feature_set_id == WASDE_MONTHLY_REVISION_FEATURE_SET_ID:
-            selected = wasde_features
-        elif feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
-            selected = sorted(set(wasde_features) | set(preseason_features))
-        else:
-            selected = _source_features_for_set(feature_membership, feature_set_id, matrix_cols)
+        selected = _snapshot_features_for_set(
+            feature_set_id,
+            matrix_df=matrix_df,
+            feature_membership=feature_membership,
+        )
         for feature in selected:
             observations.append(
                 _feature_observation(
@@ -402,6 +396,35 @@ def _snapshot_feature_set_observations(
                 )
             )
     return observations
+
+
+def _snapshot_features_for_set(
+    feature_set_id: str,
+    *,
+    matrix_df: pd.DataFrame,
+    feature_membership: pd.DataFrame,
+) -> list[str]:
+    matrix_cols = set(str(col) for col in matrix_df.columns)
+    psd_features = psd_vintage_feature_columns(matrix_df)
+    wasde_features = wasde_snapshot_feature_columns(matrix_df)
+    preseason_features = _source_features_for_set(
+        feature_membership, "preseason_physical", matrix_cols
+    )
+    if feature_set_id in {
+        PSD_MONTHLY_VINTAGE_FEATURE_SET_ID,
+        PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
+    }:
+        return psd_features
+    if feature_set_id in {
+        PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
+        PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+    }:
+        return sorted(set(psd_features) | set(preseason_features))
+    if feature_set_id == WASDE_MONTHLY_REVISION_FEATURE_SET_ID:
+        return wasde_features
+    if feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
+        return sorted(set(wasde_features) | set(preseason_features))
+    return _source_features_for_set(feature_membership, feature_set_id, matrix_cols)
 
 
 def _build_model_ready_feature_sets(
@@ -461,6 +484,51 @@ def _build_model_ready_feature_sets(
     return membership, summary
 
 
+def _feature_quality_policy(args: argparse.Namespace) -> FeatureQualityPolicy:
+    mode = str(args.feature_quality_policy or "").strip().lower()
+    if not mode:
+        mode = "strict" if getattr(args, "snapshot_mode", False) else "warn"
+    if mode not in {"strict", "warn"}:
+        raise ValueError("--feature-quality-policy must be 'strict' or 'warn'")
+    return FeatureQualityPolicy(mode=mode)
+
+
+def _append_feature_quality_report(
+    result: dict,
+    *,
+    args: argparse.Namespace,
+    matrix_df: pd.DataFrame,
+    feature_membership: pd.DataFrame,
+    dataset_key: str,
+    target_key: str,
+    commodity: str,
+    feature_set_id: str,
+    feature_cols: list[str],
+    selected_feature_sets: tuple[str, ...] | None = None,
+) -> None:
+    report = build_feature_quality_report(
+        matrix_df,
+        feature_cols,
+        membership=feature_membership,
+        dataset_key=dataset_key,
+        feature_set_id=feature_set_id,
+        selected_feature_sets=selected_feature_sets or (feature_set_id,),
+        policy=_feature_quality_policy(args),
+    )
+    report["commodity"] = commodity
+    report["target_key"] = target_key
+    enforce_feature_quality(report)
+    result.setdefault("feature_quality_reports", []).append(report)
+
+
+def _model_ready_feature_columns(matrix_df: pd.DataFrame) -> list[str]:
+    return sorted(
+        str(col)
+        for col in matrix_df.columns
+        if str(col) not in MODEL_READY_NON_FEATURE_COLUMNS
+    )
+
+
 def _process_commodity(
     args: argparse.Namespace,
     commodity: str,
@@ -497,6 +565,27 @@ def _process_commodity(
         feature_membership=feature_membership,
     )
     result["summaries"] = built.summaries
+    feature_sets_by_target = {
+        (str(summary.get("dataset_key")), str(summary.get("target_key"))): tuple(
+            str(item) for item in summary.get("compatible_feature_sets", [])
+        )
+        for summary in built.summaries
+        if summary.get("status") == "built"
+    }
+    for (dataset_key, target_key), matrix_df in built.matrices.items():
+        selected_sets = feature_sets_by_target.get((str(dataset_key), str(target_key)), ())
+        _append_feature_quality_report(
+            result,
+            args=args,
+            matrix_df=matrix_df,
+            feature_membership=feature_membership,
+            dataset_key=dataset_key,
+            target_key=str(target_key),
+            commodity=commodity,
+            feature_set_id="compatible_feature_sets",
+            feature_cols=_model_ready_feature_columns(matrix_df),
+            selected_feature_sets=selected_sets,
+        )
     if args.dry_run:
         result["status"] = "dry_run"
         return result
@@ -582,6 +671,22 @@ def _process_psd_commodity(
         target_keys=target_keys,
     )
     result["summaries"] = built.summaries
+    selected_sets = args.compatible_feature_sets_tuple or tuple(
+        PSDModelReadyBuildConfig().compatible_feature_sets
+    )
+    for (dataset_key, target_key), matrix_df in built.matrices.items():
+        _append_feature_quality_report(
+            result,
+            args=args,
+            matrix_df=matrix_df,
+            feature_membership=feature_membership,
+            dataset_key=dataset_key,
+            target_key=str(target_key),
+            commodity=commodity,
+            feature_set_id="compatible_feature_sets",
+            feature_cols=_model_ready_feature_columns(matrix_df),
+            selected_feature_sets=selected_sets,
+        )
     if args.dry_run:
         result["status"] = "dry_run"
         return result
@@ -683,6 +788,25 @@ def _process_psd_snapshot_commodity(
         target_keys=target_keys,
     )
     result["summaries"] = built.summaries
+    for (dataset_key, target_key), matrix_df in built.matrices.items():
+        for feature_set_id in args.compatible_feature_sets_tuple:
+            feature_cols = _snapshot_features_for_set(
+                feature_set_id,
+                matrix_df=matrix_df,
+                feature_membership=feature_membership,
+            )
+            _append_feature_quality_report(
+                result,
+                args=args,
+                matrix_df=matrix_df,
+                feature_membership=feature_membership,
+                dataset_key=dataset_key,
+                target_key=str(target_key),
+                commodity=commodity,
+                feature_set_id=feature_set_id,
+                feature_cols=feature_cols,
+                selected_feature_sets=(feature_set_id,),
+            )
     if args.dry_run:
         result["status"] = "dry_run"
         return result
@@ -764,6 +888,17 @@ def _build_manifest(
             mapping_confidence_counts[str(key)] = (
                 mapping_confidence_counts.get(str(key), 0) + int(value)
             )
+    feature_quality_reports = [
+        report
+        for result in results
+        for report in result.get("feature_quality_reports", [])
+    ]
+    feature_quality_status_counts: dict[str, int] = {}
+    for report in feature_quality_reports:
+        status = str(report.get("status", "unknown"))
+        feature_quality_status_counts[status] = (
+            feature_quality_status_counts.get(status, 0) + 1
+        )
 
     manifest = {
         "task": "build_model_ready_datasets",
@@ -790,6 +925,8 @@ def _build_manifest(
             "baseline_metric_count": int(len(baseline_metrics)),
             "target_status_counts": target_status_counts,
             "mapping_confidence_counts": mapping_confidence_counts,
+            "feature_quality_report_count": int(len(feature_quality_reports)),
+            "feature_quality_status_counts": feature_quality_status_counts,
         },
         "targets": target_summaries,
         "baseline_metrics": {
@@ -811,6 +948,11 @@ def _build_manifest(
             "manifest_key": gold_model_ready_manifest_key(args.model_dataset_version),
         },
         "commodities": results,
+        "feature_quality": {
+            "report_count": int(len(feature_quality_reports)),
+            "status_counts": feature_quality_status_counts,
+            "reports": feature_quality_reports,
+        },
     }
     if model_ready_feature_set_summary:
         feature_sets_key = gold_model_ready_feature_set_version_key(args.model_dataset_version)
@@ -921,6 +1063,15 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Comma-separated feature-set ids to materialize into PSD matrices. "
             "Default keeps the built-in PSD-compatible feature sets."
+        ),
+    )
+    parser.add_argument(
+        "--feature-quality-policy",
+        default="",
+        dest="feature_quality_policy",
+        help=(
+            "Feature quality gate mode: 'strict' or 'warn'. "
+            "Default is strict for snapshot builds and warn otherwise."
         ),
     )
     parser.add_argument("--workers", type=int, default=4)

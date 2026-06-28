@@ -9,6 +9,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
+import boto3  # noqa: E402
+
 from leviathan.common.batch_submit import submit_batch_jobs, write_run_record  # noqa: E402
 from leviathan.common.config import get_required_env, load_env                 # noqa: E402
 from leviathan.common.logging import get_logger                                # noqa: E402
@@ -16,6 +18,14 @@ from leviathan.model_datasets.version_status import (                          #
     load_model_dataset_version_registry,
 )
 from leviathan.storage.metadata import utc_now_iso                             # noqa: E402
+from leviathan.training.feature_quality import (                               # noqa: E402
+    FeatureQualityPolicy,
+    build_feature_quality_report,
+    enforce_feature_quality,
+)
+from leviathan.training.model_ready import (                                   # noqa: E402
+    load_model_ready_training_dataset,
+)
 from leviathan.training.phase10_grid import (                                  # noqa: E402
     expand_phase10_grid,
     load_phase10_grid_config,
@@ -57,6 +67,62 @@ def _resolve_latest_versions(tasks: list[dict[str, str]], target_source: str) ->
     return out
 
 
+def _validate_feature_quality(
+    tasks: list[dict[str, str]],
+    *,
+    bucket: str,
+    aws_region: str,
+) -> dict[str, int]:
+    """Fail fast when selected Phase 10 feature sets are not experiment-ready."""
+    s3 = boto3.client("s3", region_name=aws_region)
+    seen: set[tuple[str, str, str, str, str, str | None]] = set()
+    status_counts: dict[str, int] = {}
+    for task in tasks:
+        identity = (
+            task["model_dataset_version"],
+            task["dataset_key"],
+            task["commodity"],
+            task["target_key"],
+            task["feature_set"],
+            task.get("source_dataset_version"),
+        )
+        if identity in seen:
+            continue
+        seen.add(identity)
+        dataset = load_model_ready_training_dataset(
+            s3,
+            bucket=bucket,
+            model_dataset_version=task["model_dataset_version"],
+            dataset_key=task["dataset_key"],
+            commodity=task["commodity"],
+            target_key=task["target_key"],
+            feature_set_id=task["feature_set"],
+            source_dataset_version=(
+                None
+                if task.get("source_dataset_version") in {None, "", "none"}
+                else task.get("source_dataset_version")
+            ),
+        )
+        report = build_feature_quality_report(
+            dataset.matrix,
+            dataset.feature_cols,
+            membership=dataset.feature_membership,
+            dataset_key=task["dataset_key"],
+            feature_set_id=task["feature_set"],
+            selected_feature_sets=(task["feature_set"],),
+            policy=FeatureQualityPolicy(mode="strict"),
+        )
+        enforce_feature_quality(report)
+        status = str(report.get("status", "unknown"))
+        status_counts[status] = status_counts.get(status, 0) + 1
+    logger.info(
+        "Validated feature quality for %d unique Phase 10 slices: %s",
+        len(seen),
+        status_counts,
+    )
+    return status_counts
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -79,6 +145,12 @@ def main() -> None:
                         dest="target_source")
     parser.add_argument("--permutation-trials", type=int, default=None, dest="permutation_trials")
     parser.add_argument("--max-jobs", type=int, default=0, dest="max_jobs")
+    parser.add_argument(
+        "--skip-feature-quality-validation",
+        action="store_true",
+        dest="skip_feature_quality_validation",
+        help="Skip pre-submit feature quality validation for emergency/debug runs.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -100,7 +172,16 @@ def main() -> None:
     if args.max_jobs and args.max_jobs > 0:
         tasks = tasks[:args.max_jobs]
 
+    feature_quality_status_counts: dict[str, int] = {}
+    if not args.skip_feature_quality_validation:
+        feature_quality_status_counts = _validate_feature_quality(
+            tasks,
+            bucket=bucket,
+            aws_region=aws_region,
+        )
+
     summary = phase10_grid_summary(tasks)
+    summary["feature_quality_status_counts"] = feature_quality_status_counts
     logger.info("Phase 10 grid summary: %s", summary)
 
     def _job_name(task: dict[str, str]) -> str:

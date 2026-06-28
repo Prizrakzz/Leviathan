@@ -377,6 +377,8 @@ def test_model_ready_cli_writes_local_psd_version(tmp_path: Path) -> None:
     assert manifest["psd_mapping_sha"]
     assert manifest["summary"]["built_target_count"] == 1
     assert manifest["summary"]["matrix_count"] == 1
+    assert manifest["feature_quality"]["report_count"] == 1
+    assert manifest["summary"]["feature_quality_status_counts"]["warn"] == 1
 
 
 def test_model_ready_cli_can_materialize_psd_vintage_feature_set(tmp_path: Path) -> None:
@@ -940,6 +942,8 @@ def test_model_ready_cli_writes_local_psd_snapshot_version(tmp_path: Path) -> No
     assert manifest["snapshot_feature_set_contracts"][0]["feature_set_id"] == (
         WASDE_MONTHLY_REVISION_FEATURE_SET_ID
     )
+    assert manifest["feature_quality"]["report_count"] == 1
+    assert manifest["summary"]["feature_quality_status_counts"]["warn"] == 1
 
 
 def test_model_ready_cli_writes_snapshot_model_ready_feature_sets(tmp_path: Path) -> None:
