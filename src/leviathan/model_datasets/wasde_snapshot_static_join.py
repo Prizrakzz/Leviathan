@@ -131,6 +131,18 @@ LAGGED_PSD_TOKENS = (
     "source_disagreement",
 )
 
+STATIC_FEATURE_MANIFEST_COLUMNS = [
+    "feature_set_id",
+    "feature",
+    "decision",
+    "reason",
+    "allowed_snapshot_stages",
+    "blocked_snapshot_stages",
+    "feature_policy",
+    "non_null_rate",
+    "constant_rate",
+]
+
 
 @dataclass(frozen=True)
 class StaticFeatureDecision:
@@ -327,7 +339,14 @@ def build_static_feature_reuse_manifest(
                 "constant_rate": _constant_rate(static[feature]),
             })
 
-    return pd.DataFrame(rows).sort_values(["feature_set_id", "feature"]).reset_index(drop=True)
+    if not rows:
+        return pd.DataFrame(columns=STATIC_FEATURE_MANIFEST_COLUMNS)
+    return (
+        pd.DataFrame(rows)
+        .reindex(columns=STATIC_FEATURE_MANIFEST_COLUMNS)
+        .sort_values(["feature_set_id", "feature"])
+        .reset_index(drop=True)
+    )
 
 
 def _selected_feature_stage_rules(manifest: pd.DataFrame) -> dict[str, tuple[str, ...]]:
@@ -450,4 +469,3 @@ def validate_static_snapshot_join(
     leaked = sorted((set(after.columns) - before_cols) & blocked_features)
     if leaked:
         raise ValueError(f"blocked static features were joined: {leaked}")
-

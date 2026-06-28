@@ -163,6 +163,23 @@ def test_missing_static_features_are_reported_without_dropping_rows() -> None:
     assert manifest.iloc[0]["decision"] == "missing_static_feature"
 
 
+def test_empty_feature_set_membership_returns_empty_manifest_and_preserves_rows() -> None:
+    joined, manifest = join_static_features_to_wasde_snapshots(
+        _snapshot_rows(["preseason"]),
+        _static_matrix(),
+        pd.DataFrame(columns=["feature_set_id", "feature"]),
+    )
+
+    assert len(joined) == 1
+    assert manifest.empty
+    assert {
+        "feature_set_id",
+        "feature",
+        "decision",
+        "reason",
+    }.issubset(manifest.columns)
+
+
 def test_duplicate_static_keys_raise_on_conflicting_values() -> None:
     static = pd.concat([
         _static_matrix(),
