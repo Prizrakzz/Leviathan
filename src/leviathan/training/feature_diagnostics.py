@@ -247,7 +247,7 @@ def build_missingness_target_association(
 
 
 def _identity_count(df: pd.DataFrame) -> int:
-    cols = [col for col in ("country", "crop_year", "snapshot_stage", "as_of_date") if col in df.columns]
+    cols = [col for col in ("country", "crop_year") if col in df.columns]
     return int(df.drop_duplicates(cols).shape[0]) if cols else int(len(df))
 
 
