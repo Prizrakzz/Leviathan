@@ -117,6 +117,43 @@ def test_model_ready_feature_selection_excludes_labels_targets_and_baselines() -
     assert meta["feature_set_catalog_sha"] == "abc"
 
 
+def test_model_ready_feature_selection_prunes_ultra_sparse_dense_weather() -> None:
+    matrix = pd.DataFrame({
+        "country": ["united_states"] * 6,
+        "crop_year": [2018, 2019, 2020, 2021, 2022, 2023],
+        "is_trainable": [True] * 6,
+        "target_value": [0.1, -0.1, 0.2, -0.2, 0.0, 0.05],
+        "weather_dense_precip_z_mean_silking": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        "weather_dense_soil_z_mean_silking": [None, None, 1.0, 2.0, None, None],
+        "weather_dense_ndvi_z_coverage_share_silking": [None, None, None, 1.0, None, None],
+    })
+    membership = pd.DataFrame({
+        "dataset_version": ["gold_v"] * 3,
+        "feature_set_id": ["inseason_weather_dense"] * 3,
+        "feature_set_version": ["1"] * 3,
+        "feature_set_sha": ["dense-sha"] * 3,
+        "feature": [
+            "weather_dense_precip_z_mean_silking",
+            "weather_dense_soil_z_mean_silking",
+            "weather_dense_ndvi_z_coverage_share_silking",
+        ],
+        "is_label": [False, False, False],
+    })
+
+    features, meta = select_model_ready_features(
+        matrix, membership, "inseason_weather_dense"
+    )
+
+    assert features == [
+        "weather_dense_precip_z_mean_silking",
+        "weather_dense_soil_z_mean_silking",
+    ]
+    assert meta["pruned_feature_count"] == "1"
+    assert meta["review_feature_count"] == "1"
+    assert meta["pruned_features"] == "weather_dense_ndvi_z_coverage_share_silking"
+    assert meta["review_features"] == "weather_dense_soil_z_mean_silking"
+
+
 def test_training_frame_filters_trainable_rows_and_uses_target_value() -> None:
     frame = training_frame_from_model_ready_matrix(_matrix(), ["feature_a"])
 

@@ -69,6 +69,8 @@ feature_sets:
       - fundamental_physical
     allowed_feature_families:
       - weather_dense
+    exclude_feature_patterns:
+      - "^weather_dense_ndvi_z_coverage_share_"
     blocked_policies:
       - diagnostic_only
       - excluded_market_signal
@@ -100,6 +102,7 @@ feature_sets:
       - "^heat_stress_z_"
       - "^cpc_soil_z_"
       - "^modis_ndvi_z_"
+      - "^weather_dense_ndvi_z_coverage_share_"
     blocked_policies:
       - diagnostic_only
       - excluded_market_signal

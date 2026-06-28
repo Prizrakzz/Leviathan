@@ -20,6 +20,7 @@ import pandas as pd
 from leviathan.features.feature_sets import selected_features_for_set
 from leviathan.model_datasets.baselines import BASELINE_COLUMNS
 from leviathan.model_datasets.builder import MATRIX_ID_COLUMNS
+from leviathan.model_datasets.feature_pruning import prune_model_ready_features
 from leviathan.model_datasets.psd_model_ready import (
     PSD_MATRIX_ID_COLUMNS,
     PSD_SNAPSHOT_COLUMNS,
@@ -130,6 +131,12 @@ def select_model_ready_features(
         and feature not in MODEL_READY_EXCLUDED_FEATURE_COLUMNS
         and not feature.startswith("label_")
     ]
+    pruning = prune_model_ready_features(
+        matrix,
+        feature_cols,
+        selected_feature_sets=(feature_set_id,),
+    )
+    feature_cols = pruning.kept_features
     rows = membership.loc[membership["feature_set_id"] == feature_set_id]
     meta = {"feature_set_id": feature_set_id}
     if not rows.empty:
@@ -140,6 +147,12 @@ def select_model_ready_features(
         ):
             if source_col in rows.columns:
                 meta[tag_col] = str(rows[source_col].iloc[0])
+    if pruning.dropped_features:
+        meta["pruned_feature_count"] = str(len(pruning.dropped_features))
+        meta["pruned_features"] = ",".join(pruning.dropped_features)
+    if pruning.review_features:
+        meta["review_feature_count"] = str(len(pruning.review_features))
+        meta["review_features"] = ",".join(pruning.review_features)
     return sorted(feature_cols), meta
 
 

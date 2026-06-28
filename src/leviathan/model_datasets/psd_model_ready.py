@@ -16,6 +16,7 @@ from leviathan.features.computations.psd_vintages import (
 from leviathan.features.feature_sets import selected_features_for_set
 from leviathan.model_datasets.baselines import compute_baseline_metrics
 from leviathan.model_datasets.builder import CommodityModelDataset
+from leviathan.model_datasets.feature_pruning import prune_model_ready_features
 from leviathan.model_datasets.psd_target_builder import PSD_TARGET_COLUMNS
 from leviathan.model_datasets.snapshot_stages import (
     SnapshotStageConfig,
@@ -630,6 +631,14 @@ def build_psd_commodity_model_datasets(
     for target_key, target_group in target_df.groupby("target_key", sort=True):
         target_group = target_group.sort_values(["country", "crop_year"]).reset_index(drop=True)
         matrix_df = _matrix_for_target(feature_matrix, target_group, feature_cols)
+        pruning = prune_model_ready_features(
+            matrix_df,
+            feature_cols,
+            selected_feature_sets=build_config.compatible_feature_sets,
+        )
+        if pruning.dropped_features:
+            matrix_df = matrix_df.drop(columns=pruning.dropped_features, errors="ignore")
+        target_feature_cols = pruning.kept_features
         matrices[(PSD_DATASET_KEY, str(target_key))] = matrix_df
         metrics_frames.append(
             compute_baseline_metrics(
@@ -648,7 +657,9 @@ def build_psd_commodity_model_datasets(
             "status": "built",
             "row_count": int(len(matrix_df)),
             "trainable_row_count": trainable_rows,
-            "feature_count": int(len(feature_cols)),
+            "feature_count": int(len(target_feature_cols)),
+            "pruned_feature_count": int(len(pruning.dropped_features)),
+            "review_feature_count": int(len(pruning.review_features)),
             "target_source": "psd",
             "target_family": str(target_group["target_family"].iloc[0]),
             "target_attribute": str(target_group["target_attribute"].iloc[0]),

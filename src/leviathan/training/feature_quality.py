@@ -6,6 +6,12 @@ from typing import Any, Iterable
 
 import pandas as pd
 
+from leviathan.model_datasets.feature_pruning import (
+    DENSE_WEATHER_FEATURE_SETS,
+    DENSE_WEATHER_PREFIX,
+    DENSE_WEATHER_REVIEW_MIN_NON_NULL_RATE,
+)
+
 
 DEFAULT_HIGH_MISSING_THRESHOLD = 0.8
 DEFAULT_MAX_FEATURE_ROW_RATIO = 1.0
@@ -140,6 +146,7 @@ def build_feature_quality_report(
     high_missing: list[str] = []
     constant: list[str] = []
     non_numeric: list[str] = []
+    dense_weather_review: list[str] = []
     feature_summaries: list[dict[str, Any]] = []
 
     for feature in present:
@@ -154,6 +161,12 @@ def build_feature_quality_report(
             all_missing.append(feature)
         if row_count and (1.0 - non_null_rate) > policy.high_missing_threshold:
             high_missing.append(feature)
+        if (
+            selected_sets & DENSE_WEATHER_FEATURE_SETS
+            and feature.startswith(DENSE_WEATHER_PREFIX)
+            and non_null_rate < DENSE_WEATHER_REVIEW_MIN_NON_NULL_RATE
+        ):
+            dense_weather_review.append(feature)
         if non_null > 0 and unique_non_null <= 1:
             constant.append(feature)
         if not is_numeric:
@@ -218,6 +231,12 @@ def build_feature_quality_report(
             "features": high_missing,
             "threshold": policy.high_missing_threshold,
         })
+    if dense_weather_review:
+        warnings.append({
+            "reason": "dense_weather_low_model_ready_coverage",
+            "features": sorted(dense_weather_review),
+            "threshold": DENSE_WEATHER_REVIEW_MIN_NON_NULL_RATE,
+        })
     if selected_sets & LEGACY_PSD_VINTAGE_FEATURE_SETS:
         warnings.append({
             "reason": "legacy_psd_vintage_feature_set_requested",
@@ -247,6 +266,7 @@ def build_feature_quality_report(
         "feature_row_ratio": feature_row_ratio,
         "all_missing_feature_count": int(len(all_missing)),
         "high_missing_feature_count": int(len(high_missing)),
+        "dense_weather_review_feature_count": int(len(dense_weather_review)),
         "constant_feature_count": int(len(constant)),
         "non_numeric_feature_count": int(len(non_numeric)),
         "label_like_feature_count": int(len(label_like)),

@@ -106,6 +106,32 @@ def test_feature_quality_reports_constant_and_high_missing_warnings() -> None:
     enforce_feature_quality(report)
 
 
+def test_feature_quality_warns_on_low_coverage_dense_weather_features() -> None:
+    matrix = _matrix().assign(
+        weather_dense_tmax_anomaly_mean_silking=[1.0, 2.0, None, None, None],
+        weather_dense_precip_z_mean_silking=[1.0, 2.0, 3.0, 4.0, 5.0],
+    )
+
+    report = build_feature_quality_report(
+        matrix,
+        [
+            "weather_dense_tmax_anomaly_mean_silking",
+            "weather_dense_precip_z_mean_silking",
+        ],
+        membership=_membership(),
+        dataset_key="psd_snd_anomaly",
+        feature_set_id="inseason_weather_dense",
+        selected_feature_sets=("inseason_weather_dense",),
+    )
+
+    assert report["status"] == "warn"
+    assert report["dense_weather_review_feature_count"] == 1
+    assert any(
+        item["reason"] == "dense_weather_low_model_ready_coverage"
+        for item in report["warnings"]
+    )
+
+
 def test_feature_quality_fails_snapshot_and_annual_wasde_mixed() -> None:
     report = build_feature_quality_report(
         _matrix(),

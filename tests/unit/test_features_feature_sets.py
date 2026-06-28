@@ -38,6 +38,7 @@ def _catalog() -> pd.DataFrame:
         ("faostat_available", "faostat_production", "origin_production_history", "fundamental_physical", "production_trend_baseline", "production:faostat", "annual", "universal", "grains", False, 10, 2, 1.0),
         ("gdd_z_us_midwest", "growing_degree_days", "origin_weather", "fundamental_physical", "crop_development_speed", "weather:nasa_power", "daily", "commodity", "grains", False, 4, 1, 0.4),
         ("weather_dense_precip_z_mean_silking", "weather_dense", "origin_stage_weather", "fundamental_physical", "weather_stress_aggregate", "weather:chirps,weather:nasa_power", "daily_to_crop_stage", "commodity", "grains", False, 8, 1, 0.8),
+        ("weather_dense_ndvi_z_coverage_share_silking", "weather_dense", "origin_stage_weather", "fundamental_physical", "weather_stress_aggregate", "weather:modis_ndvi", "daily_to_crop_stage", "commodity", "grains", False, 8, 1, 0.8),
         ("corn_dec_mar_spread_z", "calendar_spreads", "excluded_market_signal", "excluded_market_signal", "futures_term_structure", "futures_prices", "daily", "commodity", "grains", False, 9, 1, 0.9),
     ]
     return pd.DataFrame(rows, columns=[
@@ -161,6 +162,9 @@ def test_inseason_weather_dense_selects_dense_weather_only() -> None:
     assert selected_features_for_set(membership, "inseason_weather_dense") == [
         "weather_dense_precip_z_mean_silking"
     ]
+    assert "weather_dense_ndvi_z_coverage_share_silking" not in selected_features_for_set(
+        membership, "inseason_weather_dense"
+    )
     assert "gdd_z_us_midwest" not in selected_features_for_set(
         membership, "inseason_weather_dense"
     )
@@ -174,6 +178,7 @@ def test_preseason_plus_weather_dense_excludes_raw_weather() -> None:
     selected = selected_features_for_set(membership, "preseason_physical_plus_weather_dense")
 
     assert "weather_dense_precip_z_mean_silking" in selected
+    assert "weather_dense_ndvi_z_coverage_share_silking" not in selected
     assert "gdd_z_us_midwest" not in selected
     assert "psd_available" in selected
 

@@ -87,6 +87,21 @@ def _membership_with_psd_vintage() -> pd.DataFrame:
     ], ignore_index=True)
 
 
+def _dense_weather_membership() -> pd.DataFrame:
+    return pd.DataFrame({
+        "feature_set_id": ["inseason_weather_dense"] * 3,
+        "feature": [
+            "weather_dense_precip_z_mean_silking",
+            "weather_dense_soil_z_mean_silking",
+            "weather_dense_ndvi_z_coverage_share_silking",
+        ],
+        "is_label": [False, False, False],
+        "feature_set_version": ["1", "1", "1"],
+        "feature_set_sha": ["dense_sha", "dense_sha", "dense_sha"],
+        "dataset_version": ["gold_v", "gold_v", "gold_v"],
+    })
+
+
 def _psd_source(values: list[float] | None = None) -> pd.DataFrame:
     values = values or [10.0, 11.0, 12.0, 13.0, 14.0, 18.0]
     rows = []
@@ -253,6 +268,43 @@ def test_psd_model_ready_builds_matrices_and_baselines() -> None:
     }
     assert built.summaries[0]["target_source"] == "psd"
     assert built.summaries[0]["target_attribute"] == "production_mt"
+
+
+def test_psd_model_ready_prunes_ultra_sparse_dense_weather_features() -> None:
+    years = list(range(2000, 2012))
+    feature_matrix = _feature_matrix(years).assign(
+        weather_dense_precip_z_mean_silking=[float(i) for i in range(len(years))],
+        weather_dense_soil_z_mean_silking=[
+            float(i) if year in {2005, 2006, 2007} else None
+            for i, year in enumerate(years)
+        ],
+        weather_dense_ndvi_z_coverage_share_silking=[
+            1.0 if year == 2005 else None for year in years
+        ],
+    )
+    targets = build_psd_target_panel(
+        _psd_source(values=[10.0 + float(i) for i in range(len(years))]),
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+
+    built = build_psd_commodity_model_datasets(
+        feature_matrix,
+        targets,
+        commodity="corn_cbot",
+        feature_membership=_dense_weather_membership(),
+        config=PSDModelReadyBuildConfig(compatible_feature_sets=("inseason_weather_dense",)),
+        target_keys=("psd_production_anomaly_pct",),
+    )
+    matrix = built.matrices[(PSD_DATASET_KEY, "psd_production_anomaly_pct")]
+    summary = built.summaries[0]
+
+    assert "weather_dense_precip_z_mean_silking" in matrix.columns
+    assert "weather_dense_soil_z_mean_silking" in matrix.columns
+    assert "weather_dense_ndvi_z_coverage_share_silking" not in matrix.columns
+    assert summary["pruned_feature_count"] == 1
+    assert summary["review_feature_count"] == 1
+    assert summary["feature_count"] == 2
 
 
 def test_psd_model_ready_marks_missing_feature_rows() -> None:
