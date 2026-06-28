@@ -19,8 +19,8 @@ COPY configs/ ./configs/
 # - install project code without full project deps; ingestion/parser deps are
 #   not needed for jobs/batch/train_commodity.py.
 # - use mlflow-skinny; this container is an MLflow client, not a server.
-# - remove xgboost's optional NVIDIA NCCL wheel. Batch uses CPU tree models,
-#   and XGBoost still imports/trains without the GPU payload.
+# - install XGBoost with --no-deps after its CPU runtime deps are present so
+#   pip does not pull optional NVIDIA NCCL wheels into the Fargate image.
 RUN pip install --no-cache-dir --no-compile --upgrade pip \
     && pip install --no-cache-dir --no-compile -e . --no-deps \
     && pip install --no-cache-dir --no-compile \
@@ -32,9 +32,9 @@ RUN pip install --no-cache-dir --no-compile --upgrade pip \
         pandas \
         pyarrow \
         pyyaml \
+        scipy \
         "scikit-learn>=1.3" \
-        "xgboost>=2.0" \
-    && (pip uninstall -y nvidia-nccl-cu12 || true) \
+    && pip install --no-cache-dir --no-compile --no-deps "xgboost>=2.0,<3" \
     && rm -rf \
         /usr/local/lib/python3.11/site-packages/nvidia \
         /usr/local/lib/python3.11/site-packages/nvidia_nccl* \
