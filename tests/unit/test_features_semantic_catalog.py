@@ -82,6 +82,9 @@ def test_taxonomy_classifies_policy_sensitive_features() -> None:
     assert taxonomy.classify("pink_sheet_energy_z").policy == "certified_economic_driver"
     assert taxonomy.classify("brl_fx_pct_90d").policy == "certified_economic_driver"
     assert taxonomy.classify("nass_ge_pct_z").feature_family == "crop_condition"
+    assert taxonomy.classify(
+        "weather_dense_precip_z_mean_silking"
+    ).feature_family == "weather_dense"
 
 
 def test_build_semantic_catalog_and_maps() -> None:

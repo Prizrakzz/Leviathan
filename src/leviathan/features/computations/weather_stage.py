@@ -428,3 +428,354 @@ def compute_drought_z(ctx: FeatureContext, spec) -> pd.DataFrame:
             for crop_year in ctx.crop_years:
                 rows.append((country, crop_year, feature, z.get(crop_year, np.nan)))
     return make_result(rows)
+
+
+def _parse_region_stage_feature(
+    feature: str,
+    *,
+    prefix: str,
+    stages: list[str],
+) -> tuple[str, str] | None:
+    base = f"{prefix}_"
+    if not feature.startswith(base):
+        return None
+    body = feature[len(base):]
+    for stage in sorted(stages, key=len, reverse=True):
+        suffix = f"_{stage}"
+        if body.endswith(suffix):
+            region = body[:-len(suffix)]
+            if region:
+                return region, stage
+    return None
+
+
+def _parse_region_feature(
+    feature: str,
+    *,
+    prefix: str,
+    stage: str,
+) -> tuple[str, str] | None:
+    base = f"{prefix}_"
+    if not feature.startswith(base):
+        return None
+    region = feature[len(base):]
+    return (region, stage) if region else None
+
+
+def _dense_metric_rows(
+    base_df: pd.DataFrame,
+    *,
+    ctx: FeatureContext,
+    base_prefix: str,
+    dense_metric: str,
+    stage_aware: bool,
+    default_stage: str,
+    stats: tuple[str, ...],
+    expected_regions: dict[tuple[str, str], set[str]] | None = None,
+    share_name: str | None = None,
+    share_direction: str = "high",
+    share_threshold: float = 1.0,
+) -> list[tuple[str, int, str, float]]:
+    if base_df.empty or ctx.calendar is None:
+        return []
+
+    stages = list(ctx.calendar.stages)
+    parsed_rows: list[dict[str, object]] = []
+    for row in base_df.itertuples(index=False):
+        feature = str(row.feature)
+        parsed = (
+            _parse_region_stage_feature(feature, prefix=base_prefix, stages=stages)
+            if stage_aware else
+            _parse_region_feature(feature, prefix=base_prefix, stage=default_stage)
+        )
+        if parsed is None:
+            continue
+        region, stage = parsed
+        parsed_rows.append({
+            "country": str(row.country),
+            "crop_year": int(row.crop_year),
+            "stage": stage,
+            "region": region,
+            "value": float(row.value),
+        })
+    if not parsed_rows:
+        return []
+
+    parsed_df = pd.DataFrame(parsed_rows)
+    parsed_df = parsed_df.loc[parsed_df["country"].isin(set(ctx.countries))]
+    if parsed_df.empty:
+        return []
+
+    per_region = (
+        parsed_df
+        .groupby(["country", "crop_year", "stage", "region"], as_index=False)["value"]
+        .mean()
+    )
+    emitted_regions = (
+        parsed_df
+        .groupby(["country", "stage"])["region"]
+        .apply(lambda values: set(str(value) for value in values))
+        .to_dict()
+    )
+    expected_region_sets: dict[tuple[str, str], set[str]] = {}
+    for key, regions in emitted_regions.items():
+        expected_region_sets[key] = set(regions)
+    for key, regions in (expected_regions or {}).items():
+        expected_region_sets[key] = expected_region_sets.get(key, set()) | set(regions)
+    per_region = per_region.loc[per_region["crop_year"].isin(set(ctx.crop_years))]
+    if per_region.empty:
+        return []
+
+    rows: list[tuple[str, int, str, float]] = []
+    for (country, crop_year, stage), group in per_region.groupby(
+        ["country", "crop_year", "stage"], sort=True
+    ):
+        values = pd.to_numeric(group["value"], errors="coerce").dropna()
+        if values.empty:
+            continue
+        expected_count = int(len(expected_region_sets.get((country, stage), set())))
+        expected_count = expected_count or len(values)
+        coverage_share = float(len(values) / expected_count) if expected_count else np.nan
+        if "mean" in stats:
+            rows.append((country, int(crop_year), f"weather_dense_{dense_metric}_mean_{stage}", float(values.mean())))
+        if "min" in stats:
+            rows.append((country, int(crop_year), f"weather_dense_{dense_metric}_min_{stage}", float(values.min())))
+        if "max" in stats:
+            rows.append((country, int(crop_year), f"weather_dense_{dense_metric}_max_{stage}", float(values.max())))
+        if share_name:
+            if share_direction == "low":
+                share = float((values <= -abs(share_threshold)).mean())
+            else:
+                share = float((values >= abs(share_threshold)).mean())
+            rows.append((country, int(crop_year), f"weather_dense_{dense_metric}_{share_name}_{stage}", share))
+        if coverage_share < 1.0:
+            rows.append((
+                country,
+                int(crop_year),
+                f"weather_dense_{dense_metric}_coverage_share_{stage}",
+                coverage_share,
+            ))
+    return rows
+
+
+def _expected_regions_from_source(
+    ctx: FeatureContext,
+    *,
+    source_key: str,
+    variable: str,
+    stage_aware: bool,
+    default_stage: str,
+) -> dict[tuple[str, str], set[str]]:
+    if ctx.calendar is None:
+        return {}
+    df = ctx.inputs.get(source_key)
+    if df is None or df.empty or "variable" not in df.columns:
+        return {}
+    df = df.loc[df["variable"] == variable].copy()
+    if df.empty:
+        return {}
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.loc[df["country"].isin(set(ctx.countries))]
+    if df.empty:
+        return {}
+
+    out: dict[tuple[str, str], set[str]] = {}
+    if not stage_aware:
+        for country, group in df.groupby("country"):
+            out[(str(country), default_stage)] = set(group["region"].astype(str).unique())
+        return out
+
+    for stage, months_raw in ctx.calendar.stages.items():
+        months = stage_month_set(*months_raw)
+        in_stage = df.loc[df["date"].dt.month.isin(months)]
+        for country, group in in_stage.groupby("country"):
+            out[(str(country), stage)] = set(group["region"].astype(str).unique())
+    return out
+
+
+def _dense_base_context(ctx: FeatureContext) -> FeatureContext:
+    if ctx.calendar is None:
+        return ctx
+    years = set(int(year) for year in ctx.crop_years)
+    for source_key in (
+        "weather:chirps",
+        "weather:nasa_power",
+        "weather:cpc_soil",
+        "weather:modis_ndvi",
+    ):
+        df = ctx.inputs.get(source_key)
+        if df is None or df.empty or "year" not in df.columns or "month" not in df.columns:
+            continue
+        assigned = assign_crop_year(df, ctx.calendar).dropna()
+        years.update(int(year) for year in assigned.astype(int).unique())
+    return FeatureContext(
+        commodity=ctx.commodity,
+        crop_years=sorted(years),
+        countries=ctx.countries,
+        calendar=ctx.calendar,
+        inputs=ctx.inputs,
+        params=ctx.params,
+    )
+
+
+def compute_inseason_weather_dense(ctx: FeatureContext, spec) -> pd.DataFrame:
+    """Dense origin-level weather aggregates for annual PSD anomaly models.
+
+    This family intentionally reuses the existing region/stage weather
+    computations and aggregates their point-in-time-safe outputs. It keeps the
+    same incomplete-window protections while replacing hundreds of sparse
+    region columns with a smaller set of interpretable country/stage stress
+    summaries.
+    """
+    if ctx.calendar is None:
+        return empty_result()
+
+    base_ctx = _dense_base_context(ctx)
+    dense_params = ctx.params.get("weather_dense", {})
+    stress_z_threshold = float(dense_params.get("stress_z_threshold", 1.0))
+    gdd_stage = "gdd_window" if ctx.calendar.gdd_window else "crop_year"
+    frost_stage = "frost_risk" if "frost_risk" in ctx.calendar.stages else "crop_year"
+
+    families = [
+        {
+            "compute": compute_stage_precip_z,
+            "source_key": "weather:chirps",
+            "variable": "precipitation_mm",
+            "base_prefix": "chirps_precip_z",
+            "dense_metric": "precip_z",
+            "stage_aware": True,
+            "default_stage": "",
+            "stats": ("mean", "min"),
+            "share_name": "dry_share",
+            "share_direction": "low",
+            "share_threshold": stress_z_threshold,
+        },
+        {
+            "compute": compute_drought_z,
+            "source_key": "weather:chirps",
+            "variable": "precipitation_mm",
+            "base_prefix": "drought_z",
+            "dense_metric": "drought_z",
+            "stage_aware": True,
+            "default_stage": "",
+            "stats": ("mean", "max"),
+            "share_name": "stress_share",
+            "share_direction": "high",
+            "share_threshold": stress_z_threshold,
+        },
+        {
+            "compute": compute_stage_tmax_anomaly,
+            "source_key": "weather:nasa_power",
+            "variable": "temperature_2m_max_c",
+            "base_prefix": "nasa_tmax_anomaly",
+            "dense_metric": "tmax_anomaly",
+            "stage_aware": True,
+            "default_stage": "",
+            "stats": ("mean", "max"),
+            "share_name": "hot_share",
+            "share_direction": "high",
+            "share_threshold": stress_z_threshold,
+        },
+        {
+            "compute": compute_stage_tmin_anomaly,
+            "source_key": "weather:nasa_power",
+            "variable": "temperature_2m_min_c",
+            "base_prefix": "nasa_tmin_anomaly",
+            "dense_metric": "tmin_anomaly",
+            "stage_aware": True,
+            "default_stage": "",
+            "stats": ("mean", "min"),
+            "share_name": "cold_share",
+            "share_direction": "low",
+            "share_threshold": stress_z_threshold,
+        },
+        {
+            "compute": compute_cpc_soil_z,
+            "source_key": "weather:cpc_soil",
+            "variable": "soil_moisture_mm",
+            "base_prefix": "cpc_soil_z",
+            "dense_metric": "soil_z",
+            "stage_aware": True,
+            "default_stage": "",
+            "stats": ("mean", "min"),
+            "share_name": "dry_share",
+            "share_direction": "low",
+            "share_threshold": stress_z_threshold,
+        },
+        {
+            "compute": compute_modis_ndvi_z,
+            "source_key": "weather:modis_ndvi",
+            "variable": "ndvi_z_score",
+            "base_prefix": "modis_ndvi_z",
+            "dense_metric": "ndvi_z",
+            "stage_aware": True,
+            "default_stage": "",
+            "stats": ("mean", "min"),
+            "share_name": "low_vigor_share",
+            "share_direction": "low",
+            "share_threshold": stress_z_threshold,
+        },
+        {
+            "compute": compute_gdd_z,
+            "source_key": "weather:nasa_power",
+            "variable": "temperature_2m_max_c",
+            "base_prefix": "gdd_z",
+            "dense_metric": "gdd_z",
+            "stage_aware": False,
+            "default_stage": gdd_stage,
+            "stats": ("mean", "min", "max"),
+        },
+        {
+            "compute": compute_heat_stress_z,
+            "source_key": "weather:nasa_power",
+            "variable": "temperature_2m_max_c",
+            "base_prefix": "heat_stress_z",
+            "dense_metric": "heat_stress_z",
+            "stage_aware": False,
+            "default_stage": gdd_stage,
+            "stats": ("mean", "max"),
+            "share_name": "stress_share",
+            "share_direction": "high",
+            "share_threshold": stress_z_threshold,
+        },
+        {
+            "compute": compute_frost_event_flag,
+            "source_key": "weather:nasa_power",
+            "variable": "temperature_2m_min_c",
+            "base_prefix": "frost_event_flag",
+            "dense_metric": "frost_event_flag",
+            "stage_aware": False,
+            "default_stage": frost_stage,
+            "stats": ("max",),
+            "share_name": "event_share",
+            "share_direction": "high",
+            "share_threshold": 0.5,
+        },
+    ]
+
+    rows: list[tuple[str, int, str, float]] = []
+    for family in families:
+        base_df = family["compute"](base_ctx, spec)
+        expected_regions = _expected_regions_from_source(
+            ctx,
+            source_key=str(family["source_key"]),
+            variable=str(family["variable"]),
+            stage_aware=bool(family["stage_aware"]),
+            default_stage=str(family["default_stage"]),
+        )
+        rows.extend(
+            _dense_metric_rows(
+                base_df,
+                ctx=ctx,
+                base_prefix=str(family["base_prefix"]),
+                dense_metric=str(family["dense_metric"]),
+                stage_aware=bool(family["stage_aware"]),
+                default_stage=str(family["default_stage"]),
+                stats=tuple(family["stats"]),
+                expected_regions=expected_regions,
+                share_name=family.get("share_name"),
+                share_direction=str(family.get("share_direction", "high")),
+                share_threshold=float(family.get("share_threshold", stress_z_threshold)),
+            )
+        )
+    return make_result(rows)

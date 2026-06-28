@@ -15,6 +15,7 @@ from leviathan.features.computations.weather_stage import (
     compute_drought_z,
     compute_frost_event_flag,
     compute_gdd_z,
+    compute_inseason_weather_dense,
     compute_stage_precip_z,
 )
 
@@ -252,6 +253,64 @@ def test_drought_z_insufficient_baseline_years_emits_nothing() -> None:
     assert result.loc[
         result["feature"] == "drought_z_us_corn_belt_silking"
     ].empty
+
+
+# ---------------------------------------------------------------------------
+# dense weather
+# ---------------------------------------------------------------------------
+
+def test_inseason_weather_dense_aggregates_region_stage_zscores() -> None:
+    frames = []
+    region_means = {
+        "region_a": {2000: 3.0, 2001: 5.0, 2002: 4.0, 2003: 8.0},
+        "region_b": {2000: 2.0, 2001: 4.0, 2002: 6.0, 2003: 8.0},
+    }
+    for region, means in region_means.items():
+        for year, mean in means.items():
+            days = july_days(year)
+            frames.append(weather_frame(days, [mean] * len(days), "precipitation_mm",
+                                        region=region))
+    df = pd.concat(frames, ignore_index=True)
+
+    ctx = ctx_for(CORN, {"weather:chirps": df}, [2003])
+    result = compute_inseason_weather_dense(ctx, None)
+    by_feature = result.set_index("feature")["value"]
+
+    z_a = (8.0 - np.mean([3.0, 5.0, 4.0])) / np.std([3.0, 5.0, 4.0], ddof=1)
+    z_b = (8.0 - np.mean([2.0, 4.0, 6.0])) / np.std([2.0, 4.0, 6.0], ddof=1)
+    assert by_feature.loc["weather_dense_precip_z_mean_silking"] == pytest.approx(
+        np.mean([z_a, z_b])
+    )
+    assert by_feature.loc["weather_dense_precip_z_min_silking"] == pytest.approx(
+        min(z_a, z_b)
+    )
+    assert by_feature.loc["weather_dense_precip_z_dry_share_silking"] == 0.0
+    assert "weather_dense_precip_z_coverage_share_silking" not in set(result["feature"])
+
+
+def test_inseason_weather_dense_emits_coverage_when_region_missing() -> None:
+    frames = []
+    for region in ("region_a", "region_b"):
+        for year, mean in {2000: 3.0, 2001: 5.0, 2002: 4.0}.items():
+            days = july_days(year)
+            frames.append(weather_frame(days, [mean] * len(days), "precipitation_mm",
+                                        region=region))
+    frames.append(weather_frame(july_days(2003), [8.0] * 31, "precipitation_mm",
+                                region="region_a"))
+    partial = pd.date_range("2003-07-01", "2003-07-10", freq="D")
+    frames.append(weather_frame(partial, [8.0] * len(partial), "precipitation_mm",
+                                region="region_b"))
+    df = pd.concat(frames, ignore_index=True)
+
+    ctx = ctx_for(CORN, {"weather:chirps": df}, [2003])
+    result = compute_inseason_weather_dense(ctx, None)
+    coverage = result.loc[
+        result["feature"] == "weather_dense_precip_z_coverage_share_silking",
+        "value",
+    ]
+
+    assert len(coverage) == 1
+    assert coverage.iloc[0] == pytest.approx(0.5)
 
 
 # ---------------------------------------------------------------------------

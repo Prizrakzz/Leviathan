@@ -75,6 +75,16 @@
   commodities: calendar
   value_range: [-15.0, 15.0]
 
+- family: inseason_weather_dense
+  sources:
+    - "weather:chirps"
+    - "weather:nasa_power"
+    - "weather:cpc_soil"
+    - "weather:modis_ndvi"
+  visibility: crop_year_direct
+  commodities: calendar
+  value_range: [-15.0, 15.0]
+
 - family: capacity_recovery_index
   sources: ["weather:nasa_power"]
   visibility: prior_history

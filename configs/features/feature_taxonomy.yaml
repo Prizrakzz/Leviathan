@@ -14,6 +14,16 @@ rules:
     source_cadence: annual
     notes: "Training target; never served as a model input."
 
+  - id: inseason_weather_dense
+    patterns: ["^weather_dense_"]
+    feature_family: weather_dense
+    semantic_scope: origin_stage_weather
+    policy: fundamental_physical
+    mechanism: weather_stress_aggregate
+    sources: ["weather:chirps", "weather:nasa_power", "weather:cpc_soil", "weather:modis_ndvi"]
+    source_cadence: daily_or_remote_sensing_to_crop_stage
+    notes: "Dense country/stage weather stress aggregates built from region-level weather features for model-ready annual PSD experiments."
+
   - id: stage_precip
     patterns: ["^chirps_precip_"]
     feature_family: weather_precipitation

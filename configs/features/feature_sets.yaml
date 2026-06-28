@@ -62,6 +62,54 @@ feature_sets:
       - yield_anomaly
       - tail_event_probability
 
+  - id: inseason_weather_dense
+    version: 1
+    description: Dense origin-level weather stress aggregates for annual PSD anomaly experiments.
+    allowed_policies:
+      - fundamental_physical
+    allowed_feature_families:
+      - weather_dense
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    min_non_null_rate: 0.6
+    target_compatibility:
+      - production_anomaly
+      - yield_anomaly
+      - tail_event_probability
+
+  - id: preseason_physical_plus_weather_dense
+    version: 1
+    description: Preseason physical baseline plus dense in-season weather aggregates.
+    allowed_policies:
+      - fundamental_physical
+      - certified_economic_driver
+    allowed_semantic_scopes:
+      - origin_production_history
+      - origin_balance_sheet
+      - global_climate
+      - economic_driver
+      - origin_stage_weather
+    exclude_feature_patterns:
+      - "^chirps_precip_"
+      - "^drought_z_"
+      - "^nasa_tmax_anomaly_"
+      - "^nasa_tmin_anomaly_"
+      - "^frost_event_flag_"
+      - "^gdd_z_"
+      - "^heat_stress_z_"
+      - "^cpc_soil_z_"
+      - "^modis_ndvi_z_"
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    min_non_null_rate: 0.6
+    target_compatibility:
+      - production_anomaly
+      - yield_anomaly
+      - balance_sheet_revision
+      - tail_event_probability
+
   - id: crop_condition
     version: 1
     description: In-season crop-condition and progress features.

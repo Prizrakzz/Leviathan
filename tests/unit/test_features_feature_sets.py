@@ -37,6 +37,7 @@ def _catalog() -> pd.DataFrame:
         ("psd_available", "balance_sheet", "origin_balance_sheet", "fundamental_physical", "stock_use_balance", "psd", "annual", "universal", "grains", False, 10, 2, 1.0),
         ("faostat_available", "faostat_production", "origin_production_history", "fundamental_physical", "production_trend_baseline", "production:faostat", "annual", "universal", "grains", False, 10, 2, 1.0),
         ("gdd_z_us_midwest", "growing_degree_days", "origin_weather", "fundamental_physical", "crop_development_speed", "weather:nasa_power", "daily", "commodity", "grains", False, 4, 1, 0.4),
+        ("weather_dense_precip_z_mean_silking", "weather_dense", "origin_stage_weather", "fundamental_physical", "weather_stress_aggregate", "weather:chirps,weather:nasa_power", "daily_to_crop_stage", "commodity", "grains", False, 8, 1, 0.8),
         ("corn_dec_mar_spread_z", "calendar_spreads", "excluded_market_signal", "excluded_market_signal", "futures_term_structure", "futures_prices", "daily", "commodity", "grains", False, 9, 1, 0.9),
     ]
     return pd.DataFrame(rows, columns=[
@@ -80,7 +81,7 @@ def test_feature_sets_exclude_labels_and_core_diagnostics() -> None:
         _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
     )
 
-    assert summary["feature_set_count"] == 16
+    assert summary["feature_set_count"] == 18
     assert "label_production_quantity" not in set(membership["feature"])
     core = membership.loc[membership["feature_set_id"] != "diagnostic_market_context"]
     assert "diagnostic_only" not in set(core["policy"])
@@ -151,6 +152,32 @@ def test_wasde_monthly_revision_feature_set_selects_wasde_revisions() -> None:
     ]
 
 
+def test_inseason_weather_dense_selects_dense_weather_only() -> None:
+    specs, config_sha = load_feature_set_config()
+    membership, _ = build_feature_set_membership(
+        _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
+    )
+
+    assert selected_features_for_set(membership, "inseason_weather_dense") == [
+        "weather_dense_precip_z_mean_silking"
+    ]
+    assert "gdd_z_us_midwest" not in selected_features_for_set(
+        membership, "inseason_weather_dense"
+    )
+
+
+def test_preseason_plus_weather_dense_excludes_raw_weather() -> None:
+    specs, config_sha = load_feature_set_config()
+    membership, _ = build_feature_set_membership(
+        _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
+    )
+    selected = selected_features_for_set(membership, "preseason_physical_plus_weather_dense")
+
+    assert "weather_dense_precip_z_mean_silking" in selected
+    assert "gdd_z_us_midwest" not in selected
+    assert "psd_available" in selected
+
+
 def test_zero_feature_set_fails(tmp_path: Path) -> None:
     config = tmp_path / "sets.yaml"
     config.write_text(
@@ -198,10 +225,10 @@ def test_feature_set_task_writes_outputs_and_patches_manifest(tmp_path: Path) ->
 
     summary = build_and_write(args)
 
-    assert summary["feature_set_count"] == 16
+    assert summary["feature_set_count"] == 18
     assert (tmp_path / gold_feature_set_version_key(version)).exists()
     assert (tmp_path / gold_feature_set_summary_key(version)).exists()
     manifest = json.loads(manifest_path.read_text())
-    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 16
+    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 18
     assert manifest["outputs"]["feature_sets_key"] == gold_feature_set_version_key(version)
     assert manifest["outputs"]["feature_sets_json_key"] == gold_feature_set_summary_key(version)
