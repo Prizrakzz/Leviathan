@@ -245,6 +245,7 @@ feature_sets:
   - id: psd_monthly_vintage_features
     version: 1
     description: Legacy alias for PSD balance-sheet snapshot context. Current silver/psd does not retain true monthly PSD release history.
+    allow_empty: true
     allowed_policies:
       - fundamental_physical
     allowed_feature_families:
@@ -261,6 +262,7 @@ feature_sets:
   - id: psd_balance_sheet_snapshot
     version: 1
     description: Point-in-time PSD balance-sheet snapshot context for annual PSD target models.
+    allow_empty: true
     allowed_policies:
       - fundamental_physical
     allowed_feature_families:
@@ -308,6 +310,7 @@ feature_sets:
   - id: quality_tenderability
     version: 1
     description: Quality and tenderable-supply features for commodities where headline production overstates usable supply.
+    allow_empty: true
     allowed_policies:
       - fundamental_physical
     allowed_semantic_scopes:
@@ -333,6 +336,7 @@ feature_sets:
   - id: processing_economics
     version: 1
     description: Certified lagged processing-economics drivers with a physical-demand mechanism.
+    allow_empty: true
     allowed_policies:
       - certified_economic_driver
     allowed_feature_families:
