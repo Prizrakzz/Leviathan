@@ -21,52 +21,66 @@ def _graph() -> g.CausalGraph:
     return g.CausalGraph({"arabica_coffee": coffee, "corn": corn}, silver=set())
 
 
+def _retrieve(q, contract, *, k, asof=None, near=None):
+    return [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{contract}",
+             "text": "July frost hit Sul de Minas"}]
+
+
 def test_route_picks_contract_by_alias():
     gr = _graph()
     assert an.route("what drives arabica coffee prices", gr)[0] == "arabica_coffee"
-    assert an.route("maize export pace", gr)[0] == "corn"          # alias 'maize' -> corn
-    assert an.route("bitcoin volatility", gr) == []                # nothing tracked matches
+    assert an.route("maize export pace", gr)[0] == "corn"
+    assert an.route("bitcoin volatility", gr) == []
 
 
-def test_answer_assembles_context_and_returns_trace():
+def test_valid_mermaid_and_render():
+    base = {"tldr": "t", "mechanism": "m", "sources": [{"ref": 1, "source": "S", "date": "2020", "note": "n"}]}
+    assert "```mermaid" not in an.render({**base, "diagram_mermaid": ""})              # empty -> omitted
+    assert "```mermaid" not in an.render({**base, "diagram_mermaid": "not a diagram"})  # invalid -> dropped
+    md = an.render({**base, "diagram_mermaid": 'flowchart LR\n a["x +"] --> b'})
+    assert md.startswith("**TL;DR.**") and "**Why.**" in md and "```mermaid" in md and "[1] S" in md
+    assert an._valid_mermaid('flowchart LR\n a["x"] --> b') and not an._valid_mermaid("graph (oops]")
+
+
+def test_answer_structured_render_and_trace():
     gr = _graph()
     captured = {}
+    structured = {"tldr": "Frost squeezed arabica [1].", "mechanism": "frost raises price (+) [1].",
+                  "diagram_mermaid": 'flowchart LR\n frost["frost +"] --> price["price up"]',
+                  "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
 
-    def fake_chat(system, user, *, model, **kw):
-        captured.update(system=system, user=user, model=model)
-        return "Frost raises price (GAIN, 2021-07)."
+    def fake_call(system, user, *, model, tool):
+        captured.update(user=user, model=model, tool=tool["name"])
+        return structured
 
-    def fake_retrieve(q, contract, *, k, asof=None, near=None):
-        return [{"date": "2021-07-20", "source": "GAIN", "source_key": "s3://k1",
-                 "text": "July frost hit Sul de Minas"}]
-
-    out = an.answer("what caused the 2021 coffee spike", graph=gr, model="claude-sonnet-4-6",
-                    retrieve=fake_retrieve, chat=fake_chat)
-    assert out["contract"] == "arabica_coffee" and out["model"] == "claude-sonnet-4-6"
-    assert out["evidence"][0]["source"] == "GAIN" and out["trace"]["evidence_ids"] == ["s3://k1"]
-    assert "squeeze" in out["trace"]["regimes"] and out["trace"]["contracts"] == ["arabica_coffee"]
-    # the serving model was fed the driver mechanism, the regime, and the dated evidence
+    out = an.answer("trace how a coffee frost spikes price", graph=gr, model="claude-sonnet-4-6",
+                    retrieve=_retrieve, call=fake_call)
+    assert out["contract"] == "arabica_coffee" and out["structured"] == structured
+    assert captured["tool"] == "emit_answer" and captured["model"] == "claude-sonnet-4-6"
+    md = out["answer"]                                                    # reader-first markdown
+    assert md.startswith("**TL;DR.**") and "**Why.**" in md and "```mermaid" in md and "[1] GAIN" in md
+    assert out["trace"]["has_diagram"] is True and "squeeze" in out["trace"]["regimes"]
     assert "frost kills trees" in captured["user"] and "July frost hit Sul de Minas" in captured["user"]
-    assert "2021-07-20" in captured["user"] and captured["model"] == "claude-sonnet-4-6"
 
 
 def test_answer_multi_contract_synthesis():
-    gr = _graph()                                          # coffee (alias arabica) + corn (alias maize)
+    gr = _graph()
     seen = {}
+
+    def fake_call(system, user, *, model, tool):
+        seen["user"] = user
+        return {"tldr": "x", "mechanism": "y", "diagram_mermaid": "", "sources": []}
 
     def fake_retrieve(q, contract, *, k, asof=None, near=None):
         return [{"date": "2022-01-01", "source": "WASDE", "source_key": f"s3://{contract}", "text": f"{contract} note"}]
 
-    def fake_chat(system, user, *, model, **kw):
-        seen["user"] = user
-        return "synthesis"
-
-    out = an.answer("how does the maize vs arabica spread move", graph=gr, retrieve=fake_retrieve, chat=fake_chat)
-    assert set(out["trace"]["contracts"]) == {"corn", "arabica_coffee"}        # both routed contracts synthesized
+    out = an.answer("how does the maize vs arabica spread move", graph=gr, retrieve=fake_retrieve, call=fake_call)
+    assert set(out["trace"]["contracts"]) == {"corn", "arabica_coffee"}
     assert {e["contract"] for e in out["evidence"]} == {"corn", "arabica_coffee"}
     assert "corn note" in seen["user"] and "arabica_coffee note" in seen["user"]
+    assert out["trace"]["has_diagram"] is False                          # empty diagram -> none
 
 
 def test_answer_no_contract_match_short_circuits():
-    out = an.answer("tesla stock", graph=_graph(), retrieve=lambda *a, **k: [], chat=lambda *a, **k: "x")
-    assert out["contract"] is None and out["evidence"] == []
+    out = an.answer("tesla stock", graph=_graph(), retrieve=lambda *a, **k: [], call=lambda *a, **k: {})
+    assert out["contract"] is None and out["evidence"] == [] and out["structured"] is None
