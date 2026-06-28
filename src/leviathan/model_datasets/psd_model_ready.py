@@ -92,6 +92,15 @@ PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID = "preseason_physical_plus_psd_vintage
 PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID = "preseason_physical_plus_psd_snapshot"
 WASDE_MONTHLY_REVISION_FEATURE_SET_ID = "wasde_monthly_revision"
 PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID = "preseason_physical_plus_wasde_revision"
+CORN_COMPOSITE_FEATURE_SET_IDS = {
+    "corn_preseason_core",
+    "corn_preseason_core_plus_weather_dense",
+    "corn_preseason_core_plus_wasde",
+    "corn_preseason_core_plus_flow",
+    "corn_weather_wasde",
+    "corn_weather_flow",
+    "corn_full_fundamental_stack",
+}
 DEFAULT_PSD_SNAPSHOT_FEATURE_SETS = (WASDE_MONTHLY_REVISION_FEATURE_SET_ID,)
 PSD_SNAPSHOT_DYNAMIC_ID_COLUMNS = {"country", "crop_year", "snapshot_stage", "as_of_date"}
 PSD_VINTAGE_FEATURE_SUFFIXES = (
@@ -108,6 +117,7 @@ PSD_SNAPSHOT_STATIC_FEATURE_SETS = {
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
     PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
     PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+    *CORN_COMPOSITE_FEATURE_SET_IDS,
 }
 PSD_SNAPSHOT_FEATURE_SET_ALIASES = {
     PSD_MONTHLY_VINTAGE_FEATURE_SET_ID: PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
@@ -117,6 +127,7 @@ PSD_CANONICAL_SNAPSHOT_FEATURE_SETS = {
     PSD_BALANCE_SHEET_SNAPSHOT_FEATURE_SET_ID,
     WASDE_MONTHLY_REVISION_FEATURE_SET_ID,
     PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
+    *CORN_COMPOSITE_FEATURE_SET_IDS,
 }
 PSD_LEGACY_SNAPSHOT_FEATURE_SETS = set(PSD_SNAPSHOT_FEATURE_SET_ALIASES)
 PSD_SUPPORTED_SNAPSHOT_FEATURE_SETS = {
@@ -124,6 +135,7 @@ PSD_SUPPORTED_SNAPSHOT_FEATURE_SETS = {
     *PSD_LEGACY_SNAPSHOT_FEATURE_SETS,
     "preseason_physical",
     PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
+    *CORN_COMPOSITE_FEATURE_SET_IDS,
 }
 
 
@@ -168,6 +180,11 @@ def snapshot_feature_set_contract_notes(feature_set_ids: Iterable[str]) -> list[
             note["message"] = "Canonical monthly official revision feature set from WASDE."
         elif feature_set_id == PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID:
             note["message"] = "Canonical combined static physical context plus WASDE revision feature set."
+        elif feature_set_id in CORN_COMPOSITE_FEATURE_SET_IDS:
+            note["message"] = (
+                "Corn composite feature stack. Snapshot builds merge static "
+                "gold features with any requested point-in-time WASDE columns."
+            )
         else:
             note["message"] = "Supported snapshot feature set."
         notes.append(note)

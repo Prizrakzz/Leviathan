@@ -31,6 +31,7 @@ from leviathan.model_datasets.psd_model_ready import (
     PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
     PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
     PSD_SNAPSHOT_MATRIX_ID_COLUMNS,
+    PSD_SNAPSHOT_STATIC_FEATURE_SETS,
     snapshot_feature_set_contract_notes,
     psd_vintage_feature_columns,
     validate_snapshot_feature_set_ids,
@@ -754,12 +755,7 @@ def _process_psd_snapshot_commodity(
 
     static_feature_matrix = None
     if any(
-        feature_set_id in {
-            "preseason_physical",
-            PSD_PRESEASON_PLUS_VINTAGE_FEATURE_SET_ID,
-            PSD_PRESEASON_PLUS_SNAPSHOT_FEATURE_SET_ID,
-            PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID,
-        }
+        feature_set_id in PSD_SNAPSHOT_STATIC_FEATURE_SETS
         for feature_set_id in args.compatible_feature_sets_tuple
     ):
         static_feature_matrix = _read_parquet(

@@ -19,6 +19,8 @@ DEFAULT_MIN_ROWS_FOR_FEATURE_ROW_RATIO = 30
 SNAPSHOT_WASDE_FEATURE_SETS = {
     "wasde_monthly_revision",
     "preseason_physical_plus_wasde_revision",
+    "corn_preseason_core_plus_wasde",
+    "corn_weather_wasde",
 }
 ANNUAL_WASDE_FEATURE_SETS = {"official_revision"}
 LEGACY_PSD_VINTAGE_FEATURE_SETS = {

@@ -91,6 +91,50 @@ hypotheses:
       - regularized_small_tree
       - lightgbm_leaf_regularized
 
+  - id: corn_composite_feature_stacks
+    description: Corn-first Phase 6 composite stacks that test economically meaningful feature-block combinations without brute-force search.
+    dataset_keys:
+      - psd_snd_anomaly
+    commodities:
+      - corn_cbot
+    target_keys:
+      - psd_production_anomaly_pct
+    feature_sets:
+      - corn_preseason_core
+      - corn_preseason_core_plus_weather_dense
+      - corn_preseason_core_plus_flow
+      - corn_weather_flow
+      - corn_full_fundamental_stack
+    models:
+      - lightgbm
+      - xgboost
+    cv_policies:
+      - expanding_post_2000
+    model_param_profiles:
+      - regularized_small_tree
+      - lightgbm_leaf_regularized
+
+  - id: corn_wasde_snapshot_feature_stacks
+    description: Corn snapshot-safe WASDE composites that compare preseason core against point-in-time monthly WASDE revisions.
+    dataset_keys:
+      - psd_snd_anomaly_snapshot
+    commodities:
+      - corn_cbot
+    target_keys:
+      - psd_production_anomaly_pct
+    feature_sets:
+      - corn_preseason_core
+      - corn_preseason_core_plus_wasde
+      - preseason_physical_plus_wasde_revision
+    models:
+      - lightgbm
+      - xgboost
+    cv_policies:
+      - expanding_post_2000
+    model_param_profiles:
+      - regularized_small_tree
+      - lightgbm_leaf_regularized
+
   - id: baseline_hardening_reference
     description: Freeze the current most promising feature mix as the reference candidate.
     dataset_keys:

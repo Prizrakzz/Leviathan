@@ -9,6 +9,10 @@ import pandas as pd
 DENSE_WEATHER_FEATURE_SETS = {
     "inseason_weather_dense",
     "preseason_physical_plus_weather_dense",
+    "corn_preseason_core_plus_weather_dense",
+    "corn_weather_wasde",
+    "corn_weather_flow",
+    "corn_full_fundamental_stack",
 }
 DENSE_WEATHER_PREFIX = "weather_dense_"
 DENSE_WEATHER_CORE_MIN_NON_NULL_RATE = 0.20

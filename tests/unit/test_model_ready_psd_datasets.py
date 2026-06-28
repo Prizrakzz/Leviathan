@@ -87,6 +87,28 @@ def _membership_with_psd_vintage() -> pd.DataFrame:
     ], ignore_index=True)
 
 
+def _membership_with_corn_composite() -> pd.DataFrame:
+    return pd.concat([
+        _membership(),
+        pd.DataFrame({
+            "feature_set_id": [
+                "corn_preseason_core_plus_wasde",
+                "corn_preseason_core_plus_wasde",
+                "corn_preseason_core_plus_wasde",
+            ],
+            "feature": [
+                "feature_a",
+                "feature_b",
+                "wasde_latest_revision",
+            ],
+            "is_label": [False, False, False],
+            "feature_set_version": ["1", "1", "1"],
+            "feature_set_sha": ["corn_wasde_sha", "corn_wasde_sha", "corn_wasde_sha"],
+            "dataset_version": ["gold_v", "gold_v", "gold_v"],
+        }),
+    ], ignore_index=True)
+
+
 def _dense_weather_membership() -> pd.DataFrame:
     return pd.DataFrame({
         "feature_set_id": ["inseason_weather_dense"] * 3,
@@ -825,6 +847,41 @@ def test_psd_snapshot_model_ready_can_combine_preseason_and_wasde_features() -> 
     assert "wasde_latest_revision" in matrix.columns
     assert built.summaries[0]["feature_count_by_set"][
         PRESEASON_PLUS_WASDE_REVISION_FEATURE_SET_ID
+    ] >= 3
+
+
+def test_psd_snapshot_model_ready_supports_corn_composite_with_wasde() -> None:
+    psd_source = _psd_source_with_monthly_vintages()
+    psd_targets = build_psd_target_panel(
+        psd_source,
+        source_dataset_version="gold_v",
+        commodities=["corn_cbot"],
+    )
+    from leviathan.features.calendar import load_crop_calendars
+
+    built = build_psd_commodity_snapshot_model_datasets(
+        psd_source,
+        psd_targets,
+        commodity="corn_cbot",
+        feature_membership=_membership_with_corn_composite(),
+        calendar=load_crop_calendars()["corn_cbot"],
+        snapshot_config=load_snapshot_stage_config(),
+        as_of_date="2005-07-01",
+        include_named_stages=False,
+        static_feature_matrix=_feature_matrix(),
+        wasde_source=_wasde_source_with_revisions(),
+        config=PSDModelReadyBuildConfig(
+            compatible_feature_sets=("corn_preseason_core_plus_wasde",)
+        ),
+        target_keys=("psd_production_anomaly_pct",),
+    )
+    matrix = built.matrices[(PSD_SNAPSHOT_DATASET_KEY, "psd_production_anomaly_pct")]
+
+    assert "feature_a" in matrix.columns
+    assert "feature_b" in matrix.columns
+    assert "wasde_latest_revision" in matrix.columns
+    assert built.summaries[0]["feature_count_by_set"][
+        "corn_preseason_core_plus_wasde"
     ] >= 3
 
 

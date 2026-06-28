@@ -82,7 +82,7 @@ def test_feature_sets_exclude_labels_and_core_diagnostics() -> None:
         _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
     )
 
-    assert summary["feature_set_count"] == 18
+    assert summary["feature_set_count"] == 25
     assert "label_production_quantity" not in set(membership["feature"])
     core = membership.loc[membership["feature_set_id"] != "diagnostic_market_context"]
     assert "diagnostic_only" not in set(core["policy"])
@@ -183,6 +183,33 @@ def test_preseason_plus_weather_dense_excludes_raw_weather() -> None:
     assert "psd_available" in selected
 
 
+def test_corn_composite_feature_sets_union_component_blocks() -> None:
+    specs, config_sha = load_feature_set_config()
+    membership, _ = build_feature_set_membership(
+        _catalog(), _group_map(), dataset_version="v1", specs=specs, config_sha=config_sha
+    )
+
+    core = selected_features_for_set(membership, "corn_preseason_core")
+    weather = selected_features_for_set(
+        membership, "corn_preseason_core_plus_weather_dense"
+    )
+    wasde = selected_features_for_set(membership, "corn_preseason_core_plus_wasde")
+    flow = selected_features_for_set(membership, "corn_weather_flow")
+    full = selected_features_for_set(membership, "corn_full_fundamental_stack")
+
+    assert "psd_available" in core
+    assert "pink_sheet_energy_z" in core
+    assert "weather_dense_precip_z_mean_silking" in weather
+    assert "weather_dense_ndvi_z_coverage_share_silking" not in weather
+    assert "gdd_z_us_midwest" not in weather
+    assert "wasde_latest_revision" in wasde
+    assert "fgis_export_pace_yoy" in flow
+    assert "nass_ge_pct_z" in full
+    assert "wasde_latest_revision" not in full
+    assert "cot_mm_net_pct_oi_z" not in set(full)
+    assert "corn_dec_mar_spread_z" not in set(full)
+
+
 def test_zero_feature_set_fails(tmp_path: Path) -> None:
     config = tmp_path / "sets.yaml"
     config.write_text(
@@ -230,10 +257,10 @@ def test_feature_set_task_writes_outputs_and_patches_manifest(tmp_path: Path) ->
 
     summary = build_and_write(args)
 
-    assert summary["feature_set_count"] == 18
+    assert summary["feature_set_count"] == 25
     assert (tmp_path / gold_feature_set_version_key(version)).exists()
     assert (tmp_path / gold_feature_set_summary_key(version)).exists()
     manifest = json.loads(manifest_path.read_text())
-    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 18
+    assert manifest["feature_sets"]["summary"]["feature_set_count"] == 25
     assert manifest["outputs"]["feature_sets_key"] == gold_feature_set_version_key(version)
     assert manifest["outputs"]["feature_sets_json_key"] == gold_feature_set_summary_key(version)

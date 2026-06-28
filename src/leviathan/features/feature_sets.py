@@ -51,6 +51,7 @@ class FeatureSetSpec:
     allowed_mechanisms: tuple[str, ...]
     allowed_sources: tuple[str, ...]
     allowed_groups: tuple[str, ...]
+    component_feature_sets: tuple[str, ...]
     include_feature_patterns: tuple[re.Pattern[str], ...]
     exclude_feature_patterns: tuple[re.Pattern[str], ...]
     exclude_labels: bool
@@ -108,6 +109,7 @@ def load_feature_set_config(path: str | Path | None = None) -> tuple[list[Featur
             allowed_mechanisms=_as_tuple(merged.get("allowed_mechanisms")),
             allowed_sources=_as_tuple(merged.get("allowed_sources")),
             allowed_groups=_as_tuple(merged.get("allowed_groups")),
+            component_feature_sets=_as_tuple(merged.get("component_feature_sets")),
             include_feature_patterns=_compile_patterns(merged.get("include_feature_patterns")),
             exclude_feature_patterns=_compile_patterns(merged.get("exclude_feature_patterns")),
             exclude_labels=_as_bool(merged.get("exclude_labels"), default=True),
@@ -161,8 +163,9 @@ def _select_one(
     catalog_df: pd.DataFrame,
     group_map_df: pd.DataFrame,
     spec: FeatureSetSpec,
+    component_rows: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, dict[str, int]]:
-    selected = catalog_df.copy()
+    selected = component_rows.copy() if component_rows is not None else catalog_df.copy()
     rejection_counts: dict[str, int] = {}
 
     def apply_mask(name: str, mask: pd.Series) -> None:
@@ -257,14 +260,58 @@ def build_feature_set_membership(
     if missing:
         raise ValueError(f"semantic catalog missing required columns: {sorted(missing)}")
 
+    specs_by_id = {spec.feature_set_id: spec for spec in specs}
     frames: list[pd.DataFrame] = []
     per_set_counts: dict[str, int] = {}
     per_set_shas: dict[str, str] = {}
     rejected: dict[str, dict[str, int]] = {}
     empty_sets: list[str] = []
+    resolved: dict[str, tuple[pd.DataFrame, dict[str, int]]] = {}
+
+    def resolve_spec(feature_set_id: str, stack: tuple[str, ...] = ()) -> tuple[pd.DataFrame, dict[str, int]]:
+        if feature_set_id in resolved:
+            return resolved[feature_set_id]
+        if feature_set_id not in specs_by_id:
+            raise ValueError(f"unknown component_feature_set: {feature_set_id}")
+        if feature_set_id in stack:
+            cycle = " -> ".join((*stack, feature_set_id))
+            raise ValueError(f"cyclic component_feature_sets reference: {cycle}")
+
+        spec = specs_by_id[feature_set_id]
+        component_rows: pd.DataFrame | None = None
+        component_counts: dict[str, int] = {}
+        if spec.component_feature_sets:
+            frames_for_components: list[pd.DataFrame] = []
+            for component_id in spec.component_feature_sets:
+                component_selected, _ = resolve_spec(component_id, (*stack, feature_set_id))
+                frames_for_components.append(component_selected)
+                component_counts[component_id] = int(
+                    component_selected["feature"].astype(str).nunique()
+                )
+            component_rows = (
+                pd.concat(frames_for_components, ignore_index=True)
+                .drop_duplicates("feature", keep="first")
+                .reset_index(drop=True)
+                if frames_for_components else pd.DataFrame(columns=catalog_df.columns)
+            )
+
+        selected, rejection_counts = _select_one(
+            catalog_df,
+            group_map_df,
+            spec,
+            component_rows=component_rows,
+        )
+        if component_counts:
+            rejection_counts = {
+                "component_feature_sets": len(spec.component_feature_sets),
+                **{f"component:{key}": value for key, value in component_counts.items()},
+                **rejection_counts,
+            }
+        resolved[feature_set_id] = (selected, rejection_counts)
+        return selected, rejection_counts
 
     for spec in specs:
-        selected, rejection_counts = _select_one(catalog_df, group_map_df, spec)
+        selected, rejection_counts = resolve_spec(spec.feature_set_id)
         selected_features = sorted(selected["feature"].astype(str).unique())
         feature_set_sha = _feature_set_sha(
             spec.feature_set_id, spec.version, config_sha, selected_features

@@ -75,3 +75,44 @@ def test_phase10_grid_summary_lists_key_axes() -> None:
     assert summary["task_count"] == 1
     assert summary["hypotheses"] == ["baseline_hardening_reference"]
     assert summary["models"] == ["lightgbm"]
+
+
+def test_phase10_grid_expands_corn_composite_feature_stacks() -> None:
+    config = load_phase10_grid_config()
+    tasks = expand_phase10_grid(
+        config,
+        include_hypotheses=["corn_composite_feature_stacks"],
+        bucket="bucket",
+        aws_region="us-east-1",
+        permutation_trials=5,
+    )
+
+    assert len(tasks) == 15
+    assert {task["dataset_key"] for task in tasks} == {"psd_snd_anomaly"}
+    assert {task["commodity"] for task in tasks} == {"corn_cbot"}
+    assert {task["feature_set"] for task in tasks} == {
+        "corn_preseason_core",
+        "corn_preseason_core_plus_weather_dense",
+        "corn_preseason_core_plus_flow",
+        "corn_weather_flow",
+        "corn_full_fundamental_stack",
+    }
+    assert {task["permutation_trials"] for task in tasks} == {"5"}
+
+
+def test_phase10_grid_expands_corn_snapshot_wasde_stacks() -> None:
+    config = load_phase10_grid_config()
+    tasks = expand_phase10_grid(
+        config,
+        include_hypotheses=["corn_wasde_snapshot_feature_stacks"],
+        bucket="bucket",
+        aws_region="us-east-1",
+    )
+
+    assert len(tasks) == 9
+    assert {task["dataset_key"] for task in tasks} == {"psd_snd_anomaly_snapshot"}
+    assert {task["feature_set"] for task in tasks} == {
+        "corn_preseason_core",
+        "corn_preseason_core_plus_wasde",
+        "preseason_physical_plus_wasde_revision",
+    }

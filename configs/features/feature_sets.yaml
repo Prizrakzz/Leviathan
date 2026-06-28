@@ -113,6 +113,111 @@ feature_sets:
       - balance_sheet_revision
       - tail_event_probability
 
+  - id: corn_preseason_core
+    version: 1
+    description: Corn experiment baseline using preseason physical context and certified planting incentives.
+    component_feature_sets:
+      - preseason_physical
+      - planting_incentives
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - production_anomaly
+
+  - id: corn_preseason_core_plus_weather_dense
+    version: 1
+    description: Corn preseason baseline plus dense origin-level in-season weather aggregates.
+    component_feature_sets:
+      - corn_preseason_core
+      - inseason_weather_dense
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - production_anomaly
+      - tail_event_probability
+
+  - id: corn_preseason_core_plus_wasde
+    version: 1
+    description: Corn preseason baseline plus point-in-time WASDE monthly revision signal.
+    component_feature_sets:
+      - corn_preseason_core
+      - wasde_monthly_revision
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - psd_balance_sheet_anomaly
+      - official_estimate_revision
+
+  - id: corn_preseason_core_plus_flow
+    version: 1
+    description: Corn preseason baseline plus observable physical-flow pace features.
+    component_feature_sets:
+      - corn_preseason_core
+      - physical_flow
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - production_anomaly
+      - balance_sheet_revision
+
+  - id: corn_weather_wasde
+    version: 1
+    description: Corn preseason baseline plus dense weather stress and point-in-time WASDE revision signal.
+    component_feature_sets:
+      - corn_preseason_core
+      - inseason_weather_dense
+      - wasde_monthly_revision
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - psd_balance_sheet_anomaly
+      - tail_event_probability
+
+  - id: corn_weather_flow
+    version: 1
+    description: Corn preseason baseline plus dense weather stress and observable physical-flow pace.
+    component_feature_sets:
+      - corn_preseason_core
+      - inseason_weather_dense
+      - physical_flow
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - production_anomaly
+      - tail_event_probability
+      - balance_sheet_revision
+
+  - id: corn_full_fundamental_stack
+    version: 1
+    description: Corn full non-market annual fundamental stack for controlled Phase 6 certification.
+    component_feature_sets:
+      - corn_preseason_core
+      - inseason_weather_dense
+      - physical_flow
+      - crop_condition
+      - balance_sheet
+    blocked_policies:
+      - diagnostic_only
+      - excluded_market_signal
+    target_compatibility:
+      - psd_production_anomaly
+      - psd_balance_sheet_anomaly
+      - production_anomaly
+      - tail_event_probability
+      - balance_sheet_revision
+
   - id: crop_condition
     version: 1
     description: In-season crop-condition and progress features.
