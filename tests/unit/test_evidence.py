@@ -120,3 +120,12 @@ def test_sample_keys_uses_commodity_tokens_not_exchange(monkeypatch):
             return types.SimpleNamespace(paginate=lambda **kw: [{"Contents": [{"Key": k} for k in keys]}])
     got = ev.sample_keys(_S3(), node="soybean_meal", year_windows=[(2022, 2022)], n=2)
     assert all(g in keys for g in got) and got                     # samples within window, biased by commodity token
+
+
+def test_match_forms_and_n_docs_override(tmp_path, monkeypatch):
+    cfg = tmp_path / "evidence_windows.yaml"
+    cfg.write_text("extra_terms:\n  white_maize: [maize, corn]\nn_docs:\n  cocoa: 150\n", encoding="utf-8")
+    monkeypatch.setattr(ev, "_WINDOWS_PATH", cfg)
+    forms = ev.match_forms("white_maize")
+    assert "maize" in forms and "corn" in forms and "white_maize" in forms     # parent-commodity broadening
+    assert ev.n_docs_for("cocoa", 40) == 150 and ev.n_docs_for("rice", 40) == 40   # override vs default

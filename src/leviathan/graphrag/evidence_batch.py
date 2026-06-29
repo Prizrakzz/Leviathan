@@ -44,8 +44,9 @@ def _doc_blocks(s3, node: str, key: str, matcher=None) -> list:
 def _build_requests(s3, nodes, n_docs, seed):
     requests, manifest = [], {}
     for node in nodes:
-        matcher = hv.build_matcher([node, node.replace("_", " ")] + ev._aliases(node))
-        for key in ev.sample_keys(s3, node=node, year_windows=ev.windows_for(node), n=n_docs, seed=seed):
+        matcher = hv.build_matcher(ev.match_forms(node))
+        for key in ev.sample_keys(s3, node=node, year_windows=ev.windows_for(node),
+                                  n=ev.n_docs_for(node, n_docs), seed=seed):
             for blk, meta in _doc_blocks(s3, node, key, matcher):
                 cid = f"r{len(requests):06d}"                                  # Anthropic custom_id: ^[A-Za-z0-9_-]{1,64}$
                 requests.append({"custom_id": cid, "params": {                # no tools, no caching (see header)
@@ -90,7 +91,7 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
     backend = backend or ev.DEFAULT_BACKEND
     total = 0
     for node, recs in by_node.items():
-        matcher = hv.build_matcher([node, node.replace("_", " ")] + ev._aliases(node))
+        matcher = hv.build_matcher(ev.match_forms(node))
         recs = [r for r in recs if matcher.search(r["text"])]                  # keep only on-topic props
         for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
             r["vector"], r["backend"] = v, backend

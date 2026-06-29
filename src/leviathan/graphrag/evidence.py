@@ -130,7 +130,7 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     backend = backend or DEFAULT_BACKEND
     bedrock = bedrock or _bedrock()                  # still needed for Haiku chunking even when embedding is local
     chunker = chunker or ch.propositional_chunks
-    matcher = hv.build_matcher([node, node.replace("_", " ")] + list(aliases))
+    matcher = hv.build_matcher([node, node.replace("_", " ")] + list(aliases) + _extra_terms(node))
     records: list[dict] = []
     for k in sample_keys(s3, node=node, year_windows=year_windows, n=n_docs):
         doc = json.loads(s3.get_object(Bucket=BUCKET, Key=k)["Body"].read())
@@ -251,6 +251,32 @@ def windows_for(node: str) -> list:
     return _windows().get(node) or _WINDOWS.get(node) or _BROAD
 
 
+def _extra_terms(node: str) -> list[str]:
+    """Parent-commodity match terms for sub-nodes the global corpus only names generically (white_maize ->
+    'maize'/'corn', the wheat classes -> 'wheat'). From evidence_windows.yaml `extra_terms`."""
+    if not _WINDOWS_PATH.exists():
+        return []
+    import yaml
+    raw = yaml.safe_load(_WINDOWS_PATH.read_text(encoding="utf-8")) or {}
+    return [str(t) for t in ((raw.get("extra_terms") or {}).get(node) or [])]
+
+
+def match_forms(node: str) -> list[str]:
+    """Every surface form the on-topic matcher should fire on for a node: the id, the spaced id, its vocab/
+    contract aliases, and any parent-commodity extra_terms."""
+    return [node, node.replace("_", " ")] + _aliases(node) + _extra_terms(node)
+
+
+def n_docs_for(node: str, default: int) -> int:
+    """Per-node doc-sample override (config `n_docs`) — corpus-sparse nodes (cocoa, orange_juice) that aren't
+    key-identifiable need WIDER random sampling to hit enough on-topic docs."""
+    if not _WINDOWS_PATH.exists():
+        return default
+    import yaml
+    raw = yaml.safe_load(_WINDOWS_PATH.read_text(encoding="utf-8")) or {}
+    return int((raw.get("n_docs") or {}).get(node, default))
+
+
 def _aliases(node: str) -> list[str]:
     """Surface forms for the node's matcher — from the harvested vocab (keyed by commodity node), plus any
     contract YAML aliases if a YAML happens to share the node's name."""
@@ -295,7 +321,7 @@ def main() -> int:
     s3 = boto3.client("s3")
     for node in nodes:
         n = build_index(s3, node=node, aliases=_aliases(node), year_windows=windows_for(node),
-                        n_docs=args.n_docs, backend=args.backend)
+                        n_docs=n_docs_for(node, args.n_docs), backend=args.backend)
         print(f"  {node}: {n} dated props -> evidence/{node}.jsonl")
     return 0
 
