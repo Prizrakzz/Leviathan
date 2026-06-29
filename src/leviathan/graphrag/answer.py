@@ -125,7 +125,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     contracts = routed[:max_contracts]
     blocks, evidence, ev_ids, regimes = [], [], [], []
     for c in contracts:
-        hits = retrieve(query, c, k=k, asof=asof, near=near)
+        hits = retrieve(query, ev.node_for(c), k=k, asof=asof, near=near)   # variants share a commodity-node slice
         blocks.append(_context_block(graph, c) + f"\n\n--- DATED EVIDENCE for {c} ---\n" + _ev_block(hits))
         evidence += [{**h, "contract": c} for h in hits]
         ev_ids += [h["source_key"] for h in hits]

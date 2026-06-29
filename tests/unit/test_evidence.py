@@ -90,3 +90,33 @@ def test_build_index_keeps_on_topic_props_and_writes(tmp_path, monkeypatch):
     assert n == 1                                                          # bonds prop dropped (off-topic)
     recs = ev.load_index("arabica_coffee")
     assert len(recs) == 1 and "frost" in recs[0]["text"] and len(recs[0]["vector"]) == 5
+
+
+def test_node_resolution_dedups_variants(monkeypatch):
+    monkeypatch.setattr(ev, "_hier", lambda: {"contracts": {
+        "soybean_meal_cbot": {"node": "soybean_meal"}, "soybean_meal_dce": {"node": "soybean_meal"},
+        "cocoa": {"node": "cocoa"}}})
+    assert ev.node_for("soybean_meal_cbot") == ev.node_for("soybean_meal_dce") == "soybean_meal"  # variants share
+    assert ev.node_for("cocoa") == "cocoa"
+    assert ev.node_for("not_a_contract") == "not_a_contract"        # unknown id -> unchanged
+    assert ev.all_nodes() == ["cocoa", "soybean_meal"]              # distinct + deduped
+
+
+def test_windows_for_config_then_default_then_broad(monkeypatch):
+    monkeypatch.setattr(ev, "_windows", lambda: {"cocoa": [(2024, 2024)]})
+    assert ev.windows_for("cocoa") == [(2024, 2024)]               # from the config
+    assert ev.windows_for("arabica_coffee") == ev._WINDOWS["arabica_coffee"]   # baked-in pilot default
+    assert ev.windows_for("nonesuch") == ev._BROAD                 # broad fallback
+
+
+def test_sample_keys_uses_commodity_tokens_not_exchange(monkeypatch):
+    import leviathan.graphrag.corpus_recon as cr
+    monkeypatch.setattr(cr, "_source_of", lambda k: "usda_gain_oilseeds_meal", raising=False)
+    # node 'soybean_meal' -> tokens {soybean, meal}; an exchange-suffixed id would have matched nothing useful
+    keys = ["text/x/2022/oilseeds/document.json", "text/x/2022/wheat/document.json"]
+
+    class _S3:
+        def get_paginator(self, _):
+            return types.SimpleNamespace(paginate=lambda **kw: [{"Contents": [{"Key": k} for k in keys]}])
+    got = ev.sample_keys(_S3(), node="soybean_meal", year_windows=[(2022, 2022)], n=2)
+    assert all(g in keys for g in got) and got                     # samples within window, biased by commodity token

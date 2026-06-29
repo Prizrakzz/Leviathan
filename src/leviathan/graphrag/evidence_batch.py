@@ -25,12 +25,14 @@ _OUT = ex._CFG / "evidence" / "_batches"
 _MAX_BLOCK_CHARS = 5000
 
 
-def _doc_blocks(s3, node: str, key: str) -> list:
-    """Deterministic blocks for one doc + its shared metadata (free; no LLM)."""
+def _doc_blocks(s3, node: str, key: str, matcher=None) -> list:
+    """Deterministic blocks for one doc + its shared metadata (free; no LLM). When a matcher is given, skip
+    a doc that doesn't mention the commodity BEFORE chunking — so we don't pay Haiku to chunk off-topic docs
+    (the inline build_index already does this; the batch path used to chunk everything then filter props)."""
     from leviathan.graphrag.corpus_recon import BUCKET, _source_of
     doc = json.loads(s3.get_object(Bucket=BUCKET, Key=key)["Body"].read())
     full = (doc.get("full_text") or "")[:60000]
-    if not full.strip():
+    if not full.strip() or (matcher is not None and not matcher.search(full)):
         return []
     blocks = ch.chunk_document(full_text=full, source_key=key, source=_source_of(key),
                                document_date=ev._doc_date(doc, key), lang=doc.get("lang", "en"),
@@ -42,8 +44,9 @@ def _doc_blocks(s3, node: str, key: str) -> list:
 def _build_requests(s3, nodes, n_docs, seed):
     requests, manifest = [], {}
     for node in nodes:
-        for key in ev.sample_keys(s3, node=node, year_windows=ev._WINDOWS[node], n=n_docs, seed=seed):
-            for blk, meta in _doc_blocks(s3, node, key):
+        matcher = hv.build_matcher([node, node.replace("_", " ")] + ev._aliases(node))
+        for key in ev.sample_keys(s3, node=node, year_windows=ev.windows_for(node), n=n_docs, seed=seed):
+            for blk, meta in _doc_blocks(s3, node, key, matcher):
                 cid = f"r{len(requests):06d}"                                  # Anthropic custom_id: ^[A-Za-z0-9_-]{1,64}$
                 requests.append({"custom_id": cid, "params": {                # no tools, no caching (see header)
                     "model": ex.HAIKU, "max_tokens": 4096, "system": ch._PROP_SYSTEM,
@@ -111,15 +114,24 @@ def main() -> int:
     ap.add_argument("--n-docs", type=int, default=40)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-    nodes = list(ev._WINDOWS) if args.nodes == "all" else args.nodes.split(",")
+    if args.nodes == "all":
+        nodes = ev.all_nodes()
+    elif args.nodes == "new":
+        nodes = ev.new_nodes()
+    else:
+        nodes = list(dict.fromkeys(ev.node_for(n) for n in args.nodes.split(",")))   # contract ids -> nodes, deduped
     import boto3
     from leviathan.common import config
     config.load_env()
     s3 = boto3.client("s3")
     if args.dry_run:
-        reqs, _ = _build_requests(s3, nodes, args.n_docs, 0)
+        import collections
+        reqs, manifest = _build_requests(s3, nodes, args.n_docs, 0)
+        per = collections.Counter(manifest[r["custom_id"]]["contract"] for r in reqs)
         usd = len(reqs) * (1500 * 0.5 / 1e6 + 500 * 2.5 / 1e6)             # Haiku batch ~$0.50/$2.50 per M
-        print(f"DRY-RUN: ~{len(reqs)} block requests over {nodes}; Haiku batch est ~${usd:.2f} (~50% of inline)")
+        print(f"DRY-RUN: {len(reqs)} ON-TOPIC block requests over {len(nodes)} node(s); Haiku batch est ~${usd:.2f}")
+        for n in nodes:
+            print(f"  {n}: {per.get(n, 0)} blocks" + ("   <-- THIN" if per.get(n, 0) < 30 else ""))
         return 0
     import anthropic
     from leviathan.graphrag import batch_extract as bx

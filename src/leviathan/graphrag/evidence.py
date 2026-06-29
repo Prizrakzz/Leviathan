@@ -116,8 +116,8 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
         y = bx._year_of(k)
         return y not in (None, "unknown") and any(lo <= int(y) <= hi for lo, hi in year_windows)
 
-    tok = node.split("_")[-1].lower()
-    relevant = [k for k in keys if in_window(k) and tok in _source_of(k).lower()]
+    terms = [t for t in node.lower().split("_") if len(t) > 2]   # commodity tokens, NOT the contract's exchange suffix
+    relevant = [k for k in keys if in_window(k) and any(t in _source_of(k).lower() for t in terms)]
     pool = relevant if len(relevant) >= n else [k for k in keys if in_window(k)]
     return random.Random(seed).sample(pool, min(n, len(pool)))
 
@@ -199,44 +199,102 @@ def restamp(node: str) -> int:
     return len(recs)
 
 
+# ── contract -> commodity node resolution (variants share one evidence slice) ──────────
+def _hier() -> dict:
+    import yaml
+    p = ex._CFG / "commodity_hierarchy.yaml"
+    return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}) if p.exists() else {}
+
+
+def node_for(contract: str) -> str:
+    """The commodity NODE whose evidence/<node>.jsonl serves this contract — so soybean_meal_cbot and
+    soybean_meal_dce share one `soybean_meal` slice. Unknown/already-a-node ids return unchanged."""
+    spec = (_hier().get("contracts") or {}).get(contract)
+    return spec["node"] if isinstance(spec, dict) and spec.get("node") else contract
+
+
+def all_nodes() -> list[str]:
+    """The distinct commodity nodes across the 31 contracts (~24)."""
+    contracts = _hier().get("contracts") or {}
+    return sorted({(v.get("node") or k) for k, v in contracts.items() if isinstance(v, dict)})
+
+
+def covered_nodes() -> set[str]:
+    return {p.stem for p in _EVID_DIR.glob("*.jsonl")} if _EVID_DIR.exists() else set()
+
+
+def new_nodes() -> list[str]:
+    """Nodes with no evidence/<node>.jsonl yet — the build target when scaling."""
+    return [n for n in all_nodes() if n not in covered_nodes()]
+
+
 # ── build CLI (gated: Haiku chunking is billed) ───────────────────────────────────────
-_WINDOWS = {                                          # marquee episode year-windows per contract
+_WINDOWS = {                                          # baked-in pilot defaults (public); the rest live in the config
     "arabica_coffee": [(2021, 2021), (2014, 2014)],
     "corn": [(2012, 2012), (2022, 2022)],
     "soybeans": [(2012, 2012), (2018, 2018), (2024, 2024)],
 }
+_WINDOWS_PATH = ex._CFG / "evidence_windows.yaml"     # marquee shock-year windows for all nodes (gitignored IP)
+_BROAD = [(2004, 2026)]                               # fallback: sample broadly across the modern corpus
+
+
+def _windows() -> dict:
+    if not _WINDOWS_PATH.exists():
+        return {}
+    import yaml
+    raw = yaml.safe_load(_WINDOWS_PATH.read_text(encoding="utf-8")) or {}
+    return {k: [tuple(w) for w in v] for k, v in (raw.get("windows") or {}).items()}
+
+
+def windows_for(node: str) -> list:
+    """Marquee episode windows for a node: the config first, then the baked-in pilot default, then broad."""
+    return _windows().get(node) or _WINDOWS.get(node) or _BROAD
 
 
 def _aliases(node: str) -> list[str]:
-    from leviathan.causal import schema as cs
+    """Surface forms for the node's matcher — from the harvested vocab (keyed by commodity node), plus any
+    contract YAML aliases if a YAML happens to share the node's name."""
+    al = list((ex._vocab().get("aliases") or {}).get(node) or [])
     p = ex._CFG / "causal" / f"{node}.yaml"
-    return list(cs.load(p).aliases) if p.exists() else []
+    if p.exists():
+        from leviathan.causal import schema as cs
+        al += [a for a in cs.load(p).aliases if a not in al]
+    return al
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Build the dated-evidence slice (gated: Haiku chunking billed).")
-    ap.add_argument("--build", metavar="NODE", help="contract id or 'all'")
-    ap.add_argument("--restamp", metavar="NODE", help="re-derive dates from keys (no spend); id or 'all'")
+    ap.add_argument("--build", metavar="NODE", help="contract/node id, 'all', or 'new' (uncovered nodes)")
+    ap.add_argument("--restamp", metavar="NODE", help="re-derive dates from keys (no spend); id, 'all', or 'new'")
     ap.add_argument("--n-docs", type=int, default=40)
     ap.add_argument("--backend", default=DEFAULT_BACKEND)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+
+    def _resolve(sel: str) -> list[str]:
+        if sel == "all":
+            return all_nodes()
+        if sel == "new":
+            return new_nodes()
+        return [node_for(sel)]                                # a contract id maps to its commodity node
+
     if args.restamp:
-        for node in (list(_WINDOWS) if args.restamp == "all" else [args.restamp]):
+        targets = covered_nodes() if args.restamp == "all" else _resolve(args.restamp)
+        for node in sorted(targets):
             print(f"  {node}: restamped {restamp(node)} props from publication_date keys")
         return 0
-    nodes = list(_WINDOWS) if args.build == "all" else [args.build]
+    nodes = _resolve(args.build) if args.build else []
     if args.dry_run or not args.build:
         emb = "local/free" if args.backend.startswith("bge_local") else "billed (tiny)"
-        print(f"DRY-RUN: build {nodes}, ~{args.n_docs} docs each, backend={args.backend} "
-              f"(embed {emb}); Haiku chunking is billed (~$2-5 total).")
+        print(f"DRY-RUN: build {len(nodes)} node(s) {nodes}, ~{args.n_docs} docs each, backend={args.backend} "
+              f"(embed {emb}); Haiku chunking is billed.")
         return 0
     import boto3
     from leviathan.common import config
     config.load_env()
     s3 = boto3.client("s3")
     for node in nodes:
-        n = build_index(s3, node=node, aliases=_aliases(node), year_windows=_WINDOWS[node],
+        n = build_index(s3, node=node, aliases=_aliases(node), year_windows=windows_for(node),
                         n_docs=args.n_docs, backend=args.backend)
         print(f"  {node}: {n} dated props -> evidence/{node}.jsonl")
     return 0
