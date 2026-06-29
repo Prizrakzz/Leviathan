@@ -188,3 +188,17 @@ def test_draft_threads_base_context_into_prompt(tmp_path, monkeypatch):
                  "inter_commodity_candidates": [], "available_silver": [], "policy_candidates": []}
     au.draft(_Client(), "white_sugar", seed_dict, base_context="BASE CONTRACT = raw_sugar. OVERLAYS: refining premium")
     assert "BASE CONTRACT = raw_sugar" in captured["user"] and "OVERLAYS: refining premium" in captured["user"]
+
+
+def test_sanitize_breaks_parent_cycles():
+    out = {"drivers": [
+        {"id": "a", "type": "hazard", "sign": "+", "mechanism": "m", "parents": ["b"]},
+        {"id": "b", "type": "hazard", "sign": "+", "mechanism": "m", "parents": ["a"]},   # a<->b cycle
+        {"id": "c", "type": "hazard", "sign": "+", "mechanism": "m", "parents": ["b"]}]}   # c->b is fine
+    clean = au._sanitize(out)
+    pa = {d["id"]: d["parents"] for d in clean["drivers"]}
+    assert not ("b" in pa["a"] and "a" in pa["b"])         # cycle broken (one back-edge dropped)
+    assert pa["c"] == ["b"]                                # the acyclic edge preserved
+    from leviathan.causal import validate as cval
+    assert cval._cycle_node([cs.Driver(id=d["id"], type=d["type"], sign=d["sign"], mechanism=d["mechanism"],
+                                       parents=d["parents"]) for d in clean["drivers"]]) is None

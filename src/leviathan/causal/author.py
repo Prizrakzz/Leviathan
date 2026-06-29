@@ -182,6 +182,29 @@ def _norm_dir(v) -> str | None:
     return m if m in {"+", "-"} else None
 
 
+def _break_parent_cycles(drivers: list[dict]) -> None:
+    """The DAG must be acyclic, but Opus occasionally writes a parent cycle (A->B->A). DFS 3-colour and drop
+    any back-edge (a parent currently on the stack) so the contract validates without losing the rest."""
+    by_id = {d["id"]: d for d in drivers}
+    color = {k: 0 for k in by_id}                          # 0 white / 1 grey (on stack) / 2 black
+
+    def dfs(u: str) -> None:
+        color[u] = 1
+        kept = []
+        for p in by_id[u].get("parents", []):
+            if p not in by_id or color[p] == 1:            # unknown or back-edge (cycle) -> drop
+                continue
+            if color[p] == 0:
+                dfs(p)
+            kept.append(p)
+        by_id[u]["parents"] = kept
+        color[u] = 2
+
+    for k in list(by_id):
+        if color[k] == 0:
+            dfs(k)
+
+
 def _sanitize(out: dict, nodes: set[str] | None = None) -> dict:
     """Make the LLM output schema-constructible: keep only known keys, MAP sign/direction synonyms (never silently
     drop a 'bullish'), drop dangling references (parents / convergence drivers / interaction `when` that don't name
@@ -197,6 +220,7 @@ def _sanitize(out: dict, nodes: set[str] | None = None) -> dict:
                               else ("available" if d.get("silver_ref") else "none"))
         d["confidence"] = d.get("confidence") if d.get("confidence") in _CONF else "medium"
         d["parents"] = [p for p in (d.get("parents") or []) if p in ids and p != d["id"]]
+    _break_parent_cycles(drivers)                          # DAG must be acyclic — drop any back-edges
     inter = []
     for e in out.get("inter_commodity") or []:
         if isinstance(e, dict) and e.get("driver_commodity") and e.get("relation"):
