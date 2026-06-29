@@ -3,12 +3,20 @@ from __future__ import annotations
 import pandas as pd
 
 from leviathan.model_datasets.wasde_snapshot_audit import (
+    build_origin_attribute_coverage,
     build_phase0_audit_report,
+    build_phase1_source_truth_report,
+    build_parser_artifact_report,
     build_psd_target_compatibility_audit,
+    build_release_sequence_coverage,
     build_static_feature_reuse_audit,
+    build_stock_to_use_constructibility,
     build_wasde_inventory,
+    build_wasde_mapping_gaps,
     build_wasde_region_mapping_candidates,
     build_wasde_region_quality,
+    build_wasde_source_truth_audit,
+    classify_wasde_coverage,
     classify_wasde_region,
 )
 
@@ -38,6 +46,84 @@ def _wasde_frame() -> pd.DataFrame:
         "estimate": 30.0,
         "revision": -1.0,
     })
+    return pd.DataFrame(rows)
+
+
+def _phase1_wasde_frame() -> pd.DataFrame:
+    rows = []
+    for year in range(2010, 2022):
+        for seq, release in enumerate(("05-10", "06-12", "07-12", "08-12"), start=1):
+            for attr, value in (
+                ("ending_stocks", 30.0 + year * 0.1 + seq),
+                ("total_use", 100.0 + year * 0.2 + seq),
+                ("domestic_total", 70.0 + year * 0.1 + seq),
+                ("exports", 20.0 + seq),
+                ("production", 160.0 + year * 0.5 + seq),
+            ):
+                rows.append({
+                    "release_date": f"{year}-{release}",
+                    "commodity": "corn",
+                    "table_type": "world",
+                    "region": "us",
+                    "marketing_year": f"{year}/{str(year + 1)[-2:]}",
+                    "attribute": attr,
+                    "estimate": value,
+                    "revision": 1.0 if seq > 1 else None,
+                })
+    for year in range(2018, 2022):
+        for release in ("05-10", "06-12"):
+            rows.append({
+                "release_date": f"{year}-{release}",
+                "commodity": "corn",
+                "table_type": "world",
+                "region": "brazil",
+                "marketing_year": f"{year}/{str(year + 1)[-2:]}",
+                "attribute": "ending_stocks",
+                "estimate": 12.0,
+                "revision": None,
+            })
+    rows.extend([
+        {
+            "release_date": "2021-06-12",
+            "commodity": "corn",
+            "table_type": "world",
+            "region": "argentina_0_39",
+            "marketing_year": "2021/22",
+            "attribute": "ending_stocks",
+            "estimate": 5.0,
+            "revision": None,
+        },
+        {
+            "release_date": "2021-06-12",
+            "commodity": "corn",
+            "table_type": "world",
+            "region": "unmappedland",
+            "marketing_year": "2021/22",
+            "attribute": "ending_stocks",
+            "estimate": 6.0,
+            "revision": None,
+        },
+        {
+            "release_date": "2021-06-12",
+            "commodity": "corn",
+            "table_type": "world",
+            "region": "world",
+            "marketing_year": "2021/22",
+            "attribute": "ending_stocks",
+            "estimate": 100.0,
+            "revision": 1.0,
+        },
+        {
+            "release_date": "2021-06-12",
+            "commodity": "corn",
+            "table_type": "world",
+            "region": "us",
+            "marketing_year": "2021/22",
+            "attribute": "ending_stocks",
+            "estimate": 999.0,
+            "revision": 2.0,
+        },
+    ])
     return pd.DataFrame(rows)
 
 
@@ -173,3 +259,148 @@ def test_phase0_report_recommends_proceed_when_core_inputs_exist() -> None:
 
     assert report["phase1_recommendation"]["proceed"] is False
     assert "corn_wasde_release_history_too_short" in report["phase1_recommendation"]["blockers"]
+
+
+def test_source_truth_audit_counts_release_density() -> None:
+    audit = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    us_ending_2020 = audit.loc[
+        (audit["commodity"] == "corn")
+        & (audit["normalized_origin"] == "united_states")
+        & (audit["marketing_year_start"] == 2020)
+        & (audit["attribute"] == "ending_stocks")
+    ].iloc[0]
+
+    assert us_ending_2020["release_count"] == 4
+    assert us_ending_2020["estimate_non_null_count"] == 4
+    assert us_ending_2020["revision_non_null_count"] == 3
+    assert us_ending_2020["release_months_present"] == "5,6,7,8"
+
+
+def test_origin_attribute_coverage_classifies_core_features() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    coverage = build_origin_attribute_coverage(source_truth)
+    us_ending = coverage.loc[
+        (coverage["commodity"] == "corn")
+        & (coverage["normalized_origin"] == "united_states")
+        & (coverage["attribute"] == "ending_stocks")
+    ].iloc[0]
+
+    assert us_ending["coverage_class"] == "core_model_feature"
+    assert us_ending["recommended_use"] == "core"
+    assert us_ending["market_year_count"] == 12
+    assert us_ending["median_releases_per_year"] >= 4.0
+
+
+def test_revision_sparsity_does_not_block_dense_estimate_features() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    coverage = build_origin_attribute_coverage(source_truth)
+    brazil = coverage.loc[
+        (coverage["commodity"] == "corn")
+        & (coverage["normalized_origin"] == "brazil")
+        & (coverage["attribute"] == "ending_stocks")
+    ].iloc[0]
+
+    assert brazil["estimate_coverage_rate"] == 1.0
+    assert brazil["revision_coverage_rate"] == 0.0
+    assert brazil["coverage_class"] == "blocked_insufficient_history"
+
+
+def test_stock_to_use_constructible_from_total_use_or_components() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    constructible = build_stock_to_use_constructibility(source_truth)
+    us_2020 = constructible.loc[
+        (constructible["commodity"] == "corn")
+        & (constructible["normalized_origin"] == "united_states")
+        & (constructible["marketing_year_start"] == 2020)
+    ].iloc[0]
+
+    assert bool(us_2020["stock_to_use_constructible"]) is True
+    assert us_2020["stock_to_use_method"] == "official_total_use"
+
+
+def test_parser_artifact_regions_are_flagged() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    artifacts = build_parser_artifact_report(source_truth)
+
+    assert "garbled_parser_artifact" in set(artifacts["reason"])
+    assert "mapping_gap_review_required" in set(artifacts["reason"])
+
+
+def test_aggregate_regions_are_not_target_origins() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    coverage = build_origin_attribute_coverage(source_truth)
+    world = coverage.loc[
+        (coverage["commodity"] == "corn")
+        & (coverage["normalized_origin"] == "world")
+        & (coverage["attribute"] == "ending_stocks")
+    ].iloc[0]
+
+    assert world["quality_class"] == "aggregate_region"
+    assert world["coverage_class"] == "diagnostic_only"
+    assert world["recommended_use"] == "aggregate_context_not_target_origin"
+
+
+def test_mapping_gaps_are_reported_not_silently_dropped() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    gaps = build_wasde_mapping_gaps(source_truth)
+
+    assert "unmappedland" in set(gaps["region"])
+    assert set(gaps["reason"]) == {"unknown_non_aggregate_region"}
+
+
+def test_conflicting_duplicate_cells_are_reported() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    duplicate = source_truth.loc[
+        (source_truth["commodity"] == "corn")
+        & (source_truth["normalized_origin"] == "united_states")
+        & (source_truth["marketing_year_start"] == 2021)
+        & (source_truth["attribute"] == "ending_stocks")
+    ].iloc[0]
+
+    assert duplicate["duplicate_cell_count"] >= 1
+    assert duplicate["conflicting_duplicate_count"] >= 2
+
+
+def test_release_sequence_coverage_summarizes_distribution() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    sequence = build_release_sequence_coverage(source_truth)
+    us_production = sequence.loc[
+        (sequence["commodity"] == "corn")
+        & (sequence["normalized_origin"] == "united_states")
+        & (sequence["attribute"] == "production")
+    ].iloc[0]
+
+    assert us_production["market_year_count"] == 12
+    assert us_production["median_releases_per_year"] == 4.0
+
+
+def test_classify_wasde_coverage_helper() -> None:
+    assert classify_wasde_coverage({
+        "quality_class": "clean_origin",
+        "market_year_count": 12,
+        "median_releases_per_year": 4,
+        "estimate_coverage_rate": 1.0,
+        "revision_coverage_rate": 0.1,
+    }) == "core_model_feature"
+
+
+def test_phase1_report_recommends_dense_estimate_rebuild() -> None:
+    source_truth = build_wasde_source_truth_audit(_phase1_wasde_frame())
+    coverage = build_origin_attribute_coverage(source_truth)
+    artifacts = build_parser_artifact_report(source_truth)
+    gaps = build_wasde_mapping_gaps(source_truth)
+    constructible = build_stock_to_use_constructibility(source_truth)
+
+    report = build_phase1_source_truth_report(
+        bucket="unit",
+        source_truth=source_truth,
+        origin_attribute_coverage=coverage,
+        parser_artifacts=artifacts,
+        mapping_gaps=gaps,
+        stock_to_use_constructibility=constructible,
+        commodities=("corn",),
+    )
+
+    assert report["phase2_recommendation"]["proceed"] is True
+    assert "latest_estimate" in report["phase2_recommendation"]["recommended_core_features"]
+    assert "ending_stocks" in report["corn"]["core_attributes"]

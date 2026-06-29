@@ -26,6 +26,23 @@ CORE_WASDE_ATTRIBUTES = (
     "total_use",
     "feed",
     "feed_residual",
+    "beginning_stocks",
+    "total_supply",
+)
+
+STOCK_TO_USE_COMPONENT_ATTRIBUTES = (
+    "ending_stocks",
+    "total_use",
+    "domestic_total",
+    "exports",
+)
+
+SOURCE_TRUTH_NATURAL_KEY = (
+    "release_date",
+    "commodity",
+    "normalized_origin",
+    "marketing_year_start",
+    "attribute",
 )
 
 FOCUS_WASDE_COMMODITIES = (
@@ -109,6 +126,23 @@ def classify_wasde_region(region: object) -> dict[str, str]:
             "reason": "mostly_numeric_region",
         }
 
+    numeric_fragments = re.findall(r"(?:^|_)(\d+)(?=_|$)", normalized)
+    alpha_prefix = re.sub(r"(?:_\d+)+$", "", normalized)
+    if (
+        len(numeric_fragments) >= 2
+        or (
+            numeric_fragments
+            and alpha_prefix in FOCUS_REGION_ALIASES
+            and normalized != alpha_prefix
+        )
+    ):
+        return {
+            "normalized_region": normalized,
+            "quality_class": "garbled_parser_artifact",
+            "recommended_origin": "",
+            "reason": "numeric_parser_fragment_region",
+        }
+
     if normalized in FOCUS_REGION_ALIASES:
         return {
             "normalized_region": normalized,
@@ -162,6 +196,22 @@ def prepare_wasde_frame(wasde: pd.DataFrame) -> pd.DataFrame:
         out["estimate"] = pd.to_numeric(out["estimate"], errors="coerce")
     if "revision" in out.columns:
         out["revision"] = pd.to_numeric(out["revision"], errors="coerce")
+    if "region" in out.columns:
+        classifications = out["region"].map(classify_wasde_region)
+        out["normalized_region"] = [
+            item.get("normalized_region", "") for item in classifications
+        ]
+        out["region_quality_class"] = [
+            item.get("quality_class", "unknown_review_required")
+            for item in classifications
+        ]
+        out["normalized_origin"] = [
+            item.get("recommended_origin") or item.get("normalized_region", "")
+            for item in classifications
+        ]
+        out["region_quality_reason"] = [
+            item.get("reason", "") for item in classifications
+        ]
     return out
 
 
@@ -300,6 +350,542 @@ def build_wasde_region_mapping_candidates(region_quality: pd.DataFrame) -> pd.Da
         "attributes",
     ]
     return clean[cols].sort_values(["commodity", "recommended_origin"]).reset_index(drop=True)
+
+
+def _coverage_class(
+    *,
+    quality_class: str,
+    market_year_count: int,
+    median_releases_per_year: float,
+    estimate_coverage_rate: float,
+    revision_coverage_rate: float,
+) -> tuple[str, str]:
+    """Classify whether a source slice can support core snapshot features."""
+    if quality_class == "garbled_parser_artifact":
+        return "blocked_parser_artifact", "blocked"
+    if quality_class == "aggregate_region":
+        return "diagnostic_only", "aggregate_context_not_target_origin"
+    if quality_class == "unknown_review_required":
+        return "blocked_mapping_gap", "blocked"
+    if market_year_count < 5:
+        return "blocked_insufficient_history", "blocked"
+    if (
+        market_year_count >= 10
+        and median_releases_per_year >= 4.0
+        and estimate_coverage_rate >= 0.80
+    ):
+        return "core_model_feature", "core"
+    if market_year_count >= 5 and estimate_coverage_rate >= 0.50:
+        if revision_coverage_rate < 0.25:
+            return "secondary_sparse_feature", "estimate_dense_revision_sparse"
+        return "secondary_sparse_feature", "secondary"
+    return "diagnostic_only", "too_sparse_for_core"
+
+
+def classify_wasde_coverage(row: pd.Series | dict[str, object]) -> str:
+    """Return a source-truth coverage class for one summary row."""
+    values = dict(row)
+    quality = str(values.get("quality_class") or values.get("region_quality_class") or "")
+    market_year_count = int(values.get("market_year_count") or 0)
+    median_releases = float(values.get("median_releases_per_year") or 0.0)
+    estimate_rate = float(values.get("estimate_coverage_rate") or 0.0)
+    revision_rate = float(values.get("revision_coverage_rate") or 0.0)
+    coverage_class, _ = _coverage_class(
+        quality_class=quality,
+        market_year_count=market_year_count,
+        median_releases_per_year=median_releases,
+        estimate_coverage_rate=estimate_rate,
+        revision_coverage_rate=revision_rate,
+    )
+    return coverage_class
+
+
+def _month_list(series: pd.Series) -> str:
+    dates = pd.to_datetime(series, errors="coerce").dropna()
+    if dates.empty:
+        return ""
+    return ",".join(str(int(month)) for month in sorted(dates.dt.month.unique()))
+
+
+def _first_iso(series: pd.Series) -> str:
+    values = pd.to_datetime(series, errors="coerce").dropna()
+    return values.min().date().isoformat() if not values.empty else ""
+
+
+def _last_iso(series: pd.Series) -> str:
+    values = pd.to_datetime(series, errors="coerce").dropna()
+    return values.max().date().isoformat() if not values.empty else ""
+
+
+def _duplicate_counts(group: pd.DataFrame) -> tuple[int, int]:
+    present_key = [col for col in SOURCE_TRUTH_NATURAL_KEY if col in group.columns]
+    if not present_key:
+        return 0, 0
+    duplicate_cell_count = 0
+    conflicting_duplicate_count = 0
+    for _, cell in group.groupby(present_key, dropna=False):
+        if len(cell) <= 1:
+            continue
+        duplicate_cell_count += int(len(cell) - 1)
+        estimates = pd.to_numeric(cell.get("estimate", pd.Series(dtype=float)), errors="coerce")
+        if estimates.nunique(dropna=True) > 1:
+            conflicting_duplicate_count += int(len(cell))
+    return duplicate_cell_count, conflicting_duplicate_count
+
+
+def build_wasde_source_truth_audit(wasde: pd.DataFrame) -> pd.DataFrame:
+    """Audit source coverage at commodity/origin/year/attribute grain.
+
+    This keeps estimate and revision coverage separate. Sparse `revision` values
+    should not automatically block dense latest-estimate features.
+    """
+    source = prepare_wasde_frame(wasde)
+    columns = [
+        "commodity",
+        "region",
+        "normalized_region",
+        "normalized_origin",
+        "quality_class",
+        "marketing_year_start",
+        "attribute",
+        "row_count",
+        "release_count",
+        "first_release_date",
+        "last_release_date",
+        "estimate_non_null_count",
+        "revision_non_null_count",
+        "estimate_non_null_rate",
+        "revision_non_null_rate",
+        "first_estimate_release_date",
+        "last_estimate_release_date",
+        "release_months_present",
+        "release_sequence_count",
+        "table_type_count",
+        "duplicate_cell_count",
+        "conflicting_duplicate_count",
+    ]
+    required = {"commodity", "region", "marketing_year_start", "attribute"}
+    if source.empty or not required.issubset(source.columns):
+        return pd.DataFrame(columns=columns)
+
+    frames: list[dict[str, object]] = []
+    group_cols = [
+        "commodity",
+        "region",
+        "normalized_region",
+        "normalized_origin",
+        "region_quality_class",
+        "marketing_year_start",
+        "attribute",
+    ]
+    for keys, group in source.groupby(group_cols, dropna=False, sort=True):
+        (
+            commodity,
+            region,
+            normalized_region,
+            normalized_origin,
+            quality_class,
+            marketing_year_start,
+            attribute,
+        ) = keys
+        release_dates = pd.to_datetime(group["release_date"], errors="coerce")
+        estimates = pd.to_numeric(group.get("estimate", pd.Series(dtype=float)), errors="coerce")
+        revisions = pd.to_numeric(group.get("revision", pd.Series(dtype=float)), errors="coerce")
+        estimate_rows = group.loc[estimates.notna()]
+        duplicate_count, conflict_count = _duplicate_counts(group)
+        frames.append({
+            "commodity": str(commodity),
+            "region": str(region),
+            "normalized_region": str(normalized_region),
+            "normalized_origin": str(normalized_origin),
+            "quality_class": str(quality_class),
+            "marketing_year_start": (
+                int(marketing_year_start)
+                if pd.notna(marketing_year_start) else None
+            ),
+            "attribute": str(attribute),
+            "row_count": int(len(group)),
+            "release_count": int(release_dates.dropna().nunique()),
+            "first_release_date": _first_iso(release_dates),
+            "last_release_date": _last_iso(release_dates),
+            "estimate_non_null_count": int(estimates.notna().sum()),
+            "revision_non_null_count": int(revisions.notna().sum()),
+            "estimate_non_null_rate": float(estimates.notna().mean()) if len(group) else 0.0,
+            "revision_non_null_rate": float(revisions.notna().mean()) if len(group) else 0.0,
+            "first_estimate_release_date": _first_iso(estimate_rows.get("release_date", pd.Series(dtype=str))),
+            "last_estimate_release_date": _last_iso(estimate_rows.get("release_date", pd.Series(dtype=str))),
+            "release_months_present": _month_list(release_dates),
+            "release_sequence_count": int(release_dates.dropna().nunique()),
+            "table_type_count": (
+                int(group["table_type"].nunique(dropna=True))
+                if "table_type" in group.columns else 0
+            ),
+            "duplicate_cell_count": duplicate_count,
+            "conflicting_duplicate_count": conflict_count,
+        })
+    return pd.DataFrame(frames, columns=columns).sort_values(
+        ["commodity", "normalized_origin", "marketing_year_start", "attribute"]
+    ).reset_index(drop=True)
+
+
+def build_release_sequence_coverage(
+    source_truth: pd.DataFrame,
+) -> pd.DataFrame:
+    """Summarize release-count distributions by commodity/origin/attribute."""
+    columns = [
+        "commodity",
+        "normalized_origin",
+        "attribute",
+        "market_year_count",
+        "release_count_total",
+        "median_releases_per_year",
+        "p10_releases_per_year",
+        "p90_releases_per_year",
+        "first_supported_market_year",
+        "last_supported_market_year",
+    ]
+    if source_truth.empty:
+        return pd.DataFrame(columns=columns)
+    rows: list[dict[str, object]] = []
+    for (commodity, origin, attribute), group in source_truth.groupby(
+        ["commodity", "normalized_origin", "attribute"],
+        dropna=False,
+        sort=True,
+    ):
+        years = pd.to_numeric(group["marketing_year_start"], errors="coerce").dropna()
+        release_counts = pd.to_numeric(group["release_count"], errors="coerce").fillna(0)
+        rows.append({
+            "commodity": str(commodity),
+            "normalized_origin": str(origin),
+            "attribute": str(attribute),
+            "market_year_count": int(years.nunique()),
+            "release_count_total": int(release_counts.sum()),
+            "median_releases_per_year": float(release_counts.median()) if len(release_counts) else 0.0,
+            "p10_releases_per_year": float(release_counts.quantile(0.10)) if len(release_counts) else 0.0,
+            "p90_releases_per_year": float(release_counts.quantile(0.90)) if len(release_counts) else 0.0,
+            "first_supported_market_year": int(years.min()) if not years.empty else None,
+            "last_supported_market_year": int(years.max()) if not years.empty else None,
+        })
+    return pd.DataFrame(rows, columns=columns).sort_values(
+        ["commodity", "normalized_origin", "attribute"]
+    ).reset_index(drop=True)
+
+
+def build_origin_attribute_coverage(
+    source_truth: pd.DataFrame,
+) -> pd.DataFrame:
+    """Classify model-readiness by commodity/origin/attribute."""
+    columns = [
+        "commodity",
+        "normalized_origin",
+        "attribute",
+        "quality_class",
+        "market_year_count",
+        "release_count_total",
+        "median_releases_per_year",
+        "p10_releases_per_year",
+        "p90_releases_per_year",
+        "estimate_coverage_rate",
+        "revision_coverage_rate",
+        "first_supported_market_year",
+        "last_supported_market_year",
+        "coverage_class",
+        "recommended_use",
+        "stock_to_use_constructible_year_count",
+    ]
+    if source_truth.empty:
+        return pd.DataFrame(columns=columns)
+
+    release_coverage = build_release_sequence_coverage(source_truth)
+    rows: list[dict[str, object]] = []
+    for (commodity, origin, attribute), group in source_truth.groupby(
+        ["commodity", "normalized_origin", "attribute"],
+        dropna=False,
+        sort=True,
+    ):
+        release_row = release_coverage.loc[
+            (release_coverage["commodity"] == commodity)
+            & (release_coverage["normalized_origin"] == origin)
+            & (release_coverage["attribute"] == attribute)
+        ].iloc[0]
+        quality = str(group["quality_class"].mode(dropna=True).iloc[0])
+        row_count = int(group["row_count"].sum())
+        estimate_count = int(group["estimate_non_null_count"].sum())
+        revision_count = int(group["revision_non_null_count"].sum())
+        estimate_rate = float(estimate_count / row_count) if row_count else 0.0
+        revision_rate = float(revision_count / row_count) if row_count else 0.0
+        coverage_class, recommended_use = _coverage_class(
+            quality_class=quality,
+            market_year_count=int(release_row["market_year_count"]),
+            median_releases_per_year=float(release_row["median_releases_per_year"]),
+            estimate_coverage_rate=estimate_rate,
+            revision_coverage_rate=revision_rate,
+        )
+        rows.append({
+            "commodity": str(commodity),
+            "normalized_origin": str(origin),
+            "attribute": str(attribute),
+            "quality_class": quality,
+            "market_year_count": int(release_row["market_year_count"]),
+            "release_count_total": int(release_row["release_count_total"]),
+            "median_releases_per_year": float(release_row["median_releases_per_year"]),
+            "p10_releases_per_year": float(release_row["p10_releases_per_year"]),
+            "p90_releases_per_year": float(release_row["p90_releases_per_year"]),
+            "estimate_coverage_rate": estimate_rate,
+            "revision_coverage_rate": revision_rate,
+            "first_supported_market_year": release_row["first_supported_market_year"],
+            "last_supported_market_year": release_row["last_supported_market_year"],
+            "coverage_class": coverage_class,
+            "recommended_use": recommended_use,
+            "stock_to_use_constructible_year_count": 0,
+        })
+    coverage = pd.DataFrame(rows, columns=columns)
+    constructible = build_stock_to_use_constructibility(source_truth)
+    if not constructible.empty:
+        counts = (
+            constructible.loc[constructible["stock_to_use_constructible"]]
+            .groupby(["commodity", "normalized_origin"], dropna=False)["marketing_year_start"]
+            .nunique()
+            .rename("stock_to_use_constructible_year_count")
+            .reset_index()
+        )
+        coverage = coverage.drop(columns=["stock_to_use_constructible_year_count"]).merge(
+            counts,
+            on=["commodity", "normalized_origin"],
+            how="left",
+        )
+        coverage["stock_to_use_constructible_year_count"] = (
+            coverage["stock_to_use_constructible_year_count"].fillna(0).astype(int)
+        )
+    return coverage.sort_values(
+        ["commodity", "normalized_origin", "attribute"]
+    ).reset_index(drop=True)
+
+
+def build_stock_to_use_constructibility(source_truth: pd.DataFrame) -> pd.DataFrame:
+    """Report whether stock/use can be built by official total_use or components."""
+    columns = [
+        "commodity",
+        "normalized_origin",
+        "marketing_year_start",
+        "has_ending_stocks",
+        "has_total_use",
+        "has_domestic_total",
+        "has_exports",
+        "stock_to_use_constructible",
+        "stock_to_use_method",
+    ]
+    if source_truth.empty:
+        return pd.DataFrame(columns=columns)
+    attrs = source_truth.loc[
+        source_truth["attribute"].isin(STOCK_TO_USE_COMPONENT_ATTRIBUTES)
+    ].copy()
+    if attrs.empty:
+        return pd.DataFrame(columns=columns)
+    flags = (
+        attrs.assign(has_estimate=attrs["estimate_non_null_count"].astype(int) > 0)
+        .pivot_table(
+            index=["commodity", "normalized_origin", "marketing_year_start"],
+            columns="attribute",
+            values="has_estimate",
+            aggfunc="max",
+            fill_value=False,
+        )
+        .reset_index()
+    )
+    for attribute in STOCK_TO_USE_COMPONENT_ATTRIBUTES:
+        if attribute not in flags.columns:
+            flags[attribute] = False
+    flags["has_ending_stocks"] = flags["ending_stocks"].astype(bool)
+    flags["has_total_use"] = flags["total_use"].astype(bool)
+    flags["has_domestic_total"] = flags["domestic_total"].astype(bool)
+    flags["has_exports"] = flags["exports"].astype(bool)
+    flags["stock_to_use_constructible"] = flags["has_ending_stocks"] & (
+        flags["has_total_use"] | (flags["has_domestic_total"] & flags["has_exports"])
+    )
+    flags["stock_to_use_method"] = np.where(
+        flags["has_ending_stocks"] & flags["has_total_use"],
+        "official_total_use",
+        np.where(
+            flags["has_ending_stocks"]
+            & flags["has_domestic_total"]
+            & flags["has_exports"],
+            "domestic_total_plus_exports",
+            "",
+        ),
+    )
+    return flags[columns].sort_values(
+        ["commodity", "normalized_origin", "marketing_year_start"]
+    ).reset_index(drop=True)
+
+
+def build_parser_artifact_report(source_truth: pd.DataFrame) -> pd.DataFrame:
+    """Return suspicious parser-artifact and duplicate-conflict slices."""
+    columns = [
+        "commodity",
+        "region",
+        "normalized_region",
+        "normalized_origin",
+        "quality_class",
+        "attribute",
+        "row_count",
+        "release_count",
+        "market_year_count",
+        "duplicate_cell_count",
+        "conflicting_duplicate_count",
+        "reason",
+    ]
+    if source_truth.empty:
+        return pd.DataFrame(columns=columns)
+    grouped = source_truth.groupby(
+        [
+            "commodity",
+            "region",
+            "normalized_region",
+            "normalized_origin",
+            "quality_class",
+            "attribute",
+        ],
+        dropna=False,
+        sort=True,
+    ).agg(
+        row_count=("row_count", "sum"),
+        release_count=("release_count", "sum"),
+        market_year_count=("marketing_year_start", "nunique"),
+        duplicate_cell_count=("duplicate_cell_count", "sum"),
+        conflicting_duplicate_count=("conflicting_duplicate_count", "sum"),
+    ).reset_index()
+    suspect = grouped.loc[
+        grouped["quality_class"].isin({"garbled_parser_artifact", "unknown_review_required"})
+        | (grouped["conflicting_duplicate_count"] > 0)
+    ].copy()
+    if suspect.empty:
+        return pd.DataFrame(columns=columns)
+    suspect["reason"] = np.select(
+        [
+            suspect["quality_class"].eq("garbled_parser_artifact"),
+            suspect["conflicting_duplicate_count"].gt(0),
+            suspect["quality_class"].eq("unknown_review_required"),
+        ],
+        [
+            "garbled_parser_artifact",
+            "conflicting_duplicate_cells",
+            "mapping_gap_review_required",
+        ],
+        default="review_required",
+    )
+    return suspect[columns].sort_values(
+        ["commodity", "quality_class", "region", "attribute"]
+    ).reset_index(drop=True)
+
+
+def build_wasde_mapping_gaps(source_truth: pd.DataFrame) -> pd.DataFrame:
+    """Return unknown non-aggregate regions with enough rows to review."""
+    columns = [
+        "commodity",
+        "region",
+        "normalized_region",
+        "row_count",
+        "release_count",
+        "market_year_count",
+        "attributes",
+        "reason",
+    ]
+    if source_truth.empty:
+        return pd.DataFrame(columns=columns)
+    unknown = source_truth.loc[source_truth["quality_class"] == "unknown_review_required"].copy()
+    if unknown.empty:
+        return pd.DataFrame(columns=columns)
+    rows: list[dict[str, object]] = []
+    for (commodity, region, normalized_region), group in unknown.groupby(
+        ["commodity", "region", "normalized_region"], dropna=False, sort=True
+    ):
+        attrs = sorted(group["attribute"].dropna().astype(str).unique())
+        rows.append({
+            "commodity": str(commodity),
+            "region": str(region),
+            "normalized_region": str(normalized_region),
+            "row_count": int(group["row_count"].sum()),
+            "release_count": int(group["release_count"].sum()),
+            "market_year_count": int(group["marketing_year_start"].nunique()),
+            "attributes": ",".join(attrs),
+            "reason": "unknown_non_aggregate_region",
+        })
+    return pd.DataFrame(rows, columns=columns).sort_values(
+        ["commodity", "row_count"],
+        ascending=[True, False],
+    ).reset_index(drop=True)
+
+
+def build_phase1_source_truth_report(
+    *,
+    bucket: str,
+    source_truth: pd.DataFrame,
+    origin_attribute_coverage: pd.DataFrame,
+    parser_artifacts: pd.DataFrame,
+    mapping_gaps: pd.DataFrame,
+    stock_to_use_constructibility: pd.DataFrame,
+    commodities: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Return a compact JSON report for Phase 1 source truth."""
+    selected = origin_attribute_coverage.copy()
+    if commodities:
+        selected = selected.loc[selected["commodity"].isin(set(commodities))].copy()
+    corn = selected.loc[selected["commodity"] == "corn"].copy()
+    coverage_counts = (
+        selected["coverage_class"].value_counts(dropna=False).sort_index().to_dict()
+        if not selected.empty else {}
+    )
+    corn_core = corn.loc[corn["coverage_class"] == "core_model_feature"]
+    corn_phase2_core = corn_core.loc[
+        corn_core["attribute"].isin(set(CORE_WASDE_ATTRIBUTES))
+    ].copy()
+    constructible = stock_to_use_constructibility.loc[
+        stock_to_use_constructibility["stock_to_use_constructible"]
+    ]
+    return {
+        "bucket": bucket,
+        "phase": "wasde_snapshot_phase1_source_truth_audit",
+        "source_truth": {
+            "row_count": int(len(source_truth)),
+            "commodity_count": int(source_truth["commodity"].nunique())
+            if not source_truth.empty else 0,
+            "coverage_class_counts": {str(k): int(v) for k, v in coverage_counts.items()},
+            "parser_artifact_rows": int(len(parser_artifacts)),
+            "mapping_gap_rows": int(len(mapping_gaps)),
+        },
+        "corn": {
+            "core_feature_count": int(len(corn_phase2_core)),
+            "core_origins": sorted(
+                corn_phase2_core["normalized_origin"].dropna().astype(str).unique()
+            ),
+            "core_attributes": sorted(
+                corn_phase2_core["attribute"].dropna().astype(str).unique()
+            ),
+            "all_dense_attributes": sorted(
+                corn_core["attribute"].dropna().astype(str).unique()
+            ),
+            "stock_to_use_constructible_years": int(
+                constructible.loc[constructible["commodity"] == "corn"][
+                    ["normalized_origin", "marketing_year_start"]
+                ].drop_duplicates().shape[0]
+            ) if not constructible.empty else 0,
+        },
+        "phase2_recommendation": {
+            "proceed": bool(len(corn_phase2_core) > 0),
+            "recommended_core_features": [
+                "latest_estimate",
+                "stock_to_use_estimate",
+                "revision_since_first",
+                "release_sequence",
+            ],
+            "notes": [
+                "Use estimate density as the core signal; revision sparsity should only downgrade revision-specific features.",
+                "Build release-date snapshot rows before running certification again.",
+                "Keep parser-artifact and mapping-gap regions out of target-origin features.",
+            ],
+        },
+    }
 
 
 def _stress_mask(values: pd.Series, direction: str, threshold: float) -> pd.Series:
