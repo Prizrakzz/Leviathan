@@ -92,9 +92,11 @@ def _base_context(node: str) -> str:
         return ""
     bp = _CAUSAL_DIR / f"{v['base']}.yaml"
     base_yaml = bp.read_text(encoding="utf-8") if bp.exists() else "(base not drafted yet — infer the shared drivers)"
-    return (f"BASE CONTRACT = {v['base']}. This contract INHERITS the base's global drivers (KEEP them) and "
-            f"OVERLAYS: {v.get('overlay', '')}. Add or re-sign only the overlay-specific drivers; preserve the "
-            f"shared causal structure and regime names.\n\n=== BASE {v['base']} YAML ===\n{base_yaml}")
+    return (f"REFERENCE — BASE CONTRACT = {v['base']} (a related instrument). Use it ONLY to name and sign the "
+            f"SHARED global drivers consistently, so contracts stay comparable. This is a DISTINCT tradeable "
+            f"instrument: {v.get('overlay', '')}. Produce its OWN complete DAG — fully develop the drivers, cascade, "
+            f"AND convergence regimes specific to it; they may differ substantially from the base.\n\n"
+            f"=== REFERENCE {v['base']} YAML ===\n{base_yaml}")
 
 
 def seed(node: str) -> dict:
@@ -150,9 +152,12 @@ def _draft_system() -> str:
             "influences (crude oil, the dollar) as DRIVERS, not cross-commodity edges. Then define CONVERGENCE "
             "signals: a named confluence (e.g. 'bullish_squeeze') = N aligned drivers, direction '+' (bullish, "
             "raises price) or '-' (bearish), with optional interactions (X amplifies Y). Be exhaustive but "
-            "precise; prune irrelevant candidates. If a BASE CONTRACT is given, INHERIT its drivers and regimes "
-            "(keep the shared global structure + names) and add/re-sign only the overlay-specific drivers (the "
-            "local production region's weather, the local FX, local policy, the basis). Emit via emit_causal_dag.")
+            "precise; prune irrelevant candidates. If a BASE CONTRACT reference is given, it is a RELATED "
+            "instrument: use it ONLY to keep the SHARED global drivers named and signed consistently (so contracts "
+            "stay comparable for relative value). This is a DISTINCT tradeable instrument — produce its OWN complete "
+            "DAG, fully developing the drivers, CASCADE, and CONVERGENCE regimes specific to it (its dominant "
+            "production region's weather, local FX, local policy, product/crush economics); these may differ "
+            "substantially from the base. Emit via emit_causal_dag.")
 
 
 _DRIVER_KEYS = {"id", "type", "sign", "mechanism", "lag", "region", "edge_type", "target_metric",
