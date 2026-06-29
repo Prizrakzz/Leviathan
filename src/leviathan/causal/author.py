@@ -393,7 +393,8 @@ def main() -> int:
             import anthropic
             from leviathan.graphrag import batch_extract as bx
             client = anthropic.Anthropic(api_key=bx._api_key())
-        c = draft(client, args.draft, seed(args.draft), reuse_raw=args.from_raw)
+        c = draft(client, args.draft, seed(args.draft), reuse_raw=args.from_raw,
+                  base_context="" if args.from_raw else _base_context(args.draft))  # variant gets its base anchor
         errs, warns = cval.check(c)
         _CAUSAL_DIR.mkdir(parents=True, exist_ok=True)
         out = _CAUSAL_DIR / f"{args.draft}.yaml"
