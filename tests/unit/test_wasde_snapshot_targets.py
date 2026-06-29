@@ -103,6 +103,8 @@ def test_expands_one_annual_target_to_multiple_wasde_snapshots() -> None:
         "early_season",
     ]
     assert target["target_value"].nunique() == 1
+    assert target["zero_anomaly_baseline"].eq(0.0).all()
+    assert target["prior_year_anomaly_baseline"].notna().all()
 
 
 def test_cv_group_is_contract_origin_year_not_month() -> None:
