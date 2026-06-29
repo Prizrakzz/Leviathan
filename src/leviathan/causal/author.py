@@ -222,11 +222,16 @@ def _sanitize(out: dict, nodes: set[str] | None = None) -> dict:
         d["parents"] = [p for p in (d.get("parents") or []) if p in ids and p != d["id"]]
     _break_parent_cycles(drivers)                          # DAG must be acyclic — drop any back-edges
     inter = []
+    idx = cval.canon_index(nodes) if nodes is not None else None
     for e in out.get("inter_commodity") or []:
         if isinstance(e, dict) and e.get("driver_commodity") and e.get("relation"):
-            if nodes is not None and e["driver_commodity"] not in nodes:
-                continue                                          # not a tracked contract → belongs as a driver
+            canon = e["driver_commodity"]
+            if nodes is not None:
+                canon = cval.canon_target(e["driver_commodity"], nodes, idx)
+                if canon is None:
+                    continue                                      # truly untracked endpoint → belongs as a driver
             e = {k: v for k, v in e.items() if k in _INTER_KEYS}
+            e["driver_commodity"] = canon                         # normalize 'soybean'->'soybeans', accept contract ids
             e["sign"] = _norm_sign(e.get("sign"))
             inter.append(e)
     conv = []
@@ -272,12 +277,14 @@ def draft(client, node: str, seed_dict: dict, *, model: str = ex.MODEL,
                                    max_tokens=_DRAFT_MAX_TOKENS, tool=_causal_tool())
         _CAUSAL_DIR.mkdir(parents=True, exist_ok=True)
         raw_path.write_text(json.dumps(out, indent=2, default=str), encoding="utf-8")  # never lose a paid draft
-    nodes = cval._vocab_nodes_edges()[0]
-    clean = _sanitize(out, nodes=nodes)
+    targets = cval.intercommodity_targets()                    # vocab nodes + contract ids + complex members
+    clean = _sanitize(out, nodes=targets)
+    idx = cval.canon_index(targets)
     dropped_ic = sorted({e.get("driver_commodity") for e in (out.get("inter_commodity") or [])
-                         if isinstance(e, dict) and e.get("driver_commodity") and e["driver_commodity"] not in nodes})
+                         if isinstance(e, dict) and e.get("driver_commodity")
+                         and cval.canon_target(e["driver_commodity"], targets, idx) is None})
     if dropped_ic:                                              # surfaced, not silent — the data lives on in raw.json
-        print(f"  note: dropped inter-commodity edge(s) to non-contract node(s): {dropped_ic} "
+        print(f"  note: dropped inter-commodity edge(s) to untracked endpoint(s): {dropped_ic} "
               "(re-add as a driver, or add the commodity to the vocab)")
     n_raw_conv = sum(1 for s in (out.get("convergence") or []) if isinstance(s, dict))
     if len(clean["convergence"]) < n_raw_conv:

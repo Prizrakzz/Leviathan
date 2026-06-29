@@ -59,3 +59,32 @@ def test_coverage_dedups_shared_planned_feature():
                     _d("excess_rain", silver_status="planned", silver_ref="excess_rain_z"),
                     _d("biennial_on", sign="-", silver_status="planned", silver_ref="biennial_bearing_flag")])
     assert cv.coverage(c)["planned_features"] == ["biennial_bearing_flag", "excess_rain_z"]
+
+
+def test_canon_target_resolves_plural_and_contract_ids():
+    targets = {"soybeans", "corn", "corn_cbot", "palm_oil"}
+    idx = cv.canon_index(targets)
+    assert cv.canon_target("soybeans", targets, idx) == "soybeans"        # exact
+    assert cv.canon_target("soybean", targets, idx) == "soybeans"         # singular -> plural
+    assert cv.canon_target("soybean_cbot", targets, idx) == "corn_cbot" or \
+           cv.canon_target("corn_cbot", targets, idx) == "corn_cbot"      # contract id accepted as-is
+    assert cv.canon_target("Soybeans", targets, idx) == "soybeans"        # case/accent-insensitive
+    assert cv.canon_target("apple_juice", targets, idx) is None           # genuinely untracked
+
+
+def test_intercommodity_targets_includes_contracts_and_members(monkeypatch):
+    monkeypatch.setattr(cv, "_vocab_nodes_edges", lambda: ({"arabica_coffee"}, set()))
+    h = {"contracts": {"corn_cbot": {"node": "corn"}, "soybean_oil_cbot": {"node": "soybean_oil"}},
+         "complexes": {"veg_oil_complex": ["soybean_oil", "palm_oil", "sunflower_oil"]},
+         "context_commodities": ["fish_meal"]}
+    t = cv.intercommodity_targets(h)
+    assert {"arabica_coffee", "corn_cbot", "corn", "soybean_oil_cbot", "soybean_oil",
+            "palm_oil", "sunflower_oil", "fish_meal"} <= t
+
+
+def test_check_accepts_contract_id_inter_edge():
+    # a cross-contract relative-value edge (soybeans -> corn_cbot) must NOT be flagged a non-node
+    targets = {"arabica_coffee", "corn_cbot", "soybeans"}
+    c = _c(inter_commodity=[cs.InterCommodityEdge(driver_commodity="corn_cbot", relation="competes_with", sign="-")])
+    errs, _ = cv.check(c, nodes=targets, edges=EDGES, silver=SILVER)
+    assert not any("non-node" in e for e in errs)

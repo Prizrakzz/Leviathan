@@ -202,3 +202,15 @@ def test_sanitize_breaks_parent_cycles():
     from leviathan.causal import validate as cval
     assert cval._cycle_node([cs.Driver(id=d["id"], type=d["type"], sign=d["sign"], mechanism=d["mechanism"],
                                        parents=d["parents"]) for d in clean["drivers"]]) is None
+
+
+def test_sanitize_normalizes_and_accepts_contract_ids():
+    """Inter-commodity edges: singular 'soybean' normalizes to 'soybeans', a contract id 'corn_cbot' is a
+    valid relative-value endpoint (kept), and a genuinely-untracked 'apple_juice' is dropped."""
+    out = {"drivers": [{"id": "x", "type": "hazard", "sign": "+", "mechanism": "m"}],
+           "inter_commodity": [
+               {"driver_commodity": "soybean", "relation": "competes_with", "sign": "-"},
+               {"driver_commodity": "corn_cbot", "relation": "competes_with", "sign": "-"},
+               {"driver_commodity": "apple_juice", "relation": "substitutes_for", "sign": "-"}]}
+    clean = au._sanitize(out, nodes={"soybeans", "corn_cbot"})
+    assert {e["driver_commodity"] for e in clean["inter_commodity"]} == {"soybeans", "corn_cbot"}
