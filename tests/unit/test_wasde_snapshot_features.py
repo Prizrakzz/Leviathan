@@ -93,6 +93,20 @@ def test_latest_visible_estimate_uses_as_of_cutoff() -> None:
     assert row["source_release_date_max"] == pd.Timestamp("2024-06-12")
 
 
+def test_off_release_snapshot_uses_latest_prior_release() -> None:
+    features = build_wasde_snapshot_dynamic_features(
+        _wasde_history(),
+        _snapshot_targets(["2024-06-30"]),
+        min_history_years=2,
+    )
+    row = features.iloc[0]
+
+    assert row["wasde_production_latest"] == pytest.approx(117.0)
+    assert row["wasde_production_mom_revision"] == pytest.approx(-3.0)
+    assert row["source_release_date_max"] == pd.Timestamp("2024-06-12")
+    assert row["source_release_date_max"] <= row["as_of_date"]
+
+
 def test_mom_revision_uses_previous_release_only() -> None:
     features = build_wasde_snapshot_dynamic_features(
         _wasde_history(),
@@ -139,6 +153,63 @@ def test_cross_attribute_stock_to_use_estimate() -> None:
     assert row["wasde_total_use_estimate"] == pytest.approx(106.0)
     assert row["wasde_stock_to_use_estimate"] == pytest.approx(16.0 / 106.0)
     assert row["wasde_ending_stocks_to_use_estimate"] == pytest.approx(16.0 / 106.0)
+
+
+def test_stock_to_use_revision_features_are_emitted() -> None:
+    features = build_wasde_snapshot_dynamic_features(
+        _wasde_history(),
+        _snapshot_targets(["2024-07-12"]),
+        min_history_years=2,
+    )
+    row = features.iloc[0]
+    first_stock_to_use = 20.0 / 100.0
+    latest_stock_to_use = 16.0 / 106.0
+    prior_stock_to_use = 18.0 / 103.0
+
+    assert row["wasde_stock_to_use_mom_revision"] == pytest.approx(
+        latest_stock_to_use - prior_stock_to_use
+    )
+    assert row["wasde_stock_to_use_revision_since_first"] == pytest.approx(
+        latest_stock_to_use - first_stock_to_use
+    )
+    assert row["wasde_stock_to_use_latest_vs_first_forecast_pct"] == pytest.approx(
+        (latest_stock_to_use - first_stock_to_use) / first_stock_to_use
+    )
+    assert "wasde_stock_to_use_latest_z_by_release_sequence" in features.columns
+    assert "wasde_stock_to_use_latest_vs_trend_pct" in features.columns
+
+
+def test_total_use_estimate_prefers_official_total_use() -> None:
+    source = pd.concat([
+        _wasde_history(),
+        pd.DataFrame([
+            _wasde_row("2024-07-12", attribute="total_use", estimate=120.0),
+        ]),
+    ], ignore_index=True)
+    features = build_wasde_snapshot_dynamic_features(
+        source,
+        _snapshot_targets(["2024-07-12"]),
+        min_history_years=2,
+    )
+    row = features.iloc[0]
+
+    assert row["wasde_total_use_estimate"] == pytest.approx(120.0)
+    assert row["wasde_stock_to_use_estimate"] == pytest.approx(16.0 / 120.0)
+
+
+def test_latest_estimate_alias_columns_are_emitted() -> None:
+    features = build_wasde_snapshot_dynamic_features(
+        _wasde_history(),
+        _snapshot_targets(["2024-06-12"]),
+        min_history_years=2,
+    )
+
+    assert features.iloc[0]["wasde_production_latest_z_by_release_sequence"] == pytest.approx(
+        features.iloc[0]["wasde_production_latest_z"]
+    )
+    assert features.iloc[0]["wasde_production_latest_vs_trend_pct"] == pytest.approx(
+        features.iloc[0]["wasde_production_latest_vs_trend_z"]
+    )
 
 
 def test_missing_attribute_emits_nan_not_zero() -> None:
@@ -249,6 +320,7 @@ def test_feature_quality_report_flags_all_missing_features() -> None:
     assert "wasde_imports_latest" in by_feature.index
     assert by_feature.loc["wasde_imports_latest", "non_null_rate"] == 0.0
     assert by_feature.loc["wasde_production_latest", "non_null_rate"] == 1.0
+    assert by_feature.loc["wasde_stock_to_use_estimate", "attribute"] == "stock_to_use"
     assert set(dynamic_feature_columns(features)) >= {
         "wasde_production_latest",
         "wasde_production_mom_revision",

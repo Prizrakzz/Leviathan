@@ -312,7 +312,11 @@ def _enrich_source_revisions(source: pd.DataFrame) -> pd.DataFrame:
     out = out.merge(release_dates, on=release_key + ["release_date"], how="left")
 
     attr_key = [*release_key, "attribute"]
-    out["mom_revision"] = out.groupby(attr_key)["estimate"].diff()
+    computed_mom_revision = out.groupby(attr_key)["estimate"].diff()
+    out["mom_revision"] = computed_mom_revision.where(
+        computed_mom_revision.notna(),
+        out["source_revision"],
+    )
     first_estimate = out.groupby(attr_key)["estimate"].transform("first")
     out["first_estimate"] = first_estimate
     out["revision_since_first"] = out["estimate"] - first_estimate
@@ -430,7 +434,15 @@ def _build_release_wide_features(
                     float(row.latest_z_precomputed)
                     if _finite(row.latest_z_precomputed) else np.nan
                 ),
+                f"{prefix}_latest_z_by_release_sequence": (
+                    float(row.latest_z_precomputed)
+                    if _finite(row.latest_z_precomputed) else np.nan
+                ),
                 f"{prefix}_latest_vs_trend_z": (
+                    float(row.latest_vs_trend_z_precomputed)
+                    if _finite(row.latest_vs_trend_z_precomputed) else np.nan
+                ),
+                f"{prefix}_latest_vs_trend_pct": (
                     float(row.latest_vs_trend_z_precomputed)
                     if _finite(row.latest_vs_trend_z_precomputed) else np.nan
                 ),
@@ -475,7 +487,9 @@ def _build_release_wide_features(
         "consecutive_revision_count",
         "revision_z",
         "latest_z",
+        "latest_z_by_release_sequence",
         "latest_vs_trend_z",
+        "latest_vs_trend_pct",
         "latest_vs_first_forecast_pct",
     )
     for attribute in attributes:
@@ -519,7 +533,140 @@ def _build_release_wide_features(
         np.nan,
     )
     wide["wasde_ending_stocks_to_use_estimate"] = wide["wasde_stock_to_use_estimate"]
+    wide = _add_stock_to_use_revision_features(wide, min_history_years=min_history_years)
     return wide.drop(columns=["release_sequence"]).reset_index(drop=True)
+
+
+def _add_stock_to_use_revision_features(
+    release_features: pd.DataFrame,
+    *,
+    min_history_years: int,
+) -> pd.DataFrame:
+    """Add revision and historical-normalization features for stock/use."""
+    if release_features.empty or "wasde_stock_to_use_estimate" not in release_features.columns:
+        return release_features
+
+    out = release_features.sort_values([
+        "wasde_commodity",
+        "wasde_origin",
+        "target_market_year",
+        "release_sequence",
+        "release_date",
+    ]).copy()
+    group_key = ["wasde_commodity", "wasde_origin", "target_market_year"]
+    value = pd.to_numeric(out["wasde_stock_to_use_estimate"], errors="coerce")
+    out["wasde_stock_to_use_mom_revision"] = out.groupby(group_key)[
+        "wasde_stock_to_use_estimate"
+    ].diff()
+    first_value = pd.to_numeric(
+        out.groupby(group_key)["wasde_stock_to_use_estimate"].transform("first"),
+        errors="coerce",
+    )
+    out["wasde_stock_to_use_revision_since_first"] = value - first_value
+    out["wasde_stock_to_use_latest_vs_first_forecast_pct"] = np.where(
+        first_value.abs() > 0,
+        out["wasde_stock_to_use_revision_since_first"] / first_value.abs(),
+        np.nan,
+    )
+
+    streaks: list[float] = []
+    for _, group in out.groupby(group_key, sort=False):
+        revisions = group["wasde_stock_to_use_mom_revision"].tolist()
+        for idx in range(len(group)):
+            streaks.append(_consecutive_revision_count(revisions[: idx + 1]))
+    out["wasde_stock_to_use_consecutive_revision_count"] = streaks
+
+    out["wasde_stock_to_use_latest_z"] = np.nan
+    out["wasde_stock_to_use_latest_z_by_release_sequence"] = np.nan
+    out["wasde_stock_to_use_revision_z"] = np.nan
+    out["wasde_stock_to_use_latest_vs_trend_z"] = np.nan
+    out["wasde_stock_to_use_latest_vs_trend_pct"] = np.nan
+
+    for (commodity, origin), origin_group in out.groupby(["wasde_commodity", "wasde_origin"], sort=False):
+        del commodity, origin
+        for _, seq_group in origin_group.groupby("release_sequence", sort=False):
+            ordered = seq_group.sort_values(["target_market_year", "release_date"]).copy()
+            estimate_values = pd.to_numeric(ordered["wasde_stock_to_use_estimate"], errors="coerce")
+            revision_values = pd.to_numeric(
+                ordered["wasde_stock_to_use_mom_revision"],
+                errors="coerce",
+            )
+            for values, output_col in (
+                (estimate_values, "wasde_stock_to_use_latest_z"),
+                (revision_values, "wasde_stock_to_use_revision_z"),
+            ):
+                prior_count = values.expanding(min_periods=1).count().shift(1)
+                prior_mean = values.expanding(min_periods=1).mean().shift(1)
+                prior_std = values.expanding(min_periods=1).std(ddof=0).shift(1)
+                z = (values - prior_mean) / prior_std
+                z = z.where((prior_count >= min_history_years) & (prior_std > 0))
+                out.loc[ordered.index, output_col] = z
+
+            years = pd.to_numeric(ordered["target_market_year"], errors="coerce").reset_index(drop=True)
+            reset_values = estimate_values.reset_index(drop=True)
+            trend_values: list[float] = []
+            for idx, current_value in enumerate(reset_values):
+                prior = pd.DataFrame({
+                    "year": years.iloc[:idx],
+                    "value": reset_values.iloc[:idx],
+                }).dropna()
+                if len(prior) < min_history_years or prior["year"].nunique() < 2 or not _finite(current_value):
+                    trend_values.append(np.nan)
+                    continue
+                coeffs = np.polyfit(
+                    prior["year"].to_numpy(dtype=float),
+                    prior["value"].to_numpy(dtype=float),
+                    1,
+                )
+                trend = float(np.polyval(coeffs, float(years.iloc[idx])))
+                trend_values.append(
+                    float((float(current_value) - trend) / abs(trend))
+                    if np.isfinite(trend) and trend != 0.0 else np.nan
+                )
+            out.loc[ordered.index, "wasde_stock_to_use_latest_vs_trend_z"] = trend_values
+            out.loc[ordered.index, "wasde_stock_to_use_latest_vs_trend_pct"] = trend_values
+
+    out["wasde_stock_to_use_latest_z_by_release_sequence"] = out["wasde_stock_to_use_latest_z"]
+    return out
+
+
+def _join_latest_visible_release(
+    spine: pd.DataFrame,
+    release_features: pd.DataFrame,
+) -> pd.DataFrame:
+    """Attach the latest WASDE feature release visible at each snapshot date."""
+    key_cols = ["wasde_commodity", "wasde_origin", "target_market_year"]
+    if release_features.empty:
+        return spine.copy()
+
+    payload_cols = [col for col in release_features.columns if col not in key_cols]
+    release_groups = {
+        key: group[payload_cols].sort_values("release_date").reset_index(drop=True)
+        for key, group in release_features.groupby(key_cols, dropna=False, sort=False)
+    }
+
+    joined_groups: list[pd.DataFrame] = []
+    for key, spine_group in spine.groupby(key_cols, dropna=False, sort=False):
+        group = spine_group.sort_values("as_of_date").reset_index(drop=True)
+        releases = release_groups.get(key)
+        if releases is None or releases.empty:
+            missing_payload = {
+                col: pd.NaT if col in {"release_date", "source_release_date_max"} else np.nan
+                for col in payload_cols
+            }
+            joined_groups.append(group.assign(**missing_payload))
+            continue
+        joined_groups.append(pd.merge_asof(
+            group,
+            releases,
+            left_on="as_of_date",
+            right_on="release_date",
+            direction="backward",
+        ))
+
+    if not joined_groups:
+        return spine.copy()
+    return pd.concat(joined_groups, ignore_index=True)
 
 
 def _feature_values_for_snapshot(
@@ -712,12 +859,7 @@ def build_wasde_snapshot_dynamic_features(
         attributes=attributes,
         min_history_years=min_history_years,
     )
-    joined = spine.merge(
-        release_features,
-        left_on=["wasde_commodity", "wasde_origin", "target_market_year", "as_of_date"],
-        right_on=["wasde_commodity", "wasde_origin", "target_market_year", "release_date"],
-        how="left",
-    )
+    joined = _join_latest_visible_release(spine, release_features)
     if "release_date" in joined.columns:
         joined = joined.drop(columns=["release_date"])
     return validate_wasde_snapshot_features(joined)
@@ -766,6 +908,23 @@ def dynamic_feature_columns(features: pd.DataFrame) -> list[str]:
     ]
 
 
+def _feature_attribute(feature: str) -> str:
+    parts = feature.removeprefix("wasde_").split("_")
+    multi_part_prefixes = (
+        ("stock", "to", "use"),
+        ("ending", "stocks"),
+        ("beginning", "stocks"),
+        ("domestic", "total"),
+        ("total", "supply"),
+        ("total", "use"),
+        ("feed", "residual"),
+    )
+    for prefix in multi_part_prefixes:
+        if tuple(parts[: len(prefix)]) == prefix:
+            return "_".join(prefix)
+    return parts[0] if parts else ""
+
+
 def build_wasde_feature_quality_report(features: pd.DataFrame) -> pd.DataFrame:
     """Summarize dynamic feature completeness and constancy."""
     columns = [
@@ -788,8 +947,7 @@ def build_wasde_feature_quality_report(features: pd.DataFrame) -> pd.DataFrame:
     )
     for feature in feature_cols:
         series = features[feature]
-        parts = feature.removeprefix("wasde_").split("_")
-        attribute = "_".join(parts[:2]) if parts[:2] in (["ending", "stocks"], ["domestic", "total"], ["total", "use"], ["total", "supply"]) else parts[0]
+        attribute = _feature_attribute(feature)
         rows.append({
             "feature": feature,
             "non_null_rate": float(series.notna().mean()) if len(series) else np.nan,
