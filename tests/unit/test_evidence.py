@@ -129,3 +129,18 @@ def test_match_forms_and_n_docs_override(tmp_path, monkeypatch):
     forms = ev.match_forms("white_maize")
     assert "maize" in forms and "corn" in forms and "white_maize" in forms     # parent-commodity broadening
     assert ev.n_docs_for("cocoa", 40) == 150 and ev.n_docs_for("rice", 40) == 40   # override vs default
+
+
+def test_sample_keys_keeps_all_relevant_when_fewer_than_n(monkeypatch):
+    import leviathan.graphrag.corpus_recon as cr
+    # 3 cocoa-source docs + 20 other in-window docs; ask for n=10 -> all 3 cocoa MUST be kept, then fill to 10
+    cocoa = [f"text/x/2025/cocoa{i}/document.json" for i in range(3)]
+    other = [f"text/x/2025/grain{i}/document.json" for i in range(20)]
+    monkeypatch.setattr(cr, "_source_of",
+                        lambda k: "usda_gain_cocoa" if "cocoa" in k else "usda_gain_grain", raising=False)
+
+    class _S3:
+        def get_paginator(self, _):
+            return types.SimpleNamespace(paginate=lambda **kw: [{"Contents": [{"Key": k} for k in cocoa + other]}])
+    got = ev.sample_keys(_S3(), node="cocoa", year_windows=[(2025, 2025)], n=10, seed=0)
+    assert len(got) == 10 and set(cocoa) <= set(got)               # all 3 relevant retained (old code would dilute)

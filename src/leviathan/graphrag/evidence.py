@@ -117,9 +117,17 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
         return y not in (None, "unknown") and any(lo <= int(y) <= hi for lo, hi in year_windows)
 
     terms = [t for t in node.lower().split("_") if len(t) > 2]   # commodity tokens, NOT the contract's exchange suffix
-    relevant = [k for k in keys if in_window(k) and any(t in _source_of(k).lower() for t in terms)]
-    pool = relevant if len(relevant) >= n else [k for k in keys if in_window(k)]
-    return random.Random(seed).sample(pool, min(n, len(pool)))
+    in_win = [k for k in keys if in_window(k)]
+    relevant = [k for k in in_win if any(t in _source_of(k).lower() for t in terms)]
+    rng = random.Random(seed)
+    if len(relevant) >= n:
+        return rng.sample(relevant, n)
+    # KEEP every source-relevant doc, then top up from the rest of the in-window pool. (Old code abandoned the
+    # relevance bias entirely when relevant < n, diluting a thin commodity's few real docs in a random draw.)
+    rest = [k for k in in_win if k not in set(relevant)]
+    out = relevant + rng.sample(rest, min(n - len(relevant), len(rest)))
+    rng.shuffle(out)
+    return out
 
 
 def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: str | None = None,
