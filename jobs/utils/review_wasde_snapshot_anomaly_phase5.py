@@ -33,6 +33,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--input-dir", default=DEFAULT_INPUT_DIR, dest="input_dir")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, dest="output_dir")
     parser.add_argument("--markdown", default=DEFAULT_MARKDOWN)
+    parser.add_argument("--title", default="WASDE Snapshot Anomaly Phase 5 Root-Cause Audit")
+    parser.add_argument("--phase-label", default="Phase 5", dest="phase_label")
+    parser.add_argument(
+        "--phase-name",
+        default="wasde_snapshot_anomaly_phase5_root_cause_audit",
+        dest="phase_name",
+    )
     parser.add_argument("--soft-stress-ratio", type=float, default=0.75)
     parser.add_argument("--weak-stress-ratio", type=float, default=0.50)
     parser.add_argument("--top-n", type=int, default=20, dest="top_n")
@@ -75,6 +82,8 @@ def _markdown_table(frame: pd.DataFrame, columns: list[str], *, limit: int = 12)
 
 def _build_markdown(
     *,
+    title: str,
+    phase_label: str,
     report: dict,
     event_audit: pd.DataFrame,
     false_positive_severity: pd.DataFrame,
@@ -86,11 +95,11 @@ def _build_markdown(
 ) -> str:
     decision = report["decision"]
     lines = [
-        "# WASDE Snapshot Anomaly Phase 5 Root-Cause Audit",
+        f"# {title}",
         "",
         "## Executive Summary",
         "",
-        "Phase 5 audits the repaired Phase 4B detector output before any more ML sweeps. It asks whether poor behavior is coming from target-label design, unstable score normalization, revision-streak mechanics, or threshold policy.",
+        f"{phase_label} audits the detector output before any more ML sweeps. It asks whether poor behavior is coming from target-label design, unstable score normalization, revision-streak mechanics, or threshold policy.",
         "",
         f"- Recommended next step: `{decision['decision']}`",
         f"- Blockers: `{', '.join(decision.get('blockers', [])) or 'none'}`",
@@ -205,7 +214,7 @@ def _build_markdown(
             limit=top_n,
         ),
         "",
-        "## Phase 5 Implication",
+        f"## {phase_label} Implication",
         "",
         "Do not run broader model sweeps until the listed blockers are addressed. If event-definition pressure is high, add a watchlist/soft-stress label. If z-score scale is unstable, repair normalization with robust prior-only scaling or caps. If revision streak still overfires, require directional magnitude and cumulative revision confirmation.",
         "",
@@ -250,7 +259,7 @@ def main() -> None:
         threshold_tradeoff,
     )
     report = {
-        "phase": "wasde_snapshot_anomaly_phase5_root_cause_audit",
+        "phase": args.phase_name,
         "status": "complete",
         "parameters": {
             "soft_stress_ratio": float(args.soft_stress_ratio),
@@ -269,6 +278,8 @@ def main() -> None:
     }
 
     markdown = _build_markdown(
+        title=args.title,
+        phase_label=args.phase_label,
         report=report,
         event_audit=event_audit,
         false_positive_severity=false_positive_severity,

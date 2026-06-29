@@ -14,7 +14,9 @@ def _row(
     origin: str = "united_states",
     stage: str = "preseason",
     stock_to_use: float = 10.0,
+    ending_latest: float = 100.0,
     ending_revision: float = 0.0,
+    ending_revision_since_first: float = 0.0,
     exports_revision: float = 0.0,
     streak: float = 0.0,
 ) -> dict[str, object]:
@@ -46,7 +48,9 @@ def _row(
         "wasde_commodity": "corn",
         "wasde_origin": origin,
         "wasde_stock_to_use_latest": stock_to_use,
+        "wasde_ending_stocks_latest": ending_latest,
         "wasde_ending_stocks_mom_revision": ending_revision,
+        "wasde_ending_stocks_revision_since_first": ending_revision_since_first,
         "wasde_exports_mom_revision": exports_revision,
         "wasde_ending_stocks_consecutive_revision_count": streak,
     }
@@ -330,3 +334,78 @@ def test_scores_expand_to_each_target_without_double_counting_history() -> None:
         "psd_ending_stocks_anomaly_pct",
     }
     assert set(scored_2002["prior_observation_count"]) == {2}
+
+
+def test_zscore_is_capped_when_prior_scale_is_tiny() -> None:
+    matrix = _matrix([
+        _row(year=2000, stock_to_use=10.0),
+        _row(year=2001, stock_to_use=10.001),
+        _row(year=2002, stock_to_use=1.0),
+    ])
+
+    result = build_wasde_snapshot_anomaly_scores(
+        matrix,
+        feature_columns=("wasde_stock_to_use_latest",),
+        min_prior_observations=2,
+    )
+    score = _score(
+        result.scores,
+        year=2002,
+        detector="stage_level_z",
+        source_feature="wasde_stock_to_use_latest",
+    )
+
+    assert score["score_value"] == pytest.approx(8.0)
+
+
+def test_revision_streak_requires_adverse_revision_magnitude() -> None:
+    matrix = _matrix([
+        _row(
+            year=2000,
+            ending_latest=100.0,
+            ending_revision=-0.1,
+            ending_revision_since_first=-0.1,
+            streak=-3.0,
+        )
+    ])
+
+    result = build_wasde_snapshot_anomaly_scores(
+        matrix,
+        feature_columns=("wasde_ending_stocks_consecutive_revision_count",),
+        min_prior_observations=0,
+    )
+    score = _score(
+        result.scores,
+        year=2000,
+        detector="revision_streak",
+        source_feature="wasde_ending_stocks_consecutive_revision_count",
+    )
+
+    assert pd.isna(score["score_value"])
+    assert score["score_null_reason"] == "revision_streak_magnitude_filter"
+
+
+def test_revision_streak_scores_when_adverse_revision_is_material() -> None:
+    matrix = _matrix([
+        _row(
+            year=2000,
+            ending_latest=100.0,
+            ending_revision=-2.0,
+            ending_revision_since_first=-5.0,
+            streak=-3.0,
+        )
+    ])
+
+    result = build_wasde_snapshot_anomaly_scores(
+        matrix,
+        feature_columns=("wasde_ending_stocks_consecutive_revision_count",),
+        min_prior_observations=0,
+    )
+    score = _score(
+        result.scores,
+        year=2000,
+        detector="revision_streak",
+        source_feature="wasde_ending_stocks_consecutive_revision_count",
+    )
+
+    assert score["score_value"] == pytest.approx(3.0)

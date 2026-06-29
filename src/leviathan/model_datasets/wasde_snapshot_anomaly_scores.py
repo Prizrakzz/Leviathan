@@ -81,6 +81,11 @@ HIGHER_IS_STRESS = {
 }
 
 COMPOSITE_ATTRIBUTES = LOWER_IS_STRESS | HIGHER_IS_STRESS
+ZSCORE_CAP = 8.0
+ROBUST_Z_MIN_HISTORY = 8
+REVISION_MIN_RELATIVE_MOM_CHANGE = 0.01
+REVISION_MIN_RELATIVE_CUMULATIVE_CHANGE = 0.02
+REVISION_MIN_STRESS_STREAK = 2.0
 
 
 @dataclass(frozen=True)
@@ -109,6 +114,12 @@ def _safe_float(value: object) -> float:
     except Exception:  # noqa: BLE001
         return np.nan
     return out if np.isfinite(out) else np.nan
+
+
+def _clip_score(value: float, *, cap: float = ZSCORE_CAP) -> float:
+    if not np.isfinite(value):
+        return np.nan
+    return float(np.clip(value, -float(cap), float(cap)))
 
 
 def _extract_feature_spec(feature: str) -> tuple[str, str] | None:
@@ -180,6 +191,20 @@ def _numeric_feature_columns(matrix: pd.DataFrame) -> tuple[str, ...]:
     return tuple(sorted(features))
 
 
+def _companion_feature_columns(feature_columns: Iterable[str]) -> tuple[str, ...]:
+    companions: set[str] = set()
+    for feature in feature_columns:
+        spec = _extract_feature_spec(str(feature))
+        if spec is None:
+            continue
+        attribute, transform = spec
+        if transform == "revision_streak":
+            companions.add(_feature_for_transform(attribute, "latest"))
+            companions.add(_feature_for_transform(attribute, "mom_revision"))
+            companions.add(_feature_for_transform(attribute, "revision_since_first"))
+    return tuple(sorted(companions))
+
+
 def _unique_snapshot_frame(
     matrix: pd.DataFrame,
     feature_columns: Iterable[str],
@@ -189,19 +214,23 @@ def _unique_snapshot_frame(
     missing = sorted(required - set(source.columns))
     if missing:
         raise ValueError(f"snapshot matrix missing required columns: {missing}")
-    keep_cols = [
-        col
-        for col in [
-            *SNAPSHOT_BASE_ID_COLUMNS,
-            "commodity",
-            "commodity_group",
-            "wasde_commodity",
-            "wasde_origin",
-            "source_release_count_visible",
-            *feature_columns,
-        ]
-        if col in source.columns
-    ]
+    features = tuple(feature_columns)
+    companion_features = _companion_feature_columns(features)
+    keep_cols = []
+    seen: set[str] = set()
+    for col in [
+        *SNAPSHOT_BASE_ID_COLUMNS,
+        "commodity",
+        "commodity_group",
+        "wasde_commodity",
+        "wasde_origin",
+        "source_release_count_visible",
+        *features,
+        *companion_features,
+    ]:
+        if col in source.columns and col not in seen:
+            keep_cols.append(col)
+            seen.add(col)
     base = source[keep_cols].drop_duplicates(SNAPSHOT_BASE_ID_COLUMNS).copy()
     return base.sort_values(SNAPSHOT_BASE_ID_COLUMNS).reset_index(drop=True)
 
@@ -255,10 +284,14 @@ def _prior_history(
 
 def _zscore(value: float, history: pd.Series) -> float:
     prior = pd.to_numeric(history, errors="coerce").dropna()
+    if len(prior) >= ROBUST_Z_MIN_HISTORY:
+        lower = float(prior.quantile(0.05))
+        upper = float(prior.quantile(0.95))
+        prior = prior.clip(lower=lower, upper=upper)
     std = float(prior.std(ddof=0))
     if not np.isfinite(std) or std == 0.0:
         return np.nan
-    return float((value - float(prior.mean())) / std)
+    return _clip_score(float((value - float(prior.mean())) / std))
 
 
 def _percentile(value: float, history: pd.Series) -> float:
@@ -276,6 +309,57 @@ def _component_stress_value(row: pd.Series) -> float:
         return float(np.clip(value, 0.0, 1.0))
     clipped = float(np.clip(value, -8.0, 8.0))
     return float(1.0 / (1.0 + np.exp(-clipped)))
+
+
+def _feature_for_transform(attribute: str, transform: str) -> str:
+    return f"wasde_{attribute}_{transform}"
+
+
+def _revision_relative_magnitude(value: float, latest: float) -> float:
+    if not np.isfinite(value):
+        return np.nan
+    denominator = abs(latest) if np.isfinite(latest) and abs(latest) > 0 else 1.0
+    return float(abs(value) / denominator)
+
+
+def _magnitude_filtered_streak_score(
+    row: pd.Series,
+    *,
+    attribute: str,
+    direction: str,
+    streak_value: float,
+) -> tuple[float, str]:
+    oriented_streak = _orient_z(streak_value, direction)
+    if not np.isfinite(oriented_streak):
+        return np.nan, "invalid_streak"
+    if oriented_streak < REVISION_MIN_STRESS_STREAK:
+        return np.nan, "revision_streak_below_minimum"
+
+    latest = _safe_float(row.get(_feature_for_transform(attribute, "latest")))
+    mom_revision = _safe_float(row.get(_feature_for_transform(attribute, "mom_revision")))
+    cumulative_revision = _safe_float(
+        row.get(_feature_for_transform(attribute, "revision_since_first"))
+    )
+    mom_stress = _orient_z(mom_revision, direction)
+    cumulative_stress = _orient_z(cumulative_revision, direction)
+    mom_magnitude = _revision_relative_magnitude(mom_revision, latest)
+    cumulative_magnitude = _revision_relative_magnitude(cumulative_revision, latest)
+
+    mom_confirmed = (
+        np.isfinite(mom_stress)
+        and mom_stress > 0
+        and np.isfinite(mom_magnitude)
+        and mom_magnitude >= REVISION_MIN_RELATIVE_MOM_CHANGE
+    )
+    cumulative_confirmed = (
+        np.isfinite(cumulative_stress)
+        and cumulative_stress > 0
+        and np.isfinite(cumulative_magnitude)
+        and cumulative_magnitude >= REVISION_MIN_RELATIVE_CUMULATIVE_CHANGE
+    )
+    if not mom_confirmed and not cumulative_confirmed:
+        return np.nan, "revision_streak_magnitude_filter"
+    return _clip_score(oriented_streak, cap=12.0), ""
 
 
 def _score_feature_row(
@@ -386,7 +470,12 @@ def _score_feature_row(
             "score_null_reason": "" if np.isfinite(score) else reason or "invalid_zscore",
         })
     elif transform == "revision_streak":
-        score = _orient_z(value, direction)
+        score, reason = _magnitude_filtered_streak_score(
+            row,
+            attribute=attribute,
+            direction=direction,
+            streak_value=value,
+        )
         rows.append({
             **base_payload,
             "detector_id": "revision_streak",
@@ -394,7 +483,7 @@ def _score_feature_row(
             "score_value": score,
             "prior_observation_count": 0,
             "normalization_group_used": "not_normalized",
-            "score_null_reason": "" if np.isfinite(score) else "invalid_streak",
+            "score_null_reason": "" if np.isfinite(score) else reason,
         })
     return rows
 

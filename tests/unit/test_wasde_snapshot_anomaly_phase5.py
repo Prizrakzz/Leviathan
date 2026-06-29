@@ -184,6 +184,33 @@ def test_score_scale_audit_flags_extreme_scores() -> None:
 def test_revision_streak_audit_detects_benign_overfire() -> None:
     cases = pd.DataFrame([
         _annual_case(
+            year=2000 + idx,
+            detector="revision_streak",
+            event=False,
+            alert=True,
+            target_value=0.01,
+        )
+        for idx in range(15)
+    ])
+    oof = pd.DataFrame([
+        _oof_row(
+            year=2000 + idx,
+            detector="revision_streak",
+            event=False,
+            alert=True,
+        )
+        for idx in range(15)
+    ])
+
+    audit = build_revision_streak_audit(oof, cases)
+
+    assert audit.iloc[0]["benign_false_positive_count"] == 15
+    assert audit.iloc[0]["revision_streak_diagnosis"] == "magnitude_filter_needed"
+
+
+def test_revision_streak_audit_demotes_low_footprint_low_recall() -> None:
+    cases = pd.DataFrame([
+        _annual_case(
             year=2000,
             detector="revision_streak",
             event=False,
@@ -197,16 +224,25 @@ def test_revision_streak_audit_detects_benign_overfire() -> None:
             alert=False,
             target_value=-0.20,
         ),
+        _annual_case(
+            year=2002,
+            detector="revision_streak",
+            event=True,
+            alert=False,
+            target_value=-0.22,
+        ),
     ])
     oof = pd.DataFrame([
         _oof_row(year=2000, detector="revision_streak", event=False, alert=True),
         _oof_row(year=2001, detector="revision_streak", event=True, alert=False, raw_alert=True),
+        _oof_row(year=2002, detector="revision_streak", event=True, alert=False, raw_alert=True),
     ])
 
     audit = build_revision_streak_audit(oof, cases)
 
-    assert audit.iloc[0]["benign_false_positive_count"] == 1
-    assert audit.iloc[0]["revision_streak_diagnosis"] == "magnitude_filter_needed"
+    assert audit.iloc[0]["false_positive_count"] == 1
+    assert audit.iloc[0]["false_negative_count"] == 2
+    assert audit.iloc[0]["revision_streak_diagnosis"] == "diagnostic_only_low_recall"
 
 
 def test_threshold_tradeoff_audit_flags_recall_loss() -> None:

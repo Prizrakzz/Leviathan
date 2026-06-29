@@ -103,6 +103,13 @@ DETECTOR_SCORE_CAPS = {
     "revision_streak": 12.0,
 }
 
+REVISION_STREAK_MATERIAL_FALSE_POSITIVES = 15
+REVISION_STREAK_BLOCKING_DIAGNOSES = {
+    "magnitude_filter_needed",
+    "persistence_policy_too_strict",
+    "watchlist_label_may_be_needed",
+}
+
 
 def _as_bool(series: pd.Series) -> pd.Series:
     return series.fillna(False).astype(bool)
@@ -399,11 +406,19 @@ def build_revision_streak_audit(
         fp_count = int(fp.sum())
         benign_share = float(benign_fp.sum() / fp_count) if fp_count else np.nan
         soft_share = float(soft_fp.sum() / fp_count) if fp_count else np.nan
-        if fp_count and benign_share >= 0.50:
+        fn_count = int(fn.sum())
+        raw_alerts = float(group["raw_alert_snapshot_count"].sum())
+        final_alerts = float(group["final_alert_snapshot_count"].sum())
+        if (
+            fp_count >= REVISION_STREAK_MATERIAL_FALSE_POSITIVES
+            and benign_share >= 0.50
+        ):
             diagnosis = "magnitude_filter_needed"
         elif fp_count and soft_share >= 0.35:
             diagnosis = "watchlist_label_may_be_needed"
-        elif int(fn.sum()) and float(group["raw_alert_snapshot_count"].sum()) > float(group["final_alert_snapshot_count"].sum()):
+        elif fn_count > fp_count and fp_count < REVISION_STREAK_MATERIAL_FALSE_POSITIVES:
+            diagnosis = "diagnostic_only_low_recall"
+        elif fn_count and raw_alerts > final_alerts:
             diagnosis = "persistence_policy_too_strict"
         else:
             diagnosis = "not_primary_blocker"
@@ -411,7 +426,7 @@ def build_revision_streak_audit(
             "target_key": str(target_key),
             "case_count": int(len(group)),
             "false_positive_count": fp_count,
-            "false_negative_count": int(fn.sum()),
+            "false_negative_count": fn_count,
             "soft_stress_false_positive_count": int(soft_fp.sum()),
             "benign_false_positive_count": int(benign_fp.sum()),
             "raw_alert_snapshot_count": int(group["raw_alert_snapshot_count"].sum()),
@@ -515,10 +530,13 @@ def recommend_phase5_decision(
         stage_audit["normalization_diagnosis"].astype(str) != "ok"
     ).any():
         blockers.append("repair_stage_normalization")
-    if not revision_streak_audit.empty and (
-        revision_streak_audit["revision_streak_diagnosis"].astype(str)
-        != "not_primary_blocker"
-    ).any():
+    revision_streak_blockers = pd.Series(dtype=bool)
+    if not revision_streak_audit.empty:
+        revision_streak_blockers = (
+            revision_streak_audit["revision_streak_diagnosis"].astype(str)
+            .isin(REVISION_STREAK_BLOCKING_DIAGNOSES)
+        )
+    if not revision_streak_audit.empty and revision_streak_blockers.any():
         blockers.append("repair_revision_streak_magnitude_filter")
     if not event_audit.empty and (
         event_audit["event_definition_diagnosis"].astype(str)
@@ -550,10 +568,7 @@ def recommend_phase5_decision(
             ).sum()
         ),
         "revision_streak_issue_count": int(
-            0 if revision_streak_audit.empty else (
-                revision_streak_audit["revision_streak_diagnosis"].astype(str)
-                != "not_primary_blocker"
-            ).sum()
+            0 if revision_streak_audit.empty else revision_streak_blockers.sum()
         ),
         "event_definition_issue_count": int(
             0 if event_audit.empty else (
