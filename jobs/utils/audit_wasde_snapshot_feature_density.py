@@ -95,7 +95,10 @@ def _write_parquet(path: Path, frame: pd.DataFrame) -> str:
 
 def _write_json(path: Path, payload: dict[str, object]) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
+    )
     return str(path)
 
 
@@ -119,7 +122,7 @@ def _write_s3_json(s3, bucket: str, key: str, payload: dict[str, object]) -> str
     s3.put_object(
         Bucket=bucket,
         Key=key,
-        Body=json.dumps(payload, indent=2, sort_keys=True).encode("utf-8"),
+        Body=json.dumps(payload, indent=2, sort_keys=True, default=str).encode("utf-8"),
         ContentType="application/json",
     )
     return f"s3://{bucket}/{key}"
