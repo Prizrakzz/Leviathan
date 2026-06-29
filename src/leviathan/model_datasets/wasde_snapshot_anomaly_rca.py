@@ -86,6 +86,21 @@ def _safe_float(value: object) -> float:
     return out if np.isfinite(out) else np.nan
 
 
+def _stress_ratio_to_threshold(row: pd.Series) -> float:
+    target_value = _safe_float(row.get("target_value"))
+    target_threshold = abs(_safe_float(row.get("target_event_threshold")))
+    if not np.isfinite(target_value) or not np.isfinite(target_threshold) or target_threshold <= 0:
+        return np.nan
+    direction = str(row.get("target_event_direction") or "")
+    if direction == "lower_is_stress":
+        stress_value = -target_value
+    elif direction == "higher_is_stress":
+        stress_value = target_value
+    else:
+        return np.nan
+    return float(stress_value / target_threshold)
+
+
 def build_annual_alert_cases(oof_predictions: pd.DataFrame) -> pd.DataFrame:
     """Collapse out-of-fold snapshot alerts to annual event cases."""
     if oof_predictions.empty:
@@ -147,14 +162,15 @@ def _classify_false_negative(row: pd.Series) -> str:
 
 def _classify_false_positive(row: pd.Series) -> str:
     margin = _safe_float(row.get("score_threshold_margin"))
-    target_value = _safe_float(row.get("target_value"))
-    target_threshold = _safe_float(row.get("target_event_threshold"))
+    stress_ratio = _stress_ratio_to_threshold(row)
     if str(row.get("detector_id")) == "revision_streak":
         return "revision_streak_overfires"
     if np.isfinite(margin) and margin <= 0.05:
         return "threshold_too_loose"
-    if np.isfinite(target_value) and np.isfinite(target_threshold) and abs(target_value) >= abs(target_threshold) * 0.75:
+    if np.isfinite(stress_ratio) and stress_ratio >= 0.75:
         return "final_outcome_reversal"
+    if np.isfinite(stress_ratio) and stress_ratio < 0.50:
+        return "benign_final_outcome"
     if str(row.get("detector_id")) == "composite_balance_sheet_stress":
         return "genuine_temporary_stress"
     return "event_definition_too_narrow"

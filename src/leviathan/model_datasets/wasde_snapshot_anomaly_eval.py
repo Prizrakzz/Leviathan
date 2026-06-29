@@ -85,6 +85,8 @@ OOF_PREDICTION_COLUMNS = [
     "alert",
     "target_event_label",
     "target_value",
+    "target_event_threshold",
+    "target_event_direction",
     "sample_weight",
 ]
 

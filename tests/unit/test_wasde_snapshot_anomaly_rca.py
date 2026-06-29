@@ -71,6 +71,7 @@ def test_false_positive_case_table_contains_required_columns() -> None:
         "genuine_temporary_stress",
         "threshold_too_loose",
         "event_definition_too_narrow",
+        "benign_final_outcome",
     }
 
 
@@ -93,7 +94,26 @@ def test_rca_reason_codes_are_valid() -> None:
         "genuine_temporary_stress",
         "threshold_too_loose",
         "event_definition_too_narrow",
+        "benign_final_outcome",
     }
+
+
+def test_false_positive_classifier_uses_stress_direction() -> None:
+    predictions = pd.DataFrame([
+        _prediction(
+            year=2001,
+            event=False,
+            alert=True,
+            detector="revision_shock",
+        )
+    ])
+    predictions["target_value"] = 0.5
+    predictions["target_event_threshold"] = 0.1
+    predictions["target_event_direction"] = "lower_is_stress"
+    annual = build_annual_alert_cases(predictions)
+    _, false_positives = build_false_case_tables(annual)
+
+    assert false_positives.iloc[0]["rca_reason_code"] == "benign_final_outcome"
 
 
 def test_threshold_stability_report_contains_expected_columns() -> None:

@@ -251,4 +251,6 @@ def test_repaired_policy_metadata_is_logged() -> None:
     assert set(result.fold_metrics["threshold_policy"]) == {"precision_guarded_f2"}
     assert set(result.thresholds["threshold_policy"]) == {"precision_guarded_f2"}
     assert set(result.oof_predictions["threshold_policy"]) == {"precision_guarded_f2"}
+    assert "target_event_threshold" in result.oof_predictions.columns
+    assert "target_event_direction" in result.oof_predictions.columns
     assert result.thresholds["threshold_floor"].dropna().min() >= 0.5

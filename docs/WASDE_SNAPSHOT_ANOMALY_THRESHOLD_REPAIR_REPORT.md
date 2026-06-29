@@ -51,11 +51,11 @@ Interpretation: high recall is real enough to keep going, but threshold policy a
 | false_negative | psd_stock_to_use_anomaly_pct | stage_level_percentile | threshold_too_strict | 4 |
 | false_negative | psd_ending_stocks_anomaly_pct | stage_level_percentile | stage_normalization_issue | 1 |
 | false_negative | psd_stock_to_use_anomaly_pct | stage_level_percentile | stage_normalization_issue | 1 |
-| false_positive | psd_ending_stocks_anomaly_pct | stage_level_percentile | event_definition_too_narrow | 46 |
-| false_positive | psd_stock_to_use_anomaly_pct | stage_level_z | event_definition_too_narrow | 44 |
-| false_positive | psd_ending_stocks_anomaly_pct | revision_shock | event_definition_too_narrow | 40 |
-| false_positive | psd_ending_stocks_anomaly_pct | stage_level_z | event_definition_too_narrow | 39 |
-| false_positive | psd_stock_to_use_anomaly_pct | revision_shock | event_definition_too_narrow | 37 |
+| false_positive | psd_ending_stocks_anomaly_pct | stage_level_percentile | benign_final_outcome | 42 |
+| false_positive | psd_stock_to_use_anomaly_pct | stage_level_z | benign_final_outcome | 41 |
+| false_positive | psd_ending_stocks_anomaly_pct | revision_shock | benign_final_outcome | 35 |
+| false_positive | psd_stock_to_use_anomaly_pct | revision_shock | benign_final_outcome | 35 |
+| false_positive | psd_ending_stocks_anomaly_pct | stage_level_z | benign_final_outcome | 34 |
 | false_positive | psd_ending_stocks_anomaly_pct | revision_streak | revision_streak_overfires | 33 |
 | false_positive | psd_stock_to_use_anomaly_pct | revision_streak | revision_streak_overfires | 27 |
 
@@ -115,31 +115,31 @@ Interpretation: high recall is real enough to keep going, but threshold policy a
 
 | target_key | detector_id | origin_key | target_market_year | first_alert_stage | max_score | threshold | score_threshold_margin | rca_reason_code |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2023 | midseason | 468.37271483297303 | 1.25 | 467.12271483297303 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | united_states | 1998 | finalization | 65.61950929411162 | 1.8248543709161014 | 63.79465492319552 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2002 | post_harvest | 42.74607355212538 | 1.3996650029739672 | 41.34640854915141 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2002 | post_harvest | 42.74607355212538 | 1.3996650029739672 | 41.34640854915141 | event_definition_too_narrow |
+| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2023 | midseason | 468.37271483297303 | 1.25 | 467.12271483297303 | final_outcome_reversal |
+| psd_ending_stocks_anomaly_pct | revision_shock | united_states | 1998 | finalization | 65.61950929411162 | 1.8248543709161014 | 63.79465492319552 | final_outcome_reversal |
+| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2002 | post_harvest | 42.74607355212538 | 1.3996650029739672 | 41.34640854915141 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2002 | post_harvest | 42.74607355212538 | 1.3996650029739672 | 41.34640854915141 | benign_final_outcome |
 | psd_ending_stocks_anomaly_pct | revision_shock | united_states | 2009 | post_harvest | 38.48965006218911 | 1.25 | 37.23965006218911 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2010 | early_season | 24.990535843001368 | 1.25 | 23.740535843001368 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2010 | early_season | 24.990535843001368 | 1.25 | 23.740535843001368 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | argentina | 1997 | preseason | 14.774055884310451 | 1.8832302887109744 | 12.890825595599477 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | argentina | 1997 | preseason | 14.774055884310451 | 1.8832302887109744 | 12.890825595599477 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2009 | post_harvest | 14.548029464168566 | 1.25 | 13.298029464168566 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2009 | post_harvest | 14.548029464168566 | 1.25 | 13.298029464168566 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2014 | late_season | 13.776122188871359 | 1.25 | 12.526122188871359 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2014 | late_season | 13.776122188871359 | 1.25 | 12.526122188871359 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | argentina | 2010 | early_season | 13.358514472998813 | 1.25 | 12.108514472998813 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | argentina | 2010 | early_season | 13.358514472998813 | 1.25 | 12.108514472998813 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | stage_level_z | brazil | 2024 | preseason | 12.781766547638009 | 1.5 | 11.281766547638009 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | stage_level_z | brazil | 2024 | preseason | 12.781766547638009 | 3.233079138014174 | 9.548687409623835 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | stage_level_z | brazil | 2018 | post_harvest | 12.213024610931948 | 3.146137786825053 | 9.066886824106895 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | stage_level_z | brazil | 2018 | preseason | 12.213024610931948 | 1.5 | 10.713024610931948 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | ukraine | 2019 | midseason | 11.12497871976174 | 1.25 | 9.87497871976174 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | ukraine | 2019 | midseason | 11.12497871976174 | 1.25 | 9.87497871976174 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | united_states | 2000 | post_harvest | 10.01260664938486 | 1.8268711643942892 | 8.185735484990571 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2013 | late_season | 9.91624167705249 | 1.25 | 8.66624167705249 | event_definition_too_narrow |
-| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2013 | late_season | 9.91624167705249 | 1.25 | 8.66624167705249 | event_definition_too_narrow |
-| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2011 | post_harvest | 9.661397296964903 | 1.25 | 8.411397296964903 | event_definition_too_narrow |
+| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2010 | early_season | 24.990535843001368 | 1.25 | 23.740535843001368 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2010 | early_season | 24.990535843001368 | 1.25 | 23.740535843001368 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | revision_shock | argentina | 1997 | preseason | 14.774055884310451 | 1.8832302887109744 | 12.890825595599477 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | argentina | 1997 | preseason | 14.774055884310451 | 1.8832302887109744 | 12.890825595599477 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2009 | post_harvest | 14.548029464168566 | 1.25 | 13.298029464168566 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2009 | post_harvest | 14.548029464168566 | 1.25 | 13.298029464168566 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2014 | late_season | 13.776122188871359 | 1.25 | 12.526122188871359 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2014 | late_season | 13.776122188871359 | 1.25 | 12.526122188871359 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | argentina | 2010 | early_season | 13.358514472998813 | 1.25 | 12.108514472998813 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | revision_shock | argentina | 2010 | early_season | 13.358514472998813 | 1.25 | 12.108514472998813 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | stage_level_z | brazil | 2024 | preseason | 12.781766547638009 | 1.5 | 11.281766547638009 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | stage_level_z | brazil | 2024 | preseason | 12.781766547638009 | 3.233079138014174 | 9.548687409623835 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | stage_level_z | brazil | 2018 | post_harvest | 12.213024610931948 | 3.146137786825053 | 9.066886824106895 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | stage_level_z | brazil | 2018 | preseason | 12.213024610931948 | 1.5 | 10.713024610931948 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | revision_shock | ukraine | 2019 | midseason | 11.12497871976174 | 1.25 | 9.87497871976174 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | ukraine | 2019 | midseason | 11.12497871976174 | 1.25 | 9.87497871976174 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | united_states | 2000 | post_harvest | 10.01260664938486 | 1.8268711643942892 | 8.185735484990571 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2013 | late_season | 9.91624167705249 | 1.25 | 8.66624167705249 | benign_final_outcome |
+| psd_ending_stocks_anomaly_pct | revision_shock | brazil | 2013 | late_season | 9.91624167705249 | 1.25 | 8.66624167705249 | benign_final_outcome |
+| psd_stock_to_use_anomaly_pct | revision_shock | brazil | 2011 | post_harvest | 9.661397296964903 | 1.25 | 8.411397296964903 | benign_final_outcome |
 
 ## Phase 4 Implication
 
