@@ -2,6 +2,14 @@
 #
 # This is deliberately smaller than the Phase 10 certification grid.  Its job
 # is to prove grouped snapshot CV and safety gates before broader sweeps.
+#
+# Phase 0 guardrail:
+# The 2026-06-29 smoke using psd_production_anomaly_pct + pure
+# wasde_monthly_revision failed before CV because the active snapshot matrix
+# selected zero usable WASDE features.  Do not use this grid for broad sweeps
+# until the WASDE release-date feature rebuild is complete.  The next smoke
+# should be balance-sheet-first and should not default to the pure WASDE-only
+# stack.
 
 schema_version: 1
 
@@ -13,11 +21,11 @@ defaults:
   dataset_keys:
     - psd_snd_anomaly_snapshot
   target_keys:
-    - psd_production_anomaly_pct
+    - psd_stock_to_use_anomaly_pct
+    - psd_ending_stocks_anomaly_pct
   feature_sets:
-    - wasde_monthly_revision
     - preseason_physical_plus_wasde_revision
-  feature_stack: auto
+  feature_stack: preseason_static_plus_wasde_revision
   models:
     - lightgbm
   min_train_years: 10
@@ -56,7 +64,7 @@ model_param_profiles:
 
 hypotheses:
   - id: corn_snapshot_grouped_cv_smoke
-    description: Corn-only grouped snapshot CV smoke for pure WASDE revisions and preseason-plus-WASDE context.
+    description: Corn grouped snapshot CV smoke for balance-sheet targets using static context plus WASDE context; pure WASDE-only is diagnostic until release-date features are rebuilt.
     models:
       - lightgbm
       - xgboost

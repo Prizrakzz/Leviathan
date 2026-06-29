@@ -21,12 +21,18 @@ def test_snapshot_candidate_grid_config_expands_smoke_candidates() -> None:
     assert {task["hypothesis_id"] for task in tasks} == {"corn_snapshot_grouped_cv_smoke"}
     assert {task["dataset_key"] for task in tasks} == {"psd_snd_anomaly_snapshot"}
     assert {task["commodity"] for task in tasks} == {"corn_cbot"}
-    assert {task["target_key"] for task in tasks} == {"psd_production_anomaly_pct"}
+    assert {task["target_key"] for task in tasks} == {
+        "psd_stock_to_use_anomaly_pct",
+        "psd_ending_stocks_anomaly_pct",
+    }
     assert {task["feature_set"] for task in tasks} == {
-        "wasde_monthly_revision",
         "preseason_physical_plus_wasde_revision",
     }
-    assert {task["feature_stack"] for task in tasks} == {"auto"}
+    assert {task["feature_stack"] for task in tasks} == {
+        "preseason_static_plus_wasde_revision",
+    }
+    assert "psd_production_anomaly_pct" not in {task["target_key"] for task in tasks}
+    assert "wasde_monthly_revision" not in {task["feature_set"] for task in tasks}
     assert {task["bucket"] for task in tasks} == {"bucket"}
     assert all(task["model_params_json"].startswith("{") for task in tasks)
 

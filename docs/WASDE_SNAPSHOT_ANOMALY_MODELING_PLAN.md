@@ -6,6 +6,71 @@ The previous annual PSD/FAOSTAT-shaped modeling path exposed a structural proble
 the feature universe is not useless, but the model-ready matrix grain is too sparse
 and too static for the problem we actually care about.
 
+## Phase 0 Guardrail - 2026-06-29 Smoke Result
+
+The first Batch smoke for the active WASDE snapshot matrix must be treated as a
+model-ready construction failure, not a model-performance result.
+
+The failed candidate was:
+
+```text
+dataset_key = psd_snd_anomaly_snapshot
+commodity = corn_cbot
+target_key = psd_production_anomaly_pct
+feature_set = wasde_monthly_revision
+feature_stack = wasde_monthly_revision
+model = lightgbm
+```
+
+Certification reached the report-writing path, but CV was skipped because feature
+selection returned zero usable columns:
+
+```text
+training_status = failed_cv
+training_error = feature stack wasde_monthly_revision selected zero usable features
+selected_feature_count = 0
+```
+
+The matrix itself proved the upstream issue:
+
+```text
+row_count = 482
+trainable_row_count = 442
+WASDE dynamic columns = 7
+best WASDE non-null count = 23 rows
+best WASDE non-null rate = 4.8%
+```
+
+This does not prove that WASDE is useless. `silver/wasde/` contains hundreds of
+release partitions and tens of thousands of corn rows. It proves that the current
+snapshot model-ready surface is too thin and mostly emits sparse `revision_z`
+columns instead of dense release-date balance-sheet features.
+
+Phase 0 decision:
+
+- Freeze `psd_production_anomaly_pct` as the first-line WASDE snapshot target.
+- Freeze pure `wasde_monthly_revision` as a serious standalone feature stack until
+  the release-date feature rebuild passes density gates.
+- Use balance-sheet targets for the next smoke:
+
+```text
+psd_stock_to_use_anomaly_pct
+psd_ending_stocks_anomaly_pct
+```
+
+Future candidate reports should classify failures into:
+
+```text
+construction_failure
+feature_quality_failure
+target_quality_failure
+cv_failure
+model_performance_failure
+infrastructure_failure
+```
+
+No wider Batch grid should run from the broken surface.
+
 The current annual supervised grain is effectively:
 
 ```text
