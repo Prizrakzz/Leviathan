@@ -129,9 +129,9 @@ It may be:
 - a revision shock score,
 - a directional stress score,
 - a composite balance-sheet stress score,
-- a PCA reconstruction error,
-- an Isolation Forest score,
-- or a calibrated alert probability built on top of transparent scores.
+- a transparent score component,
+- or a calibrated meta-model alert probability built on top of transparent
+  scores.
 
 ### Final Outcome Event
 
@@ -503,72 +503,202 @@ Acceptance:
 The composite must be decomposable into feature contributions. If a score
 cannot explain why it fired, it is not ready for the analyst-facing system.
 
-### 7. PCA Reconstruction Anomaly
+### 7. Meta-Model Calibration Layer
 
 Purpose:
 
-Detect unusual combinations of balance-sheet variables.
+Convert transparent WASDE anomaly scores into calibrated event probabilities
+after the transparent detector has proved useful out-of-fold signal.
 
-Use only after transparent scores exist.
-
-Rules:
-
-- Fit PCA only on prior training snapshots.
-- Use standardized features fit only on prior training snapshots.
-- Keep component count small.
-- Log reconstruction error by snapshot.
-- Log top contributing variables to reconstruction error.
-
-Failure mode:
-
-If PCA score is high but transparent stress score is low, classify the event as
-an "unusual configuration" rather than a directional tightness alert.
-
-### 8. Isolation Forest
-
-Purpose:
-
-Test whether a non-linear unsupervised detector finds useful anomalies after
-transparent detectors establish the baseline.
-
-Rules:
-
-- Fit only on prior snapshots.
-- Tune contamination only on historical validation periods.
-- Do not choose contamination using the full test period.
-- Use compact feature sets, not every available feature.
-- Compare against transparent composite score.
-
-Initial stance:
-
-Isolation Forest is optional and second-order. It should not be the first
-production candidate.
-
-### 9. Supervised Calibration Layer
-
-Purpose:
-
-Convert transparent anomaly scores into event probabilities after enough
-backtest evidence exists.
-
-Examples:
+The meta-model is not a replacement for the transparent detector. It is a
+calibration layer that learns how to combine already-audited signals such as:
 
 ```text
-P(final_stock_to_use_event | current_snapshot_scores)
-P(final_ending_stocks_event | current_snapshot_scores)
+stage_level_z
+stage_level_percentile
+revision_shock
+revision_streak
+composite_balance_sheet_stress
 ```
 
-Models:
+Target examples:
 
-- logistic regression,
-- calibrated gradient boosting,
-- isotonic calibration on prior folds only.
+```text
+P(final_stock_to_use_tightness_event | current_snapshot_scores)
+P(final_ending_stocks_tightness_event | current_snapshot_scores)
+P(final_balance_sheet_stress_event | current_snapshot_scores)
+```
+
+Candidate meta-models:
+
+```text
+lightgbm_meta
+xgboost_meta
+stacked_ensemble_meta
+```
+
+Why these three:
+
+- LightGBM is the first-choice tabular benchmark because it is fast and strong
+  on medium tabular panels.
+- XGBoost is the robustness benchmark because its regularization behavior is
+  usually stable on noisy sparse-ish tabular problems.
+- Stacking is allowed only if both base models show real out-of-fold signal and
+  make meaningfully different errors.
 
 Rules:
 
-- Use anomaly scores and compact drivers, not hundreds of raw features.
-- Group by `(origin, market_year)` during CV.
-- Treat this as a later phase, not the first detector.
+- Unlock this phase only after transparent scores pass Phase 2/3 gates.
+- Use grouped walk-forward CV with:
+
+```text
+group = contract_key + origin + target_market_year
+sample_weight = 1 / snapshot_count_for_group
+```
+
+- Never split snapshots from the same annual outcome group across train/test.
+- Use compact audited inputs first; do not start with every feature column.
+- Fit all preprocessing, imputation, calibration, thresholds, and feature
+  selection inside the training fold only.
+- Keep transparent composite score as the first baseline.
+- Log probability calibration quality, not only ranking metrics.
+
+Allowed first inputs:
+
+```text
+stage-level z-scores
+stage-level stress percentiles
+revision shocks
+revision streaks
+composite balance-sheet stress
+snapshot_stage
+release_sequence
+months_since_first_forecast
+origin
+```
+
+Controlled later inputs:
+
+```text
+inseason_weather_dense
+nass_crop_progress_context
+esr_fgis_flow_context
+substitute_wasde_balance_sheet_scores
+```
+
+Meta-model gating metrics:
+
+```text
+event_recall_any_alert
+event_recall_by_august
+event_recall_by_september
+top_20pct_precision
+false_negative_count
+false_positive_count
+average_precision
+brier_score
+calibration_error
+baseline_lift_vs_composite_score
+baseline_lift_vs_prior_year
+```
+
+LightGBM hyperparameter ranges:
+
+```text
+num_leaves: [7, 15, 31]
+max_depth: [2, 3, 4]
+learning_rate: [0.01, 0.03, 0.05]
+n_estimators: [100, 300, 600]
+min_data_in_leaf: [10, 20, 40]
+feature_fraction: [0.6, 0.8, 1.0]
+bagging_fraction: [0.7, 0.9, 1.0]
+lambda_l1: [0, 0.1, 1]
+lambda_l2: [1, 5, 10]
+```
+
+XGBoost hyperparameter ranges:
+
+```text
+max_depth: [2, 3, 4]
+learning_rate: [0.01, 0.03, 0.05]
+n_estimators: [100, 300, 600]
+subsample: [0.7, 0.9, 1.0]
+colsample_bytree: [0.6, 0.8, 1.0]
+min_child_weight: [5, 10, 20]
+reg_alpha: [0, 0.1, 1]
+reg_lambda: [1, 5, 10]
+```
+
+Stacked ensemble rule:
+
+Only train a stacker if LightGBM and XGBoost both beat the transparent
+composite on out-of-fold metrics and their error profiles are not effectively
+identical. The stacker should be simple:
+
+```text
+logistic_regression_or_isotonic_calibration(
+  transparent_composite_score,
+  lightgbm_oof_probability,
+  xgboost_oof_probability
+)
+```
+
+The stacker must use out-of-fold base predictions only. It must never train on
+in-sample base predictions.
+
+### 8. Out-Of-Scope ML Detectors For This Plan
+
+Purpose:
+
+Avoid diluting this plan with methods that may find "unusual" configurations
+without proving directional tightness value.
+
+Out of scope for this plan:
+
+```text
+PCA reconstruction error
+Isolation Forest
+one-class SVM
+generic unsupervised anomaly detection
+```
+
+These may become a separate research plan later if the transparent and
+meta-model path proves that WASDE snapshot state contains useful anomaly signal.
+
+### 9. Meta-Model Unlock Gate
+
+Purpose:
+
+Prevent tree models from hiding weak signal behind a complex fit.
+
+Phase 5 cannot start unless Phase 2/3 produces:
+
+```text
+zero leakage violations
+event_recall_any_alert improves over baselines or meets threshold
+top_20pct_precision exceeds base event rate
+false_negative_count improves versus prior-year/current-level baselines
+transparent drivers are economically interpretable
+correlation and component dominance are understood
+```
+
+If those gates fail, do not train LightGBM/XGBoost. Fix the feature construction,
+event definition, scope, or RCA issue first.
+
+Required meta-model artifacts:
+
+```text
+meta_model_fold_metrics.parquet
+meta_model_oof_predictions.parquet
+meta_model_feature_importance.parquet
+meta_model_calibration_report.json
+meta_model_baseline_comparison.parquet
+meta_model_shap_summary.parquet
+stacking_inputs.parquet
+```
+
+`meta_model_shap_summary.parquet` is optional for the first smoke, but required
+before any analyst-facing promotion.
 
 ## Point-In-Time And Leakage Rules
 
@@ -1145,6 +1275,7 @@ Likely new files:
 src/leviathan/model_datasets/wasde_snapshot_anomaly_scores.py
 src/leviathan/model_datasets/wasde_snapshot_anomaly_eval.py
 src/leviathan/model_datasets/wasde_snapshot_anomaly_rca.py
+src/leviathan/model_datasets/wasde_snapshot_meta_model.py
 jobs/utils/build_wasde_snapshot_anomaly_scores.py
 jobs/batch/wasde_snapshot_anomaly_scores_task.py
 jobs/submit/submit_batch_wasde_snapshot_anomaly_scores.py
@@ -1158,6 +1289,8 @@ tests/unit/test_wasde_snapshot_anomaly_scores.py
 tests/unit/test_wasde_snapshot_anomaly_eval.py
 tests/unit/test_wasde_snapshot_anomaly_rca.py
 tests/unit/test_wasde_snapshot_anomaly_leakage.py
+tests/unit/test_wasde_snapshot_meta_model.py
+tests/unit/test_wasde_snapshot_meta_model_cv.py
 ```
 
 Likely docs/artifacts:
@@ -1190,6 +1323,10 @@ normalization_policy
 min_prior_observations
 snapshot_weight_policy
 source_gold_dataset_version
+model_role
+base_detector_version
+meta_model_type
+calibration_method
 ```
 
 Required metrics:
@@ -1207,6 +1344,10 @@ false_positive_count
 median_first_alert_lead_months
 snapshot_alert_rate
 baseline_lift_top_20pct
+brier_score
+calibration_error
+baseline_lift_vs_composite_score
+baseline_lift_vs_prior_year
 ```
 
 Required artifacts:
@@ -1225,6 +1366,13 @@ score_component_correlation.parquet
 score_component_clusters.parquet
 composite_dominance_report.parquet
 redundant_feature_family_report.parquet
+meta_model_fold_metrics.parquet
+meta_model_oof_predictions.parquet
+meta_model_feature_importance.parquet
+meta_model_calibration_report.json
+meta_model_baseline_comparison.parquet
+meta_model_shap_summary.parquet
+stacking_inputs.parquet
 ```
 
 ## Phased Implementation Roadmap
@@ -1565,50 +1713,170 @@ Explicitly do not:
 - promote pooled model without per-contract metrics.
 - use legacy `inseason_weather` as a default weather block.
 
-### Phase 5 - Optional ML Detectors
+### Phase 5 - Meta-Model Calibration Track
 
 Objective:
 
-Test whether ML detectors add value after transparent detectors establish
-baselines.
+Test whether LightGBM, XGBoost, or a small stacked ensemble can improve alert
+probability calibration after transparent WASDE anomaly scores establish real
+out-of-fold signal.
 
-Candidate detectors:
+Unlock gate:
 
-- PCA reconstruction error,
-- Isolation Forest,
-- regularized logistic calibration over transparent scores.
+Phase 5 is blocked unless Phase 2/3 shows:
+
+```text
+zero leakage violations
+event_recall_any_alert improves over baselines or meets threshold
+top_20pct_precision exceeds base event rate
+false_negative_count improves versus prior-year/current-level baselines
+transparent drivers are economically interpretable
+correlation and component dominance are understood
+```
+
+Candidate meta-models:
+
+```text
+lightgbm_meta
+xgboost_meta
+stacked_ensemble_meta
+```
+
+Candidate event labels:
+
+```text
+final_stock_to_use_tightness_event
+final_ending_stocks_tightness_event
+final_balance_sheet_stress_event
+```
+
+The combined `final_balance_sheet_stress_event` should be:
+
+```text
+stock_to_use_event OR ending_stocks_event
+```
 
 Tasks:
 
-- Fit only on prior snapshots.
-- Use compact feature sets.
-- Log feature contributions or reconstruction drivers.
-- Compare directly to composite stress score.
+- Build a meta-model dataset from transparent score artifacts and audited
+  snapshot context.
+- Start with compact inputs:
+
+```text
+stage_level_z
+stage_level_percentile
+revision_shock
+revision_streak
+composite_balance_sheet_stress
+snapshot_stage
+release_sequence
+months_since_first_forecast
+origin
+```
+
+- Add controlled feature blocks only after the compact version passes:
+
+```text
+inseason_weather_dense
+nass_crop_progress_context
+esr_fgis_flow_context
+substitute_wasde_balance_sheet_scores
+```
+
+- Train LightGBM and XGBoost with grouped walk-forward CV.
+- Use `sample_weight = 1 / snapshot_count_for_group`.
+- Tune thresholds on training folds only.
+- Log fold-level and aggregate calibration metrics.
+- Train a stacked ensemble only if both base models beat the transparent
+  composite and their out-of-fold errors are not identical.
+- Use only out-of-fold base predictions for stacking.
+- Compare every model directly to:
+
+```text
+transparent_composite_score
+prior_year_baseline
+current_level_baseline
+```
+
+LightGBM search space:
+
+```text
+num_leaves: [7, 15, 31]
+max_depth: [2, 3, 4]
+learning_rate: [0.01, 0.03, 0.05]
+n_estimators: [100, 300, 600]
+min_data_in_leaf: [10, 20, 40]
+feature_fraction: [0.6, 0.8, 1.0]
+bagging_fraction: [0.7, 0.9, 1.0]
+lambda_l1: [0, 0.1, 1]
+lambda_l2: [1, 5, 10]
+```
+
+XGBoost search space:
+
+```text
+max_depth: [2, 3, 4]
+learning_rate: [0.01, 0.03, 0.05]
+n_estimators: [100, 300, 600]
+subsample: [0.7, 0.9, 1.0]
+colsample_bytree: [0.6, 0.8, 1.0]
+min_child_weight: [5, 10, 20]
+reg_alpha: [0, 0.1, 1]
+reg_lambda: [1, 5, 10]
+```
 
 Files likely affected:
 
 ```text
 src/leviathan/model_datasets/wasde_snapshot_anomaly_scores.py
 src/leviathan/model_datasets/wasde_snapshot_anomaly_eval.py
+src/leviathan/model_datasets/wasde_snapshot_meta_model.py
+jobs/batch/wasde_snapshot_meta_model_task.py
+jobs/submit/submit_batch_wasde_snapshot_meta_model.py
 tests/unit/test_wasde_snapshot_anomaly_leakage.py
+tests/unit/test_wasde_snapshot_meta_model.py
+tests/unit/test_wasde_snapshot_meta_model_cv.py
 ```
 
 Risks:
 
-- Opaque detectors may overfit.
-- PCA/Isolation Forest may detect "unusual" but not "tight/stressful".
-- Threshold tuning can leak if done carelessly.
+- Tree models may overfit repeated monthly snapshots of the same final outcome.
+- The stacked ensemble may look better by training on in-sample base
+  predictions if not guarded.
+- Threshold tuning can leak if done outside folds.
+- More features may reduce recall if they swamp the WASDE balance-sheet signal.
+- Calibration may be poor even if ranking metrics improve.
 
 Validation:
 
 - Synthetic leakage tests.
-- Historical rolling-fit tests.
+- Historical grouped walk-forward tests.
 - Transparent baseline comparison.
+- OOF-only stacking tests.
+- Snapshot-weight tests.
+- Calibration tests:
+
+```text
+brier_score
+calibration_error
+average_precision
+event_recall_any_alert
+event_recall_by_august
+top_20pct_precision
+false_negative_count
+false_positive_count
+baseline_lift_vs_composite_score
+```
 
 Acceptance criteria:
 
-- ML detector must beat transparent composite on at least one major business
-  metric and not become less interpretable.
+- LightGBM or XGBoost must beat the transparent composite on recall or
+  top-quintile precision without increasing false negatives.
+- Calibration must be good enough to support alert probabilities, not just rank
+  ordering.
+- Feature importance or SHAP drivers must be economically interpretable.
+- The stacked ensemble is accepted only if it beats both base models and the
+  transparent composite out-of-fold.
 
 Reversibility:
 
@@ -1618,6 +1886,10 @@ Explicitly do not:
 
 - start with opaque ML;
 - use full-history scaler/detector fits.
+- train PCA, Isolation Forest, one-class SVM, or generic unsupervised detectors
+  in this plan;
+- train a stacked ensemble from in-sample base predictions;
+- promote a meta-model whose transparent baseline comparison is weak.
 
 ### Phase 6 - Batch And MLflow Integration
 
@@ -1780,6 +2052,33 @@ Test cases:
 - `test_future_distribution_changes_do_not_change_past_scores`
 - `test_same_group_train_test_split_rejected`
 - `test_threshold_uses_only_prior_fold`
+
+```text
+tests/unit/test_wasde_snapshot_meta_model.py
+```
+
+Test cases:
+
+- `test_meta_model_requires_transparent_detector_gate`
+- `test_lightgbm_and_xgboost_use_only_allowed_feature_blocks`
+- `test_meta_model_logs_required_calibration_metrics`
+- `test_meta_model_compares_against_transparent_composite`
+- `test_stacked_ensemble_requires_two_passing_base_models`
+- `test_stacked_ensemble_requires_non_identical_oof_errors`
+- `test_meta_model_rejects_pca_isolation_forest_and_one_class_svm`
+
+```text
+tests/unit/test_wasde_snapshot_meta_model_cv.py
+```
+
+Test cases:
+
+- `test_grouped_cv_keeps_snapshot_group_together`
+- `test_snapshot_weights_sum_to_one_per_annual_group`
+- `test_stacker_uses_oof_predictions_only`
+- `test_preprocessing_is_fit_inside_training_fold`
+- `test_calibration_threshold_is_fit_inside_training_fold`
+- `test_same_origin_year_never_crosses_train_test`
 
 ### Integration Tests
 
