@@ -68,6 +68,35 @@ def _policy_levers(node: str) -> list[dict]:
     return out
 
 
+_SCALING_PATH = ex._CFG / "contract_scaling.yaml"
+
+
+def _scaling() -> dict:
+    if not _SCALING_PATH.exists():
+        return {"new": [], "variants": {}}
+    return __import__("yaml").safe_load(_SCALING_PATH.read_text(encoding="utf-8")) or {"new": [], "variants": {}}
+
+
+def _draft_order(done: set[str]) -> tuple[list[str], list[str]]:
+    """Contracts still to draft, new commodities FIRST (so a variant's base YAML exists when it drafts)."""
+    sc = _scaling()
+    new = [n for n in (sc.get("new") or []) if n not in done]
+    variants = [n for n in (sc.get("variants") or {}) if n not in done]
+    return new, variants
+
+
+def _base_context(node: str) -> str:
+    """For a variant, the base contract's YAML + overlay note — so the variant inherits the base structure."""
+    v = (_scaling().get("variants") or {}).get(node)
+    if not v:
+        return ""
+    bp = _CAUSAL_DIR / f"{v['base']}.yaml"
+    base_yaml = bp.read_text(encoding="utf-8") if bp.exists() else "(base not drafted yet — infer the shared drivers)"
+    return (f"BASE CONTRACT = {v['base']}. This contract INHERITS the base's global drivers (KEEP them) and "
+            f"OVERLAYS: {v.get('overlay', '')}. Add or re-sign only the overlay-specific drivers; preserve the "
+            f"shared causal structure and regime names.\n\n=== BASE {v['base']} YAML ===\n{base_yaml}")
+
+
 def seed(node: str) -> dict:
     """A draft skeleton (not yet a valid CausalContract — `draft` fills sign/mechanism)."""
     v = ex._vocab()
@@ -121,7 +150,9 @@ def _draft_system() -> str:
             "influences (crude oil, the dollar) as DRIVERS, not cross-commodity edges. Then define CONVERGENCE "
             "signals: a named confluence (e.g. 'bullish_squeeze') = N aligned drivers, direction '+' (bullish, "
             "raises price) or '-' (bearish), with optional interactions (X amplifies Y). Be exhaustive but "
-            "precise; prune irrelevant candidates. Emit via emit_causal_dag.")
+            "precise; prune irrelevant candidates. If a BASE CONTRACT is given, INHERIT its drivers and regimes "
+            "(keep the shared global structure + names) and add/re-sign only the overlay-specific drivers (the "
+            "local production region's weather, the local FX, local policy, the basis). Emit via emit_causal_dag.")
 
 
 _DRIVER_KEYS = {"id", "type", "sign", "mechanism", "lag", "region", "edge_type", "target_metric",
@@ -194,7 +225,7 @@ def _sanitize(out: dict, nodes: set[str] | None = None) -> dict:
 
 
 def draft(client, node: str, seed_dict: dict, *, model: str = ex.MODEL,
-          reuse_raw: bool = False) -> cs.CausalContract:
+          reuse_raw: bool = False, base_context: str = "") -> cs.CausalContract:
     raw_path = _CAUSAL_DIR / f"{node}.raw.json"
     if reuse_raw and raw_path.exists():
         out = json.loads(raw_path.read_text(encoding="utf-8"))               # re-assemble without re-paying
@@ -206,7 +237,8 @@ def draft(client, node: str, seed_dict: dict, *, model: str = ex.MODEL,
                 f"POLICY levers for this contract's countries (consider each; don't miss these): "
                 f"{json.dumps(seed_dict.get('policy_candidates') or [])}\n"
                 f"AVAILABLE silver feature names (wire silver_ref to these; else status='planned'): "
-                f"{seed_dict['available_silver']}")
+                f"{seed_dict['available_silver']}"
+                + (f"\n\n{base_context}" if base_context else ""))           # variant: inherit the base DAG
         out, _usage = ex.call_opus(client, _draft_system(), user, model=model,
                                    max_tokens=_DRAFT_MAX_TOKENS, tool=_causal_tool())
         _CAUSAL_DIR.mkdir(parents=True, exist_ok=True)
@@ -277,13 +309,28 @@ def gap_mine(s3, node: str, *, sample: int = 300, existing: set[str] | None = No
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────────────────
+def _draft_and_save(client, node: str, *, reuse_raw: bool = False, base_context: str = ""):
+    """Draft one contract, write its YAML, run causal_check. Returns (contract, hard-errors)."""
+    c = draft(client, node, seed(node), reuse_raw=reuse_raw, base_context=base_context)
+    _CAUSAL_DIR.mkdir(parents=True, exist_ok=True)
+    cs.dump(c, _CAUSAL_DIR / f"{node}.yaml")
+    errs, warns = cval.check(c)
+    print(f"  {node}: {len(c.drivers)} drivers, {len(c.convergence)} conv, {'FAIL' if errs else 'PASS'}"
+          + (f" ({len(warns)} warn)" if warns else ""))
+    return c, errs
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Causal-ontology authoring (seed / draft / gap-mine).")
+    ap = argparse.ArgumentParser(description="Causal-ontology authoring (seed / draft / draft-all / gap-mine).")
     ap.add_argument("--seed", metavar="NODE")
     ap.add_argument("--draft", metavar="NODE")
+    ap.add_argument("--draft-all", dest="draft_all", action="store_true",
+                    help="draft all remaining contracts (new commodities first, then variants with base context)")
+    ap.add_argument("--only", choices=["new", "variant"], help="with --draft-all: restrict to new or variant")
     ap.add_argument("--gap-mine", dest="gap", metavar="NODE")
     ap.add_argument("--sample", type=int, default=300)
     ap.add_argument("--from-raw", action="store_true", help="re-assemble --draft from the saved raw.json (no spend)")
+    ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     if args.seed:
@@ -322,7 +369,30 @@ def main() -> int:
         for w in warns:
             print(f"  warn: {w}")
         return 0
-    ap.error("one of --seed / --draft / --gap-mine is required")
+    if args.draft_all:
+        done = {p.stem for p in _CAUSAL_DIR.glob("*.yaml")}
+        new, variants = _draft_order(done)
+        todo = ([] if args.only == "variant" else new) + ([] if args.only == "new" else variants)
+        if args.dry_run:
+            print(f"DRY-RUN --draft-all: {len(todo)} to draft ({len([n for n in todo if n in new])} new + "
+                  f"{len([n for n in todo if n in variants])} variant); Opus ~$0.30-0.50 each -> ~${0.4 * len(todo):.0f}")
+            print(f"  order (new first): {todo}")
+            return 0
+        import anthropic
+        from leviathan.common import config
+        from leviathan.graphrag import batch_extract as bx
+        config.load_env()
+        client = anthropic.Anthropic(api_key=bx._api_key())
+        ok = 0
+        for node in todo:                                  # new first so a variant's base YAML exists when it drafts
+            try:
+                _, errs = _draft_and_save(client, node, base_context=_base_context(node))
+                ok += not errs
+            except Exception as e:                          # noqa: BLE001 — one bad draft must not sink the batch
+                print(f"  {node}: ERROR {str(e)[:140]} (raw.json saved if the call returned)")
+        print(f"draft-all done: {ok}/{len(todo)} causal_check PASS")
+        return 0
+    ap.error("one of --seed / --draft / --draft-all / --gap-mine is required")
 
 
 if __name__ == "__main__":
