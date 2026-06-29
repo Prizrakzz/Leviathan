@@ -29,6 +29,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--input-dir", default=DEFAULT_INPUT_DIR, dest="input_dir")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, dest="output_dir")
     parser.add_argument("--markdown", default=DEFAULT_MARKDOWN)
+    parser.add_argument("--title", default="WASDE Snapshot Anomaly Detector RCA")
+    parser.add_argument("--phase-name", default="wasde_snapshot_anomaly_phase3_rca", dest="phase_name")
+    parser.add_argument("--phase-label", default="Phase 3")
     parser.add_argument("--top-n", type=int, default=25, dest="top_n")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -69,6 +72,8 @@ def _markdown_table(frame: pd.DataFrame, columns: list[str], *, limit: int = 12)
 
 def _build_markdown(
     *,
+    title: str,
+    phase_label: str,
     report: dict,
     detector_summary: pd.DataFrame,
     threshold_stability: pd.DataFrame,
@@ -80,11 +85,11 @@ def _build_markdown(
 ) -> str:
     decision = report["decision"]
     lines = [
-        "# WASDE Snapshot Anomaly Detector RCA",
+        f"# {title}",
         "",
         "## Executive Summary",
         "",
-        "Phase 3 reviewed the Phase 2 transparent detector backtest. The detector path is not ready for ML/meta-models yet because false positives are high, but the transparent WASDE scores do contain useful early-warning signal.",
+        f"{phase_label} reviewed the transparent detector backtest. The detector path is not ready for ML/meta-models yet if false positives remain high, but the transparent WASDE scores do contain useful early-warning signal when recall survives stricter threshold policy.",
         "",
         f"- Recommended next decision: `{decision['decision']}`",
         f"- Reason: `{decision['reason']}`",
@@ -215,7 +220,7 @@ def main() -> None:
     decision = recommend_phase4_decision(detector_summary, reason_summary)
 
     report = {
-        "phase": "wasde_snapshot_anomaly_phase3_rca",
+        "phase": args.phase_name,
         "status": "complete",
         "decision": decision,
         "counts": {
@@ -229,6 +234,8 @@ def main() -> None:
     }
 
     markdown = _build_markdown(
+        title=args.title,
+        phase_label=args.phase_label,
         report=report,
         detector_summary=detector_summary,
         threshold_stability=threshold_stability,

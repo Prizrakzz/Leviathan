@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from leviathan.model_datasets.wasde_snapshot_anomaly_eval import (
+    _apply_alert_policy,
     aggregate_snapshot_detector_scores,
     build_rolling_year_splits,
     evaluate_wasde_snapshot_anomaly_scores,
@@ -157,3 +158,97 @@ def test_snapshot_weights_sum_to_one_per_annual_group() -> None:
     bad = validate_snapshot_weights(snapshot_scores)
 
     assert bad.empty
+
+
+def test_revision_streak_threshold_floor_avoids_zero() -> None:
+    train = pd.DataFrame([
+        {
+            **_matrix_row(2000 + i, score=float(score), event=event),
+            "detector_id": "revision_streak",
+            "score_value": float(score),
+        }
+        for i, (score, event) in enumerate([
+            (0, False),
+            (0, False),
+            (1, True),
+            (1, False),
+            (2, True),
+            (3, True),
+        ])
+    ])
+
+    threshold, _, _ = select_alert_threshold(
+        train,
+        threshold_policy="precision_guarded_f2",
+        min_precision=0.5,
+        threshold_floor=2.0,
+    )
+
+    assert threshold >= 2.0
+
+
+def test_precision_guard_rejects_noisy_low_threshold() -> None:
+    train = pd.DataFrame([
+        {
+            **_matrix_row(2000 + i, score=float(score), event=event),
+            "detector_id": "stage_level_percentile",
+            "score_value": float(score),
+        }
+        for i, (score, event) in enumerate([
+            (0.50, False),
+            (0.55, False),
+            (0.60, False),
+            (0.95, True),
+            (0.98, True),
+        ])
+    ])
+
+    threshold, _, _ = select_alert_threshold(
+        train,
+        candidate_quantiles=(0.20, 0.40, 0.60, 0.80),
+        threshold_policy="precision_guarded_f2",
+        min_precision=0.75,
+    )
+
+    assert threshold >= 0.60
+
+
+def test_persistent_alert_requires_repeated_releases() -> None:
+    rows = [
+        {
+            **_matrix_row(2000, score=0.9, event=True, snapshot="06-12"),
+            "detector_id": "composite_balance_sheet_stress",
+            "score_value": 0.9,
+        },
+        {
+            **_matrix_row(2000, score=0.95, event=True, snapshot="07-12"),
+            "detector_id": "composite_balance_sheet_stress",
+            "score_value": 0.95,
+        },
+    ]
+    alerts = _apply_alert_policy(
+        pd.DataFrame(rows),
+        threshold=0.8,
+        min_persistent_releases=2,
+    ).sort_values("as_of_date")
+
+    assert alerts["raw_alert"].tolist() == [True, True]
+    assert alerts["alert"].tolist() == [False, True]
+
+
+def test_repaired_policy_metadata_is_logged() -> None:
+    scores, matrix = _frames()
+    result = evaluate_wasde_snapshot_anomaly_scores(
+        scores,
+        matrix,
+        min_train_years=2,
+        candidate_quantiles=(0.50, 0.80),
+        threshold_policy="precision_guarded_f2",
+        min_precision=0.5,
+        detector_threshold_floors={"composite_balance_sheet_stress": 0.5},
+    )
+
+    assert set(result.fold_metrics["threshold_policy"]) == {"precision_guarded_f2"}
+    assert set(result.thresholds["threshold_policy"]) == {"precision_guarded_f2"}
+    assert set(result.oof_predictions["threshold_policy"]) == {"precision_guarded_f2"}
+    assert result.thresholds["threshold_floor"].dropna().min() >= 0.5

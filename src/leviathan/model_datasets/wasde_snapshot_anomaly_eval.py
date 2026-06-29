@@ -38,6 +38,7 @@ FOLD_METRIC_COLUMNS = [
     "detector_id",
     "fold_id",
     "test_year",
+    "threshold_policy",
     "threshold",
     "threshold_metric",
     "train_group_count",
@@ -61,8 +62,14 @@ THRESHOLD_COLUMNS = [
     "detector_id",
     "fold_id",
     "test_year",
+    "threshold_policy",
     "threshold",
     "selected_metric",
+    "selected_recall",
+    "selected_precision",
+    "selected_false_positive_rate",
+    "threshold_floor",
+    "min_persistent_releases",
     "train_group_count",
     "candidate_count",
 ]
@@ -71,8 +78,10 @@ OOF_PREDICTION_COLUMNS = [
     *SNAPSHOT_SCORE_ID_COLUMNS,
     "detector_id",
     "fold_id",
+    "threshold_policy",
     "threshold",
     "score_value",
+    "raw_alert",
     "alert",
     "target_event_label",
     "target_value",
@@ -92,6 +101,12 @@ BASELINE_COMPARISON_COLUMNS = [
     "precision",
     "f2_score",
 ]
+
+THRESHOLD_POLICIES = {
+    "legacy_f2",
+    "precision_guarded_f2",
+    "recall_with_fp_budget",
+}
 
 
 @dataclass(frozen=True)
@@ -277,45 +292,221 @@ def validate_snapshot_weights(snapshot_scores: pd.DataFrame) -> pd.DataFrame:
     return grouped.loc[~np.isclose(grouped["weight_sum"].astype(float), 1.0, atol=1e-6)]
 
 
-def select_alert_threshold(
+def _candidate_thresholds(
+    valid_scores: pd.Series,
+    *,
+    candidate_quantiles: Iterable[float],
+    threshold_floor: float | None,
+) -> list[float]:
+    scores = pd.to_numeric(valid_scores, errors="coerce").dropna()
+    if scores.empty:
+        return []
+    candidates = {
+        float(scores.quantile(float(q)))
+        for q in candidate_quantiles
+    }
+    floor = _safe_float(threshold_floor)
+    if np.isfinite(floor):
+        candidates = {max(candidate, floor) for candidate in candidates}
+        candidates.add(float(floor))
+    return sorted(candidate for candidate in candidates if np.isfinite(candidate))
+
+
+def _apply_alert_policy(
+    snapshots: pd.DataFrame,
+    *,
+    threshold: float,
+    min_persistent_releases: int = 1,
+) -> pd.DataFrame:
+    out = snapshots.copy()
+    score = pd.to_numeric(out["score_value"], errors="coerce")
+    out["threshold"] = float(threshold) if np.isfinite(_safe_float(threshold)) else np.nan
+    out["raw_alert"] = score >= out["threshold"]
+    if int(min_persistent_releases) <= 1 or out.empty:
+        out["alert"] = out["raw_alert"]
+        return out
+    out = out.sort_values([*TARGET_GROUP_KEY, "detector_id", "as_of_date"]).copy()
+    out["_raw_alert_count"] = (
+        out["raw_alert"].astype(int)
+        .groupby([out[col] for col in [*TARGET_GROUP_KEY, "detector_id"]])
+        .cumsum()
+    )
+    out["alert"] = out["raw_alert"] & (
+        out["_raw_alert_count"] >= int(min_persistent_releases)
+    )
+    return out.drop(columns=["_raw_alert_count"])
+
+
+def _candidate_metric_row(
+    annual: pd.DataFrame,
+    *,
+    threshold: float,
+    threshold_policy: str,
+    min_precision: float,
+    max_false_positive_rate: float,
+) -> dict[str, float | bool]:
+    metrics = _binary_event_metrics(annual["target_event_label"], annual["any_alert"])
+    non_event_count = max(0, int(len(annual)) - int(metrics["event_count"]))
+    false_positive_rate = (
+        float(metrics["false_positive_count"] / non_event_count)
+        if non_event_count else np.nan
+    )
+    precision = metrics["annual_precision_any_alert"]
+    recall = metrics["event_recall_any_alert"]
+    f2 = metrics["annual_f2_any_alert"]
+    if threshold_policy == "legacy_f2":
+        eligible = True
+        objective = f2
+    elif threshold_policy == "precision_guarded_f2":
+        eligible = bool(np.isfinite(precision) and precision >= float(min_precision))
+        objective = f2
+    elif threshold_policy == "recall_with_fp_budget":
+        eligible = bool(
+            np.isfinite(false_positive_rate)
+            and false_positive_rate <= float(max_false_positive_rate)
+        )
+        objective = recall
+    else:
+        raise ValueError(
+            f"threshold_policy must be one of {sorted(THRESHOLD_POLICIES)}, "
+            f"got {threshold_policy!r}"
+        )
+    return {
+        "threshold": float(threshold),
+        "objective": _safe_float(objective),
+        "eligible": eligible,
+        "recall": _safe_float(recall),
+        "precision": _safe_float(precision),
+        "f2": _safe_float(f2),
+        "false_positive_rate": _safe_float(false_positive_rate),
+        "false_positive_count": int(metrics["false_positive_count"]),
+    }
+
+
+def _select_alert_threshold_details(
     train_snapshots: pd.DataFrame,
     *,
     candidate_quantiles: Iterable[float] = (0.50, 0.60, 0.70, 0.80, 0.90),
-) -> tuple[float, float, int]:
-    """Select a score threshold from training snapshots only."""
+    threshold_policy: str = "legacy_f2",
+    min_precision: float = 0.0,
+    max_false_positive_rate: float = 1.0,
+    min_persistent_releases: int = 1,
+    threshold_floor: float | None = None,
+) -> dict[str, float | int | str]:
     valid = train_snapshots.loc[
         pd.to_numeric(train_snapshots["score_value"], errors="coerce").notna()
         & train_snapshots["target_event_label"].notna()
     ].copy()
     if valid.empty:
-        return np.nan, np.nan, 0
+        return {
+            "threshold": np.nan,
+            "selected_metric": np.nan,
+            "candidate_count": 0,
+            "selected_recall": np.nan,
+            "selected_precision": np.nan,
+            "selected_false_positive_rate": np.nan,
+        }
     valid["score_value"] = pd.to_numeric(valid["score_value"], errors="coerce")
-    candidates = sorted({
-        float(valid["score_value"].quantile(float(q)))
-        for q in candidate_quantiles
-        if valid["score_value"].notna().any()
-    })
+    candidates = _candidate_thresholds(
+        valid["score_value"],
+        candidate_quantiles=candidate_quantiles,
+        threshold_floor=threshold_floor,
+    )
     if not candidates:
-        return np.nan, np.nan, 0
-    best_threshold = np.nan
-    best_metric = -np.inf
-    best_recall = -np.inf
+        return {
+            "threshold": np.nan,
+            "selected_metric": np.nan,
+            "candidate_count": 0,
+            "selected_recall": np.nan,
+            "selected_precision": np.nan,
+            "selected_false_positive_rate": np.nan,
+        }
+
+    scored: list[dict[str, float | bool]] = []
     for threshold in candidates:
-        trial = valid.assign(alert=valid["score_value"] >= threshold)
+        trial = _apply_alert_policy(
+            valid,
+            threshold=threshold,
+            min_persistent_releases=min_persistent_releases,
+        )
         annual = _annual_alert_frame(trial)
-        metrics = _binary_event_metrics(annual["target_event_label"], annual["any_alert"])
-        metric = metrics["annual_f2_any_alert"]
-        tie_breaker = metrics["event_recall_any_alert"]
-        score = metric if np.isfinite(metric) else -np.inf
-        if score > best_metric or (
-            score == best_metric
-            and np.isfinite(tie_breaker)
-            and tie_breaker > best_recall
-        ):
-            best_metric = score
-            best_recall = tie_breaker if np.isfinite(tie_breaker) else -np.inf
-            best_threshold = float(threshold)
-    return best_threshold, (best_metric if np.isfinite(best_metric) else np.nan), len(candidates)
+        scored.append(
+            _candidate_metric_row(
+                annual,
+                threshold=threshold,
+                threshold_policy=threshold_policy,
+                min_precision=min_precision,
+                max_false_positive_rate=max_false_positive_rate,
+            )
+        )
+    eligible = [row for row in scored if bool(row["eligible"])]
+    if threshold_policy == "recall_with_fp_budget":
+        sort_key = lambda row: (
+            _safe_float(row["recall"]),
+            _safe_float(row["f2"]),
+            -_safe_float(row["false_positive_rate"]),
+            _safe_float(row["threshold"]),
+        )
+    elif threshold_policy == "precision_guarded_f2":
+        sort_key = lambda row: (
+            _safe_float(row["f2"]),
+            _safe_float(row["recall"]),
+            _safe_float(row["precision"]),
+            _safe_float(row["threshold"]),
+        )
+    else:
+        sort_key = lambda row: (
+            _safe_float(row["f2"]),
+            _safe_float(row["recall"]),
+            _safe_float(row["threshold"]),
+        )
+    if eligible:
+        selected = max(eligible, key=sort_key)
+    else:
+        selected = max(
+            scored,
+            key=lambda row: (
+                _safe_float(row["precision"]),
+                -_safe_float(row["false_positive_rate"]),
+                _safe_float(row["f2"]),
+                _safe_float(row["threshold"]),
+            ),
+        )
+    return {
+        "threshold": _safe_float(selected["threshold"]),
+        "selected_metric": _safe_float(selected["objective"]),
+        "candidate_count": int(len(candidates)),
+        "selected_recall": _safe_float(selected["recall"]),
+        "selected_precision": _safe_float(selected["precision"]),
+        "selected_false_positive_rate": _safe_float(selected["false_positive_rate"]),
+    }
+
+
+def select_alert_threshold(
+    train_snapshots: pd.DataFrame,
+    *,
+    candidate_quantiles: Iterable[float] = (0.50, 0.60, 0.70, 0.80, 0.90),
+    threshold_policy: str = "legacy_f2",
+    min_precision: float = 0.0,
+    max_false_positive_rate: float = 1.0,
+    min_persistent_releases: int = 1,
+    threshold_floor: float | None = None,
+) -> tuple[float, float, int]:
+    """Select a score threshold from training snapshots only."""
+    details = _select_alert_threshold_details(
+        train_snapshots,
+        candidate_quantiles=candidate_quantiles,
+        threshold_policy=threshold_policy,
+        min_precision=min_precision,
+        max_false_positive_rate=max_false_positive_rate,
+        min_persistent_releases=min_persistent_releases,
+        threshold_floor=threshold_floor,
+    )
+    return (
+        _safe_float(details["threshold"]),
+        _safe_float(details["selected_metric"]),
+        int(details["candidate_count"]),
+    )
 
 
 def _annual_alert_frame(snapshot_predictions: pd.DataFrame) -> pd.DataFrame:
@@ -435,8 +626,22 @@ def evaluate_wasde_snapshot_anomaly_scores(
     *,
     min_train_years: int = 10,
     candidate_quantiles: Iterable[float] = (0.50, 0.60, 0.70, 0.80, 0.90),
+    threshold_policy: str = "legacy_f2",
+    min_precision: float = 0.0,
+    max_false_positive_rate: float = 1.0,
+    min_persistent_releases: int = 1,
+    detector_threshold_floors: dict[str, float] | None = None,
 ) -> WasdeSnapshotAnomalyBacktestResult:
     """Run Phase 2 grouped rolling backtest evaluation."""
+    if threshold_policy not in THRESHOLD_POLICIES:
+        raise ValueError(
+            f"threshold_policy must be one of {sorted(THRESHOLD_POLICIES)}, "
+            f"got {threshold_policy!r}"
+        )
+    threshold_floors = {
+        str(key): float(value)
+        for key, value in (detector_threshold_floors or {}).items()
+    }
     evaluation_frame = prepare_score_evaluation_frame(scores, matrix)
     snapshot_scores = aggregate_snapshot_detector_scores(evaluation_frame)
     folds = build_rolling_year_splits(snapshot_scores, min_train_years=min_train_years)
@@ -447,13 +652,27 @@ def evaluate_wasde_snapshot_anomaly_scores(
     for fold in folds:
         train = snapshot_scores.loc[fold["train_index"]].copy()
         test = snapshot_scores.loc[fold["test_index"]].copy()
-        threshold, metric, candidate_count = select_alert_threshold(
+        detector_id = str(fold["detector_id"])
+        threshold_floor = threshold_floors.get(detector_id)
+        threshold_details = _select_alert_threshold_details(
             train,
             candidate_quantiles=candidate_quantiles,
+            threshold_policy=threshold_policy,
+            min_precision=min_precision,
+            max_false_positive_rate=max_false_positive_rate,
+            min_persistent_releases=min_persistent_releases,
+            threshold_floor=threshold_floor,
         )
+        threshold = _safe_float(threshold_details["threshold"])
+        metric = _safe_float(threshold_details["selected_metric"])
+        candidate_count = int(threshold_details["candidate_count"])
         test["fold_id"] = int(fold["fold_id"])
-        test["threshold"] = threshold
-        test["alert"] = pd.to_numeric(test["score_value"], errors="coerce") >= threshold
+        test["threshold_policy"] = threshold_policy
+        test = _apply_alert_policy(
+            test,
+            threshold=threshold,
+            min_persistent_releases=min_persistent_releases,
+        )
         prediction_frames.append(test)
 
         annual = _annual_alert_frame(test)
@@ -465,9 +684,10 @@ def evaluate_wasde_snapshot_anomaly_scores(
             lead_days = float((first_alert - year_start).dt.days.median())
         metric_rows.append({
             "target_key": fold["target_key"],
-            "detector_id": fold["detector_id"],
+            "detector_id": detector_id,
             "fold_id": int(fold["fold_id"]),
             "test_year": int(fold["test_year"]),
+            "threshold_policy": threshold_policy,
             "threshold": threshold,
             "threshold_metric": metric,
             "train_group_count": int(fold["train_group_count"]),
@@ -487,11 +707,19 @@ def evaluate_wasde_snapshot_anomaly_scores(
         })
         threshold_rows.append({
             "target_key": fold["target_key"],
-            "detector_id": fold["detector_id"],
+            "detector_id": detector_id,
             "fold_id": int(fold["fold_id"]),
             "test_year": int(fold["test_year"]),
+            "threshold_policy": threshold_policy,
             "threshold": threshold,
             "selected_metric": metric,
+            "selected_recall": _safe_float(threshold_details["selected_recall"]),
+            "selected_precision": _safe_float(threshold_details["selected_precision"]),
+            "selected_false_positive_rate": _safe_float(
+                threshold_details["selected_false_positive_rate"]
+            ),
+            "threshold_floor": _safe_float(threshold_floor),
+            "min_persistent_releases": int(min_persistent_releases),
             "train_group_count": int(fold["train_group_count"]),
             "candidate_count": int(candidate_count),
         })
@@ -520,6 +748,11 @@ def evaluate_wasde_snapshot_anomaly_scores(
         "parameters": {
             "min_train_years": int(min_train_years),
             "candidate_quantiles": [float(q) for q in candidate_quantiles],
+            "threshold_policy": threshold_policy,
+            "min_precision": float(min_precision),
+            "max_false_positive_rate": float(max_false_positive_rate),
+            "min_persistent_releases": int(min_persistent_releases),
+            "detector_threshold_floors": threshold_floors,
         },
         "inputs": {
             "score_row_count": int(len(scores)),

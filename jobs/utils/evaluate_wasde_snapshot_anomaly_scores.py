@@ -84,6 +84,24 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, dest="output_dir")
     parser.add_argument("--min-train-years", type=int, default=10, dest="min_train_years")
     parser.add_argument("--threshold-quantiles", default="0.50,0.60,0.70,0.80,0.90")
+    parser.add_argument(
+        "--threshold-policy",
+        default="legacy_f2",
+        choices=("legacy_f2", "precision_guarded_f2", "recall_with_fp_budget"),
+    )
+    parser.add_argument("--min-precision", type=float, default=0.0)
+    parser.add_argument("--max-false-positive-rate", type=float, default=1.0)
+    parser.add_argument("--min-persistent-releases", type=int, default=1)
+    parser.add_argument(
+        "--detector-threshold-floor-json",
+        default="{}",
+        help="JSON object such as {\"revision_streak\": 2.0}",
+    )
+    parser.add_argument(
+        "--detector-threshold-floors",
+        default="",
+        help="Comma-separated detector floors, e.g. revision_streak=2,stage_level_z=1.5",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -93,6 +111,19 @@ def main() -> None:
     args = _parse_args()
     target_keys = _parse_csv(args.target_keys)
     quantiles = tuple(float(value) for value in _parse_csv(args.threshold_quantiles))
+    if args.detector_threshold_floors:
+        detector_threshold_floors = {}
+        for item in _parse_csv(args.detector_threshold_floors):
+            key, sep, value = item.partition("=")
+            if not sep:
+                raise ValueError(
+                    "--detector-threshold-floors entries must look like detector=value"
+                )
+            detector_threshold_floors[key.strip()] = float(value)
+    else:
+        detector_threshold_floors = json.loads(args.detector_threshold_floor_json)
+    if not isinstance(detector_threshold_floors, dict):
+        raise ValueError("--detector-threshold-floor-json must be a JSON object")
     if not target_keys:
         raise ValueError("--target-keys must contain at least one target")
 
@@ -120,6 +151,14 @@ def main() -> None:
         matrix,
         min_train_years=args.min_train_years,
         candidate_quantiles=quantiles,
+        threshold_policy=args.threshold_policy,
+        min_precision=args.min_precision,
+        max_false_positive_rate=args.max_false_positive_rate,
+        min_persistent_releases=args.min_persistent_releases,
+        detector_threshold_floors={
+            str(key): float(value)
+            for key, value in detector_threshold_floors.items()
+        },
     )
     missingness = build_score_missingness_diagnostics(scores)
     correlations = build_score_component_correlation(scores)
