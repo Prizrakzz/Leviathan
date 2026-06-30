@@ -109,3 +109,14 @@ def test_route_smart_llm_fallback():
         return {"contracts": ["corn"]}
     got = an.route_smart("zzz", gr, embed=lambda t, **k: [[0.0, 0.0] for _ in t], route_call=fake_route_call)
     assert got == ["corn"] and called["yes"]                       # lexical + semantic empty -> LLM tier
+
+
+def test_source_tier_and_ev_block_tagging():
+    assert an.source_tier("usda_wasde") == 1 and an.source_tier("usda_fas_coffee_wmt") == 1   # official/balance-sheet
+    assert an.source_tier("usda_gain_coffee") == 2                                            # USDA attache
+    assert an.source_tier("fnc") == 3 and an.source_tier("mpoc") == 3 and an.source_tier("conab") == 3
+    assert an.source_tier("wb_cmo_outlook") == 4                                              # macro outlook
+    assert an.source_tier("mystery") == 3                                                     # unknown -> mid
+    block = an._ev_block([{"source": "wb_cmo_outlook", "date": "2016-09-01", "text": "frost damage"},
+                          {"source": "usda_wasde", "date": "2016-01-01", "text": "stocks"}])
+    assert "[T4] (wb_cmo_outlook" in block and "[T1] (usda_wasde" in block                    # tiers tag the evidence

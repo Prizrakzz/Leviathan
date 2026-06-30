@@ -16,6 +16,22 @@ from leviathan.graphrag import harvest as hv
 
 SONNET = "claude-sonnet-4-6"
 
+# Source-trust tiers (lower = more trusted). Retrieval stays source-NEUTRAL; this only orders/labels the OUTPUT.
+# Tunable. T1 official balance-sheet/statistical, T2 USDA attaché field reports, T3 producer/industry bodies,
+# T4 macro/price commentary.
+_SOURCE_TIERS = {1: ("usda_wasde", "usda_fas", "usda_wap"), 2: ("usda_gain",),
+                 3: ("fnc", "mpoc", "mpob", "conab"), 4: ("wb_cmo",)}
+_TIER_LABEL = {1: "official/balance-sheet", 2: "USDA attache", 3: "producer/industry", 4: "macro outlook"}
+
+
+def source_tier(source: str) -> int:
+    """Map a source name to a trust tier (1=most trusted ... 4=macro commentary); unknown -> 3."""
+    s = (source or "").lower()
+    for tier in sorted(_SOURCE_TIERS):
+        if any(p in s for p in _SOURCE_TIERS[tier]):
+            return tier
+    return 3
+
 _SYSTEM = (
     "You are a commodities analyst writing for a hedge-fund PM who will RISK CAPITAL on your answer. Use ONLY the "
     "curated causal graph + dated evidence in the prompt — never invent drivers, signs, numbers, or sources.\n"
@@ -36,6 +52,10 @@ _SYSTEM = (
     "TRADEABLE SUBSTANCE: cite the magnitudes/dates the evidence DOES give (numbers make 'violent' concrete); name "
     "the WATCH-LIST drivers a desk would monitor; where the graph supports it, point at the trade expression "
     "(spread, backwardation, a threshold).\n"
+    "SOURCE TRUST: each evidence item is tagged [T1]-[T4] by source trust (T1 official balance-sheet WASDE/FAS > "
+    "T2 USDA attache GAIN > T3 producer/industry body fnc/mpoc/conab > T4 macro/price outlook wb_cmo). Draw on ALL "
+    "tiers for breadth, but in `sources` ORDER citations most-trusted (lowest T) FIRST and note each source's "
+    "nature. When sources of DIFFERENT tiers disagree on a fact, FLAG the disagreement — it's signal a PM wants.\n"
     "Emit via emit_answer, reader-first for a PM to skim:\n"
     "- tldr: 2-4 sentences, bottom line FIRST (net price direction + the key driver). Inline [n] for evidence-backed claims.\n"
     "- mechanism: the causal chain / key drivers (sign each as 'raises price (+)' or 'lowers (-)'); NAME the convergence "
@@ -129,7 +149,8 @@ def _context_block(graph: gph.CausalGraph, contract: str) -> str:
 
 
 def _ev_block(evidence: list[dict]) -> str:
-    return "\n".join(f"- ({e['source']}, {e['date']}) {e['text']}" for e in evidence) or "(no evidence retrieved)"
+    return "\n".join(f"- [T{source_tier(e['source'])}] ({e['source']}, {e['date']}) {e['text']}"
+                     for e in evidence) or "(no evidence retrieved)"
 
 
 def _prompt(query: str, contracts: list[str], blocks: list[str]) -> str:

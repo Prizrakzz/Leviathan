@@ -159,3 +159,36 @@ def test_sample_keys_relevance_includes_extra_terms(monkeypatch):
             return types.SimpleNamespace(paginate=lambda **kw: [{"Contents": [{"Key": k} for k in rape + other]}])
     got = ev.sample_keys(_S3(), node="canola", year_windows=[(2021, 2021)], n=8, seed=0)
     assert set(rape) <= set(got)        # canola's rapeseed-source docs prioritized via extra_terms (was random before)
+
+
+def test_covering_sources_includes_allcommodity_and_specialized():
+    all_src = {"usda_gain_coffee", "wb_cmo_outlook", "usda_wasde", "fnc", "usda_fas_coffee_wmt", "usda_gain_sugar"}
+    cov = ev.covering_sources("arabica_coffee", all_src)
+    assert "usda_gain_coffee" in cov                       # dedicated (name-match)
+    assert "wb_cmo_outlook" in cov and "usda_wasde" in cov  # all-commodity sources
+    assert "fnc" in cov and "usda_fas_coffee_wmt" in cov    # specialized coffee sources
+    assert "usda_gain_sugar" not in cov                     # an unrelated commodity's source stays out
+
+
+def test_sample_keys_is_source_agnostic(monkeypatch):
+    import collections
+    import leviathan.graphrag.corpus_recon as cr
+    # raw_sugar: a FAT dedicated source (usda_gain_sugar) + all-commodity wb_cmo + wasde that discuss sugar.
+    # The result must NOT be 100% gain_sugar — the other sources have to get in (the whole point).
+    sugar = [f"text/x/2020/gain_sugar_{i}/document.json" for i in range(50)]
+    wb = [f"text/x/2020/wbcmo_{i}/document.json" for i in range(15)]
+    wasde = [f"text/x/2020/wasde_{i}/document.json" for i in range(15)]
+    def src(k):
+        return ("usda_gain_sugar" if "gain_sugar" in k else "wb_cmo_outlook" if "wbcmo" in k
+                else "usda_wasde" if "wasde" in k else "other")
+    monkeypatch.setattr(cr, "_source_of", src, raising=False)
+    monkeypatch.setattr(ev, "_extra_terms", lambda node: [])
+
+    class _S3:
+        def get_paginator(self, _):
+            return types.SimpleNamespace(paginate=lambda **kw: [{"Contents": [{"Key": k} for k in sugar + wb + wasde]}])
+    got = ev.sample_keys(_S3(), node="raw_sugar", year_windows=[(2020, 2020)], n=20, seed=0)
+    cnt = collections.Counter(src(k) for k in got)
+    assert cnt["usda_gain_sugar"] >= 1                                    # dedicated source still contributes (depth)
+    assert cnt["wb_cmo_outlook"] >= 1 and cnt["usda_wasde"] >= 1          # but NOT single-source — others get IN
+    assert cnt["usda_gain_sugar"] <= round(20 * ev._DEDICATED_FRAC) + 1   # dedicated capped ~60%, not 100%

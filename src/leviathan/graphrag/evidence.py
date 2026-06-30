@@ -105,8 +105,48 @@ def _doc_date(doc: dict, key: str) -> date:
     return date(int(y), 1, 1) if y not in (None, "unknown") else date(1970, 1, 1)
 
 
+# --- source-agnostic sampling: the EDGE is a multi-source corpus, not a USDA-GAIN mirror -----------------
+# Sources that discuss MANY commodities (so every node should draw from them, not only its dedicated GAIN source):
+_ALL_COMMODITY_SOURCES = frozenset({"wb_cmo_outlook", "usda_wasde", "usda_wap", "usda_gain_grain_monthly", "conab"})
+# Specialized NON-GAIN sources keyed by a commodity token (their names don't contain the commodity):
+_SPECIALIZED_SOURCES = {"coffee": ("fnc", "usda_fas_coffee_wmt"), "palm": ("mpoc", "mpob")}
+_DEDICATED_FRAC = 0.6                                  # dedicated source gets ~60% (depth); the rest is multi-source breadth
+
+
+def _node_source_terms(node: str) -> list[str]:
+    terms = [t for t in node.lower().split("_") if len(t) > 2]   # commodity tokens, NOT the exchange suffix
+    return terms + [tok for t in _extra_terms(node) for tok in t.lower().split() if len(tok) > 2]
+
+
+def covering_sources(node: str, all_sources) -> set[str]:
+    """Sources whose docs are CANDIDATES for this node: the dedicated (name-matching) source(s), the
+    all-commodity sources (wb_cmo/wasde/wap/...), and any specialized non-GAIN source for the commodity. The
+    full-text matcher still decides on-topic at chunk time — this just stops the fat GAIN source from being the
+    ONLY thing sampled (which made every rich node ~100% single-source)."""
+    toks = _node_source_terms(node)
+    cov = set(_ALL_COMMODITY_SOURCES) | {s for s in all_sources if any(t in s.lower() for t in toks)}
+    for tok, srcs in _SPECIALIZED_SOURCES.items():
+        if tok in toks:
+            cov |= set(srcs)
+    return cov & set(all_sources)
+
+
+def _roundrobin(lists: list[list]) -> list:
+    out, i = [], 0
+    while True:
+        added = False
+        for ks in lists:
+            if i < len(ks):
+                out.append(ks[i]); added = True
+        if not added:
+            return out
+        i += 1
+
+
 def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[str]:
-    """Doc keys in the marquee year-windows, biased to commodity-relevant sources (widen if too few)."""
+    """SOURCE-AGNOSTIC doc sampling: ~60% from the dedicated source(s) (depth) + the rest round-robin across the
+    OTHER covering sources (breadth), so the index spans wb_cmo/fnc/mpoc/conab/wasde — not 100% GAIN. The chunk-time
+    matcher still filters on-topic; retrieval stays source-neutral."""
     from leviathan.graphrag.corpus_recon import BUCKET, TEXT_PREFIX, _source_of
     from leviathan.graphrag import batch_extract as bx
     keys = [o["Key"] for p in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX)
@@ -116,19 +156,33 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
         y = bx._year_of(k)
         return y not in (None, "unknown") and any(lo <= int(y) <= hi for lo, hi in year_windows)
 
-    terms = [t for t in node.lower().split("_") if len(t) > 2]   # commodity tokens, NOT the contract's exchange suffix
-    terms += [tok for t in _extra_terms(node) for tok in t.lower().split() if len(tok) > 2]  # parent-source bias too
     in_win = [k for k in keys if in_window(k)]
-    relevant = [k for k in in_win if any(t in _source_of(k).lower() for t in terms)]
+    if not in_win:
+        return []
+    all_src = {_source_of(k) for k in in_win}
+    toks = _node_source_terms(node)
+    dedicated = {s for s in all_src if any(t in s.lower() for t in toks)}
+    cov = covering_sources(node, all_src)
     rng = random.Random(seed)
-    if len(relevant) >= n:
-        return rng.sample(relevant, n)
-    # KEEP every source-relevant doc, then top up from the rest of the in-window pool. (Old code abandoned the
-    # relevance bias entirely when relevant < n, diluting a thin commodity's few real docs in a random draw.)
-    rest = [k for k in in_win if k not in set(relevant)]
-    out = relevant + rng.sample(rest, min(n - len(relevant), len(rest)))
+    ded_docs = [k for k in in_win if _source_of(k) in dedicated]
+    rng.shuffle(ded_docs)
+    by_other: dict[str, list] = {}                    # the other covering sources, grouped for round-robin balance
+    for k in in_win:
+        s = _source_of(k)
+        if s in cov and s not in dedicated:
+            by_other.setdefault(s, []).append(k)
+    for ks in by_other.values():
+        rng.shuffle(ks)
+    other_balanced = _roundrobin(list(by_other.values()))
+    n_ded = round(n * _DEDICATED_FRAC)
+    out = ded_docs[:n_ded] + other_balanced[:max(0, n - len(ded_docs[:n_ded]))]
+    if len(out) < n:                                  # short -> top up from anything in-window (matcher filters later)
+        used = set(out)
+        rest = [k for k in in_win if k not in used]
+        rng.shuffle(rest)
+        out += rest[:n - len(out)]
     rng.shuffle(out)
-    return out
+    return out[:n]
 
 
 def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: str | None = None,
