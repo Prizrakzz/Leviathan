@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from leviathan.causal import schema as cs
 from leviathan.graphrag import answer as an
+from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import graph as g
 
 
@@ -109,6 +110,29 @@ def test_route_smart_llm_fallback():
         return {"contracts": ["corn"]}
     got = an.route_smart("zzz", gr, embed=lambda t, **k: [[0.0, 0.0] for _ in t], route_call=fake_route_call)
     assert got == ["corn"] and called["yes"]                       # lexical + semantic empty -> LLM tier
+
+
+def test_answer_pulls_cross_cutting_driver_evidence(monkeypatch):
+    gr = _graph()
+    monkeypatch.setattr(ev, "driver_specs", lambda: {"frost": {"terms": ["frost"]}})
+    monkeypatch.setattr(ev, "driver_slices_for", lambda t: ["frost"] if "frost" in t else [])
+    seen = {}
+
+    def fake_call(system, user, *, model, tool):
+        seen["user"] = user
+        return {"tldr": "x", "mechanism": "y", "diagram_mermaid": "", "sources": []}
+
+    def fake_retrieve(q, node, *, k, asof=None, near=None):
+        if node.startswith("drivers/"):                                  # the cross-cutting driver slice
+            return [{"date": "2021-07-01", "source": "wb_cmo_outlook", "source_key": "s3://d",
+                     "text": "a damaging frost hit the belt", "event_date": "2021-06-20"}]
+        return [{"date": "2021-07-20", "source": "GAIN", "source_key": "s3://c", "text": "arabica note"}]
+
+    out = an.answer("trace how a frost spikes arabica", graph=gr, retrieve=fake_retrieve,
+                    driver_retrieve=fake_retrieve, call=fake_call)
+    assert out["trace"]["drivers"] == ["frost"] and out["trace"]["n_driver_evidence"] == 1
+    assert "CROSS-CUTTING DRIVER EVIDENCE" in seen["user"] and "{driver: frost}" in seen["user"]
+    assert "event 2021-06-20" in seen["user"]                            # event date surfaced for the timeline
 
 
 def test_source_tier_and_ev_block_tagging():

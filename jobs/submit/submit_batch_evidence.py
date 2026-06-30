@@ -50,13 +50,14 @@ def _groups(nodes: list[str], size: int) -> list[list[str]]:
 
 
 def submit_groups(groups: list[list[str]], *, job_queue: str, job_definition: str, aws_region: str,
-                  n_docs: int, workers: int, skip_existing: bool, dry_run: bool) -> list[dict]:
+                  n_docs: int, workers: int, skip_existing: bool, drivers: bool, dry_run: bool) -> list[dict]:
     client = boto3.client("batch", region_name=aws_region)
     submitted: list[dict] = []
     for grp in groups:
         job_name = f"evidence-{grp[0].replace('_', '-')}-{len(grp)}"
         parameters = {"nodes": ",".join(grp), "n_docs": str(n_docs), "workers": str(workers),
-                      "skip_existing": "true" if skip_existing else "false"}
+                      "skip_existing": "true" if skip_existing else "false",
+                      "drivers": "true" if drivers else "false"}
         if dry_run:
             logger.info("[DRY RUN] Would submit: %s  nodes=%s", job_name, parameters["nodes"])
             submitted.append({"job_name": job_name, "job_id": None, "nodes": grp})
@@ -82,24 +83,32 @@ def main() -> None:
     ap.add_argument("--n-docs", type=int, default=90)
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--group-size", type=int, default=6, help="nodes per Batch job (parallelism vs startup cost)")
+    ap.add_argument("--single-job", action="store_true",
+                    help="submit ALL nodes as one job — required with --drivers so the driver_sink accumulates "
+                         "globally (parallel groups would each write partial, overwriting driver slices)")
+    ap.add_argument("--no-drivers", action="store_true", help="commodity slices only (skip WS-MS6 driver capture)")
     ap.add_argument("--skip-existing", action="store_true",
                     help="resume: each job skips nodes already in EVIDENCE_S3 (no Haiku re-bill)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     aws_region = get_required_env("AWS_REGION")
+    drivers = not args.no_drivers
     nodes = _resolve(args.nodes)
     if not nodes:
         logger.warning("No nodes to build for --nodes=%s (all covered?).", args.nodes)
         return
-    groups = _groups(nodes, args.group_size)
+    single = args.single_job or drivers                   # driver capture must be one job (global accumulation)
+    groups = [nodes] if single else _groups(nodes, args.group_size)
+    if drivers and len(groups) > 1:                       # safety: never shard a driver run
+        groups = [nodes]
 
-    logger.info("Submitting %d node(s) in %d job(s)  queue=%s  job_def=%s  n_docs=%d  workers=%d",
-                len(nodes), len(groups), job_queue, job_definition, args.n_docs, args.workers)
+    logger.info("Submitting %d node(s) in %d job(s)  queue=%s  job_def=%s  n_docs=%d  workers=%d  drivers=%s",
+                len(nodes), len(groups), job_queue, job_definition, args.n_docs, args.workers, drivers)
 
     submitted = submit_groups(groups, job_queue=job_queue, job_definition=job_definition, aws_region=aws_region,
                               n_docs=args.n_docs, workers=args.workers, skip_existing=args.skip_existing,
-                              dry_run=args.dry_run)
+                              drivers=drivers, dry_run=args.dry_run)
 
     if not args.dry_run:
         run_id = utc_now_iso().replace(":", "-")

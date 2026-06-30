@@ -80,6 +80,11 @@ class Chunk(_Base):
     extraction_method: ExtractionMethod
     ocr: bool                              # = (extraction_method == "textract")
     text_quality: float = Field(ge=0.0, le=1.0)
+    # WS-MS6 temporal: when the event the proposition describes actually occurred/will occur, when the
+    # text states it (vs document_date = when it was REPORTED). None -> serving falls back to document_date.
+    # event_date > document_date marks forward guidance (a forecast); event_date < document_date a recap.
+    event_date: Optional[date] = None
+    event_date_precision: Optional[Literal["day", "month", "quarter", "year"]] = None
     # Fix 2 — neighbor context so extraction can preserve cross-sentence relations.
     prev_chunk_id: Optional[str] = None
     next_chunk_id: Optional[str] = None

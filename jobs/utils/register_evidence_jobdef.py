@@ -29,6 +29,7 @@ _COMMAND = [
     "--n-docs", "Ref::n_docs",
     "--workers", "Ref::workers",
     "--skip-existing", "Ref::skip_existing",   # "true" to resume a partial run without re-billing
+    "--drivers", "Ref::drivers",               # "true" captures cross-cutting driver/cascade slices (WS-MS6)
 ]
 
 # Defaults for every Ref:: token — a submission may override any of these.
@@ -37,6 +38,7 @@ _PARAMETERS = {
     "n_docs": "90",
     "workers": "16",
     "skip_existing": "false",
+    "drivers": "true",
 }
 
 _CONTAINER = {

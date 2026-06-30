@@ -52,6 +52,9 @@ def main() -> None:
     ap.add_argument("--skip-existing", default="false",   # "true"/"false" so it threads through Batch Ref::
                     help="skip nodes already present in EVIDENCE_S3 — for resuming a partially-failed run "
                          "without re-billing Haiku (default false = full overwrite)")
+    ap.add_argument("--drivers", default="true",          # WS-MS6: capture cross-cutting driver/cascade props
+                    help="'true' routes driver/cascade props (B40, freight, FX, El Nino) into driver slices "
+                         "FREE from the same pass; 'false' = commodity slices only")
     args = ap.parse_args()
 
     load_env()
@@ -73,21 +76,30 @@ def main() -> None:
 
     s3 = boto3.client("s3", region_name=args.aws_region)
     bedrock = ev._bedrock()                               # shared bedrock-runtime client (thread-safe for invoke)
+    capture_drivers = str(args.drivers).lower() == "true"
+    driver_sink: dict = {} if capture_drivers else None   # accumulated ACROSS nodes -> run drivers in ONE job
     start = datetime.now(timezone.utc)
     total, errors = 0, 0
     for node in nodes:
         try:
             n = ev.build_index(s3, node=node, aliases=ev._aliases(node), year_windows=ev.windows_for(node),
                                n_docs=ev.n_docs_for(node, args.n_docs), backend=args.backend, bedrock=bedrock,
-                               max_props=None, workers=args.workers, aws_region=args.aws_region)
+                               max_props=None, workers=args.workers, aws_region=args.aws_region,
+                               driver_sink=driver_sink)
             logger.info("  %s: %d dated props -> evidence/%s.jsonl", node, n, node)
             total += n
         except Exception as exc:                          # one bad node shouldn't abandon the rest of the group
             logger.exception("  %s FAILED: %s", node, exc)
             errors += 1
 
+    dtotal = 0
+    if capture_drivers and driver_sink:                   # embed + write the cross-cutting driver slices once
+        dtotal = ev.write_driver_slices(driver_sink, backend=args.backend, bedrock=bedrock)
+        logger.info("  drivers: %d props across %d slices -> evidence/drivers/*.jsonl", dtotal, len(driver_sink))
+
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
-    logger.info("Done  nodes=%d  props=%d  errors=%d  elapsed=%.1fs", len(nodes), total, errors, elapsed)
+    logger.info("Done  nodes=%d  commodity_props=%d  driver_props=%d  errors=%d  elapsed=%.1fs",
+                len(nodes), total, dtotal, errors, elapsed)
     if errors:
         raise RuntimeError(f"build_evidence finished with {errors} failed node(s). Check CloudWatch logs.")
 

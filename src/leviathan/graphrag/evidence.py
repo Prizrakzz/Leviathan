@@ -37,8 +37,9 @@ def _evid_write(node: str, text: str) -> None:
         bkt, key = _parse_s3(base.rstrip("/") + f"/{node}.jsonl")
         boto3.client("s3").put_object(Bucket=bkt, Key=key, Body=text.encode("utf-8"))
     else:
-        _EVID_DIR.mkdir(parents=True, exist_ok=True)
-        (_EVID_DIR / f"{node}.jsonl").write_text(text, encoding="utf-8")
+        p = _EVID_DIR / f"{node}.jsonl"
+        p.parent.mkdir(parents=True, exist_ok=True)            # node may be "drivers/<x>" (a subdir)
+        p.write_text(text, encoding="utf-8")
 
 
 def _evid_read(node: str) -> str:
@@ -221,14 +222,22 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
     return out[:n]
 
 
+def _prop_record(p, *, key: str) -> dict:
+    """Shared fields for a stored prop — incl. the WS-MS6 event_date temporal pair (None when unstated)."""
+    return {"date": str(p.document_date), "source": p.source, "source_key": key, "text": p.proposition,
+            "event_date": str(p.event_date) if getattr(p, "event_date", None) else None,
+            "event_date_precision": getattr(p, "event_date_precision", None)}
+
+
 def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: str | None = None,
                 bedrock=None, chunker=None, max_props: int | None = 400, workers: int = 1,
-                aws_region: str | None = None) -> int:
+                aws_region: str | None = None, driver_sink: dict | None = None) -> int:
     """Sample -> chunk -> keep on-topic props -> embed -> write configs/graphrag/evidence/<node>.jsonl. Billed.
 
     workers>1 parallelizes the per-doc Bedrock-Haiku chunking over thread-local S3 clients — the cloud-build
-    path (build_evidence_task on Fargate); workers=1 is the sequential laptop path. max_props=None lifts the cap
-    (the cloud multi-source build wants every on-topic prop, not a 400 ceiling)."""
+    path (build_evidence_task on Fargate); workers=1 is the sequential laptop path. max_props=None lifts the cap.
+    driver_sink (WS-MS6): when given, every chunked prop is ALSO routed to driver slices (driver -> [records])
+    in-place — the cross-cutting cascade props (B40, freight, FX, El Nino) harvested FREE from the same pass."""
     from leviathan.graphrag.corpus_recon import BUCKET, _source_of
     from leviathan.graphrag import chunking as ch
     backend = backend or DEFAULT_BACKEND
@@ -237,27 +246,40 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     matcher = hv.build_matcher([node, node.replace("_", " ")] + list(aliases) + _extra_terms(node))
     keys = sample_keys(s3, node=node, year_windows=year_windows, n=n_docs)
 
-    def _one(key: str, s3c) -> list[dict]:
+    def _one(key: str, s3c):
         doc = json.loads(s3c.get_object(Bucket=BUCKET, Key=key)["Body"].read())
         txt = doc.get("full_text") or ""
         if not matcher.search(txt):                       # commodity not actually discussed -> skip (no Haiku spend)
-            return []
+            return [], []
         props = chunker(full_text=txt[:20000], source_key=key, source=_source_of(key), document_date=_doc_date(doc, key),
                         lang=doc.get("lang", "en"), extraction_method=doc.get("extraction_method"), doc_id=key,
                         bedrock=bedrock)
-        return [{"id": p.chunk_id, "contract": node, "date": str(p.document_date), "source": p.source,
-                 "source_key": key, "text": p.proposition} for p in props if matcher.search(p.proposition)]
+        crecs, drecs = [], []
+        for p in props:
+            base = _prop_record(p, key=key)
+            if matcher.search(p.proposition):             # names the commodity -> commodity slice
+                crecs.append({"id": p.chunk_id, "contract": node, **base})
+            if driver_sink is not None:                   # matches a driver term -> driver slice(s), multi-label
+                for dn in driver_slices_for(p.proposition):
+                    drecs.append((dn, {"id": p.chunk_id, "driver": dn, **base}))
+        return crecs, drecs
+
+    def _absorb(crecs, drecs):
+        records.extend(crecs)
+        for dn, r in drecs:
+            driver_sink.setdefault(dn, []).append(r)
 
     records: list[dict] = []
     if workers > 1:                                       # cloud: fan the per-doc Haiku chunking across threads
         from concurrent.futures import ThreadPoolExecutor
         from leviathan.storage.s3 import get_thread_local_s3_client
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            for recs in pool.map(lambda k: _one(k, get_thread_local_s3_client(aws_region)), keys):
-                records.extend(recs)
+            for crecs, drecs in pool.map(lambda k: _one(k, get_thread_local_s3_client(aws_region)), keys):
+                _absorb(crecs, drecs)
     else:
         for k in keys:
-            records.extend(_one(k, s3))
+            crecs, drecs = _one(k, s3)
+            _absorb(crecs, drecs)
             if max_props and len(records) >= max_props:
                 break
     if max_props:
@@ -331,13 +353,17 @@ def all_nodes() -> list[str]:
 
 
 def covered_nodes() -> set[str]:
+    """Commodity nodes with an evidence/<node>.jsonl — driver slices (evidence/drivers/*) are NOT nodes."""
     base = _evid_s3()
     if base:
         import boto3
         bkt, prefix = _parse_s3(base.rstrip("/") + "/")
         out = set()
         for p in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=bkt, Prefix=prefix):
-            out |= {o["Key"].rsplit("/", 1)[-1][:-6] for o in p.get("Contents", []) if o["Key"].endswith(".jsonl")}
+            for o in p.get("Contents", []):
+                key = o["Key"][len(prefix):]                     # path relative to the evidence base
+                if key.endswith(".jsonl") and "/" not in key:    # top-level only -> skips drivers/<x>.jsonl
+                    out.add(key[:-6])
         return out
     return {p.stem for p in _EVID_DIR.glob("*.jsonl")} if _EVID_DIR.exists() else set()
 
@@ -405,6 +431,63 @@ def _aliases(node: str) -> list[str]:
         from leviathan.causal import schema as cs
         al += [a for a in cs.load(p).aliases if a not in al]
     return al
+
+
+# ── driver-keyed evidence slices (WS-MS6) ─────────────────────────────────────────────────
+_DRIVER_PATH = ex._CFG / "driver_slices.yaml"
+_DRIVER_CACHE = None
+_DRIVER_MATCHERS = None
+
+
+def driver_specs() -> dict:
+    """The driver-slice map from driver_slices.yaml ({driver: {category, terms, priority?}}), cached."""
+    global _DRIVER_CACHE
+    if _DRIVER_CACHE is None:
+        if not _DRIVER_PATH.exists():
+            _DRIVER_CACHE = {}
+        else:
+            import yaml
+            raw = yaml.safe_load(_DRIVER_PATH.read_text(encoding="utf-8")) or {}
+            _DRIVER_CACHE = raw.get("drivers") or {}
+    return _DRIVER_CACHE
+
+
+def driver_matchers() -> dict:
+    """One on-topic matcher per driver slice (cached), built from each driver's terms."""
+    global _DRIVER_MATCHERS
+    if _DRIVER_MATCHERS is None:
+        _DRIVER_MATCHERS = {d: hv.build_matcher([str(t) for t in (spec.get("terms") or [])])
+                            for d, spec in driver_specs().items()}
+    return _DRIVER_MATCHERS
+
+
+def driver_slices_for(text: str) -> list[str]:
+    """The driver slices a proposition belongs to — every driver whose terms it mentions. A pure-driver prop
+    ('Pacific freight doubled') that names no commodity still lands here; a prop can join several drivers."""
+    return [d for d, m in driver_matchers().items() if m.search(text)]
+
+
+def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock=None,
+                        max_per: int = 4000) -> int:
+    """Embed + write the accumulated driver props to evidence/drivers/<driver>.jsonl. Dedups the re-chunk
+    artifact (same prop harvested from the same doc under multiple commodity builds) by (source_key, text),
+    KEEPING cross-source / cross-date instances (the persistence + corroboration signal). Returns props written."""
+    backend = backend or DEFAULT_BACKEND
+    total = 0
+    for driver, recs in driver_sink.items():
+        seen, uniq = set(), []
+        for r in recs:
+            k = (r.get("source_key"), r["text"])
+            if k in seen:
+                continue
+            seen.add(k)
+            uniq.append(r)
+        uniq = uniq[:max_per]
+        for r, v in zip(uniq, embed([r["text"] for r in uniq], backend=backend, bedrock=bedrock)):
+            r["vector"], r["backend"] = v, backend
+        _evid_write(f"drivers/{driver}", "\n".join(json.dumps(r) for r in uniq))
+        total += len(uniq)
+    return total
 
 
 def main() -> int:

@@ -92,6 +92,62 @@ def test_build_index_keeps_on_topic_props_and_writes(tmp_path, monkeypatch):
     assert len(recs) == 1 and "frost" in recs[0]["text"] and len(recs[0]["vector"]) == 5
 
 
+def test_parse_event_date_handles_partials_and_garbage():
+    from leviathan.graphrag import chunking as ch
+    assert ch._parse_event_date("2023-02-01", "day") == (date(2023, 2, 1), "day")
+    assert ch._parse_event_date("2023-02", "month") == (date(2023, 2, 1), "month")
+    assert ch._parse_event_date("2023", None) == (date(2023, 1, 1), "year")     # precision inferred
+    assert ch._parse_event_date("2023-Q2", None) == (date(2023, 4, 1), "quarter")
+    assert ch._parse_event_date("", None) == (None, None) and ch._parse_event_date("soon", None) == (None, None)
+    assert ch._parse_event_date("2023-13-40", None)[0] == date(2023, 1, 1)       # clamps, never raises
+
+
+def test_driver_slices_for_routes_cross_cutting_props():
+    assert ev.driver_slices_for("Indonesia raised the blend to B40") == ["biodiesel_mandate"]
+    assert ev.driver_slices_for("Pacific freight rates doubled") == ["freight"]
+    assert ev.driver_slices_for("soybean output rose in Mato Grosso") == []       # pure commodity -> no driver
+
+
+class _PD:                                                      # prop carrying an event_date (WS-MS6)
+    def __init__(self, cid, prop, ev_dt, source="GAIN"):
+        self.chunk_id, self.proposition, self.document_date, self.source = cid, prop, date(2023, 8, 11), source
+        self.event_date, self.event_date_precision = ev_dt, "month"
+
+
+def test_build_index_routes_driver_props_and_carries_event_date(tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    monkeypatch.setattr(ev, "sample_keys", lambda *a, **k: ["text/palm/2023/x/document.json"])
+    body = types.SimpleNamespace(read=lambda: json.dumps(
+        {"full_text": "Indonesia raised the biodiesel blend to B40, lifting palm oil demand."}).encode())
+    fake_s3 = types.SimpleNamespace(get_object=lambda **kw: {"Body": body})
+
+    def _chunker(**kw):
+        return [_PD("c1", "Palm oil demand rose in Indonesia.", date(2023, 2, 1)),
+                _PD("c2", "Indonesia raised the biodiesel blend to B40.", date(2023, 2, 1))]
+
+    sink: dict = {}
+    n = ev.build_index(fake_s3, node="palm_oil", aliases=["palm"], year_windows=[(2023, 2023)], n_docs=1,
+                       bedrock=object(), chunker=_chunker, max_props=None, driver_sink=sink)
+    crecs = ev.load_index("palm_oil")
+    assert n == 1 and crecs[0]["event_date"] == "2023-02-01"                  # commodity prop carries the event date
+    assert "biodiesel_mandate" in sink                                       # B40 prop (names no commodity) -> driver
+    assert sink["biodiesel_mandate"][0]["text"].startswith("Indonesia") and sink["biodiesel_mandate"][0]["event_date"] == "2023-02-01"
+
+
+def test_write_driver_slices_dedups_exact_repeats_keeps_cross_source(tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    rec = lambda src, key: {"id": "x", "driver": "freight", "date": "2023-01-01", "source": src,
+                            "source_key": key, "text": "freight rates doubled", "event_date": None,
+                            "event_date_precision": None}
+    sink = {"freight": [rec("WB", "k1"), rec("WB", "k1"), rec("CONAB", "k2")]}   # 1st two identical, 3rd cross-source
+    n = ev.write_driver_slices(sink)
+    recs = ev.load_index("drivers/freight")
+    assert n == 2 and len(recs) == 2 and {r["source"] for r in recs} == {"WB", "CONAB"}
+    assert all("vector" in r for r in recs)
+
+
 def test_build_index_concurrent_workers_aggregate_all_docs(tmp_path, monkeypatch):
     """workers>1 (cloud Fargate path): per-doc Haiku chunking fans out over thread-local S3 clients and the
     props from EVERY sampled doc are aggregated; off-topic props still dropped; max_props=None lifts the cap."""

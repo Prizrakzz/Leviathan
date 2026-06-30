@@ -52,6 +52,16 @@ _SYSTEM = (
     "TRADEABLE SUBSTANCE: cite the magnitudes/dates the evidence DOES give (numbers make 'violent' concrete); name "
     "the WATCH-LIST drivers a desk would monitor; where the graph supports it, point at the trade expression "
     "(spread, backwardation, a threshold).\n"
+    "TEMPORAL DISCIPLINE (cascades are about timing): each evidence item shows when it was 'reported <date>' and, "
+    "when known, when the 'event <date>' actually occurred — PREFER the event date for sequencing. For a cascade/"
+    "convergence question, lay the cited events out as a DATED sequence (earliest trigger -> downstream effect) "
+    "using the ACTUAL dates, and state realized lags as concrete deltas ('B40 effective 2023-02 -> palm stock draw "
+    "reported 2023-04, ~2 months') rather than vague 'a couple quarters'; compare the realized lag to the graph's "
+    "lag prior and flag if it ran fast/slow. Use exact dates, never invent one; if only a report date exists, say so.\n"
+    "CROSS-CUTTING DRIVERS: a 'CROSS-CUTTING DRIVER EVIDENCE' block may carry the cascade TRIGGERS (a biodiesel "
+    "mandate, a freight spike, an FX move, an El Nino onset) that don't name the commodity but move it via the "
+    "graph's driver edges — use them to ground the FIRST link of a cascade and tie each to the driver's silver "
+    "measure when the graph names one; keep them as mechanism unless a dated item confirms the magnitude.\n"
     "SOURCE TRUST: each evidence item is tagged [T1]-[T4] by source trust (T1 official balance-sheet WASDE/FAS > "
     "T2 USDA attache GAIN > T3 producer/industry body fnc/mpoc/conab > T4 macro/price outlook wb_cmo). Draw on ALL "
     "tiers for breadth, but in `sources` ORDER citations most-trusted (lowest T) FIRST and note each source's "
@@ -149,8 +159,39 @@ def _context_block(graph: gph.CausalGraph, contract: str) -> str:
 
 
 def _ev_block(evidence: list[dict]) -> str:
-    return "\n".join(f"- [T{source_tier(e['source'])}] ({e['source']}, {e['date']}) {e['text']}"
-                     for e in evidence) or "(no evidence retrieved)"
+    def _one(e: dict) -> str:
+        head = f"[T{source_tier(e['source'])}] ({e['source']}, reported {e['date']}"
+        ev_dt = e.get("event_date")
+        if ev_dt and ev_dt != e["date"]:                       # WS-MS6: show WHEN the event happened vs was reported
+            head += f"; event {ev_dt}"
+        head += ")"
+        drv = f" {{driver: {e['driver']}}}" if e.get("driver") else ""   # cross-cutting cascade trigger
+        return f"- {head}{drv} {e['text']}"
+    return "\n".join(_one(e) for e in evidence) or "(no evidence retrieved)"
+
+
+_MAX_DRIVER_SLICES = 5
+_DRIVER_K = 3
+
+
+def _active_drivers(query: str, contracts: list[str], graph: gph.CausalGraph) -> list[str]:
+    """Driver slices relevant to the query + the routed subgraph's driver mechanisms — so 'what drives cocoa'
+    (no driver named) still pulls the cocoa DAG's drivers (harmattan/drought) via their mechanism text."""
+    text = query + " " + " ".join(f"{d.id} {d.mechanism}" for c in contracts for d in graph.contracts[c].drivers)
+    out: list[str] = []
+    for dn in ev.driver_slices_for(text):
+        if dn not in out:
+            out.append(dn)
+    return out[:_MAX_DRIVER_SLICES]
+
+
+def _driver_evidence(query: str, drivers: list[str], *, k: int, asof, near, retrieve_fn) -> list[dict]:
+    """Top-k dated evidence from each active driver slice (evidence/drivers/<driver>.jsonl), tagged with its driver."""
+    hits: list[dict] = []
+    for dn in drivers:
+        for h in retrieve_fn(query, f"drivers/{dn}", k=k, asof=asof, near=near):
+            hits.append({**h, "driver": dn})
+    return hits
 
 
 def _prompt(query: str, contracts: list[str], blocks: list[str]) -> str:
@@ -199,11 +240,14 @@ def _call_opus(system: str, user: str, *, model: str, tool: dict) -> dict:
 
 
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
-           near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None) -> dict:
+           near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
+           driver_retrieve=None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
-    LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Returns {answer (markdown), structured,
-    contract(s), evidence, trace}."""
+    LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
+    (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
+    evidence, trace}."""
     retrieve = retrieve or ev.retrieve
+    driver_retrieve = driver_retrieve or ev.retrieve            # real slices; no driver files in tests -> no-op
     call = call or _call_opus
     route_fn = route_fn or route_smart
     routed = route_fn(query, graph)
@@ -227,10 +271,18 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         evidence += [{**h, "contract": c} for h in hits]
         ev_ids += [h["source_key"] for h in hits]
         regimes += [s.name for s in graph.contracts[c].convergence]
+    # WS-MS6: cross-cutting driver/cascade evidence (the B40/freight/FX/El Nino triggers the commodity slices drop)
+    drivers = _active_drivers(query, contracts, graph) if ev.driver_specs() else []
+    driver_hits = _driver_evidence(query, drivers, k=_DRIVER_K, asof=asof, near=near, retrieve_fn=driver_retrieve)
+    if driver_hits:
+        blocks.append("--- CROSS-CUTTING DRIVER EVIDENCE (cascade/convergence triggers; tie to silver) ---\n"
+                      + _ev_block(driver_hits))
+        evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
     structured = call(_SYSTEM, _prompt(query, contracts, blocks), model=model, tool=_answer_tool())
     return {"answer": render(structured), "structured": structured, "contract": contracts[0], "contracts": contracts,
             "evidence": evidence, "model": model,
             "trace": {"routed": routed, "contracts": contracts,
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
+                      "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),
                       "model": model}}

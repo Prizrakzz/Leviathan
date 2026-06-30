@@ -19,12 +19,46 @@ HAIKU_MODEL = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
 _PROP_SYSTEM = (
     "You decompose a passage from an agricultural-commodity report into atomic, self-contained "
     "PROPOSITIONS for a knowledge graph. Return ONLY a JSON array of objects "
-    '{"proposition": str, "verbatim_span": str}. Rules: each proposition states ONE fact, rewritten '
-    "to stand alone (resolve pronouns/ellipsis, keep commodity+country+year explicit). `verbatim_span` "
-    "is the EXACT substring of the passage the proposition is based on — copy it verbatim, do not "
-    "paraphrase. Skip pure boilerplate (page headers, tables of contents, author/credit lists). If the "
-    "passage has no extractable facts, return []."
+    '{"proposition": str, "verbatim_span": str, "event_date": str, "event_date_precision": str}. '
+    "Rules: each proposition states ONE fact, rewritten to stand alone (resolve pronouns/ellipsis, keep "
+    "commodity+country+year explicit). `verbatim_span` is the EXACT substring of the passage the "
+    "proposition is based on — copy it verbatim, do not paraphrase. `event_date` is WHEN THE EVENT "
+    "ITSELF OCCURRED OR WILL OCCUR when the passage states or clearly implies it (ISO 8601: YYYY-MM-DD, "
+    'or YYYY-MM, or YYYY) — NOT the report\'s own date; use "" when the passage gives no such date. '
+    "`event_date_precision` is one of day|month|quarter|year matching event_date's granularity "
+    '("" when no date). Skip pure boilerplate (page headers, tables of contents, author/credit lists). '
+    "If the passage has no extractable facts, return []."
 )
+
+_EV_ISO = re.compile(r"^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$")
+_EV_QTR = re.compile(r"^(\d{4})-?Q([1-4])$", re.I)
+
+
+def _parse_event_date(raw: str | None, prec: str | None):
+    """Best-effort parse of a model-emitted event date → (date|None, precision|None). Accepts YYYY,
+    YYYY-MM, YYYY-MM-DD, YYYY-Qn; trusts the model's precision when valid, else infers from granularity.
+    Never raises — an unparseable/empty date yields (None, None) so serving falls back to document_date."""
+    s = (raw or "").strip()
+    if not s:
+        return None, None
+    p = prec if prec in ("day", "month", "quarter", "year") else None
+    m = _EV_QTR.match(s)
+    if m:
+        return date(int(m.group(1)), (int(m.group(2)) - 1) * 3 + 1, 1), "quarter"
+    m = _EV_ISO.match(s)
+    if not m:
+        return None, None
+    y, mo, d = int(m.group(1)), int(m.group(2) or 1), int(m.group(3) or 1)
+    if not (1 <= mo <= 12):
+        mo = 1
+    try:
+        dt = date(y, mo, d)
+    except ValueError:
+        try:
+            dt = date(y, mo, 1)
+        except ValueError:
+            return None, None
+    return dt, p or ("day" if m.group(3) else "month" if m.group(2) else "year")
 
 _PARA = re.compile(r"\n\s*\n")  # blank-line paragraph boundaries
 _SENT = re.compile(r'(?<=[.!?;])\s+(?=[A-Z0-9"(“])')  # sentence boundary (when no blank lines)
@@ -180,7 +214,7 @@ def propositional_chunks(
         full_text=full_text, source_key=source_key, source=source, document_date=document_date,
         lang=lang, extraction_method=extraction_method, doc_id=f"{doc_id}_blk", target_chars=max_block_chars)
 
-    props: list[tuple[str, str, int]] = []   # (proposition, verbatim_span, char_start)
+    props: list[tuple] = []   # (proposition, verbatim_span, char_start, event_date, event_date_precision)
     cursor = 0
     for blk in blocks:
         items = _haiku_propositions(bedrock, blk.verbatim_span, model) or [
@@ -194,16 +228,18 @@ def propositional_chunks(
             start = idx if idx >= 0 else blk.char_start
             if idx >= 0:
                 cursor = idx + len(span)
-            props.append((prop, span or prop, start))
+            ev_dt, ev_prec = _parse_event_date(it.get("event_date"), it.get("event_date_precision"))
+            props.append((prop, span or prop, start, ev_dt, ev_prec))
 
     chunks: list[Chunk] = []
     n = len(props)
-    for i, (prop, span, start) in enumerate(props):
+    for i, (prop, span, start, ev_dt, ev_prec) in enumerate(props):
         cid = f"{doc_id}#p{i}"
         chunks.append(Chunk(
             chunk_id=cid, proposition=prop, verbatim_span=span, source_key=source_key, page=0,
             char_start=start, char_end=start + len(span), document_date=document_date, source=source,
             lang=lang, translated=False, extraction_method=method, ocr=ocr, text_quality=quality,
+            event_date=ev_dt, event_date_precision=ev_prec,
             prev_chunk_id=f"{doc_id}#p{i - 1}" if i > 0 else None,
             next_chunk_id=f"{doc_id}#p{i + 1}" if i < n - 1 else None))
     return chunks
