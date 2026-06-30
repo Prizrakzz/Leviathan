@@ -75,32 +75,46 @@ def _text_of(result) -> str:
     return "".join(b.text for b in result.result.message.content if getattr(b, "type", None) == "text")
 
 
-def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20) -> int:
+def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20, drivers: bool = True) -> int:
+    """Poll the batch, then route each prop the SAME way as the inline build (WS-MS6): parse its event_date,
+    send it to the commodity slice if it names the commodity AND to any driver slice whose terms it matches
+    (so pure-driver props — B40/freight/FX/El Nino/metals — are KEPT, not dropped), embed (bge-m3), write to
+    EVIDENCE_S3. The driver_sink is global across all nodes -> one atomic, complete set of driver slices."""
     manifest = json.loads((_OUT / f"{bid}.json").read_text(encoding="utf-8"))["manifest"]
     while client.messages.batches.retrieve(bid).processing_status != "ended":
         print(f"  batch {bid}: still processing ...")
         time.sleep(poll_s)
     by_node: dict[str, list[dict]] = {}
+    driver_sink: dict[str, list[dict]] | None = {} if drivers else None
     for r in client.messages.batches.results(bid):
         if getattr(r.result, "type", None) != "succeeded" or r.custom_id not in manifest:
             continue
         m = manifest[r.custom_id]
         for i, item in enumerate(ch._parse_json_array(_text_of(r))):
             prop = (item.get("proposition") or "").strip()
-            if prop:
-                by_node.setdefault(m["contract"], []).append(
-                    {"id": f"{r.custom_id}#{i}", "contract": m["contract"], "date": m["date"],
-                     "source": m["source"], "source_key": m["source_key"], "text": prop})
+            if not prop:
+                continue
+            ev_dt, ev_prec = ch._parse_event_date(item.get("event_date"), item.get("event_date_precision"))
+            rid = f"{r.custom_id}#{i}"
+            base = {"date": m["date"], "source": m["source"], "source_key": m["source_key"], "text": prop,
+                    "event_date": str(ev_dt) if ev_dt else None, "event_date_precision": ev_prec}
+            by_node.setdefault(m["contract"], []).append({"id": rid, "contract": m["contract"], **base})
+            if driver_sink is not None:                                   # multi-label: independent of the commodity filter
+                for dn in ev.driver_slices_for(prop):
+                    driver_sink.setdefault(dn, []).append({"id": rid, "driver": dn, **base})
     backend = backend or ev.DEFAULT_BACKEND
     total = 0
     for node, recs in by_node.items():
         matcher = hv.build_matcher(ev.match_forms(node))
-        recs = [r for r in recs if matcher.search(r["text"])]                  # keep only on-topic props
+        recs = [r for r in recs if matcher.search(r["text"])]                  # commodity slice: keep on-topic props
         for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
             r["vector"], r["backend"] = v, backend
         ev._evid_write(node, "\n".join(json.dumps(r) for r in recs))
         print(f"  {node}: {len(recs)} dated props -> evidence/{node}.jsonl")
         total += len(recs)
+    if driver_sink:
+        dtotal = ev.write_driver_slices(driver_sink, backend=backend)
+        print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
     return total
 
 
