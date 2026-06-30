@@ -247,13 +247,16 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     keys = sample_keys(s3, node=node, year_windows=year_windows, n=n_docs)
 
     def _one(key: str, s3c):
-        doc = json.loads(s3c.get_object(Bucket=BUCKET, Key=key)["Body"].read())
-        txt = doc.get("full_text") or ""
-        if not matcher.search(txt):                       # commodity not actually discussed -> skip (no Haiku spend)
+        try:
+            doc = json.loads(s3c.get_object(Bucket=BUCKET, Key=key)["Body"].read())
+            txt = doc.get("full_text") or ""
+            if not matcher.search(txt):                   # commodity not actually discussed -> skip (no Haiku spend)
+                return [], []
+            props = chunker(full_text=txt[:20000], source_key=key, source=_source_of(key), document_date=_doc_date(doc, key),
+                            lang=doc.get("lang", "en"), extraction_method=doc.get("extraction_method"), doc_id=key,
+                            bedrock=bedrock)
+        except Exception:                                 # one malformed/unreadable doc must not tank the whole node
             return [], []
-        props = chunker(full_text=txt[:20000], source_key=key, source=_source_of(key), document_date=_doc_date(doc, key),
-                        lang=doc.get("lang", "en"), extraction_method=doc.get("extraction_method"), doc_id=key,
-                        bedrock=bedrock)
         crecs, drecs = [], []
         for p in props:
             base = _prop_record(p, key=key)

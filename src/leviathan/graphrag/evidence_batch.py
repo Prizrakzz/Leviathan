@@ -30,7 +30,10 @@ def _doc_blocks(s3, node: str, key: str, matcher=None) -> list:
     a doc that doesn't mention the commodity BEFORE chunking — so we don't pay Haiku to chunk off-topic docs
     (the inline build_index already does this; the batch path used to chunk everything then filter props)."""
     from leviathan.graphrag.corpus_recon import BUCKET, _source_of
-    doc = json.loads(s3.get_object(Bucket=BUCKET, Key=key)["Body"].read())
+    try:
+        doc = json.loads(s3.get_object(Bucket=BUCKET, Key=key)["Body"].read())
+    except Exception:                                          # skip a malformed/unreadable doc (don't crash the run)
+        return []
     full = (doc.get("full_text") or "")[:60000]
     if not full.strip() or (matcher is not None and not matcher.search(full)):
         return []
