@@ -212,7 +212,12 @@ def main() -> int:
     out_path = _OUT / f"report_{args.model}.md"
     out_path.write_text(report(rows, model=args.model), encoding="utf-8")
     routed = sum(r["rubric"]["routed_right"] for r in rows)
-    extra = f", judge avg {sum(r['judge'].get('overall',0) for r in rows)/len(rows):.1f}/5" if args.judge else ""
+    extra = ""
+    if args.judge:
+        use = sum((r.get("judge") or {}).get("usefulness", 0) for r in rows) / len(rows)
+        gnd = sum((r.get("judge") or {}).get("grounding", 0) for r in rows) / len(rows)
+        halluc = sum(len((r.get("judge") or {}).get("hallucinations") or []) for r in rows)
+        extra = f", judge usefulness {use:.1f}/5 grounding {gnd:.1f}/5 ({halluc} halluc)"
     print(f"eval {args.model}: {len(rows)} queries, routed {routed}/{len(rows)}{extra} -> {out_path}")
     return 0
 
