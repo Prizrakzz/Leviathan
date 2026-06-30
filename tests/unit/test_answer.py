@@ -1,0 +1,111 @@
+"""graphdev answer orchestrator — mocked (no S3/Bedrock/Anthropic)."""
+from __future__ import annotations
+
+from leviathan.causal import schema as cs
+from leviathan.graphrag import answer as an
+from leviathan.graphrag import graph as g
+
+
+def _d(id, **o):
+    return cs.Driver(id=id, type=o.pop("type", "hazard"), sign=o.pop("sign", "+"),
+                     mechanism=o.pop("mechanism", "m"), **o)
+
+
+def _graph() -> g.CausalGraph:
+    coffee = cs.CausalContract(
+        contract="arabica_coffee", aliases=["arabica", "KC"],
+        drivers=[_d("frost", sign="+", mechanism="frost kills trees")],
+        convergence=[cs.ConvergenceSignal(name="squeeze", direction="+", requires_any_n_of=1, drivers=["frost"])],
+        inter_commodity=[cs.InterCommodityEdge(driver_commodity="robusta_coffee", relation="substitutes_for", sign="-")])
+    corn = cs.CausalContract(contract="corn", aliases=["maize"], drivers=[_d("drought")])
+    return g.CausalGraph({"arabica_coffee": coffee, "corn": corn}, silver=set())
+
+
+def _retrieve(q, contract, *, k, asof=None, near=None):
+    return [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{contract}",
+             "text": "July frost hit Sul de Minas"}]
+
+
+def test_route_picks_contract_by_alias():
+    gr = _graph()
+    assert an.route("what drives arabica coffee prices", gr)[0] == "arabica_coffee"
+    assert an.route("maize export pace", gr)[0] == "corn"
+    assert an.route("bitcoin volatility", gr) == []
+
+
+def test_valid_mermaid_and_render():
+    base = {"tldr": "t", "mechanism": "m", "sources": [{"ref": 1, "source": "S", "date": "2020", "note": "n"}]}
+    assert "```mermaid" not in an.render({**base, "diagram_mermaid": ""})              # empty -> omitted
+    assert "```mermaid" not in an.render({**base, "diagram_mermaid": "not a diagram"})  # invalid -> dropped
+    md = an.render({**base, "diagram_mermaid": 'flowchart LR\n a["x +"] --> b'})
+    assert md.startswith("**TL;DR.**") and "**Why.**" in md and "```mermaid" in md and "[1] S" in md
+    assert an._valid_mermaid('flowchart LR\n a["x"] --> b') and not an._valid_mermaid("graph (oops]")
+
+
+def test_answer_structured_render_and_trace():
+    gr = _graph()
+    captured = {}
+    structured = {"tldr": "Frost squeezed arabica [1].", "mechanism": "frost raises price (+) [1].",
+                  "diagram_mermaid": 'flowchart LR\n frost["frost +"] --> price["price up"]',
+                  "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
+
+    def fake_call(system, user, *, model, tool):
+        captured.update(user=user, model=model, tool=tool["name"])
+        return structured
+
+    out = an.answer("trace how a coffee frost spikes price", graph=gr, model="claude-sonnet-4-6",
+                    retrieve=_retrieve, call=fake_call)
+    assert out["contract"] == "arabica_coffee" and out["structured"] == structured
+    assert captured["tool"] == "emit_answer" and captured["model"] == "claude-sonnet-4-6"
+    md = out["answer"]                                                    # reader-first markdown
+    assert md.startswith("**TL;DR.**") and "**Why.**" in md and "```mermaid" in md and "[1] GAIN" in md
+    assert out["trace"]["has_diagram"] is True and "squeeze" in out["trace"]["regimes"]
+    assert "frost kills trees" in captured["user"] and "July frost hit Sul de Minas" in captured["user"]
+
+
+def test_answer_multi_contract_synthesis():
+    gr = _graph()
+    seen = {}
+
+    def fake_call(system, user, *, model, tool):
+        seen["user"] = user
+        return {"tldr": "x", "mechanism": "y", "diagram_mermaid": "", "sources": []}
+
+    def fake_retrieve(q, contract, *, k, asof=None, near=None):
+        return [{"date": "2022-01-01", "source": "WASDE", "source_key": f"s3://{contract}", "text": f"{contract} note"}]
+
+    out = an.answer("how does the maize vs arabica spread move", graph=gr, retrieve=fake_retrieve, call=fake_call)
+    assert set(out["trace"]["contracts"]) == {"corn", "arabica_coffee"}
+    assert {e["contract"] for e in out["evidence"]} == {"corn", "arabica_coffee"}
+    assert "corn note" in seen["user"] and "arabica_coffee note" in seen["user"]
+    assert out["trace"]["has_diagram"] is False                          # empty diagram -> none
+
+
+def test_answer_no_contract_match_short_circuits():
+    out = an.answer("tesla stock", graph=_graph(), retrieve=lambda *a, **k: [], call=lambda *a, **k: {},
+                    route_fn=lambda q, g: [])                       # all tiers returned nothing
+    assert out["contract"] is None and out["evidence"] == [] and out["structured"] is None
+
+
+def test_route_smart_lexical_tier_wins():
+    assert an.route_smart("what drives arabica coffee", _graph())[0] == "arabica_coffee"   # tier 1, no fallback
+
+
+def test_route_smart_semantic_fallback():
+    gr = _graph()
+    an._PROFILE_CACHE.clear()
+    def fake_embed(texts, **k):                                    # query + coffee profile -> [1,0]; corn -> [0,1]
+        return [[1.0, 0.0] if ("coffee" in t or "frost" in t or "cold snap" in t) else [0.0, 1.0] for t in texts]
+    got = an.route_smart("a damaging cold snap in the growing belt", gr, embed=fake_embed, k=1)
+    assert got == ["arabica_coffee"]                               # no commodity token -> semantic matched coffee
+
+
+def test_route_smart_llm_fallback():
+    gr = _graph()
+    an._PROFILE_CACHE.clear()
+    called = {}
+    def fake_route_call(system, user, *, model, tool):
+        called["yes"] = True
+        return {"contracts": ["corn"]}
+    got = an.route_smart("zzz", gr, embed=lambda t, **k: [[0.0, 0.0] for _ in t], route_call=fake_route_call)
+    assert got == ["corn"] and called["yes"]                       # lexical + semantic empty -> LLM tier

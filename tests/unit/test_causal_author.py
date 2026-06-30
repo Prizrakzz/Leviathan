@@ -142,3 +142,75 @@ def test_draft_assembles_valid_contract(tmp_path, monkeypatch):
     assert c.contract == "arabica_coffee" and c.driver_ids() == {"brazil_frost", "la_nina"}
     assert c.provenance["authored_by"] and c.convergence[0].name == "squeeze"
     assert (tmp_path / "arabica_coffee.raw.json").exists()       # paid draft persisted before validation
+
+
+def test_scaling_and_draft_order(tmp_path, monkeypatch):
+    sc = tmp_path / "contract_scaling.yaml"
+    sc.write_text("new: [cocoa, raw_sugar]\nvariants:\n  white_sugar: {base: raw_sugar, overlay: refined}\n",
+                  encoding="utf-8")
+    monkeypatch.setattr(au, "_SCALING_PATH", sc)
+    new, variants = au._draft_order(done={"cocoa"})              # cocoa already done -> excluded
+    assert new == ["raw_sugar"] and variants == ["white_sugar"]
+
+
+def test_base_context_includes_base_yaml(tmp_path, monkeypatch):
+    sc = tmp_path / "contract_scaling.yaml"
+    sc.write_text("new: [raw_sugar]\nvariants:\n  white_sugar: {base: raw_sugar, overlay: refining premium}\n",
+                  encoding="utf-8")
+    monkeypatch.setattr(au, "_SCALING_PATH", sc)
+    monkeypatch.setattr(au, "_CAUSAL_DIR", tmp_path)
+    (tmp_path / "raw_sugar.yaml").write_text("contract: raw_sugar\ndrivers: []\n", encoding="utf-8")
+    ctx = au._base_context("white_sugar")
+    assert "BASE CONTRACT = raw_sugar" in ctx and "refining premium" in ctx and "contract: raw_sugar" in ctx
+    assert au._base_context("cocoa") == ""                       # a 'new' commodity has no base context
+
+
+def test_draft_threads_base_context_into_prompt(tmp_path, monkeypatch):
+    monkeypatch.setattr(au, "_CAUSAL_DIR", tmp_path)
+    captured = {}
+    dag = {"target_metrics": ["price"], "drivers": [{"id": "x", "type": "hazard", "sign": "+", "mechanism": "m"}],
+           "inter_commodity": [], "convergence": []}
+
+    class _Block:
+        type = "tool_use"; input = dag
+
+    class _Resp:
+        content = [_Block()]; usage = type("U", (), {"input_tokens": 1, "output_tokens": 1})()
+
+    def _create(**kw):
+        captured["user"] = kw["messages"][0]["content"]
+        return _Resp()
+
+    class _Client:
+        messages = type("M", (), {"create": staticmethod(_create)})()
+
+    seed_dict = {"aliases": [], "target_metrics": ["price"], "edge_types": [], "driver_candidates": [],
+                 "inter_commodity_candidates": [], "available_silver": [], "policy_candidates": []}
+    au.draft(_Client(), "white_sugar", seed_dict, base_context="BASE CONTRACT = raw_sugar. OVERLAYS: refining premium")
+    assert "BASE CONTRACT = raw_sugar" in captured["user"] and "OVERLAYS: refining premium" in captured["user"]
+
+
+def test_sanitize_breaks_parent_cycles():
+    out = {"drivers": [
+        {"id": "a", "type": "hazard", "sign": "+", "mechanism": "m", "parents": ["b"]},
+        {"id": "b", "type": "hazard", "sign": "+", "mechanism": "m", "parents": ["a"]},   # a<->b cycle
+        {"id": "c", "type": "hazard", "sign": "+", "mechanism": "m", "parents": ["b"]}]}   # c->b is fine
+    clean = au._sanitize(out)
+    pa = {d["id"]: d["parents"] for d in clean["drivers"]}
+    assert not ("b" in pa["a"] and "a" in pa["b"])         # cycle broken (one back-edge dropped)
+    assert pa["c"] == ["b"]                                # the acyclic edge preserved
+    from leviathan.causal import validate as cval
+    assert cval._cycle_node([cs.Driver(id=d["id"], type=d["type"], sign=d["sign"], mechanism=d["mechanism"],
+                                       parents=d["parents"]) for d in clean["drivers"]]) is None
+
+
+def test_sanitize_normalizes_and_accepts_contract_ids():
+    """Inter-commodity edges: singular 'soybean' normalizes to 'soybeans', a contract id 'corn_cbot' is a
+    valid relative-value endpoint (kept), and a genuinely-untracked 'apple_juice' is dropped."""
+    out = {"drivers": [{"id": "x", "type": "hazard", "sign": "+", "mechanism": "m"}],
+           "inter_commodity": [
+               {"driver_commodity": "soybean", "relation": "competes_with", "sign": "-"},
+               {"driver_commodity": "corn_cbot", "relation": "competes_with", "sign": "-"},
+               {"driver_commodity": "apple_juice", "relation": "substitutes_for", "sign": "-"}]}
+    clean = au._sanitize(out, nodes={"soybeans", "corn_cbot"})
+    assert {e["driver_commodity"] for e in clean["inter_commodity"]} == {"soybeans", "corn_cbot"}
