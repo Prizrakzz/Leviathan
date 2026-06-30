@@ -50,14 +50,15 @@ def _groups(nodes: list[str], size: int) -> list[list[str]]:
 
 
 def submit_groups(groups: list[list[str]], *, job_queue: str, job_definition: str, aws_region: str,
-                  n_docs: int, workers: int, skip_existing: bool, drivers: bool, dry_run: bool) -> list[dict]:
+                  n_docs: int, workers: int, skip_existing: bool, drivers: bool, chunk_provider: str,
+                  dry_run: bool) -> list[dict]:
     client = boto3.client("batch", region_name=aws_region)
     submitted: list[dict] = []
     for grp in groups:
         job_name = f"evidence-{grp[0].replace('_', '-')}-{len(grp)}"
         parameters = {"nodes": ",".join(grp), "n_docs": str(n_docs), "workers": str(workers),
                       "skip_existing": "true" if skip_existing else "false",
-                      "drivers": "true" if drivers else "false"}
+                      "drivers": "true" if drivers else "false", "chunk_provider": chunk_provider}
         if dry_run:
             logger.info("[DRY RUN] Would submit: %s  nodes=%s", job_name, parameters["nodes"])
             submitted.append({"job_name": job_name, "job_id": None, "nodes": grp})
@@ -87,6 +88,8 @@ def main() -> None:
                     help="submit ALL nodes as one job — required with --drivers so the driver_sink accumulates "
                          "globally (parallel groups would each write partial, overwriting driver slices)")
     ap.add_argument("--no-drivers", action="store_true", help="commodity slices only (skip WS-MS6 driver capture)")
+    ap.add_argument("--chunk-provider", default="anthropic", choices=["anthropic", "bedrock"],
+                    help="Haiku provider: 'anthropic' (prepaid credit, default) or 'bedrock' (AWS billing)")
     ap.add_argument("--skip-existing", action="store_true",
                     help="resume: each job skips nodes already in EVIDENCE_S3 (no Haiku re-bill)")
     ap.add_argument("--dry-run", action="store_true")
@@ -108,7 +111,7 @@ def main() -> None:
 
     submitted = submit_groups(groups, job_queue=job_queue, job_definition=job_definition, aws_region=aws_region,
                               n_docs=args.n_docs, workers=args.workers, skip_existing=args.skip_existing,
-                              drivers=drivers, dry_run=args.dry_run)
+                              drivers=drivers, chunk_provider=args.chunk_provider, dry_run=args.dry_run)
 
     if not args.dry_run:
         run_id = utc_now_iso().replace(":", "-")

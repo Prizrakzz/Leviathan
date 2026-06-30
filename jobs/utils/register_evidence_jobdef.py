@@ -30,6 +30,7 @@ _COMMAND = [
     "--workers", "Ref::workers",
     "--skip-existing", "Ref::skip_existing",   # "true" to resume a partial run without re-billing
     "--drivers", "Ref::drivers",               # "true" captures cross-cutting driver/cascade slices (WS-MS6)
+    "--chunk-provider", "Ref::chunk_provider", # "anthropic" bills Haiku to the Anthropic account (prepaid credit)
 ]
 
 # Defaults for every Ref:: token — a submission may override any of these.
@@ -39,7 +40,12 @@ _PARAMETERS = {
     "workers": "16",
     "skip_existing": "false",
     "drivers": "true",
+    "chunk_provider": "anthropic",             # use the prepaid Anthropic credit by default
 }
+
+# The Anthropic API key is injected from Secrets Manager (the execution role has GetSecretValue on it). The
+# ARN is resolved by name at registration so the random suffix stays out of this (public) repo.
+_SECRET_NAME = "leviathan-dev-anthropic-api-key"
 
 _CONTAINER = {
     "image": f"{_ACCOUNT}.dkr.ecr.{_REGION}.amazonaws.com/{_REPO}:latest",
@@ -69,16 +75,21 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    container = dict(_CONTAINER)                            # inject ANTHROPIC_API_KEY from Secrets Manager
+    secret_arn = boto3.client("secretsmanager", region_name=_REGION).describe_secret(SecretId=_SECRET_NAME)["ARN"]
+    container["secrets"] = [{"name": "ANTHROPIC_API_KEY", "valueFrom": secret_arn}]
+
     payload = dict(
         jobDefinitionName=_NAME,
         type="container",
         platformCapabilities=["FARGATE"],
         parameters=_PARAMETERS,
-        containerProperties=_CONTAINER,
+        containerProperties=container,
     )
 
     if args.dry_run:
-        print(json.dumps(payload, indent=2))
+        print(json.dumps({**payload, "containerProperties": {**container, "secrets": "[ANTHROPIC_API_KEY <- secret]"}},
+                         indent=2))
         return
 
     batch = boto3.client("batch", region_name=_REGION)
