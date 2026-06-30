@@ -34,7 +34,8 @@ _SYSTEM = (
 
 
 def route(query: str, graph: gph.CausalGraph) -> list[str]:
-    """Contracts whose id/aliases/commodity-token appear in the query (accent/case-insensitive), most-hits first."""
+    """TIER 1 (lexical): contracts whose id/aliases/commodity-token appear in the query (accent/case-insensitive),
+    most-hits first. Fast + precise, but blind to coreference/paraphrase ('a frost in Brazil', 'that contract')."""
     scored = []
     for cid, c in graph.contracts.items():
         forms = [cid, cid.replace("_", " ")] + list(c.aliases) + cid.split("_")
@@ -43,6 +44,56 @@ def route(query: str, graph: gph.CausalGraph) -> list[str]:
         if n:
             scored.append((n, cid))
     return [cid for _, cid in sorted(scored, reverse=True)]
+
+
+_PROFILE_CACHE: dict = {}
+
+
+def _contract_profiles(graph: gph.CausalGraph) -> dict[str, str]:
+    """A short text profile per contract for semantic routing: id + aliases + its top driver ids."""
+    return {cid: f"{cid.replace('_', ' ')} {' '.join(c.aliases)} "
+                 f"{' '.join(d.id.replace('_', ' ') for d in c.drivers[:12])}"
+            for cid, c in graph.contracts.items()}
+
+
+def route_semantic(query: str, graph: gph.CausalGraph, *, embed=None, k: int = 2, min_cos: float = 0.35) -> list[str]:
+    """TIER 2 (semantic): embed the query (bge-m3) + cosine vs per-contract profiles — catches paraphrase that
+    names no commodity ('a frost in Brazil'). Profile vectors are cached per contract set."""
+    embed = embed or ev.embed
+    profs = _contract_profiles(graph)
+    key = tuple(sorted(profs))
+    if key not in _PROFILE_CACHE:
+        _PROFILE_CACHE[key] = (list(profs), embed(list(profs.values())))
+    ids, vecs = _PROFILE_CACHE[key]
+    qv = embed([query])[0]
+    ranked = sorted(((ev._cosine(qv, v), cid) for cid, v in zip(ids, vecs)), reverse=True)
+    return [cid for s, cid in ranked[:k] if s >= min_cos]
+
+
+def _route_llm_tool() -> dict:
+    return {"name": "pick_contracts", "description": "Pick the tracked contract id(s) the question is about.",
+            "input_schema": {"type": "object", "properties": {
+                "contracts": {"type": "array", "items": {"type": "string"}}}, "required": ["contracts"]}}
+
+
+def route_llm(query: str, graph: gph.CausalGraph, *, k: int = 2, call=None) -> list[str]:
+    """TIER 3 (LLM): a cheap Haiku call resolves coreference/comparison/multi-commodity ('which ag is most
+    exposed to the dollar') by mapping the question to ids from the tracked list."""
+    call = call or _call_opus
+    ids = list(graph.contracts)
+    sys = ("Map a commodities question to the tracked futures-contract id(s) it concerns. Resolve coreference and "
+           "comparisons. Return ONLY ids from the provided list, the 1-2 most relevant, via pick_contracts.")
+    user = f"TRACKED CONTRACTS: {ids}\n\nQUESTION: {query}"
+    out = call(sys, user, model=ex.HAIKU, tool=_route_llm_tool())
+    return [c for c in (out.get("contracts") or []) if c in graph.contracts][:k]
+
+
+def route_smart(query: str, graph: gph.CausalGraph, *, embed=None, route_call=None, k: int = 2) -> list[str]:
+    """Tiered router: lexical -> semantic -> LLM. Lexical wins when it fires (fast/precise); otherwise fall back
+    to semantic (paraphrase), then an LLM call (coreference/comparison)."""
+    return (route(query, graph)
+            or route_semantic(query, graph, embed=embed, k=k)
+            or route_llm(query, graph, k=k, call=route_call))
 
 
 def _context_block(graph: gph.CausalGraph, contract: str) -> str:
@@ -113,16 +164,27 @@ def _call_opus(system: str, user: str, *, model: str, tool: dict) -> dict:
 
 
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
-           near: str | None = None, max_contracts: int = 2, retrieve=None, call=None) -> dict:
-    """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes to up to `max_contracts`
-    (a soy<->corn question synthesizes both). Returns {answer (markdown), structured, contract(s), evidence, trace}."""
+           near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None) -> dict:
+    """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
+    LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Returns {answer (markdown), structured,
+    contract(s), evidence, trace}."""
     retrieve = retrieve or ev.retrieve
     call = call or _call_opus
-    routed = route(query, graph)
+    route_fn = route_fn or route_smart
+    routed = route_fn(query, graph)
     if not routed:
         return {"answer": "No tracked contract matched this question.", "structured": None, "contract": None,
                 "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
-    contracts = routed[:max_contracts]
+    # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
+    # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
+    contracts, seen = [], set()
+    for c in routed:
+        nd = ev.node_for(c)
+        if nd not in seen:
+            seen.add(nd)
+            contracts.append(c)
+        if len(contracts) >= max_contracts:
+            break
     blocks, evidence, ev_ids, regimes = [], [], [], []
     for c in contracts:
         hits = retrieve(query, ev.node_for(c), k=k, asof=asof, near=near)   # variants share a commodity-node slice

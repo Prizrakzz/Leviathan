@@ -82,5 +82,30 @@ def test_answer_multi_contract_synthesis():
 
 
 def test_answer_no_contract_match_short_circuits():
-    out = an.answer("tesla stock", graph=_graph(), retrieve=lambda *a, **k: [], call=lambda *a, **k: {})
+    out = an.answer("tesla stock", graph=_graph(), retrieve=lambda *a, **k: [], call=lambda *a, **k: {},
+                    route_fn=lambda q, g: [])                       # all tiers returned nothing
     assert out["contract"] is None and out["evidence"] == [] and out["structured"] is None
+
+
+def test_route_smart_lexical_tier_wins():
+    assert an.route_smart("what drives arabica coffee", _graph())[0] == "arabica_coffee"   # tier 1, no fallback
+
+
+def test_route_smart_semantic_fallback():
+    gr = _graph()
+    an._PROFILE_CACHE.clear()
+    def fake_embed(texts, **k):                                    # query + coffee profile -> [1,0]; corn -> [0,1]
+        return [[1.0, 0.0] if ("coffee" in t or "frost" in t or "cold snap" in t) else [0.0, 1.0] for t in texts]
+    got = an.route_smart("a damaging cold snap in the growing belt", gr, embed=fake_embed, k=1)
+    assert got == ["arabica_coffee"]                               # no commodity token -> semantic matched coffee
+
+
+def test_route_smart_llm_fallback():
+    gr = _graph()
+    an._PROFILE_CACHE.clear()
+    called = {}
+    def fake_route_call(system, user, *, model, tool):
+        called["yes"] = True
+        return {"contracts": ["corn"]}
+    got = an.route_smart("zzz", gr, embed=lambda t, **k: [[0.0, 0.0] for _ in t], route_call=fake_route_call)
+    assert got == ["corn"] and called["yes"]                       # lexical + semantic empty -> LLM tier
