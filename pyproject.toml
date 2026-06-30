@@ -63,6 +63,12 @@ training-dl = [
     "torch>=2.1",          # CPU-only wheel; install via the pytorch CPU index in the DL Dockerfile
     "shap>=0.44",          # SHAP explanations (TreeExplainer) for the inference/explanation path
 ]
+# GraphRAG evidence-build (WS-MS2): SELF-HOSTED bge-m3 embeddings on the cloud builder. Kept out of the default
+# image — only the leviathan_embedder Dockerfile installs these (torch via the pytorch CPU index there).
+embed = [
+    "sentence-transformers>=2.2",   # bge-m3 (BAAI/bge-m3); pulls transformers + tokenizers
+    "torch>=2.1",                   # CPU-only wheel; the embedder Dockerfile installs it from the CPU index
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

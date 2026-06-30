@@ -222,30 +222,46 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
 
 
 def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: str | None = None,
-                bedrock=None, chunker=None, max_props: int = 400) -> int:
-    """Sample -> chunk -> keep on-topic props -> embed -> write configs/graphrag/evidence/<node>.jsonl. Billed."""
+                bedrock=None, chunker=None, max_props: int | None = 400, workers: int = 1,
+                aws_region: str | None = None) -> int:
+    """Sample -> chunk -> keep on-topic props -> embed -> write configs/graphrag/evidence/<node>.jsonl. Billed.
+
+    workers>1 parallelizes the per-doc Bedrock-Haiku chunking over thread-local S3 clients — the cloud-build
+    path (build_evidence_task on Fargate); workers=1 is the sequential laptop path. max_props=None lifts the cap
+    (the cloud multi-source build wants every on-topic prop, not a 400 ceiling)."""
     from leviathan.graphrag.corpus_recon import BUCKET, _source_of
     from leviathan.graphrag import chunking as ch
     backend = backend or DEFAULT_BACKEND
     bedrock = bedrock or _bedrock()                  # still needed for Haiku chunking even when embedding is local
     chunker = chunker or ch.propositional_chunks
     matcher = hv.build_matcher([node, node.replace("_", " ")] + list(aliases) + _extra_terms(node))
-    records: list[dict] = []
-    for k in sample_keys(s3, node=node, year_windows=year_windows, n=n_docs):
-        doc = json.loads(s3.get_object(Bucket=BUCKET, Key=k)["Body"].read())
+    keys = sample_keys(s3, node=node, year_windows=year_windows, n=n_docs)
+
+    def _one(key: str, s3c) -> list[dict]:
+        doc = json.loads(s3c.get_object(Bucket=BUCKET, Key=key)["Body"].read())
         txt = doc.get("full_text") or ""
-        if not matcher.search(txt):                       # commodity not actually discussed -> skip
-            continue
-        props = chunker(full_text=txt[:20000], source_key=k, source=_source_of(k), document_date=_doc_date(doc, k),
-                        lang=doc.get("lang", "en"), extraction_method=doc.get("extraction_method"), doc_id=k,
+        if not matcher.search(txt):                       # commodity not actually discussed -> skip (no Haiku spend)
+            return []
+        props = chunker(full_text=txt[:20000], source_key=key, source=_source_of(key), document_date=_doc_date(doc, key),
+                        lang=doc.get("lang", "en"), extraction_method=doc.get("extraction_method"), doc_id=key,
                         bedrock=bedrock)
-        for p in props:
-            if matcher.search(p.proposition):             # keep only props that mention the commodity
-                records.append({"id": p.chunk_id, "contract": node, "date": str(p.document_date),
-                                "source": p.source, "source_key": k, "text": p.proposition})
-        if len(records) >= max_props:
-            break
-    records = records[:max_props]
+        return [{"id": p.chunk_id, "contract": node, "date": str(p.document_date), "source": p.source,
+                 "source_key": key, "text": p.proposition} for p in props if matcher.search(p.proposition)]
+
+    records: list[dict] = []
+    if workers > 1:                                       # cloud: fan the per-doc Haiku chunking across threads
+        from concurrent.futures import ThreadPoolExecutor
+        from leviathan.storage.s3 import get_thread_local_s3_client
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for recs in pool.map(lambda k: _one(k, get_thread_local_s3_client(aws_region)), keys):
+                records.extend(recs)
+    else:
+        for k in keys:
+            records.extend(_one(k, s3))
+            if max_props and len(records) >= max_props:
+                break
+    if max_props:
+        records = records[:max_props]
     for r, v in zip(records, embed([r["text"] for r in records], backend=backend, bedrock=bedrock)):
         r["vector"], r["backend"] = v, backend       # stamp backend so retrieve() embeds queries the same way
     _evid_write(node, "\n".join(json.dumps(r) for r in records))

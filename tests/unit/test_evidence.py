@@ -92,6 +92,32 @@ def test_build_index_keeps_on_topic_props_and_writes(tmp_path, monkeypatch):
     assert len(recs) == 1 and "frost" in recs[0]["text"] and len(recs[0]["vector"]) == 5
 
 
+def test_build_index_concurrent_workers_aggregate_all_docs(tmp_path, monkeypatch):
+    """workers>1 (cloud Fargate path): per-doc Haiku chunking fans out over thread-local S3 clients and the
+    props from EVERY sampled doc are aggregated; off-topic props still dropped; max_props=None lifts the cap."""
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    monkeypatch.setattr(ev, "sample_keys", lambda *a, **k: ["text/coffee/2021/a/document.json",
+                                                            "text/coffee/2022/b/document.json"])
+    body = types.SimpleNamespace(read=lambda: json.dumps(
+        {"full_text": "Brazil frost hit arabica coffee."}).encode())
+    fake_s3 = types.SimpleNamespace(get_object=lambda **kw: {"Body": body})
+    import leviathan.storage.s3 as s3mod
+    monkeypatch.setattr(s3mod, "get_thread_local_s3_client", lambda region: fake_s3, raising=False)
+
+    def _chunker(**kw):                                            # one on-topic + one off-topic per doc, ids by doc
+        did = kw["doc_id"].split("/")[-2]
+        return [_Prop(f"{did}-on", "Frost devastated arabica coffee.", date(2021, 7, 20)),
+                _Prop(f"{did}-off", "Unrelated bonds macro note.", date(2021, 7, 20))]
+
+    n = ev.build_index(fake_s3, node="arabica_coffee", aliases=["arabica"], year_windows=[(2021, 2021)],
+                       n_docs=2, bedrock=object(), chunker=_chunker, max_props=None, workers=2,
+                       aws_region="us-east-1")
+    assert n == 2                                                          # both docs' on-topic props kept
+    recs = ev.load_index("arabica_coffee")
+    assert {r["id"] for r in recs} == {"a-on", "b-on"} and all("frost" in r["text"].lower() for r in recs)
+
+
 def test_node_resolution_dedups_variants(monkeypatch):
     monkeypatch.setattr(ev, "_hier", lambda: {"contracts": {
         "soybean_meal_cbot": {"node": "soybean_meal"}, "soybean_meal_dce": {"node": "soybean_meal"},
