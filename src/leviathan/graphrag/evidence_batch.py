@@ -59,13 +59,41 @@ def _build_requests(s3, nodes, n_docs, seed):
     return requests, manifest
 
 
+def _manifest_s3_uri(bid: str) -> str | None:
+    base = ev._evid_s3()
+    return base.rstrip("/") + f"/_batches/{bid}.json" if base else None
+
+
+def _save_manifest(bid: str, payload: dict) -> None:
+    """Persist the batch manifest locally AND (when EVIDENCE_S3 is set) to S3, so a Fargate job can retrieve+embed."""
+    _OUT.mkdir(parents=True, exist_ok=True)
+    (_OUT / f"{bid}.json").write_text(json.dumps(payload), encoding="utf-8")
+    uri = _manifest_s3_uri(bid)
+    if uri:
+        import boto3
+        b, k = ev._parse_s3(uri)
+        boto3.client("s3").put_object(Bucket=b, Key=k, Body=json.dumps(payload).encode("utf-8"))
+
+
+def _load_manifest(bid: str) -> dict:
+    """Read the manifest from local _OUT first (laptop), else from EVIDENCE_S3/_batches (Fargate retrieve)."""
+    p = _OUT / f"{bid}.json"
+    if p.exists():
+        return json.loads(p.read_text(encoding="utf-8"))["manifest"]
+    uri = _manifest_s3_uri(bid)
+    if uri:
+        import boto3
+        b, k = ev._parse_s3(uri)
+        return json.loads(boto3.client("s3").get_object(Bucket=b, Key=k)["Body"].read())["manifest"]
+    raise SystemExit(f"manifest for {bid} not found (local _OUT or EVIDENCE_S3/_batches/)")
+
+
 def submit(s3, client, *, nodes, n_docs, seed: int = 0) -> str:
     requests, manifest = _build_requests(s3, nodes, n_docs, seed)
     if not requests:
         raise SystemExit("no blocks produced — aborting")
     bid = client.messages.batches.create(requests=requests).id
-    _OUT.mkdir(parents=True, exist_ok=True)
-    (_OUT / f"{bid}.json").write_text(json.dumps({"batch_id": bid, "manifest": manifest}), encoding="utf-8")
+    _save_manifest(bid, {"batch_id": bid, "manifest": manifest})
     print(f"submitted batch {bid} ({len(requests)} block requests over {len(nodes)} contract(s))")
     print(f"retrieve with:  python -m leviathan.graphrag.evidence_batch --retrieve {bid}")
     return bid
@@ -106,7 +134,7 @@ def _route_and_write(by_node: dict, *, backend: str | None = None, drivers: bool
 def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20, drivers: bool = True) -> int:
     """Poll the batch, parse every prop (with event_date), then route via _route_and_write (writes the _raw
     archive + commodity + driver slices). Pure-driver props are KEPT (routed to driver slices), not dropped."""
-    manifest = json.loads((_OUT / f"{bid}.json").read_text(encoding="utf-8"))["manifest"]
+    manifest = _load_manifest(bid)                                    # local on the laptop, else from EVIDENCE_S3
     while client.messages.batches.retrieve(bid).processing_status != "ended":
         print(f"  batch {bid}: still processing ...")
         time.sleep(poll_s)
