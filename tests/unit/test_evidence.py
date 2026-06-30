@@ -192,3 +192,20 @@ def test_sample_keys_is_source_agnostic(monkeypatch):
     assert cnt["usda_gain_sugar"] >= 1                                    # dedicated source still contributes (depth)
     assert cnt["wb_cmo_outlook"] >= 1 and cnt["usda_wasde"] >= 1          # but NOT single-source — others get IN
     assert cnt["usda_gain_sugar"] <= round(20 * ev._DEDICATED_FRAC) + 1   # dedicated capped ~60%, not 100%
+
+
+def test_evidence_store_s3_mode(monkeypatch):
+    # EVIDENCE_S3 set -> _evid_write/_evid_read hit S3 (mocked boto3), not local disk (WS-MS2.1 cloud store).
+    monkeypatch.setattr(ev, "_evid_s3", lambda: "s3://mybucket/graphrag/evidence/")
+    store = {}
+
+    class _S3:
+        def put_object(self, *, Bucket, Key, Body):
+            store[(Bucket, Key)] = Body.decode()
+
+        def get_object(self, *, Bucket, Key):
+            return {"Body": types.SimpleNamespace(read=lambda: store[(Bucket, Key)].encode())}
+    monkeypatch.setattr("boto3.client", lambda svc, *a, **k: _S3(), raising=False)
+    ev._evid_write("cocoa", '{"x": 1}\n{"x": 2}')
+    assert ("mybucket", "graphrag/evidence/cocoa.jsonl") in store          # wrote to S3, not local
+    assert ev.load_index("cocoa") == [{"x": 1}, {"x": 2}]                   # reads back from S3

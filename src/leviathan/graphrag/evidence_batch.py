@@ -95,8 +95,7 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
         recs = [r for r in recs if matcher.search(r["text"])]                  # keep only on-topic props
         for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
             r["vector"], r["backend"] = v, backend
-        ev._EVID_DIR.mkdir(parents=True, exist_ok=True)
-        (ev._EVID_DIR / f"{node}.jsonl").write_text("\n".join(json.dumps(r) for r in recs), encoding="utf-8")
+        ev._evid_write(node, "\n".join(json.dumps(r) for r in recs))
         print(f"  {node}: {len(recs)} dated props -> evidence/{node}.jsonl")
         total += len(recs)
     return total

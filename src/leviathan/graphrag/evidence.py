@@ -17,6 +17,42 @@ from leviathan.graphrag import extract as ex
 from leviathan.graphrag import harvest as hv
 
 _EVID_DIR = ex._CFG / "evidence"
+
+
+# Evidence store: local jsonl by default; set EVIDENCE_S3=s3://bucket/prefix/ to read+write S3 instead — so the
+# cloud build (AWS Batch) writes where serving reads, with no laptop dependency (WS-MS2.1).
+def _evid_s3() -> str | None:
+    return os.environ.get("EVIDENCE_S3")
+
+
+def _parse_s3(uri: str):
+    b, _, k = uri[len("s3://"):].partition("/")
+    return b, k
+
+
+def _evid_write(node: str, text: str) -> None:
+    base = _evid_s3()
+    if base:
+        import boto3
+        bkt, key = _parse_s3(base.rstrip("/") + f"/{node}.jsonl")
+        boto3.client("s3").put_object(Bucket=bkt, Key=key, Body=text.encode("utf-8"))
+    else:
+        _EVID_DIR.mkdir(parents=True, exist_ok=True)
+        (_EVID_DIR / f"{node}.jsonl").write_text(text, encoding="utf-8")
+
+
+def _evid_read(node: str) -> str:
+    base = _evid_s3()
+    if base:
+        import boto3
+        from botocore.exceptions import ClientError
+        bkt, key = _parse_s3(base.rstrip("/") + f"/{node}.jsonl")
+        try:
+            return boto3.client("s3").get_object(Bucket=bkt, Key=key)["Body"].read().decode("utf-8")
+        except ClientError:
+            return ""
+    p = _EVID_DIR / f"{node}.jsonl"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
 TITAN_MODEL = "amazon.titan-embed-text-v2:0"
 BGE_MODEL = "BAAI/bge-m3"
 # default embedder: bge-m3 local (best multilingual retrieval for our PT/ES/FR corpus). The SAME backend must
@@ -212,16 +248,12 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     records = records[:max_props]
     for r, v in zip(records, embed([r["text"] for r in records], backend=backend, bedrock=bedrock)):
         r["vector"], r["backend"] = v, backend       # stamp backend so retrieve() embeds queries the same way
-    _EVID_DIR.mkdir(parents=True, exist_ok=True)
-    (_EVID_DIR / f"{node}.jsonl").write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+    _evid_write(node, "\n".join(json.dumps(r) for r in records))
     return len(records)
 
 
 def load_index(node: str) -> list[dict]:
-    p = _EVID_DIR / f"{node}.jsonl"
-    if not p.exists():
-        return []
-    return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    return [json.loads(ln) for ln in _evid_read(node).splitlines() if ln.strip()]
 
 
 def _proximity(date_str: str, near: str, *, half_life_days: float = 365.0) -> float:
@@ -258,7 +290,7 @@ def restamp(node: str) -> int:
         d = _pub_date(r["source_key"])
         if d:
             r["date"] = str(d)
-    (_EVID_DIR / f"{node}.jsonl").write_text("\n".join(json.dumps(r) for r in recs), encoding="utf-8")
+    _evid_write(node, "\n".join(json.dumps(r) for r in recs))
     return len(recs)
 
 
@@ -283,6 +315,14 @@ def all_nodes() -> list[str]:
 
 
 def covered_nodes() -> set[str]:
+    base = _evid_s3()
+    if base:
+        import boto3
+        bkt, prefix = _parse_s3(base.rstrip("/") + "/")
+        out = set()
+        for p in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=bkt, Prefix=prefix):
+            out |= {o["Key"].rsplit("/", 1)[-1][:-6] for o in p.get("Contents", []) if o["Key"].endswith(".jsonl")}
+        return out
     return {p.stem for p in _EVID_DIR.glob("*.jsonl")} if _EVID_DIR.exists() else set()
 
 
