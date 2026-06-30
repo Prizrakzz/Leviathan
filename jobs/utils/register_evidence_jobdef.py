@@ -28,6 +28,7 @@ _COMMAND = [
     "--nodes", "Ref::nodes",          # "all" | "new" | comma-separated node/contract ids
     "--n-docs", "Ref::n_docs",
     "--workers", "Ref::workers",
+    "--skip-existing", "Ref::skip_existing",   # "true" to resume a partial run without re-billing
 ]
 
 # Defaults for every Ref:: token — a submission may override any of these.
@@ -35,6 +36,7 @@ _PARAMETERS = {
     "nodes": "all",
     "n_docs": "90",
     "workers": "16",
+    "skip_existing": "false",
 }
 
 _CONTAINER = {

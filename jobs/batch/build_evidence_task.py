@@ -49,6 +49,9 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=_WORKERS)
     ap.add_argument("--backend", default=ev.DEFAULT_BACKEND)
     ap.add_argument("--aws-region", default=os.environ.get("AWS_REGION", "us-east-1"))
+    ap.add_argument("--skip-existing", default="false",   # "true"/"false" so it threads through Batch Ref::
+                    help="skip nodes already present in EVIDENCE_S3 — for resuming a partially-failed run "
+                         "without re-billing Haiku (default false = full overwrite)")
     args = ap.parse_args()
 
     load_env()
@@ -56,8 +59,17 @@ def main() -> None:
         raise SystemExit("EVIDENCE_S3 not set — refusing to write evidence locally inside a Batch job.")
 
     nodes = _resolve(args.nodes)
+    if str(args.skip_existing).lower() == "true":         # resume mode: don't re-pay for nodes already in S3
+        covered = ev.covered_nodes()
+        skip = [n for n in nodes if n in covered]
+        nodes = [n for n in nodes if n not in covered]
+        if skip:
+            logger.info("skip-existing: %d node(s) already in EVIDENCE_S3, skipping: %s", len(skip), skip)
     logger.info("build_evidence  nodes=%s  n_docs=%d  workers=%d  backend=%s  out=%s",
                 nodes, args.n_docs, args.workers, args.backend, ev._evid_s3())
+    if not nodes:
+        logger.info("nothing to build (all requested nodes already covered).")
+        return
 
     s3 = boto3.client("s3", region_name=args.aws_region)
     bedrock = ev._bedrock()                               # shared bedrock-runtime client (thread-safe for invoke)
