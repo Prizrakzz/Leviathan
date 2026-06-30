@@ -47,41 +47,93 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
     return rows
 
 
-# ── LLM-judge: quality scores beyond substring matching ───────────────────────────────
+# ── LLM-judge: a quant/hedge-fund analyst rates usefulness + exposes gaps ──────────────
 def _judge_tool() -> dict:
-    n = {"type": "integer"}
-    return {"name": "score_answer", "description": "Score a commodity-analysis answer on a 1-5 rubric.",
+    n = {"type": "integer"}                                            # 1-5
+    arr = {"type": "array", "items": {"type": "string"}}
+    return {"name": "score_answer",
+            "description": "A commodity hedge-fund analyst's verdict on how useful + grounded this answer is.",
             "input_schema": {"type": "object", "properties": {
-                "groundedness": n, "driver_coverage": n, "evidence_use": n, "overall": n,
-                "regime_correct": {"type": "boolean"}, "hallucination": {"type": "boolean"},
-                "rationale": {"type": "string"}}}}
+                "usefulness": n, "grounding": n,
+                "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}},
+                "required": ["usefulness", "grounding", "gaps", "verdict"]}}
 
 
-_JUDGE_SYS = ("You evaluate an answer grounded in a curated causal graph + dated evidence — BOTH are given to you "
-              "below. A claim is GROUNDED if it traces to the graph (its drivers, signs, mechanisms, regimes, "
-              "interactions ARE authoritative — naming them is NOT hallucination) OR to the evidence text "
-              "(quoted figures/dates from the evidence are fine). Only flag hallucination for claims supported by "
-              "NEITHER. Score 1-5: groundedness, driver_coverage (named the right drivers), evidence_use, overall. "
-              "regime_correct: did it use the right regime, or true if a regime was reasonable/none needed. "
-              "hallucination: true only for genuinely unsupported claims. rationale: one sentence. Emit via score_answer.")
+_JUDGE_SYS = (
+    "You are a SENIOR QUANTITATIVE RESEARCHER at a commodities hedge fund, pressure-testing an analyst tool before "
+    "the desk relies on it. You are shown the QUESTION, the curated causal graph + dated evidence the tool had "
+    "access to, and the tool's ANSWER. Judge it the way a PM would before risking capital — be demanding and "
+    "specific, not polite:\n"
+    "- usefulness (1-5): is it ACTIONABLE? Does it give a real edge — direction, the drivers that matter, what to "
+    "watch — or is it vague restatement of the question / textbook filler? 5 = I'd act on it; 1 = useless.\n"
+    "- grounding (1-5): are the specific claims (drivers, signs, magnitudes, dates) backed by the cited dated "
+    "evidence or by the authoritative graph? 5 = every claim traceable; 1 = floating assertions. (Naming the "
+    "graph's own drivers/regimes/signs is AUTHORITATIVE, not hallucination.)\n"
+    "- hallucinations: list any specific claim, number, sign, or date supported by NEITHER the graph NOR the "
+    "evidence.\n"
+    "- gaps: what a PM would still need that's missing — a key driver not mentioned, NO dated evidence cited, no "
+    "direction/magnitude, no 'what to watch', wrong/!blended commodity, missed a regime or cross-commodity leg. "
+    "Be concrete.\n"
+    "- improvements: concrete changes that would make it more tradeable.\n"
+    "- verdict: one blunt sentence.\n"
+    "A fluent answer with no dated evidence or no actionable edge should score LOW on usefulness. Emit via score_answer.")
 
 
 def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "claude-opus-4-8", call=None) -> dict:
-    """An independent model scores answer quality — shown the SAME graph context + evidence TEXT the answerer had,
-    so it can verify grounding (not just substring). Returns the score dict."""
+    """A quant-analyst persona scores the answer — shown the SAME graph context + evidence TEXT the answerer had,
+    so it can tell grounded from invented. Returns {usefulness, grounding, hallucinations[], gaps[], improvements[],
+    verdict}."""
     call = call or ex.call_opus
-    exp = query.get("expect") or {}
     ctx = ""
     if graph is not None:
         from leviathan.graphrag import answer as an
         ctx = "\n\n".join(an._context_block(graph, c) for c in (out.get("contracts") or [out.get("contract")]) if c)
     ev_text = "\n".join(f"- ({e['source']}, {e['date']}) {e.get('text', '')}" for e in out.get("evidence") or [])
-    user = (f"QUESTION: {query['question']}\nEXPECTED drivers: {exp.get('drivers')}\nEXPECTED regime: {exp.get('regime')}\n\n"
-            f"=== CAUSAL GRAPH THE ANSWER MAY CITE (these drivers/signs/regimes are authoritative) ===\n{ctx}\n\n"
-            f"=== DATED EVIDENCE THE ANSWER WAS SHOWN ===\n{ev_text or '(none)'}\n\n"
-            f"=== ANSWER ===\n{out.get('answer')}")
-    scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=600, tool=_judge_tool())
+    user = (f"QUESTION: {query['question']}\n"
+            f"(the tool routed this to: {out.get('contracts') or out.get('contract')})\n\n"
+            f"=== CAUSAL GRAPH THE TOOL COULD CITE (drivers/signs/regimes here are authoritative) ===\n{ctx}\n\n"
+            f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
+            f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
+    scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=1000, tool=_judge_tool())
     return scores
+
+
+def _metrics(r: dict) -> dict:
+    """Per-row metrics for the grounding-depth aggregation."""
+    out, j = r["out"], (r.get("judge") or {})
+    cited = len((out.get("structured") or {}).get("sources") or [])
+    return {"commodity": r["q"]["contract"], "category": r["q"].get("category", r["q"].get("type", "")),
+            "routed_ok": r["rubric"]["routed_right"], "retrieved": len(out.get("evidence") or []), "cited": cited,
+            "usefulness": j.get("usefulness"), "grounding": j.get("grounding"),
+            "halluc": len(j.get("hallucinations") or []), "gaps": j.get("gaps") or []}
+
+
+def grounding_report(rows: list[dict]) -> list[str]:
+    """Per-commodity grounding-depth table — the decision input for where evidence is thin for real questions."""
+    import collections
+    import statistics
+    by: dict[str, list] = collections.defaultdict(list)
+    for r in rows:
+        by[r["q"]["contract"]].append(_metrics(r))
+
+    def avg(xs):
+        xs = [x for x in xs if x is not None]
+        return round(statistics.mean(xs), 1) if xs else None
+
+    L = ["## Per-commodity grounding depth", "",
+         "| commodity | Qs | routed | usefulness | grounding | ev.retrieved | ev.cited | halluc |",
+         "|---|--|--|--|--|--|--|--|"]
+    flags = []
+    for c in sorted(by):
+        m = by[c]
+        g = avg([x["grounding"] for x in m])
+        if g is not None and g < 3:
+            flags.append(c)
+        L.append(f"| {c} | {len(m)} | {sum(x['routed_ok'] for x in m)}/{len(m)} | {avg([x['usefulness'] for x in m])} "
+                 f"| {g} | {avg([x['retrieved'] for x in m])} | {avg([x['cited'] for x in m])} "
+                 f"| {sum(x['halluc'] for x in m)} |")
+    L += ["", f"**Under-grounded (avg grounding < 3) -> candidates for broad-rebuild / corpus gap:** {flags or 'none'}"]
+    return L
 
 
 def report(rows: list[dict], *, model: str) -> str:
@@ -89,32 +141,45 @@ def report(rows: list[dict], *, model: str) -> str:
     judged = [r["judge"] for r in rows if r.get("judge")]
     lines = [f"# graphdev eval — {model}", "", f"- routed correctly: **{routed}/{len(rows)}**"]
     if judged:
-        avg = sum(j.get("overall", 0) for j in judged) / len(judged)
-        halluc = sum(1 for j in judged if j.get("hallucination"))
-        lines.append(f"- LLM-judge overall: **{avg:.1f}/5** | hallucinations flagged: {halluc}/{len(judged)}")
+        use = sum(j.get("usefulness", 0) for j in judged) / len(judged)
+        gnd = sum(j.get("grounding", 0) for j in judged) / len(judged)
+        halluc = sum(len(j.get("hallucinations") or []) for j in judged)
+        lines.append(f"- judge **usefulness {use:.1f}/5** · **grounding {gnd:.1f}/5** · "
+                     f"hallucinated claims: {halluc}")
     lines.append("")
+    if judged:
+        lines += grounding_report(rows) + [""]
     for r in rows:
         q, out, rb = r["q"], r["out"], r["rubric"]
-        lines += [f"## {q['id']}  ({q['type']})", f"**Q:** {q['question']}", "",
+        lines += [f"## {q['id']}  ({q.get('category', q.get('type', ''))})", f"**Q:** {q['question']}", "",
                   f"- routed: `{out.get('contract')}` (expected `{q['contract']}`) | "
-                  f"drivers: {rb['drivers_hit']} (missed {rb['drivers_missed']}) | "
-                  f"regime_named: {rb['regime_named']} | evidence_cited: {rb['evidence_cited']}",
-                  f"- evidence: {[ (e['source'], e['date']) for e in out.get('evidence') or [] ]}"]
+                  f"drivers: {rb['drivers_hit']} | evidence retrieved: {len(out.get('evidence') or [])}",
+                  f"- evidence: {[(e['source'], e['date']) for e in out.get('evidence') or []][:6]}"]
         if r.get("judge"):
             j = r["judge"]
-            lines.append(f"- **judge:** overall {j.get('overall')}/5 | grounded {j.get('groundedness')} | "
-                         f"drivers {j.get('driver_coverage')} | evidence {j.get('evidence_use')} | "
-                         f"regime_ok {j.get('regime_correct')} | halluc {j.get('hallucination')} — {j.get('rationale')}")
+            lines += [f"- **judge:** usefulness {j.get('usefulness')}/5 · grounding {j.get('grounding')}/5 — "
+                      f"_{j.get('verdict')}_",
+                      f"  - gaps: {j.get('gaps')}",
+                      f"  - hallucinations: {j.get('hallucinations') or 'none'}",
+                      f"  - improvements: {j.get('improvements') or '—'}"]
         lines += ["", "**A:**", "", (out.get("answer") or "(no answer)"), ""]
     return "\n".join(lines)
 
 
-def estimate_cost(queries: list[dict], *, model: str) -> dict:
-    # rough: ~3.5K input (graph context + evidence) + ~0.9K output per query
-    price = {"claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6)}.get(model, (3.0 / 1e6, 15.0 / 1e6))
-    in_tok, out_tok = 3500, 900
-    usd = len(queries) * (in_tok * price[0] + out_tok * price[1])
-    return {"queries": len(queries), "model": model, "est_usd": round(usd, 2)}
+_PRICE = {"claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6)}
+
+
+def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = None) -> dict:
+    # rough: answer ~3.5K input (graph + evidence) + ~0.9K out; judge ~4.5K input (graph + evidence + answer) + ~0.8K out
+    ap = _PRICE.get(model, _PRICE["claude-sonnet-4-6"])
+    usd = len(queries) * (3500 * ap[0] + 900 * ap[1])
+    out = {"queries": len(queries), "model": model, "answer_usd": round(usd, 2), "est_usd": round(usd, 2)}
+    if judge_model:
+        jp = _PRICE.get(judge_model, _PRICE["claude-opus-4-8"])
+        jusd = len(queries) * (4500 * jp[0] + 800 * jp[1])
+        out.update(judge_model=judge_model, judge_usd=round(jusd, 2), total_usd=round(usd + jusd, 2),
+                   est_usd=round(usd + jusd, 2))
+    return out
 
 
 def main() -> int:
@@ -128,8 +193,10 @@ def main() -> int:
     args = ap.parse_args()
     queries = load_queries()
     if args.dry_run or not args.run:
-        print(f"DRY-RUN cost estimate: {estimate_cost(queries, model=args.model)}"
-              + (f" + judge ({args.judge_model})" if args.judge else ""))
+        print(f"DRY-RUN cost estimate: {estimate_cost(queries, model=args.model, judge_model=args.judge_model if args.judge else None)}")
+        import collections
+        cats = collections.Counter(q.get("category", q.get("type", "?")) for q in queries)
+        print(f"  {len(queries)} questions across {len(set(q['contract'] for q in queries))} contracts; categories: {dict(cats)}")
         return 0
     from leviathan.common import config
     config.load_env()                                 # load ANTHROPIC_API for the serving (+ judge) model

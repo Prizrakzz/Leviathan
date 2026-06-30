@@ -26,37 +26,40 @@ def test_score_rubric():
 
 
 def test_run_and_report():
-    queries = [{"id": "q1", "type": "convergence", "contract": "arabica_coffee", "question": "what caused the spike",
+    queries = [{"id": "q1", "category": "convergence", "contract": "arabica_coffee", "question": "what caused the spike",
                 "expect": {"drivers": ["frost"], "regime": "bullish_supply_squeeze", "needs_evidence": True}}]
 
     def fake_answer(question, *, graph, model, k, asof=None, near=None):
         return {"answer": "Frost drove the bullish supply squeeze.", "contract": "arabica_coffee",
-                "evidence": [{"source": "GAIN", "date": "2021-07-20"}], "model": model, "trace": {}}
+                "structured": {"sources": [{"ref": 1}]}, "evidence": [{"source": "GAIN", "date": "2021-07-20"}],
+                "model": model, "trace": {}}
 
     rows = gev.run(_graph(), queries, model="claude-sonnet-4-6", answer_fn=fake_answer)
-    assert rows[0]["rubric"]["routed_right"] and rows[0]["rubric"]["regime_named"]
+    assert rows[0]["rubric"]["routed_right"]
     rep = gev.report(rows, model="claude-sonnet-4-6")
-    assert "bullish supply squeeze" in rep and "GAIN" in rep and "routed correctly: **1/1**" in rep
+    assert "GAIN" in rep and "routed correctly: **1/1**" in rep
 
 
-def test_judge_scores_and_report():
-    q = {"id": "q1", "type": "convergence", "contract": "arabica_coffee", "question": "what caused the spike",
-         "expect": {"drivers": ["frost"], "regime": "bullish_supply_squeeze", "needs_evidence": True}}
-    out = {"answer": "Frost ...", "contract": "arabica_coffee", "evidence": [{"source": "GAIN", "date": "2021-07-20"}]}
-    scores = {"groundedness": 5, "driver_coverage": 5, "evidence_use": 4, "overall": 5,
-              "regime_correct": True, "hallucination": False, "rationale": "well grounded"}
+def test_judge_quant_persona_and_grounding_report():
+    q = {"id": "q1", "category": "convergence", "contract": "arabica_coffee", "question": "what caused the spike",
+         "expect": {"drivers": ["frost"], "needs_evidence": True}}
+    out = {"answer": "Frost ...", "contract": "arabica_coffee", "structured": {"sources": [{"ref": 1}]},
+           "evidence": [{"source": "GAIN", "date": "2021-07-20", "text": "frost hit"}]}
+    scores = {"usefulness": 4, "grounding": 5, "hallucinations": [], "gaps": ["no magnitude given"],
+              "improvements": ["quantify the move"], "verdict": "actionable but no sizing"}
 
     def fake_call(client, system, user, *, model, max_tokens, tool):    # mimic ex.call_opus -> (input, usage)
-        assert tool["name"] == "score_answer" and "frost" in user.lower()
+        assert tool["name"] == "score_answer" and "QUANTITATIVE RESEARCHER" in system and "frost hit" in user
         return scores, None
 
     j = gev.judge(q, out, client=None, model="claude-opus-4-8", call=fake_call)
-    assert j["overall"] == 5 and j["hallucination"] is False
+    assert j["usefulness"] == 4 and j["gaps"] == ["no magnitude given"]
     rep = gev.report([{"q": q, "out": out, "rubric": gev.score(q, out), "judge": j}], model="claude-sonnet-4-6")
-    assert "LLM-judge overall: **5.0/5**" in rep and "well grounded" in rep
+    assert "usefulness 4.0/5" in rep and "grounding 5.0/5" in rep                  # overall header
+    assert "Per-commodity grounding depth" in rep and "no magnitude given" in rep  # grounding table + gaps surfaced
 
 
-def test_estimate_cost_scales_with_model():
+def test_estimate_cost_includes_judge():
     sonnet = gev.estimate_cost([{}] * 10, model="claude-sonnet-4-6")
-    opus = gev.estimate_cost([{}] * 10, model="claude-opus-4-8")
-    assert sonnet["queries"] == 10 and 0 < sonnet["est_usd"] < opus["est_usd"]   # opus pricier
+    withjudge = gev.estimate_cost([{}] * 10, model="claude-sonnet-4-6", judge_model="claude-opus-4-8")
+    assert sonnet["queries"] == 10 and withjudge["total_usd"] > sonnet["answer_usd"]   # judge adds cost
