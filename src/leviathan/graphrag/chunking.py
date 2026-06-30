@@ -13,8 +13,11 @@ from datetime import date
 
 from leviathan.graphrag.contracts import Chunk
 
-# Bedrock Haiku (cross-region `global.` profile, probe-confirmed) — chunking provider per the design.
+# Bedrock Haiku (cross-region `global.` profile, probe-confirmed) — default chunking provider.
 HAIKU_MODEL = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+# Anthropic-API Haiku (same model) — the alternative provider, billed to the Anthropic account (prepaid credit)
+# instead of AWS Bedrock. Selected via provider="anthropic" + an anthropic.Anthropic client.
+ANTHROPIC_HAIKU = "claude-haiku-4-5"
 
 _PROP_SYSTEM = (
     "You decompose a passage from an agricultural-commodity report into atomic, self-contained "
@@ -187,6 +190,18 @@ def _haiku_propositions(bedrock, text: str, model: str) -> list[dict]:
         return []
 
 
+def _anthropic_propositions(client, text: str, model: str) -> list[dict]:
+    """One Anthropic-API Haiku call → propositions (billed to the Anthropic account). Empty on failure
+    (caller falls back to the block). The client carries its own retry/backoff for rate limits."""
+    try:
+        resp = client.messages.create(model=model, max_tokens=4096, temperature=0,
+                                       system=_PROP_SYSTEM, messages=[{"role": "user", "content": text}])
+        out = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+        return _parse_json_array(out)
+    except Exception:  # noqa: BLE001 — rate-limit/overload/parse all degrade to fallback
+        return []
+
+
 def propositional_chunks(
     *,
     full_text: str,
@@ -198,15 +213,19 @@ def propositional_chunks(
     doc_id: str,
     bedrock=None,
     model: str = HAIKU_MODEL,
+    provider: str = "bedrock",
+    anthropic_client=None,
+    anthropic_model: str = ANTHROPIC_HAIKU,
     max_block_chars: int = 5000,
 ) -> list[Chunk]:
-    """Production chunking: block the doc, then have Bedrock Haiku decompose each block into atomic
-    propositions (each keeping its verbatim source span). Falls back to the deterministic block when
-    Haiku yields nothing, so output is always contract-valid."""
+    """Production chunking: block the doc, then have Haiku decompose each block into atomic propositions
+    (each keeping its verbatim source span). provider='bedrock' (default) calls Bedrock Haiku via the task
+    IAM role; provider='anthropic' calls the Anthropic API (prepaid credit) with the given anthropic_client.
+    Falls back to the deterministic block when Haiku yields nothing, so output is always contract-valid."""
     method = _extraction_method(extraction_method)
     ocr = method == "textract"
     quality = 0.85 if ocr else 0.97
-    if bedrock is None:
+    if provider == "bedrock" and bedrock is None:
         import boto3
         bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
@@ -217,8 +236,11 @@ def propositional_chunks(
     props: list[tuple] = []   # (proposition, verbatim_span, char_start, event_date, event_date_precision)
     cursor = 0
     for blk in blocks:
-        items = _haiku_propositions(bedrock, blk.verbatim_span, model) or [
-            {"proposition": blk.proposition, "verbatim_span": blk.verbatim_span}]
+        if provider == "anthropic":
+            raw = _anthropic_propositions(anthropic_client, blk.verbatim_span, anthropic_model)
+        else:
+            raw = _haiku_propositions(bedrock, blk.verbatim_span, model)
+        items = raw or [{"proposition": blk.proposition, "verbatim_span": blk.verbatim_span}]
         for it in items:
             span = (it.get("verbatim_span") or "").strip()
             prop = (it.get("proposition") or span).strip()
