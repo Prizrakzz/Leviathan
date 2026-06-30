@@ -36,7 +36,16 @@ _SYSTEM = (
     "a category; whether it is a first-class 'driver' or low-priority 'context'; a one-line mechanism; and which "
     "of the listed contracts it moves. Prioritize what genuinely moves price for a PM — the second-order links a "
     "generalist would miss. Do NOT propose any of the listed traded contracts, and do NOT repeat drivers already "
-    "present. Return ONLY via the propose_drivers tool."
+    "present.\n"
+    "CROP DISEASE & PESTS are first-order yield drivers and are richly documented in attache crop reports — treat "
+    "them as a priority, comprehensively: cereal rusts (stem/stripe/leaf rust), Fusarium head blight and "
+    "mycotoxins (DON/vomitoxin), Asian soybean rust, corn tar spot & southern rust, fall armyworm, desert locust, "
+    "wheat blast, Panama disease/TR4, plus the crop-specific ones (coffee leaf rust, cocoa black pod / swollen "
+    "shoot, citrus greening). Name the pathogen/pest precisely.\n"
+    "CORPUS REALISM: you will be grounded ONLY against the sources listed in the user message — fundamental crop/"
+    "trade reports, not market microstructure. Favor drivers those reports actually DISCUSS (weather, disease, "
+    "output, policy, trade, demand, macro); avoid drivers that live only in exchange/positioning data.\n"
+    "Return ONLY via the propose_drivers tool."
 )
 
 
@@ -55,19 +64,33 @@ def _tool() -> dict:
                 "required": ["drivers"]}}
 
 
-def _user() -> str:
+_CORPUS = (
+    "CORPUS YOU WILL BE GROUNDED AGAINST (propose drivers these sources actually DISCUSS): ~25 sources, ~91% USDA"
+    " — per-commodity USDA FAS/GAIN attache reports (country-level production, area, yield, WEATHER, crop DISEASE "
+    "& PESTS, policy, trade, stocks, consumption), USDA WASDE + WAP global balance sheets, USDA grain monthly; plus"
+    " the World Bank Commodity Markets Outlook (macro, energy, FX, price analysis), the Colombian coffee federation"
+    " (FNC), the Malaysian palm boards (MPOB/MPOC), and Brazil's CONAB. These are fundamental/attache reports: they"
+    " DO cover weather, disease/pests, output, policy, trade, demand and macro; they do NOT carry CFTC positioning,"
+    " intraday flows, or financial-market microstructure."
+)
+
+
+def _user(focus: str | None = None) -> str:
     existing = sorted(ev.driver_specs().keys())
     commodities = ev.all_nodes()
-    return ("TRADED CONTRACTS (do NOT propose these; these are the things the drivers MOVE):\n  "
+    focus_line = (f"\n\nTHIS ROUND, focus specifically on: {focus}" if focus else
+                  "\n\nAim for breadth across all the areas in your brief (especially crop disease/pests, the "
+                  "livestock/feed-demand complex, demand centers, logistics, and non-contract substitutes).")
+    return (_CORPUS
+            + "\n\nTRADED CONTRACTS (do NOT propose these; these are what the drivers MOVE):\n  "
             + ", ".join(commodities)
             + "\n\nDRIVER/CONTEXT NODES ALREADY CURATED (do NOT repeat these):\n  " + ", ".join(existing)
-            + "\n\nPropose the NET-NEW driver/context nodes a hedge-fund ag desk watches that are missing above. "
-              "Aim for breadth across all the areas in your brief (especially the livestock/feed-demand complex, "
-              "positioning, demand centers, logistics, and non-contract substitutes), with precise match terms.")
+            + "\n\nPropose the NET-NEW driver/context nodes a hedge-fund ag desk watches that are missing above and "
+              "that the corpus above could actually ground, with precise match terms." + focus_line)
 
 
-def propose(client, *, model: str = ex.MODEL) -> list[dict]:
-    out, _usage = ex.call_opus(client, _SYSTEM, _user(), model=model, max_tokens=8000, tool=_tool())
+def propose(client, *, model: str = ex.MODEL, focus: str | None = None) -> list[dict]:
+    out, _usage = ex.call_opus(client, _SYSTEM, _user(focus), model=model, max_tokens=8000, tool=_tool())
     return out.get("drivers", []) if isinstance(out, dict) else []
 
 
@@ -87,6 +110,7 @@ def to_yaml_fragment(proposals: list[dict]) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Opus-propose net-new driver/context nodes (gated: one Opus call).")
     ap.add_argument("--propose", action="store_true")
+    ap.add_argument("--focus", default=None, help="steer this round (e.g. 'crop diseases and pests')")
     ap.add_argument("--merge", action="store_true", help="append the proposed fragment to driver_slices.yaml")
     args = ap.parse_args()
     if not args.propose:
@@ -97,7 +121,7 @@ def main() -> int:
     from leviathan.graphrag import batch_extract as bx
     config.load_env()
     client = anthropic.Anthropic(api_key=bx._api_key())
-    proposals = propose(client)
+    proposals = propose(client, focus=args.focus)
     frag = to_yaml_fragment(proposals)
     print(f"OPUS proposed {len(proposals)} net-new driver/context nodes:\n")
     print(frag)
