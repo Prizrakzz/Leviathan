@@ -144,3 +144,18 @@ def test_sample_keys_keeps_all_relevant_when_fewer_than_n(monkeypatch):
             return types.SimpleNamespace(paginate=lambda **kw: [{"Contents": [{"Key": k} for k in cocoa + other]}])
     got = ev.sample_keys(_S3(), node="cocoa", year_windows=[(2025, 2025)], n=10, seed=0)
     assert len(got) == 10 and set(cocoa) <= set(got)               # all 3 relevant retained (old code would dilute)
+
+
+def test_sample_keys_relevance_includes_extra_terms(monkeypatch):
+    import leviathan.graphrag.corpus_recon as cr
+    monkeypatch.setattr(ev, "_extra_terms", lambda node: ["rapeseed"])   # canola broadens to its rapeseed source
+    monkeypatch.setattr(cr, "_source_of",
+                        lambda k: "usda_gain_rapeseed" if "rape" in k else "usda_gain_grain", raising=False)
+    rape = [f"text/x/2021/rape{i}/document.json" for i in range(5)]
+    other = [f"text/x/2021/grain{i}/document.json" for i in range(20)]
+
+    class _S3:
+        def get_paginator(self, _):
+            return types.SimpleNamespace(paginate=lambda **kw: [{"Contents": [{"Key": k} for k in rape + other]}])
+    got = ev.sample_keys(_S3(), node="canola", year_windows=[(2021, 2021)], n=8, seed=0)
+    assert set(rape) <= set(got)        # canola's rapeseed-source docs prioritized via extra_terms (was random before)

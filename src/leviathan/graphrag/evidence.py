@@ -117,6 +117,7 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
         return y not in (None, "unknown") and any(lo <= int(y) <= hi for lo, hi in year_windows)
 
     terms = [t for t in node.lower().split("_") if len(t) > 2]   # commodity tokens, NOT the contract's exchange suffix
+    terms += [tok for t in _extra_terms(node) for tok in t.lower().split() if len(tok) > 2]  # parent-source bias too
     in_win = [k for k in keys if in_window(k)]
     relevant = [k for k in in_win if any(t in _source_of(k).lower() for t in terms)]
     rng = random.Random(seed)
