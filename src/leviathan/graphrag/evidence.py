@@ -244,7 +244,7 @@ _WINDOWS = {                                          # baked-in pilot defaults 
     "soybeans": [(2012, 2012), (2018, 2018), (2024, 2024)],
 }
 _WINDOWS_PATH = ex._CFG / "evidence_windows.yaml"     # marquee shock-year windows for all nodes (gitignored IP)
-_BROAD = [(2004, 2026)]                               # fallback: sample broadly across the modern corpus
+_BROAD = [(1973, 2026)]                               # fallback: sample across the FULL corpus (back to 1973)
 
 
 def _windows() -> dict:
