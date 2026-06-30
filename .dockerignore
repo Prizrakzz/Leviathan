@@ -28,6 +28,13 @@ tmp/
 tests/
 notebooks/
 
+# GraphRAG runtime artifacts — regenerated in S3 (EVIDENCE_S3) / reports; never needed inside an image.
+# configs/graphrag/evidence/ alone is ~469 MB of inline embedding vectors. The cloud builder reads the small
+# config inputs it DOES need (causal/, commodity_hierarchy.yaml, evidence_windows.yaml, vocab) and writes fresh.
+configs/graphrag/evidence/
+configs/graphrag/eval/
+configs/graphrag/pilot/
+
 # OS noise
 .DS_Store
 Thumbs.db
