@@ -102,3 +102,30 @@ def test_retrieve_keeps_pure_driver_props_and_parses_event_date(tmp_path, monkey
     drecs = [json.loads(x) for x in
              (tmp_path / "ev" / "drivers" / "biodiesel_mandate.jsonl").read_text(encoding="utf-8").splitlines()]
     assert any("B40" in r["text"] for r in drecs) and drecs[0]["event_date"] == "2023-02-01"   # pure-driver prop SURVIVED
+    raw = [json.loads(x) for x in (tmp_path / "ev" / "_raw" / "palm_oil.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(raw) == 2 and all("vector" not in r for r in raw)                # _raw keeps EVERY prop, unembedded
+
+
+def test_reroute_rederives_slices_from_raw_without_rechunk(tmp_path, monkeypatch):
+    """reroute reads the persisted _raw archive (incl. a 'neither' boilerplate prop) and re-derives the
+    commodity + driver slices with NO Anthropic call — the 'chunk once, route forever' guarantee."""
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[0.1, 0.2] for _ in texts])
+    monkeypatch.setattr(ev, "_aliases", lambda node: ["palm"])
+    raw = [
+        {"id": "a", "contract": "palm_oil", "date": "2023-08-11", "source": "GAIN", "source_key": "k",
+         "text": "Palm oil exports rose.", "event_date": None, "event_date_precision": None},
+        {"id": "b", "contract": "palm_oil", "date": "2023-08-11", "source": "GAIN", "source_key": "k",
+         "text": "Indonesia raised the blend to B40.", "event_date": "2023-02-01", "event_date_precision": "day"},
+        {"id": "c", "contract": "palm_oil", "date": "2023-08-11", "source": "GAIN", "source_key": "k",
+         "text": "Table of contents, page 3.", "event_date": None, "event_date_precision": None},
+    ]
+    (tmp_path / "_raw").mkdir()
+    (tmp_path / "_raw" / "palm_oil.jsonl").write_text("\n".join(json.dumps(r) for r in raw), encoding="utf-8")
+
+    n = eb.reroute(nodes=["palm_oil"])
+    crecs = [json.loads(x) for x in (tmp_path / "palm_oil.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert n == 1 and len(crecs) == 1 and "exports" in crecs[0]["text"]         # commodity slice re-derived
+    drecs = [json.loads(x) for x in (tmp_path / "drivers" / "biodiesel_mandate.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert any("B40" in r["text"] for r in drecs)                              # driver slice re-derived from _raw
+    assert "Table of contents" not in (tmp_path / "palm_oil.jsonl").read_text(encoding="utf-8")   # boilerplate stays archived-only

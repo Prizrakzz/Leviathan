@@ -75,17 +75,42 @@ def _text_of(result) -> str:
     return "".join(b.text for b in result.result.message.content if getattr(b, "type", None) == "text")
 
 
+def _route_and_write(by_node: dict, *, backend: str | None = None, drivers: bool = True) -> int:
+    """Write the _raw/<node> archive (EVERY prop, unembedded) + route to commodity & driver slices (embed the
+    routed). Shared by retrieve (props from the batch) and reroute (props from the persisted _raw archive). The
+    archive is the future-proofing: re-deriving slices after the driver YAML grows NEVER re-chunks — chunk once,
+    route forever. Pure-driver props (B40/freight/FX/El Nino/metals) are routed to driver slices, not dropped."""
+    backend = backend or ev.DEFAULT_BACKEND
+    driver_sink: dict[str, list[dict]] | None = {} if drivers else None
+    total = 0
+    for node, recs in by_node.items():
+        raw = [{k: v for k, v in r.items() if k != "vector"} for r in recs]    # archive: text+date+source+event_date, no vector
+        ev._evid_write(f"_raw/{node}", "\n".join(json.dumps(r) for r in raw))
+        if driver_sink is not None:                                            # multi-label, independent of the commodity filter
+            for r in raw:
+                for dn in ev.driver_slices_for(r["text"]):
+                    driver_sink.setdefault(dn, []).append({**r, "driver": dn})
+        matcher = hv.build_matcher(ev.match_forms(node))
+        kept = [dict(r) for r in raw if matcher.search(r["text"])]             # commodity slice: on-topic props
+        for r, v in zip(kept, ev.embed([r["text"] for r in kept], backend=backend)):
+            r["vector"], r["backend"] = v, backend
+        ev._evid_write(node, "\n".join(json.dumps(r) for r in kept))
+        print(f"  {node}: {len(kept)} props -> evidence/{node}.jsonl  ({len(raw)} archived to _raw/)")
+        total += len(kept)
+    if driver_sink:
+        dtotal = ev.write_driver_slices(driver_sink, backend=backend)
+        print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
+    return total
+
+
 def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20, drivers: bool = True) -> int:
-    """Poll the batch, then route each prop the SAME way as the inline build (WS-MS6): parse its event_date,
-    send it to the commodity slice if it names the commodity AND to any driver slice whose terms it matches
-    (so pure-driver props — B40/freight/FX/El Nino/metals — are KEPT, not dropped), embed (bge-m3), write to
-    EVIDENCE_S3. The driver_sink is global across all nodes -> one atomic, complete set of driver slices."""
+    """Poll the batch, parse every prop (with event_date), then route via _route_and_write (writes the _raw
+    archive + commodity + driver slices). Pure-driver props are KEPT (routed to driver slices), not dropped."""
     manifest = json.loads((_OUT / f"{bid}.json").read_text(encoding="utf-8"))["manifest"]
     while client.messages.batches.retrieve(bid).processing_status != "ended":
         print(f"  batch {bid}: still processing ...")
         time.sleep(poll_s)
     by_node: dict[str, list[dict]] = {}
-    driver_sink: dict[str, list[dict]] | None = {} if drivers else None
     for r in client.messages.batches.results(bid):
         if getattr(r.result, "type", None) != "succeeded" or r.custom_id not in manifest:
             continue
@@ -95,27 +120,21 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
             if not prop:
                 continue
             ev_dt, ev_prec = ch._parse_event_date(item.get("event_date"), item.get("event_date_precision"))
-            rid = f"{r.custom_id}#{i}"
-            base = {"date": m["date"], "source": m["source"], "source_key": m["source_key"], "text": prop,
-                    "event_date": str(ev_dt) if ev_dt else None, "event_date_precision": ev_prec}
-            by_node.setdefault(m["contract"], []).append({"id": rid, "contract": m["contract"], **base})
-            if driver_sink is not None:                                   # multi-label: independent of the commodity filter
-                for dn in ev.driver_slices_for(prop):
-                    driver_sink.setdefault(dn, []).append({"id": rid, "driver": dn, **base})
-    backend = backend or ev.DEFAULT_BACKEND
-    total = 0
-    for node, recs in by_node.items():
-        matcher = hv.build_matcher(ev.match_forms(node))
-        recs = [r for r in recs if matcher.search(r["text"])]                  # commodity slice: keep on-topic props
-        for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
-            r["vector"], r["backend"] = v, backend
-        ev._evid_write(node, "\n".join(json.dumps(r) for r in recs))
-        print(f"  {node}: {len(recs)} dated props -> evidence/{node}.jsonl")
-        total += len(recs)
-    if driver_sink:
-        dtotal = ev.write_driver_slices(driver_sink, backend=backend)
-        print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
-    return total
+            by_node.setdefault(m["contract"], []).append(
+                {"id": f"{r.custom_id}#{i}", "contract": m["contract"], "date": m["date"], "source": m["source"],
+                 "source_key": m["source_key"], "text": prop,
+                 "event_date": str(ev_dt) if ev_dt else None, "event_date_precision": ev_prec})
+    return _route_and_write(by_node, backend=backend, drivers=drivers)
+
+
+def reroute(*, nodes=None, backend: str | None = None, drivers: bool = True) -> int:
+    """Re-derive commodity + driver slices from the persisted _raw archive — NO re-chunk, NO Anthropic call.
+    Run after expanding driver_slices.yaml (or commodity terms) to capture newly-defined nodes for free."""
+    nodes = nodes or ev.all_nodes()
+    by_node = {n: recs for n in nodes if (recs := ev.load_index(f"_raw/{n}"))}
+    if not by_node:
+        raise SystemExit("no _raw/ archive found — run --retrieve first (it writes the _raw archive).")
+    return _route_and_write(by_node, backend=backend, drivers=drivers)
 
 
 def run(s3, client, *, nodes, n_docs, seed: int = 0) -> int:
@@ -126,6 +145,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Batch-API evidence chunking (gated: Haiku batch billed).")
     ap.add_argument("--submit", action="store_true")
     ap.add_argument("--retrieve", metavar="BID")
+    ap.add_argument("--reroute", action="store_true",
+                    help="re-derive slices from the persisted _raw archive (free; after expanding driver_slices.yaml)")
     ap.add_argument("--run", action="store_true")
     ap.add_argument("--nodes", default="all")
     ap.add_argument("--n-docs", type=int, default=40)
@@ -149,6 +170,10 @@ def main() -> int:
         print(f"DRY-RUN: {len(reqs)} ON-TOPIC block requests over {len(nodes)} node(s); Haiku batch est ~${usd:.2f}")
         for n in nodes:
             print(f"  {n}: {per.get(n, 0)} blocks" + ("   <-- THIN" if per.get(n, 0) < 30 else ""))
+        return 0
+    if args.reroute:                                                   # free: no Anthropic call, re-derive from _raw
+        print(f"reroute {len(nodes)} node(s) from _raw archive -> commodity + driver slices")
+        reroute(nodes=nodes)
         return 0
     import anthropic
     from leviathan.graphrag import batch_extract as bx
