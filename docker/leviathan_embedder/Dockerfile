@@ -31,9 +31,14 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
     pip install --no-cache-dir "sentence-transformers>=2.2"
 
 # 2) Bake bge-m3 (temporarily online; runtime stays offline via the ENV above). Cached above the project deps,
-#    so a dependency change does NOT re-download the model.
+#    so a dependency change does NOT re-download the model. Download ONLY the safetensors weights — skip the
+#    duplicate pytorch_model.bin (~2.3 GB) + onnx so the image (and the ECR push blob) is half the size; then
+#    load via sentence-transformers to VERIFY it resolves offline-from-cache (a missing safetensors fails here).
 RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python -c \
-    "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-m3')"
+    "from huggingface_hub import snapshot_download; \
+snapshot_download('BAAI/bge-m3', ignore_patterns=['pytorch_model.bin', 'onnx/*', '*.onnx']); \
+from sentence_transformers import SentenceTransformer; \
+m = SentenceTransformer('BAAI/bge-m3'); print('bge-m3 ready, dim', m.get_sentence_embedding_dimension())"
 
 # 3) Project dependencies: core (incl. pydantic) + [embed]. torch + sentence-transformers are already satisfied.
 COPY pyproject.toml ./
