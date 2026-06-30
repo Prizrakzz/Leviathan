@@ -94,7 +94,7 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
             f"=== CAUSAL GRAPH THE TOOL COULD CITE (drivers/signs/regimes here are authoritative) ===\n{ctx}\n\n"
             f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
             f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
-    scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=1000, tool=_judge_tool())
+    scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=2500, tool=_judge_tool())  # headroom for adaptive thinking
     return scores
 
 
