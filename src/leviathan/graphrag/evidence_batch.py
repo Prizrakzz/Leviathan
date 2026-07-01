@@ -403,10 +403,16 @@ def main() -> int:
     if args.measure_orphan_drivers:                                    # Gap-2 sizing
         print("orphan-driver measurement:", measure_orphan_drivers(s3, srcs))
         return 0
-    if args.fill:                                                      # select a doc-list; --dry-run just counts
+    if args.fill:                                                      # select a doc-list; --dry-run sizes blocks + cost
         keys = select_docs(srcs, before_year=args.before, after_year=args.after)
         print(f"FILL selection: {len(keys)} uncached docs from {srcs} (before={args.before}, after={args.after})")
-        if args.dry_run or not keys:
+        if not keys:
+            return 0
+        if args.dry_run:                                               # chunk locally (free) to size the real block count
+            reqs, manifest = _build_requests_from_docs(s3, keys)
+            ndocs = len({m["source_key"] for m in manifest.values()})
+            lo, hi = len(reqs) * 0.002, len(reqs) * 0.007              # naive vs empirical (output tokens dominate; $70 lesson)
+            print(f"FILL dry-run: {len(reqs)} blocks over {ndocs} NEW docs; Haiku batch est ~${lo:.0f}-{hi:.0f}")
             return 0
         import anthropic
         from leviathan.graphrag import batch_extract as bx
