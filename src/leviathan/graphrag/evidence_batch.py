@@ -13,6 +13,7 @@ NO prompt caching (batch_extract measured that concurrent batch requests WRITE t
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
 
@@ -44,19 +45,71 @@ def _doc_blocks(s3, node: str, key: str, matcher=None) -> list:
     return [(blk, meta) for blk in blocks]
 
 
+# ── doc-keyed chunk cache: chunk each unique document ONCE, ever (WS-MS6+) ─────────────────
+def _doc_cache_node(source_key: str) -> str:
+    """chunks/<md5(doc key)> — a flat, filesystem-safe name for a document's cached propositions."""
+    return "chunks/" + hashlib.md5(source_key.encode("utf-8")).hexdigest()
+
+
+def _cached_hashes() -> set:
+    """md5 names of documents already in the chunk cache (list chunks/ once, local or S3)."""
+    base = ev._evid_s3()
+    if base:
+        import boto3
+        bkt, prefix = ev._parse_s3(base.rstrip("/") + "/chunks/")
+        out = set()
+        for p in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=bkt, Prefix=prefix):
+            out |= {o["Key"].rsplit("/", 1)[-1][:-6] for o in p.get("Contents", []) if o["Key"].endswith(".jsonl")}
+        return out
+    d = ev._EVID_DIR / "chunks"
+    return {p.stem for p in d.glob("*.jsonl")} if d.exists() else set()
+
+
+def _write_doc_cache(props_by_doc: dict) -> int:
+    """Write chunks/<hash>.jsonl once per doc, deduping props by text (collapses a doc chunked under several
+    nodes). Doc-keyed + unembedded — a future build reuses these instead of re-paying Haiku."""
+    n = 0
+    for source_key, props in props_by_doc.items():
+        seen, uniq = set(), []
+        for p in props:
+            if p["text"] in seen:
+                continue
+            seen.add(p["text"]); uniq.append(p)
+        ev._evid_write(_doc_cache_node(source_key), "\n".join(json.dumps(p) for p in uniq))
+        n += len(uniq)
+    return n
+
+
+def _read_doc_cache(source_key: str) -> list:
+    return ev.load_index(_doc_cache_node(source_key))
+
+
 def _build_requests(s3, nodes, n_docs, seed):
-    requests, manifest = [], {}
+    """Cache-aware. Sample docs per node, but Haiku-chunk each unique document only if it isn't ALREADY in
+    chunks/ (and only once, not per node). `sampling` records every sampled doc per node so retrieve can gather
+    the doc-cache (cached + newly chunked) and route to slices — so a re-build pays only for NEW documents."""
+    requests, manifest, sampling = [], {}, {}
+    cached = _cached_hashes()
+    queued: set = set()
     for node in nodes:
         matcher = hv.build_matcher(ev.match_forms(node))
-        for key in ev.sample_keys(s3, node=node, year_windows=ev.windows_for(node),
-                                  n=ev.n_docs_for(node, n_docs), seed=seed):
-            for blk, meta in _doc_blocks(s3, node, key, matcher):
-                cid = f"r{len(requests):06d}"                                  # Anthropic custom_id: ^[A-Za-z0-9_-]{1,64}$
-                requests.append({"custom_id": cid, "params": {                # no tools, no caching (see header)
+        keys = list(ev.sample_keys(s3, node=node, year_windows=ev.windows_for(node),
+                                   n=ev.n_docs_for(node, n_docs), seed=seed))
+        sampling[node] = keys
+        for key in keys:
+            if _doc_cache_node(key).split("/")[-1] in cached or key in queued:   # reuse cache / already queued
+                continue
+            blocks = _doc_blocks(s3, node, key, matcher)
+            if not blocks:                                                       # off-topic here; another node may chunk it
+                continue
+            queued.add(key)
+            for blk, meta in blocks:
+                cid = f"r{len(requests):06d}"                                     # custom_id: ^[A-Za-z0-9_-]{1,64}$
+                requests.append({"custom_id": cid, "params": {                   # no tools, no caching (see header)
                     "model": ex.HAIKU, "max_tokens": 4096, "system": ch._PROP_SYSTEM,
                     "messages": [{"role": "user", "content": blk.verbatim_span}]}})
                 manifest[cid] = meta
-    return requests, manifest
+    return requests, manifest, sampling
 
 
 def _manifest_s3_uri(bid: str) -> str | None:
@@ -75,26 +128,28 @@ def _save_manifest(bid: str, payload: dict) -> None:
         boto3.client("s3").put_object(Bucket=b, Key=k, Body=json.dumps(payload).encode("utf-8"))
 
 
-def _load_manifest(bid: str) -> dict:
-    """Read the manifest from local _OUT first (laptop), else from EVIDENCE_S3/_batches (Fargate retrieve)."""
+def _load_manifest_full(bid: str) -> dict:
+    """Read the whole batch payload ({manifest, sampling}) — local _OUT first (laptop), else EVIDENCE_S3/_batches."""
     p = _OUT / f"{bid}.json"
     if p.exists():
-        return json.loads(p.read_text(encoding="utf-8"))["manifest"]
+        return json.loads(p.read_text(encoding="utf-8"))
     uri = _manifest_s3_uri(bid)
     if uri:
         import boto3
         b, k = ev._parse_s3(uri)
-        return json.loads(boto3.client("s3").get_object(Bucket=b, Key=k)["Body"].read())["manifest"]
+        return json.loads(boto3.client("s3").get_object(Bucket=b, Key=k)["Body"].read())
     raise SystemExit(f"manifest for {bid} not found (local _OUT or EVIDENCE_S3/_batches/)")
 
 
 def submit(s3, client, *, nodes, n_docs, seed: int = 0) -> str:
-    requests, manifest = _build_requests(s3, nodes, n_docs, seed)
+    requests, manifest, sampling = _build_requests(s3, nodes, n_docs, seed)
     if not requests:
-        raise SystemExit("no blocks produced — aborting")
+        raise SystemExit("all sampled docs are already in the chunk cache (chunks/) — nothing new to chunk; "
+                         "re-derive slices for free with --reroute instead of a new batch.")
     bid = client.messages.batches.create(requests=requests).id
-    _save_manifest(bid, {"batch_id": bid, "manifest": manifest})
-    print(f"submitted batch {bid} ({len(requests)} block requests over {len(nodes)} contract(s))")
+    _save_manifest(bid, {"batch_id": bid, "manifest": manifest, "sampling": sampling})
+    new_docs = len({m["source_key"] for m in manifest.values()})
+    print(f"submitted batch {bid} ({len(requests)} blocks over {new_docs} NEW docs; cached docs skipped)")
     print(f"retrieve with:  python -m leviathan.graphrag.evidence_batch --retrieve {bid}")
     return bid
 
@@ -132,13 +187,17 @@ def _route_and_write(by_node: dict, *, backend: str | None = None, drivers: bool
 
 
 def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20, drivers: bool = True) -> int:
-    """Poll the batch, parse every prop (with event_date), then route via _route_and_write (writes the _raw
-    archive + commodity + driver slices). Pure-driver props are KEPT (routed to driver slices), not dropped."""
-    manifest = _load_manifest(bid)                                    # local on the laptop, else from EVIDENCE_S3
+    """Poll the batch, parse every prop (with event_date), write the doc-keyed chunk cache (chunks/<doc>), then
+    route via _route_and_write (_raw archive + commodity + driver slices). Pure-driver props are KEPT. With a
+    cache-aware `sampling` manifest, each node's props are gathered from the doc-cache (newly chunked + already
+    cached) — so a re-build only paid Haiku for new docs."""
+    payload = _load_manifest_full(bid)
+    manifest, sampling = payload["manifest"], payload.get("sampling")
     while client.messages.batches.retrieve(bid).processing_status != "ended":
         print(f"  batch {bid}: still processing ...")
         time.sleep(poll_s)
-    by_node: dict[str, list[dict]] = {}
+    props_by_doc: dict[str, list[dict]] = {}                          # source_key -> props (for the doc cache)
+    by_node: dict[str, list[dict]] = {}                              # contract -> props (old-manifest path)
     for r in client.messages.batches.results(bid):
         if getattr(r.result, "type", None) != "succeeded" or r.custom_id not in manifest:
             continue
@@ -148,10 +207,16 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
             if not prop:
                 continue
             ev_dt, ev_prec = ch._parse_event_date(item.get("event_date"), item.get("event_date_precision"))
-            by_node.setdefault(m["contract"], []).append(
-                {"id": f"{r.custom_id}#{i}", "contract": m["contract"], "date": m["date"], "source": m["source"],
-                 "source_key": m["source_key"], "text": prop,
-                 "event_date": str(ev_dt) if ev_dt else None, "event_date_precision": ev_prec})
+            base = {"date": m["date"], "source": m["source"], "source_key": m["source_key"], "text": prop,
+                    "event_date": str(ev_dt) if ev_dt else None, "event_date_precision": ev_prec}
+            rid = f"{r.custom_id}#{i}"
+            props_by_doc.setdefault(m["source_key"], []).append({"id": rid, **base})
+            by_node.setdefault(m["contract"], []).append({"id": rid, "contract": m["contract"], **base})
+    ncache = _write_doc_cache(props_by_doc)                           # doc-keyed cache: chunk once, reuse forever
+    print(f"  doc cache: {ncache} props over {len(props_by_doc)} docs -> chunks/")
+    if sampling:                                                     # cache-aware: gather cached+new per node
+        by_node = {node: [{**p, "contract": node} for key in docs for p in _read_doc_cache(key)]
+                   for node, docs in sampling.items()}
     return _route_and_write(by_node, backend=backend, drivers=drivers)
 
 
@@ -192,7 +257,7 @@ def main() -> int:
     s3 = boto3.client("s3")
     if args.dry_run:
         import collections
-        reqs, manifest = _build_requests(s3, nodes, args.n_docs, 0)
+        reqs, manifest, _sampling = _build_requests(s3, nodes, args.n_docs, 0)
         per = collections.Counter(manifest[r["custom_id"]]["contract"] for r in reqs)
         usd = len(reqs) * (1500 * 0.5 / 1e6 + 500 * 2.5 / 1e6)             # Haiku batch ~$0.50/$2.50 per M
         print(f"DRY-RUN: {len(reqs)} ON-TOPIC block requests over {len(nodes)} node(s); Haiku batch est ~${usd:.2f}")

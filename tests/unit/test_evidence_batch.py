@@ -106,6 +106,44 @@ def test_retrieve_keeps_pure_driver_props_and_parses_event_date(tmp_path, monkey
     assert len(raw) == 2 and all("vector" not in r for r in raw)                # _raw keeps EVERY prop, unembedded
 
 
+def test_retrieve_writes_doc_cache_and_sampling_gathers(tmp_path, monkeypatch):
+    """retrieve writes a doc-keyed chunk cache (chunks/<hash>) deduped across the nodes that sampled the same
+    doc; a `sampling` manifest then gathers each node's props FROM that cache (chunk once, route many)."""
+    monkeypatch.setattr(eb, "_OUT", tmp_path)
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path / "ev")
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[0.1, 0.2] for _ in texts])
+    monkeypatch.setattr(ev, "_aliases", lambda node: {"corn": ["maize"], "soybeans": ["soy"]}.get(node, []))
+    man = {"r000000": {"contract": "corn", "source_key": "D", "source": "WASDE", "date": "2024-01-01"},
+           "r000001": {"contract": "soybeans", "source_key": "D", "source": "WASDE", "date": "2024-01-01"}}
+    (tmp_path / "b.json").write_text(json.dumps({"batch_id": "b", "manifest": man,
+        "sampling": {"corn": ["D"], "soybeans": ["D"]}}), encoding="utf-8")               # same doc, two nodes
+    text = '[{"proposition":"US corn and soybeans production rose.","verbatim_span":"x"}]'
+
+    def _res(cid):
+        return types.SimpleNamespace(custom_id=cid, result=types.SimpleNamespace(
+            type="succeeded", message=types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=text)])))
+
+    class _B:
+        @staticmethod
+        def retrieve(b):
+            return types.SimpleNamespace(processing_status="ended")
+
+        @staticmethod
+        def results(b):
+            return [_res("r000000"), _res("r000001")]
+
+    client = types.SimpleNamespace(messages=types.SimpleNamespace(batches=_B()))
+    eb.retrieve(None, client, "b")
+
+    cache = list((tmp_path / "ev" / "chunks").glob("*.jsonl"))
+    assert len(cache) == 1                                                                 # ONE doc cached
+    crecs = [json.loads(x) for x in cache[0].read_text(encoding="utf-8").splitlines()]
+    assert len(crecs) == 1                                                                 # prop deduped across the 2 nodes
+    corn = [json.loads(x) for x in (tmp_path / "ev" / "corn.jsonl").read_text(encoding="utf-8").splitlines()]
+    soy = [json.loads(x) for x in (tmp_path / "ev" / "soybeans.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert corn[0]["contract"] == "corn" and soy[0]["contract"] == "soybeans"              # gathered from cache into both
+
+
 def test_reroute_rederives_slices_from_raw_without_rechunk(tmp_path, monkeypatch):
     """reroute reads the persisted _raw archive (incl. a 'neither' boilerplate prop) and re-derives the
     commodity + driver slices with NO Anthropic call — the 'chunk once, route forever' guarantee."""
