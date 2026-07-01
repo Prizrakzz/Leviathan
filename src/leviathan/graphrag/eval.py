@@ -232,8 +232,10 @@ def main() -> int:
     ap.add_argument("--judge", action="store_true", help="add an independent LLM-judge quality score")
     ap.add_argument("--judge-model", default="claude-opus-4-8")
     ap.add_argument("--k", type=int, default=5)
+    ap.add_argument("--queries", default=None, help="queries yaml path (default configs/graphrag/eval_queries.yaml)")
     args = ap.parse_args()
-    queries = load_queries()
+    from pathlib import Path
+    queries = load_queries(Path(args.queries)) if args.queries else load_queries()
     if args.dry_run or not args.run:
         print(f"DRY-RUN cost estimate: {estimate_cost(queries, model=args.model, judge_model=args.judge_model if args.judge else None)}")
         import collections

@@ -32,15 +32,22 @@ ARMS = {
 }
 
 
+def load_probes(path: str) -> list[tuple[str, str, str]]:
+    """(question, evidence-node, token) for every token-tagged query in a queries yaml — the retrieval-probe set."""
+    import yaml
+    qs = (yaml.safe_load(open(path, encoding="utf-8")) or {}).get("queries") or []
+    return [(q["question"], ev.node_for(q["contract"]), q["token"].lower()) for q in qs if q.get("token")]
+
+
 def _hit(rows: list[dict], token: str) -> tuple[int, int]:
     ranks = [i for i, r in enumerate(rows) if token in (r.get("text") or "").lower()]
     return (1 if ranks else 0, (ranks[0] + 1) if ranks else 0)      # (hit@k, 1-indexed first-hit rank or 0)
 
 
-def run(k: int = 8) -> dict:
+def run(k: int = 8, probes=None) -> dict:
     ev.CACHE_INDEX = True                                           # slices load once across probes/arms
     res = {arm: {"hits": 0, "ranks": [], "div": []} for arm in ARMS}
-    for q, node, tok in PROBES:
+    for q, node, tok in (probes or PROBES):
         for arm, kw in ARMS.items():
             rows = ev.retrieve(q, node, k=k, **kw)
             hit, rank = _hit(rows, tok)
@@ -52,12 +59,19 @@ def run(k: int = 8) -> dict:
 
 
 def main() -> int:
+    import argparse
+
     from leviathan.common import config
+    ap = argparse.ArgumentParser(description="Free retrieval-only A/B (hybrid/rerank/mmr) — no LLM, no spend.")
+    ap.add_argument("--queries", default=None, help="queries yaml; use its token-tagged probes (else the built-in set)")
+    ap.add_argument("--k", type=int, default=8)
+    args = ap.parse_args()
     config.load_env()
-    n = len(PROBES)
-    res = run()
-    print(f"retrieval A/B over {n} probes  (token hit@8 / avg first-rank / avg source-diversity):")
-    print(f"{'arm':20s} {'hit@8':>7s} {'avg_rank':>9s} {'src_div':>8s}")
+    probes = load_probes(args.queries) if args.queries else PROBES
+    n = len(probes)
+    res = run(k=args.k, probes=probes)
+    print(f"retrieval A/B over {n} probes  (token hit@{args.k} / avg first-rank / avg source-diversity):")
+    print(f"{'arm':20s} {'hit':>7s} {'avg_rank':>9s} {'src_div':>8s}")
     for arm, r in res.items():
         avg_rank = (sum(r["ranks"]) / len(r["ranks"])) if r["ranks"] else 0.0
         avg_div = sum(r["div"]) / len(r["div"])
