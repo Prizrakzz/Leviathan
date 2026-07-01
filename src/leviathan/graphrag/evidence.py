@@ -320,21 +320,42 @@ def _proximity(date_str: str, near: str, *, half_life_days: float = 365.0) -> fl
     return 0.5 ** (abs((d - n).days) / half_life_days)
 
 
+def _out(recs: list[dict]) -> list[dict]:
+    return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"]} for r in recs]
+
+
 def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,
-             beta: float = 0.25, bedrock=None, records: list[dict] | None = None) -> list[dict]:
-    """Top-k props by cosine to the query, point-in-time filtered (date <= asof). When `near` (an episode
-    date/year) is given, blend in a date-proximity bonus: score = cosine + beta*proximity(date, near)."""
-    records = load_index(node) if records is None else records
-    if asof:
-        records = [r for r in records if r["date"] <= asof]
-    if not records:
+             beta: float = 0.25, bedrock=None, records: list[dict] | None = None,
+             mode: str = "dense", rerank: bool = False, mmr: float = 0.0, fetch_k: int = 60) -> list[dict]:
+    """Top-k props for the query, point-in-time filtered (date <= asof) — leakage-safe. Default
+    (mode='dense', rerank=False, mmr=0) is pure cosine + episode-proximity, UNCHANGED. Opt-in retrieval-quality
+    knobs (all in-memory; they curate WHICH dated evidence reaches the LLM, never the reasoning):
+      mode='hybrid' -> add a BM25 lexical leg fused via RRF (recall on exact tokens like B40/ZL);
+      rerank=True   -> a bge cross-encoder re-orders relevance (precision);
+      mmr>0         -> MMR final-select for diversity (guards against rerank narrowing the evidence set)."""
+    all_records = load_index(node) if records is None else records
+    recs = [r for r in all_records if r["date"] <= asof] if asof else list(all_records)   # leakage filter FIRST
+    if not recs:
         return []
-    qv = embed([query], backend=records[0].get("backend"), bedrock=bedrock)[0]   # same space as the index
-    def _score(r):
+    qv = embed([query], backend=recs[0].get("backend"), bedrock=bedrock)[0]   # same space as the index
+
+    def _dense(r):
         return _cosine(qv, r["vector"]) + (beta * _proximity(r["date"], near) if near else 0.0)
-    ranked = sorted(records, key=_score, reverse=True)
-    return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"]}
-            for r in ranked[:k]]
+
+    dense_ranked = sorted(recs, key=_dense, reverse=True)
+    if mode == "dense" and not rerank and mmr <= 0:                # fast path == today's behavior, byte-for-byte
+        return _out(dense_ranked[:k])
+
+    from leviathan.graphrag import rankers as rk
+    cand = (rk.hybrid_candidates(query, node, all_records, asof, dense_ranked, fetch_k)   # RECALL
+            if mode == "hybrid" else dense_ranked[:fetch_k])
+    relevance = [_dense(r) for r in cand]
+    if rerank and cand:                                            # PRECISION: cross-encoder re-order
+        relevance = rk.rerank_scores(query, [r["text"] for r in cand])
+        order = sorted(range(len(cand)), key=lambda i: relevance[i], reverse=True)
+        cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]
+    top = rk.mmr_select(cand, relevance, k, mmr) if (mmr > 0 and len(cand) > k) else cand[:k]   # DIVERSITY
+    return _out(top)
 
 
 def restamp(node: str) -> int:

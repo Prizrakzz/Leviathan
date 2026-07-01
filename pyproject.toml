@@ -24,6 +24,7 @@ dependencies = [
     "pandas",
     "pyarrow",
     "pydantic>=2",
+    "rank-bm25>=0.2",       # hybrid retrieval lexical leg (BM25 over prop text; the reranker uses sentence-transformers)
     "pyyaml",
     "requests",
     "tenacity",
