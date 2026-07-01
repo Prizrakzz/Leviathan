@@ -135,6 +135,20 @@ def test_answer_pulls_cross_cutting_driver_evidence(monkeypatch):
     assert "event 2021-06-20" in seen["user"]                            # event date surfaced for the timeline
 
 
+def test_context_block_surfaces_confidence_and_target_metric():
+    c = cs.CausalContract(contract="arabica_coffee", drivers=[
+        _d("frost", sign="+", confidence="high", mechanism="frost kills trees"),
+        _d("dry", sign="-", confidence="low", target_metric="yield", mechanism="dryness cuts yield")])
+    block = an._context_block(g.CausalGraph({"arabica_coffee": c}, silver=set()), "arabica_coffee")
+    assert "conf=high" in block and "conf=low" in block          # confidence surfaced -> feeds hypothesis framing
+    assert "- frost | + on price" in block                       # default contract target
+    assert "- dry | - on yield" in block                         # per-driver target_metric override (#3)
+
+
+def test_system_prompt_carries_grounding_guardrails():
+    assert "APPROVED EDGES ONLY" in an._SYSTEM and "CONFIDENCE:" in an._SYSTEM   # #25 do-not-infer guardrails present
+
+
 def test_source_tier_and_ev_block_tagging():
     assert an.source_tier("usda_wasde") == 1 and an.source_tier("usda_fas_coffee_wmt") == 1   # official/balance-sheet
     assert an.source_tier("usda_gain_coffee") == 2                                            # USDA attache

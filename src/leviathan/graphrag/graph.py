@@ -143,3 +143,58 @@ class CausalGraph:
         planned = [d.id for d in c.drivers if d.silver_status == "planned"]
         return {"drivers": len(c.drivers), "live": len(live), "planned": len(planned),
                 "live_ids": sorted(live), "planned_ids": sorted(planned)}
+
+    # ── flat export (debug / QA / L2 mermaid substrate) ───────────────────────────────
+    def to_edge_list(self) -> list[dict]:
+        """Flatten every contract into a canonical edge list — the THREE edge kinds as uniform rows:
+        driver->target (the causal prior), parent-driver->driver (fan-in), and contract->inter-commodity node
+        (cascade hop). Pure/offline. `sign` on a parent edge is None (the schema stores no sign for the
+        parent link — we don't invent one). Feeds debugging, QA, and the L2 graph_to_mermaid renderer."""
+        _COLS = ("source", "source_kind", "edge_type", "target", "target_metric", "sign", "lag",
+                 "mechanism", "confidence", "silver_ref", "silver_status")
+        rows: list[dict] = []
+
+        def _row(**kw):
+            rows.append({c: kw.get(c) for c in _COLS})
+
+        for cid, c in self.contracts.items():
+            tgt0 = c.target_metrics[0] if c.target_metrics else "price"
+            for d in c.drivers:
+                _row(source=d.id, source_kind=d.type, edge_type=d.edge_type, target=cid,
+                     target_metric=d.target_metric or tgt0, sign=d.sign, lag=d.lag, mechanism=d.mechanism,
+                     confidence=d.confidence, silver_ref=d.silver_ref, silver_status=d.silver_status)
+                for p in d.parents:                                    # parent-driver -> driver (fan-in)
+                    _row(source=p, source_kind="driver", edge_type="drives", target=d.id)
+            for e in c.inter_commodity:                                # contract -> inter-commodity node (cascade hop)
+                _row(source=cid, source_kind="commodity", edge_type=e.relation, target=e.driver_commodity,
+                     sign=e.sign, lag=e.lag, mechanism=e.mechanism)
+        return rows
+
+
+def main() -> int:
+    import argparse
+    import csv
+    import json
+    import sys
+
+    ap = argparse.ArgumentParser(description="Causal graph utilities (pure/offline).")
+    ap.add_argument("--edge-list", action="store_true", help="print the canonical flat edge list")
+    ap.add_argument("--csv", action="store_true", help="with --edge-list: CSV instead of JSONL")
+    args = ap.parse_args()
+    g = CausalGraph.load()
+    if args.edge_list:
+        rows = g.to_edge_list()
+        if args.csv and rows:
+            w = csv.DictWriter(sys.stdout, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            w.writerows(rows)
+        else:
+            for r in rows:
+                print(json.dumps(r))                                   # ensure_ascii -> cp1252-safe stdout
+        return 0
+    print(f"{len(g.contracts)} contracts, {len(g.to_edge_list())} edges")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
