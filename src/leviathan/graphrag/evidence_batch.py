@@ -215,7 +215,7 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
     ncache = _write_doc_cache(props_by_doc)                           # doc-keyed cache: chunk once, reuse forever
     print(f"  doc cache: {ncache} props over {len(props_by_doc)} docs -> chunks/")
     if doclist:                                                      # a targeted fill: only grow the cache; route later
-        print(f"  doc-list fill cached — run --rebuild-slices to route these {len(props_by_doc)} docs into slices")
+        print(f"  doc-list fill cached -- run --rebuild-slices to route these {len(props_by_doc)} docs into slices")
         return ncache
     if sampling:                                                     # cache-aware: gather cached+new per node
         by_node = {node: [{**p, "contract": node} for key in docs for p in _read_doc_cache(key)]
