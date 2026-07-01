@@ -192,7 +192,7 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
     cache-aware `sampling` manifest, each node's props are gathered from the doc-cache (newly chunked + already
     cached) — so a re-build only paid Haiku for new docs."""
     payload = _load_manifest_full(bid)
-    manifest, sampling = payload["manifest"], payload.get("sampling")
+    manifest, sampling, doclist = payload["manifest"], payload.get("sampling"), payload.get("doclist", False)
     while client.messages.batches.retrieve(bid).processing_status != "ended":
         print(f"  batch {bid}: still processing ...")
         time.sleep(poll_s)
@@ -214,6 +214,9 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
             by_node.setdefault(m["contract"], []).append({"id": rid, "contract": m["contract"], **base})
     ncache = _write_doc_cache(props_by_doc)                           # doc-keyed cache: chunk once, reuse forever
     print(f"  doc cache: {ncache} props over {len(props_by_doc)} docs -> chunks/")
+    if doclist:                                                      # a targeted fill: only grow the cache; route later
+        print(f"  doc-list fill cached — run --rebuild-slices to route these {len(props_by_doc)} docs into slices")
+        return ncache
     if sampling:                                                     # cache-aware: gather cached+new per node
         by_node = {node: [{**p, "contract": node} for key in docs for p in _read_doc_cache(key)]
                    for node, docs in sampling.items()}
@@ -230,6 +233,130 @@ def reroute(*, nodes=None, backend: str | None = None, drivers: bool = True) -> 
     return _route_and_write(by_node, backend=backend, drivers=drivers)
 
 
+def rebuild_slices(*, backend: str | None = None, drivers: bool = True) -> int:
+    """Re-derive ALL slices from the whole chunks/ doc-cache (WS-MS7) — the doc-cache is the master. Routes each
+    prop to EVERY matching commodity slice (all 24 matchers) AND, independently over the WHOLE cache, to its
+    driver slices — so multi-commodity docs (a WASDE) land in each commodity and pure-driver props (B40/freight)
+    are NOT lost to the commodity filter. Deliberately does NOT touch the _raw archive: the cache is a superset of
+    it, and _raw is keyed per contract (pure-driver props live under a doc's contract there). Free: no Anthropic."""
+    backend = backend or ev.DEFAULT_BACKEND
+    nodes = ev.all_nodes()
+    matchers = {n: hv.build_matcher(ev.match_forms(n)) for n in nodes}
+    by_node: dict[str, list[dict]] = {n: [] for n in nodes}
+    driver_sink: dict[str, list[dict]] | None = {} if drivers else None
+    ndocs = 0
+    for h in _cached_hashes():
+        recs = ev.load_index(f"chunks/{h}")
+        if recs:
+            ndocs += 1
+        for p in recs:
+            for n in nodes:                                        # every matching commodity slice (multi-label)
+                if matchers[n].search(p["text"]):
+                    by_node[n].append({**p, "contract": n})
+            if driver_sink is not None:                            # driver slices over the WHOLE cache, commodity-independent
+                for dn in ev.driver_slices_for(p["text"]):
+                    driver_sink.setdefault(dn, []).append({**p, "driver": dn})
+    if not ndocs:
+        raise SystemExit("chunks/ doc-cache is empty — run a --retrieve first.")
+    print(f"rebuild-slices: routing props from {ndocs} cached docs into commodity + driver slices")
+    total = 0
+    for n, recs in by_node.items():
+        if not recs:                                               # don't clobber a node's slice with an empty file
+            continue
+        for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
+            r["vector"], r["backend"] = v, backend
+        ev._evid_write(n, "\n".join(json.dumps(r) for r in recs))
+        print(f"  {n}: {len(recs)} props -> evidence/{n}.jsonl")
+        total += len(recs)
+    if driver_sink:
+        dtotal = ev.write_driver_slices(driver_sink, backend=backend)
+        print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
+    return total
+
+
+# ── targeted doc-list fills (WS-MS7): chunk a specific set of docs, cache-aware ────────────
+_YEAR_RE = __import__("re").compile(r"(?:release_date|release_month|publication_date|year|crop_year)=(\d{4})")
+
+
+def _key_year(key: str):
+    d = ev._pub_date(key)                                   # publication_date=YYYYMMDD / MM-DD-YYYY in the key
+    if d:
+        return d.year
+    m = _YEAR_RE.search(key)
+    return int(m.group(1)) if m else None
+
+
+def select_docs(sources, *, before_year=None, after_year=None, exclude_cached: bool = True) -> list[str]:
+    """Corpus doc keys for the given sources filtered by era, minus docs already in chunks/ — the selector for
+    a fill (e.g. all pre-2000 usda_wasde/usda_wap not yet chunked)."""
+    from leviathan.graphrag.corpus_recon import BUCKET
+    from leviathan.storage.s3 import list_s3_keys
+    cached = _cached_hashes() if exclude_cached else set()
+    out = []
+    for src in sources:
+        for key in list_s3_keys(BUCKET, f"text/source={src}/", suffix="document.json"):
+            y = _key_year(key)
+            if y is None or (before_year and y >= before_year) or (after_year and y < after_year):
+                continue
+            if exclude_cached and _doc_cache_node(key).split("/")[-1] in cached:
+                continue
+            out.append(key)
+    return out
+
+
+def _build_requests_from_docs(s3, doc_keys):
+    """Cache-aware batch requests for a specific doc list (no per-node sampling; chunk the WHOLE doc, no matcher
+    pre-filter — the fill targets these docs on purpose)."""
+    requests, manifest = [], {}
+    cached = _cached_hashes()
+    for key in dict.fromkeys(doc_keys):                     # dedupe, preserve order
+        if _doc_cache_node(key).split("/")[-1] in cached:
+            continue
+        for blk, meta in _doc_blocks(s3, "_docs", key, matcher=None):
+            cid = f"r{len(requests):06d}"
+            requests.append({"custom_id": cid, "params": {
+                "model": ex.HAIKU, "max_tokens": 4096, "system": ch._PROP_SYSTEM,
+                "messages": [{"role": "user", "content": blk.verbatim_span}]}})
+            manifest[cid] = meta
+    return requests, manifest
+
+
+def submit_docs(s3, client, doc_keys) -> str:
+    requests, manifest = _build_requests_from_docs(s3, doc_keys)
+    if not requests:
+        raise SystemExit("all requested docs already in the chunk cache — run --rebuild-slices (no new chunking).")
+    bid = client.messages.batches.create(requests=requests).id
+    _save_manifest(bid, {"batch_id": bid, "manifest": manifest, "doclist": True})
+    ndocs = len({m["source_key"] for m in manifest.values()})
+    print(f"submitted doc-list batch {bid} ({len(requests)} blocks over {ndocs} NEW docs)")
+    print(f"retrieve with:  python -m leviathan.graphrag.evidence_batch --retrieve {bid}   (then --rebuild-slices)")
+    return bid
+
+
+def measure_orphan_drivers(s3, sources, *, n: int = 60, seed: int = 0) -> dict:
+    """Gap-2 sizing (free): of `sources` docs, how many mention a DRIVER term but NO commodity (pure-macro
+    chapters the commodity sampler never captures)?"""
+    import random
+    from leviathan.graphrag.corpus_recon import BUCKET
+    from leviathan.storage.s3 import list_s3_keys
+    node_matcher = hv.build_matcher(sum((ev.match_forms(x) for x in ev.all_nodes()), []))
+    total, orphan, examples = 0, 0, []
+    for src in sources:
+        keys = list(list_s3_keys(BUCKET, f"text/source={src}/", suffix="document.json"))
+        random.Random(seed).shuffle(keys)
+        for key in keys[:n]:
+            try:
+                txt = json.loads(s3.get_object(Bucket=BUCKET, Key=key)["Body"].read()).get("full_text") or ""
+            except Exception:
+                continue
+            total += 1
+            if txt and not node_matcher.search(txt) and ev.driver_slices_for(txt):
+                orphan += 1
+                if len(examples) < 5:
+                    examples.append(key)
+    return {"sampled": total, "orphan_driver_docs": orphan, "examples": examples}
+
+
 def run(s3, client, *, nodes, n_docs, seed: int = 0) -> int:
     return retrieve(s3, client, submit(s3, client, nodes=nodes, n_docs=n_docs, seed=seed))
 
@@ -243,6 +370,15 @@ def main() -> int:
     ap.add_argument("--run", action="store_true")
     ap.add_argument("--nodes", default="all")
     ap.add_argument("--n-docs", type=int, default=40)
+    ap.add_argument("--rebuild-slices", action="store_true",
+                    help="re-derive ALL slices from the whole chunks/ doc-cache (free; after a fill)")
+    ap.add_argument("--fill", action="store_true",
+                    help="chunk a targeted doc-list fill selected by --sources/--before/--after (cache-aware; billed)")
+    ap.add_argument("--measure-orphan-drivers", action="store_true",
+                    help="free Gap-2 sizing: docs matching a driver term but NO commodity (needs --sources)")
+    ap.add_argument("--sources", default="", help="comma-separated source names for --fill / --measure-orphan-drivers")
+    ap.add_argument("--before", type=int, default=None, help="fill: keep only docs with year < N")
+    ap.add_argument("--after", type=int, default=None, help="fill: keep only docs with year >= N")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     if args.nodes == "all":
@@ -255,7 +391,28 @@ def main() -> int:
     from leviathan.common import config
     config.load_env()
     s3 = boto3.client("s3")
-    if args.dry_run:
+    srcs = [s for s in args.sources.split(",") if s]
+    # ── free modes (no Anthropic call) ────────────────────────────────────────────
+    if args.rebuild_slices:                                            # route the whole chunks/ cache -> slices
+        rebuild_slices()
+        return 0
+    if args.reroute:                                                   # re-derive from the _raw archive
+        print(f"reroute {len(nodes)} node(s) from _raw archive -> commodity + driver slices")
+        reroute(nodes=nodes)
+        return 0
+    if args.measure_orphan_drivers:                                    # Gap-2 sizing
+        print("orphan-driver measurement:", measure_orphan_drivers(s3, srcs))
+        return 0
+    if args.fill:                                                      # select a doc-list; --dry-run just counts
+        keys = select_docs(srcs, before_year=args.before, after_year=args.after)
+        print(f"FILL selection: {len(keys)} uncached docs from {srcs} (before={args.before}, after={args.after})")
+        if args.dry_run or not keys:
+            return 0
+        import anthropic
+        from leviathan.graphrag import batch_extract as bx
+        submit_docs(s3, anthropic.Anthropic(api_key=bx._api_key()), keys)
+        return 0
+    if args.dry_run:                                                   # node-sampling dry-run (cost estimate)
         import collections
         reqs, manifest, _sampling = _build_requests(s3, nodes, args.n_docs, 0)
         per = collections.Counter(manifest[r["custom_id"]]["contract"] for r in reqs)
@@ -264,10 +421,7 @@ def main() -> int:
         for n in nodes:
             print(f"  {n}: {per.get(n, 0)} blocks" + ("   <-- THIN" if per.get(n, 0) < 30 else ""))
         return 0
-    if args.reroute:                                                   # free: no Anthropic call, re-derive from _raw
-        print(f"reroute {len(nodes)} node(s) from _raw archive -> commodity + driver slices")
-        reroute(nodes=nodes)
-        return 0
+    # ── billed node paths ─────────────────────────────────────────────────────────
     import anthropic
     from leviathan.graphrag import batch_extract as bx
     client = anthropic.Anthropic(api_key=bx._api_key())
@@ -278,7 +432,7 @@ def main() -> int:
     elif args.run:
         run(s3, client, nodes=nodes, n_docs=args.n_docs)
     else:
-        print("specify --dry-run / --submit / --retrieve <bid> / --run")
+        print("specify --dry-run / --submit / --retrieve <bid> / --run / --fill / --rebuild-slices")
     return 0
 
 
