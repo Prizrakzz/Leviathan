@@ -295,8 +295,19 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     return len(records)
 
 
+CACHE_INDEX = os.environ.get("EVIDENCE_INDEX_CACHE") == "1"   # eval sets ev.CACHE_INDEX=True so big slices load once
+_INDEX_CACHE: dict[str, list[dict]] = {}
+
+
 def load_index(node: str) -> list[dict]:
-    return [json.loads(ln) for ln in _evid_read(node).splitlines() if ln.strip()]
+    """Load a slice's records. With CACHE_INDEX on (multi-query eval over the now-large 15-23K-prop slices) a
+    node's records download from S3 once and are reused — the flat-file stopgap until pgvector."""
+    if CACHE_INDEX and node in _INDEX_CACHE:
+        return _INDEX_CACHE[node]
+    recs = [json.loads(ln) for ln in _evid_read(node).splitlines() if ln.strip()]
+    if CACHE_INDEX:
+        _INDEX_CACHE[node] = recs
+    return recs
 
 
 def _proximity(date_str: str, near: str, *, half_life_days: float = 365.0) -> float:

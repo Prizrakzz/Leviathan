@@ -1,9 +1,10 @@
-"""graphdev 10-query honest eval (GRAPHRAG_PLAN v2 Phase 2 WS-4).
+"""graphdev honest eval (GRAPHRAG_PLAN v2 Phase 2 WS-4 / WS-MS5).
 
 Runs configs/graphrag/eval_queries.yaml through answer.answer() and writes a markdown report with a
-lightweight auto-rubric (routed-right / expected-drivers-mentioned / regime-named / evidence-cited). The
-rubric is approximate — the report + a human read are the real judges. Serving model defaults to Sonnet
-(production), with an optional Opus arm to measure the quality gap.
+lightweight auto-rubric (routed-right / expected-drivers-mentioned / regime-named / evidence-cited), an
+LLM-judge quality score, and a SOURCE-DIVERSITY panel (distinct sources + trust-tiers cited, trust-ordering,
+cross-tier disagreement flagged) — the WS-MS5 multi-source lift. Serving defaults to Sonnet (production),
+with an Opus judge. The rubric is approximate — the report + a human read are the real judges.
 
     python -m leviathan.graphrag.eval --dry-run            # cost estimate, no spend
     python -m leviathan.graphrag.eval --run --model claude-sonnet-4-6
@@ -15,6 +16,7 @@ import argparse
 import yaml
 
 from leviathan.graphrag import answer as an
+from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
 
@@ -54,9 +56,9 @@ def _judge_tool() -> dict:
     return {"name": "score_answer",
             "description": "A commodity hedge-fund analyst's verdict on how useful + grounded this answer is.",
             "input_schema": {"type": "object", "properties": {
-                "usefulness": n, "grounding": n,
+                "usefulness": n, "grounding": n, "source_diversity": n,
                 "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}},
-                "required": ["usefulness", "grounding", "gaps", "verdict"]}}
+                "required": ["usefulness", "grounding", "source_diversity", "gaps", "verdict"]}}
 
 
 _JUDGE_SYS = (
@@ -69,6 +71,10 @@ _JUDGE_SYS = (
     "- grounding (1-5): are the specific claims (drivers, signs, magnitudes, dates) backed by the cited dated "
     "evidence or by the authoritative graph? 5 = every claim traceable; 1 = floating assertions. (Naming the "
     "graph's own drivers/regimes/signs is AUTHORITATIVE, not hallucination.)\n"
+    "- source_diversity (1-5): did it draw on and cite MULTIPLE sources across trust tiers (official WASDE/FAS T1, "
+    "attache GAIN T2, producer bodies T3, macro/price outlook T4) rather than leaning on one? Did it ORDER citations "
+    "most-trusted-first and FLAG any cross-tier disagreement? 5 = multi-source, trust-ranked, disagreements surfaced; "
+    "1 = single-source or tier-blind (only score high if multiple sources were actually AVAILABLE in the evidence).\n"
     "- hallucinations: list any specific claim, number, sign, or date supported by NEITHER the graph NOR the "
     "evidence.\n"
     "- gaps: what a PM would still need that's missing — a key driver not mentioned, NO dated evidence cited, no "
@@ -99,13 +105,43 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
 
 
 def _metrics(r: dict) -> dict:
-    """Per-row metrics for the grounding-depth aggregation."""
+    """Per-row metrics for the grounding-depth + source-diversity aggregation."""
     out, j = r["out"], (r.get("judge") or {})
-    cited = len((out.get("structured") or {}).get("sources") or [])
+    cited_srcs = [s.get("source") for s in (out.get("structured") or {}).get("sources") or [] if s.get("source")]
+    cited_tiers = [an.source_tier(s) for s in cited_srcs]
+    ev_srcs = {e.get("source") for e in (out.get("evidence") or []) if e.get("source")}   # actual corpus sources
+    ev_tiers = {an.source_tier(s) for s in ev_srcs}
+    ans_l = (out.get("answer") or "").lower()
     return {"commodity": r["q"]["contract"], "category": r["q"].get("category", r["q"].get("type", "")),
-            "routed_ok": r["rubric"]["routed_right"], "retrieved": len(out.get("evidence") or []), "cited": cited,
+            "routed_ok": r["rubric"]["routed_right"], "retrieved": len(out.get("evidence") or []),
+            "cited": len(cited_srcs),
+            # source-diversity / trust-ranking (the multi-source lift)
+            "ev_sources": len(ev_srcs), "ev_tiers": len(ev_tiers), "cited_sources": len(set(cited_srcs)),
+            "multi_tier": len(ev_tiers) >= 2,                                  # store offered >=2 trust tiers
+            "trust_ordered": len(cited_tiers) > 1 and cited_tiers == sorted(cited_tiers),  # most-trusted first
+            "disagreement": any(w in ans_l for w in ("disagree", "conflict", "at odds", "contradict", "diverg")),
+            "src_div": j.get("source_diversity"),
             "usefulness": j.get("usefulness"), "grounding": j.get("grounding"),
             "halluc": len(j.get("hallucinations") or []), "gaps": j.get("gaps") or []}
+
+
+def source_report(rows: list[dict]) -> list[str]:
+    """The multi-source + trust-ranking lift panel — the WS-MS5 headline (was ~single-tier GAIN pre-fill)."""
+    import statistics
+    m = [_metrics(r) for r in rows]
+    n = len(m) or 1
+
+    def avg(key):
+        xs = [x[key] for x in m if x.get(key) is not None]
+        return round(statistics.mean(xs), 1) if xs else None
+
+    return ["## Source diversity + trust-ranking (multi-source lift)", "",
+            f"- retrieved distinct **sources** avg **{avg('ev_sources')}** | distinct **trust-tiers** avg **{avg('ev_tiers')}**",
+            f"- **multi-tier answers** (store offered >=2 tiers): **{sum(x['multi_tier'] for x in m)}/{n}**",
+            f"- cited distinct sources avg {avg('cited_sources')} | **trust-ordered citations** (T1 first): "
+            f"{sum(x['trust_ordered'] for x in m)}/{n}",
+            f"- **cross-tier disagreement flagged**: {sum(x['disagreement'] for x in m)}/{n}",
+            f"- judge **source_diversity** avg: {avg('src_div')}/5"]
 
 
 def grounding_report(rows: list[dict]) -> list[str]:
@@ -147,6 +183,7 @@ def report(rows: list[dict], *, model: str) -> str:
         lines.append(f"- judge **usefulness {use:.1f}/5** · **grounding {gnd:.1f}/5** · "
                      f"hallucinated claims: {halluc}")
     lines.append("")
+    lines += source_report(rows) + [""]                                # multi-source lift (deterministic + judge)
     if judged:
         lines += grounding_report(rows) + [""]
     for r in rows:
@@ -183,7 +220,7 @@ def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = 
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="graphdev 10-query eval")
+    ap = argparse.ArgumentParser(description="graphdev eval (routing + judge + source-diversity lift)")
     ap.add_argument("--run", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--model", default=an.SONNET)
@@ -200,6 +237,7 @@ def main() -> int:
         return 0
     from leviathan.common import config
     config.load_env()                                 # load ANTHROPIC_API for the serving (+ judge) model
+    ev.CACHE_INDEX = True                             # the now-large slices load from S3 once, reused across queries
     graph = gph.CausalGraph.load()
     rows = run(graph, queries, model=args.model, k=args.k)
     if args.judge:
