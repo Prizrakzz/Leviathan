@@ -55,6 +55,8 @@ def main() -> None:
     ap.add_argument("--drivers", default="true",          # WS-MS6: capture cross-cutting driver/cascade props
                     help="'true' routes driver/cascade props (B40, freight, FX, El Nino) into driver slices "
                          "FREE from the same pass; 'false' = commodity slices only")
+    ap.add_argument("--chunk-provider", default="bedrock",   # 'anthropic' bills Haiku to the Anthropic account
+                    help="'bedrock' (task IAM role) or 'anthropic' (Anthropic API, ANTHROPIC_API_KEY from secret)")
     args = ap.parse_args()
 
     load_env()
@@ -75,9 +77,18 @@ def main() -> None:
         return
 
     s3 = boto3.client("s3", region_name=args.aws_region)
-    bedrock = ev._bedrock()                               # shared bedrock-runtime client (thread-safe for invoke)
+    provider = str(args.chunk_provider).lower()
+    bedrock = ev._bedrock() if provider == "bedrock" else None   # shared bedrock-runtime client (thread-safe)
+    anthropic_client = None
+    if provider == "anthropic":                          # Haiku billed to the Anthropic account (prepaid credit)
+        import anthropic
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise SystemExit("--chunk-provider anthropic but ANTHROPIC_API_KEY not set (Secrets Manager injection).")
+        anthropic_client = anthropic.Anthropic(api_key=key, max_retries=8)   # SDK backoff for rate limits
     capture_drivers = str(args.drivers).lower() == "true"
     driver_sink: dict = {} if capture_drivers else None   # accumulated ACROSS nodes -> run drivers in ONE job
+    logger.info("chunk provider=%s", provider)
     start = datetime.now(timezone.utc)
     total, errors = 0, 0
     for node in nodes:
@@ -85,7 +96,7 @@ def main() -> None:
             n = ev.build_index(s3, node=node, aliases=ev._aliases(node), year_windows=ev.windows_for(node),
                                n_docs=ev.n_docs_for(node, args.n_docs), backend=args.backend, bedrock=bedrock,
                                max_props=None, workers=args.workers, aws_region=args.aws_region,
-                               driver_sink=driver_sink)
+                               driver_sink=driver_sink, provider=provider, anthropic_client=anthropic_client)
             logger.info("  %s: %d dated props -> evidence/%s.jsonl", node, n, node)
             total += n
         except Exception as exc:                          # one bad node shouldn't abandon the rest of the group

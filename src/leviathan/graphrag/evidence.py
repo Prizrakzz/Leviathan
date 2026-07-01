@@ -231,7 +231,8 @@ def _prop_record(p, *, key: str) -> dict:
 
 def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: str | None = None,
                 bedrock=None, chunker=None, max_props: int | None = 400, workers: int = 1,
-                aws_region: str | None = None, driver_sink: dict | None = None) -> int:
+                aws_region: str | None = None, driver_sink: dict | None = None,
+                provider: str = "bedrock", anthropic_client=None) -> int:
     """Sample -> chunk -> keep on-topic props -> embed -> write configs/graphrag/evidence/<node>.jsonl. Billed.
 
     workers>1 parallelizes the per-doc Bedrock-Haiku chunking over thread-local S3 clients — the cloud-build
@@ -241,19 +242,23 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     from leviathan.graphrag.corpus_recon import BUCKET, _source_of
     from leviathan.graphrag import chunking as ch
     backend = backend or DEFAULT_BACKEND
-    bedrock = bedrock or _bedrock()                  # still needed for Haiku chunking even when embedding is local
+    if provider == "bedrock":
+        bedrock = bedrock or _bedrock()              # Haiku chunking via Bedrock (default); 'anthropic' uses the API
     chunker = chunker or ch.propositional_chunks
     matcher = hv.build_matcher([node, node.replace("_", " ")] + list(aliases) + _extra_terms(node))
     keys = sample_keys(s3, node=node, year_windows=year_windows, n=n_docs)
 
     def _one(key: str, s3c):
-        doc = json.loads(s3c.get_object(Bucket=BUCKET, Key=key)["Body"].read())
-        txt = doc.get("full_text") or ""
-        if not matcher.search(txt):                       # commodity not actually discussed -> skip (no Haiku spend)
+        try:
+            doc = json.loads(s3c.get_object(Bucket=BUCKET, Key=key)["Body"].read())
+            txt = doc.get("full_text") or ""
+            if not matcher.search(txt):                   # commodity not actually discussed -> skip (no Haiku spend)
+                return [], []
+            props = chunker(full_text=txt[:20000], source_key=key, source=_source_of(key), document_date=_doc_date(doc, key),
+                            lang=doc.get("lang", "en"), extraction_method=doc.get("extraction_method"), doc_id=key,
+                            bedrock=bedrock, provider=provider, anthropic_client=anthropic_client)
+        except Exception:                                 # one malformed/unreadable doc must not tank the whole node
             return [], []
-        props = chunker(full_text=txt[:20000], source_key=key, source=_source_of(key), document_date=_doc_date(doc, key),
-                        lang=doc.get("lang", "en"), extraction_method=doc.get("extraction_method"), doc_id=key,
-                        bedrock=bedrock)
         crecs, drecs = [], []
         for p in props:
             base = _prop_record(p, key=key)
