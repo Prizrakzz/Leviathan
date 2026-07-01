@@ -44,7 +44,12 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
     answer_fn = answer_fn or an.answer
     rows = []
     for q in queries:
-        out = answer_fn(q["question"], graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
+        try:                                                          # one bad answer must NOT abort a billed run
+            out = answer_fn(q["question"], graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
+        except Exception as e:  # noqa: BLE001
+            out = {"answer": f"(answer failed: {str(e)[:200]})", "contract": None, "structured": None,
+                   "evidence": [], "model": model, "trace": {"error": str(e)[:300]}}
+            print(f"  WARN {q.get('id')}: answer failed -- {str(e)[:120]}")
         rows.append({"q": q, "out": out, "rubric": score(q, out)})
     return rows
 
@@ -100,7 +105,7 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
             f"=== CAUSAL GRAPH THE TOOL COULD CITE (drivers/signs/regimes here are authoritative) ===\n{ctx}\n\n"
             f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
             f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
-    scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=2500, tool=_judge_tool())  # headroom for adaptive thinking
+    scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=3200, tool=_judge_tool())  # headroom for adaptive thinking
     return scores
 
 
@@ -245,7 +250,10 @@ def main() -> int:
         from leviathan.graphrag import batch_extract as bx
         client = anthropic.Anthropic(api_key=bx._api_key())
         for r in rows:
-            r["judge"] = judge(r["q"], r["out"], graph=graph, client=client, model=args.judge_model)
+            try:                                                      # a judge failure must not lose the whole run
+                r["judge"] = judge(r["q"], r["out"], graph=graph, client=client, model=args.judge_model)
+            except Exception as e:  # noqa: BLE001
+                print(f"  WARN judge {r['q'].get('id')} failed -- {str(e)[:120]}")
     _OUT.mkdir(parents=True, exist_ok=True)
     out_path = _OUT / f"report_{args.model}.md"
     out_path.write_text(report(rows, model=args.model), encoding="utf-8")
