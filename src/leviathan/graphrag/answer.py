@@ -7,12 +7,19 @@ mechanism, a mermaid cascade/convergence diagram ONLY when the question warrants
 citations. `retrieve`/`call` are injectable so tests run without S3/Bedrock/Anthropic."""
 from __future__ import annotations
 
+import functools
 import re
 
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
 from leviathan.graphrag import harvest as hv
+
+# Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
+# rerank sharpened rank; MMR kept the best source-diversity, guarding against narrowing). Serving uses this by
+# default; override `retrieve=` to A/B a different arm. NOTE: rerank runs a bge cross-encoder — on CPU it adds
+# real per-query latency, so in production point it at a GPU/hosted reranker (like the bge-m3 embed endpoint).
+_RETRIEVAL = {"mode": "hybrid", "rerank": True, "mmr": 0.5}
 
 SONNET = "claude-sonnet-4-6"
 
@@ -253,8 +260,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
     evidence, trace}."""
-    retrieve = retrieve or ev.retrieve
-    driver_retrieve = driver_retrieve or ev.retrieve            # real slices; no driver files in tests -> no-op
+    retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)         # serving = the A/B-won hybrid+rerank+mmr stack
+    driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)   # real slices; tests inject -> no-op
     call = call or _call_opus
     route_fn = route_fn or route_smart
     routed = route_fn(query, graph)
