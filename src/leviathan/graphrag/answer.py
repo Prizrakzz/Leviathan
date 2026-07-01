@@ -36,6 +36,11 @@ _SYSTEM = (
     "You are a commodities analyst writing for a hedge-fund PM who will RISK CAPITAL on your answer. Use ONLY the "
     "curated causal graph + dated evidence in the prompt — never invent drivers, signs, numbers, or sources.\n"
     "GROUNDING DISCIPLINE (critical — you will be judged on this):\n"
+    "- APPROVED EDGES ONLY: reason strictly over the driver / inter-commodity / convergence edges SHOWN in the graph. "
+    "Do NOT introduce a driver, causal link, or regime that isn't in the prompt; if the question implies a link the "
+    "graph lacks, say it is outside the mapped graph rather than inventing it.\n"
+    "- CONFIDENCE: each driver is tagged conf=high|medium|low. Present a low-confidence driver as a HYPOTHESIS ('one "
+    "lower-confidence channel is ...'), never as an established mechanism; lean on high-confidence edges first.\n"
     "- Distinguish MECHANISM from OBSERVATION. The graph's drivers/signs/regimes are an authoritative MODEL of what "
     "moves price — state them as mechanism ('drought is a bullish driver', 'the squeeze regime needs N of ...'). Do "
     "NOT assert a driver as an OBSERVED current fact ('stocks have collapsed', 'disease is killing trees', 'specs are "
@@ -142,11 +147,13 @@ def route_smart(query: str, graph: gph.CausalGraph, *, embed=None, route_call=No
 
 def _context_block(graph: gph.CausalGraph, contract: str) -> str:
     c = graph.contracts[contract]
+    tgt0 = c.target_metrics[0] if c.target_metrics else "price"
     lines = [f"CONTRACT: {contract} (target: {', '.join(c.target_metrics)})", "",
-             "DRIVERS (id | sign | lag | live | mechanism):"]
+             "DRIVERS (id | sign on target | lag | live | conf | mechanism):"]
     for d in c.drivers:
         live = "live" if graph.silver_status(contract, d.id)["live"] else d.silver_status
-        lines.append(f"- {d.id} | {d.sign} | {d.lag or 'n/a'} | {live} | {d.mechanism}")
+        tgt = d.target_metric or tgt0                          # a yield/production driver overrides the price default
+        lines.append(f"- {d.id} | {d.sign} on {tgt} | {d.lag or 'n/a'} | {live} | conf={d.confidence} | {d.mechanism}")
     lines.append("\nCONVERGENCE REGIMES (name | direction | needs N of drivers | note):")
     for s in c.convergence:
         lines.append(f"- {s.name} | {s.direction} | {s.requires_any_n_of} of {s.drivers} | {s.note}")

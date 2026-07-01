@@ -75,6 +75,26 @@ def test_silver_resolution_decoupled_from_mlops():
     assert s["live_ids"] == ["drought", "frost", "stocks"]
 
 
+def test_to_edge_list_flattens_three_edge_kinds():
+    rows = _graph().to_edge_list()
+    _COLS = {"source", "source_kind", "edge_type", "target", "target_metric", "sign", "lag",
+             "mechanism", "confidence", "silver_ref", "silver_status"}
+    assert all(set(r) == _COLS for r in rows)                             # uniform schema
+    dt = [r for r in rows if r["source"] == "drought" and r["target"] == "arabica_coffee"]
+    assert len(dt) == 1 and dt[0]["edge_type"] == "causes" and dt[0]["sign"] == "+" \
+        and dt[0]["target_metric"] == "price" and dt[0]["silver_status"] == "available"   # driver -> target
+    pd = [r for r in rows if r["source"] == "la_nina" and r["target"] == "drought"]
+    assert len(pd) == 1 and pd[0]["edge_type"] == "drives" and pd[0]["sign"] is None       # parent -> driver, no invented sign
+    ic = [r for r in rows if r["source"] == "arabica_coffee" and r["target"] == "robusta_coffee"]
+    assert len(ic) == 1 and ic[0]["edge_type"] == "substitutes_for" and ic[0]["sign"] == "-"  # inter-commodity hop
+
+
+def test_edge_list_honours_target_metric_override():
+    c = cs.CausalContract(contract="x", drivers=[_d("yld", sign="-", target_metric="yield")])
+    rows = g.CausalGraph({"x": c}, silver=set()).to_edge_list()
+    assert rows[0]["target"] == "x" and rows[0]["target_metric"] == "yield" and rows[0]["sign"] == "-"
+
+
 def test_load_contracts_smoke():
     contracts = g.load_contracts()                                   # real configs/graphrag/causal/*.yaml if present
     for c in contracts.values():

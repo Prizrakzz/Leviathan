@@ -82,6 +82,17 @@ def test_intercommodity_targets_includes_contracts_and_members(monkeypatch):
             "palm_oil", "sunflower_oil", "fish_meal"} <= t
 
 
+def test_check_flags_duplicate_intercommodity_and_convergence():
+    c = _c(drivers=[_d("a")],
+           inter_commodity=[cs.InterCommodityEdge(driver_commodity="robusta_coffee", relation="substitutes_for", sign="-"),
+                            cs.InterCommodityEdge(driver_commodity="robusta_coffee", relation="substitutes_for", sign="+")],
+           convergence=[cs.ConvergenceSignal(name="dup", direction="+", requires_any_n_of=1, drivers=["a"]),
+                        cs.ConvergenceSignal(name="dup", direction="-", requires_any_n_of=1, drivers=["a"])])
+    errs, _ = cv.check(c, nodes=NODES, edges=EDGES, silver=SILVER)
+    assert any("duplicate inter_commodity" in e for e in errs)
+    assert any("duplicate convergence" in e for e in errs)
+
+
 def test_check_accepts_contract_id_inter_edge():
     # a cross-contract relative-value edge (soybeans -> corn_cbot) must NOT be flagged a non-node
     targets = {"arabica_coffee", "corn_cbot", "soybeans"}

@@ -122,9 +122,19 @@ def check(c: cs.CausalContract, *, nodes: set[str] | None = None, edges: set[str
     if cyc:
         errors.append(f"cycle in driver parents (involving {cyc!r}) - the DAG must be acyclic")
     idx = canon_index(nodes)
+    seen_ic: set = set()
     for e in c.inter_commodity:
-        if canon_target(e.driver_commodity, nodes, idx) is None:
+        canon = canon_target(e.driver_commodity, nodes, idx)
+        if canon is None:
             errors.append(f"inter_commodity edge to non-node {e.driver_commodity!r}")
+        key = (canon or e.driver_commodity, e.relation)          # dup = same relation to the same (canonical) node
+        if key in seen_ic:
+            errors.append(f"duplicate inter_commodity edge: {e.relation} -> {e.driver_commodity!r}")
+        seen_ic.add(key)
+    _names = [s.name for s in c.convergence]
+    _dups = sorted({n for n in _names if _names.count(n) > 1})
+    if _dups:
+        errors.append(f"duplicate convergence signal name(s): {_dups}")
 
     for d in c.drivers:
         if edges and d.edge_type not in edges:

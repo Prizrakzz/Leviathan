@@ -44,7 +44,8 @@ class Driver(_Base):
     target_metric: Optional[str] = None  # override the contract default (e.g. a yield driver)
     silver_ref: Optional[str] = None     # the feature/metric NAME that measures this driver
     silver_status: SilverStatus = "none"
-    parents: list[str] = Field(default_factory=list)   # driver ids that drive THIS driver (fan-in / multi-hop)
+    parents: list[str] = Field(default_factory=list)   # driver ids that CAUSE this driver (direction: parent -> this);
+    #                                                    the acyclic fan-in DAG. e.g. se_asia_drought.parents=[el_nino]
     evidence_query: str = ""             # query string for the evidence layer
     confidence: Confidence = "medium"
 
@@ -93,6 +94,8 @@ class CausalContract(_Base):
     schema_version: str = SCHEMA_VERSION
     contract: str                        # the node id (e.g. "arabica_coffee")
     aliases: list[str] = Field(default_factory=list)
+    exchange: Optional[str] = None       # venue this contract trades on, e.g. "ICE" / "CBOT" / "KC" (optional)
+    ticker: Optional[str] = None         # root futures symbol, e.g. "KC" (arabica) / "ZL" (soybean oil) (optional)
     target_metrics: list[str] = Field(default_factory=lambda: ["price"])
     drivers: list[Driver] = Field(default_factory=list)
     inter_commodity: list[InterCommodityEdge] = Field(default_factory=list)
