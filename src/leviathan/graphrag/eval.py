@@ -259,6 +259,13 @@ def main() -> int:
     _OUT.mkdir(parents=True, exist_ok=True)
     out_path = _OUT / f"report_{args.model}.md"
     out_path.write_text(report(rows, model=args.model), encoding="utf-8")
+    s3uri = ev._evid_s3()
+    if s3uri:                                                     # persist so a Fargate run's report survives the container
+        import boto3
+        stem = Path(args.queries).stem if args.queries else "default"
+        b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/report_{args.model}_{stem}.md")
+        boto3.client("s3").put_object(Bucket=b, Key=k, Body=out_path.read_bytes())
+        print(f"  report -> s3://{b}/{k}")
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     extra = ""
     if args.judge:
