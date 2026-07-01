@@ -242,7 +242,7 @@ def _call_opus(system: str, user: str, *, model: str, tool: dict) -> dict:
     import anthropic
     from leviathan.graphrag import batch_extract as bx
     client = anthropic.Anthropic(api_key=bx._api_key())
-    out, _ = ex.call_opus(client, system, user, model=model, max_tokens=2800, tool=tool)
+    out, _ = ex.call_opus(client, system, user, model=model, max_tokens=4096, tool=tool)   # headroom for cascade+mermaid+sources
     return out
 
 

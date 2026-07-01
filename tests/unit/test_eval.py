@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from leviathan.causal import schema as cs
+from leviathan.graphrag import coverage as cov
 from leviathan.graphrag import eval as gev
 from leviathan.graphrag import graph as g
 
@@ -57,6 +58,39 @@ def test_judge_quant_persona_and_grounding_report():
     rep = gev.report([{"q": q, "out": out, "rubric": gev.score(q, out), "judge": j}], model="claude-sonnet-4-6")
     assert "usefulness 4.0/5" in rep and "grounding 5.0/5" in rep                  # overall header
     assert "Per-commodity grounding depth" in rep and "no magnitude given" in rep  # grounding table + gaps surfaced
+
+
+def test_source_diversity_metrics_and_panel():
+    q = {"id": "q1", "category": "cross", "contract": "corn"}
+    out = {"contract": "corn", "answer": "T1 and T4 sources disagree on the number.",
+           "structured": {"sources": [{"ref": 1, "source": "usda_wasde"}, {"ref": 2, "source": "usda_gain_corn"},
+                                      {"ref": 3, "source": "wb_cmo_outlook"}]},           # cited T1->T2->T4
+           "evidence": [{"source": "usda_wasde", "date": "2020"}, {"source": "usda_gain_corn", "date": "2020"},
+                        {"source": "wb_cmo_outlook", "date": "2020"}]}
+    row = {"q": q, "out": out, "rubric": {"routed_right": True}}
+    m = gev._metrics(row)
+    assert m["ev_sources"] == 3 and m["ev_tiers"] == 3 and m["multi_tier"] is True
+    assert m["trust_ordered"] is True                       # T1,T2,T4 ascending = most-trusted first
+    assert m["disagreement"] is True                        # 'disagree' flagged in the answer
+    panel = "\n".join(gev.source_report([row]))
+    assert "multi-tier answers" in panel and "trust-ordered" in panel and "1/1" in panel
+
+
+def test_judge_scores_source_diversity():
+    props = gev._judge_tool()["input_schema"]
+    assert "source_diversity" in props["properties"] and "source_diversity" in props["required"]
+    assert "source_diversity" in gev._JUDGE_SYS
+
+
+def test_coverage_report_flags_thin_and_missing_tiers():
+    comm = {"corn": {"usda_wasde": [10, {"d1", "d2"}], "wb_cmo_outlook": [3, {"d3"}]},   # T1+T4, 3 docs
+            "raw_sugar": {"usda_gain_sugar": [4, {"d4"}]}}                                # single-source, T2 only, no T1
+    props, docs, tiers = cov._totals(comm["corn"])
+    assert props == 13 and docs == 3 and tiers == [1, 4]
+    rep = cov.report(comm, {"drought": {"usda_wasde": [5, {"d1"}]}}, ndocs=100)
+    assert "| corn |" in rep and "| raw_sugar |" in rep
+    assert "NO T1" in rep and "raw_sugar" in rep.split("NO T1")[1]                        # raw_sugar flagged: no T1
+    assert "single-source" in rep and "raw_sugar" in rep.split("single-source")[1]        # and single-source
 
 
 def test_estimate_cost_includes_judge():
