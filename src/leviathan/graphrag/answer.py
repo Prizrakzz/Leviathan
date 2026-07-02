@@ -230,6 +230,68 @@ def _driver_evidence(query: str, drivers: list[str], *, k: int, asof, near, retr
     return hits
 
 
+def _l2_blocks(sg, graph: gph.CausalGraph) -> list[str]:
+    """Render the walked, grounded subgraph as the reasoner's context — organised by the traversal, so the model
+    sees exactly the hops that were grounded (prior + dated evidence + observed silver + active flag) and the
+    deterministically-fired regimes. The model narrates THIS; it can introduce no hop not present."""
+    blocks: list[str] = []
+    for cid in dict.fromkeys(n.contract for n in sg.nodes):
+        c = graph.contracts[cid]
+        cnode = next((n for n in sg.by_contract(cid) if n.kind == "contract"), None)
+        hop = ""
+        if cnode and cnode.via_edge:
+            e = cnode.via_edge
+            hop = f" [reached via {e.get('_from')} --{e.get('relation')}({e.get('sign')})--> {cid}: {e.get('mechanism')}]"
+        lines = [f"CONTRACT: {cid}{hop} (target: {', '.join(c.target_metrics)})"]
+        for n in sg.by_contract(cid):
+            if n.kind != "driver":
+                continue
+            p = n.prior
+            tgt = p.get("target_metric") or (c.target_metrics[0] if c.target_metrics else "price")
+            sv = ""
+            if n.silver and n.silver.get("live"):
+                sv = f" | observed {n.silver.get('value')} {n.silver.get('unit', '')} [{n.silver.get('knowledge_date', '')}]"
+            lines.append(f"- DRIVER {n.id} | {p.get('sign')} on {tgt} | lag {p.get('lag') or 'n/a'} "
+                         f"| conf={p.get('confidence')} | active={n.active}{sv} | {p.get('mechanism')}")
+            if n.evidence:
+                lines.append(_ev_block(n.evidence))
+        blocks.append("\n".join(lines))
+    if sg.fired_regimes:
+        rl = ["CONVERGENCE REGIMES FIRED (deterministic — >= threshold drivers active with dated evidence):"]
+        for r in sg.fired_regimes:
+            rl.append(f"- {r['contract']}: {r['name']} ({r['direction']}) — active {r['matched']} "
+                      f"(needs {r['threshold']})" + (f"; interactions {r['interactions']}" if r['interactions'] else ""))
+        blocks.append("\n".join(rl))
+    return blocks
+
+
+def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed) -> dict:
+    """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
+    graph-derived cascade. Reuses the shared render + unified footer + sanitizer."""
+    from leviathan.graphrag import planner as pl
+    retr = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)
+    sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed)
+    pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near)
+    contracts = sg.seeds
+    structured = call(_SYSTEM, _prompt(query, contracts, _l2_blocks(sg, graph)), model=model, tool=_answer_tool())
+    if sg.mermaid and _valid_mermaid(sg.mermaid):
+        structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
+    evidence = [{**h, "contract": n.contract} for n in sg.nodes for h in n.evidence]
+    seen_docs, uniq = set(), []
+    for h in evidence:
+        sk = h.get("source_key")
+        if sk and sk not in seen_docs:
+            seen_docs.add(sk)
+            uniq.append(h)
+    ev_cits = cit.unify(uniq, None)
+    footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
+    body = reg.sanitize(render(structured) + footer)
+    return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
+            "contracts": contracts, "citations": [c.model_dump() for c in ev_cits], "evidence": evidence,
+            "model": model, "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
+                                      "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
+
+
 def _prompt(query: str, contracts: list[str], blocks: list[str]) -> str:
     scope = contracts[0] if len(contracts) == 1 else f"{len(contracts)} related contracts {contracts}"
     tail = ("" if len(contracts) == 1 else
@@ -277,7 +339,8 @@ def _call_opus(system: str, user: str, *, model: str, tool: dict) -> dict:
 
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
-           driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None) -> dict:
+           driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
+           planner: str | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -290,6 +353,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     if not routed:
         return {"answer": "No tracked contract matched this question.", "structured": None, "contract": None,
                 "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
+    if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
+        return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=retrieve, routed=routed)
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()

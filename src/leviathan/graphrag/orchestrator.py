@@ -46,8 +46,9 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
             "evidence": [], "asof": asof, "structured": None, "contract": None}
 
 
-def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET) -> dict:
-    out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model)
+def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
+                  planner: str | None = None) -> dict:
+    out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -55,11 +56,11 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
 
 
 def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
-               client=None, numbers_model: str = na.HAIKU, query_fn=None) -> dict:
+               client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None) -> dict:
     nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn)
     calls = nums.get("calls", [])
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
-                    extra_context=_numbers_block(calls), extra_number_calls=calls)
+                    extra_context=_numbers_block(calls), extra_number_calls=calls, planner=planner)
     out["intent"] = "hybrid"
     out["number_calls"] = calls
     out["asof"] = asof
@@ -67,9 +68,11 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
 
 
 def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
-            numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None) -> dict:
+            numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
+            planner: str | None = None) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
-    `asof` defaults to today. Inject `classify`/`call`/`retrieve`/`numbers_client`/`query_fn` for tests."""
+    `asof` defaults to today. `planner='l2'` routes the reasoning/hybrid branches through the deterministic
+    grounded-subgraph walk. Inject `classify`/`call`/`retrieve`/`numbers_client`/`query_fn` for tests."""
     asof = asof or _today()
     decided = (classify or it.classify_intent)(query, call=call)
     kind = decided["intent"]
@@ -77,8 +80,8 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
         res = run_numbers_only(query, asof, client=numbers_client, model=numbers_model, query_fn=query_fn)
     elif kind == "hybrid":
         res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
-                         client=numbers_client, numbers_model=numbers_model, query_fn=query_fn)
+                         client=numbers_client, numbers_model=numbers_model, query_fn=query_fn, planner=planner)
     else:
-        res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model)
+        res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
     res["intent_decision"] = decided
     return res

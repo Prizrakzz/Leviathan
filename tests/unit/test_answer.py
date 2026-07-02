@@ -172,6 +172,30 @@ def test_system_prompt_convexity_research_register():
     assert "OUTPUT REGISTER" in s and "bullish/bearish" in s                    # register: words, not +/-
 
 
+def test_answer_l2_walks_grounds_and_overrides_diagram(monkeypatch):
+    gr = _graph()
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0 if "frost" in t.lower() else 0.0] for t in texts])
+
+    captured = {}
+
+    def fake_call(system, user, *, model, tool):
+        captured["user"] = user
+        return {"tldr": "frost bullish [1]", "mechanism": "frost raises price (bullish) [1]", "diagram_mermaid": "",
+                "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
+
+    def fake_retrieve(q, node, *, k, asof=None, near=None):
+        return [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{node}", "text": "July frost hit"}]
+
+    out = an.answer("trace how a coffee frost spikes price", graph=gr, planner="l2",
+                    retrieve=fake_retrieve, call=fake_call, route_fn=lambda q, g: ["arabica_coffee"])
+    assert out["trace"]["planner"] == "l2"
+    diagram = out["structured"]["diagram_mermaid"]
+    assert "flowchart" in diagram and "frost" in diagram                        # graph-derived diagram overrode the LLM's ""
+    assert ("arabica_coffee", "squeeze") in {(r["contract"], r["name"]) for r in out["trace"]["fired_regimes"]}
+    assert "frost kills trees" in captured["user"]                              # the walked subgraph's prior reached the reasoner
+    assert "```mermaid" in out["answer"] and "## Sources" in out["answer"]
+
+
 def test_source_tier_and_ev_block_tagging():
     assert an.source_tier("usda_wasde") == 1 and an.source_tier("usda_fas_coffee_wmt") == 1   # official/balance-sheet
     assert an.source_tier("usda_gain_coffee") == 2                                            # USDA attache

@@ -52,19 +52,25 @@ def score(q: dict, out: dict) -> dict:
 
 
 def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, k: int = 5, answer_fn=None,
-        via_orchestrator: bool = False, numbers_client=None, call=None) -> list[dict]:
+        via_orchestrator: bool = False, numbers_client=None, call=None, planner: str | None = None) -> list[dict]:
     """Run each query through answer() (default) or — with via_orchestrator — the full intent branch
-    orchestrator.respond() (numbers_only / reasoning / hybrid), passing each question's point-in-time asof."""
+    orchestrator.respond() (numbers_only / reasoning / hybrid), passing each question's point-in-time asof.
+    `planner='l2'` routes reasoning/hybrid through the deterministic grounded-subgraph walk (A/B vs one-hop)."""
     answer_fn = answer_fn or an.answer
     rows = []
     for q in queries:
         try:                                                          # one bad answer must NOT abort a billed run
             if via_orchestrator:
                 from leviathan.graphrag import orchestrator as orch
-                out = orch.respond(q["question"], graph=graph, asof=q.get("asof"), model=model,
-                                   numbers_client=numbers_client, call=call)
+                okw = dict(graph=graph, asof=q.get("asof"), model=model, numbers_client=numbers_client, call=call)
+                if planner:                                           # keep the call identical for injected fake respond()
+                    okw["planner"] = planner
+                out = orch.respond(q["question"], **okw)
             else:
-                out = answer_fn(q["question"], graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
+                kw = dict(graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
+                if planner:                                           # keep the call identical for injected fake answer_fns
+                    kw["planner"] = planner
+                out = answer_fn(q["question"], **kw)
         except Exception as e:  # noqa: BLE001
             out = {"answer": f"(answer failed: {str(e)[:200]})", "contract": None, "structured": None,
                    "evidence": [], "intent": None, "number_calls": [], "citations": [], "model": model,
@@ -152,8 +158,16 @@ def _metrics(r: dict) -> dict:
     ans_l = (out.get("answer") or "").lower()
     leaks = reg.register_leaks(out.get("answer") or "")               # internal tokens that leaked into reader prose
     rb = r["rubric"]
+    tr = out.get("trace") or {}                                       # L2 planner traversal trace (when planner=l2)
+    kept = tr.get("kept") or []
+    dkept = [k for k in kept if k and k[0] == "driver"]
+    active = tr.get("active") or []
     return {"commodity": r["q"]["contract"], "category": r["q"].get("category", r["q"].get("type", "")),
             "register_leaks": len(leaks), "register_tokens": [t for t, _ in leaks],
+            "is_l2": tr.get("planner") == "l2", "n_kept": len(kept),
+            "n_contracts": len({k[1] for k in kept}) if kept else 0,
+            "n_regimes": len(tr.get("fired_regimes") or []),
+            "leg_grounded": (len(active) / len(dkept)) if dkept else None,
             "routed_ok": rb["routed_right"], "retrieved": len(out.get("evidence") or []), "cited": len(cited_srcs),
             # v3 intent-branch + point-in-time
             "intent_ok": rb.get("intent_ok"), "routed_intent": rb.get("routed_intent"),
@@ -215,6 +229,27 @@ def routing_report(rows: list[dict]) -> list[str]:
         L.append(f"- **leakage-trap handled** (said 'not known at asof'): {sum(1 for x in leak if x['leakage_ok'])}/{len(leak)}")
     L.append(f"- judge **convexity** avg: {avg('convexity')}/5 | **point_in_time** avg: {avg('point_in_time')}/5")
     return L
+
+
+def planner_report(rows: list[dict]) -> list[str]:
+    """L2 grounded-subgraph panel — the cascade-completeness signal for the l2-vs-one-hop A/B. Empty for one-hop
+    runs (no trace.planner)."""
+    import statistics
+    m = [x for x in (_metrics(r) for r in rows) if x.get("is_l2")]
+    if not m:
+        return []
+    n = len(m)
+
+    def avg(key):
+        xs = [x[key] for x in m if x.get(key) is not None]
+        return round(statistics.mean(xs), 1) if xs else None
+
+    return ["## L2 planner (deterministic grounded-subgraph walk)", "",
+            f"- **L2 answers: {n}/{len(rows)}**",
+            f"- avg subgraph: **{avg('n_kept')}** grounded nodes across **{avg('n_contracts')}** contracts "
+            f"(>1 contract = a cross-commodity cascade hop was grounded, not just described)",
+            f"- avg **convergence regimes fired** (deterministic): {avg('n_regimes')}",
+            f"- avg **leg-grounding rate** (kept drivers backed by dated evidence): {avg('leg_grounded')}"]
 
 
 def register_report(rows: list[dict]) -> list[str]:
@@ -288,6 +323,8 @@ def report(rows: list[dict], *, model: str) -> str:
                      f"hallucinated claims: {halluc}")
     lines.append("")
     lines += routing_report(rows) + [""]                               # v3 new-layers panel
+    if any((r["out"].get("trace") or {}).get("planner") == "l2" for r in rows):
+        lines += planner_report(rows) + [""]                           # L2 grounded-subgraph cascade panel
     lines += register_report(rows) + [""]                              # output-register discipline (leaked internal tokens)
     lines += source_report(rows) + [""]                                # multi-source lift (deterministic + judge)
     if judged:
@@ -354,6 +391,8 @@ def main() -> int:
     ap.add_argument("--queries", default=None, help="queries yaml path (default configs/graphrag/eval_queries.yaml)")
     ap.add_argument("--via-orchestrator", action="store_true",
                     help="route each query through the intent branch (orchestrator.respond) — numbers/reasoning/hybrid")
+    ap.add_argument("--planner", default=None, choices=[None, "l2"],
+                    help="reasoning engine: default one-hop; 'l2' = deterministic grounded-subgraph walk (A/B)")
     args = ap.parse_args()
     from pathlib import Path
     queries = load_queries(Path(args.queries)) if args.queries else load_queries()
@@ -376,7 +415,7 @@ def main() -> int:
         client = anthropic.Anthropic(api_key=bx._api_key())
     rows = run(graph, queries, model=args.model, k=args.k, via_orchestrator=args.via_orchestrator,
                numbers_client=client if args.via_orchestrator else None,
-               call=an._call_opus if args.via_orchestrator else None)
+               call=an._call_opus if args.via_orchestrator else None, planner=args.planner)
     if args.judge:
         for r in rows:
             try:                                                      # a judge failure must not lose the whole run

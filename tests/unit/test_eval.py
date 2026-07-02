@@ -122,3 +122,20 @@ def test_v3_orchestrator_intent_routing_and_leakage(monkeypatch):
     rr = "\n".join(gev.routing_report(rows))
     assert "**intent routed correctly**: **2/2**" in rr and "leakage-trap handled" in rr and "1/1" in rr
     assert "numbers looked up: silver_psd" in gev.report(rows, model="claude-sonnet-4-6")  # provenance surfaced
+
+
+def test_planner_panel_reports_l2_structure():
+    from leviathan.graphrag import eval as E
+    rows = [{"q": {"contract": "arabica_coffee", "id": "q1"},
+             "out": {"answer": "x", "evidence": [], "structured": {},
+                     "trace": {"planner": "l2",
+                               "kept": [["contract", "arabica_coffee", "arabica_coffee"],
+                                        ["driver", "arabica_coffee", "frost"],
+                                        ["contract", "robusta_coffee", "robusta_coffee"]],
+                               "active": [["driver", "arabica_coffee", "frost"]],
+                               "fired_regimes": [{"contract": "arabica_coffee", "name": "squeeze"}]}},
+             "rubric": {"routed_right": True}}]
+    m = E._metrics(rows[0])
+    assert m["is_l2"] and m["n_kept"] == 3 and m["n_contracts"] == 2 and m["n_regimes"] == 1 and m["leg_grounded"] == 1.0
+    panel = "\n".join(E.planner_report(rows))
+    assert "L2 planner" in panel and "cross-commodity" in panel
