@@ -6,8 +6,9 @@ slices, NO DB (they port to pgvector later; only the candidate source changes, n
   - hybrid  (RECALL):    a BM25 lexical leg fused with dense via Reciprocal Rank Fusion -> surfaces the exact
                          tokens (B40, ZL, CIF, tickers) that dense embeddings smear together.
   - rerank  (PRECISION): a bge cross-encoder re-scores query<->prop relevance.
-  - mmr     (DIVERSITY): Maximal Marginal Relevance final-select -> guards against rerank narrowing the
-                         evidence set and starving the LLM's lateral reasoning.
+  - mmr     (DIVERSITY): SOURCE-AWARE Maximal Marginal Relevance final-select -> thins a source RESTATING
+                         itself but KEEPS cross-source corroboration, and balances slots across sources so no
+                         single high-volume source dominates the top-k (guards the LLM's lateral reasoning).
 
 Pure + deterministic (BM25/RRF/MMR are math; the cross-encoder is a fixed model in eval mode) -> reproducible
 A/B + audit. The reasoning LLM is untouched: these only curate WHICH dated evidence reaches it.
@@ -80,24 +81,41 @@ def _cos(a, b) -> float:
     return float(a @ b / (na * nb)) if na and nb else 0.0
 
 
-def mmr_select(cands: list[dict], relevance: list[float], k: int, lam: float) -> list[dict]:
-    """Maximal Marginal Relevance: iteratively pick argmax [lam*rel - (1-lam)*max_sim_to_picked]. `relevance`
-    is aligned to `cands`; each cand carries ['vector']. Trades relevance for novelty so rerank can't collapse
-    the top-k onto near-duplicates. lam=1 -> pure relevance; smaller lam -> more diversity."""
+def mmr_select(cands: list[dict], relevance: list[float], k: int, lam: float, *,
+               same_source: bool = True, fairness: float = 0.30, trust: list[float] | None = None) -> list[dict]:
+    """Source-aware Maximal Marginal Relevance. Iteratively pick argmax:
+
+        lam*rel_i - (1-lam)*max_sim(i, picked SAME-SOURCE) - fairness*picked_count[source_i] (+ trust_i)
+
+    `relevance` is aligned to `cands`; each cand carries ['vector'] and ['source']. Three levers:
+      - same_source=True: the novelty penalty compares i ONLY to already-picked props FROM THE SAME SOURCE, so a
+        source restating itself is thinned but a near-identical prop from a DIFFERENT source (independent
+        corroboration) is NOT penalized. same_source=False = classic source-agnostic MMR (escape hatch).
+      - fairness>0: a per-source saturation penalty (grows with how many props from that source are already
+        picked) -> one high-volume source can't dominate the top-k by count even when its props are distinct.
+      - trust (optional, aligned to cands; higher = more credible): a light additive bias. Default None keeps
+        retrieval credibility-NEUTRAL (trust ordering is applied at OUTPUT, not selection).
+    lam=1 -> pure relevance; smaller lam -> more within-source diversity."""
     if not cands:
         return []
     lo, hi = min(relevance), max(relevance)
     rng = (hi - lo) or 1.0
     rel = [(x - lo) / rng for x in relevance]                        # normalize for stable mixing with cosine sim
+    tw = trust if trust is not None else [0.0] * len(cands)
+    src = [(c.get("source") or "") for c in cands]
     picked, picked_i, remaining = [], [], list(range(len(cands)))
+    src_count: dict = {}
     while remaining and len(picked) < k:
         best_i, best_v = remaining[0], -1e18
         for i in remaining:
-            div = max((_cos(cands[i]["vector"], cands[j]["vector"]) for j in picked_i), default=0.0)
-            v = lam * rel[i] - (1 - lam) * div
+            div = max((_cos(cands[i]["vector"], cands[j]["vector"])
+                       for j in picked_i if not same_source or src[j] == src[i]), default=0.0)  # SAME-source novelty
+            sat = fairness * src_count.get(src[i], 0)               # balance: diminishing returns per source
+            v = lam * rel[i] - (1 - lam) * div - sat + tw[i]
             if v > best_v:
                 best_v, best_i = v, i
         picked.append(cands[best_i]); picked_i.append(best_i); remaining.remove(best_i)
+        src_count[src[best_i]] = src_count.get(src[best_i], 0) + 1
     return picked
 
 

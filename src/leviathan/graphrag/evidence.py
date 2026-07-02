@@ -326,7 +326,8 @@ def _out(recs: list[dict]) -> list[dict]:
 
 def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,
              beta: float = 0.25, bedrock=None, records: list[dict] | None = None,
-             mode: str = "dense", rerank: bool = False, mmr: float = 0.0, fetch_k: int = 60) -> list[dict]:
+             mode: str = "dense", rerank: bool = False, mmr: float = 0.0,
+             same_source: bool = True, fairness: float = 0.30, fetch_k: int = 60) -> list[dict]:
     """Top-k props for the query, point-in-time filtered (date <= asof) — leakage-safe. Default
     (mode='dense', rerank=False, mmr=0) is pure cosine + episode-proximity, UNCHANGED. Opt-in retrieval-quality
     knobs (all in-memory; they curate WHICH dated evidence reaches the LLM, never the reasoning):
@@ -354,7 +355,8 @@ def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near
         relevance = rk.rerank_scores(query, [r["text"] for r in cand])
         order = sorted(range(len(cand)), key=lambda i: relevance[i], reverse=True)
         cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]
-    top = rk.mmr_select(cand, relevance, k, mmr) if (mmr > 0 and len(cand) > k) else cand[:k]   # DIVERSITY
+    top = (rk.mmr_select(cand, relevance, k, mmr, same_source=same_source, fairness=fairness)
+           if (mmr > 0 and len(cand) > k) else cand[:k])                       # DIVERSITY (source-aware)
     return _out(top)
 
 

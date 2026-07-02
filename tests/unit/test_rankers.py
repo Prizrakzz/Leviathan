@@ -33,7 +33,27 @@ def test_hybrid_surfaces_exact_token_dense_missed():
 def test_mmr_drops_near_duplicate_for_diversity():
     d1 = _rec("d1", "dup one", [1.0, 0.0]); d2 = _rec("d2", "dup two", [0.99, 0.01]); x = _rec("x", "other", [0.0, 1.0])
     picked = rk.mmr_select([d1, d2, x], relevance=[1.0, 0.98, 0.5], k=2, lam=0.5)
-    assert d1 in picked and x in picked and d2 not in picked        # diversity beats the near-duplicate
+    assert d1 in picked and x in picked and d2 not in picked        # SAME-source near-duplicate is thinned
+
+
+def test_mmr_keeps_cross_source_corroboration():
+    a = _rec("a", "Brazil soy 155 MMT", [1.0, 0.0], source="usda_wasde")
+    b = _rec("b", "Brazil soybean output ~155 mln t", [0.99, 0.01], source="conab")   # near-dupe, DIFFERENT source
+    x = _rec("x", "unrelated palm note", [0.0, 1.0], source="usda_gain")
+    picked = rk.mmr_select([a, b, x], relevance=[1.0, 0.98, 0.9], k=2, lam=0.5)
+    assert a in picked and b in picked                             # cross-source corroboration survives (not penalized)
+
+
+def test_mmr_balances_across_sources():
+    a1 = _rec("a1", "facet one", [1.0, 0.0, 0.0], source="usda_wasde")
+    a2 = _rec("a2", "facet two", [0.0, 1.0, 0.0], source="usda_wasde")
+    a3 = _rec("a3", "facet three", [0.0, 0.0, 1.0], source="usda_wasde")   # 3 DISTINCT facets, one high-volume source
+    b1 = _rec("b1", "other source facet", [0.6, 0.6, 0.0], source="conab")
+    cands, rel = [a1, a2, a3, b1], [1.0, 0.95, 0.9, 0.7]
+    balanced = rk.mmr_select(cands, rel, k=3, lam=0.5, fairness=0.3)
+    agnostic = rk.mmr_select(cands, rel, k=3, lam=0.5, fairness=0.0, same_source=False)
+    assert b1 in balanced                                          # fairness lifts the under-represented source in
+    assert b1 not in agnostic                                      # ...where plain MMR lets the big source crowd it out
 
 
 def test_rerank_overrides_dense_order(monkeypatch):

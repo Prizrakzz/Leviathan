@@ -19,7 +19,7 @@ from leviathan.graphrag import harvest as hv
 # rerank sharpened rank; MMR kept the best source-diversity, guarding against narrowing). Serving uses this by
 # default; override `retrieve=` to A/B a different arm. NOTE: rerank runs a bge cross-encoder — on CPU it adds
 # real per-query latency, so in production point it at a GPU/hosted reranker (like the bge-m3 embed endpoint).
-_RETRIEVAL = {"mode": "hybrid", "rerank": True, "mmr": 0.5}
+_RETRIEVAL = {"mode": "hybrid", "rerank": True, "mmr": 0.5, "fairness": 0.3}   # MMR is source-aware (same-source dedup, cross-source keep, balance)
 
 SONNET = "claude-sonnet-4-6"
 

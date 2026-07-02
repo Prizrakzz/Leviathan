@@ -25,10 +25,11 @@ PROBES = [
 ]
 
 ARMS = {
-    "dense":             {},
-    "hybrid":            {"mode": "hybrid"},
-    "dense+rerank":      {"rerank": True},
-    "hybrid+rerank+mmr": {"mode": "hybrid", "rerank": True, "mmr": 0.5},
+    "dense":               {},
+    "hybrid":              {"mode": "hybrid"},
+    "dense+rerank":        {"rerank": True},
+    "hyb+rr+mmr(src-aware)": {"mode": "hybrid", "rerank": True, "mmr": 0.5},                        # default: source-aware
+    "hyb+rr+mmr(agnostic)":  {"mode": "hybrid", "rerank": True, "mmr": 0.5, "same_source": False, "fairness": 0.0},
 }
 
 
