@@ -30,7 +30,7 @@ While validating the GraphRAG SQL agent against Athena, querying `silver_esr` fo
 > FROM leviathan_dev.silver_esr WHERE commodity_name = 'soybeans_cbot'
 > GROUP BY market_year ORDER BY 1 DESC LIMIT 6
 > ```
-> If `market_year=2024` spans week endings 2023-09..2024-08 → END-year confirmed. Check wheat separately (MY starts Jun 1; FAS may label it differently). A probe was in flight at report time; treat §3.1 as conditional on it.
+> **CONFIRMED 2026-07-03** (direct parquet read of `silver/esr/commodity=soybeans_cbot/`): `market_year=2024` spans week endings **2023-09-07 → 2024-09-05** = MY 2023/24. ESR labels by END year. Note: the Athena GROUP-BY route hit the 30-minute query timeout — read the hive-partitioned parquet directly (seconds). Wheat classes should still be spot-checked the same way.
 
 ---
 
@@ -58,7 +58,7 @@ While validating the GraphRAG SQL agent against Athena, querying `silver_esr` fo
 
 The correctness now depends entirely on which convention `silver_esr.market_year` uses:
 
-- **If ESR labels by END year (likely):** `mkt_year = 2023` for crop-year 2024 selects MY **2022/23** — the intended completed year. The code is *accidentally correct*, but only because two errors (label mismatch + offset) cancel. Nothing pins this; the next person to "fix" the offset breaks it silently.
+- **ESR labels by END year (CONFIRMED):** `mkt_year = 2023` for crop-year 2024 selects MY **2022/23** — the intended completed year. So the current feature code is **correct-by-accident**: the label mismatch and the offset cancel. Nothing pins this; the next person to "fix" the offset breaks it silently — which is why the date-mapping rewrite + pin test below still matter.
 - **If ESR labels by START year:** `mkt_year = 2023` selects MY **2023/24**, which is *in progress* at May planting — the annual sums then include Jun–Aug-2024 weeks. **That is look-ahead leakage** (unlike the PSD path, this computation has **no `release_date`/as-of cutoff at all** — it sums the whole labelled year).
 
 **Fix (robust to either convention):** stop matching labels; map weeks to marketing years via the crop calendar you already have:
@@ -163,7 +163,7 @@ Steps 1–5 are prerequisites in spirit: they make step 6's results interpretabl
 | Table | Year column | Convention | Country style | Date col types | Notes |
 |---|---|---|---|---|---|
 | silver_psd | market_year | MY **START** year (2023 = 2023/24) — verified | Display ("United States") | release_date: varchar | latest-bulk, NOT true vintages |
-| silver_esr | market_year | **END year (likely; CONFIRM via §1 probe)** | n/a (country_code int) | week_ending_date: DATE; as_of_date: varchar | one latest as_of snapshot per MY; full-scans on GROUP BY |
+| silver_esr | market_year | **END year (CONFIRMED 2026-07-03)** | n/a (country_code int) | week_ending_date: DATE; as_of_date: varchar | one latest as_of snapshot per MY; full-scans on GROUP BY |
 | silver_wasde | marketing_year | "2023/24" string | region taxonomy incl. garbage classes | release_date | quality classes exist — enforce |
 | silver_nasa_power | (daily) | n/a | snake (united_states) | date: DATE | injected partitions: commodity/country/region equality REQUIRED |
 | silver_production (FAOSTAT) | year | calendar year | snake after aliases | ingest_date | aliases in extractors.py:459 |
