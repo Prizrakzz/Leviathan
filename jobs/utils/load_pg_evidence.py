@@ -42,10 +42,24 @@ def s3_driver_nodes() -> list[str]:
     return sorted(out)
 
 
+def _load_one(node: str) -> tuple[str, int, str]:
+    """Worker: read one slice (S3/local) + upsert on its OWN connection (psycopg conns aren't shared across
+    threads). Returns (node, rows, err)."""
+    import psycopg
+    try:
+        recs = ev.load_index(node)
+        with psycopg.connect(pgstore.dsn(), autocommit=True) as conn:
+            n = pgstore.upsert(node, recs, conn=conn)
+        return node, n, ""
+    except Exception as e:  # noqa: BLE001 — a missing slice must not kill the backfill
+        return node, 0, str(e)[:120]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Backfill pgvector from the flat-file evidence slices (no re-embed).")
     ap.add_argument("--nodes", nargs="*", default=None, help="slice names (e.g. corn drivers/el_nino)")
     ap.add_argument("--all", action="store_true", help="all local slices + S3 driver slices")
+    ap.add_argument("--workers", type=int, default=8, help="parallel slice loads (S3 read + upsert per worker)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -64,15 +78,16 @@ def main() -> int:
 
     pgstore.init_schema()
     total = 0
-    for node in nodes:
-        try:
-            recs = ev.load_index(node)
-        except Exception as e:  # noqa: BLE001 — a missing slice must not kill the backfill
-            print(f"  SKIP {node}: {str(e)[:120]}")
-            continue
-        n = pgstore.upsert(node, recs)
-        total += n
-        print(f"  {node}: {n} props")
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        futs = [pool.submit(_load_one, n) for n in nodes]
+        for f in as_completed(futs):
+            node, n, err = f.result()
+            if err:
+                print(f"  SKIP {node}: {err}")
+            else:
+                total += n
+                print(f"  {node}: {n} props")
     print(f"loaded {total} props across {len(nodes)} slices")
     return 0
 

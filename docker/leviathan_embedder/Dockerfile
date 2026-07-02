@@ -29,7 +29,7 @@ ENV HF_HOME=/opt/hf \
 COPY pyproject.toml ./
 RUN mkdir -p src/leviathan && touch src/leviathan/__init__.py && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -e ".[embed]"
+    pip install --no-cache-dir -e ".[embed,pg]"
 
 # Real source last — small layers on change. configs/ carries the gitignored causal DAG + evidence_windows.yaml
 # + driver_slices.yaml (Docker copies the filesystem, not git); they stay inside this PRIVATE ECR image.
