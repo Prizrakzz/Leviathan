@@ -75,13 +75,30 @@ def _bge_local(texts: list[str]) -> list[list[float]]:
     return [v.tolist() for v in _bge.encode(texts, normalize_embeddings=True)]
 
 
+_Q_CACHE: dict[tuple, list[float]] = {}                       # single-text memo: the L2 walk re-embeds the SAME
+_Q_CACHE_MAX = 4096                                           # query for every node it grounds (WS-0: 26% of wall)
+
+
 def embed(texts: list[str], *, backend: str | None = None, bedrock=None, model: str = TITAN_MODEL,
           endpoint: str | None = None) -> list[list[float]]:
     """Embed texts with the selected backend: 'bge_local' (sentence-transformers, default), 'titan' (Bedrock
-    Titan v2 fallback), or 'bge_endpoint' (a hosted bge-m3 container — the production path)."""
+    Titan v2 fallback), or 'bge_endpoint' (a hosted bge-m3 container — the production path). Single-text calls
+    (query/mechanism embeds — retrieval-time) are memoized; bulk build-time calls are not."""
     backend = backend or DEFAULT_BACKEND
     if not texts:
         return []
+    if len(texts) == 1:                                       # retrieval-time path: same query across many nodes
+        key = (backend, texts[0])
+        if key not in _Q_CACHE:
+            if len(_Q_CACHE) >= _Q_CACHE_MAX:                 # bound the memo (long-lived serving process)
+                _Q_CACHE.clear()
+            _Q_CACHE[key] = _embed_raw(texts, backend=backend, bedrock=bedrock, model=model, endpoint=endpoint)[0]
+        return [_Q_CACHE[key]]
+    return _embed_raw(texts, backend=backend, bedrock=bedrock, model=model, endpoint=endpoint)
+
+
+def _embed_raw(texts: list[str], *, backend: str, bedrock=None, model: str = TITAN_MODEL,
+               endpoint: str | None = None) -> list[list[float]]:
     if backend == "bge_local":
         return _bge_local(texts)
     if backend == "titan":

@@ -292,3 +292,24 @@ def test_evidence_store_s3_mode(monkeypatch):
     ev._evid_write("cocoa", '{"x": 1}\n{"x": 2}')
     assert ("mybucket", "graphrag/evidence/cocoa.jsonl") in store          # wrote to S3, not local
     assert ev.load_index("cocoa") == [{"x": 1}, {"x": 2}]                   # reads back from S3
+
+
+def test_embed_memoizes_single_text_calls(monkeypatch):
+    # WS-0 profiling: the L2 walk re-embedded the SAME query for every node it grounded (26% of wall time).
+    # Single-text calls memoize; bulk (build-time) calls never do.
+    from leviathan.graphrag import evidence as ev
+    calls = {"n": 0}
+
+    def fake_raw(texts, **kw):
+        calls["n"] += 1
+        return [[1.0, 0.0] for _ in texts]
+
+    monkeypatch.setattr(ev, "_embed_raw", fake_raw)
+    ev._Q_CACHE.clear()
+    try:
+        ev.embed(["same query"]); ev.embed(["same query"]); ev.embed(["same query"])
+        assert calls["n"] == 1                                   # one raw call for three identical queries
+        ev.embed(["a", "b"]); ev.embed(["a", "b"])
+        assert calls["n"] == 3                                   # bulk path untouched (no memo)
+    finally:
+        ev._Q_CACHE.clear()
