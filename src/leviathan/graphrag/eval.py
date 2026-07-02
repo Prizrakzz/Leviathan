@@ -19,6 +19,7 @@ from leviathan.graphrag import answer as an
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
+from leviathan.graphrag import register as reg
 
 _QUERIES = ex._CFG / "eval_queries.yaml"
 _OUT = ex._CFG / "eval"
@@ -149,8 +150,10 @@ def _metrics(r: dict) -> dict:
     ev_srcs = {e.get("source") for e in (out.get("evidence") or []) if e.get("source")}   # actual corpus sources
     ev_tiers = {an.source_tier(s) for s in ev_srcs}
     ans_l = (out.get("answer") or "").lower()
+    leaks = reg.register_leaks(out.get("answer") or "")               # internal tokens that leaked into reader prose
     rb = r["rubric"]
     return {"commodity": r["q"]["contract"], "category": r["q"].get("category", r["q"].get("type", "")),
+            "register_leaks": len(leaks), "register_tokens": [t for t, _ in leaks],
             "routed_ok": rb["routed_right"], "retrieved": len(out.get("evidence") or []), "cited": len(cited_srcs),
             # v3 intent-branch + point-in-time
             "intent_ok": rb.get("intent_ok"), "routed_intent": rb.get("routed_intent"),
@@ -214,6 +217,24 @@ def routing_report(rows: list[dict]) -> list[str]:
     return L
 
 
+def register_report(rows: list[dict]) -> list[str]:
+    """Output-register panel: how many answers leaked internal tokens (slugs, conf=, (+)/(-), 'the node fired')
+    into reader-facing prose — the deterministic complement to the judge's register read."""
+    import collections
+    m = [_metrics(r) for r in rows]
+    n = len(m) or 1
+    leaky = [x for x in m if x.get("register_leaks")]
+    tally = collections.Counter(t for x in m for t in (x.get("register_tokens") or []))
+    L = ["## Output register (leaked internal tokens)", "",
+         f"- **answers with leaks: {len(leaky)}/{n}** (clean = reader never sees a raw slug / `conf=` / `(+)` / graph jargon)"]
+    if tally:
+        top = ", ".join(f"`{t}`x{c}" for t, c in tally.most_common(8))
+        L.append(f"- most-leaked tokens: {top}")
+    else:
+        L.append("- no internal tokens leaked into prose")
+    return L
+
+
 def grounding_report(rows: list[dict]) -> list[str]:
     """Per-commodity grounding-depth table — the decision input for where evidence is thin for real questions."""
     import collections
@@ -267,6 +288,7 @@ def report(rows: list[dict], *, model: str) -> str:
                      f"hallucinated claims: {halluc}")
     lines.append("")
     lines += routing_report(rows) + [""]                               # v3 new-layers panel
+    lines += register_report(rows) + [""]                              # output-register discipline (leaked internal tokens)
     lines += source_report(rows) + [""]                                # multi-source lift (deterministic + judge)
     if judged:
         lines += grounding_report(rows) + [""]
@@ -281,6 +303,10 @@ def report(rows: list[dict], *, model: str) -> str:
                   f"- evidence: {[(e['source'], e['date']) for e in out.get('evidence') or []][:6]}"]
         if nums:
             lines.append(f"- numbers looked up: {nums}")
+        leaks = reg.register_leaks(out.get("answer") or "")
+        if leaks:                                                      # surface the exact leaked tokens + context
+            lines.append(f"- **register leaks ({len(leaks)}):** "
+                         + "; ".join(f"`{t}` (…{c}…)" for t, c in leaks[:6]))
         if r.get("judge"):
             j = r["judge"]
             lines += [f"- **judge:** usefulness {j.get('usefulness')}/5 · convexity {j.get('convexity')}/5 · "
