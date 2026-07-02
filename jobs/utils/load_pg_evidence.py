@@ -26,19 +26,23 @@ def local_nodes() -> list[str]:
     return sorted(p.stem for p in d.glob("*.jsonl")) if d.exists() else []
 
 
-def s3_driver_nodes() -> list[str]:
-    """List drivers/<name> slices under EVIDENCE_S3 (they are not mirrored locally)."""
+def s3_nodes() -> list[str]:
+    """List ALL slices under EVIDENCE_S3: top-level commodity slices + drivers/<name>. (In the Fargate image
+    configs/graphrag/evidence/ is dockerignored, so the S3 listing — the production store — is the real source.)"""
     uri = ev._evid_s3()
     if not uri:
         return []
     import boto3
-    b, prefix = ev._parse_s3(uri.rstrip("/") + "/drivers/")
+    b, prefix = ev._parse_s3(uri.rstrip("/") + "/")
     out = []
     for page in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=b, Prefix=prefix):
         for o in page.get("Contents") or []:
-            key = o["Key"]
-            if key.endswith(".jsonl"):
-                out.append("drivers/" + key.rsplit("/", 1)[-1][:-len(".jsonl")])
+            key = o["Key"][len(prefix):]
+            if not key.endswith(".jsonl"):
+                continue
+            if key.startswith("_") or "/" in key.replace("drivers/", ""):     # skip _batches/ + other artifacts
+                continue
+            out.append(key[:-len(".jsonl")])
     return sorted(out)
 
 
@@ -65,7 +69,7 @@ def main() -> int:
 
     nodes = args.nodes or []
     if args.all:
-        nodes = local_nodes() + s3_driver_nodes()
+        nodes = sorted(set(s3_nodes() or local_nodes()))       # S3 = the production store; local = dev fallback
     if not nodes:
         print("nothing to load (pass --nodes or --all)")
         return 1
