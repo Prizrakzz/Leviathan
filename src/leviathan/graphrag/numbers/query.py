@@ -12,6 +12,7 @@ testability are guaranteed by construction, not by prompt discipline.
 """
 from __future__ import annotations
 
+import functools
 from typing import Literal, Optional
 
 from pydantic import BaseModel
@@ -27,6 +28,7 @@ class NumberQuery(BaseModel):
     asof: str                                        # REQUIRED point-in-time date 'YYYY-MM-DD' (as-known cutoff)
     commodity: Optional[str] = None
     country: Optional[str] = None
+    region: Optional[str] = None                     # station-region for partition-required tables (nasa_power)
     period: Optional[str] = None                     # marketing_year / year value (per the table's period format)
     period_start: Optional[str] = None               # date-grained window start (weather / exports)
     period_end: Optional[str] = None                 # date-grained window end
@@ -52,9 +54,35 @@ def _value_expr(spec: NumberQuery, ts: TableSpec) -> str:
     return spec.metric if ts.shape == "wide" else (ts.value_col or "value")
 
 
+@functools.lru_cache(maxsize=64)
+def default_region(commodity: str) -> Optional[str]:
+    """The commodity's representative station-region (first primary-country location) from
+    configs/geographies/<commodity>_regions.yaml — the default when a partition-required table (nasa_power)
+    gets no explicit region. One station is a defensible proxy for a research lookup; provenance carries it."""
+    import yaml
+    from leviathan.graphrag import extract as ex
+    p = ex._CFG.parent / "geographies" / f"{commodity}_regions.yaml"
+    if not p.exists():
+        return None
+    cfg = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    blocks = cfg.get("regions") or []
+    blocks = sorted(blocks, key=lambda b: 0 if b.get("importance") == "primary" else 1)
+    for b in blocks:
+        for loc in b.get("locations") or []:
+            if loc.get("region"):
+                return loc["region"]
+    return None
+
+
 def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     """The identity/scope predicates (NOT the as-of guard)."""
     w: list[str] = []
+    if ts.partition_col:                             # injected-projection partition: static equality is MANDATORY
+        val = spec.region or (default_region(spec.commodity) if spec.commodity else None)
+        if not val:
+            raise ValueError(f"table {ts.id} requires a {ts.partition_col} equality filter "
+                             f"(pass region= or a commodity with a geographies config)")
+        w.append(f"{ts.partition_col} = {_q(val)}")
     if spec.commodity and ts.commodity_col:
         w.append(f"{ts.commodity_col} = {_q(spec.commodity)}")
     if spec.country and ts.country_col:
@@ -168,6 +196,10 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     ym = _asof_ym(spec.asof) if ts.knowledge_semantics == "year_month" else None
 
     def keep(r: dict) -> bool:
+        if ts.partition_col:
+            val = spec.region or (default_region(spec.commodity) if spec.commodity else None)
+            if val and str(r.get(ts.partition_col)) != str(val):
+                return False
         if spec.commodity and ts.commodity_col and str(r.get(ts.commodity_col)) != str(spec.commodity):
             return False
         if spec.country and ts.country_col and str(r.get(ts.country_col)) != str(spec.country):

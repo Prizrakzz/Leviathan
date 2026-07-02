@@ -31,6 +31,8 @@ def tool_schema(reg: NumbersRegistry) -> dict:
                 "metric": {"type": "string", "description": "a metric listed for that table"},
                 "commodity": {"type": "string", "description": "commodity/contract slug, if the table is per-commodity"},
                 "country": {"type": "string", "description": "country, if the table is per-country"},
+                "region": {"type": "string", "description": "station-region for weather tables (e.g. us_corn_iowa); "
+                                                            "omit to use the commodity's primary region"},
                 "period": {"type": "string", "description": "marketing year or year (per the table's period format)"},
                 "period_start": {"type": "string", "description": "YYYY-MM-DD window start (date-grained tables)"},
                 "period_end": {"type": "string", "description": "YYYY-MM-DD window end (date-grained tables)"},
@@ -72,6 +74,9 @@ def system_prompt(reg: NumbersRegistry) -> str:
         "For silver_wasde, period is the string '2023/24'.\n"
         "- silver_noaa_oni has NO date column: window months with period_start/period_end as 'YYYY-MM', or use "
         "agg=latest for the most recent month on/before the as-of date.\n"
+        "- silver_nasa_power is per STATION-REGION: each lookup reads ONE region (defaults to the commodity's "
+        "primary growing region, e.g. us_corn_iowa for corn_cbot). The result is that station's value, not a "
+        "belt-wide total — state the region when you report the number.\n"
         "- Each returned row is self-identifying (it carries its own period / year / month) — read those to confirm "
         "which observation each number is; results are chronological, so use agg=latest (not the first row) for "
         "the most recent value.\n\n"

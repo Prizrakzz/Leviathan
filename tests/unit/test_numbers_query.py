@@ -171,3 +171,32 @@ def test_registry_yaml_loads():
     assert reg.get("silver_esr").grain_cols == ["commodity_name", "country_code", "week_ending_date"]
     assert reg.get("silver_noaa_oni").knowledge_semantics == "year_month"
     assert reg.get("silver_psd").metrics["ending_stocks_mt"].unit == "MT"   # unit corrected from '1000 MT'
+
+
+def _weather_part() -> TableSpec:                          # wide + data_date + REQUIRED injected partition
+    return TableSpec(id="silver_nasa_power", description="", shape="wide", commodity_col="commodity",
+                     country_col="country", period_type="date", date_col="date", knowledge_semantics="data_date",
+                     partition_col="region")
+
+
+def test_partition_required_emits_static_equality():
+    # regression: silver_nasa_power uses injected partition projection on `region` — Athena rejects any query
+    # without a static `region = '...'` (CONSTRAINT_VIOLATION). Explicit region wins; else the commodity default.
+    sql = build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2012-08-01",
+                                commodity="corn_cbot", region="us_corn_illinois", agg="latest"), _weather_part())
+    assert "region = 'us_corn_illinois'" in sql
+
+
+def test_partition_default_region_from_geographies():
+    from leviathan.graphrag.numbers.query import default_region
+    assert default_region("corn_cbot") == "us_corn_iowa"        # first primary-country station in the config
+    sql = build_sql(NumberQuery(table="silver_nasa_power", metric="temperature_2m_max_c", asof="2012-08-01",
+                                commodity="corn_cbot", agg="latest"), _weather_part())
+    assert "region = 'us_corn_iowa'" in sql                     # default resolved when region omitted
+
+
+def test_partition_required_without_resolvable_region_raises():
+    import pytest
+    with pytest.raises(ValueError, match="requires a region"):
+        build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2012-08-01"),
+                  _weather_part())
