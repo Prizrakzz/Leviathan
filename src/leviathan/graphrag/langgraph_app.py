@@ -18,7 +18,6 @@ def build_app(*, classify=None):
     """Compile the intent-branch graph. `classify` overridable for tests (force an intent without an LLM)."""
     from typing import TypedDict
 
-    from langchain_core.runnables import RunnableLambda
     from langgraph.graph import END, StateGraph
 
     class State(TypedDict, total=False):
@@ -60,9 +59,7 @@ def build_app(*, classify=None):
     g.add_node("reasoning", reasoning_node)
     g.add_node("hybrid", hybrid_node)
     g.set_entry_point("classify")
-    # a pre-named Runnable avoids a langgraph 0.1.x bug where a coerced path fn is missing `.name`
-    router = RunnableLambda(lambda s: s["intent"], name="route_intent")
-    g.add_conditional_edges("classify", router,
+    g.add_conditional_edges("classify", lambda s: s["intent"],
                             {"numbers_only": "numbers", "reasoning": "reasoning", "hybrid": "hybrid"})
     for node in ("numbers", "reasoning", "hybrid"):
         g.add_edge(node, END)
