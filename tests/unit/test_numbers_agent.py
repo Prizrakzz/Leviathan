@@ -54,7 +54,7 @@ def test_agent_executes_lookup_forces_asof_and_returns_provenance():
                            client=client, query_fn=query_fn)
     assert "2,462,000" in out["answer"]
     assert len(out["calls"]) == 1 and out["calls"][0]["rows"][0]["value"] == "2462000"
-    assert "release_date <= '2024-06-01'" in captured["sql"]      # forced asof
+    assert "CAST(release_date AS varchar) <= '2024-06-01'" in captured["sql"]      # forced asof (type-agnostic guard)
     assert "2030" not in captured["sql"]                          # the model's future asof was dropped
     prov = A.format_provenance(out["calls"])
     assert "silver_psd.ending_stocks_mt" in prov[0] and "2462000" in prov[0]

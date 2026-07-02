@@ -38,6 +38,16 @@ def _q(v) -> str:                                    # single-quote-safe SQL lit
     return "'" + str(v).replace("'", "''") + "'"
 
 
+def _dcol(col: str) -> str:
+    """Compare a date/knowledge column AS TEXT so the predicate works whether silver stored it as a DATE, a
+    TIMESTAMP, or a string. Silver schemas are heterogeneous — silver_nasa_power.date is a true DATE (Athena
+    rejects `date <= varchar`), while silver_psd.release_date / silver_fred_fx.data_date are strings. ISO-8601
+    dates sort lexically == chronologically, and a DATE casts to 'YYYY-MM-DD', so a text compare is correct and
+    type-agnostic. (A TIMESTAMP casts to 'YYYY-MM-DD HH:MM:...' — same-day rows compare conservatively, never
+    leaking a future value.)"""
+    return f"CAST({col} AS varchar)"
+
+
 def _value_expr(spec: NumberQuery, ts: TableSpec) -> str:
     return spec.metric if ts.shape == "wide" else (ts.value_col or "value")
 
@@ -55,9 +65,9 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
         w.append(f"{ts.period_col} = "
                  + (str(int(str(spec.period)[:4])) if ts.period_sql_type == "int" else _q(spec.period)))
     if ts.date_col and spec.period_start:
-        w.append(f"{ts.date_col} >= {_q(spec.period_start)}")
+        w.append(f"{_dcol(ts.date_col)} >= {_q(spec.period_start)}")
     if ts.date_col and spec.period_end:
-        w.append(f"{ts.date_col} <= {_q(spec.period_end)}")
+        w.append(f"{_dcol(ts.date_col)} <= {_q(spec.period_end)}")
     if ts.knowledge_semantics == "year_month" and (spec.period_start or spec.period_end):
         ym = f"({ts.year_col} * 100 + {ts.month_col})"          # window monthly (year_month) tables by 'YYYY-MM'
         if spec.period_start:
@@ -80,7 +90,7 @@ def _guard(spec: NumberQuery, ts: TableSpec) -> str:
     col = ts.knowledge_col()
     if not col:
         raise ValueError(f"table {ts.id} has no knowledge/date column to anchor the as-of guard")
-    return f"{col} <= {_q(spec.asof)}"
+    return f"{_dcol(col)} <= {_q(spec.asof)}"
 
 
 def _order_col(ts: TableSpec) -> Optional[str]:

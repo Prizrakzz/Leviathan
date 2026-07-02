@@ -52,7 +52,7 @@ def test_guard_always_present_every_semantics():
                               (_prod(), "production", {"period": "2023"}),
                               (_weather(), "precipitation_mm", {"period_start": "2024-01-01", "period_end": "2024-03-01"})):
         sql = build_sql(NumberQuery(table=ts.id, metric=metric, asof="2024-03-01", commodity="corn", **extra), ts)
-        assert f"{ts.knowledge_col()} <= '2024-03-01'" in sql          # the leakage guard, always injected
+        assert f"CAST({ts.knowledge_col()} AS varchar) <= '2024-03-01'" in sql   # leakage guard, type-agnostic
 
 
 def test_vintage_sql_collapses_to_latest_known():
@@ -72,7 +72,16 @@ def test_weather_window_aggregate():
     sql = build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2024-03-01",
                                 commodity="soybeans", country="Brazil", period_start="2024-01-01",
                                 period_end="2024-02-29", agg="sum"), _weather())
-    assert "sum(value)" in sql and "date >= '2024-01-01'" in sql and "precipitation_mm AS value" in sql
+    assert "sum(value)" in sql and "CAST(date AS varchar) >= '2024-01-01'" in sql and "precipitation_mm AS value" in sql
+
+
+def test_date_guard_is_type_agnostic_no_raw_date_compare():
+    # regression: silver_nasa_power.date is a true DATE type; a raw `date <= 'YYYY-MM-DD'` guard threw Athena
+    # TYPE_MISMATCH ("Cannot apply operator: date <= varchar"). The guard/window must compare AS TEXT.
+    sql = build_sql(NumberQuery(table="silver_nasa_power", metric="temperature_2m_max_c", asof="2012-08-01",
+                                commodity="corn_cbot", country="United States", agg="latest"), _weather())
+    assert "CAST(date AS varchar) <= '2012-08-01'" in sql             # guard casts -> works on a DATE column
+    assert " date <= '2012-08-01'" not in sql                          # never the bare (TYPE_MISMATCH) form
 
 
 def test_pit_vintage_returns_the_then_current_estimate():
@@ -104,7 +113,7 @@ def test_esr_vintage_keys_on_week_not_marketing_year():
     sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2024-03-25",
                                 commodity="corn_cbot", period="2023"), _esr())
     assert "PARTITION BY commodity_name, country_code, week_ending_date" in sql   # grain = the WEEK, not the MY
-    assert "as_of_date DESC" in sql and "as_of_date <= '2024-03-25'" in sql
+    assert "as_of_date DESC" in sql and "CAST(as_of_date AS varchar) <= '2024-03-25'" in sql
 
 
 def test_esr_pit_latest_report_per_week_no_leakage():
@@ -120,8 +129,8 @@ def test_esr_pit_latest_report_per_week_no_leakage():
 
 def test_fx_latest_is_single_most_recent():
     sql = build_sql(NumberQuery(table="silver_fred_fx", metric="brl_usd", asof="2024-06-01", agg="latest"), _fx())
-    assert "brl_usd AS value" in sql and "date <= '2024-06-01'" in sql
-    assert sql.strip().endswith("ORDER BY date DESC LIMIT 1")
+    assert "brl_usd AS value" in sql and "CAST(date AS varchar) <= '2024-06-01'" in sql
+    assert sql.strip().endswith("ORDER BY date DESC LIMIT 1")               # ORDER BY on the native col is unchanged
 
 
 def test_oni_year_month_guard_no_leakage():
