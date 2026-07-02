@@ -20,6 +20,7 @@ from typing import Optional
 from leviathan.graphrag import answer as an
 from leviathan.graphrag import citations as cit
 from leviathan.graphrag import intent as it
+from leviathan.graphrag import register as reg
 from leviathan.graphrag.numbers import agent as na
 
 
@@ -39,7 +40,8 @@ def _footer(cits) -> str:
 def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIKU, query_fn=None) -> dict:
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn)
     cits = cit.unify(None, out.get("calls"))
-    return {"answer": (out.get("answer", "") + _footer(cits)).strip(), "intent": "numbers_only",
+    body = reg.sanitize((out.get("answer", "") + _footer(cits)).strip())   # strip leaked slugs/tokens from the numbers footer
+    return {"answer": body, "intent": "numbers_only",
             "citations": [c.model_dump() for c in cits], "number_calls": out.get("calls", []),
             "evidence": [], "asof": asof, "structured": None, "contract": None}
 

@@ -11,6 +11,7 @@ import functools
 import re
 
 from leviathan.graphrag import citations as cit
+from leviathan.graphrag import register as reg
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
@@ -326,7 +327,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             uniq.append(h)
     ev_cits = cit.unify(uniq, extra_number_calls)                 # numbers citations (hybrid) join the same footer
     footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-    return {"answer": render(structured) + footer, "structured": structured, "contract": contracts[0],
+    body = reg.sanitize(render(structured) + footer)              # strip any internal tokens the model leaked into prose
+    return {"answer": body, "structured": structured, "contract": contracts[0],
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits],
             "evidence": evidence, "model": model,
             "trace": {"routed": routed, "contracts": contracts,

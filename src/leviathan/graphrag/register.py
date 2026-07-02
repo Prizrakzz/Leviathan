@@ -51,3 +51,74 @@ def register_leaks(text: str) -> list[tuple[str, str]]:
         for m in re.finditer(r"\b" + re.escape(slug) + r"\b", prose):
             hits.append((slug, _ctx(prose, m)))
     return hits
+
+
+# ── sanitizer: rewrite the internal tokens into reader register (prompt discipline alone did not hold) ─────────
+_CONF = re.compile(r"\bconf\s*=\s*([A-Za-z0-9.]+)", re.I)                 # conf=high -> "high confidence"
+_SIGNKV = re.compile(r"\bsign\s*[:=]?\s*([+\-])")                        # sign=+ / sign + -> bullish/bearish
+_PARENSIGN = re.compile(r"\(\s*\+\s*/\s*\-\s*\)|\(\s*([+\-])\s*\)")      # (+/-)->mixed ; (+)->bullish ; (-)->bearish
+_STRUCT = re.compile(r"\b(edge_type|any_n_of|silver_ref|silver_status|target_metric)\s*=\s*[\w./+-]+", re.I)
+_STRUCT_BARE = re.compile(r"\s*\b(edge_type|any_n_of|silver_ref|silver_status)\b", re.I)
+_JARGON_SUBS = [                                                         # graph vocab -> reader vocab (mirror _JARGON)
+    (re.compile(r"\bnode fired\b", re.I), "driver activated"),
+    (re.compile(r"\bcausal node\b", re.I), "the driver"),
+    (re.compile(r"\bgraph edge\b", re.I), "the link"),
+    (re.compile(r"\bthe edge sign\b", re.I), "the direction"),
+    (re.compile(r"\bthe node\b", re.I), "the driver"),
+]
+
+
+def _sign_word(s: str) -> str:
+    return "bullish" if s == "+" else "bearish"
+
+
+def _conf_sub(m) -> str:
+    v = m.group(1).lower()
+    return f"{'medium' if v == 'med' else v} confidence"
+
+
+@functools.lru_cache(maxsize=1)
+def _display_map() -> dict[str, str]:
+    """slug -> reader name from the hierarchy: '{exchange} {node}' (soybeans_cbot -> 'CBOT soybeans',
+    soybean_oil_dce -> 'DCE soybean oil'); fallback to the de-underscored slug."""
+    try:
+        from leviathan.graphrag import evidence as ev
+        contracts = ev._hier().get("contracts") or {}
+    except Exception:  # noqa: BLE001
+        return {}
+    out: dict[str, str] = {}
+    for slug, meta in contracts.items():
+        if "_" not in slug:
+            continue
+        if isinstance(meta, dict):
+            node = str(meta.get("node") or slug).replace("_", " ")
+            exch = meta.get("exchange")
+            out[slug] = (f"{exch} {node}".strip() if exch else node)
+        else:
+            out[slug] = slug.replace("_", " ")
+    return out
+
+
+def sanitize(text: str) -> str:
+    """Rewrite internal tokens into a commodity researcher's register: `conf=high`->"high confidence",
+    `sign=+`/`(+)`->"bullish", raw contract slugs->spelled-out names, structural markers stripped. Leaves the
+    ```mermaid block untouched (the diagram may carry signs), and preserves citation markers ([E1]/[N2]),
+    numbers, and dates. Idempotent, and register_leaks(sanitize(x)) == []."""
+    if not text:
+        return text
+    disp = _display_map()
+    parts = re.split(r"(```mermaid.*?```)", text, flags=re.S)             # keep the diagram fenced-off
+    for i, seg in enumerate(parts):
+        if seg.startswith("```mermaid"):
+            continue
+        seg = _CONF.sub(_conf_sub, seg)
+        seg = _SIGNKV.sub(lambda m: _sign_word(m.group(1)), seg)
+        seg = _PARENSIGN.sub(lambda m: "(mixed)" if m.group(1) is None else f"({_sign_word(m.group(1))})", seg)
+        seg = _STRUCT.sub("", seg)
+        seg = _STRUCT_BARE.sub("", seg)
+        for rx, repl in _JARGON_SUBS:
+            seg = rx.sub(repl, seg)
+        for slug in _slugs():                                            # longest-first (from _slugs) -> no partials
+            seg = re.sub(r"\b" + re.escape(slug) + r"\b", disp.get(slug, slug.replace("_", " ")), seg)
+        parts[i] = seg
+    return "".join(parts)
