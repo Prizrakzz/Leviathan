@@ -72,6 +72,9 @@ embed = [
     "sentence-transformers>=2.2",   # bge-m3 (BAAI/bge-m3); pulls transformers + tokenizers
     "torch>=2.1",                   # CPU-only wheel; the embedder Dockerfile installs it from the CPU index
 ]
+serve = [
+    "langgraph>=0.2.0",             # Phase 5 orchestration conductor; 0.1.9 has a pregel runtime bug (skip its test)
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

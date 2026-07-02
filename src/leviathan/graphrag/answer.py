@@ -265,7 +265,7 @@ def _call_opus(system: str, user: str, *, model: str, tool: dict) -> dict:
 
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
-           driver_retrieve=None) -> dict:
+           driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -302,6 +302,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         blocks.append("--- CROSS-CUTTING DRIVER EVIDENCE (cascade/convergence triggers; tie to silver) ---\n"
                       + _ev_block(driver_hits))
         evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
+    if extra_context:                                              # Phase 5 hybrid: inject silver numbers as context
+        blocks.append(extra_context)
     structured = call(_SYSTEM, _prompt(query, contracts, blocks), model=model, tool=_answer_tool())
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
@@ -311,7 +313,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         if sk and sk not in seen_docs:
             seen_docs.add(sk)
             uniq.append(h)
-    ev_cits = cit.unify(uniq, None)
+    ev_cits = cit.unify(uniq, extra_number_calls)                 # numbers citations (hybrid) join the same footer
     footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
     return {"answer": render(structured) + footer, "structured": structured, "contract": contracts[0],
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits],
