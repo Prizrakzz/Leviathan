@@ -1,0 +1,83 @@
+"""Numbers registry — the per-table contract for the observed-value SQL agent.
+
+Each entry declares a table's SQL SHAPE (wide=metric-is-a-column | tall=metric-is-a-row-value), how
+commodity/country/period are identified, and — the field that makes lookups trustworthy — its KNOWLEDGE-DATE
+SEMANTICS: the anchor for point-in-time correctness so a query can never see a value that wasn't yet published
+at `asof`.
+
+  - vintage   : the table carries an explicit publication/vintage date (PSD.release_date, WASDE.release_date,
+                ESR.as_of_date). As-of a date = the LATEST vintage whose publish date <= asof.
+  - ingest    : observational, non-revising data stamped only with an ingest date (weather, production). As-of
+                = rows whose ingest_date <= asof.
+  - data_date : known same-day, no separate publication (prices, indices). As-of = rows whose data date <= asof.
+
+Loaded once (cached). Doubles as the agent's cached system-prompt context AND the query builder's schema source.
+"""
+from __future__ import annotations
+
+import functools
+from pathlib import Path
+from typing import Literal, Optional
+
+import yaml
+from pydantic import BaseModel
+
+from leviathan.graphrag import extract as ex        # ex._CFG -> configs/graphrag
+
+
+class Metric(BaseModel):
+    unit: str = ""
+    desc: str = ""
+
+
+class TableSpec(BaseModel):
+    id: str
+    description: str
+    grain: str = ""
+    shape: Literal["wide", "tall"]
+    commodity_col: Optional[str] = None
+    country_col: Optional[str] = None
+    period_col: Optional[str] = None
+    period_type: Literal["marketing_year", "year", "date", "none"] = "none"
+    period_sql_type: Literal["int", "string"] = "string"     # how the period column compares in SQL
+    date_col: Optional[str] = None                           # the DATA date (weather obs date, week ending, ...)
+    knowledge_date_col: Optional[str] = None                 # the vintage/publication/ingest date
+    knowledge_semantics: Literal["vintage", "ingest", "data_date"] = "data_date"
+    metric_col: Optional[str] = None                         # tall: column holding the metric NAME
+    value_col: Optional[str] = None                          # tall: column holding the numeric VALUE
+    unit_col: Optional[str] = None
+    metrics: dict[str, Metric] = {}                          # wide: column->Metric ; tall: metric-value->Metric
+    partitions: list[str] = []
+    notes: str = ""
+
+    def knowledge_col(self) -> Optional[str]:
+        """The single column the as-of guard filters on, per this table's semantics."""
+        if self.knowledge_semantics == "vintage":
+            return self.knowledge_date_col
+        if self.knowledge_semantics == "ingest":
+            return self.knowledge_date_col or self.date_col
+        return self.date_col or self.knowledge_date_col      # data_date
+
+    def group_cols(self) -> list[str]:
+        """The identity group for latest-vintage selection (one current value per group)."""
+        cols = [self.commodity_col, self.country_col, self.period_col]
+        if self.shape == "tall":
+            cols.append(self.metric_col)
+        return [c for c in cols if c]
+
+
+class NumbersRegistry(BaseModel):
+    tables: dict[str, TableSpec]
+
+    def get(self, table_id: str) -> TableSpec:
+        if table_id not in self.tables:
+            raise KeyError(f"unknown table '{table_id}' (known: {sorted(self.tables)})")
+        return self.tables[table_id]
+
+
+@functools.lru_cache(maxsize=4)
+def load_registry(path: Optional[str] = None) -> NumbersRegistry:
+    p = Path(path) if path else (ex._CFG / "numbers" / "tables.yaml")
+    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    tables = {tid: TableSpec(id=tid, **spec) for tid, spec in (raw.get("tables") or {}).items()}
+    return NumbersRegistry(tables=tables)
