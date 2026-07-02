@@ -10,6 +10,7 @@ from __future__ import annotations
 import functools
 import re
 
+from leviathan.graphrag import citations as cit
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
@@ -302,7 +303,18 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       + _ev_block(driver_hits))
         evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
     structured = call(_SYSTEM, _prompt(query, contracts, blocks), model=model, tool=_answer_tool())
-    return {"answer": render(structured), "structured": structured, "contract": contracts[0], "contracts": contracts,
+    # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
+    # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
+    seen_docs, uniq = set(), []
+    for h in evidence:
+        sk = h.get("source_key")
+        if sk and sk not in seen_docs:
+            seen_docs.add(sk)
+            uniq.append(h)
+    ev_cits = cit.unify(uniq, None)
+    footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
+    return {"answer": render(structured) + footer, "structured": structured, "contract": contracts[0],
+            "contracts": contracts, "citations": [c.model_dump() for c in ev_cits],
             "evidence": evidence, "model": model,
             "trace": {"routed": routed, "contracts": contracts,
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
