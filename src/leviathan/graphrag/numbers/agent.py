@@ -118,6 +118,13 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     return {"answer": "(stopped: max tool calls reached)", "calls": calls}
 
 
+def to_citations(calls: list[dict], evidence_rows: Optional[list[dict]] = None):
+    """Unified Citation objects (numbers + optional document evidence) — the Phase-4 provenance seam that the
+    synthesizer/UI consumes. See leviathan.graphrag.citations."""
+    from leviathan.graphrag import citations as C
+    return C.unify(evidence_rows, calls)
+
+
 def format_provenance(calls: list[dict]) -> list[str]:
     """One human citation per executed lookup — for the synthesizer / UI."""
     out = []
