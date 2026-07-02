@@ -1,0 +1,262 @@
+# Governed WASDE snapshot model-ready mappings.
+#
+# This is a mapping contract only. It decides which WASDE commodity/region
+# records may become point-in-time snapshot features for each model-ready
+# surface. Target construction and feature computation happen in later phases.
+
+schema_version: 1
+
+source:
+  source_key: wasde
+  source_table: silver_wasde
+  s3_prefix: s3://leviathan-dev-shahem-001/silver/wasde/
+  release_date_field: release_date
+  commodity_field: commodity
+  region_field: region
+  marketing_year_field: marketing_year
+  attribute_field: attribute
+  value_field: estimate
+
+defaults:
+  excluded_region_classes:
+    - aggregate_region
+    - garbled_parser_artifact
+    - unknown_review_required
+  allowed_region_quality_classes:
+    - clean_origin
+  allowed_context_roles:
+    - primary_target
+    - target_origin
+    - substitute_context
+    - segment_member
+    - macro_context
+  deferred_contract_statuses:
+    - deferred_mapping_review
+
+region_aliases:
+  us: united_states
+  u_s: united_states
+  united_states: united_states
+  brazil: brazil
+  argentina: argentina
+  ukraine: ukraine
+  china: china
+  canada: canada
+  russia: russia
+  thailand: thailand
+  india: india
+  vietnam: vietnam
+  european_union: european_union
+  eu: european_union
+
+aggregate_regions:
+  - world
+  - total
+  - total_foreign
+  - foreign
+  - major_exporters
+  - major_importers
+  - selected_exporters
+  - selected_importers
+  - other_foreign
+  - other_countries
+
+core_attributes:
+  - production
+  - ending_stocks
+  - exports
+  - imports
+  - domestic_total
+  - total_use
+  - feed
+  - feed_residual
+  - beginning_stocks
+
+surfaces:
+  - dataset_key: corn_wasde_snapshot_solo
+    surface_type: solo_contract
+    status: active
+    primary_contract: corn_cbot
+    primary_wasde_commodity: corn
+    commodity_group: grains
+    mapping_confidence: high
+    target_origins:
+      - origin_key: united_states
+        wasde_region_aliases:
+          - united_states
+          - us
+          - u_s
+        role: primary_target
+        mapping_confidence: high
+      - origin_key: brazil
+        wasde_region_aliases:
+          - brazil
+        role: target_origin
+        mapping_confidence: high
+      - origin_key: argentina
+        wasde_region_aliases:
+          - argentina
+        role: target_origin
+        mapping_confidence: high
+      - origin_key: ukraine
+        wasde_region_aliases:
+          - ukraine
+        role: target_origin
+        mapping_confidence: high
+    context_commodities: []
+    deferred_contracts: []
+    note: Corn-only monthly WASDE snapshot surface for corn_cbot PSD target origins.
+
+  - dataset_key: corn_wasde_snapshot_with_substitutes
+    surface_type: contract_with_substitutes
+    status: active
+    primary_contract: corn_cbot
+    primary_wasde_commodity: corn
+    commodity_group: grains
+    mapping_confidence: high
+    target_origins:
+      - origin_key: united_states
+        wasde_region_aliases:
+          - united_states
+          - us
+          - u_s
+        role: primary_target
+        mapping_confidence: high
+      - origin_key: brazil
+        wasde_region_aliases:
+          - brazil
+        role: target_origin
+        mapping_confidence: high
+      - origin_key: argentina
+        wasde_region_aliases:
+          - argentina
+        role: target_origin
+        mapping_confidence: high
+      - origin_key: ukraine
+        wasde_region_aliases:
+          - ukraine
+        role: target_origin
+        mapping_confidence: high
+    context_commodities:
+      - wasde_commodity: wheat
+        context_role: feed_substitute
+        contracts:
+          - soft_red_winter_wheat_cbot
+        origins:
+          - united_states
+          - canada
+          - russia
+          - ukraine
+          - argentina
+          - european_union
+        mapping_confidence: medium
+        note: Wheat is a feed substitute and broader grain balance-sheet context.
+      - wasde_commodity: soybeans
+        context_role: acreage_competitor
+        contracts:
+          - soybeans_cbot
+        origins:
+          - united_states
+          - brazil
+          - argentina
+          - china
+        mapping_confidence: high
+        note: Soybeans compete with corn for acreage and export logistics.
+      - wasde_commodity: soybean_meal
+        context_role: feed_complex
+        contracts:
+          - soybean_meal_cbot
+        origins:
+          - united_states
+          - argentina
+          - brazil
+          - china
+        mapping_confidence: high
+        note: Soybean meal is feed-complex context for corn demand.
+      - wasde_commodity: soybean_oil
+        context_role: oilseed_complex
+        contracts:
+          - soybean_oil_cbot
+        origins:
+          - united_states
+          - argentina
+          - brazil
+          - china
+        mapping_confidence: high
+        note: Soybean oil is retained as oilseed-complex context, not a corn target.
+    deferred_contracts: []
+    note: Corn target surface enriched with substitution, acreage, and feed-complex WASDE context.
+
+  - dataset_key: grains_wasde_snapshot_segment
+    surface_type: segment
+    status: active
+    primary_contract: corn_cbot
+    primary_wasde_commodity: corn
+    commodity_group: grains
+    mapping_confidence: medium
+    target_origins:
+      - origin_key: united_states
+        wasde_region_aliases:
+          - united_states
+          - us
+          - u_s
+        role: primary_target
+        mapping_confidence: high
+      - origin_key: brazil
+        wasde_region_aliases:
+          - brazil
+        role: target_origin
+        mapping_confidence: high
+      - origin_key: argentina
+        wasde_region_aliases:
+          - argentina
+        role: target_origin
+        mapping_confidence: high
+      - origin_key: ukraine
+        wasde_region_aliases:
+          - ukraine
+        role: target_origin
+        mapping_confidence: high
+    segment_members:
+      - contract_key: corn_cbot
+        wasde_commodity: corn
+        target_status: active
+        origins:
+          - united_states
+          - brazil
+          - argentina
+          - ukraine
+        mapping_confidence: high
+      - contract_key: rough_rice_cbot
+        wasde_commodity: rice
+        target_status: active
+        origins:
+          - united_states
+          - thailand
+          - vietnam
+          - india
+        mapping_confidence: high
+      - contract_key: soft_red_winter_wheat_cbot
+        wasde_commodity: wheat
+        target_status: active_proxy
+        origins:
+          - united_states
+        mapping_confidence: low
+        note: WASDE wheat rows are all-wheat; use only as a reviewed proxy for the first segment test.
+      - contract_key: hard_red_winter_wheat_kcbt
+        wasde_commodity: wheat
+        target_status: deferred_mapping_review
+        origins:
+          - united_states
+        mapping_confidence: low
+        note: Deferred because the Phase 0 target surface did not prove a contract-specific hard-red winter wheat target.
+      - contract_key: hard_red_spring_wheat_mgex
+        wasde_commodity: wheat
+        target_status: deferred_mapping_review
+        origins:
+          - united_states
+          - canada
+        mapping_confidence: low
+        note: Deferred because WASDE/PSD wheat is all-wheat and does not isolate hard-red spring wheat.
+    context_commodities: []
+    note: First grain segment surface. Only defensible contracts are active; wheat class contracts remain deferred unless reviewed later.
