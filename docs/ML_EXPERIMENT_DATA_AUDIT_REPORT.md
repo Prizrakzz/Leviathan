@@ -54,6 +54,13 @@ While validating the GraphRAG SQL agent against Athena, querying `silver_esr` fo
 
 ### 3.1 F2 — ESR marketing-year convention (`src/leviathan/features/computations/esr_exports.py`)
 
+> **STATUS: FIXED (2026-07-03, on-behalf).** `esr_exports.py` now selects by week dates (latest programme with
+> `max(week_ending_date) < crop_year_start`), never label arithmetic. Pinned by
+> `tests/unit/test_features_computations_esr.py` (incl. label-shift invariance). Equivalence proven on real
+> silver: corn/soybeans **35/35 crop years identical** (no dataset churn); SRW wheat shifts **+1 year fresher**
+> for all 35 years — the old arithmetic was selecting a year-stale programme for winter wheat (a fourth ESR
+> finding). Wheat-consuming feature sets should be re-materialized to pick up the corrected values.
+
 `compute_esr_exports` aggregates weekly ESR rows to **annual totals per `market_year` label**, then selects `mkt_year = crop_year + mkt_year_offset` (line 71; offset −1). The docstring's intent: "the **completed** prior year's export programme, known before the new crop year begins."
 
 The correctness now depends entirely on which convention `silver_esr.market_year` uses:

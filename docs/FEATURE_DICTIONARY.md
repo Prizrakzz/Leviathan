@@ -136,3 +136,14 @@ database (see `sql/athena/ddl/`), e.g. `silver_psd`, `silver_fred_fx`,
 `silver_pink_sheet`, `silver_noaa_oni`, `silver_futures_prices`. The long
 `gold_feature_spine` and per-run `silver_model_predictions` are the primary
 analysis tables.
+
+
+## ESR marketing-year convention (pinned 2026-07-03)
+
+`silver_esr.market_year` is the **FAS END-year label**: corn/soybeans MY Sep-2023..Aug-2024 = `2024`
+(PSD labels the same year `2023`). Boundaries differ per class: wheat Jun..Jun, soybean oil Oct..Oct.
+`esr_*` features therefore select programmes by **week dates, never label arithmetic**: for crop year Y,
+the latest programme whose `max(week_ending_date) < crop_year_start(Y)` (the freshest COMPLETED programme
+known at planting). Pinned by tests/unit/test_features_computations_esr.py (label-shift invariance +
+leakage guard). Silver keeps only the LATEST as_of snapshot per MY — no true ESR vintages exist; never
+derive esr_*_revision features from it. See docs/ML_EXPERIMENT_DATA_AUDIT_REPORT.md sections 3.1 / 3.10.
