@@ -28,27 +28,46 @@ def load_queries(path=_QUERIES) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("queries") or []
 
 
+_NOT_KNOWN = ("not known", "not yet known", "not yet been", "no data", "not available", "wasn't published",
+              "was not published", "not published", "not been published", "unavailable")
+
+
 def score(q: dict, out: dict) -> dict:
-    """Approximate auto-rubric: normalize answer text and check expected driver ids / regime name appear."""
+    """Approximate auto-rubric + v3 routing/point-in-time checks (expected_intent, leakage-trap)."""
     exp = q.get("expect") or {}
     ans = ex._normalize(out.get("answer") or "")
     drivers = exp.get("drivers") or []
     hit = [d for d in drivers if ex._normalize(d) in ans]
+    exp_intent, routed_intent = q.get("expected_intent"), out.get("intent")
+    leakage_ok = None
+    if exp.get("not_known"):                                          # trap: the tool must SAY the value isn't known at asof
+        leakage_ok = any(p in (out.get("answer") or "").lower() for p in _NOT_KNOWN)
     return {"routed_right": out.get("contract") == q["contract"],
+            "intent_ok": (routed_intent == exp_intent) if exp_intent else None,
+            "routed_intent": routed_intent, "expected_intent": exp_intent, "leakage_ok": leakage_ok,
             "drivers_hit": f"{len(hit)}/{len(drivers)}", "drivers_missed": [d for d in drivers if d not in hit],
             "regime_named": (ex._normalize(exp["regime"]) in ans) if exp.get("regime") else None,
             "evidence_cited": (len(out.get("evidence") or []) > 0) if exp.get("needs_evidence") else None}
 
 
-def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, k: int = 5, answer_fn=None) -> list[dict]:
+def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, k: int = 5, answer_fn=None,
+        via_orchestrator: bool = False, numbers_client=None, call=None) -> list[dict]:
+    """Run each query through answer() (default) or — with via_orchestrator — the full intent branch
+    orchestrator.respond() (numbers_only / reasoning / hybrid), passing each question's point-in-time asof."""
     answer_fn = answer_fn or an.answer
     rows = []
     for q in queries:
         try:                                                          # one bad answer must NOT abort a billed run
-            out = answer_fn(q["question"], graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
+            if via_orchestrator:
+                from leviathan.graphrag import orchestrator as orch
+                out = orch.respond(q["question"], graph=graph, asof=q.get("asof"), model=model,
+                                   numbers_client=numbers_client, call=call)
+            else:
+                out = answer_fn(q["question"], graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
         except Exception as e:  # noqa: BLE001
             out = {"answer": f"(answer failed: {str(e)[:200]})", "contract": None, "structured": None,
-                   "evidence": [], "model": model, "trace": {"error": str(e)[:300]}}
+                   "evidence": [], "intent": None, "number_calls": [], "citations": [], "model": model,
+                   "trace": {"error": str(e)[:300]}}
             print(f"  WARN {q.get('id')}: answer failed -- {str(e)[:120]}")
         rows.append({"q": q, "out": out, "rubric": score(q, out)})
     return rows
@@ -59,51 +78,64 @@ def _judge_tool() -> dict:
     n = {"type": "integer"}                                            # 1-5
     arr = {"type": "array", "items": {"type": "string"}}
     return {"name": "score_answer",
-            "description": "A commodity hedge-fund analyst's verdict on how useful + grounded this answer is.",
+            "description": "A senior quant RESEARCHER's verdict on a fundamental convexity-shock answer.",
             "input_schema": {"type": "object", "properties": {
-                "usefulness": n, "grounding": n, "source_diversity": n,
+                "usefulness": n, "convexity": n, "point_in_time": n, "grounding": n, "source_diversity": n,
                 "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}},
-                "required": ["usefulness", "grounding", "source_diversity", "gaps", "verdict"]}}
+                "required": ["usefulness", "convexity", "point_in_time", "grounding", "source_diversity", "gaps",
+                             "verdict"]}}
 
 
 _JUDGE_SYS = (
-    "You are a SENIOR QUANTITATIVE RESEARCHER at a commodities hedge fund, pressure-testing an analyst tool before "
-    "the desk relies on it. You are shown the QUESTION, the curated causal graph + dated evidence the tool had "
-    "access to, and the tool's ANSWER. Judge it the way a PM would before risking capital — be demanding and "
-    "specific, not polite:\n"
-    "- usefulness (1-5): is it ACTIONABLE? Does it give a real edge — direction, the drivers that matter, what to "
-    "watch — or is it vague restatement of the question / textbook filler? 5 = I'd act on it; 1 = useless.\n"
-    "- grounding (1-5): are the specific claims (drivers, signs, magnitudes, dates) backed by the cited dated "
-    "evidence or by the authoritative graph? 5 = every claim traceable; 1 = floating assertions. (Naming the "
-    "graph's own drivers/regimes/signs is AUTHORITATIVE, not hallucination.)\n"
-    "- source_diversity (1-5): did it draw on and cite MULTIPLE sources across trust tiers (official WASDE/FAS T1, "
-    "attache GAIN T2, producer bodies T3, macro/price outlook T4) rather than leaning on one? Did it ORDER citations "
-    "most-trusted-first and FLAG any cross-tier disagreement? 5 = multi-source, trust-ranked, disagreements surfaced; "
-    "1 = single-source or tier-blind (only score high if multiple sources were actually AVAILABLE in the evidence).\n"
-    "- hallucinations: list any specific claim, number, sign, or date supported by NEITHER the graph NOR the "
-    "evidence.\n"
-    "- gaps: what a PM would still need that's missing — a key driver not mentioned, NO dated evidence cited, no "
-    "direction/magnitude, no 'what to watch', wrong/!blended commodity, missed a regime or cross-commodity leg. "
-    "Be concrete.\n"
-    "- improvements: concrete changes that would make it more tradeable.\n"
-    "- verdict: one blunt sentence.\n"
-    "A fluent answer with no dated evidence or no actionable edge should score LOW on usefulness. Emit via score_answer.")
+    "You are a SENIOR QUANTITATIVE RESEARCHER pressure-testing a FUNDAMENTAL CONVEXITY-SHOCK research tool (NOT a "
+    "trading system). It helps researchers understand HOW supply/demand shocks propagate through commodity balance "
+    "sheets and WHERE the price response turns convex (buffer exhaustion, tipping thresholds, regime switches). You "
+    "are shown the QUESTION (with any as-of date), the curated causal graph + dated evidence + any OBSERVED NUMBERS "
+    "the tool looked up, and the tool's ANSWER. CRITICAL: this is a research tool — do NOT expect or reward position "
+    "sizing, price targets, or 'how much to trade'; that is OUT OF SCOPE. Reward mechanism, convexity/regime insight, "
+    "point-in-time discipline, and grounding. Be demanding and specific:\n"
+    "- usefulness (1-5): does it give a researcher real insight into the shock's STRUCTURE — mechanism, the drivers "
+    "that matter, the regime — or is it vague restatement / textbook filler?\n"
+    "- convexity (1-5): does it correctly locate WHERE the response is convex vs linear, the buffer/threshold that "
+    "makes it tip, and through which channel? 5 = precise convexity mechanism; 1 = ignores convexity or asserts it "
+    "with no mechanism. (If the question isn't about convexity, judge the shock-propagation reasoning instead.)\n"
+    "- point_in_time (1-5): did it respect the as-of date — use AS-KNOWN values, correctly say a value was 'not "
+    "known' when it wasn't yet published, never leak future data? 5 = clean; 1 = leaks/ignores the as-of. If the "
+    "question has NO as-of, score 5.\n"
+    "- grounding (1-5): are specific claims (drivers, signs, dated observed numbers) backed by the cited evidence, "
+    "the looked-up NUMBERS, or the authoritative graph? (Naming the graph's own drivers/regimes/signs is "
+    "AUTHORITATIVE, not hallucination.)\n"
+    "- source_diversity (1-5): multiple sources across trust tiers (T1 official WASDE/FAS ... T4 macro), "
+    "trust-ordered, disagreements flagged? Only high if multiple sources were actually AVAILABLE.\n"
+    "- hallucinations: any claim/number/sign/date supported by NEITHER the graph, the evidence, NOR the looked-up "
+    "numbers.\n"
+    "- gaps: what a researcher would still need — a missing propagation channel, no dated evidence, convexity "
+    "asserted without a threshold, a missed regime or cross-commodity leg. Concrete.\n"
+    "- improvements: concrete changes.\n- verdict: one blunt sentence.\n"
+    "Emit via score_answer.")
 
 
 def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "claude-opus-4-8", call=None) -> dict:
-    """A quant-analyst persona scores the answer — shown the SAME graph context + evidence TEXT the answerer had,
-    so it can tell grounded from invented. Returns {usefulness, grounding, hallucinations[], gaps[], improvements[],
-    verdict}."""
+    """The quant-researcher persona scores the answer — shown the SAME graph + evidence + looked-up NUMBERS the tool
+    had, so it can tell grounded from invented and check point-in-time discipline."""
     call = call or ex.call_opus
     ctx = ""
     if graph is not None:
         from leviathan.graphrag import answer as an
         ctx = "\n\n".join(an._context_block(graph, c) for c in (out.get("contracts") or [out.get("contract")]) if c)
     ev_text = "\n".join(f"- ({e['source']}, {e['date']}) {e.get('text', '')}" for e in out.get("evidence") or [])
+    num_text = ""
+    for c in out.get("number_calls") or []:                          # the observed values the tool actually looked up
+        qy, rws = c.get("query", {}), (c.get("rows") or [])
+        val = rws[0].get("value") if rws else "(NOT KNOWN at asof)"
+        num_text += (f"- {qy.get('table')}.{qy.get('metric')} {qy.get('commodity','')} {qy.get('period','')} "
+                     f"asof {qy.get('asof','')} = {val}\n")
     user = (f"QUESTION: {query['question']}\n"
-            f"(the tool routed this to: {out.get('contracts') or out.get('contract')})\n\n"
+            f"(as-of date: {query.get('asof') or 'none'}; the tool routed intent={out.get('intent')} to "
+            f"{out.get('contracts') or out.get('contract')})\n\n"
             f"=== CAUSAL GRAPH THE TOOL COULD CITE (drivers/signs/regimes here are authoritative) ===\n{ctx}\n\n"
             f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
+            f"=== OBSERVED NUMBERS THE TOOL LOOKED UP (as-known at asof) ===\n{num_text or '(none)'}\n\n"
             f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
     scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=3200, tool=_judge_tool())  # headroom for adaptive thinking
     return scores
@@ -117,16 +149,21 @@ def _metrics(r: dict) -> dict:
     ev_srcs = {e.get("source") for e in (out.get("evidence") or []) if e.get("source")}   # actual corpus sources
     ev_tiers = {an.source_tier(s) for s in ev_srcs}
     ans_l = (out.get("answer") or "").lower()
+    rb = r["rubric"]
     return {"commodity": r["q"]["contract"], "category": r["q"].get("category", r["q"].get("type", "")),
-            "routed_ok": r["rubric"]["routed_right"], "retrieved": len(out.get("evidence") or []),
-            "cited": len(cited_srcs),
+            "routed_ok": rb["routed_right"], "retrieved": len(out.get("evidence") or []), "cited": len(cited_srcs),
+            # v3 intent-branch + point-in-time
+            "intent_ok": rb.get("intent_ok"), "routed_intent": rb.get("routed_intent"),
+            "expected_intent": rb.get("expected_intent"), "leakage_ok": rb.get("leakage_ok"),
+            "n_numbers": len(out.get("number_calls") or []),
             # source-diversity / trust-ranking (the multi-source lift)
             "ev_sources": len(ev_srcs), "ev_tiers": len(ev_tiers), "cited_sources": len(set(cited_srcs)),
             "multi_tier": len(ev_tiers) >= 2,                                  # store offered >=2 trust tiers
             "trust_ordered": len(cited_tiers) > 1 and cited_tiers == sorted(cited_tiers),  # most-trusted first
             "disagreement": any(w in ans_l for w in ("disagree", "conflict", "at odds", "contradict", "diverg")),
             "src_div": j.get("source_diversity"),
-            "usefulness": j.get("usefulness"), "grounding": j.get("grounding"),
+            "usefulness": j.get("usefulness"), "convexity": j.get("convexity"),
+            "point_in_time": j.get("point_in_time"), "grounding": j.get("grounding"),
             "halluc": len(j.get("hallucinations") or []), "gaps": j.get("gaps") or []}
 
 
@@ -147,6 +184,30 @@ def source_report(rows: list[dict]) -> list[str]:
             f"{sum(x['trust_ordered'] for x in m)}/{n}",
             f"- **cross-tier disagreement flagged**: {sum(x['disagreement'] for x in m)}/{n}",
             f"- judge **source_diversity** avg: {avg('src_div')}/5"]
+
+
+def routing_report(rows: list[dict]) -> list[str]:
+    """v3 new-layers panel: intent-branch routing accuracy + point-in-time discipline + convexity."""
+    import collections
+    import statistics
+    m = [_metrics(r) for r in rows]
+
+    def avg(key):
+        xs = [x[key] for x in m if x.get(key) is not None]
+        return round(statistics.mean(xs), 1) if xs else None
+
+    intent = [x for x in m if x.get("expected_intent")]
+    iok = sum(1 for x in intent if x.get("intent_ok"))
+    routed = collections.Counter(x.get("routed_intent") for x in m if x.get("routed_intent"))
+    leak = [x for x in m if x.get("leakage_ok") is not None]
+    L = ["## Intent routing + point-in-time (new layers)", "",
+         f"- **intent routed correctly**: **{iok}/{len(intent) or 1}** (vs expected_intent)",
+         f"- routed intents: {dict(routed)}",
+         f"- questions that triggered a number lookup: {sum(1 for x in m if x.get('n_numbers'))}/{len(m)}"]
+    if leak:
+        L.append(f"- **leakage-trap handled** (said 'not known at asof'): {sum(1 for x in leak if x['leakage_ok'])}/{len(leak)}")
+    L.append(f"- judge **convexity** avg: {avg('convexity')}/5 | **point_in_time** avg: {avg('point_in_time')}/5")
+    return L
 
 
 def grounding_report(rows: list[dict]) -> list[str]:
@@ -177,29 +238,49 @@ def grounding_report(rows: list[dict]) -> list[str]:
     return L
 
 
+def _num_line(out: dict) -> str:
+    parts = []
+    for c in out.get("number_calls") or []:
+        qy, rws = c.get("query", {}), (c.get("rows") or [])
+        val = rws[0].get("value") if rws else "(not known)"
+        parts.append(f"{qy.get('table','?')}.{qy.get('metric','?')}={val}")
+    return ", ".join(parts)
+
+
 def report(rows: list[dict], *, model: str) -> str:
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     judged = [r["judge"] for r in rows if r.get("judge")]
-    lines = [f"# graphdev eval — {model}", "", f"- routed correctly: **{routed}/{len(rows)}**"]
+    intent_rows = [r for r in rows if r["rubric"].get("expected_intent")]
+    lines = [f"# graphdev eval v3 — {model}", "", f"- contract routed correctly: **{routed}/{len(rows)}**"]
+    if intent_rows:
+        iok = sum(1 for r in intent_rows if r["rubric"].get("intent_ok"))
+        lines.append(f"- **intent routed correctly: {iok}/{len(intent_rows)}** (numbers_only / reasoning / hybrid)")
     if judged:
-        use = sum(j.get("usefulness", 0) for j in judged) / len(judged)
-        gnd = sum(j.get("grounding", 0) for j in judged) / len(judged)
+        j_avg = lambda key: sum(j.get(key, 0) for j in judged) / len(judged)  # noqa: E731
         halluc = sum(len(j.get("hallucinations") or []) for j in judged)
-        lines.append(f"- judge **usefulness {use:.1f}/5** · **grounding {gnd:.1f}/5** · "
+        lines.append(f"- judge **usefulness {j_avg('usefulness'):.1f}** · **convexity {j_avg('convexity'):.1f}** · "
+                     f"**point_in_time {j_avg('point_in_time'):.1f}** · grounding {j_avg('grounding'):.1f} /5 · "
                      f"hallucinated claims: {halluc}")
     lines.append("")
+    lines += routing_report(rows) + [""]                               # v3 new-layers panel
     lines += source_report(rows) + [""]                                # multi-source lift (deterministic + judge)
     if judged:
         lines += grounding_report(rows) + [""]
     for r in rows:
         q, out, rb = r["q"], r["out"], r["rubric"]
+        nums = _num_line(out)
         lines += [f"## {q['id']}  ({q.get('category', q.get('type', ''))})", f"**Q:** {q['question']}", "",
-                  f"- routed: `{out.get('contract')}` (expected `{q['contract']}`) | "
-                  f"drivers: {rb['drivers_hit']} | evidence retrieved: {len(out.get('evidence') or [])}",
+                  f"- intent: `{out.get('intent')}` (expected `{q.get('expected_intent')}`) | routed: "
+                  f"`{out.get('contract')}` | evidence: {len(out.get('evidence') or [])} | "
+                  f"numbers: {len(out.get('number_calls') or [])}"
+                  + (f" [{rb.get('leakage_ok') and 'leakage OK' or 'LEAKAGE MISS'}]" if rb.get("leakage_ok") is not None else ""),
                   f"- evidence: {[(e['source'], e['date']) for e in out.get('evidence') or []][:6]}"]
+        if nums:
+            lines.append(f"- numbers looked up: {nums}")
         if r.get("judge"):
             j = r["judge"]
-            lines += [f"- **judge:** usefulness {j.get('usefulness')}/5 · grounding {j.get('grounding')}/5 — "
+            lines += [f"- **judge:** usefulness {j.get('usefulness')}/5 · convexity {j.get('convexity')}/5 · "
+                      f"point_in_time {j.get('point_in_time')}/5 · grounding {j.get('grounding')}/5 — "
                       f"_{j.get('verdict')}_",
                       f"  - gaps: {j.get('gaps')}",
                       f"  - hallucinations: {j.get('hallucinations') or 'none'}",
@@ -208,17 +289,25 @@ def report(rows: list[dict], *, model: str) -> str:
     return "\n".join(lines)
 
 
-_PRICE = {"claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6)}
+_PRICE = {"claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6),
+          "claude-haiku-4-5": (1.0 / 1e6, 5.0 / 1e6)}
 
 
-def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = None) -> dict:
-    # rough: answer ~3.5K input (graph + evidence) + ~0.9K out; judge ~4.5K input (graph + evidence + answer) + ~0.8K out
+def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = None,
+                  via_orchestrator: bool = False) -> dict:
+    # rough: answer ~3.5K input (graph + evidence) + ~0.9K out; judge ~5K input (+ numbers) + ~0.9K out
     ap = _PRICE.get(model, _PRICE["claude-sonnet-4-6"])
     usd = len(queries) * (3500 * ap[0] + 900 * ap[1])
     out = {"queries": len(queries), "model": model, "answer_usd": round(usd, 2), "est_usd": round(usd, 2)}
+    if via_orchestrator:                                          # numbers agent (Haiku): ~2 tool-loop calls per numbers/hybrid Q
+        hp = _PRICE["claude-haiku-4-5"]
+        nq = sum(1 for q in queries if q.get("expected_intent") in ("numbers_only", "hybrid"))
+        nusd = nq * 2 * (2500 * hp[0] + 400 * hp[1])
+        usd += nusd
+        out.update(numbers_haiku_usd=round(nusd, 2), est_usd=round(usd, 2))
     if judge_model:
         jp = _PRICE.get(judge_model, _PRICE["claude-opus-4-8"])
-        jusd = len(queries) * (4500 * jp[0] + 800 * jp[1])
+        jusd = len(queries) * (5000 * jp[0] + 900 * jp[1])
         out.update(judge_model=judge_model, judge_usd=round(jusd, 2), total_usd=round(usd + jusd, 2),
                    est_usd=round(usd + jusd, 2))
     return out
@@ -233,24 +322,32 @@ def main() -> int:
     ap.add_argument("--judge-model", default="claude-opus-4-8")
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--queries", default=None, help="queries yaml path (default configs/graphrag/eval_queries.yaml)")
+    ap.add_argument("--via-orchestrator", action="store_true",
+                    help="route each query through the intent branch (orchestrator.respond) — numbers/reasoning/hybrid")
     args = ap.parse_args()
     from pathlib import Path
     queries = load_queries(Path(args.queries)) if args.queries else load_queries()
     if args.dry_run or not args.run:
-        print(f"DRY-RUN cost estimate: {estimate_cost(queries, model=args.model, judge_model=args.judge_model if args.judge else None)}")
+        print(f"DRY-RUN cost estimate: {estimate_cost(queries, model=args.model, via_orchestrator=args.via_orchestrator, judge_model=args.judge_model if args.judge else None)}")
         import collections
         cats = collections.Counter(q.get("category", q.get("type", "?")) for q in queries)
-        print(f"  {len(queries)} questions across {len(set(q['contract'] for q in queries))} contracts; categories: {dict(cats)}")
+        intents = collections.Counter(q.get("expected_intent") for q in queries if q.get("expected_intent"))
+        print(f"  {len(queries)} questions across {len(set(q['contract'] for q in queries))} contracts; "
+              f"categories: {dict(cats)}; expected_intent: {dict(intents)}")
         return 0
     from leviathan.common import config
     config.load_env()                                 # load ANTHROPIC_API for the serving (+ judge) model
     ev.CACHE_INDEX = True                             # the now-large slices load from S3 once, reused across queries
     graph = gph.CausalGraph.load()
-    rows = run(graph, queries, model=args.model, k=args.k)
-    if args.judge:
+    client = None
+    if args.via_orchestrator or args.judge:           # one shared Anthropic client (numbers agent + judge)
         import anthropic
         from leviathan.graphrag import batch_extract as bx
         client = anthropic.Anthropic(api_key=bx._api_key())
+    rows = run(graph, queries, model=args.model, k=args.k, via_orchestrator=args.via_orchestrator,
+               numbers_client=client if args.via_orchestrator else None,
+               call=an._call_opus if args.via_orchestrator else None)
+    if args.judge:
         for r in rows:
             try:                                                      # a judge failure must not lose the whole run
                 r["judge"] = judge(r["q"], r["out"], graph=graph, client=client, model=args.judge_model)

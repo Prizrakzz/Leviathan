@@ -46,18 +46,19 @@ def test_judge_quant_persona_and_grounding_report():
          "expect": {"drivers": ["frost"], "needs_evidence": True}}
     out = {"answer": "Frost ...", "contract": "arabica_coffee", "structured": {"sources": [{"ref": 1}]},
            "evidence": [{"source": "GAIN", "date": "2021-07-20", "text": "frost hit"}]}
-    scores = {"usefulness": 4, "grounding": 5, "hallucinations": [], "gaps": ["no magnitude given"],
-              "improvements": ["quantify the move"], "verdict": "actionable but no sizing"}
+    scores = {"usefulness": 4, "convexity": 3, "point_in_time": 5, "grounding": 5, "hallucinations": [],
+              "gaps": ["no threshold given"], "improvements": ["name the tipping buffer"], "verdict": "sound mechanism"}
 
     def fake_call(client, system, user, *, model, max_tokens, tool):    # mimic ex.call_opus -> (input, usage)
         assert tool["name"] == "score_answer" and "QUANTITATIVE RESEARCHER" in system and "frost hit" in user
+        assert "OBSERVED NUMBERS" in user and "not a trading system" in system.lower()  # numbers ctx + no-sizing framing
         return scores, None
 
     j = gev.judge(q, out, client=None, model="claude-opus-4-8", call=fake_call)
-    assert j["usefulness"] == 4 and j["gaps"] == ["no magnitude given"]
+    assert j["usefulness"] == 4 and j["gaps"] == ["no threshold given"]
     rep = gev.report([{"q": q, "out": out, "rubric": gev.score(q, out), "judge": j}], model="claude-sonnet-4-6")
-    assert "usefulness 4.0/5" in rep and "grounding 5.0/5" in rep                  # overall header
-    assert "Per-commodity grounding depth" in rep and "no magnitude given" in rep  # grounding table + gaps surfaced
+    assert "usefulness 4.0" in rep and "convexity 3.0" in rep and "point_in_time 5.0" in rep   # v3 header
+    assert "Per-commodity grounding depth" in rep and "no threshold given" in rep              # grounding table + gaps
 
 
 def test_source_diversity_metrics_and_panel():
@@ -97,3 +98,27 @@ def test_estimate_cost_includes_judge():
     sonnet = gev.estimate_cost([{}] * 10, model="claude-sonnet-4-6")
     withjudge = gev.estimate_cost([{}] * 10, model="claude-sonnet-4-6", judge_model="claude-opus-4-8")
     assert sonnet["queries"] == 10 and withjudge["total_usd"] > sonnet["answer_usd"]   # judge adds cost
+
+
+def test_v3_orchestrator_intent_routing_and_leakage(monkeypatch):
+    from leviathan.graphrag import orchestrator as orch
+
+    def fake_respond(question, *, graph, asof=None, model=None, numbers_client=None, call=None):
+        if "argentina" in question.lower():                       # the leakage trap: the lookup returned nothing
+            return {"answer": "That figure was not known at the as-of date.", "intent": "numbers_only",
+                    "contract": None, "evidence": [], "citations": [],
+                    "number_calls": [{"query": {"table": "silver_psd", "metric": "ending_stocks_mt"}, "rows": []}]}
+        return {"answer": "The response turns convex once the buffer is thin [1].", "intent": "hybrid",
+                "contract": "corn", "evidence": [{"source": "usda_wasde", "date": "2024", "text": "x"}], "citations": [],
+                "number_calls": [{"query": {"table": "silver_psd", "metric": "su_ratio"}, "rows": [{"value": "0.09"}]}]}
+    monkeypatch.setattr(orch, "respond", fake_respond)
+    qs = [{"id": "trap", "contract": "corn", "expected_intent": "numbers_only", "asof": "2023-07-01",
+           "question": "Argentina corn 2023/24 ending stocks?", "expect": {"not_known": True}},
+          {"id": "hyb", "contract": "corn", "expected_intent": "hybrid", "asof": "2024-01-15",
+           "question": "is the corn response convex given tight stocks?", "expect": {"needs_evidence": True}}]
+    rows = gev.run(None, qs, via_orchestrator=True)
+    assert rows[0]["rubric"]["intent_ok"] and rows[0]["rubric"]["leakage_ok"]       # trap: right intent + said "not known"
+    assert rows[1]["rubric"]["intent_ok"] and rows[1]["out"]["number_calls"]        # hybrid: right intent + a lookup ran
+    rr = "\n".join(gev.routing_report(rows))
+    assert "**intent routed correctly**: **2/2**" in rr and "leakage-trap handled" in rr and "1/1" in rr
+    assert "numbers looked up: silver_psd" in gev.report(rows, model="claude-sonnet-4-6")  # provenance surfaced
