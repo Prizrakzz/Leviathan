@@ -40,6 +40,8 @@ class TableSpec(BaseModel):
     period_col: Optional[str] = None
     period_type: Literal["marketing_year", "year", "date", "none"] = "none"
     period_sql_type: Literal["int", "string"] = "string"     # how the period column compares in SQL
+    period_offset: int = 0                                   # source-label translation: OUR convention is MY=START
+    #                                                          year; ESR labels by END year -> offset +1 at compile
     date_col: Optional[str] = None                           # the DATA date (weather obs date, week ending, ...)
     year_col: Optional[str] = None                           # year_month semantics: the year column
     month_col: Optional[str] = None                          # year_month semantics: the month column

@@ -231,37 +231,49 @@ def _driver_evidence(query: str, drivers: list[str], *, k: int, asof, near, retr
 
 
 def _l2_blocks(sg, graph: gph.CausalGraph) -> list[str]:
-    """Render the walked, grounded subgraph as the reasoner's context — organised by the traversal, so the model
-    sees exactly the hops that were grounded (prior + dated evidence + observed silver + active flag) and the
-    deterministically-fired regimes. The model narrates THIS; it can introduce no hop not present."""
+    """v1.1 ADDITIVE assembly (the A/B fix): the reasoner gets AT LEAST what one-hop gave it — the FULL
+    _context_block per contract (all drivers, all regime definitions, inter-commodity edges) — PLUS the walk's
+    structure: how each cross-commodity contract was REACHED (edge + category: an accounting identity needs no
+    dated evidence, a causal link does), per-node dated evidence, deterministic ACTIVE flags, and which regimes
+    actually FIRED at this as-of. v1 pruned context below the one-hop baseline and lost the A/B; never again."""
     blocks: list[str] = []
+    fired_by = {}
+    for r in sg.fired_regimes:
+        fired_by.setdefault(r["contract"], []).append(r)
     for cid in dict.fromkeys(n.contract for n in sg.nodes):
-        c = graph.contracts[cid]
         cnode = next((n for n in sg.by_contract(cid) if n.kind == "contract"), None)
-        hop = ""
-        if cnode and cnode.via_edge:
+        lines = []
+        if cnode and cnode.via_edge:                               # how the walk REACHED this contract
             e = cnode.via_edge
-            hop = f" [reached via {e.get('_from')} --{e.get('relation')}({e.get('sign')})--> {cid}: {e.get('mechanism')}]"
-        lines = [f"CONTRACT: {cid}{hop} (target: {', '.join(c.target_metrics)})"]
-        for n in sg.by_contract(cid):
-            if n.kind != "driver":
-                continue
-            p = n.prior
-            tgt = p.get("target_metric") or (c.target_metrics[0] if c.target_metrics else "price")
-            sv = ""
-            if n.silver and n.silver.get("live"):
-                sv = f" | observed {n.silver.get('value')} {n.silver.get('unit', '')} [{n.silver.get('knowledge_date', '')}]"
-            lines.append(f"- DRIVER {n.id} | {p.get('sign')} on {tgt} | lag {p.get('lag') or 'n/a'} "
-                         f"| conf={p.get('confidence')} | active={n.active}{sv} | {p.get('mechanism')}")
-            if n.evidence:
-                lines.append(_ev_block(n.evidence))
+            kind = e.get("category", "causal")
+            note = ("an accounting/processing identity — holds by construction, no dated evidence needed"
+                    if kind == "transformation" else
+                    "a market-structure link" if kind == "market_structure" else "a causal link — needs evidence")
+            lines.append(f"REACHED VIA CASCADE HOP: {e.get('_from')} --{e.get('relation')}({e.get('sign')})--> {cid}"
+                         f" [{kind}: {note}] {e.get('mechanism') or ''}")
+        lines.append(_context_block(graph, cid))                   # the FULL one-hop context, verbatim
+        fired = fired_by.get(cid) or []
+        if fired:
+            lines.append("REGIMES FIRED AT THIS AS-OF (deterministic — enough drivers active with dated evidence):")
+            for r in fired:
+                lines.append(f"- {r['name']} ({r['direction']}): active {r['matched']} (needs {r['threshold']})"
+                             + (f"; interactions {r['interactions']}" if r["interactions"] else ""))
+        else:
+            lines.append("REGIMES FIRED AT THIS AS-OF: none (not enough drivers active with dated evidence).")
+        active = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.active]
+        if active:
+            lines.append(f"DRIVERS ACTIVE AT THIS AS-OF (dated evidence or named in it): {active}")
+        for n in sg.by_contract(cid):                              # dated evidence + silver, per grounded node
+            if n.kind == "contract" and n.evidence:
+                lines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
+            elif n.kind == "driver" and n.evidence:
+                lines.append(f"--- DATED EVIDENCE for driver {n.id} ---\n" + _ev_block(n.evidence))
+            if n.kind == "driver" and n.silver and n.silver.get("live"):
+                lines.append(f"OBSERVED for {n.id}: {n.silver.get('value')} {n.silver.get('unit', '')} "
+                             f"[{n.silver.get('knowledge_date', '')}]")
         blocks.append("\n".join(lines))
-    if sg.fired_regimes:
-        rl = ["CONVERGENCE REGIMES FIRED (deterministic — >= threshold drivers active with dated evidence):"]
-        for r in sg.fired_regimes:
-            rl.append(f"- {r['contract']}: {r['name']} ({r['direction']}) — active {r['matched']} "
-                      f"(needs {r['threshold']})" + (f"; interactions {r['interactions']}" if r['interactions'] else ""))
-        blocks.append("\n".join(rl))
+    blocks.append("NOTE: a driver shared by multiple downstream paths (e.g. one climate pattern feeding several "
+                  "drivers) is ONE source of risk — do not weight it once per path.")
     return blocks
 
 

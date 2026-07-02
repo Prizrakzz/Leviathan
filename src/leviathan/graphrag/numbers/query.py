@@ -121,8 +121,11 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     if ts.shape == "tall" and ts.metric_col:
         w.append(f"{ts.metric_col} = {_q(spec.metric)}")
     if spec.period and ts.period_col:
-        w.append(f"{ts.period_col} = "
-                 + (str(int(str(spec.period)[:4])) if ts.period_sql_type == "int" else _q(spec.period)))
+        if ts.period_sql_type == "int":                  # +period_offset translates OUR start-year MY convention
+            val = str(int(str(spec.period)[:4]) + ts.period_offset)   # to the source's label (ESR = end year)
+        else:
+            val = _q(spec.period)
+        w.append(f"{ts.period_col} = {val}")
     if ts.date_col and spec.period_start:
         w.append(f"{_dcol(ts.date_col)} >= {_q(spec.period_start)}")
     if ts.date_col and spec.period_end:
@@ -240,7 +243,7 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
         if spec.period and ts.period_col:
             rv, pv = str(r.get(ts.period_col)), str(spec.period)
             if ts.period_sql_type == "int":
-                if int(str(rv)[:4] or 0) != int(pv[:4]):
+                if int(str(rv)[:4] or 0) != int(pv[:4]) + ts.period_offset:   # same label translation as build_sql
                     return False
             elif rv != pv:
                 return False

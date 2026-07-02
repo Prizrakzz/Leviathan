@@ -22,6 +22,24 @@ from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import graph as gph
 
 
+# ── edge-category map (code-level; NO YAML re-curation) ──────────────────────────────────────────────────────
+# Classifies the EXISTING relation/edge_type vocabulary so grounding expectations differ by kind:
+#   transformation  = accounting identities (a crush margin exists by construction) -> true WITHOUT dated
+#                     evidence; never counts against leg-grounding.
+#   market_structure= substitution/competition links -> probabilistic but market-level.
+#   causal          = physical/economic cause-effect (weather->yield) -> the kind that NEEDS dated evidence.
+_EDGE_CATEGORY = {
+    "crushed_into": "transformation", "feedstock_for": "transformation", "processed_into": "transformation",
+    "produces": "transformation", "byproduct_of": "transformation", "co_product_of": "transformation",
+    "substitutes_for": "market_structure", "competes_with": "market_structure",
+    "leads_lags": "market_structure", "hedged_with": "market_structure",
+}
+
+
+def edge_category(relation: str) -> str:
+    return _EDGE_CATEGORY.get(relation or "", "causal")
+
+
 @dataclass
 class GroundedNode:
     kind: str                                   # "contract" | "driver"
@@ -119,8 +137,9 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = 2, nod
         if kind == "contract":
             for e in graph.cross_links(cid):                # tracked inter-commodity hops FIRST (BFS priority) so a
                 if e["tracked"]:                            # contract's driver breadth can't starve the cascade hop —
-                    frontier.append((e["driver_commodity"], d + 1, {**e, "_from": cid}, "contract",  # L2's headline
-                                     e["driver_commodity"]))
+                    frontier.append((e["driver_commodity"], d + 1,                                   # L2's headline
+                                     {**e, "_from": cid, "category": edge_category(e["relation"])},
+                                     "contract", e["driver_commodity"]))
             for drv in graph.contracts[cid].drivers:        # then the driver fan-in of this contract
                 frontier.append((drv.id, d + 1, None, "driver", cid))
         else:
@@ -168,24 +187,39 @@ def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
 
 
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
-           asof=None, near=None, k_by_depth=(5, 3, 2), evidence_cap: int = 24) -> Subgraph:
+           asof=None, near=None, k_by_depth=(5, 3, 2), evidence_cap: int = 24, driver_slices=None) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
-    injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup)."""
+    injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
+
+    v1.1 (the A/B fix): driver retrieval only for SLICE-BACKED drivers (evidence/drivers/<id> exists for ~92
+    names, not every DAG driver id — v1 wasted budget on empty fetches and scored 0.2 leg-grounding); the
+    ACTIVE criterion broadens to slice-evidence OR the driver named in the contract's own retrieved evidence
+    (so convergence regimes actually fire, v1 fired 0.0)."""
     retrieve = retrieve or ev.retrieve
-    for n in sg.nodes:                                              # WS-2: per-node evidence, k decays with depth
+    backed = set(driver_slices) if driver_slices is not None else set(ev.driver_specs() or {})
+    for n in sg.nodes:                                              # per-node evidence, k decays with depth
+        if n.kind == "driver" and backed and n.id not in backed:
+            continue                                                # no slice -> prior-only node (no empty fetch)
         k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
         n.evidence = list(retrieve(query, _slice_of(n), k=k, asof=asof, near=near))
-    _dedup_and_cap(sg, evidence_cap)                               # WS-2: dedup cross-node restatement + cap total
+    _dedup_and_cap(sg, evidence_cap)                               # dedup cross-node restatement + cap total
 
-    for n in sg.nodes:                                             # WS-5: silver leg (driver nodes only)
+    ctx_text: dict[str, str] = {}                                  # contract -> its own evidence text (for active)
+    for n in sg.nodes:
+        if n.kind == "contract" and n.evidence:
+            ctx_text[n.contract] = " ".join((h.get("text") or "").lower() for h in n.evidence)
+
+    for n in sg.nodes:                                             # silver leg (driver nodes only)
         if n.kind == "driver" and silver_lookup and n.prior.get("silver_ref"):
             try:
                 n.silver = silver_lookup(n.contract, n.id, asof)
             except Exception:  # noqa: BLE001 — a silver miss must never break the answer
                 n.silver = {"ref": n.prior.get("silver_ref"), "live": False}
-        n.active = n.kind == "driver" and bool(n.evidence)        # active = dated evidence near the episode exists
+        if n.kind == "driver":
+            named = n.id.replace("_", " ").lower() in ctx_text.get(n.contract, "")
+            n.active = bool(n.evidence) or named               # slice evidence OR named in the contract's evidence
 
-    sg.fired_regimes = []                                          # WS-4: deterministic convergence via graph.regimes
+    sg.fired_regimes = []                                          # deterministic convergence via graph.regimes
     for cid in sorted({n.contract for n in sg.nodes}):
         active = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.active]
         for fr in graph.regimes(cid, active):

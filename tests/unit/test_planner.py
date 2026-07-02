@@ -111,7 +111,8 @@ def test_mermaid_is_valid_and_from_graph():
 
 def test_ground_fires_convergence_from_active_drivers():
     gr, sg = _run(tau=0.35, depth=2)
-    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=_silver)
+    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=_silver,
+              driver_slices={"frost", "el_nino", "drought"})
     frost = next(n for n in sg.nodes if n.id == "frost")
     assert frost.active and frost.evidence and frost.evidence[0]["source"] == "GAIN"   # active = has dated evidence
     fired = {(r["contract"], r["name"]) for r in sg.fired_regimes}
@@ -120,7 +121,7 @@ def test_ground_fires_convergence_from_active_drivers():
 
 def test_ground_silver_leg_via_injected_lookup():
     gr, sg = _run(tau=0.35, depth=2)
-    pl.ground(sg, "q", gr, retrieve=_retrieve, silver_lookup=_silver)
+    pl.ground(sg, "q", gr, retrieve=_retrieve, silver_lookup=_silver, driver_slices={"frost", "el_nino", "drought"})
     frost = next(n for n in sg.nodes if n.id == "frost")
     el = next(n for n in sg.nodes if n.id == "el_nino")
     assert frost.silver["value"] == 2.1 and frost.silver["live"]               # driver w/ silver_ref gets grounded
@@ -129,5 +130,40 @@ def test_ground_silver_leg_via_injected_lookup():
 
 def test_ground_dedups_and_caps_evidence():
     gr, sg = _run(tau=0.35, depth=2)
-    pl.ground(sg, "q", gr, retrieve=_retrieve, silver_lookup=None, evidence_cap=2)
+    pl.ground(sg, "q", gr, retrieve=_retrieve, silver_lookup=None, evidence_cap=2,
+              driver_slices={"frost", "el_nino", "drought"})
     assert sg.trace["n_evidence"] == 2                                          # 4 props retrieved, capped to 2
+
+
+def test_edge_category_map():
+    assert pl.edge_category("crushed_into") == "transformation"      # accounting identity
+    assert pl.edge_category("substitutes_for") == "market_structure"
+    assert pl.edge_category("causes") == "causal" and pl.edge_category("") == "causal"
+
+
+def test_ground_skips_unbacked_drivers_no_empty_fetch():
+    gr, sg = _run(tau=0.0, depth=2, node_budget=10)                  # keeps rain too
+    fetched = []
+
+    def spy_retrieve(q, slice_, *, k, asof=None, near=None):
+        fetched.append(slice_)
+        return _retrieve(q, slice_, k=k)
+    pl.ground(sg, "q", gr, retrieve=spy_retrieve, silver_lookup=None, driver_slices={"frost", "el_nino"})
+    assert "drivers/rain" not in fetched                             # unbacked driver -> prior-only, no fetch
+    assert "drivers/frost" in fetched
+
+
+def test_active_via_contract_evidence_mention():
+    # a driver with NO slice still counts ACTIVE when the contract's own evidence names it (v1 fired 0 regimes)
+    gr, sg = _run(tau=0.0, depth=1, node_budget=10)
+
+    def retrieve(q, slice_, *, k, asof=None, near=None):
+        if slice_ == "arabica":
+            return [{"date": "2021-07-25", "source": "WASDE", "source_key": "s3://a",
+                     "text": "persistent rain damaged cherries; el nino pattern building"}]
+        return []
+    pl.ground(sg, "q", gr, retrieve=retrieve, silver_lookup=None, driver_slices={"frost"})
+    rain = next(n for n in sg.nodes if n.id == "rain")
+    el = next(n for n in sg.nodes if n.id == "el_nino")
+    assert rain.active and el.active                                 # named in contract evidence -> active
+    assert ("arabica", "squeeze") in {(r["contract"], r["name"]) for r in sg.fired_regimes}
