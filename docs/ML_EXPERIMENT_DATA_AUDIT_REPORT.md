@@ -120,6 +120,16 @@ Found while building the SQL agent; parquet-reading extractors are unaffected, b
 
 **Fix:** document all four in `configs/datasets/source_contracts.yaml` (or FEATURE_DICTIONARY); longer-term, normalize date types at silver and consider partitioning silver_esr by commodity_name.
 
+### 3.10 F6-bis — `silver_esr` is ALSO latest-snapshot-only (found while fixing the agent)
+
+The bronze→silver ESR task keeps only the **latest `as_of` snapshot** per (commodity, market_year). Like the PSD
+surface (F6), true point-in-time ESR vintages do not exist in silver — the bronze keeps them, silver discards
+them. Consequences: (a) any future "ESR revision/momentum" feature would be fake-vintage, same trap as
+`psd_*_mom_revision` — extend the F6 code guard to cover `esr_*_revision` patterns; (b) as-of correctness for
+weekly ESR values must anchor on `week_ending_date` (+~1-week publication lag), never on `as_of_date`.
+Verified live 2026-07-03: latest outstanding sales for soybeans MY 2023/24 as-of 2024-03-01 correctly returns
+the week ending 2024-02-29.
+
 ### 3.9 F9 — evaluation hygiene at tiny n (mostly fine; keep it that way)
 
 Verified good: clone-per-fold models, no global imputation/scaling (LightGBM-native NaN), permutation certification (20 trials), grouped walk-forward with `GROUP_KEY` (prevents same-MY snapshot rows straddling folds). Keep: HPO minimal or absent at these sizes (a hyperparameter search over ~40 annual samples selects noise); prefer fixed shallow trees + regularized linear baselines; always report per-fold dispersion, not just means.
