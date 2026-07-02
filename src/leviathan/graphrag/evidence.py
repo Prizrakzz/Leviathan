@@ -333,7 +333,13 @@ def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near
     knobs (all in-memory; they curate WHICH dated evidence reaches the LLM, never the reasoning):
       mode='hybrid' -> add a BM25 lexical leg fused via RRF (recall on exact tokens like B40/ZL);
       rerank=True   -> a bge cross-encoder re-orders relevance (precision);
-      mmr>0         -> MMR final-select for diversity (guards against rerank narrowing the evidence set)."""
+      mmr>0         -> MMR final-select for diversity (guards against rerank narrowing the evidence set).
+    EVIDENCE_BACKEND=pg routes candidate fetch to pgvector (one filtered SQL round-trip instead of a full-slice
+    scan) with the SAME post-fetch pipeline — see pgstore.pg_retrieve. Explicit `records=` always stays local."""
+    if records is None and os.environ.get("EVIDENCE_BACKEND") == "pg":
+        from leviathan.graphrag import pgstore
+        return pgstore.pg_retrieve(query, node, k=k, asof=asof, near=near, beta=beta, mode=mode, rerank=rerank,
+                                   mmr=mmr, same_source=same_source, fairness=fairness, fetch_k=fetch_k)
     all_records = load_index(node) if records is None else records
     recs = [r for r in all_records if r["date"] <= asof] if asof else list(all_records)   # leakage filter FIRST
     if not recs:

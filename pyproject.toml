@@ -75,6 +75,9 @@ embed = [
 serve = [
     "langgraph>=0.2.0",             # Phase 5 orchestration conductor; 0.1.9 has a pregel runtime bug (skip its test)
 ]
+pg = [
+    "psycopg[binary]>=3.1",         # pgvector evidence store (EVIDENCE_BACKEND=pg) — filtered dense+FTS in one SQL round-trip
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
