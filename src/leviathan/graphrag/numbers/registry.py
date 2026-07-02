@@ -41,25 +41,33 @@ class TableSpec(BaseModel):
     period_type: Literal["marketing_year", "year", "date", "none"] = "none"
     period_sql_type: Literal["int", "string"] = "string"     # how the period column compares in SQL
     date_col: Optional[str] = None                           # the DATA date (weather obs date, week ending, ...)
+    year_col: Optional[str] = None                           # year_month semantics: the year column
+    month_col: Optional[str] = None                          # year_month semantics: the month column
     knowledge_date_col: Optional[str] = None                 # the vintage/publication/ingest date
-    knowledge_semantics: Literal["vintage", "ingest", "data_date"] = "data_date"
+    knowledge_semantics: Literal["vintage", "ingest", "data_date", "year_month"] = "data_date"
     metric_col: Optional[str] = None                         # tall: column holding the metric NAME
     value_col: Optional[str] = None                          # tall: column holding the numeric VALUE
     unit_col: Optional[str] = None
     metrics: dict[str, Metric] = {}                          # wide: column->Metric ; tall: metric-value->Metric
+    grain_cols: list[str] = []                               # explicit unique-observation identity (else inferred)
     partitions: list[str] = []
     notes: str = ""
 
     def knowledge_col(self) -> Optional[str]:
-        """The single column the as-of guard filters on, per this table's semantics."""
+        """The single column the as-of guard filters on. None for year_month (guarded on year*100+month)."""
         if self.knowledge_semantics == "vintage":
             return self.knowledge_date_col
         if self.knowledge_semantics == "ingest":
             return self.knowledge_date_col or self.date_col
+        if self.knowledge_semantics == "year_month":
+            return None
         return self.date_col or self.knowledge_date_col      # data_date
 
     def group_cols(self) -> list[str]:
-        """The identity group for latest-vintage selection (one current value per group)."""
+        """The identity group for latest-vintage selection. Explicit grain_cols win (e.g. ESR keys on the WEEK,
+        not the marketing year); else inferred from commodity/country/period(+metric)."""
+        if self.grain_cols:
+            return list(self.grain_cols)
         cols = [self.commodity_col, self.country_col, self.period_col]
         if self.shape == "tall":
             cols.append(self.metric_col)

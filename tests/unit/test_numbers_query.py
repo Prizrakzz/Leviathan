@@ -30,6 +30,23 @@ def _weather() -> TableSpec:                               # wide + data_date
                      country_col="country", period_type="date", date_col="date", knowledge_semantics="data_date")
 
 
+def _esr() -> TableSpec:                                   # wide + vintage, keyed on the WEEK
+    return TableSpec(id="silver_esr", description="", shape="wide", commodity_col="commodity_name",
+                     period_col="market_year", period_type="marketing_year", period_sql_type="int",
+                     date_col="week_ending_date", knowledge_date_col="as_of_date", knowledge_semantics="vintage",
+                     grain_cols=["commodity_name", "country_code", "week_ending_date"])
+
+
+def _fx() -> TableSpec:                                    # wide + data_date, macro (no commodity)
+    return TableSpec(id="silver_fred_fx", description="", shape="wide", period_type="date", date_col="date",
+                     knowledge_semantics="data_date")
+
+
+def _oni() -> TableSpec:                                   # wide + year_month (no date column)
+    return TableSpec(id="silver_noaa_oni", description="", shape="wide", period_type="date",
+                     year_col="year", month_col="month", knowledge_semantics="year_month")
+
+
 def test_guard_always_present_every_semantics():
     for ts, metric, extra in ((_psd(), "ending_stocks_mt", {"period": "2023"}),
                               (_prod(), "production", {"period": "2023"}),
@@ -83,8 +100,45 @@ def test_pit_no_leakage_property():
         assert all(r["ingest_date"] > asof for r in rows if r not in kept)  # ...and nothing valid was dropped
 
 
+def test_esr_vintage_keys_on_week_not_marketing_year():
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2024-03-25",
+                                commodity="corn_cbot", period="2023"), _esr())
+    assert "PARTITION BY commodity_name, country_code, week_ending_date" in sql   # grain = the WEEK, not the MY
+    assert "as_of_date DESC" in sql and "as_of_date <= '2024-03-25'" in sql
+
+
+def test_esr_pit_latest_report_per_week_no_leakage():
+    ts = _esr()
+    rows = [{"commodity_name": "corn_cbot", "country_code": 9, "week_ending_date": "2024-03-14",
+             "as_of_date": d, "weekly_exports_1000mt": v}
+            for d, v in (("2024-03-15", 790.0), ("2024-03-22", 800.0), ("2024-03-29", 810.0))]
+    kept = apply_pit_filter(rows, NumberQuery(table="silver_esr", metric="weekly_exports_1000mt",
+                                              asof="2024-03-25", commodity="corn_cbot"), ts)
+    assert len(kept) == 1 and kept[0]["as_of_date"] == "2024-03-22"   # newest report KNOWN at asof (Mar-29 is future)
+    assert kept[0]["weekly_exports_1000mt"] == 800.0
+
+
+def test_fx_latest_is_single_most_recent():
+    sql = build_sql(NumberQuery(table="silver_fred_fx", metric="brl_usd", asof="2024-06-01", agg="latest"), _fx())
+    assert "brl_usd AS value" in sql and "date <= '2024-06-01'" in sql
+    assert sql.strip().endswith("ORDER BY date DESC LIMIT 1")
+
+
+def test_oni_year_month_guard_no_leakage():
+    ts = _oni()
+    sql = build_sql(NumberQuery(table="silver_noaa_oni", metric="oni_anom", asof="2024-03-15", agg="latest"), ts)
+    assert "(year * 100 + month) <= 202403" in sql
+    rows = [{"year": 2024, "month": m, "oni_anom": 0.1 * m} for m in range(1, 13)]
+    kept = apply_pit_filter(rows, NumberQuery(table="silver_noaa_oni", metric="oni_anom", asof="2024-03-15"), ts)
+    assert {r["month"] for r in kept} == {1, 2, 3}                    # Apr+ not yet known at mid-March
+
+
 def test_registry_yaml_loads():
     reg = load_registry()
-    assert {"silver_psd", "silver_wasde", "silver_production", "silver_nasa_power"} <= set(reg.tables)
+    assert {"silver_psd", "silver_wasde", "silver_production", "silver_nasa_power",
+            "silver_esr", "silver_fred_fx", "silver_noaa_oni"} <= set(reg.tables)
     assert reg.get("silver_psd").shape == "wide" and reg.get("silver_psd").knowledge_semantics == "vintage"
     assert reg.get("silver_wasde").shape == "tall" and reg.get("silver_wasde").metric_col == "attribute"
+    assert reg.get("silver_esr").grain_cols == ["commodity_name", "country_code", "week_ending_date"]
+    assert reg.get("silver_noaa_oni").knowledge_semantics == "year_month"
+    assert reg.get("silver_psd").metrics["ending_stocks_mt"].unit == "MT"   # unit corrected from '1000 MT'

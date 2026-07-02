@@ -61,12 +61,29 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     return w
 
 
+def _asof_ym(asof: str) -> int:
+    return int(asof[:4]) * 100 + int(asof[5:7])              # 'YYYY-MM-DD' -> YYYYMM integer
+
+
 def _guard(spec: NumberQuery, ts: TableSpec) -> str:
     """The as-of predicate that is ALWAYS present — the leakage guard."""
+    if ts.knowledge_semantics == "year_month":
+        if not (ts.year_col and ts.month_col):
+            raise ValueError(f"table {ts.id} year_month semantics needs year_col + month_col")
+        return f"({ts.year_col} * 100 + {ts.month_col}) <= {_asof_ym(spec.asof)}"
     col = ts.knowledge_col()
     if not col:
         raise ValueError(f"table {ts.id} has no knowledge/date column to anchor the as-of guard")
     return f"{col} <= {_q(spec.asof)}"
+
+
+def _order_col(ts: TableSpec) -> Optional[str]:
+    """The chronological ordering expression (date, else year*100+month)."""
+    if ts.date_col:
+        return ts.date_col
+    if ts.year_col and ts.month_col:
+        return f"({ts.year_col} * 100 + {ts.month_col})"
+    return None
 
 
 def _extras(ts: TableSpec) -> list[tuple[str, str]]:
@@ -91,6 +108,11 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     extras = _extras(ts)
     where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts)])
     sel = f"{val} AS value" + "".join(f", {e} AS {a}" for e, a in extras)
+    order = _order_col(ts)
+
+    def _agg(sql: str) -> str:
+        fn = {"mean": "avg"}.get(spec.agg, spec.agg)
+        return f"SELECT {fn}(value) AS value FROM ({sql})"
 
     if ts.knowledge_semantics == "vintage":
         # as-known: rank vintages within the identity group, keep the newest published on/before asof
@@ -100,12 +122,18 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
                  f"FROM {db}.{spec.table} WHERE {where}")
         outcols = "value" + "".join(f", {a}" for _, a in extras)
         base = f"SELECT {outcols} FROM ({inner}) WHERE _rn = 1"
-    else:
-        base = f"SELECT {sel} FROM {db}.{spec.table} WHERE {where}"
+        if spec.agg in ("sum", "mean", "max", "min"):
+            base = _agg(base)
+        return base + f" LIMIT {int(spec.limit)}"
 
+    # non-vintage (ingest / data_date / year_month)
+    base = f"SELECT {sel} FROM {db}.{spec.table} WHERE {where}"
     if spec.agg in ("sum", "mean", "max", "min"):
-        fn = {"mean": "avg"}.get(spec.agg, spec.agg)
-        base = f"SELECT {fn}(value) AS value FROM ({base})"
+        return _agg(base) + f" LIMIT {int(spec.limit)}"
+    if spec.agg == "latest" and order:                        # the single most-recent observation on/before asof
+        return base + f" ORDER BY {order} DESC LIMIT 1"
+    if order:                                                 # series/default: chronological
+        base += f" ORDER BY {order}"
     return base + f" LIMIT {int(spec.limit)}"
 
 
@@ -114,6 +142,7 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     fallback). Filters by identity/scope, drops anything not yet known at asof, and for `vintage` keeps only the
     latest vintage per identity group."""
     kcol = ts.knowledge_col()
+    ym = _asof_ym(spec.asof) if ts.knowledge_semantics == "year_month" else None
 
     def keep(r: dict) -> bool:
         if spec.commodity and ts.commodity_col and str(r.get(ts.commodity_col)) != str(spec.commodity):
@@ -133,7 +162,9 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
             return False
         if spec.period_end and ts.date_col and str(r.get(ts.date_col)) > spec.period_end:
             return False
-        return str(r.get(kcol) or "") <= spec.asof                       # the leakage guard
+        if ts.knowledge_semantics == "year_month":                       # the leakage guard (year_month)
+            return int(r.get(ts.year_col)) * 100 + int(r.get(ts.month_col)) <= ym
+        return str(r.get(kcol) or "") <= spec.asof                       # the leakage guard (date)
     kept = [r for r in rows if keep(r)]
 
     if ts.knowledge_semantics == "vintage" and kept:
@@ -159,21 +190,39 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB) -> list[dict]:
     return _athena(client, sql, db)
 
 
+_THROTTLE = ("TooManyRequestsException", "ThrottlingException", "SlowDown", "RequestLimitExceeded")
+
+
+def _retry(fn, tries: int = 6):
+    """Exponential backoff on Athena/S3 throttles (the results bucket 503s under burst)."""
+    import time
+    from botocore.exceptions import ClientError
+    for i in range(tries):
+        try:
+            return fn()
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if i < tries - 1 and (code in _THROTTLE or "503" in str(e)):
+                time.sleep(1.5 * (2 ** i))
+                continue
+            raise
+
+
 def _athena(client, sql: str, db: str) -> list[dict]:
     import os
     import time
     bucket = os.environ.get("LEVIATHAN_BUCKET", "leviathan-dev-shahem-001")
-    qid = client.start_query_execution(
+    qid = _retry(lambda: client.start_query_execution(
         QueryString=sql, QueryExecutionContext={"Database": db},
-        ResultConfiguration={"OutputLocation": f"s3://{bucket}/athena-results/"})["QueryExecutionId"]
+        ResultConfiguration={"OutputLocation": f"s3://{bucket}/athena-results/"}))["QueryExecutionId"]
     while True:
-        st = client.get_query_execution(QueryExecutionId=qid)["QueryExecution"]["Status"]
+        st = _retry(lambda: client.get_query_execution(QueryExecutionId=qid))["QueryExecution"]["Status"]
         if st["State"] == "SUCCEEDED":
             break
         if st["State"] in ("FAILED", "CANCELLED"):
             raise RuntimeError(f"Athena {st['State']}: {st.get('StateChangeReason','')}\nSQL: {sql[:400]}")
         time.sleep(2)
-    res = client.get_query_results(QueryExecutionId=qid, MaxResults=1000)
+    res = _retry(lambda: client.get_query_results(QueryExecutionId=qid, MaxResults=1000))
     hdr = [c["Name"] for c in res["ResultSet"]["ResultSetMetadata"]["ColumnInfo"]]
     return [{hdr[i]: c.get("VarCharValue", "") for i, c in enumerate(row["Data"])}
             for row in res["ResultSet"]["Rows"][1:]]
