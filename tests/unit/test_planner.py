@@ -77,6 +77,13 @@ def test_cross_commodity_hop_is_taken():
     assert rob.depth == 1 and rob.via_edge["relation"] == "substitutes_for"   # reached via the substitution edge
 
 
+def test_cross_hop_not_starved_by_driver_breadth():
+    # tight budget + tau=0 (all drivers relevant): the tracked cross-commodity hop must still be reached,
+    # because hops get frontier priority over a contract's own driver fan-in (L2's headline feature).
+    _, sg = _run(tau=0.0, depth=2, node_budget=2)
+    assert ("contract", "robusta", "robusta") in _keys(sg)
+
+
 def test_depth_cap_blocks_second_hop_neighbour_drivers():
     _, sg = _run(tau=0.35, depth=1)                            # robusta kept (d1) but its drivers never expanded
     assert ("contract", "robusta", "robusta") in _keys(sg)

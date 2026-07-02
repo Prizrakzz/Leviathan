@@ -117,12 +117,12 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = 2, nod
             continue
 
         if kind == "contract":
-            for drv in graph.contracts[cid].drivers:        # driver fan-in of this contract
-                frontier.append((drv.id, d + 1, None, "driver", cid))
-            for e in graph.cross_links(cid):                # tracked inter-commodity hop -> a real neighbour contract
-                if e["tracked"]:
-                    frontier.append((e["driver_commodity"], d + 1, {**e, "_from": cid}, "contract",
+            for e in graph.cross_links(cid):                # tracked inter-commodity hops FIRST (BFS priority) so a
+                if e["tracked"]:                            # contract's driver breadth can't starve the cascade hop —
+                    frontier.append((e["driver_commodity"], d + 1, {**e, "_from": cid}, "contract",  # L2's headline
                                      e["driver_commodity"]))
+            for drv in graph.contracts[cid].drivers:        # then the driver fan-in of this contract
+                frontier.append((drv.id, d + 1, None, "driver", cid))
         else:
             for p in graph.driver(cid, id_).parents:        # upstream cascade (parents cause this driver)
                 frontier.append((p, d + 1, None, "driver", cid))
