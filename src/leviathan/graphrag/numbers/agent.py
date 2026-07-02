@@ -62,6 +62,17 @@ def system_prompt(reg: NumbersRegistry) -> str:
         "many times as needed (different tables/metrics/scopes), then give a short factual answer that states each "
         "number with its unit and its knowledge_date (when it was published). If a lookup returns nothing, say so "
         "plainly — that means the value was not yet known at the as-of date. Do not reason beyond the numbers.\n\n"
+        "## Conventions\n"
+        "- `commodity` is the exact CONTRACT SLUG, e.g. corn_cbot, soybeans_cbot, soybean_oil_cbot, "
+        "hard_red_winter_wheat_kcbt, hard_red_spring_wheat_mgex, soft_red_winter_wheat_cbot, french_wheat_matif, "
+        "malaysian_crude_palm_oil_cme, arabica_coffee, cotton, raw_sugar, cocoa — use the suffixed form, not 'corn'.\n"
+        "- A marketing year is its START year as an INTEGER: the 2023/24 marketing year is 2023 (not 2024). "
+        "For silver_wasde, period is the string '2023/24'.\n"
+        "- silver_noaa_oni has NO date column: window months with period_start/period_end as 'YYYY-MM', or use "
+        "agg=latest for the most recent month on/before the as-of date.\n"
+        "- Each returned row is self-identifying (it carries its own period / year / month) — read those to confirm "
+        "which observation each number is; results are chronological, so use agg=latest (not the first row) for "
+        "the most recent value.\n\n"
         f"## Tables\n{cards}"
     )
 

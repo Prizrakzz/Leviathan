@@ -58,6 +58,12 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
         w.append(f"{ts.date_col} >= {_q(spec.period_start)}")
     if ts.date_col and spec.period_end:
         w.append(f"{ts.date_col} <= {_q(spec.period_end)}")
+    if ts.knowledge_semantics == "year_month" and (spec.period_start or spec.period_end):
+        ym = f"({ts.year_col} * 100 + {ts.month_col})"          # window monthly (year_month) tables by 'YYYY-MM'
+        if spec.period_start:
+            w.append(f"{ym} >= {_asof_ym(spec.period_start)}")
+        if spec.period_end:
+            w.append(f"{ym} <= {_asof_ym(spec.period_end)}")
     return w
 
 
@@ -87,12 +93,19 @@ def _order_col(ts: TableSpec) -> Optional[str]:
 
 
 def _extras(ts: TableSpec) -> list[tuple[str, str]]:
-    """(expr, alias) provenance columns surfaced alongside the value."""
+    """(expr, alias) columns surfaced alongside the value so every row is SELF-IDENTIFYING (which period, when
+    published) — a series row that carries only a bare value is unattributable and gets misread."""
     out: list[tuple[str, str]] = []
     if ts.knowledge_date_col:
         out.append((ts.knowledge_date_col, "knowledge_date"))
     if ts.date_col and ts.date_col != ts.knowledge_date_col:
         out.append((ts.date_col, "data_date"))
+    if ts.period_col and ts.period_col not in (ts.knowledge_date_col, ts.date_col):
+        out.append((ts.period_col, "period"))
+    if ts.year_col:
+        out.append((ts.year_col, "year"))
+    if ts.month_col:
+        out.append((ts.month_col, "month"))
     if ts.unit_col:
         out.append((ts.unit_col, "unit"))
     if ts.shape == "tall" and ts.metric_col:
@@ -162,8 +175,13 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
             return False
         if spec.period_end and ts.date_col and str(r.get(ts.date_col)) > spec.period_end:
             return False
-        if ts.knowledge_semantics == "year_month":                       # the leakage guard (year_month)
-            return int(r.get(ts.year_col)) * 100 + int(r.get(ts.month_col)) <= ym
+        if ts.knowledge_semantics == "year_month":
+            rym = int(r.get(ts.year_col)) * 100 + int(r.get(ts.month_col))
+            if spec.period_start and rym < _asof_ym(spec.period_start):
+                return False
+            if spec.period_end and rym > _asof_ym(spec.period_end):
+                return False
+            return rym <= ym                                             # the leakage guard (year_month)
         return str(r.get(kcol) or "") <= spec.asof                       # the leakage guard (date)
     kept = [r for r in rows if keep(r)]
 

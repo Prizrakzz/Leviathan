@@ -133,6 +133,26 @@ def test_oni_year_month_guard_no_leakage():
     assert {r["month"] for r in kept} == {1, 2, 3}                    # Apr+ not yet known at mid-March
 
 
+def test_rows_are_self_identifying():
+    psd = build_sql(NumberQuery(table="silver_psd", metric="ending_stocks_mt", asof="2024-06-01",
+                                commodity="corn_cbot", country="Argentina", period="2023"), _psd())
+    assert "market_year AS period" in psd                        # PSD row carries its marketing year
+    oni = build_sql(NumberQuery(table="silver_noaa_oni", metric="oni_anom", asof="2016-06-01",
+                                period_start="2016-01", period_end="2016-03", agg="series"), _oni())
+    assert "year AS year" in oni and "month AS month" in oni      # ONI row carries its year+month (was the 0.0 misread)
+
+
+def test_oni_month_window():
+    ts = _oni()
+    sql = build_sql(NumberQuery(table="silver_noaa_oni", metric="oni_anom", asof="2016-06-01",
+                                period_start="2016-01", period_end="2016-03", agg="series"), ts)
+    assert "(year * 100 + month) >= 201601" in sql and "(year * 100 + month) <= 201603" in sql
+    rows = [{"year": 2016, "month": m, "oni_anom": 2.5 - 0.1 * m} for m in range(1, 13)]
+    kept = apply_pit_filter(rows, NumberQuery(table="silver_noaa_oni", metric="oni_anom", asof="2016-06-01",
+                                              period_start="2016-01", period_end="2016-03"), ts)
+    assert {r["month"] for r in kept} == {1, 2, 3}               # windowed to the requested months
+
+
 def test_registry_yaml_loads():
     reg = load_registry()
     assert {"silver_psd", "silver_wasde", "silver_production", "silver_nasa_power",
