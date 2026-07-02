@@ -45,8 +45,9 @@ class TableSpec(BaseModel):
     month_col: Optional[str] = None                          # year_month semantics: the month column
     knowledge_date_col: Optional[str] = None                 # the vintage/publication/ingest date
     knowledge_semantics: Literal["vintage", "ingest", "data_date", "year_month"] = "data_date"
-    partition_col: Optional[str] = None                      # injected-projection partition: queries MUST carry a
-    #                                                          static equality on it (e.g. silver_nasa_power.region)
+    partition_cols: list[str] = []                           # injected-projection partitions: every query MUST carry
+    #                                                          a static equality on EACH (silver_nasa_power:
+    #                                                          commodity/country/region, mirroring the S3 layout)
     metric_col: Optional[str] = None                         # tall: column holding the metric NAME
     value_col: Optional[str] = None                          # tall: column holding the numeric VALUE
     unit_col: Optional[str] = None

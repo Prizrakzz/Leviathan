@@ -54,38 +54,69 @@ def _value_expr(spec: NumberQuery, ts: TableSpec) -> str:
     return spec.metric if ts.shape == "wide" else (ts.value_col or "value")
 
 
+def _snake(v: str) -> str:
+    return v.strip().lower().replace(" ", "_")
+
+
 @functools.lru_cache(maxsize=64)
-def default_region(commodity: str) -> Optional[str]:
-    """The commodity's representative station-region (first primary-country location) from
-    configs/geographies/<commodity>_regions.yaml — the default when a partition-required table (nasa_power)
-    gets no explicit region. One station is a defensible proxy for a research lookup; provenance carries it."""
+def _geo(commodity: str) -> dict:
+    """configs/geographies/<commodity>_regions.yaml -> {region: country_snake, '_primary': (country, region)}.
+    Supplies the DEFAULT station-region (first primary-country location) and the region->country mapping for
+    partition-projected weather tables. Countries there are snake_case ('united_states')."""
     import yaml
     from leviathan.graphrag import extract as ex
     p = ex._CFG.parent / "geographies" / f"{commodity}_regions.yaml"
     if not p.exists():
-        return None
+        return {}
     cfg = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-    blocks = cfg.get("regions") or []
-    blocks = sorted(blocks, key=lambda b: 0 if b.get("importance") == "primary" else 1)
+    blocks = sorted(cfg.get("regions") or [], key=lambda b: 0 if b.get("importance") == "primary" else 1)
+    out: dict = {}
     for b in blocks:
+        c = b.get("country") or ""
         for loc in b.get("locations") or []:
-            if loc.get("region"):
-                return loc["region"]
-    return None
+            r = loc.get("region")
+            if r:
+                out.setdefault(r, c)
+                out.setdefault("_primary", (c, r))
+    return out
+
+
+def default_region(commodity: str) -> Optional[str]:
+    prim = _geo(commodity).get("_primary")
+    return prim[1] if prim else None
+
+
+def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
+    """Static equalities for EVERY injected-projection partition (Athena CONSTRAINT_VIOLATION otherwise).
+    region defaults to the commodity's primary station; country derives from the region's geography block
+    (values are snake_case there — 'united_states'); commodity must be given."""
+    geo = _geo(spec.commodity) if spec.commodity else {}
+    w: list[str] = []
+    region = spec.region or (geo.get("_primary") or (None, None))[1]
+    for col in ts.partition_cols:
+        if col == ts.commodity_col:
+            if not spec.commodity:
+                raise ValueError(f"table {ts.id} requires commodity (partition column)")
+            continue                                          # emitted by the regular commodity filter
+        if col == ts.country_col:
+            val = _snake(spec.country) if spec.country else geo.get(region)
+        elif col == "region":
+            val = region
+        else:
+            val = getattr(spec, col, None)
+        if not val:
+            raise ValueError(f"table {ts.id} requires a static {col} equality (injected partition); "
+                             f"pass {col}= or a commodity with a geographies config")
+        w.append(f"{col} = {_q(val)}")
+    return w
 
 
 def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     """The identity/scope predicates (NOT the as-of guard)."""
-    w: list[str] = []
-    if ts.partition_col:                             # injected-projection partition: static equality is MANDATORY
-        val = spec.region or (default_region(spec.commodity) if spec.commodity else None)
-        if not val:
-            raise ValueError(f"table {ts.id} requires a {ts.partition_col} equality filter "
-                             f"(pass region= or a commodity with a geographies config)")
-        w.append(f"{ts.partition_col} = {_q(val)}")
+    w: list[str] = list(_partition_filters(spec, ts)) if ts.partition_cols else []
     if spec.commodity and ts.commodity_col:
         w.append(f"{ts.commodity_col} = {_q(spec.commodity)}")
-    if spec.country and ts.country_col:
+    if spec.country and ts.country_col and ts.country_col not in ts.partition_cols:
         w.append(f"{ts.country_col} = {_q(spec.country)}")
     if ts.shape == "tall" and ts.metric_col:
         w.append(f"{ts.metric_col} = {_q(spec.metric)}")
@@ -196,9 +227,9 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     ym = _asof_ym(spec.asof) if ts.knowledge_semantics == "year_month" else None
 
     def keep(r: dict) -> bool:
-        if ts.partition_col:
-            val = spec.region or (default_region(spec.commodity) if spec.commodity else None)
-            if val and str(r.get(ts.partition_col)) != str(val):
+        if "region" in ts.partition_cols:
+            val = spec.region or default_region(spec.commodity or "")
+            if val and str(r.get("region")) != str(val):
                 return False
         if spec.commodity and ts.commodity_col and str(r.get(ts.commodity_col)) != str(spec.commodity):
             return False

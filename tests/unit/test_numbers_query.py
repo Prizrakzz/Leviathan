@@ -176,7 +176,7 @@ def test_registry_yaml_loads():
 def _weather_part() -> TableSpec:                          # wide + data_date + REQUIRED injected partition
     return TableSpec(id="silver_nasa_power", description="", shape="wide", commodity_col="commodity",
                      country_col="country", period_type="date", date_col="date", knowledge_semantics="data_date",
-                     partition_col="region")
+                     partition_cols=["commodity", "country", "region"])
 
 
 def test_partition_required_emits_static_equality():
@@ -193,10 +193,22 @@ def test_partition_default_region_from_geographies():
     sql = build_sql(NumberQuery(table="silver_nasa_power", metric="temperature_2m_max_c", asof="2012-08-01",
                                 commodity="corn_cbot", agg="latest"), _weather_part())
     assert "region = 'us_corn_iowa'" in sql                     # default resolved when region omitted
+    assert "country = 'united_states'" in sql                  # country derived from the region block (snake)
 
 
 def test_partition_required_without_resolvable_region_raises():
     import pytest
-    with pytest.raises(ValueError, match="requires a region"):
+    with pytest.raises(ValueError, match="requires commodity"):      # commodity is itself a partition column
         build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2012-08-01"),
                   _weather_part())
+    with pytest.raises(ValueError, match="static region equality"):  # commodity without a geographies config
+        build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2012-08-01",
+                              commodity="no_such_commodity", country="united_states"), _weather_part())
+
+
+def test_partition_country_normalized_to_snake():
+    # the S3 layout stores country as snake_case ('united_states'); the agent says 'United States' — 0 rows
+    # unless normalized. Confirmed live: united_states -> 16071 rows, 'United States' -> 0.
+    sql = build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2012-08-01",
+                                commodity="corn_cbot", country="United States", agg="latest"), _weather_part())
+    assert "country = 'united_states'" in sql and "country = 'United States'" not in sql
