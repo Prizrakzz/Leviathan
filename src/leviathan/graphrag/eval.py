@@ -156,6 +156,7 @@ def _metrics(r: dict) -> dict:
             "intent_ok": rb.get("intent_ok"), "routed_intent": rb.get("routed_intent"),
             "expected_intent": rb.get("expected_intent"), "leakage_ok": rb.get("leakage_ok"),
             "n_numbers": len(out.get("number_calls") or []),
+            "n_number_errors": sum(1 for c in (out.get("number_calls") or []) if c.get("status") == "error"),
             # source-diversity / trust-ranking (the multi-source lift)
             "ev_sources": len(ev_srcs), "ev_tiers": len(ev_tiers), "cited_sources": len(set(cited_srcs)),
             "multi_tier": len(ev_tiers) >= 2,                                  # store offered >=2 trust tiers
@@ -204,6 +205,9 @@ def routing_report(rows: list[dict]) -> list[str]:
          f"- **intent routed correctly**: **{iok}/{len(intent) or 1}** (vs expected_intent)",
          f"- routed intents: {dict(routed)}",
          f"- questions that triggered a number lookup: {sum(1 for x in m if x.get('n_numbers'))}/{len(m)}"]
+    nerr = sum(x.get("n_number_errors", 0) for x in m)
+    if nerr:                                                          # loud flag: data-access failure, NOT point-in-time
+        L.append(f"- **number lookups that ERRORED (data-access failure, not 'not known'): {nerr}** <- investigate")
     if leak:
         L.append(f"- **leakage-trap handled** (said 'not known at asof'): {sum(1 for x in leak if x['leakage_ok'])}/{len(leak)}")
     L.append(f"- judge **convexity** avg: {avg('convexity')}/5 | **point_in_time** avg: {avg('point_in_time')}/5")
@@ -242,7 +246,7 @@ def _num_line(out: dict) -> str:
     parts = []
     for c in out.get("number_calls") or []:
         qy, rws = c.get("query", {}), (c.get("rows") or [])
-        val = rws[0].get("value") if rws else "(not known)"
+        val = rws[0].get("value") if rws else ("ERROR" if c.get("status") == "error" else "(not known)")
         parts.append(f"{qy.get('table','?')}.{qy.get('metric','?')}={val}")
     return ", ".join(parts)
 

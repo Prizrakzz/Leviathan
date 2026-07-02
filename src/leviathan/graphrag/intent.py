@@ -16,12 +16,13 @@ _NUM = re.compile(
     r"\b(how much|how many|what (?:was|were|is|are)|what'?s the|level of|the number|the figure|"
     r"exports?|imports?|production|ending stocks|beginning stocks|stocks-to-use|acreage|area harvested|"
     r"yield|the price|exchange rate|oni|el ni[nñ]o index|how weak|how strong|basis)\b", re.I)
-# reasoning: asks why/how/what-if about drivers, cascades, exposure, direction.
+# reasoning: asks why/how/what-if about drivers, cascades, convexity, exposure, direction.
 _REASON = re.compile(
     r"\b(why|how does|how do|what happens|what would|if .+(?:then|would|will|enough)|explain|mechanism|"
-    r"driver|cascade|converge|exposed|bullish|bearish|stack|offset|reinforce|cancel|affect|impact|"
-    r"transmit|feed through|scenario|counterfactual|dominate|lead|which .+more|"
-    r"a buy|a sell|worth (?:buying|selling)|net long|net short|squeeze|tip into)\b", re.I)
+    r"driver|cascade|converge|propagat|amplif|dampen|regime|convex|linear|asymmetr|skew|tail|buffer|threshold|"
+    r"channel|exposed|bullish|bearish|stack|offset|reinforce|cancel|cost-push|affect|impact|"
+    r"transmit|feed through|scenario|counterfactual|dominate|lead|which .+more|tip(?:s|ped)? into|tip from|"
+    r"a buy|a sell|worth (?:buying|selling)|net long|net short|squeeze)\b", re.I)
 
 
 def _mk(intent: str) -> dict:
@@ -53,9 +54,11 @@ def classify_intent(query: str, *, call=None, model: str = HAIKU) -> dict:
     q = query or ""
     n, r = bool(_NUM.search(q)), bool(_REASON.search(q))
     if n and not r:
-        return _mk("numbers_only")
+        return _mk("numbers_only")                                   # only a data cue -> pure lookup
     if r and not n:
-        return _mk("reasoning")
-    if n and r:
-        return _mk("hybrid")
-    return _llm_classify(q, call, model) if call is not None else _mk("reasoning")
+        return _mk("reasoning")                                      # only a reasoning cue -> pure reasoning
+    # AMBIGUOUS (both fired, or neither): a data cue inside a reasoning question ("given the observed X, is it
+    # convex") is the exact case the heuristic mis-classifies -> let the cheap LLM adjudicate when available.
+    if call is not None:
+        return _llm_classify(q, call, model)
+    return _mk("hybrid" if (n and r) else "reasoning")               # no LLM: both->hybrid, neither->reasoning

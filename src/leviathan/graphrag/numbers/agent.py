@@ -60,8 +60,10 @@ def system_prompt(reg: NumbersRegistry) -> str:
         "retrieve via the lookup_number tool from the tables below — never invent or recall a figure. Every value "
         "is returned as-known at a fixed as-of date you cannot change (point-in-time correct). Call the tool as "
         "many times as needed (different tables/metrics/scopes), then give a short factual answer that states each "
-        "number with its unit and its knowledge_date (when it was published). If a lookup returns nothing, say so "
-        "plainly — that means the value was not yet known at the as-of date. Do not reason beyond the numbers.\n\n"
+        "number with its unit and its knowledge_date (when it was published). A tool_result has a `status`: "
+        "`ok` (use the value), `not_known` (empty AND the value was genuinely not yet published at the as-of date "
+        "— say so plainly), or `error` (the lookup FAILED for a data-access reason — say the figure is UNAVAILABLE "
+        "due to a lookup error; do NOT claim it was 'not known at the as-of date'). Do not reason beyond the numbers.\n\n"
         "## Conventions\n"
         "- `commodity` is the exact CONTRACT SLUG, e.g. corn_cbot, soybeans_cbot, soybean_oil_cbot, "
         "hard_red_winter_wheat_kcbt, hard_red_spring_wheat_mgex, soft_red_winter_wheat_cbot, french_wheat_matif, "
@@ -109,9 +111,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             try:
                 spec = _forced_spec(asof, dict(b.input))
                 rows = Q.run(spec, query_fn=query_fn)
-                payload = {"query": spec.model_dump(exclude_none=True), "rows": rows}
+                # DISTINGUISH: empty-with-no-error = genuinely not known at asof (point-in-time); an EXCEPTION is a
+                # lookup FAILURE (data-access), which must NEVER be reported as "not known at asof".
+                payload = {"query": spec.model_dump(exclude_none=True), "rows": rows,
+                           "status": "ok" if rows else "not_known"}
             except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
-                payload = {"query": dict(b.input), "error": str(e)[:200], "rows": []}
+                payload = {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}
             calls.append(payload)
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(payload)[:6000]})
         convo.append({"role": "user", "content": results})
@@ -131,7 +136,8 @@ def format_provenance(calls: list[dict]) -> list[str]:
     for c in calls:
         q = c.get("query", {})
         rows = c.get("rows") or []
-        val = rows[0].get("value") if rows else "(none)"
+        val = (rows[0].get("value") if rows else
+               "(lookup error)" if c.get("status") == "error" else "(not known at asof)")
         kd = rows[0].get("knowledge_date") or rows[0].get("data_date") if rows else ""
         scope = "/".join(str(q.get(k)) for k in ("commodity", "country", "period") if q.get(k))
         out.append(f"{q.get('table')}.{q.get('metric')} {scope} = {val}" + (f" [{kd}]" if kd else ""))

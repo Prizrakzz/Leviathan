@@ -28,3 +28,20 @@ def test_neither_signal_uses_llm_when_call_available():
         assert tool["name"] == "set_intent"
         return {"intent": "numbers_only"}
     assert it.classify_intent("coffee", call=fake_call)["intent"] == "numbers_only"
+
+
+def test_both_signals_defer_to_llm():
+    # "given the observed X, is it convex" fires BOTH cues -> the exact case the heuristic mis-routed to numbers_only
+    seen = {}
+
+    def fake_call(system, user, *, model, tool):
+        seen["called"] = True
+        return {"intent": "hybrid"}
+    d = it.classify_intent("Given the observed corn ending stocks, is the price response convex?", call=fake_call)
+    assert seen.get("called") and d["intent"] == "hybrid"
+
+
+def test_convexity_state_question_is_not_numbers_only():
+    # without an LLM, a data cue + a convexity cue must fall to hybrid, never numbers_only
+    d = it.classify_intent("Given where corn stocks-to-use sat, is a yield shock convex or linear?")
+    assert d["intent"] == "hybrid"

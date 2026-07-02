@@ -165,6 +165,13 @@ def test_system_prompt_carries_grounding_guardrails():
     assert "APPROVED EDGES ONLY" in an._SYSTEM and "CONFIDENCE:" in an._SYSTEM   # #25 do-not-infer guardrails present
 
 
+def test_system_prompt_convexity_research_register():
+    s = an._SYSTEM
+    assert "QUANT RESEARCHER" in s and "convex" in s.lower() and "tail risk" in s.lower()   # convexity/tail framing
+    assert "position sizing" in s.lower()                                       # explicitly out of scope (research)
+    assert "OUTPUT REGISTER" in s and "bullish/bearish" in s                    # register: words, not +/-
+
+
 def test_source_tier_and_ev_block_tagging():
     assert an.source_tier("usda_wasde") == 1 and an.source_tier("usda_fas_coffee_wmt") == 1   # official/balance-sheet
     assert an.source_tier("usda_gain_coffee") == 2                                            # USDA attache

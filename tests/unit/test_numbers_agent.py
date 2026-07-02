@@ -71,3 +71,25 @@ def test_system_prompt_lists_tables_units_and_semantics():
     sp = A.system_prompt(A.load_registry())
     assert "silver_psd" in sp and "ending_stocks_mt" in sp and "silver_noaa_oni" in sp
     assert "year_month" in sp and "MT" in sp                     # semantics + units surfaced to the model
+
+
+def test_lookup_error_is_not_labelled_not_known():
+    def failing(sql):
+        raise RuntimeError("Unable to verify/create output bucket")   # the exact Fargate failure
+    client = FakeClient([
+        _resp([_tool_use({"table": "silver_psd", "metric": "ending_stocks_mt", "commodity": "corn_cbot",
+                          "period": "2023"})], "tool_use"),
+        _resp([_text("The figure is unavailable due to a lookup error.")], "end_turn")])
+    out = A.answer_numbers("corn stocks?", asof="2024-06-01", client=client, query_fn=failing)
+    assert out["calls"][0]["status"] == "error" and "error" in out["calls"][0]        # errored, not not_known
+    assert "(lookup error)" in A.format_provenance(out["calls"])[0]
+
+
+def test_empty_result_is_not_known():
+    client = FakeClient([
+        _resp([_tool_use({"table": "silver_psd", "metric": "ending_stocks_mt", "commodity": "corn_cbot",
+                          "period": "2023"})], "tool_use"),
+        _resp([_text("That value was not known at the as-of date.")], "end_turn")])
+    out = A.answer_numbers("q", asof="2023-07-01", client=client, query_fn=lambda sql: [])
+    assert out["calls"][0]["status"] == "not_known"                                   # empty + no error = point-in-time
+    assert "(not known at asof)" in A.format_provenance(out["calls"])[0]
