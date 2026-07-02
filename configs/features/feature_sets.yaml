@@ -341,7 +341,7 @@ feature_sets:
 
   - id: wasde_monthly_revision
     version: 1
-    description: Point-in-time monthly WASDE revision features available by the model snapshot date.
+    description: Diagnostic-only as a standalone stack until the WASDE release-date rebuild emits dense latest-estimate and balance-sheet features; current production matrix selected zero usable pure WASDE columns.
     allowed_policies:
       - fundamental_physical
     allowed_feature_families:
