@@ -71,8 +71,13 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
             numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
             planner: str | None = None) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
-    `asof` defaults to today. `planner='l2'` routes the reasoning/hybrid branches through the deterministic
-    grounded-subgraph walk. Inject `classify`/`call`/`retrieve`/`numbers_client`/`query_fn` for tests."""
+    `asof` defaults to today. The reasoning/hybrid branches default to the L2 deterministic grounded-subgraph
+    walk (v1.1 reached judge parity with one-hop at 0/30 register leaks, and the roadmap — driver-slice
+    coverage, regime firing, agentic planner — builds on it). Resolution: explicit `planner` arg wins, then
+    the GRAPHRAG_PLANNER env var, then 'l2'; pass 'onehop' (or set GRAPHRAG_PLANNER=onehop) to fall back to
+    single-contract retrieval. Inject `classify`/`call`/`retrieve`/`numbers_client`/`query_fn` for tests."""
+    import os
+    planner = planner or os.environ.get("GRAPHRAG_PLANNER", "l2")
     asof = asof or _today()
     decided = (classify or it.classify_intent)(query, call=call)
     kind = decided["intent"]

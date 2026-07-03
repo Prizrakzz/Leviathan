@@ -403,8 +403,9 @@ def main() -> int:
     ap.add_argument("--queries", default=None, help="queries yaml path (default configs/graphrag/eval_queries.yaml)")
     ap.add_argument("--via-orchestrator", action="store_true",
                     help="route each query through the intent branch (orchestrator.respond) — numbers/reasoning/hybrid")
-    ap.add_argument("--planner", default=None, choices=[None, "l2"],
-                    help="reasoning engine: default one-hop; 'l2' = deterministic grounded-subgraph walk (A/B)")
+    ap.add_argument("--planner", default=None, choices=[None, "l2", "onehop"],
+                    help="reasoning engine: default = serving default (L2 via orchestrator; answer() alone stays "
+                         "one-hop); 'onehop' forces the single-contract baseline for A/Bs")
     ap.add_argument("--workers", type=int, default=4,
                     help="concurrent questions (answer + judge phases; LLM-network-bound so cost is identical; "
                          "1 = legacy sequential)")

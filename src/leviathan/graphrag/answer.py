@@ -277,15 +277,21 @@ def _l2_blocks(sg, graph: gph.CausalGraph) -> list[str]:
     return blocks
 
 
-def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed) -> dict:
+def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
+               extra_context: str | None = None, extra_number_calls: list | None = None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
-    graph-derived cascade. Reuses the shared render + unified footer + sanitizer."""
+    graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
+    numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
+    the unified footer."""
     from leviathan.graphrag import planner as pl
     retr = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)
     sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed)
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near)
     contracts = sg.seeds
-    structured = call(_SYSTEM, _prompt(query, contracts, _l2_blocks(sg, graph)), model=model, tool=_answer_tool())
+    blocks = _l2_blocks(sg, graph)
+    if extra_context:                                             # hybrid: inject silver numbers as context
+        blocks = blocks + [extra_context]
+    structured = call(_SYSTEM, _prompt(query, contracts, blocks), model=model, tool=_answer_tool())
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
     evidence = [{**h, "contract": n.contract} for n in sg.nodes for h in n.evidence]
@@ -295,7 +301,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         if sk and sk not in seen_docs:
             seen_docs.add(sk)
             uniq.append(h)
-    ev_cits = cit.unify(uniq, None)
+    ev_cits = cit.unify(uniq, extra_number_calls)                 # numbers citations (hybrid) join the same footer
     footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
     body = reg.sanitize(render(structured) + footer)
     return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
@@ -366,7 +372,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         return {"answer": "No tracked contract matched this question.", "structured": None, "contract": None,
                 "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
-        return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=retrieve, routed=routed)
+        return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=retrieve,
+                          routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls)
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()
