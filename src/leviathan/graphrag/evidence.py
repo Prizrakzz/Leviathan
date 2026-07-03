@@ -15,6 +15,9 @@ from datetime import date
 
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import harvest as hv
+from leviathan.graphrag import params as _prm
+
+_FETCH_K = int(_prm.get("serving.retrieval.fetch_k", 60))
 
 _EVID_DIR = ex._CFG / "evidence"
 
@@ -344,7 +347,7 @@ def _out(recs: list[dict]) -> list[dict]:
 def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,
              beta: float = 0.25, bedrock=None, records: list[dict] | None = None,
              mode: str = "dense", rerank: bool = False, mmr: float = 0.0,
-             same_source: bool = True, fairness: float = 0.30, fetch_k: int = 60) -> list[dict]:
+             same_source: bool = True, fairness: float = 0.30, fetch_k: int = _FETCH_K) -> list[dict]:
     """Top-k props for the query, point-in-time filtered (date <= asof) — leakage-safe. Default
     (mode='dense', rerank=False, mmr=0) is pure cosine + episode-proximity, UNCHANGED. Opt-in retrieval-quality
     knobs (all in-memory; they curate WHICH dated evidence reaches the LLM, never the reasoning):

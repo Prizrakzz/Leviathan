@@ -19,6 +19,18 @@ from typing import Optional
 
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import graph as gph
+from leviathan.graphrag import params as _pr
+
+# Serving knobs read from params.yaml (section 9.1: no knob hardcoded); the literals here are the
+# authoritative fallbacks for a public clone without the private config.
+_TAU = float(_pr.get("serving.walk.tau", 0.35))
+_NODE_BUDGET = int(_pr.get("serving.walk.node_budget", 10))
+_DEPTH = int(_pr.get("serving.walk.depth", 2))
+_MAX_SEEDS = int(_pr.get("serving.walk.max_seeds", 2))
+_RECENCY_DAYS = int(_pr.get("serving.ground.recency_days", 548))
+_PROBE_CAP = int(_pr.get("serving.ground.probe_cap", 24))
+_EVIDENCE_CAP = int(_pr.get("serving.ground.evidence_cap", 24))
+_K_BY_DEPTH = tuple(_pr.get("serving.ground.k_by_depth", (5, 3, 2)))
 
 
 # ── edge-category map (code-level; NO YAML re-curation) ──────────────────────────────────────────────────────
@@ -93,8 +105,8 @@ def _seed_contracts(query, graph, route_fn, max_seeds: int) -> list[str]:
     return seeds
 
 
-def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = 2, node_budget: int = 10,
-                      tau: float = 0.35, max_seeds: int = 2, embed=None, route_fn=None) -> Subgraph:
+def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH, node_budget: int = _NODE_BUDGET,
+                      tau: float = _TAU, max_seeds: int = _MAX_SEEDS, embed=None, route_fn=None) -> Subgraph:
     """Query-conditioned frontier walk. Returns the kept subgraph with the PRIOR leg + mermaid + trace filled;
     evidence/silver/convergence are added by ground(). Deterministic given `embed` (inject a fake in tests)."""
     embed = embed or ev.embed
@@ -200,8 +212,8 @@ def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
 
 
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
-           asof=None, near=None, k_by_depth=(5, 3, 2), evidence_cap: int = 24, driver_slices=None,
-           probe_cap: int = 24, recency_days: int = 548, probe_retrieve=None) -> Subgraph:
+           asof=None, near=None, k_by_depth=_K_BY_DEPTH, evidence_cap: int = _EVIDENCE_CAP, driver_slices=None,
+           probe_cap: int = _PROBE_CAP, recency_days: int = _RECENCY_DAYS, probe_retrieve=None) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
     injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
 
@@ -259,6 +271,7 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     # contract's evidence keeps its display `active` flag but never fires a regime.
     sg.fired_regimes = []
     regime_basis: dict[str, dict] = {}
+    vetoed: dict[str, dict] = {}                                   # contract -> {driver: normal silver reading}
     budget = {"left": probe_cap}
     asof_s = str(asof)[:10] if asof else None
     floor = None
@@ -295,6 +308,25 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             key = (cid, did)
             if key in probe_cache:
                 return probe_cache[key]
+            # SILVER FIRST (F4): an OBSERVED anomalous value at the as-of vintage is the strongest
+            # receipt; a live-and-NORMAL value VETOES the driver — documented chatter cannot fire a
+            # regime the observed data contradicts. Inconclusive/miss -> the text semantics decide.
+            if silver_lookup is not None:
+                sv = silver_lookup(cid, did, asof)
+                if sv and sv.get("live"):
+                    if sv.get("verdict") == "observed":
+                        probe_cache[key] = {"kind": "observed", "date": sv.get("knowledge_date", ""),
+                                            "source": sv.get("ref", "silver"), "value": sv.get("value"),
+                                            "unit": sv.get("unit", ""), "z": sv.get("z"),
+                                            "detail": sv.get("detail", "")}
+                        return probe_cache[key]
+                    if sv.get("verdict") == "normal":
+                        vetoed.setdefault(cid, {})[did] = {"value": sv.get("value"), "z": sv.get("z"),
+                                                           "unit": sv.get("unit", ""),
+                                                           "source": sv.get("ref", "silver"),
+                                                           "date": sv.get("knowledge_date", "")}
+                        probe_cache[key] = None
+                        return None
             sp = slice_path(did) if did in backed else None
             if sp and budget["left"] > 0:                          # asof-guarded slice probe, recency-tested
                 budget["left"] -= 1
@@ -322,6 +354,7 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     sg.trace["active"] = [list(n.key) for n in sg.nodes if n.active]
     sg.trace["regime_basis"] = regime_basis
     sg.trace["n_probes"] = probe_cap - budget["left"]
+    sg.trace["silver_veto"] = vetoed                               # drivers observed NORMAL (excluded from firing)
     return sg
 
 

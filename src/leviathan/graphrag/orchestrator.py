@@ -48,9 +48,9 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
 
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
-                  near: str | None = None) -> dict:
+                  near: str | None = None, silver_lookup=None) -> dict:
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
-                    extra_context=extra_context, route_fn=route_fn, near=near)
+                    extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -59,13 +59,14 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
 
 def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None,
-               extra_context: str | None = None, route_fn=None, near: str | None = None) -> dict:
+               extra_context: str | None = None, route_fn=None, near: str | None = None,
+               silver_lookup=None) -> dict:
     nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn)
     calls = nums.get("calls", [])
     extra = "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x)
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                     extra_context=extra, extra_number_calls=calls, planner=planner, route_fn=route_fn,
-                    near=near)
+                    near=near, silver_lookup=silver_lookup)
     out["intent"] = "hybrid"
     out["number_calls"] = calls
     out["asof"] = asof
@@ -188,6 +189,13 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
         from leviathan.graphrag.numbers import query as Q
         qfn = ss.cached_query_fn(state, query_fn or Q.athena_query_fn())
 
+    # Silver leg (F4): OBSERVED driver values feed regime firing. Built only on the REAL serving path
+    # (call is None) so injected-fake tests stay hermetic; GRAPHRAG_SILVER=off is the rollback.
+    silver_lookup = None
+    if call is None and os.environ.get("GRAPHRAG_SILVER", "on") != "off":
+        from leviathan.graphrag import silverleg as slv
+        silver_lookup = slv.make_silver_lookup(graph, qfn)
+
     # ── dispatch tier (planner v1) ────────────────────────────────────────────────────────────────
     # One enum-locked planning call resolves {steps, contracts, asof, near} with the session state in
     # view — the fix for the state-blind classifier (convo eval: pronoun follow-ups misrouted to
@@ -231,10 +239,10 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
     elif kind == "hybrid":
         res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                          client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
-                         extra_context=sblock, route_fn=route_fn, near=near)
+                         extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
     else:
         res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                            extra_context=sblock, route_fn=route_fn, near=near)
+                            extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
     res["intent_decision"] = decided
     return _session_writeback(res, query, asof, session_id, store, state, graph, call)
 

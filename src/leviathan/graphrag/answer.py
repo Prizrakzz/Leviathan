@@ -16,12 +16,15 @@ from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
 from leviathan.graphrag import harvest as hv
+from leviathan.graphrag import params as _prm
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
 # rerank sharpened rank; MMR kept the best source-diversity, guarding against narrowing). Serving uses this by
 # default; override `retrieve=` to A/B a different arm. NOTE: rerank runs a bge cross-encoder — on CPU it adds
 # real per-query latency, so in production point it at a GPU/hosted reranker (like the bge-m3 embed endpoint).
-_RETRIEVAL = {"mode": "hybrid", "rerank": True, "mmr": 0.5, "fairness": 0.3}   # MMR is source-aware (same-source dedup, cross-source keep, balance)
+_RETRIEVAL = {"mode": "hybrid", "rerank": True,
+              "mmr": float(_prm.get("serving.retrieval.mmr", 0.5)),
+              "fairness": float(_prm.get("serving.retrieval.fairness", 0.3))}   # MMR is source-aware
 
 SONNET = "claude-sonnet-4-6"
 
@@ -100,6 +103,15 @@ _SYSTEM = (
     "T2 USDA attache GAIN > T3 producer/industry body fnc/mpoc/conab > T4 macro/price outlook wb_cmo). Draw on ALL "
     "tiers for breadth, but in `sources` ORDER citations most-trusted (lowest T) FIRST and note each source's "
     "nature. When sources of DIFFERENT tiers disagree on a fact, FLAG the disagreement — it's signal a PM wants.\n"
+    "MULTIPLE CONTRACTS / COMPLEX MEMBERS: report where members AGREE vs where sign or magnitude DIVERGES, "
+    "per member — NEVER average them into one blended read; for this researcher the spread between members IS "
+    "the trade.\n"
+    "RESOLVED FROM THE THREAD: if the question did not name a commodity and you are reading it through the "
+    "CONVERSATION STATE (a pronoun, 'the Kansas one', 'back to wheat'), open the TL;DR by stating that reading "
+    "in plain words ('Reading this as KC wheat from our thread') so a wrong guess is instantly visible.\n"
+    "PER-HOP CITATIONS: in a multi-hop cascade, each hop beyond the first carries its OWN dated citation; a hop "
+    "with none is labeled '(mechanism only — no dated evidence at this hop)' rather than borrowing the first "
+    "hop's citation downstream.\n"
     "Emit via emit_answer, reader-first for a PM to skim:\n"
     "- tldr: 2-4 sentences, bottom line FIRST (net price direction + the key driver). Inline [n] for evidence-backed claims.\n"
     "- mechanism: the causal chain / key drivers (sign each in words — 'raises price (bullish)' or 'lowers (bearish)'); NAME the convergence "
@@ -265,18 +277,33 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
         vlines = [f"--- AS-OF STATE + DATED EVIDENCE for {cid} ---"]
         fired = fired_by.get(cid) or []
         if fired:
-            vlines.append("CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF (textual evidence only — NOT "
+            def _receipt(d, b):
+                if b.get("kind") == "observed":                    # silver leg: a real as-of-vintage value
+                    return (f"{d} (OBSERVED {b.get('value')} {b.get('unit', '')}, z={b.get('z')}, "
+                            f"{b.get('source', '')} {b.get('date', '')})")
+                return f"{d} ({b.get('source', '?')}, {b.get('date', '?')})"
+            any_obs = any(b.get("kind") == "observed" for r in fired for b in (r.get("basis") or {}).values())
+            vlines.append("CONVERGENCE CONDITIONS SUPPORTED NEAR THE AS-OF (OBSERVED = a real silver value "
+                          "at the as-of vintage, safe to state as measured; others are textual evidence only):"
+                          if any_obs else
+                          "CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF (textual evidence only — NOT "
                           "verified against observed values; no stocks/price/index levels were checked):")
             for r in fired:
                 basis = r.get("basis") or {}
-                docs = ", ".join(f"{d} ({b.get('source', '?')}, {b.get('date', '?')})" for d, b in basis.items()) \
-                    or ", ".join(r["matched"])
+                docs = ", ".join(_receipt(d, b) for d, b in basis.items()) or ", ".join(r["matched"])
                 vlines.append(f"- {r['name']} ({r['direction']}): documented drivers: {docs} — "
                               f"{len(r['matched'])} of {r['threshold']} required"
                               + (f"; interactions {r['interactions']}" if r["interactions"] else ""))
             vlines.append("INSTRUCTION: never describe a regime as 'fired', 'active', 'armed' or 'confirmed'. "
-                          "Say the documented conditions are CONSISTENT WITH the regime, and name the observed "
-                          "value (e.g. stocks-to-use, the premium level) that would confirm or refute it.")
+                          "Say the conditions are CONSISTENT WITH the regime; an OBSERVED receipt may be "
+                          "stated as a measured value; for text-only receipts name the observed value "
+                          "(e.g. stocks-to-use, the premium level) that would confirm or refute it.")
+        veto = (sg.trace.get("silver_veto") or {}).get(cid) or {}
+        if veto:
+            vlines.append("DRIVERS OBSERVED NORMAL IN SILVER at the as-of (they did NOT count toward any "
+                          "regime; treat documented mentions of them as stale or anticipatory): "
+                          + ", ".join(f"{d} ({v.get('value')} {v.get('unit', '')}, z={v.get('z')})"
+                                      for d, v in veto.items()))
         elif asof:
             vlines.append("CONVERGENCE: no regime has enough drivers documented near the as-of.")
         else:
@@ -304,7 +331,7 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
 
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
-               focus_driver: str | None = None, use_blocks: bool = False) -> dict:
+               focus_driver: str | None = None, use_blocks: bool = False, silver_lookup=None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -324,7 +351,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 sg.trace["focus_driver"] = focus_driver
                 break
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
-    pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near,
+    pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
               probe_retrieve=probe_retr)                          # probes = cheap existence checks, no reranker
     contracts = sg.seeds
     stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof)
@@ -342,11 +369,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             seen_docs.add(sk)
             uniq.append(h)
     ev_cits = cit.unify(uniq, extra_number_calls)                 # numbers citations (hybrid) join the same footer
+    from leviathan.graphrag import verify as vf
+    verifier = vf.verify_citations(structured, evidence, extra_number_calls)
     footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
     body = reg.sanitize(render(structured) + footer)
     return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits], "evidence": evidence,
             "model": model, "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
+                                      "citation_verifier": verifier,
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
 
@@ -420,13 +450,14 @@ def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
-           planner: str | None = None, focus_driver: str | None = None) -> dict:
+           planner: str | None = None, focus_driver: str | None = None, silver_lookup=None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
     evidence, trace}."""
-    retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)         # serving = the A/B-won hybrid+rerank+mmr stack
-    driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)   # real slices; tests inject -> no-op
+    raw_retrieve = retrieve                                        # the CALLER's arg (None on serving) — _answer_l2
+    retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)         # needs it raw so its cheap no-rerank
+    driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)   # probe path actually engages
     use_blocks = call is None or call is _call_opus               # real path -> prompt-cached content blocks
     call = call or _call_opus
     route_fn = route_fn or route_smart
@@ -435,9 +466,9 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         return {"answer": "No tracked contract matched this question.", "structured": None, "contract": None,
                 "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
-        return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=retrieve,
+        return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=raw_retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
-                          focus_driver=focus_driver, use_blocks=use_blocks)
+                          focus_driver=focus_driver, use_blocks=use_blocks, silver_lookup=silver_lookup)
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()
@@ -476,6 +507,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             seen_docs.add(sk)
             uniq.append(h)
     ev_cits = cit.unify(uniq, extra_number_calls)                 # numbers citations (hybrid) join the same footer
+    from leviathan.graphrag import verify as vf
+    verifier = vf.verify_citations(structured, evidence, extra_number_calls)
     footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
     body = reg.sanitize(render(structured) + footer)              # strip any internal tokens the model leaked into prose
     return {"answer": body, "structured": structured, "contract": contracts[0],
@@ -485,4 +518,4 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),
-                      "model": model}}
+                      "citation_verifier": verifier, "model": model}}
