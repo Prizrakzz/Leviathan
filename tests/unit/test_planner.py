@@ -110,13 +110,45 @@ def test_mermaid_is_valid_and_from_graph():
 
 
 def test_ground_fires_convergence_from_active_drivers():
+    # frost evidence is dated 2021-07-20; with asof 2021-08-01 it is WITHIN the recency window -> fires,
+    # and the firing carries a per-driver receipt {date, source} (the epistemic basis the block renders).
     gr, sg = _run(tau=0.35, depth=2)
-    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=_silver,
+    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=_silver, asof="2021-08-01",
               driver_slices={"frost", "el_nino", "drought"})
     frost = next(n for n in sg.nodes if n.id == "frost")
     assert frost.active and frost.evidence and frost.evidence[0]["source"] == "GAIN"   # active = has dated evidence
     fired = {(r["contract"], r["name"]) for r in sg.fired_regimes}
     assert ("arabica", "squeeze") in fired                                     # regime fires deterministically
+    r = next(r for r in sg.fired_regimes if r["name"] == "squeeze")
+    assert r["basis"]["frost"] == {"date": "2021-07-20", "source": "GAIN"}     # receipt rides with the firing
+
+
+def test_no_asof_means_no_firing():
+    # nothing anchors "now": regime definitions stay structure, never state — zero probes, zero firings.
+    gr, sg = _run(tau=0.35, depth=2)
+    seen = []
+
+    def spy(q, slice_, *, k, asof=None, near=None):
+        seen.append(slice_)
+        return _retrieve(q, slice_, k=k)
+    pl.ground(sg, "frost substitute", gr, retrieve=spy, silver_lookup=None,
+              driver_slices={"frost", "el_nino", "drought"})
+    assert sg.fired_regimes == [] and sg.trace["n_probes"] == 0
+
+
+def test_recency_window_blocks_stale_evidence():
+    # el_nino evidence is dated 2015-11-01; at asof 2021-08-01 that is ~6 years stale -> may not fire a
+    # regime, even though the prop passes the plain asof guard (this was the July-3 over-firing bug).
+    gr, sg = _run(tau=0.35, depth=2)
+
+    def only_old(q, slice_, *, k, asof=None, near=None):
+        return _retrieve(q, slice_, k=k) if slice_ == "drivers/el_nino" else []
+    pl.ground(sg, "frost substitute", gr, retrieve=only_old, silver_lookup=None, asof="2021-08-01",
+              driver_slices={"frost", "el_nino", "drought"})
+    assert sg.fired_regimes == []                                   # stale mention is not a documented condition
+    pl.ground(sg, "frost substitute", gr, retrieve=only_old, silver_lookup=None, asof="2016-03-01",
+              driver_slices={"frost", "el_nino", "drought"})
+    assert {(r["contract"], r["name"]) for r in sg.fired_regimes} == {("arabica", "squeeze")}  # near 2015 -> fires
 
 
 def test_ground_silver_leg_via_injected_lookup():
@@ -153,8 +185,10 @@ def test_ground_skips_unbacked_drivers_no_empty_fetch():
     assert "drivers/frost" in fetched
 
 
-def test_active_via_contract_evidence_mention():
-    # a driver with NO slice still counts ACTIVE when the contract's own evidence names it (v1 fired 0 regimes)
+def test_named_in_evidence_is_active_for_display_but_never_fires():
+    # a driver merely NAME-DROPPED in the contract's evidence keeps its display `active` flag, but a
+    # mention is not a documented condition — it must never fire a regime (the judge called this out:
+    # "fabricates multi-regime activation from driver tags rather than dated evidence").
     gr, sg = _run(tau=0.0, depth=1, node_budget=10)
 
     def retrieve(q, slice_, *, k, asof=None, near=None):
@@ -162,11 +196,11 @@ def test_active_via_contract_evidence_mention():
             return [{"date": "2021-07-25", "source": "WASDE", "source_key": "s3://a",
                      "text": "persistent rain damaged cherries; el nino pattern building"}]
         return []
-    pl.ground(sg, "q", gr, retrieve=retrieve, silver_lookup=None, driver_slices={"frost"})
+    pl.ground(sg, "q", gr, retrieve=retrieve, silver_lookup=None, asof="2021-08-01", driver_slices={"frost"})
     rain = next(n for n in sg.nodes if n.id == "rain")
     el = next(n for n in sg.nodes if n.id == "el_nino")
-    assert rain.active and el.active                                 # named in contract evidence -> active
-    assert ("arabica", "squeeze") in {(r["contract"], r["name"]) for r in sg.fired_regimes}
+    assert rain.active and el.active                                 # named in contract evidence -> display-active
+    assert sg.fired_regimes == []                                    # ...but name-drops never fire a regime
 
 
 # ── WS-1/2/3: regime firing decoupled from the walk + alias map + relevance ranking ──────────────────────
@@ -203,7 +237,7 @@ def test_regime_fires_via_probe_for_non_walked_driver():
     fired = {(r["contract"], r["name"]) for r in sg.fired_regimes}
     assert ("arabica", "wet_glut") in fired                         # fired from a driver OUTSIDE the subgraph
     assert ("drivers/rain", "2021-08-01") in seen                   # the probe honored the point-in-time asof
-    assert sg.trace["n_probes"] >= 1 and "rain" in sg.trace["regime_active"]["arabica"]
+    assert sg.trace["n_probes"] >= 1 and "rain" in sg.trace["regime_basis"]["arabica"]
 
 
 def test_probe_cap_bounds_slice_probes():
@@ -215,7 +249,7 @@ def test_probe_cap_bounds_slice_probes():
         if slice_ == "drivers/rain":
             return [{"date": "2021-06-01", "source": "NOAA", "source_key": "s3://x", "text": "heavy rain"}]
         return []
-    pl.ground(sg, "q", gr, retrieve=retrieve, silver_lookup=None, probe_cap=0,
+    pl.ground(sg, "q", gr, retrieve=retrieve, silver_lookup=None, asof="2021-08-01", probe_cap=0,
               driver_slices={"frost", "el_nino", "rain"})
     fired = {(r["contract"], r["name"]) for r in sg.fired_regimes}
     assert ("arabica", "wet_glut") not in fired                     # cap 0 -> rain never probed -> cannot fire
@@ -245,3 +279,25 @@ def test_alias_map_resolves_dag_ids_to_slices():
     assert ev.slice_for_driver("conab_production_revision") is None         # honestly dark (no topical slice)
     backed = ev.backed_dag_ids()
     assert {"heat_stress", "ending_stocks_su_ratio", "El_Nino"} <= backed
+
+
+def test_l2_block_renders_receipts_never_fired_language():
+    from leviathan.graphrag import answer as an
+    gr, sg = _run(tau=0.35, depth=2)
+    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=None, asof="2021-08-01",
+              driver_slices={"frost", "el_nino", "drought"})
+    text = "\n".join(an._l2_blocks(sg, gr, asof="2021-08-01"))
+    assert "CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF" in text
+    assert "frost (GAIN, 2021-07-20)" in text                        # the per-driver receipt, inline
+    assert "CONSISTENT WITH" in text and "never describe a regime as 'fired'" in text
+    assert "FIRED AT THIS AS-OF" not in text                         # the July-3 over-claim header is gone
+
+
+def test_l2_block_no_asof_renders_structure_not_state():
+    from leviathan.graphrag import answer as an
+    gr, sg = _run(tau=0.35, depth=2)
+    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=None,
+              driver_slices={"frost", "el_nino", "drought"})
+    text = "\n".join(an._l2_blocks(sg, gr, asof=None))
+    assert "not evaluated (no as-of date" in text
+    assert "FIRED" not in text

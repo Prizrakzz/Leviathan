@@ -201,7 +201,7 @@ def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
 
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
            asof=None, near=None, k_by_depth=(5, 3, 2), evidence_cap: int = 24, driver_slices=None,
-           probe_cap: int = 24) -> Subgraph:
+           probe_cap: int = 24, recency_days: int = 548) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
     injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
 
@@ -250,41 +250,72 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             named = n.id.replace("_", " ").lower() in ctx_text.get(n.contract, "")
             n.active = bool(n.evidence) or named              # slice evidence OR named in the contract's evidence
 
-    # ── regime firing DECOUPLED from the walk ────────────────────────────────────────────────────────────
-    probe_cache: dict[tuple, bool] = {(n.contract, n.id): n.active     # walk drivers: reuse their result
-                                      for n in sg.nodes if n.kind == "driver"}
+    # ── regime firing DECOUPLED from the walk — but only MEANINGFUL firing ───────────────────────────────
+    # The first regime-fix eval taught us the hard way (PIT 4.1->3.7, halluc 61->72): firing off "the driver
+    # is mentioned somewhere in history" made the reasoner assert live regime state the evidence never
+    # supported. A regime may now count a driver ONLY on dated slice evidence WITHIN `recency_days` BEFORE
+    # the as-of (receipt recorded: {date, source}); no as-of -> nothing to anchor "now" -> nothing fires
+    # (regime definitions still reach the reasoner as structure); a driver merely NAME-DROPPED in the
+    # contract's evidence keeps its display `active` flag but never fires a regime.
+    sg.fired_regimes = []
+    regime_basis: dict[str, dict] = {}
     budget = {"left": probe_cap}
+    asof_s = str(asof)[:10] if asof else None
+    floor = None
+    if asof_s:
+        import datetime as _dt
+        try:
+            floor = (_dt.date.fromisoformat(asof_s) - _dt.timedelta(days=recency_days)).isoformat()
+        except ValueError:
+            asof_s = None                                          # unparseable as-of -> treat as none
 
-    def _active(cid: str, did: str) -> bool:
-        key = (cid, did)
-        if key in probe_cache:
-            return probe_cache[key]
-        if did.replace("_", " ").lower() in ctx_text.get(cid, ""):     # named in the contract's evidence
-            probe_cache[key] = True
-            return True
-        sp = slice_path(did) if did in backed else None
-        if sp and budget["left"] > 0:                                  # cheap asof-guarded slice probe
-            budget["left"] -= 1
-            probe_cache[key] = bool(list(retrieve(query, sp, k=2, asof=asof, near=near)))
-            return probe_cache[key]
-        probe_cache[key] = False
-        return False
+    if asof_s and floor:
+        def _recent(props):
+            """Newest prop dated within [asof - recency_days, asof], as a receipt — or None."""
+            best = None
+            for h in props or []:
+                d = str(h.get("date") or "")[:10]
+                if d and floor <= d <= asof_s and (best is None or d > best["date"]):
+                    best = {"date": d, "source": h.get("source", "")}
+            return best
 
-    sg.fired_regimes = []                                             # deterministic convergence via graph.regimes
-    regime_active: dict[str, list] = {}
-    for cid in sorted({n.contract for n in sg.nodes}):
-        if cid not in graph.contracts:
-            continue
-        required = {d for s in graph.contracts[cid].convergence for d in s.drivers}
-        active = sorted(d for d in required if _active(cid, d))
-        regime_active[cid] = active
-        for fr in graph.regimes(cid, active):
-            sg.fired_regimes.append({"contract": cid, "name": fr.name, "direction": fr.direction,
-                                     "matched": fr.matched, "threshold": fr.threshold,
-                                     "interactions": fr.interactions, "note": fr.note})
+        probe_cache: dict[tuple, Optional[dict]] = {}
+        for n in sg.nodes:                                         # reuse walk evidence when it already qualifies
+            if n.kind == "driver":
+                b = _recent(n.evidence)
+                if b:
+                    probe_cache[(n.contract, n.id)] = b
+
+        def _basis(cid: str, did: str):
+            key = (cid, did)
+            if key in probe_cache:
+                return probe_cache[key]
+            sp = slice_path(did) if did in backed else None
+            if sp and budget["left"] > 0:                          # asof-guarded slice probe, recency-tested
+                budget["left"] -= 1
+                probe_cache[key] = _recent(list(retrieve(query, sp, k=2, asof=asof, near=near)))
+            else:
+                probe_cache[key] = None
+            return probe_cache[key]
+
+        for cid in sorted({n.contract for n in sg.nodes}):
+            if cid not in graph.contracts:
+                continue
+            required = {d for s in graph.contracts[cid].convergence for d in s.drivers}
+            bases = {}
+            for d in sorted(required):
+                b = _basis(cid, d)
+                if b:
+                    bases[d] = b
+            regime_basis[cid] = bases
+            for fr in graph.regimes(cid, sorted(bases)):
+                sg.fired_regimes.append({"contract": cid, "name": fr.name, "direction": fr.direction,
+                                         "matched": fr.matched, "threshold": fr.threshold,
+                                         "basis": {d: bases[d] for d in fr.matched if d in bases},
+                                         "interactions": fr.interactions, "note": fr.note})
     sg.trace["n_evidence"] = sum(len(n.evidence) for n in sg.nodes)
     sg.trace["active"] = [list(n.key) for n in sg.nodes if n.active]
-    sg.trace["regime_active"] = regime_active
+    sg.trace["regime_basis"] = regime_basis
     sg.trace["n_probes"] = probe_cap - budget["left"]
     return sg
 

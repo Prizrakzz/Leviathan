@@ -230,12 +230,15 @@ def _driver_evidence(query: str, drivers: list[str], *, k: int, asof, near, retr
     return hits
 
 
-def _l2_blocks(sg, graph: gph.CausalGraph) -> list[str]:
+def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]:
     """v1.1 ADDITIVE assembly (the A/B fix): the reasoner gets AT LEAST what one-hop gave it — the FULL
     _context_block per contract (all drivers, all regime definitions, inter-commodity edges) — PLUS the walk's
     structure: how each cross-commodity contract was REACHED (edge + category: an accounting identity needs no
-    dated evidence, a causal link does), per-node dated evidence, deterministic ACTIVE flags, and which regimes
-    actually FIRED at this as-of. v1 pruned context below the one-hop baseline and lost the A/B; never again."""
+    dated evidence, a causal link does), per-node dated evidence, deterministic ACTIVE flags, and — framed with
+    the honesty the evidence supports — regimes whose conditions are DOCUMENTED near the as-of. The first
+    regime-fix eval proved the framing is load-bearing: a header saying 'FIRED AT THIS AS-OF' made the reasoner
+    assert unverified live state (PIT 4.1->3.7, halluc 61->72). Conditions render as consistent-with + per-
+    driver receipts, never as confirmed state, until the silver leg (F4) can actually verify."""
     blocks: list[str] = []
     fired_by = {}
     for r in sg.fired_regimes:
@@ -254,15 +257,29 @@ def _l2_blocks(sg, graph: gph.CausalGraph) -> list[str]:
         lines.append(_context_block(graph, cid))                   # the FULL one-hop context, verbatim
         fired = fired_by.get(cid) or []
         if fired:
-            lines.append("REGIMES FIRED AT THIS AS-OF (deterministic — enough drivers active with dated evidence):")
+            lines.append("CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF (textual evidence only — NOT "
+                         "verified against observed values; no stocks/price/index levels were checked):")
             for r in fired:
-                lines.append(f"- {r['name']} ({r['direction']}): active {r['matched']} (needs {r['threshold']})"
+                basis = r.get("basis") or {}
+                docs = ", ".join(f"{d} ({b.get('source', '?')}, {b.get('date', '?')})" for d, b in basis.items()) \
+                    or ", ".join(r["matched"])
+                lines.append(f"- {r['name']} ({r['direction']}): documented drivers: {docs} — "
+                             f"{len(r['matched'])} of {r['threshold']} required"
                              + (f"; interactions {r['interactions']}" if r["interactions"] else ""))
+            lines.append("INSTRUCTION: never describe a regime as 'fired', 'active', 'armed' or 'confirmed'. "
+                         "Say the documented conditions are CONSISTENT WITH the regime, and name the observed "
+                         "value (e.g. stocks-to-use, the premium level) that would confirm or refute it.")
+        elif asof:
+            lines.append("CONVERGENCE: no regime has enough drivers documented near the as-of.")
         else:
-            lines.append("REGIMES FIRED AT THIS AS-OF: none (not enough drivers active with dated evidence).")
-        active = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.active]
-        if active:
-            lines.append(f"DRIVERS ACTIVE AT THIS AS-OF (dated evidence or named in it): {active}")
+            lines.append("CONVERGENCE: not evaluated (no as-of date to anchor recency); treat the regime "
+                         "definitions above as structure, not state.")
+        evidenced = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.evidence]
+        named_only = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.active and not n.evidence]
+        if evidenced:
+            lines.append(f"DRIVERS WITH DATED SLICE EVIDENCE: {evidenced}")
+        if named_only:
+            lines.append(f"DRIVERS MERELY NAMED IN PASSING (weak signal — no dedicated evidence): {named_only}")
         for n in sg.by_contract(cid):                              # dated evidence + silver, per grounded node
             if n.kind == "contract" and n.evidence:
                 lines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
@@ -299,7 +316,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 break
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near)
     contracts = sg.seeds
-    blocks = _l2_blocks(sg, graph)
+    blocks = _l2_blocks(sg, graph, asof=asof)
     if extra_context:                                             # hybrid: inject silver numbers as context
         blocks = blocks + [extra_context]
     structured = call(_SYSTEM, _prompt(query, contracts, blocks), model=model, tool=_answer_tool())

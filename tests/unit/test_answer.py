@@ -186,11 +186,12 @@ def test_answer_l2_walks_grounds_and_overrides_diagram(monkeypatch):
     def fake_retrieve(q, node, *, k, asof=None, near=None):
         return [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{node}", "text": "July frost hit"}]
 
-    out = an.answer("trace how a coffee frost spikes price", graph=gr, planner="l2",
+    out = an.answer("trace how a coffee frost spikes price", graph=gr, planner="l2", asof="2021-08-01",
                     retrieve=fake_retrieve, call=fake_call, route_fn=lambda q, g: ["arabica_coffee"])
     assert out["trace"]["planner"] == "l2"
     diagram = out["structured"]["diagram_mermaid"]
     assert "flowchart" in diagram and "frost" in diagram                        # graph-derived diagram overrode the LLM's ""
+    # firing needs an as-of anchor + recent evidence (2021-07-20 falls within the window before 2021-08-01)
     assert ("arabica_coffee", "squeeze") in {(r["contract"], r["name"]) for r in out["trace"]["fired_regimes"]}
     assert "frost kills trees" in captured["user"]                              # the walked subgraph's prior reached the reasoner
     assert "```mermaid" in out["answer"] and "## Sources" in out["answer"]

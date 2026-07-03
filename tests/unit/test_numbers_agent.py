@@ -5,6 +5,7 @@ asof — the agent has no lever to see the future.
 """
 from __future__ import annotations
 
+import json
 import types
 
 from leviathan.graphrag.numbers import agent as A
@@ -93,3 +94,35 @@ def test_empty_result_is_not_known():
     out = A.answer_numbers("q", asof="2023-07-01", client=client, query_fn=lambda sql: [])
     assert out["calls"][0]["status"] == "not_known"                                   # empty + no error = point-in-time
     assert "(not known at asof)" in A.format_provenance(out["calls"])[0]
+
+
+def test_null_aggregate_on_data_date_table_is_no_rows_not_ok():
+    # sum() over zero matched rows returns ONE row with a NULL value (the July-3 b_weather_2012 case:
+    # country='us' matched no partition). A null is never a usable value, and for a data_date table the
+    # honest status is no_rows (scope mismatch / gap) — NEVER 'ok', NEVER 'not yet published'.
+    client = FakeClient([
+        _resp([_tool_use({"table": "silver_nasa_power", "metric": "precipitation_mm", "commodity": "corn_cbot",
+                          "agg": "sum", "date_start": "2012-07-01", "date_end": "2012-07-31"})], "tool_use"),
+        _resp([_text("The figure is unavailable from this lookup (no matching data).")], "end_turn")])
+    out = A.answer_numbers("July 2012 Iowa rainfall?", asof="2012-08-01",
+                           client=client, query_fn=lambda sql: [{"value": None}])
+    assert out["calls"][0]["status"] == "no_rows" and out["calls"][0]["rows"] == []
+    assert "(no matching data)" in A.format_provenance(out["calls"])[0]
+    sent = json.loads(client.sent[-1]["messages"][-1]["content"][0]["content"])
+    assert sent["status"] == "no_rows"                               # the model was told the honest status
+
+
+def test_empty_on_data_date_table_is_no_rows_vintage_stays_not_known():
+    # 'not yet published at the as-of' is a VINTAGE-ONLY determination; data_date tables get no_rows.
+    def run(table):
+        client = FakeClient([
+            _resp([_tool_use({"table": table, "metric": "m", "commodity": "corn_cbot"})], "tool_use"),
+            _resp([_text("done")], "end_turn")])
+        return A.answer_numbers("q", asof="2023-07-01", client=client, query_fn=lambda sql: [])
+    assert run("silver_nasa_power")["calls"][0]["status"] == "no_rows"
+    assert run("silver_psd")["calls"][0]["status"] == "not_known"    # vintage: the PIT claim stays legitimate
+
+
+def test_system_prompt_defines_no_rows_honesty():
+    sp = A.system_prompt(A.load_registry())
+    assert "no_rows" in sp and "NEVER claim" in sp

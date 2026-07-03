@@ -212,3 +212,27 @@ def test_partition_country_normalized_to_snake():
     sql = build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2012-08-01",
                                 commodity="corn_cbot", country="United States", agg="latest"), _weather_part())
     assert "country = 'united_states'" in sql and "country = 'United States'" not in sql
+
+
+def test_partition_country_derived_from_region_overrides_model_string():
+    # July-3 b_weather_2012: the model emitted country='us'; the partition value is 'united_states'.
+    # When the region is in the geographies map, the map's country is authoritative.
+    from leviathan.graphrag.numbers import query as Q
+    from leviathan.graphrag.numbers.registry import load_registry
+    reg = load_registry()
+    ts = reg.get("silver_nasa_power")
+    spec = Q.NumberQuery(table="silver_nasa_power", metric="precipitation_mm", commodity="corn_cbot",
+                         country="us", region="us_corn_iowa", asof="2012-08-01")
+    filters = Q._partition_filters(spec, ts)
+    joined = " AND ".join(filters)
+    assert "country = 'united_states'" in joined                    # region-derived, model's 'us' ignored
+    assert "'us'" not in joined.replace("'united_states'", "").replace("'us_corn_iowa'", "")
+
+
+def test_country_alias_canonicalization_when_region_unmapped():
+    from leviathan.graphrag.numbers import query as Q
+    assert Q._canon_country("us") == "united_states"
+    assert Q._canon_country("USA") == "united_states"
+    assert Q._canon_country("United States") == "united_states"
+    assert Q._canon_country("Brazil") == "brazil"                   # pass-through for normal names
+    assert Q._canon_country(None) is None

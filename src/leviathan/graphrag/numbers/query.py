@@ -86,10 +86,28 @@ def default_region(commodity: str) -> Optional[str]:
     return prim[1] if prim else None
 
 
+# Model-supplied country strings arrive in many surface forms; partitions use exactly one. A miss is
+# silent (SUCCEEDED query, 0 bytes scanned, 0 rows) — the July-3 eval's b_weather_2012 emitted 'us',
+# matched no partition, and the answer narrated the empty result as "not yet published".
+_COUNTRY_ALIASES = {"us": "united_states", "usa": "united_states", "u.s.": "united_states",
+                    "u_s": "united_states", "u.s.a.": "united_states", "america": "united_states",
+                    "united_states_of_america": "united_states",
+                    "uk": "united_kingdom", "uae": "united_arab_emirates"}
+
+
+def _canon_country(country: Optional[str]) -> Optional[str]:
+    if not country:
+        return None
+    s = _snake(country)
+    return _COUNTRY_ALIASES.get(s, s)
+
+
 def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     """Static equalities for EVERY injected-projection partition (Athena CONSTRAINT_VIOLATION otherwise).
     region defaults to the commodity's primary station; country derives from the region's geography block
-    (values are snake_case there — 'united_states'); commodity must be given."""
+    (values are snake_case there — 'united_states'); commodity must be given. When the region IS in the
+    geographies map, the map's country is AUTHORITATIVE over the model-supplied one (the region is the
+    finer key, and the model's surface form may not be a real partition value)."""
     geo = _geo(spec.commodity) if spec.commodity else {}
     w: list[str] = []
     region = spec.region or (geo.get("_primary") or (None, None))[1]
@@ -99,7 +117,7 @@ def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
                 raise ValueError(f"table {ts.id} requires commodity (partition column)")
             continue                                          # emitted by the regular commodity filter
         if col == ts.country_col:
-            val = _snake(spec.country) if spec.country else geo.get(region)
+            val = geo.get(region) or _canon_country(spec.country)
         elif col == "region":
             val = region
         else:
