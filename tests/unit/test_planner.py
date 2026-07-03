@@ -167,3 +167,81 @@ def test_active_via_contract_evidence_mention():
     el = next(n for n in sg.nodes if n.id == "el_nino")
     assert rain.active and el.active                                 # named in contract evidence -> active
     assert ("arabica", "squeeze") in {(r["contract"], r["name"]) for r in sg.fired_regimes}
+
+
+# ── WS-1/2/3: regime firing decoupled from the walk + alias map + relevance ranking ──────────────────────
+def _graph_with_rain_regime() -> g.CausalGraph:
+    """arabica + a 'wet_glut' regime that requires ONLY 'rain' — the driver the walk prunes for a frost query.
+    Firing wet_glut therefore proves the regime check is decoupled from which nodes the walk kept."""
+    arabica = cs.CausalContract(
+        contract="arabica", aliases=["arabica"],
+        drivers=[_d("el_nino", "el nino frost", type="climate_driver"),
+                 _d("frost", "frost damage", parents=["el_nino"]),
+                 _d("rain", "rain only", sign="-", type="climate_driver")],
+        convergence=[cs.ConvergenceSignal(name="squeeze", direction="+", requires_any_n_of=1,
+                                          drivers=["frost", "el_nino"]),
+                     cs.ConvergenceSignal(name="wet_glut", direction="-", requires_any_n_of=1,
+                                          drivers=["rain"])])
+    return g.CausalGraph({"arabica": arabica}, silver=set())
+
+
+def test_regime_fires_via_probe_for_non_walked_driver():
+    gr = _graph_with_rain_regime()
+    sg = pl.grounded_subgraph("frost substitute", gr, embed=_embed,
+                              route_fn=lambda q, graph: ["arabica"], tau=0.35, depth=2)
+    assert ("driver", "arabica", "rain") not in _keys(sg)           # 'rain' pruned by tau -> not a walk node
+
+    seen = []
+
+    def retrieve(query, slice_, *, k, asof=None, near=None):
+        seen.append((slice_, asof))
+        if slice_ == "drivers/rain":
+            return [{"date": "2021-06-01", "source": "NOAA", "source_key": "s3://x", "text": "heavy rain"}]
+        return []
+    pl.ground(sg, "q", gr, retrieve=retrieve, silver_lookup=None, asof="2021-08-01",
+              driver_slices={"frost", "el_nino", "rain"})
+    fired = {(r["contract"], r["name"]) for r in sg.fired_regimes}
+    assert ("arabica", "wet_glut") in fired                         # fired from a driver OUTSIDE the subgraph
+    assert ("drivers/rain", "2021-08-01") in seen                   # the probe honored the point-in-time asof
+    assert sg.trace["n_probes"] >= 1 and "rain" in sg.trace["regime_active"]["arabica"]
+
+
+def test_probe_cap_bounds_slice_probes():
+    gr = _graph_with_rain_regime()
+    sg = pl.grounded_subgraph("frost substitute", gr, embed=_embed,
+                              route_fn=lambda q, graph: ["arabica"], tau=0.35, depth=2)
+
+    def retrieve(query, slice_, *, k, asof=None, near=None):
+        if slice_ == "drivers/rain":
+            return [{"date": "2021-06-01", "source": "NOAA", "source_key": "s3://x", "text": "heavy rain"}]
+        return []
+    pl.ground(sg, "q", gr, retrieve=retrieve, silver_lookup=None, probe_cap=0,
+              driver_slices={"frost", "el_nino", "rain"})
+    fired = {(r["contract"], r["name"]) for r in sg.fired_regimes}
+    assert ("arabica", "wet_glut") not in fired                     # cap 0 -> rain never probed -> cannot fire
+    assert sg.trace["n_probes"] == 0
+
+
+def test_walk_selects_by_relevance_not_yaml_order():
+    # arabica lists drivers [el_nino, frost, rain]; for "frost substitute", frost (rel .5) > el_nino (.41).
+    # FIFO/YAML order would keep el_nino first; ranked selection keeps FROST under a tight budget.
+    gr = _graph()
+    sg = pl.grounded_subgraph("frost substitute", gr, embed=_embed,
+                              route_fn=lambda q, graph: ["arabica"], tau=0.35, depth=2, node_budget=3)
+    keys = _keys(sg)
+    assert ("driver", "arabica", "frost") in keys                   # higher-relevance driver won the slot
+    assert ("driver", "arabica", "el_nino") not in keys             # lower-relevance driver budget-pruned
+    budget_pruned = {tuple(p["key"]) for p in sg.trace["pruned"] if p.get("reason") == "budget"}
+    assert ("driver", "arabica", "el_nino") in budget_pruned
+
+
+def test_alias_map_resolves_dag_ids_to_slices():
+    from leviathan.graphrag import evidence as ev
+    assert ev.slice_for_driver("heat_stress") == "heat"                     # curated alias
+    assert ev.slice_for_driver("ending_stocks_su_ratio") == "wasde_stocks_to_use"
+    assert ev.slice_for_driver("cot_mm_positioning") == "cftc_positioning"
+    assert ev.slice_for_driver("El_Nino") == "el_nino"                      # case-mismatch alias
+    assert ev.slice_for_driver("drought") == "drought"                      # exact-name identity
+    assert ev.slice_for_driver("conab_production_revision") is None         # honestly dark (no topical slice)
+    backed = ev.backed_dag_ids()
+    assert {"heat_stress", "ending_stocks_su_ratio", "El_Nino"} <= backed

@@ -499,19 +499,52 @@ def _aliases(node: str) -> list[str]:
 _DRIVER_PATH = ex._CFG / "driver_slices.yaml"
 _DRIVER_CACHE = None
 _DRIVER_MATCHERS = None
+_DRIVER_ALIAS = None                     # dag_driver_id -> slice_name (identity for exact-name matches)
+
+
+def _driver_raw() -> dict:
+    import yaml
+    if not _DRIVER_PATH.exists():
+        return {}
+    return yaml.safe_load(_DRIVER_PATH.read_text(encoding="utf-8")) or {}
 
 
 def driver_specs() -> dict:
     """The driver-slice map from driver_slices.yaml ({driver: {category, terms, priority?}}), cached."""
     global _DRIVER_CACHE
     if _DRIVER_CACHE is None:
-        if not _DRIVER_PATH.exists():
-            _DRIVER_CACHE = {}
-        else:
-            import yaml
-            raw = yaml.safe_load(_DRIVER_PATH.read_text(encoding="utf-8")) or {}
-            _DRIVER_CACHE = raw.get("drivers") or {}
+        _DRIVER_CACHE = _driver_raw().get("drivers") or {}
     return _DRIVER_CACHE
+
+
+def driver_alias() -> dict:
+    """Map a causal-DAG driver id -> the evidence slice that carries its dated text (cached).
+
+    Slice NAMES were curated independently of DAG driver ids, so ground() historically read
+    drivers/<dag_id> and resolved only the 13 exact-name matches. This inverts the hand-curated
+    `dag_alias` block (slice -> [dag ids]) and folds in identity for every slice whose name IS a
+    driver id, so slice_for_driver(dag_id) returns the right drivers/<slice>.jsonl path."""
+    global _DRIVER_ALIAS
+    if _DRIVER_ALIAS is None:
+        specs = driver_specs()
+        alias = {name: name for name in specs}                 # exact-name matches resolve by identity
+        for slice_name, ids in (_driver_raw().get("dag_alias") or {}).items():
+            if slice_name not in specs:                        # alias must point at a real slice
+                continue
+            for did in ids or []:
+                alias.setdefault(did, slice_name)              # first owner wins (curated to be unique)
+        _DRIVER_ALIAS = alias
+    return _DRIVER_ALIAS
+
+
+def slice_for_driver(dag_id: str) -> Optional[str]:
+    """The evidence-slice name backing a DAG driver id, or None if the driver has no text slice."""
+    return driver_alias().get(dag_id)
+
+
+def backed_dag_ids() -> set:
+    """DAG driver ids that resolve to an evidence slice (exact-name + curated aliases)."""
+    return set(driver_alias().keys())
 
 
 def driver_matchers() -> dict:

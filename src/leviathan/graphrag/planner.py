@@ -14,7 +14,6 @@ WS-1 here = the walk + prior leg + mermaid + trace. The I/O legs (evidence, silv
 `ground()` (WS-2/4/5)."""
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -106,45 +105,57 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = 2, nod
     mech: dict = {}
 
     seeds = _seed_contracts(query, graph, route_fn, max_seeds)
-    frontier: deque = deque((c, 0, None, "contract", c) for c in seeds)  # (id, depth, via_edge, kind, contract)
     visited: set = set()
     kept: dict[tuple, GroundedNode] = {}
     pruned: list[dict] = []
 
-    while frontier and len(kept) < node_budget:
-        id_, d, via, kind, cid = frontier.popleft()
-        key = (kind, cid, id_)
-        if key in visited:
-            continue
-        visited.add(key)
+    # Wave-by-wave BFS: at each depth, SCORE every candidate and admit the most relevant under the budget,
+    # instead of FIFO in YAML-curation order (v1.1's walk kept whichever drivers came first, so 70% of
+    # regime-required drivers were never visited and the reasoner saw an arbitrary slice). tau stays a floor;
+    # tracked cross-commodity hops rank ahead of drivers at the same depth so the cascade can't be starved.
+    wave = [(c, 0, None, "contract", c) for c in seeds]     # (id, depth, via_edge, kind, contract)
+    while wave and len(kept) < node_budget:
+        scored = []
+        for id_, d, via, kind, cid in wave:
+            key = (kind, cid, id_)
+            if key in visited:
+                continue
+            visited.add(key)
+            if d == 0:                                      # seeds always kept
+                rel = 1.0
+            elif kind == "contract":                        # a cross-commodity hop: score its edge mechanism
+                rel = _relevance(qv, (via or {}).get("mechanism", ""), embed, mech)
+            else:                                           # a driver: score its mechanism
+                rel = _relevance(qv, graph.driver(cid, id_).mechanism, embed, mech)
+            if d > 0 and rel < tau:
+                pruned.append({"key": list(key), "relevance": round(rel, 3), "depth": d, "reason": "tau"})
+                continue
+            is_hop = 1 if (kind == "contract" and d > 0) else 0    # tracked hop priority (L2's headline)
+            scored.append((is_hop, round(rel, 3), id_, kind, cid, d, via, key))
 
-        if d == 0:                                          # seeds always kept
-            rel = 1.0
-        elif kind == "contract":                            # a cross-commodity hop: score its edge mechanism
-            rel = _relevance(qv, (via or {}).get("mechanism", ""), embed, mech)
-        else:                                               # a driver: score its mechanism
-            rel = _relevance(qv, graph.driver(cid, id_).mechanism, embed, mech)
-        if d > 0 and rel < tau:
-            pruned.append({"key": list(key), "relevance": round(rel, 3), "depth": d})
-            continue
-
-        node = GroundedNode(kind=kind, id=id_, contract=cid, depth=d, relevance=round(rel, 3), via_edge=via)
-        node.prior = _prior(graph, node)
-        kept[key] = node
-        if d >= depth:
-            continue
-
-        if kind == "contract":
-            for e in graph.cross_links(cid):                # tracked inter-commodity hops FIRST (BFS priority) so a
-                if e["tracked"]:                            # contract's driver breadth can't starve the cascade hop —
-                    frontier.append((e["driver_commodity"], d + 1,                                   # L2's headline
-                                     {**e, "_from": cid, "category": edge_category(e["relation"])},
-                                     "contract", e["driver_commodity"]))
-            for drv in graph.contracts[cid].drivers:        # then the driver fan-in of this contract
-                frontier.append((drv.id, d + 1, None, "driver", cid))
-        else:
-            for p in graph.driver(cid, id_).parents:        # upstream cascade (parents cause this driver)
-                frontier.append((p, d + 1, None, "driver", cid))
+        scored.sort(key=lambda x: (-x[0], -x[1], x[2]))     # hop-first, then relevance desc, id asc (deterministic)
+        nxt = []
+        for is_hop, rel, id_, kind, cid, d, via, key in scored:
+            if d > 0 and len(kept) >= node_budget:          # budget spent on higher-ranked candidates
+                pruned.append({"key": list(key), "relevance": rel, "depth": d, "reason": "budget"})
+                continue
+            node = GroundedNode(kind=kind, id=id_, contract=cid, depth=d, relevance=rel, via_edge=via)
+            node.prior = _prior(graph, node)
+            kept[key] = node
+            if d >= depth:
+                continue
+            if kind == "contract":
+                for e in graph.cross_links(cid):            # tracked inter-commodity hops -> next wave
+                    if e["tracked"]:
+                        nxt.append((e["driver_commodity"], d + 1,
+                                    {**e, "_from": cid, "category": edge_category(e["relation"])},
+                                    "contract", e["driver_commodity"]))
+                for drv in graph.contracts[cid].drivers:    # driver fan-in of this contract -> next wave
+                    nxt.append((drv.id, d + 1, None, "driver", cid))
+            else:
+                for p in graph.driver(cid, id_).parents:    # upstream cascade (parents cause this driver)
+                    nxt.append((p, d + 1, None, "driver", cid))
+        wave = nxt
 
     nodes = list(kept.values())
     sg = Subgraph(seeds=seeds, nodes=nodes,
@@ -165,8 +176,10 @@ def _prior(graph: gph.CausalGraph, n: GroundedNode) -> dict:
 
 
 # ── ground(): the I/O legs — evidence (WS-2), silver (WS-5), convergence firing (WS-4) ───────────────────────
-def _slice_of(n: GroundedNode) -> str:
-    return ev.node_for(n.contract) if n.kind == "contract" else f"drivers/{n.id}"
+def _slice_of(n: GroundedNode, slice_path) -> Optional[str]:
+    """Evidence-slice path for a node. Contract -> its commodity slice; driver -> drivers/<slice> resolved
+    through the alias map (None when the driver has no text slice)."""
+    return ev.node_for(n.contract) if n.kind == "contract" else slice_path(n.id)
 
 
 def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
@@ -187,29 +200,47 @@ def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
 
 
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
-           asof=None, near=None, k_by_depth=(5, 3, 2), evidence_cap: int = 24, driver_slices=None) -> Subgraph:
+           asof=None, near=None, k_by_depth=(5, 3, 2), evidence_cap: int = 24, driver_slices=None,
+           probe_cap: int = 24) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
     injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
 
-    v1.1 (the A/B fix): driver retrieval only for SLICE-BACKED drivers (evidence/drivers/<id> exists for ~92
-    names, not every DAG driver id — v1 wasted budget on empty fetches and scored 0.2 leg-grounding); the
-    ACTIVE criterion broadens to slice-evidence OR the driver named in the contract's own retrieved evidence
-    (so convergence regimes actually fire, v1 fired 0.0)."""
+    Two things resolve the v1.1 A/B blockers (regimes fired 0.0, leg-grounding 0.2):
+      * driver evidence now reads drivers/<SLICE> via the alias map (ev.slice_for_driver) — slice NAMES were
+        curated apart from DAG driver ids, so the old drivers/<id> path resolved only the 13 exact-name
+        matches; the alias unlocks ~40+ ids (incl. the top regime drivers heat_stress / *_su_ratio / crude /
+        USD_index / cot positioning). Tests still inject `driver_slices` (a set) to stay hermetic: then the
+        driver id IS treated as its own slice path, as before.
+      * regime firing is DECOUPLED from the walk: a regime is evaluated over its FULL required-driver list,
+        not just the drivers the budget-limited walk happened to keep (70% of required drivers were never
+        even visited). A required driver missing from the walk gets a cheap activity PROBE (k=2, asof-guarded,
+        cached per (contract, driver), capped) — active if its slice has dated evidence at the asof, or it is
+        named in the contract's own evidence."""
     retrieve = retrieve or ev.retrieve
-    backed = set(driver_slices) if driver_slices is not None else set(ev.driver_specs() or {})
-    for n in sg.nodes:                                              # per-node evidence, k decays with depth
-        if n.kind == "driver" and backed and n.id not in backed:
-            continue                                                # no slice -> prior-only node (no empty fetch)
-        k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
-        n.evidence = list(retrieve(query, _slice_of(n), k=k, asof=asof, near=near))
-    _dedup_and_cap(sg, evidence_cap)                               # dedup cross-node restatement + cap total
+    if driver_slices is not None:                                  # hermetic tests: the id IS the slice path
+        backed = set(driver_slices)
+        def slice_path(did):  # noqa: E306
+            return f"drivers/{did}"
+    else:                                                          # serving: resolve dag id -> curated slice
+        backed = ev.backed_dag_ids()
+        def slice_path(did):  # noqa: E306
+            s = ev.slice_for_driver(did)
+            return f"drivers/{s}" if s else None
 
-    ctx_text: dict[str, str] = {}                                  # contract -> its own evidence text (for active)
+    for n in sg.nodes:                                             # per-node evidence, k decays with depth
+        sp = _slice_of(n, slice_path)
+        if n.kind == "driver" and (n.id not in backed or sp is None):
+            continue                                               # no slice -> prior-only node (no empty fetch)
+        k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
+        n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near))
+    _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
+
+    ctx_text: dict[str, str] = {}                                 # contract -> its own evidence text (for active)
     for n in sg.nodes:
         if n.kind == "contract" and n.evidence:
             ctx_text[n.contract] = " ".join((h.get("text") or "").lower() for h in n.evidence)
 
-    for n in sg.nodes:                                             # silver leg (driver nodes only)
+    for n in sg.nodes:                                            # silver leg (driver nodes only)
         if n.kind == "driver" and silver_lookup and n.prior.get("silver_ref"):
             try:
                 n.silver = silver_lookup(n.contract, n.id, asof)
@@ -217,17 +248,44 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                 n.silver = {"ref": n.prior.get("silver_ref"), "live": False}
         if n.kind == "driver":
             named = n.id.replace("_", " ").lower() in ctx_text.get(n.contract, "")
-            n.active = bool(n.evidence) or named               # slice evidence OR named in the contract's evidence
+            n.active = bool(n.evidence) or named              # slice evidence OR named in the contract's evidence
 
-    sg.fired_regimes = []                                          # deterministic convergence via graph.regimes
+    # ── regime firing DECOUPLED from the walk ────────────────────────────────────────────────────────────
+    probe_cache: dict[tuple, bool] = {(n.contract, n.id): n.active     # walk drivers: reuse their result
+                                      for n in sg.nodes if n.kind == "driver"}
+    budget = {"left": probe_cap}
+
+    def _active(cid: str, did: str) -> bool:
+        key = (cid, did)
+        if key in probe_cache:
+            return probe_cache[key]
+        if did.replace("_", " ").lower() in ctx_text.get(cid, ""):     # named in the contract's evidence
+            probe_cache[key] = True
+            return True
+        sp = slice_path(did) if did in backed else None
+        if sp and budget["left"] > 0:                                  # cheap asof-guarded slice probe
+            budget["left"] -= 1
+            probe_cache[key] = bool(list(retrieve(query, sp, k=2, asof=asof, near=near)))
+            return probe_cache[key]
+        probe_cache[key] = False
+        return False
+
+    sg.fired_regimes = []                                             # deterministic convergence via graph.regimes
+    regime_active: dict[str, list] = {}
     for cid in sorted({n.contract for n in sg.nodes}):
-        active = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.active]
+        if cid not in graph.contracts:
+            continue
+        required = {d for s in graph.contracts[cid].convergence for d in s.drivers}
+        active = sorted(d for d in required if _active(cid, d))
+        regime_active[cid] = active
         for fr in graph.regimes(cid, active):
             sg.fired_regimes.append({"contract": cid, "name": fr.name, "direction": fr.direction,
                                      "matched": fr.matched, "threshold": fr.threshold,
                                      "interactions": fr.interactions, "note": fr.note})
     sg.trace["n_evidence"] = sum(len(n.evidence) for n in sg.nodes)
     sg.trace["active"] = [list(n.key) for n in sg.nodes if n.active]
+    sg.trace["regime_active"] = regime_active
+    sg.trace["n_probes"] = probe_cap - budget["left"]
     return sg
 
 
