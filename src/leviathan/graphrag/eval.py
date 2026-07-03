@@ -93,16 +93,18 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
 
 
 # ── LLM-judge: a quant/hedge-fund analyst rates usefulness + exposes gaps ──────────────
-def _judge_tool() -> dict:
+def _judge_tool(continuity: bool = False) -> dict:
     n = {"type": "integer"}                                            # 1-5
     arr = {"type": "array", "items": {"type": "string"}}
+    props = {"usefulness": n, "convexity": n, "point_in_time": n, "grounding": n, "source_diversity": n,
+             "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}}
+    required = ["usefulness", "convexity", "point_in_time", "grounding", "source_diversity", "gaps", "verdict"]
+    if continuity:                                                     # multi-turn: did it read the conversation right?
+        props["continuity"] = n
+        required = required + ["continuity"]
     return {"name": "score_answer",
             "description": "A senior quant RESEARCHER's verdict on a fundamental convexity-shock answer.",
-            "input_schema": {"type": "object", "properties": {
-                "usefulness": n, "convexity": n, "point_in_time": n, "grounding": n, "source_diversity": n,
-                "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}},
-                "required": ["usefulness", "convexity", "point_in_time", "grounding", "source_diversity", "gaps",
-                             "verdict"]}}
+            "input_schema": {"type": "object", "properties": props, "required": required}}
 
 
 _JUDGE_SYS = (
@@ -134,9 +136,12 @@ _JUDGE_SYS = (
     "Emit via score_answer.")
 
 
-def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "claude-opus-4-8", call=None) -> dict:
+def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "claude-opus-4-8", call=None,
+          convo_history: str | None = None) -> dict:
     """The quant-researcher persona scores the answer — shown the SAME graph + evidence + looked-up NUMBERS the tool
-    had, so it can tell grounded from invented and check point-in-time discipline."""
+    had, so it can tell grounded from invented and check point-in-time discipline. With `convo_history` (multi-turn
+    eval) the judge also scores CONTINUITY: did the answer interpret the vague/pronoun follow-up correctly given
+    the prior turns, and respect THIS turn's as-of rather than a stale one?"""
     call = call or ex.call_opus
     ctx = ""
     if graph is not None:
@@ -149,15 +154,24 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
         val = rws[0].get("value") if rws else "(NOT KNOWN at asof)"
         num_text += (f"- {qy.get('table')}.{qy.get('metric')} {qy.get('commodity','')} {qy.get('period','')} "
                      f"asof {qy.get('asof','')} = {val}\n")
-    user = (f"QUESTION: {query['question']}\n"
+    convo = ""
+    if convo_history is not None:
+        convo = (f"=== CONVERSATION SO FAR (prior turns; the current question may be vague/pronoun-based and "
+                 f"must be read against these) ===\n{convo_history or '(first turn)'}\n\n"
+                 "Also score `continuity` (1-5): 5 = the answer correctly resolved what the user meant from the "
+                 "conversation AND respected THIS turn's as-of (not a stale one); 1 = it answered the wrong "
+                 "referent, ignored the thread, or dragged stale state in.\n\n")
+    user = (convo +
+            f"QUESTION: {query['question']}\n"
             f"(as-of date: {query.get('asof') or 'none'}; the tool routed intent={out.get('intent')} to "
             f"{out.get('contracts') or out.get('contract')})\n\n"
             f"=== CAUSAL GRAPH THE TOOL COULD CITE (drivers/signs/regimes here are authoritative) ===\n{ctx}\n\n"
             f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
             f"=== OBSERVED NUMBERS THE TOOL LOOKED UP (as-known at asof) ===\n{num_text or '(none)'}\n\n"
             f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
-    sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # 30 judge calls share it
-    scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200, tool=_judge_tool())  # headroom for adaptive thinking
+    sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
+    scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200,
+                     tool=_judge_tool(continuity=convo_history is not None))  # headroom for adaptive thinking
     return scores
 
 
@@ -393,6 +407,229 @@ def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = 
     return out
 
 
+# ── multi-turn conversation eval (session memory, all intents, all agents) ────────────────────────────────
+def load_convos(path) -> list[dict]:
+    return (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("conversations") or []
+
+
+class _UsageTap:
+    """Thread-local capture of Anthropic usage (cache reads = the caching headline). Convos run one-per-
+    thread with sequential turns, so a threading.local ring is exact per turn."""
+
+    def __init__(self):
+        import threading
+        self.local = threading.local()
+        self._orig = None
+
+    def start(self):
+        import anthropic
+        self._orig = anthropic.resources.messages.Messages.create
+        tap = self
+
+        def create(inner_self, **kw):
+            resp = tap._orig(inner_self, **kw)
+            u = getattr(resp, "usage", None)
+            rec = getattr(tap.local, "records", None)
+            if u is not None and rec is not None:
+                rec.append({"read": getattr(u, "cache_read_input_tokens", 0) or 0,
+                            "write": getattr(u, "cache_creation_input_tokens", 0) or 0,
+                            "input": getattr(u, "input_tokens", 0) or 0,
+                            "output": getattr(u, "output_tokens", 0) or 0})
+            return resp
+        anthropic.resources.messages.Messages.create = create
+
+    def begin_turn(self) -> list:
+        self.local.records = []
+        return self.local.records
+
+    def stop(self):
+        if self._orig is not None:
+            import anthropic
+            anthropic.resources.messages.Messages.create = self._orig
+
+
+def _convo_mechanics(spec: dict, out: dict, prev_out: dict | None) -> dict:
+    """Deterministic session-mechanics checks from the turn's expectations (the machine-checkable half;
+    the continuity judge covers the semantic half)."""
+    checks: dict = {}
+    routed = [c for c in (out.get("contracts") or [out.get("contract")]) if c]
+    if spec.get("expected_intent"):
+        checks["intent_ok"] = out.get("intent") == spec["expected_intent"]
+    if spec.get("contracts_any_of"):
+        checks["contract_ok"] = any(c in routed for c in spec["contracts_any_of"])
+    if spec.get("carries_contracts") and prev_out is not None:
+        prevc = {c for c in (prev_out.get("contracts") or [prev_out.get("contract")]) if c}
+        checks["carry_contracts_ok"] = bool(set(routed) & prevc)
+    if spec.get("carries_asof") and prev_out is not None:
+        checks["carry_asof_ok"] = out.get("asof") == prev_out.get("asof")
+    if spec.get("overrides_asof"):
+        checks["override_asof_ok"] = out.get("asof") == str(spec.get("asof"))
+    if spec.get("not_known"):
+        checks["not_known_ok"] = any(p in (out.get("answer") or "").lower() for p in _NOT_KNOWN)
+    if spec.get("uses_state"):
+        checks["resolved_ok"] = bool(routed)
+    return checks
+
+
+def run_conversations(graph, convos: list[dict], *, model: str = an.SONNET, workers: int = 5,
+                      numbers_client=None, call=None, respond_fn=None, store=None) -> list[dict]:
+    """Turns are SEQUENTIAL within a conversation (state dependency); CONVERSATIONS parallelize — the speed
+    structure that makes 25 turns ~ one conversation's wall-clock. Each convo gets its own session_id; the
+    session store is the real serving one (Dynamo in-container via rev-7 env, in-memory locally)."""
+    import time as _time
+    import uuid
+
+    from leviathan.graphrag import orchestrator as orch
+    from leviathan.graphrag import session as ssn
+    respond_fn = respond_fn or orch.respond
+    store = store or ssn.default_store()
+    tap = _UsageTap()
+    tap.start()
+    run_tag = uuid.uuid4().hex[:6]
+
+    def _one_convo(cv: dict) -> list[dict]:
+        rows, prev = [], None
+        sid = f"eval-{cv['id']}-{run_tag}"
+        for i, spec in enumerate(cv["turns"]):
+            rec = tap.begin_turn()
+            t0 = _time.monotonic()
+            try:
+                out = respond_fn(spec["q"], graph=graph, asof=spec.get("asof"), model=model,
+                                 numbers_client=numbers_client, call=call,
+                                 session_id=sid, session_store=store)
+            except Exception as e:  # noqa: BLE001 — one bad turn must not abort a billed run
+                out = {"answer": f"(turn failed: {str(e)[:200]})", "intent": None, "contract": None,
+                       "contracts": [], "asof": spec.get("asof"), "evidence": [], "number_calls": [],
+                       "structured": None, "trace": {"error": str(e)[:300]}}
+                print(f"  WARN {cv['id']} turn {i}: {str(e)[:120]}", flush=True)
+            dt = _time.monotonic() - t0
+            usage = {k: sum(r[k] for r in rec) for k in ("read", "write", "input", "output")} if rec else \
+                {"read": 0, "write": 0, "input": 0, "output": 0}
+            print(f"  {cv['id']} turn {i} in {dt:.0f}s (cache_read {usage['read']})", flush=True)
+            rows.append({"convo": cv["id"], "turn": i, "spec": spec, "out": out,
+                         "mech": _convo_mechanics(spec, out, prev), "secs": round(dt, 1), "usage": usage})
+            prev = out
+        return rows
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(convos)))) as pool:
+        all_rows = [r for rows in pool.map(_one_convo, convos) for r in rows]
+    tap.stop()
+    return all_rows
+
+
+def _convo_history(rows: list[dict], row: dict) -> str:
+    prior = [r for r in rows if r["convo"] == row["convo"] and r["turn"] < row["turn"]]
+    return "\n".join(
+        f"turn {r['turn']}: Q: {r['spec']['q']} (as-of {r['out'].get('asof')}) -> A(tl;dr): "
+        + str((r['out'].get('structured') or {}).get('tldr') or r['out'].get('answer') or '')[:180]
+        for r in sorted(prior, key=lambda x: x["turn"]))
+
+
+def convo_report(rows: list[dict], *, model: str) -> str:
+    import collections
+    import statistics
+    tally: dict = collections.defaultdict(lambda: [0, 0])
+    for r in rows:
+        for k, ok in r["mech"].items():
+            tally[k][1] += 1
+            tally[k][0] += bool(ok)
+    judged = [r["judge"] for r in rows if r.get("judge")]
+
+    def javg(key):
+        xs = [j.get(key) for j in judged if j.get(key) is not None]
+        return round(statistics.mean(xs), 1) if xs else None
+    later = [r for r in rows if r["turn"] > 0]
+    cache_hit_turns = sum(1 for r in later if r["usage"]["read"] > 0)
+    tot_read = sum(r["usage"]["read"] for r in rows)
+    tot_in = sum(r["usage"]["input"] for r in rows)
+    secs = [r["secs"] for r in rows]
+    lines = [f"# conversation eval v1 — {model}", "",
+             "## Session mechanics (deterministic)", ""]
+    for k in sorted(tally):
+        ok, n = tally[k]
+        lines.append(f"- **{k}**: {ok}/{n}")
+    lines += ["", "## Caching + speed", "",
+              f"- turns 2+ with a prompt-cache HIT: **{cache_hit_turns}/{len(later)}**",
+              f"- input tokens served from cache: **{tot_read:,}** vs {tot_in:,} uncached "
+              f"({100 * tot_read / max(1, tot_read + tot_in):.0f}% of prompt volume)",
+              f"- per-turn seconds: avg {statistics.mean(secs):.0f}, max {max(secs):.0f}"]
+    if judged:
+        lines += ["", "## Judge", "",
+                  f"- usefulness {javg('usefulness')} | convexity {javg('convexity')} | "
+                  f"point_in_time {javg('point_in_time')} | grounding {javg('grounding')} | "
+                  f"**continuity {javg('continuity')}** /5",
+                  f"- hallucinated claims: {sum(len(j.get('hallucinations') or []) for j in judged)}"]
+    for cid in dict.fromkeys(r["convo"] for r in rows):
+        lines += ["", f"## {cid}", ""]
+        for r in [x for x in rows if x["convo"] == cid]:
+            j = r.get("judge") or {}
+            mech = " ".join(f"{k}={'Y' if v else 'N'}" for k, v in r["mech"].items())
+            lines += [f"### turn {r['turn']}: {r['spec']['q']}",
+                      f"- intent `{r['out'].get('intent')}` | routed {r['out'].get('contracts') or r['out'].get('contract')} "
+                      f"| asof {r['out'].get('asof')} | {r['secs']}s | cache_read {r['usage']['read']}",
+                      f"- mechanics: {mech or '(none)'}"]
+            if j:
+                lines.append(f"- judge: usefulness {j.get('usefulness')} continuity {j.get('continuity')} "
+                             f"PIT {j.get('point_in_time')} — _{j.get('verdict')}_")
+            lines += ["", str(r["out"].get("answer") or "(no answer)"), ""]
+    return "\n".join(lines)
+
+
+def _convos_main(args, path) -> int:
+    """The --convos entry: run the multi-turn session eval end to end."""
+    convos = load_convos(path)
+    n_turns = sum(len(c["turns"]) for c in convos)
+    if args.dry_run or not args.run:
+        est = n_turns * 0.10 + (n_turns * 0.06 if args.judge else 0)   # sonnet answers (cache-discounted) + opus judges
+        print(f"DRY-RUN: {len(convos)} conversations, {n_turns} turns; est ~${est:.2f} "
+              f"(judge={'on' if args.judge else 'off'})")
+        return 0
+    from leviathan.common import config
+    config.load_env()
+    if args.workers > 1:
+        try:
+            import os as _os
+            import torch
+            torch.set_num_threads(max(1, (_os.cpu_count() or 8) // args.workers))
+        except Exception:  # noqa: BLE001
+            pass
+    ev.CACHE_INDEX = True
+    graph = gph.CausalGraph.load()
+    import anthropic
+
+    from leviathan.graphrag import batch_extract as bx
+    client = anthropic.Anthropic(api_key=bx._api_key())
+    rows = run_conversations(graph, convos, model=args.model, workers=args.workers,
+                             numbers_client=client, call=an._call_opus)
+    if args.judge:
+        def _judge_row(r: dict) -> None:
+            try:
+                r["judge"] = judge({"question": r["spec"]["q"], "asof": r["out"].get("asof")}, r["out"],
+                                   graph=graph, client=client, model=args.judge_model,
+                                   convo_history=_convo_history(rows, r))
+                print(f"  judged {r['convo']} turn {r['turn']}", flush=True)
+            except Exception as e:  # noqa: BLE001
+                print(f"  WARN judge {r['convo']} t{r['turn']} failed -- {str(e)[:120]}", flush=True)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+            list(pool.map(_judge_row, rows))
+    _OUT.mkdir(parents=True, exist_ok=True)
+    from pathlib import Path
+    out_path = _OUT / f"report_convos_{Path(str(path)).stem}.md"
+    out_path.write_text(convo_report(rows, model=args.model), encoding="utf-8")
+    s3uri = ev._evid_s3()
+    if s3uri:
+        import boto3
+        b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/report_convos_{Path(str(path)).stem}_{args.model}.md")
+        boto3.client("s3").put_object(Bucket=b, Key=k, Body=out_path.read_bytes())
+        print(f"  report -> s3://{b}/{k}")
+    mech_ok = sum(sum(bool(v) for v in r["mech"].values()) for r in rows)
+    mech_n = sum(len(r["mech"]) for r in rows)
+    print(f"convo eval: {len(convos)} convos / {len(rows)} turns; mechanics {mech_ok}/{mech_n} -> {out_path}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="graphdev eval (routing + judge + source-diversity lift)")
     ap.add_argument("--run", action="store_true")
@@ -410,8 +647,13 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=4,
                     help="concurrent questions (answer + judge phases; LLM-network-bound so cost is identical; "
                          "1 = legacy sequential)")
+    ap.add_argument("--convos", default=None,
+                    help="conversation yaml -> multi-turn session eval (turns sequential per convo, convos "
+                         "parallel; mechanics + continuity judge + cache/speed panels)")
     args = ap.parse_args()
     from pathlib import Path
+    if args.convos:
+        return _convos_main(args, Path(args.convos))
     queries = load_queries(Path(args.queries)) if args.queries else load_queries()
     if args.dry_run or not args.run:
         print(f"DRY-RUN cost estimate: {estimate_cost(queries, model=args.model, via_orchestrator=args.via_orchestrator, judge_model=args.judge_model if args.judge else None)}")
