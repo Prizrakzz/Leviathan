@@ -161,6 +161,7 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
     cand.sort(key=_dense, reverse=True)
     relevance = [_dense(r) for r in cand]
     if rerank and cand:
+        cand = cand[:rk.RERANK_POOL]                          # same pool cap as evidence.retrieve
         relevance = rk.rerank_scores(query, [r["text"] for r in cand])
         order = sorted(range(len(cand)), key=lambda i: relevance[i], reverse=True)
         cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]

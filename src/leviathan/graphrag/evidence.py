@@ -375,6 +375,10 @@ def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near
             if mode == "hybrid" else dense_ranked[:fetch_k])
     relevance = [_dense(r) for r in cand]
     if rerank and cand:                                            # PRECISION: cross-encoder re-order
+        # Rerank only the fused top RERANK_POOL (~5x k): items the dense+lexical fusion ranked below that
+        # never reach the final k anyway, and cross-encoder cost is linear in pool size (60-pair pools were
+        # ~40% of the July-3 per-answer latency). Recall stays with the wide fusion; precision with the CE.
+        cand = cand[:rk.RERANK_POOL]
         relevance = rk.rerank_scores(query, [r["text"] for r in cand])
         order = sorted(range(len(cand)), key=lambda i: relevance[i], reverse=True)
         cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]

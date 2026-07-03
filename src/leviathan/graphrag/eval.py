@@ -587,13 +587,6 @@ def _convos_main(args, path) -> int:
         return 0
     from leviathan.common import config
     config.load_env()
-    if args.workers > 1:
-        try:
-            import os as _os
-            import torch
-            torch.set_num_threads(max(1, (_os.cpu_count() or 8) // args.workers))
-        except Exception:  # noqa: BLE001
-            pass
     ev.CACHE_INDEX = True
     graph = gph.CausalGraph.load()
     import anthropic
@@ -665,13 +658,9 @@ def main() -> int:
         return 0
     from leviathan.common import config
     config.load_env()                                 # load ANTHROPIC_API for the serving (+ judge) model
-    if args.workers > 1:                              # N concurrent questions each run CPU-bound torch (embed/
-        try:                                          # rerank); unbounded intra-op threads oversubscribe the
-            import os as _os                          # cores N-fold (first L2 batch measured 30-40 min/answer)
-            import torch
-            torch.set_num_threads(max(1, (_os.cpu_count() or 8) // args.workers))
-        except Exception:  # noqa: BLE001
-            pass
+    # No torch thread cap here: rankers.rerank_scores serializes the heavy cross-encoder behind a global
+    # lock, so each rerank gets ALL cores instead of N workers thrashing at cores/N threads. The old
+    # cpu//workers cap under the lock would have crippled every rerank to 2 threads.
     ev.CACHE_INDEX = True                             # the now-large slices load from S3 once, reused across queries
     graph = gph.CausalGraph.load()
     client = None

@@ -121,16 +121,27 @@ def mmr_select(cands: list[dict], relevance: list[float], k: int, lam: float, *,
 
 # ── bge cross-encoder reranker (lazy self-hosted singleton) ──────────────────────────────
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+RERANK_POOL = 24                       # CE pairs per retrieve: rerank the fused top ~5x k, not all fetch_k
 _reranker = None
+_RERANK_LOCK = None                    # ONE rerank at a time, at full thread speed (see rerank_scores)
 
 
 def rerank_scores(query: str, texts: list[str]) -> list[float]:
     """Cross-encoder relevance for (query, text) pairs — PRECISION. Self-hosted (sentence-transformers
-    CrossEncoder), same family as bge-m3, multilingual for the PT/ES/FR corpus. Deterministic (fixed weights)."""
-    global _reranker
+    CrossEncoder), same family as bge-m3, multilingual for the PT/ES/FR corpus. Deterministic (fixed weights).
+
+    CONCURRENCY: the cross-encoder is the heaviest CPU op in serving. N eval workers each running it on
+    cores/N torch threads was the July-3 slowdown (~8-16 min/answer) — thread-starved passes contending
+    for the same cores. A global lock serializes reranks so each runs at FULL thread speed: same total
+    CPU, no contention, ~10x per-op latency. Callers stay concurrent for everything else (LLM waits, pg)."""
+    global _reranker, _RERANK_LOCK
     if not texts:
         return []
-    if _reranker is None:
-        from sentence_transformers import CrossEncoder
-        _reranker = CrossEncoder(RERANKER_MODEL)
-    return [float(s) for s in _reranker.predict([(query, t) for t in texts])]
+    if _RERANK_LOCK is None:
+        import threading
+        _RERANK_LOCK = threading.Lock()
+    with _RERANK_LOCK:
+        if _reranker is None:
+            from sentence_transformers import CrossEncoder
+            _reranker = CrossEncoder(RERANKER_MODEL)
+        return [float(s) for s in _reranker.predict([(query, t) for t in texts])]
