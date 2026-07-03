@@ -52,13 +52,19 @@ def score(q: dict, out: dict) -> dict:
 
 
 def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, k: int = 5, answer_fn=None,
-        via_orchestrator: bool = False, numbers_client=None, call=None, planner: str | None = None) -> list[dict]:
+        via_orchestrator: bool = False, numbers_client=None, call=None, planner: str | None = None,
+        workers: int = 1) -> list[dict]:
     """Run each query through answer() (default) or — with via_orchestrator — the full intent branch
     orchestrator.respond() (numbers_only / reasoning / hybrid), passing each question's point-in-time asof.
-    `planner='l2'` routes reasoning/hybrid through the deterministic grounded-subgraph walk (A/B vs one-hop)."""
+    `planner='l2'` routes reasoning/hybrid through the deterministic grounded-subgraph walk (A/B vs one-hop).
+    `workers>1` answers independent questions concurrently — the per-question chain is dominated by LLM
+    network waits, so threads cut wall-clock ~workers-fold at identical API cost (psycopg3 connections,
+    torch inference and the Anthropic client are all thread-safe). Row order always matches `queries`."""
     answer_fn = answer_fn or an.answer
-    rows = []
-    for q in queries:
+    import time as _time
+
+    def _one(q: dict) -> dict:
+        t0 = _time.monotonic()
         try:                                                          # one bad answer must NOT abort a billed run
             if via_orchestrator:
                 from leviathan.graphrag import orchestrator as orch
@@ -71,13 +77,19 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
                 if planner:                                           # keep the call identical for injected fake answer_fns
                     kw["planner"] = planner
                 out = answer_fn(q["question"], **kw)
+            print(f"  answered {q.get('id')} in {_time.monotonic() - t0:.0f}s", flush=True)
         except Exception as e:  # noqa: BLE001
             out = {"answer": f"(answer failed: {str(e)[:200]})", "contract": None, "structured": None,
                    "evidence": [], "intent": None, "number_calls": [], "citations": [], "model": model,
                    "trace": {"error": str(e)[:300]}}
-            print(f"  WARN {q.get('id')}: answer failed -- {str(e)[:120]}")
-        rows.append({"q": q, "out": out, "rubric": score(q, out)})
-    return rows
+            print(f"  WARN {q.get('id')}: answer failed -- {str(e)[:120]}", flush=True)
+        return {"q": q, "out": out, "rubric": score(q, out)}
+
+    if workers <= 1:
+        return [_one(q) for q in queries]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=workers) as pool:              # map preserves input order
+        return list(pool.map(_one, queries))
 
 
 # ── LLM-judge: a quant/hedge-fund analyst rates usefulness + exposes gaps ──────────────
@@ -393,6 +405,9 @@ def main() -> int:
                     help="route each query through the intent branch (orchestrator.respond) — numbers/reasoning/hybrid")
     ap.add_argument("--planner", default=None, choices=[None, "l2"],
                     help="reasoning engine: default one-hop; 'l2' = deterministic grounded-subgraph walk (A/B)")
+    ap.add_argument("--workers", type=int, default=4,
+                    help="concurrent questions (answer + judge phases; LLM-network-bound so cost is identical; "
+                         "1 = legacy sequential)")
     args = ap.parse_args()
     from pathlib import Path
     queries = load_queries(Path(args.queries)) if args.queries else load_queries()
@@ -415,13 +430,21 @@ def main() -> int:
         client = anthropic.Anthropic(api_key=bx._api_key())
     rows = run(graph, queries, model=args.model, k=args.k, via_orchestrator=args.via_orchestrator,
                numbers_client=client if args.via_orchestrator else None,
-               call=an._call_opus if args.via_orchestrator else None, planner=args.planner)
+               call=an._call_opus if args.via_orchestrator else None, planner=args.planner, workers=args.workers)
     if args.judge:
-        for r in rows:
+        def _judge_row(r: dict) -> None:
             try:                                                      # a judge failure must not lose the whole run
                 r["judge"] = judge(r["q"], r["out"], graph=graph, client=client, model=args.judge_model)
+                print(f"  judged {r['q'].get('id')}", flush=True)
             except Exception as e:  # noqa: BLE001
-                print(f"  WARN judge {r['q'].get('id')} failed -- {str(e)[:120]}")
+                print(f"  WARN judge {r['q'].get('id')} failed -- {str(e)[:120]}", flush=True)
+        if args.workers > 1:                                          # judges are independent too — same pool width
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=args.workers) as pool:
+                list(pool.map(_judge_row, rows))
+        else:
+            for r in rows:
+                _judge_row(r)
     _OUT.mkdir(parents=True, exist_ok=True)
     out_path = _OUT / f"report_{args.model}.md"
     out_path.write_text(report(rows, model=args.model), encoding="utf-8")
