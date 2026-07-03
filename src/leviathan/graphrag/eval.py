@@ -454,7 +454,9 @@ def _convo_mechanics(spec: dict, out: dict, prev_out: dict | None) -> dict:
     checks: dict = {}
     routed = [c for c in (out.get("contracts") or [out.get("contract")]) if c]
     if spec.get("expected_intent"):
-        checks["intent_ok"] = out.get("intent") == spec["expected_intent"]
+        exp = spec["expected_intent"]                              # str OR list: hybrid/reasoning are not
+        exp = exp if isinstance(exp, list) else [exp]              # mutually exclusive on quantitative turns
+        checks["intent_ok"] = out.get("intent") in exp
     if spec.get("contracts_any_of"):
         checks["contract_ok"] = any(c in routed for c in spec["contracts_any_of"])
     if spec.get("carries_contracts") and prev_out is not None:
