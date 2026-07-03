@@ -233,8 +233,10 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
     if kind == "live":
         res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
     elif kind == "numbers_only":
-        nq = query if not (plan and plan.contracts) else (
-            f"{query}\n(conversation context: this refers to {', '.join(plan.contracts)})")
+        hints = list(plan.contracts) if plan else []
+        if plan and plan.country:
+            hints.append(plan.country)                             # "And exports?" after Brazil = BRAZIL exports
+        nq = query if not hints else f"{query}\n(conversation context: this refers to {', '.join(hints)})"
         res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn)
     elif kind == "hybrid":
         res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,

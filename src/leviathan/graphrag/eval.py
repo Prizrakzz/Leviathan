@@ -297,6 +297,25 @@ def register_report(rows: list[dict]) -> list[str]:
     return L
 
 
+def verifier_panel(traces: list[dict]) -> list[str]:
+    """The deterministic citation_violations panel (plan sec 6.6) — counts fabricated attributions
+    without a judge. Its absence made the 37->151 hallucination-tally diagnosis slow; never again."""
+    vs = [t for t in traces if t and t.get("enabled")]
+    if not vs:
+        return []
+    by: dict = {}
+    for v in vs:
+        for k, c in (v.get("by_rule") or {}).items():
+            by[k] = by.get(k, 0) + c
+    rules = ", ".join(f"{k} x{c}" for k, c in sorted(by.items(), key=lambda x: -x[1])) or "(none)"
+    return ["", "## Citation verifier (deterministic)", "",
+            f"- handles checked: **{sum(v.get('checked', 0) for v in vs)}** | "
+            f"stripped: **{sum(v.get('stripped', 0) for v in vs)}** | "
+            f"ledger dates corrected: {sum(v.get('corrected', 0) for v in vs)}",
+            f"- violations by rule: {rules}",
+            f"- answers with >=1 strip: {sum(1 for v in vs if v.get('stripped'))}/{len(vs)}"]
+
+
 def grounding_report(rows: list[dict]) -> list[str]:
     """Per-commodity grounding-depth table — the decision input for where evidence is thin for real questions."""
     import collections
@@ -353,6 +372,7 @@ def report(rows: list[dict], *, model: str) -> str:
     if any((r["out"].get("trace") or {}).get("planner") == "l2" for r in rows):
         lines += planner_report(rows) + [""]                           # L2 grounded-subgraph cascade panel
     lines += register_report(rows) + [""]                              # output-register discipline (leaked internal tokens)
+    lines += verifier_panel([(r["out"].get("trace") or {}).get("citation_verifier") for r in rows]) + [""]
     lines += source_report(rows) + [""]                                # multi-source lift (deterministic + judge)
     if judged:
         lines += grounding_report(rows) + [""]
@@ -562,6 +582,7 @@ def convo_report(rows: list[dict], *, model: str) -> str:
                   f"point_in_time {javg('point_in_time')} | grounding {javg('grounding')} | "
                   f"**continuity {javg('continuity')}** /5",
                   f"- hallucinated claims: {sum(len(j.get('hallucinations') or []) for j in judged)}"]
+    lines += verifier_panel([(r["out"].get("trace") or {}).get("citation_verifier") for r in rows])
     for cid in dict.fromkeys(r["convo"] for r in rows):
         lines += ["", f"## {cid}", ""]
         for r in [x for x in rows if x["convo"] == cid]:
@@ -571,6 +592,9 @@ def convo_report(rows: list[dict], *, model: str) -> str:
                       f"- intent `{r['out'].get('intent')}` | routed {r['out'].get('contracts') or r['out'].get('contract')} "
                       f"| asof {r['out'].get('asof')} | {r['secs']}s | cache_read {r['usage']['read']}",
                       f"- mechanics: {mech or '(none)'}"]
+            vfr = (r["out"].get("trace") or {}).get("citation_verifier") or {}
+            if vfr.get("stripped"):
+                lines.append(f"- verifier: stripped {vfr['stripped']} ({', '.join(sorted(vfr.get('by_rule') or {}))})")
             if j:
                 lines.append(f"- judge: usefulness {j.get('usefulness')} continuity {j.get('continuity')} "
                              f"PIT {j.get('point_in_time')} — _{j.get('verdict')}_")

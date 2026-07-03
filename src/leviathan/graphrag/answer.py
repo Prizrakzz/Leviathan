@@ -368,11 +368,16 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         if sk and sk not in seen_docs:
             seen_docs.add(sk)
             uniq.append(h)
-    ev_cits = cit.unify(uniq, extra_number_calls)                 # numbers citations (hybrid) join the same footer
+    ev_cits = cit.unify(uniq, extra_number_calls)                 # machine-readable list (UI drill-down)
     from leviathan.graphrag import verify as vf
-    verifier = vf.verify_citations(structured, evidence, extra_number_calls)
-    footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-    body = reg.sanitize(render(structured) + footer)
+    verifier = vf.verify_citations(structured, evidence, extra_number_calls,
+                                   foreign_names=_foreign_regime_names(graph, contracts))
+    if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
+        body = reg.sanitize(render(structured, include_ledger=False)
+                            + _cited_sources_block(structured, verifier, extra_number_calls))
+    else:                                                         # verifier off -> legacy two-list rendering
+        footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
+        body = reg.sanitize(render(structured) + footer)
     return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits], "evidence": evidence,
             "model": model, "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
@@ -417,16 +422,51 @@ def _valid_mermaid(s: str | None) -> bool:
         and s.count("[") == s.count("]") and s.count("(") == s.count(")")
 
 
-def render(d: dict) -> str:
-    """Structured fields -> reader-first markdown (drops the diagram if absent or malformed)."""
+def render(d: dict, *, include_ledger: bool = True) -> str:
+    """Structured fields -> reader-first markdown (drops the diagram if absent or malformed).
+    `include_ledger=False` suppresses the model's own **Sources** lines — used when the verifier ran and
+    the answer instead carries ONE validated `## Sources` block (two parallel lists with independent
+    numbering read as 'mismatched citations' and inflated the judge's hallucination tally 37->151)."""
     parts = [f"**TL;DR.** {(d.get('tldr') or '').strip()}", "", f"**Why.** {(d.get('mechanism') or '').strip()}"]
     if _valid_mermaid(d.get("diagram_mermaid")):
         parts += ["", "**Cascade / convergence**", "```mermaid", d["diagram_mermaid"].strip(), "```"]
     srcs = d.get("sources") or []
-    if srcs:
+    if srcs and include_ledger:
         parts += ["", "**Sources**"] + [f"[{x.get('ref')}] {x.get('source')} · {x.get('date')} — {x.get('note', '')}"
                                          for x in srcs]
     return "\n".join(parts).strip()
+
+
+def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
+    """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
+    verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
+    (res['evidence'] / res['citations'])."""
+    resolved = (vreport or {}).get("resolved") or {}
+    lines, seen = [], set()
+    for s in (d.get("sources") or []):
+        ref = str(s.get("ref", "")).strip().strip("[]")
+        if not ref or ref in seen:
+            continue
+        seen.add(ref)
+        if ref.upper().startswith("N"):
+            try:
+                idx = int(ref[1:])
+                c = cit.from_number((number_calls or [])[idx - 1], idx)
+                lines.append(f"[{ref}] {c.label}" + (f"  [known {c.date}]" if c.date else ""))
+            except (ValueError, IndexError):
+                continue
+        elif ref in resolved:
+            r = resolved[ref]
+            lines.append(f"[{ref}] {r.get('source')} ({r.get('date')}): {r.get('snippet')}")
+    return ("\n\n## Sources\n" + "\n".join(lines)) if lines else ""
+
+
+def _foreign_regime_names(graph: gph.CausalGraph, contracts: list[str]) -> set[str]:
+    """Regime names that belong ONLY to contracts outside this answer's scope — asserting one is the
+    measured cross-contract fabrication (an invented 'bullish_protein_squeeze' from another DAG)."""
+    own = {s.name for cid in contracts if cid in graph.contracts for s in graph.contracts[cid].convergence}
+    return {s.name for cid, c in graph.contracts.items() if cid not in contracts
+            for s in c.convergence} - own
 
 
 def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
@@ -506,11 +546,16 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         if sk and sk not in seen_docs:
             seen_docs.add(sk)
             uniq.append(h)
-    ev_cits = cit.unify(uniq, extra_number_calls)                 # numbers citations (hybrid) join the same footer
+    ev_cits = cit.unify(uniq, extra_number_calls)                 # machine-readable list (UI drill-down)
     from leviathan.graphrag import verify as vf
-    verifier = vf.verify_citations(structured, evidence, extra_number_calls)
-    footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-    body = reg.sanitize(render(structured) + footer)              # strip any internal tokens the model leaked into prose
+    verifier = vf.verify_citations(structured, evidence, extra_number_calls,
+                                   foreign_names=_foreign_regime_names(graph, contracts))
+    if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
+        body = reg.sanitize(render(structured, include_ledger=False)
+                            + _cited_sources_block(structured, verifier, extra_number_calls))
+    else:                                                         # verifier off -> legacy two-list rendering
+        footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
+        body = reg.sanitize(render(structured) + footer)          # sanitizer strips leaked internal tokens
     return {"answer": body, "structured": structured, "contract": contracts[0],
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits],
             "evidence": evidence, "model": model,

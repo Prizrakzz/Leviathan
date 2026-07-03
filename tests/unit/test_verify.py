@@ -100,3 +100,22 @@ def test_kill_switch_and_never_raises(monkeypatch):
     weird = {"tldr": None, "mechanism": 42, "sources": "not-a-list"}
     rep = vf.verify_citations(weird, None, None)                     # garbage in -> report, never raise
     assert isinstance(rep, dict)
+
+
+def test_resolved_mapping_exposed_for_unified_rendering():
+    s = _structured("Record corn prices occurred in August 2012 on the drought [2].",
+                    [{"ref": "2", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, EV, [])
+    r = rep["resolved"]["2"]
+    assert r["source"] == "usda_wasde" and r["date"] == "2012-08-10"
+    assert r["snippet"].startswith("Record soybean and corn prices")
+
+
+def test_foreign_regime_name_stripped_own_survives():
+    s = _structured("The bullish_weather_squeeze conditions are documented; the bullish_protein_squeeze "
+                    "regime also looms on the drought [2].",
+                    [{"ref": "2", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, EV, [], foreign_names={"bullish_protein_squeeze"})
+    assert "bullish_protein_squeeze" not in s["tldr"]                # another contract's regime = fabrication
+    assert "bullish_weather_squeeze" in s["tldr"]                    # this contract's own regime survives
+    assert rep["by_rule"].get("foreign_regime_name") == 1

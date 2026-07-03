@@ -112,10 +112,16 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
 
 
 def verify_citations(structured: dict | None, evidence: list[dict] | None,
-                     number_calls: list[dict] | None = None) -> dict:
+                     number_calls: list[dict] | None = None, *,
+                     foreign_names: set[str] | None = None) -> dict:
     """Verify + repair `structured` IN PLACE (tldr/mechanism prose, sources ledger); return the report.
+    `foreign_names` = regime names that belong to OTHER contracts' DAGs (never routed here) — asserting
+    one is the measured cross-contract fabrication class, so the token is stripped and counted.
+    The report carries `resolved` ({ref -> the matched item's true metadata}) so the caller can render
+    ONE validated source list numbered by the model's own handles (the dual-list mismatch inflated the
+    judge's hallucination tally 37->151 while grounding/PIT rose).
     GRAPHRAG_VERIFY=off -> no-op. Never raises: verification must never break an answer."""
-    report = {"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "by_rule": {}}
+    report = {"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "by_rule": {}, "resolved": {}}
     if os.environ.get("GRAPHRAG_VERIFY", "on") == "off" or not structured:
         report["enabled"] = False
         return report
@@ -143,6 +149,11 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 report["corrected"] += 1
             resolved[ref] = matched
             kept_sources.append(s)
+            m0 = matched[0]
+            txt = m0.get("text") or ""
+            report["resolved"][ref] = {"source": m0.get("source"), "date": m0.get("date"),
+                                       "source_key": m0.get("source_key"),
+                                       "snippet": txt[:140] + ("..." if len(txt) > 140 else "")}
         structured["sources"] = kept_sources
 
         # 2) sentence-scoped prose checks; strip violating handles BY POSITION (formatting untouched)
@@ -158,6 +169,9 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     end = b.end()
                     break
             return text[start:end]
+
+        foreign = re.compile(r"\b(" + "|".join(re.escape(n) for n in sorted(foreign_names)) + r")\b") \
+            if foreign_names else None
 
         def _verify_field(text: str) -> str:
             drops: list[tuple[int, int]] = []
@@ -177,7 +191,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     drops.append((m.start(), m.end()))
                     report["stripped"] += 1
                     report["by_rule"][rule] = report["by_rule"].get(rule, 0) + 1
-            for a, b in reversed(drops):
+            if foreign:                                   # a regime name from ANOTHER contract's DAG is a
+                for m in foreign.finditer(text):          # cross-contract fabrication, never a citation issue
+                    drops.append((m.start(), m.end()))
+                    report["stripped"] += 1
+                    report["by_rule"]["foreign_regime_name"] = report["by_rule"].get("foreign_regime_name", 0) + 1
+            for a, b in sorted(set(drops), reverse=True):
                 text = text[:a] + text[b:]
             return re.sub(r" +([.,;])", r"\1", re.sub(r"  +", " ", text))
 

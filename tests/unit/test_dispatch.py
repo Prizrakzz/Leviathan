@@ -153,3 +153,19 @@ def test_respond_fallback_plan_uses_legacy_classifier(monkeypatch):
                        call=_call_factory({}), retrieve=_retrieve)
     assert called.get("legacy") and out["intent"] == "reasoning"
     monkeypatch.delenv("GRAPHRAG_DISPATCH")
+
+
+def test_plan_country_validated_and_reaches_numbers_hint(monkeypatch):
+    p = dp._validate({"steps": ["numbers"], "contracts": [], "country": "  Brazil  "}, IDS)
+    assert p.country == "Brazil" and p.trace()["country"] == "Brazil"
+
+    seen = {}
+
+    def fake_numbers(query, asof, **kw):
+        seen["q"] = query
+        return {"answer": "42", "intent": "numbers_only", "citations": [], "number_calls": [],
+                "evidence": [], "asof": asof, "structured": None, "contract": None}
+    monkeypatch.setattr(orch, "run_numbers_only", fake_numbers)
+    call = _call_factory({"steps": ["numbers"], "contracts": ["corn"], "country": "Brazil"})
+    orch.respond("And exports?", graph=_graph(), call=call)
+    assert "corn, Brazil" in seen["q"]                               # geography rides the context hint

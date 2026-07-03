@@ -80,7 +80,8 @@ def test_reasoning_runs_graph_skips_numbers():
     out = orch.respond("why is arabica bullish on a frost", graph=_graph(), asof="2024-06-01",
                        classify=_force("reasoning"), call=_reason_call, retrieve=_retrieve)
     assert out["intent"] == "reasoning" and out["number_calls"] == []
-    assert out["citations"][0]["kind"] == "evidence" and "[E1]" in out["answer"]
+    assert out["citations"][0]["kind"] == "evidence"                  # machine citations intact (v2: the
+    assert "[E1]" not in out["answer"]                                # parallel [E1] footer no longer renders)
 
 
 def test_hybrid_injects_numbers_and_unifies_citations():
@@ -88,6 +89,6 @@ def test_hybrid_injects_numbers_and_unifies_citations():
                        classify=_force("hybrid"), call=_reason_call, retrieve=_retrieve,
                        numbers_client=_numbers_client(), query_fn=_query_fn)
     assert out["intent"] == "hybrid"
-    assert {c["kind"] for c in out["citations"]} == {"evidence", "number"}   # one footer spans both
+    assert {c["kind"] for c in out["citations"]} == {"evidence", "number"}   # machine list spans both
     assert "SILVER NUMBERS" in _reason_call.user                             # numbers injected into the reasoning prompt
-    assert "[E1]" in out["answer"] and "[N1]" in out["answer"]
+    assert "[E1]" not in out["answer"]                                       # v2: no parallel footer numbering

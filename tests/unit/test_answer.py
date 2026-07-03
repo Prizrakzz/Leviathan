@@ -135,7 +135,30 @@ def test_answer_pulls_cross_cutting_driver_evidence(monkeypatch):
     assert "event 2021-06-20" in seen["user"]                            # event date surfaced for the timeline
 
 
-def test_answer_appends_unified_citation_footer():
+def test_answer_renders_single_validated_source_list():
+    """Citations v2: ONE reader-facing Sources block, numbered by the model's OWN validated handles —
+    the parallel [E1]-numbered footer is gone (two lists with independent numbering read as
+    'mismatched citations' and inflated the judge's hallucination tally)."""
+    gr = _graph()
+
+    def fake_call(system, user, *, model, tool):
+        return {"tldr": "stocks are tight [1].", "mechanism": "y", "diagram_mermaid": "",
+                "sources": [{"ref": "1", "source": "usda_wasde", "date": "2022-01-01", "note": ""}]}
+
+    def fake_retrieve(q, contract, *, k, asof=None, near=None):
+        return [{"date": "2022-01-01", "source": "usda_wasde", "source_key": f"s3://{contract}",
+                 "text": f"{contract} ending stocks note"}]
+
+    out = an.answer("arabica coffee outlook", graph=gr, retrieve=fake_retrieve, call=fake_call)
+    assert out["answer"].count("## Sources") == 1
+    assert "[1] usda_wasde (2022-01-01):" in out["answer"]                    # model handle, true metadata
+    assert "[E1]" not in out["answer"]                                        # the parallel footer is gone
+    assert out["citations"] and out["citations"][0]["kind"] == "evidence"     # machine list unchanged
+    assert out["citations"][0]["locator"]["kind"] == "doc"
+
+
+def test_answer_verifier_off_keeps_legacy_footer(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_VERIFY", "off")
     gr = _graph()
 
     def fake_call(system, user, *, model, tool):
@@ -146,9 +169,8 @@ def test_answer_appends_unified_citation_footer():
                  "text": f"{contract} ending stocks note"}]
 
     out = an.answer("arabica coffee outlook", graph=gr, retrieve=fake_retrieve, call=fake_call)
-    assert "## Sources" in out["answer"] and "[E1]" in out["answer"]          # unified footer appended
-    assert out["citations"] and out["citations"][0]["kind"] == "evidence"
-    assert out["citations"][0]["locator"]["kind"] == "doc"                    # doc locator w/ page slot (page-recovery later)
+    assert "## Sources" in out["answer"] and "[E1]" in out["answer"]          # legacy rendering intact
+    monkeypatch.delenv("GRAPHRAG_VERIFY")
 
 
 def test_context_block_surfaces_confidence_and_target_metric():

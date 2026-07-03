@@ -103,6 +103,8 @@ PLANNER_SYS = (
     "  contract — a pronoun is never a numbers request just because the sentence names an observable.\n"
     "- as-of: an explicit date in THIS turn (\"as of March 2013\", \"at a Feb-2024 cutoff\") > the\n"
     "  carried session as-of > today. Emit asof ONLY when this turn states one; never invent one.\n"
+    "- GEOGRAPHY carries like contracts do: \"And exports?\" after a Brazil-production thread is a\n"
+    "  BRAZIL exports question — emit country when the turn or the state pins one; never invent it.\n"
     "- Empty state + ambiguous commodity: pick the closest contract(s) from the list (max 2) and\n"
     "  prefer reasoning.\n"
     "\n"
@@ -119,6 +121,7 @@ class Plan:
     contracts: list[str]
     asof: str | None = None
     near: str | None = None
+    country: str | None = None          # thread-pinned geography for numbers follow-ups ("And exports?")
     fallback: bool = False              # True -> caller must use the legacy is_live+classify path
 
     def kind(self) -> str:
@@ -133,7 +136,7 @@ class Plan:
 
     def trace(self) -> dict:
         return {"planner": "llm", "steps": list(self.steps), "contracts": list(self.contracts),
-                "asof": self.asof, "near": self.near}
+                "asof": self.asof, "near": self.near, "country": self.country}
 
 
 _FALLBACK = Plan(steps=[], contracts=[], fallback=True)
@@ -153,7 +156,9 @@ def _plan_tool(contract_ids: list[str]) -> dict:
                 "asof": {"type": ["string", "null"],
                          "description": "ISO date (YYYY-MM-DD) ONLY if THIS turn explicitly states a point-in-time cutoff; else null."},
                 "near": {"type": ["string", "null"],
-                         "description": "Era hint YYYY or YYYY-MM for historical-analog questions (e.g. '2010-08' for the 2010 Russia ban); else null."}},
+                         "description": "Era hint YYYY or YYYY-MM for historical-analog questions (e.g. '2010-08' for the 2010 Russia ban); else null."},
+                "country": {"type": ["string", "null"],
+                            "description": "The geography this turn is pinned to, ONLY when the question or the conversation state names one (e.g. 'Brazil' after a Brazil-production thread); never invent."}},
                 "required": ["steps", "contracts"]}}
 
 
@@ -175,7 +180,9 @@ def _validate(out: dict, contract_ids: set[str]) -> Plan:
         return _FALLBACK
     contracts = [c for c in (out.get("contracts") or []) if c in contract_ids][:MAX_CONTRACTS]
     near = str(out.get("near")) if out.get("near") and _NEAR_RE.match(str(out.get("near"))) else None
-    return Plan(steps=steps[:MAX_STEPS], contracts=contracts, asof=_valid_asof(out.get("asof")), near=near)
+    country = str(out.get("country")).strip()[:40] if out.get("country") else None
+    return Plan(steps=steps[:MAX_STEPS], contracts=contracts, asof=_valid_asof(out.get("asof")),
+                near=near, country=country)
 
 
 def plan_turn(query: str, *, graph, state_block: str | None = None, today: str | None = None,

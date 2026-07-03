@@ -97,4 +97,5 @@ def test_langgraph_routes_numbers_branch():
 def test_langgraph_routes_reasoning_branch():
     out = lg.run("why is corn bullish on drought", graph=_graph(), asof="2024-06-01",
                  classify=_force("reasoning"), call=_reason_call, retrieve=_retrieve)
-    assert out["intent"] == "reasoning" and out["number_calls"] == [] and "[E1]" in out["answer"]
+    assert out["intent"] == "reasoning" and out["number_calls"] == []
+    assert "[E1]" not in out["answer"]                      # citations v2: no parallel footer numbering
