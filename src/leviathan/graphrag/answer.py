@@ -278,14 +278,25 @@ def _l2_blocks(sg, graph: gph.CausalGraph) -> list[str]:
 
 
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
-               extra_context: str | None = None, extra_number_calls: list | None = None) -> dict:
+               extra_context: str | None = None, extra_number_calls: list | None = None,
+               focus_driver: str | None = None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
-    the unified footer."""
+    the unified footer. `focus_driver` (the live-event cascade root, section 7.1) is force-included in the
+    subgraph so the cascade is grounded from the event even when the walk wouldn't have kept it."""
     from leviathan.graphrag import planner as pl
     retr = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)
     sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed)
+    if focus_driver and not any(n.kind == "driver" and n.id == focus_driver for n in sg.nodes):
+        for cid in sg.seeds:                                       # first seed contract that carries the driver
+            if any(d.id == focus_driver for d in graph.contracts[cid].drivers):
+                node = pl.GroundedNode(kind="driver", id=focus_driver, contract=cid, depth=1, relevance=1.0)
+                node.prior = pl._prior(graph, node)
+                sg.nodes.append(node)
+                sg.trace.setdefault("kept", []).append(list(node.key))
+                sg.trace["focus_driver"] = focus_driver
+                break
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near)
     contracts = sg.seeds
     blocks = _l2_blocks(sg, graph)
@@ -358,7 +369,7 @@ def _call_opus(system: str, user: str, *, model: str, tool: dict) -> dict:
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
-           planner: str | None = None) -> dict:
+           planner: str | None = None, focus_driver: str | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -373,7 +384,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                 "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=retrieve,
-                          routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls)
+                          routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
+                          focus_driver=focus_driver)
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()

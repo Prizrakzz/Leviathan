@@ -25,6 +25,18 @@ _REASON = re.compile(
     r"a buy|a sell|worth (?:buying|selling)|net long|net short|squeeze)\b", re.I)
 
 
+# live: the question is about NOW — breaking policy/shock news, today's state. Only meaningful when the
+# as-of is today (the orchestrator's PIT kill-switch disables the live branch for any past as-of).
+_LIVE = re.compile(
+    r"\b(today|right now|breaking|overnight|as of now|latest news|any news|"
+    r"this (?:week|morning)|just (?:banned|announced|imposed|halted|closed|restricted|cut|reinstated))\b", re.I)
+
+
+def is_live(query: str) -> bool:
+    """Does the question ask about the present moment (candidates for the live news branch)?"""
+    return bool(_LIVE.search(query or ""))
+
+
 def _mk(intent: str) -> dict:
     return {"intent": intent,
             "needs_numbers": intent in ("numbers_only", "hybrid"),
