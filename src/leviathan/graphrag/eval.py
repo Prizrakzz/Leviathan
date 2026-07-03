@@ -156,7 +156,8 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
             f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
             f"=== OBSERVED NUMBERS THE TOOL LOOKED UP (as-known at asof) ===\n{num_text or '(none)'}\n\n"
             f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
-    scores, _ = call(client, _JUDGE_SYS, user, model=model, max_tokens=3200, tool=_judge_tool())  # headroom for adaptive thinking
+    sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # 30 judge calls share it
+    scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200, tool=_judge_tool())  # headroom for adaptive thinking
     return scores
 
 

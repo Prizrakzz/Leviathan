@@ -295,11 +295,17 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB) -> list[dict]:
     sql = build_sql(spec, db=db)
     if query_fn is not None:
         return query_fn(sql)
+    return athena_query_fn(db=db)(sql)
+
+
+def athena_query_fn(db: str = ATHENA_DB):
+    """The default executor as an injectable query_fn(sql)->rows — lets callers WRAP the real Athena
+    path (e.g. the session-scoped SQL result cache) instead of only replacing it in tests."""
     import boto3
     from leviathan.common import config
     config.load_env()
     client = boto3.client("athena", region_name="us-east-1")
-    return _athena(client, sql, db)
+    return lambda sql: _athena(client, sql, db)
 
 
 _THROTTLE = ("TooManyRequestsException", "ThrottlingException", "SlowDown", "RequestLimitExceeded")

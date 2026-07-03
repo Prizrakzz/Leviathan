@@ -238,8 +238,13 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
     the honesty the evidence supports — regimes whose conditions are DOCUMENTED near the as-of. The first
     regime-fix eval proved the framing is load-bearing: a header saying 'FIRED AT THIS AS-OF' made the reasoner
     assert unverified live state (PIT 4.1->3.7, halluc 61->72). Conditions render as consistent-with + per-
-    driver receipts, never as confirmed state, until the silver leg (F4) can actually verify."""
-    blocks: list[str] = []
+    driver receipts, never as confirmed state, until the silver leg (F4) can actually verify.
+
+    Returns (stable_blocks, volatile_blocks): the STABLE part — hop annotations + the per-contract graph
+    context + the shared-ancestor note — is byte-identical across a session's turns and forms the prompt-
+    cache prefix; everything per-turn (convergence state, active lists, retrieved evidence) is volatile."""
+    stable: list[str] = []
+    volatile: list[str] = []
     fired_by = {}
     for r in sg.fired_regimes:
         fired_by.setdefault(r["contract"], []).append(r)
@@ -255,53 +260,57 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
             lines.append(f"REACHED VIA CASCADE HOP: {e.get('_from')} --{e.get('relation')}({e.get('sign')})--> {cid}"
                          f" [{kind}: {note}] {e.get('mechanism') or ''}")
         lines.append(_context_block(graph, cid))                   # the FULL one-hop context, verbatim
+        stable.append("\n".join(lines))
+
+        vlines = [f"--- AS-OF STATE + DATED EVIDENCE for {cid} ---"]
         fired = fired_by.get(cid) or []
         if fired:
-            lines.append("CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF (textual evidence only — NOT "
-                         "verified against observed values; no stocks/price/index levels were checked):")
+            vlines.append("CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF (textual evidence only — NOT "
+                          "verified against observed values; no stocks/price/index levels were checked):")
             for r in fired:
                 basis = r.get("basis") or {}
                 docs = ", ".join(f"{d} ({b.get('source', '?')}, {b.get('date', '?')})" for d, b in basis.items()) \
                     or ", ".join(r["matched"])
-                lines.append(f"- {r['name']} ({r['direction']}): documented drivers: {docs} — "
-                             f"{len(r['matched'])} of {r['threshold']} required"
-                             + (f"; interactions {r['interactions']}" if r["interactions"] else ""))
-            lines.append("INSTRUCTION: never describe a regime as 'fired', 'active', 'armed' or 'confirmed'. "
-                         "Say the documented conditions are CONSISTENT WITH the regime, and name the observed "
-                         "value (e.g. stocks-to-use, the premium level) that would confirm or refute it.")
+                vlines.append(f"- {r['name']} ({r['direction']}): documented drivers: {docs} — "
+                              f"{len(r['matched'])} of {r['threshold']} required"
+                              + (f"; interactions {r['interactions']}" if r["interactions"] else ""))
+            vlines.append("INSTRUCTION: never describe a regime as 'fired', 'active', 'armed' or 'confirmed'. "
+                          "Say the documented conditions are CONSISTENT WITH the regime, and name the observed "
+                          "value (e.g. stocks-to-use, the premium level) that would confirm or refute it.")
         elif asof:
-            lines.append("CONVERGENCE: no regime has enough drivers documented near the as-of.")
+            vlines.append("CONVERGENCE: no regime has enough drivers documented near the as-of.")
         else:
-            lines.append("CONVERGENCE: not evaluated (no as-of date to anchor recency); treat the regime "
-                         "definitions above as structure, not state.")
+            vlines.append("CONVERGENCE: not evaluated (no as-of date to anchor recency); treat the regime "
+                          "definitions above as structure, not state.")
         evidenced = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.evidence]
         named_only = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.active and not n.evidence]
         if evidenced:
-            lines.append(f"DRIVERS WITH DATED SLICE EVIDENCE: {evidenced}")
+            vlines.append(f"DRIVERS WITH DATED SLICE EVIDENCE: {evidenced}")
         if named_only:
-            lines.append(f"DRIVERS MERELY NAMED IN PASSING (weak signal — no dedicated evidence): {named_only}")
+            vlines.append(f"DRIVERS MERELY NAMED IN PASSING (weak signal — no dedicated evidence): {named_only}")
         for n in sg.by_contract(cid):                              # dated evidence + silver, per grounded node
             if n.kind == "contract" and n.evidence:
-                lines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
+                vlines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
             elif n.kind == "driver" and n.evidence:
-                lines.append(f"--- DATED EVIDENCE for driver {n.id} ---\n" + _ev_block(n.evidence))
+                vlines.append(f"--- DATED EVIDENCE for driver {n.id} ---\n" + _ev_block(n.evidence))
             if n.kind == "driver" and n.silver and n.silver.get("live"):
-                lines.append(f"OBSERVED for {n.id}: {n.silver.get('value')} {n.silver.get('unit', '')} "
-                             f"[{n.silver.get('knowledge_date', '')}]")
-        blocks.append("\n".join(lines))
-    blocks.append("NOTE: a driver shared by multiple downstream paths (e.g. one climate pattern feeding several "
+                vlines.append(f"OBSERVED for {n.id}: {n.silver.get('value')} {n.silver.get('unit', '')} "
+                              f"[{n.silver.get('knowledge_date', '')}]")
+        volatile.append("\n".join(vlines))
+    stable.append("NOTE: a driver shared by multiple downstream paths (e.g. one climate pattern feeding several "
                   "drivers) is ONE source of risk — do not weight it once per path.")
-    return blocks
+    return stable, volatile
 
 
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
-               focus_driver: str | None = None) -> dict:
+               focus_driver: str | None = None, use_blocks: bool = False) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
     the unified footer. `focus_driver` (the live-event cascade root, section 7.1) is force-included in the
-    subgraph so the cascade is grounded from the event even when the walk wouldn't have kept it."""
+    subgraph so the cascade is grounded from the event even when the walk wouldn't have kept it.
+    `use_blocks` (real serving call only) sends (stable, volatile) for prompt-cached content blocks."""
     from leviathan.graphrag import planner as pl
     retr = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)
     sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed)
@@ -316,10 +325,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 break
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near)
     contracts = sg.seeds
-    blocks = _l2_blocks(sg, graph, asof=asof)
-    if extra_context:                                             # hybrid: inject silver numbers as context
-        blocks = blocks + [extra_context]
-    structured = call(_SYSTEM, _prompt(query, contracts, blocks), model=model, tool=_answer_tool())
+    stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof)
+    if extra_context:                                             # hybrid numbers / conversation state (volatile)
+        volatile_blocks = volatile_blocks + [extra_context]
+    sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
+    structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
     evidence = [{**h, "contract": n.contract} for n in sg.nodes for h in n.evidence]
@@ -338,11 +348,23 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
 
-def _prompt(query: str, contracts: list[str], blocks: list[str]) -> str:
+def _prompt_parts(query: str, contracts: list[str], stable_blocks: list[str],
+                  volatile_blocks: list[str]) -> tuple[str, str]:
+    """(stable_prefix, volatile_tail). CACHE-CRITICAL ORDERING: the graph context (stable per contract
+    set) comes FIRST and the question comes LAST — the old shape put QUESTION first, so every new query
+    invalidated the whole prompt-cache prefix. The stable prefix must stay byte-identical across a
+    session's turns; anything per-turn (evidence, conversation state, numbers, the question) is tail."""
     scope = contracts[0] if len(contracts) == 1 else f"{len(contracts)} related contracts {contracts}"
     tail = ("" if len(contracts) == 1 else
             "Multiple related contracts are shown — synthesize the cross-commodity linkage between them.")
-    return f"QUESTION: {query}\n\n=== CAUSAL GRAPH + DATED EVIDENCE ({scope}) ===\n" + "\n\n".join(blocks) + f"\n\n{tail}"
+    stable = f"=== CAUSAL GRAPH ({scope}) ===\n" + "\n\n".join(stable_blocks)
+    volatile = ("\n\n".join(volatile_blocks) + f"\n\nQUESTION: {query}" + (f"\n{tail}" if tail else "")).strip()
+    return stable, volatile
+
+
+def _pack(stable: str, volatile: str, structured: bool):
+    """Real call path -> (stable, volatile) tuple for cached blocks; injected fakes -> one plain string."""
+    return (stable, volatile) if structured else stable + "\n\n" + volatile
 
 
 def _answer_tool() -> dict:
@@ -375,11 +397,21 @@ def render(d: dict) -> str:
     return "\n".join(parts).strip()
 
 
-def _call_opus(system: str, user: str, *, model: str, tool: dict) -> dict:
+def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
+    """The real serving call. PROMPT CACHING: the system prompt is always a cached block, and when `user`
+    arrives as a (stable_prefix, volatile_tail) tuple the stable part — the per-contract graph context,
+    byte-identical across a session's turns — gets its own cache breakpoint. Turn 2+ of a conversation
+    (and a same-contract eval question within the 5-min TTL) reads the shared prefix at ~0.1x input price.
+    Injected test fakes keep the plain-string `user` API; only this real path structures blocks."""
     import anthropic
     from leviathan.graphrag import batch_extract as bx
     client = anthropic.Anthropic(api_key=bx._api_key())
-    out, _ = ex.call_opus(client, system, user, model=model, max_tokens=4096, tool=tool)   # headroom for cascade+mermaid+sources
+    sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    if isinstance(user, tuple):
+        stable, volatile = user
+        user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": volatile}]
+    out, _ = ex.call_opus(client, sys_blocks, user, model=model, max_tokens=4096, tool=tool)   # headroom for cascade+mermaid+sources
     return out
 
 
@@ -393,6 +425,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     evidence, trace}."""
     retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)         # serving = the A/B-won hybrid+rerank+mmr stack
     driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)   # real slices; tests inject -> no-op
+    use_blocks = call is None or call is _call_opus               # real path -> prompt-cached content blocks
     call = call or _call_opus
     route_fn = route_fn or route_smart
     routed = route_fn(query, graph)
@@ -402,7 +435,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
-                          focus_driver=focus_driver)
+                          focus_driver=focus_driver, use_blocks=use_blocks)
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()
@@ -413,10 +446,11 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             contracts.append(c)
         if len(contracts) >= max_contracts:
             break
-    blocks, evidence, ev_ids, regimes = [], [], [], []
+    stable_blocks, volatile_blocks, evidence, ev_ids, regimes = [], [], [], [], []
     for c in contracts:
         hits = retrieve(query, ev.node_for(c), k=k, asof=asof, near=near)   # variants share a commodity-node slice
-        blocks.append(_context_block(graph, c) + f"\n\n--- DATED EVIDENCE for {c} ---\n" + _ev_block(hits))
+        stable_blocks.append(_context_block(graph, c))             # byte-stable per contract -> cache prefix
+        volatile_blocks.append(f"--- DATED EVIDENCE for {c} ---\n" + _ev_block(hits))
         evidence += [{**h, "contract": c} for h in hits]
         ev_ids += [h["source_key"] for h in hits]
         regimes += [s.name for s in graph.contracts[c].convergence]
@@ -424,12 +458,13 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     drivers = _active_drivers(query, contracts, graph) if ev.driver_specs() else []
     driver_hits = _driver_evidence(query, drivers, k=_DRIVER_K, asof=asof, near=near, retrieve_fn=driver_retrieve)
     if driver_hits:
-        blocks.append("--- CROSS-CUTTING DRIVER EVIDENCE (cascade/convergence triggers; tie to silver) ---\n"
-                      + _ev_block(driver_hits))
+        volatile_blocks.append("--- CROSS-CUTTING DRIVER EVIDENCE (cascade/convergence triggers; tie to silver) ---\n"
+                               + _ev_block(driver_hits))
         evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
-    if extra_context:                                              # Phase 5 hybrid: inject silver numbers as context
-        blocks.append(extra_context)
-    structured = call(_SYSTEM, _prompt(query, contracts, blocks), model=model, tool=_answer_tool())
+    if extra_context:                                              # hybrid numbers / conversation state (volatile)
+        volatile_blocks.append(extra_context)
+    sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
+    structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
     seen_docs, uniq = set(), []

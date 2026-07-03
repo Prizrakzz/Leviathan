@@ -50,8 +50,9 @@ def test_judge_quant_persona_and_grounding_report():
               "gaps": ["no threshold given"], "improvements": ["name the tipping buffer"], "verdict": "sound mechanism"}
 
     def fake_call(client, system, user, *, model, max_tokens, tool):    # mimic ex.call_opus -> (input, usage)
-        assert tool["name"] == "score_answer" and "QUANTITATIVE RESEARCHER" in system and "frost hit" in user
-        assert "OBSERVED NUMBERS" in user and "not a trading system" in system.lower()  # numbers ctx + no-sizing framing
+        sys_text = system if isinstance(system, str) else system[0]["text"]   # judge system = cached block list
+        assert tool["name"] == "score_answer" and "QUANTITATIVE RESEARCHER" in sys_text and "frost hit" in user
+        assert "OBSERVED NUMBERS" in user and "not a trading system" in sys_text.lower()  # numbers ctx + no-sizing
         return scores, None
 
     j = gev.judge(q, out, client=None, model="claude-opus-4-8", call=fake_call)

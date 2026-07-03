@@ -282,22 +282,25 @@ def test_alias_map_resolves_dag_ids_to_slices():
 
 
 def test_l2_block_renders_receipts_never_fired_language():
-    from leviathan.graphrag import answer as an
     gr, sg = _run(tau=0.35, depth=2)
     pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=None, asof="2021-08-01",
               driver_slices={"frost", "el_nino", "drought"})
-    text = "\n".join(an._l2_blocks(sg, gr, asof="2021-08-01"))
+    stable, volatile = an._l2_blocks(sg, gr, asof="2021-08-01")
+    text = "\n".join(stable + volatile)
     assert "CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF" in text
     assert "frost (GAIN, 2021-07-20)" in text                        # the per-driver receipt, inline
     assert "CONSISTENT WITH" in text and "never describe a regime as 'fired'" in text
     assert "FIRED AT THIS AS-OF" not in text                         # the July-3 over-claim header is gone
+    stable_text = "\n".join(stable)                                  # cache-prefix split: per-turn state never
+    assert "CONVERGENCE CONDITIONS DOCUMENTED" not in stable_text     # leaks into the stable (cached) part
+    assert "DATED EVIDENCE for" not in stable_text
 
 
 def test_l2_block_no_asof_renders_structure_not_state():
-    from leviathan.graphrag import answer as an
     gr, sg = _run(tau=0.35, depth=2)
     pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=None,
               driver_slices={"frost", "el_nino", "drought"})
-    text = "\n".join(an._l2_blocks(sg, gr, asof=None))
+    stable, volatile = an._l2_blocks(sg, gr, asof=None)
+    text = "\n".join(stable + volatile)
     assert "not evaluated (no as-of date" in text
     assert "FIRED" not in text
