@@ -323,7 +323,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 sg.trace.setdefault("kept", []).append(list(node.key))
                 sg.trace["focus_driver"] = focus_driver
                 break
-    pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near)
+    probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
+    pl.ground(sg, query, graph, retrieve=retr, silver_lookup=None, asof=asof, near=near,
+              probe_retrieve=probe_retr)                          # probes = cheap existence checks, no reranker
     contracts = sg.seeds
     stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof)
     if extra_context:                                             # hybrid numbers / conversation state (volatile)

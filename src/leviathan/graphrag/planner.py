@@ -201,7 +201,7 @@ def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
 
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
            asof=None, near=None, k_by_depth=(5, 3, 2), evidence_cap: int = 24, driver_slices=None,
-           probe_cap: int = 24, recency_days: int = 548) -> Subgraph:
+           probe_cap: int = 24, recency_days: int = 548, probe_retrieve=None) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
     injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
 
@@ -286,6 +286,11 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                 if b:
                     probe_cache[(n.contract, n.id)] = b
 
+        # Probes are EXISTENCE checks ("any dated prop in the window?"), not quality retrieval — they must
+        # never pay the CPU cross-encoder reranker (24 probes x ~2-4s of rerank per answer was the second
+        # slowdown of the July-3 evals; a cheap dense/lex fetch is ~10x faster with identical semantics).
+        probe = probe_retrieve or retrieve
+
         def _basis(cid: str, did: str):
             key = (cid, did)
             if key in probe_cache:
@@ -293,7 +298,7 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             sp = slice_path(did) if did in backed else None
             if sp and budget["left"] > 0:                          # asof-guarded slice probe, recency-tested
                 budget["left"] -= 1
-                probe_cache[key] = _recent(list(retrieve(query, sp, k=2, asof=asof, near=near)))
+                probe_cache[key] = _recent(list(probe(query, sp, k=2, asof=asof, near=near)))
             else:
                 probe_cache[key] = None
             return probe_cache[key]
