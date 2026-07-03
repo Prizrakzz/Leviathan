@@ -121,7 +121,11 @@ def mmr_select(cands: list[dict], relevance: list[float], k: int, lam: float, *,
 
 # ── bge cross-encoder reranker (lazy self-hosted singleton) ──────────────────────────────
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
-RERANK_POOL = 24                       # CE pairs per retrieve: rerank the fused top ~5x k, not all fetch_k
+RERANK_POOL = 60                       # CE pool = full fetch_k. MEASURED (2026-07-03 ablation, 18 serving
+                                       # retrieves x 10 v3 queries): 41.7% of final picks under pool-60 come
+                                       # from fusion ranks 25-60 — the CE rescues deep candidates constantly,
+                                       # so capping the pool materially changes retrieval. Speed comes from
+                                       # the rerank lock below, not from starving the pool.
 _reranker = None
 _RERANK_LOCK = None                    # ONE rerank at a time, at full thread speed (see rerank_scores)
 
