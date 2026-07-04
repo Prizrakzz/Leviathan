@@ -108,26 +108,45 @@ def reset_cache() -> None:
     _CACHE = None
 
 
-def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE) -> list[dict]:
+def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list | None = None) -> list[dict]:
     """PIT-filtered episodes for a slice: recount from prop dates <= asof, drop empty, biggest first.
-    No asof -> nothing (an undated 'now' cannot anchor a timeline honestly)."""
-    if os.environ.get("GRAPHRAG_TIMELINE", "on") == "off":
+    No asof -> nothing (an undated 'now' cannot anchor a timeline honestly).
+
+    DEFAULT OFF (measured 2026-07-04: episode COUNTS without content invited uncited confabulation —
+    the reasoner narrated "what happened" in an episode it had no text for; +10 halluc on 19 turns
+    while citation-integrity strips stayed flat). Set GRAPHRAG_TIMELINE=on to enable the RECEIPTED
+    path: `evidence` (the dated props ground() already fetched for this node) supplies one in-window
+    prop per episode as a citable RECEIPT, so the reasoner has text to cite instead of invent."""
+    if os.environ.get("GRAPHRAG_TIMELINE", "off") != "on":
         return []
     asof_d = _parse(asof)
     if asof_d is None:
         return []
+    ev_by_date = sorted(((str(h.get("date") or "")[:10], (h.get("text") or "")) for h in (evidence or [])
+                         if _parse(h.get("date"))), key=lambda x: x[0])
     out = []
     for ep in _load().get(node) or []:
         vis = [d for d in ep.get("dates") or [] if (_parse(d) or _dt.date.max) <= asof_d]
-        if vis:
-            out.append({"start": vis[0], "end": vis[-1], "n": len(vis)})
+        if not vis:
+            continue
+        start, end = vis[0], vis[-1]
+        receipt = None                                             # newest evidence prop inside [start, end]
+        for d, txt in ev_by_date:
+            if start <= d <= end and txt:
+                receipt = {"date": d, "text": txt[:180]}
+        out.append({"start": start, "end": end, "n": len(vis), "receipt": receipt})
     out.sort(key=lambda e: -e["n"])
     return out[:max_n]
 
 
 def render_line(label: str, eps: list[dict]) -> str:
-    spans = ", ".join(f"{e['start'][:7]}..{e['end'][:7]} ({e['n']} props)" for e in eps)
-    return f"DATED EPISODES for {label} (as-known at the as-of): {spans}"
+    parts = []
+    for e in eps:
+        span = f"{e['start'][:7]}..{e['end'][:7]} ({e['n']} reports"
+        r = e.get("receipt")
+        span += f'; e.g. {r["date"]}: "{r["text"]}")' if r else ")"
+        parts.append(span)
+    return "DATED EPISODES for " + label + " (report TIMESTAMPS, not descriptions): " + ", ".join(parts)
 
 
 def main() -> int:

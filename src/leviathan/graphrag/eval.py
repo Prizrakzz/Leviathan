@@ -328,7 +328,10 @@ def verifier_panel(traces: list[dict]) -> list[str]:
         for k, c in (v.get("by_rule") or {}).items():
             by[k] = by.get(k, 0) + c
     rules = ", ".join(f"{k} x{c}" for k, c in sorted(by.items(), key=lambda x: -x[1])) or "(none)"
-    return ["", "## Citation verifier (deterministic)", "",
+    return ["", "## Citation verifier (deterministic) — PRIMARY cross-run quality signal", "",
+            "_Judge-free + credit-independent: the un-gameable measure of fabricated citation. Compare THIS "
+            "across runs; judge-hallucination deltas under ~8/25 turns are within measured judge noise (RCA-561)._",
+            "",
             f"- handles checked: **{sum(v.get('checked', 0) for v in vs)}** | "
             f"stripped: **{sum(v.get('stripped', 0) for v in vs)}** | "
             f"ledger dates corrected: {sum(v.get('corrected', 0) for v in vs)}",

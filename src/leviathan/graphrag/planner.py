@@ -247,7 +247,9 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             continue                                               # no slice -> prior-only node (no empty fetch)
         k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
         n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near))
-        n.episodes = tl.episodes_for(sp, asof)                     # dated occurrences, PIT-recounted <= asof
+        if n.evidence:                                             # RECEIPTED timeline: only for nodes that
+            n.episodes = tl.episodes_for(sp, asof, evidence=n.evidence)   # HAVE dated props (else no line at
+        # all — an episode the reasoner has no text for is what invited confabulation, measured 2026-07-04)
     _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
 
     ctx_text: dict[str, str] = {}                                 # contract -> its own evidence text (for active)

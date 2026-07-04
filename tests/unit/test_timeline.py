@@ -25,6 +25,7 @@ def test_episodes_for_recounts_pit_and_drops_future(tmp_path, monkeypatch):
         {"start": "2021-06-01", "end": "2021-08-20", "dates": ["2021-06-01", "2021-07-10", "2021-08-20"]},
     ]}), encoding="utf-8")
     monkeypatch.setenv("GRAPHRAG_TIMELINE_PATH", str(art))
+    monkeypatch.setenv("GRAPHRAG_TIMELINE", "on")               # DEFAULT is now OFF — opt in to exercise
     tl.reset_cache()
     eps = tl.episodes_for("drivers/frost", "2021-07-15")
     by_start = {e["start"]: e for e in eps}
@@ -33,8 +34,30 @@ def test_episodes_for_recounts_pit_and_drops_future(tmp_path, monkeypatch):
     assert by_start["1994-06-10"]["n"] == 2
     assert tl.episodes_for("drivers/frost", "1990-01-01") == []  # nothing knowable yet
     assert tl.episodes_for("drivers/frost", None) == []          # no as-of -> no timeline
-    monkeypatch.setenv("GRAPHRAG_TIMELINE", "off")
-    assert tl.episodes_for("drivers/frost", "2022-01-01") == []  # kill switch
+    monkeypatch.delenv("GRAPHRAG_TIMELINE")
+    assert tl.episodes_for("drivers/frost", "2022-01-01") == []  # DEFAULT OFF: unset env -> no episodes
+    monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
+    tl.reset_cache()
+
+
+def test_receipt_attaches_in_window_prop_and_renders(monkeypatch, tmp_path):
+    art = tmp_path / "episodes.json"
+    art.write_text(json.dumps({"drivers/frost": [
+        {"start": "2021-06-01", "end": "2021-08-20", "dates": ["2021-06-01", "2021-07-10", "2021-08-20"]}]}),
+        encoding="utf-8")
+    monkeypatch.setenv("GRAPHRAG_TIMELINE_PATH", str(art))
+    monkeypatch.setenv("GRAPHRAG_TIMELINE", "on")
+    tl.reset_cache()
+    ev = [{"date": "2021-07-10", "text": "A damaging frost hit southern Minas Gerais coffee."},
+          {"date": "2025-01-01", "text": "out of window, must not be picked"}]
+    eps = tl.episodes_for("drivers/frost", "2021-08-01", evidence=ev)
+    r = eps[0]["receipt"]
+    assert r and r["date"] == "2021-07-10" and "Minas Gerais" in r["text"]   # in-window prop is the receipt
+    line = tl.render_line("frost", eps)
+    assert "report TIMESTAMPS, not descriptions" in line and '2021-07-10: "A damaging frost' in line
+    # no evidence -> count only, no receipt (still renders honestly)
+    bare = tl.episodes_for("drivers/frost", "2021-08-01", evidence=[])
+    assert bare[0]["receipt"] is None and "reports)" in tl.render_line("frost", bare)
     monkeypatch.delenv("GRAPHRAG_TIMELINE")
     monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
     tl.reset_cache()
@@ -45,8 +68,8 @@ def test_derive_with_fake_query_fn_and_render():
         {"node": "drivers/frost", "d": "2021-06-01"}, {"node": "drivers/frost", "d": "2021-07-01"},
         {"node": "arabica_coffee", "d": "1994-06-10"}])
     assert set(eps) == {"drivers/frost", "arabica_coffee"} and len(eps["drivers/frost"]) == 1
-    line = tl.render_line("frost", [{"start": "2021-06-01", "end": "2021-07-01", "n": 2}])
-    assert "DATED EPISODES for frost" in line and "2021-06..2021-07 (2 props)" in line
+    line = tl.render_line("frost", [{"start": "2021-06-01", "end": "2021-07-01", "n": 2, "receipt": None}])
+    assert "DATED EPISODES for frost" in line and "2021-06..2021-07 (2 reports)" in line
 
 
 def test_ground_attaches_pit_episodes(tmp_path, monkeypatch):
@@ -57,16 +80,25 @@ def test_ground_attaches_pit_episodes(tmp_path, monkeypatch):
     art.write_text(json.dumps({"drivers/frost": [
         {"start": "2021-06-01", "end": "2021-08-20", "dates": ["2021-06-01", "2021-08-20"]}]}), encoding="utf-8")
     monkeypatch.setenv("GRAPHRAG_TIMELINE_PATH", str(art))
+    monkeypatch.setenv("GRAPHRAG_TIMELINE", "on")
     tl.reset_cache()
     c = cs.CausalContract(contract="arabica_coffee", aliases=[], drivers=[
         cs.Driver(id="frost", type="hazard", sign="+", mechanism="frost kills trees")])
     graph = g.CausalGraph({"arabica_coffee": c}, silver=set())
     sg = pl.grounded_subgraph("frost coffee", graph, embed=lambda xs: [[1.0, 0.0] for _ in xs],
                               route_fn=lambda q, gr: ["arabica_coffee"])
-    pl.ground(sg, "frost coffee", graph, retrieve=lambda q, node, *, k, asof=None, near=None: [],
+    ev = [{"date": "2021-06-05", "source": "gain", "source_key": "s3://x", "text": "frost report"}]
+    pl.ground(sg, "frost coffee", graph, retrieve=lambda q, node, *, k, asof=None, near=None: list(ev),
               asof="2021-07-01", driver_slices={"frost"})
     frost = next(n for n in sg.nodes if n.id == "frost")
     assert frost.episodes and frost.episodes[0]["n"] == 1        # only the pre-asof prop counts
+    # GATE: a node with NO evidence gets NO episode line even though the artifact has episodes
+    sg2 = pl.grounded_subgraph("frost coffee", graph, embed=lambda xs: [[1.0, 0.0] for _ in xs],
+                               route_fn=lambda q, gr: ["arabica_coffee"])
+    pl.ground(sg2, "frost coffee", graph, retrieve=lambda q, node, *, k, asof=None, near=None: [],
+              asof="2021-07-01", driver_slices={"frost"})
+    assert not next(n for n in sg2.nodes if n.id == "frost").episodes
+    monkeypatch.delenv("GRAPHRAG_TIMELINE")
     monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
     tl.reset_cache()
 
