@@ -80,6 +80,12 @@ def _vintage_partition_bounds(spec: NumberQuery, ts: TableSpec) -> list[str]:
         return []
     w: list[str] = []
     asof_y = int(spec.asof[:4])
+    if ts.vintage_dates_real and spec.period:
+        # REAL publication dates only (silver_wasde): no release mentioning marketing year Y is
+        # published before Y's calendar year (WASDE first projects MY Y in May of Y) — the lower
+        # bound shrinks the projected daily grid from (asof - 1973) candidates to ~(asof - Y) without
+        # excluding any qualifying vintage. The upper bound lives in _guard (release <= asof, native).
+        w.append(f"{col} >= {_q(_fmt_pdate(f'{int(str(spec.period)[:4])}-01-01', ts.vintage_partition_format))}")
     if not spec.period and ts.period_col and ts.period_sql_type == "int":
         if spec.period_start and spec.period_end:
             # source END-year labels covering the window, +1/+2 margin
@@ -198,6 +204,17 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
         w.append(f"{_dcol(ts.date_col)} >= {_q(spec.period_start)}")
     if ts.date_col and spec.period_end:
         w.append(f"{_dcol(ts.date_col)} <= {_q(spec.period_end)}")
+    if ts.year_col:
+        # sargable bare-column year bounds: neither the ym EXPRESSION (year_month tables) nor a guard
+        # on a date DATA column (silver_nasa_power, whose year/month are projected partitions) can
+        # prune a projected year axis — weather queries probed ~660 year-month candidates each
+        # (Jul-2026 lint finding). All three bounds are implied by the existing date/ym predicates,
+        # so semantics are unchanged; they exist purely so projection pruning can see them.
+        w.append(f"{ts.year_col} <= {int(spec.asof[:4])}")
+        if spec.period_start:
+            w.append(f"{ts.year_col} >= {int(spec.period_start[:4])}")
+        if spec.period_end:
+            w.append(f"{ts.year_col} <= {int(spec.period_end[:4])}")
     if ts.knowledge_semantics == "year_month" and (spec.period_start or spec.period_end):
         ym = f"({ts.year_col} * 100 + {ts.month_col})"          # window monthly (year_month) tables by 'YYYY-MM'
         if spec.period_start:
@@ -216,10 +233,19 @@ def _guard(spec: NumberQuery, ts: TableSpec) -> str:
     if ts.knowledge_semantics == "year_month":
         if not (ts.year_col and ts.month_col):
             raise ValueError(f"table {ts.id} year_month semantics needs year_col + month_col")
-        return f"({ts.year_col} * 100 + {ts.month_col}) <= {_asof_ym(spec.asof)}"
+        # the bare-column year bound is implied by the ym expression (any year > asof_year makes
+        # year*100+month exceed asof_ym) — it exists purely so projection pruning can see the guard.
+        return (f"({ts.year_col} * 100 + {ts.month_col}) <= {_asof_ym(spec.asof)} "
+                f"AND {ts.year_col} <= {int(spec.asof[:4])}")
     col = ts.knowledge_col()
     if not col:
         raise ValueError(f"table {ts.id} has no knowledge/date column to anchor the as-of guard")
+    if col == ts.vintage_partition_col:
+        # the knowledge col IS a projected partition: compare NATIVELY in the partition's own value
+        # format — a CAST here is semantically a no-op on a string column but makes the predicate
+        # non-sargable, so Athena enumerates the whole projected grid (silver_wasde: 19.5K daily
+        # candidates over 461 real monthly partitions — the WASDE arm of the Jul-2026 LIST storm).
+        return f"{col} <= {_q(_fmt_pdate(spec.asof, ts.vintage_partition_format))}"
     return f"{_dcol(col)} <= {_q(spec.asof)}"
 
 

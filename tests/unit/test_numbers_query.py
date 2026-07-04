@@ -347,3 +347,60 @@ def test_athena_timeout_cancels_the_query(monkeypatch):
     with pytest.raises(RuntimeError, match="cancelled"):
         Q._athena(client, "SELECT 1", "db")
     assert stopped == ["qid-1"]
+
+
+def _wasde_projected() -> TableSpec:
+    """silver_wasde: release_date is a PROJECTED string partition holding REAL monthly publication
+    dates (461 real vs 19.5K daily candidates) — native guard + period lower bound are the pruning."""
+    return TableSpec(id="silver_wasde", description="", shape="tall", commodity_col="commodity",
+                     period_col="marketing_year", period_type="marketing_year", period_sql_type="string",
+                     knowledge_date_col="release_date", knowledge_semantics="vintage",
+                     metric_col="attribute", value_col="estimate", unit_col="unit",
+                     vintage_partition_col="release_date", vintage_partition_format="iso",
+                     vintage_dates_real=True)
+
+
+def test_wasde_guard_is_native_and_period_bounds_the_grid():
+    sql = build_sql(NumberQuery(table="silver_wasde", metric="Ending Stocks", asof="2024-05-31",
+                                commodity="corn", period="2023/24"), _wasde_projected())
+    assert "release_date <= '2024-05-31'" in sql                 # NATIVE sargable guard ...
+    assert "CAST(release_date" not in sql                        # ... never the pruning-poison CAST
+    assert "release_date >= '2023-01-01'" in sql                 # period-derived lower bound
+    assert "marketing_year = '2023/24'" in sql
+
+
+def test_wasde_no_period_keeps_native_guard_without_lower_bound():
+    sql = build_sql(NumberQuery(table="silver_wasde", metric="Ending Stocks", asof="2013-06-01",
+                                commodity="corn", agg="latest"), _wasde_projected())
+    assert "release_date <= '2013-06-01'" in sql and "CAST(release_date" not in sql
+    assert "release_date >=" not in sql                          # no period -> no date lower bound
+
+
+def test_esr_write_date_vintages_never_get_date_bounds():
+    """vintage_dates_real=False (ESR write-date snapshots): date bounds stay canary-banned."""
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2013-03-01",
+                                commodity="corn_cbot", period="2012", agg="sum"), _esr_projected())
+    assert "as_of_date >=" not in sql and "as_of_date <=" not in sql
+
+
+def test_registry_projection_lint_flags_unguarded_axes():
+    from types import SimpleNamespace
+
+    from leviathan.graphrag.numbers import lint as L
+
+    def fake_get_table(DatabaseName, Name):
+        params = {"projection.enabled": "true", "projection.release_date.type": "date",
+                  "projection.release_date.range": "1973-01-01,NOW"} if Name == "silver_wasde" else {}
+        return {"Table": {"Parameters": params}}
+
+    glue = SimpleNamespace(get_table=fake_get_table)
+    problems = L.lint_registry(glue)                             # live registry: wasde declares the col
+    assert not [p for p in problems if "silver_wasde" in p]
+    # now break the discipline: same projection, spec without coverage
+    monkey_reg = L.load_registry()
+    monkey_reg.tables["silver_wasde"].vintage_partition_col = None
+    try:
+        problems = L.lint_registry(glue)
+        assert any("silver_wasde" in p and "release_date" in p for p in problems)
+    finally:
+        monkey_reg.tables["silver_wasde"].vintage_partition_col = "release_date"

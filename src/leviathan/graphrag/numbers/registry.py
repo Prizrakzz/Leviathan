@@ -61,6 +61,11 @@ class TableSpec(BaseModel):
     #                                                          publication date; build_sql bounds it natively
     #                                                          (never CAST — CAST defeats projection pruning)
     vintage_partition_format: Literal["yyyyMMdd", "iso"] = "yyyyMMdd"   # the partition VALUE format
+    vintage_dates_real: bool = False                         # True = partition values are REAL publication
+    #                                                          dates (silver_wasde) -> date bounds are valid
+    #                                                          pruning. False = write-date snapshots
+    #                                                          (silver_esr) -> date bounds are WRONG
+    #                                                          (canary-proven 2026-07-04); never emit them
     commodity_code_col: Optional[str] = None                 # projected int partition keyed by source code
     commodity_codes: dict[str, int] = {}                     # slug -> source code (prunes the code partition)
     metric_col: Optional[str] = None                         # tall: column holding the metric NAME
