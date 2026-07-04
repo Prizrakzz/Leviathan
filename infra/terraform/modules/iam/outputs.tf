@@ -21,3 +21,7 @@ output "sagemaker_training_role_arn" {
   value       = aws_iam_role.sagemaker_training_role.arn
   description = "ARN of the SageMaker training role (passed as RoleArn in CreateTrainingJob calls)."
 }
+output "batch_job_role_name" {
+  value       = aws_iam_role.batch_job_role.name
+  description = "Role NAME (for policy attachments in sibling modules, e.g. the Bedrock guardrail)."
+}

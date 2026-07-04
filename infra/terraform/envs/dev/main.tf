@@ -30,6 +30,16 @@ module "iam" {
   ecr_trainer_repository_arn = module.ecr_trainer.repository_arn
 }
 
+# GraphRAG serving input guardrail (prompt-attack HIGH + high-risk PII, INPUT only).
+# Serving enables it via GRAPHRAG_GUARDRAIL=<graphrag_guardrail_id> (default off, fail-open).
+module "bedrock_guardrail" {
+  source = "../../modules/bedrock_guardrail"
+
+  project_name        = var.project_name
+  environment         = var.environment
+  batch_job_role_name = module.iam.batch_job_role_name
+}
+
 module "ecr" {
   source = "../../modules/ecr"
 

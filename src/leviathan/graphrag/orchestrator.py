@@ -168,6 +168,42 @@ _FLOOR_BANNER = ("**Service notice.** The reasoning model tier is temporarily un
                  "have been reasoned over — no synthesized conclusions are included.")
 
 
+def _guardrail_client():
+    """Lazy bedrock-runtime client for ApplyGuardrail (module-level so tests monkeypatch it)."""
+    import os
+
+    import boto3
+    return boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+
+
+def _guardrail_check(query: str):
+    """Bedrock Guardrail INPUT pre-filter (plan P4): a managed prompt-attack + high-risk-PII gate on the
+    raw user query, ahead of the dispatch planner. Defense-in-depth NEXT TO the enum-locked planner /
+    spotlighting / PIT kill-switch, never a replacement. INPUT only — output filtering would fight the
+    citation verifier. Default OFF (GRAPHRAG_GUARDRAIL unset/off); FAIL-OPEN on any API error
+    (availability beats the filter — the structural defenses still gate). Returns a refusal-shaped
+    respond() dict on INTERVENED, else None."""
+    import os
+    gid = os.environ.get("GRAPHRAG_GUARDRAIL", "off")
+    if gid in ("", "off"):
+        return None
+    try:
+        resp = _guardrail_client().apply_guardrail(
+            guardrailIdentifier=gid,
+            guardrailVersion=os.environ.get("GRAPHRAG_GUARDRAIL_VERSION", "DRAFT"),
+            source="INPUT", content=[{"text": {"text": query[:5000]}}])
+    except Exception:  # noqa: BLE001 — fail-open: a filter outage must never take serving down
+        return None
+    if resp.get("action") != "GUARDRAIL_INTERVENED":
+        return None
+    return {"answer": "This query was flagged by the input safety filter and was not processed. "
+                      "Please rephrase your research question.",
+            "structured": None, "contract": None, "contracts": [], "citations": [], "evidence": [],
+            "model": "(guardrail)", "intent": "refused",
+            "intent_decision": {"intent": "refused", "guardrail": True},
+            "trace": {"guardrail": {"action": "INTERVENED"}}}
+
+
 def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
                    route_fn=None, near: Optional[str] = None) -> dict:
     """The DETERMINISTIC FLOOR (plan: production fallback chain, last resort). When every LLM attempt —
@@ -232,6 +268,10 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
     store failure degrade to stateless — memory never breaks an answer."""
     import os
     planner = planner or os.environ.get("GRAPHRAG_PLANNER", "l2")
+
+    refused = _guardrail_check(query)                 # input pre-filter (default off, fail-open)
+    if refused is not None:
+        return refused                                # refused turns never touch session state
 
     # ── session load (Phase 1) ────────────────────────────────────────────────────────────────────
     snap, store, ss = None, None, None
