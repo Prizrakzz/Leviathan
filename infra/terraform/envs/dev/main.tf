@@ -30,6 +30,15 @@ module "iam" {
   ecr_trainer_repository_arn = module.ecr_trainer.repository_arn
 }
 
+# Cost tripwires (Jul-2026 S3 LIST storm): daily S3 budget alert + CE anomaly detection -> email.
+module "cost_guardrails" {
+  source = "../../modules/cost_guardrails"
+
+  project_name = var.project_name
+  environment  = var.environment
+  alert_email  = "ivanzkarpov@gmail.com"
+}
+
 # GraphRAG serving input guardrail (prompt-attack HIGH + high-risk PII, INPUT only).
 # Serving enables it via GRAPHRAG_GUARDRAIL=<graphrag_guardrail_id> (default off, fail-open).
 module "bedrock_guardrail" {
