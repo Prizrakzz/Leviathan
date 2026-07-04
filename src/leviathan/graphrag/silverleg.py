@@ -13,8 +13,11 @@ numbers.query.build_sql's as-of guards):
   * fred_fx_macro — origin-currency level z vs its trailing window (BRL default; CNY for DCE/ZCE
     contracts).
   * oni_climate — the ONI anomaly at asof (absolute-band semantics, the meteorological +-0.5).
-Spine z-features (drought_z, heat_stress_z, ...) need an as-of compute design -> next batch. A ref
-this module can't serve returns {live: False} and the DOCUMENTED text semantics stand unchanged.
+More driver coverage (heat_stress, drought/precip, positioning) comes from z-scores computed IN SQL
+over SILVER SOURCE TABLES (nasa_power, chirps, cot) — the same pattern as _fx below. NEVER read
+gold.feature_spine here: the feature layer belongs to the deferred MLOps track (user decision
+2026-07-04), and this leg must stay decoupled from it. A ref this module can't serve returns
+{live: False} and the DOCUMENTED text semantics stand unchanged.
 
 Verdicts (thresholds in params.yaml serving.silver.thresholds): |z| >= z_thr -> "observed" (fires,
 quantitative receipt); |z| <= veto fraction of z_thr -> "normal" (VETOES the driver); in between ->
