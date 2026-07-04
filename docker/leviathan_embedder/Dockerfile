@@ -29,7 +29,9 @@ ENV HF_HOME=/opt/hf \
 COPY pyproject.toml ./
 RUN mkdir -p src/leviathan && touch src/leviathan/__init__.py && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -e ".[embed,pg]"
+    pip install --no-cache-dir -e ".[embed,pg,serve]"
+# [serve] adds langgraph + fastapi + uvicorn (~10 MB): this same image now also runs the UI backend
+# as an ECS service —  python -m uvicorn leviathan.graphrag.server:app --host 0.0.0.0 --port 8080
 
 # Real source last — small layers on change. configs/ carries the gitignored causal DAG + evidence_windows.yaml
 # + driver_slices.yaml (Docker copies the filesystem, not git); they stay inside this PRIVATE ECR image.
