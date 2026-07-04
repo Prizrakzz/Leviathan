@@ -63,6 +63,7 @@ class GroundedNode:
     silver: Optional[dict] = None               # {ref,value,unit,knowledge_date,live} or {ref,live:False}
     active: bool = False                        # driver "active" = evidence leg non-empty near the episode
     via_edge: Optional[dict] = None             # the inter-commodity edge that reached this contract node
+    episodes: list = field(default_factory=list)     # PIT-filtered dated episodes (timeline layer)
 
     @property
     def key(self) -> tuple:
@@ -239,12 +240,14 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             s = ev.slice_for_driver(did)
             return f"drivers/{s}" if s else None
 
+    from leviathan.graphrag import timeline as tl
     for n in sg.nodes:                                             # per-node evidence, k decays with depth
         sp = _slice_of(n, slice_path)
         if n.kind == "driver" and (n.id not in backed or sp is None):
             continue                                               # no slice -> prior-only node (no empty fetch)
         k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
         n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near))
+        n.episodes = tl.episodes_for(sp, asof)                     # dated occurrences, PIT-recounted <= asof
     _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
 
     ctx_text: dict[str, str] = {}                                 # contract -> its own evidence text (for active)

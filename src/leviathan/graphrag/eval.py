@@ -172,6 +172,17 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
     sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
     scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200,
                      tool=_judge_tool(continuity=convo_history is not None))  # headroom for adaptive thinking
+    # PARSE-TIME normalization (RCA-561): the model occasionally emits a list field as one prose
+    # string; unvalidated, len() downstream counted its CHARACTERS (the 561 spike). Coerce at the
+    # source so no consumer can ever see a degenerate shape: string -> [string], clip at 16 items.
+    for fld in ("hallucinations", "gaps"):
+        v = scores.get(fld)
+        if isinstance(v, str):
+            scores[fld] = [v] if v.strip() else []
+        elif isinstance(v, list):
+            scores[fld] = [str(x) for x in v][:16]
+        elif v is not None:
+            scores[fld] = [str(v)]
     return scores
 
 
@@ -367,6 +378,9 @@ def report(rows: list[dict], *, model: str) -> str:
     judged = [r["judge"] for r in rows if r.get("judge")]
     intent_rows = [r for r in rows if r["rubric"].get("expected_intent")]
     lines = [f"# graphdev eval v3 — {model}", "", f"- contract routed correctly: **{routed}/{len(rows)}**"]
+    if len(judged) < len(rows):                        # a degraded run must never masquerade as a full one
+        lines.append(f"- **JUDGED {len(judged)}/{len(rows)}** — {len(rows) - len(judged)} judge call(s) "
+                     "FAILED (see WARNs in the job log); judge averages cover judged rows only")
     if intent_rows:
         iok = sum(1 for r in intent_rows if r["rubric"].get("intent_ok"))
         lines.append(f"- **intent routed correctly: {iok}/{len(intent_rows)}** (numbers_only / reasoning / hybrid)")
@@ -587,6 +601,9 @@ def convo_report(rows: list[dict], *, model: str) -> str:
               f"- per-turn seconds: avg {statistics.mean(secs):.0f}, max {max(secs):.0f}"]
     if judged:
         lines += ["", "## Judge", "",
+                  f"- **judged {len(judged)}/{len(rows)} turns**"
+                  + ("" if len(judged) == len(rows) else
+                     f" — {len(rows) - len(judged)} judge call(s) FAILED; averages cover judged turns only"),
                   f"- usefulness {javg('usefulness')} | convexity {javg('convexity')} | "
                   f"point_in_time {javg('point_in_time')} | grounding {javg('grounding')} | "
                   f"**continuity {javg('continuity')}** /5",

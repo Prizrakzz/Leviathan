@@ -112,6 +112,10 @@ _SYSTEM = (
     "PER-HOP CITATIONS: in a multi-hop cascade, each hop beyond the first carries its OWN dated citation; a hop "
     "with none is labeled '(mechanism only — no dated evidence at this hop)' rather than borrowing the first "
     "hop's citation downstream.\n"
+    "DATED EPISODES: when a 'DATED EPISODES' line lists when a driver actually occurred in the corpus, ANCHOR "
+    "historical and analog claims to a listed episode (its span/count are as-known at the as-of). If the as-of "
+    "falls INSIDE an episode, say so — the pattern is live, not hypothetical. Never assert an occurrence the "
+    "episode list doesn't show; if none is listed, say the corpus shows no dated occurrence.\n"
     "Emit via emit_answer, reader-first for a PM to skim:\n"
     "- tldr: 2-4 sentences, bottom line FIRST (net price direction + the key driver). Inline [n] for evidence-backed claims.\n"
     "- mechanism: the causal chain / key drivers (sign each in words — 'raises price (bullish)' or 'lowers (bearish)'); NAME the convergence "
@@ -320,6 +324,9 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
                 vlines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
             elif n.kind == "driver" and n.evidence:
                 vlines.append(f"--- DATED EVIDENCE for driver {n.id} ---\n" + _ev_block(n.evidence))
+            if n.episodes:                                         # timeline layer: dated occurrences <= asof
+                from leviathan.graphrag import timeline as tl
+                vlines.append(tl.render_line(n.id, n.episodes))
             if n.kind == "driver" and n.silver and n.silver.get("live"):
                 vlines.append(f"OBSERVED for {n.id}: {n.silver.get('value')} {n.silver.get('unit', '')} "
                               f"[{n.silver.get('knowledge_date', '')}]")
@@ -483,7 +490,8 @@ def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
         stable, volatile = user
         user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": volatile}]
-    out, _ = ex.call_opus(client, sys_blocks, user, model=model, max_tokens=4096, tool=tool)   # headroom for cascade+mermaid+sources
+    out, _ = ex.call_opus(client, sys_blocks, user, model=model, max_tokens=6000, tool=tool)   # answers grew (sources
+    # block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
     return out
 
 

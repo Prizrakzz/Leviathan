@@ -72,10 +72,10 @@ def _numbers_in(s: str) -> list[float]:
 
 
 def _num_matches(sent_nums: list[float], row_vals: list[float]) -> bool:
-    """'31.4 million' vs 31400000: equal within 1% at any common reporting scale."""
+    """'31.4 million' vs 31400000, '36.4%' vs 0.3636: equal within 1% at any common reporting scale."""
     for a in sent_nums:
         for b in row_vals:
-            for scale in (1.0, 1e3, 1e6, 1e9):
+            for scale in (1.0, 1e2, 1e3, 1e6, 1e9):
                 if b and abs(a * scale - b) <= 0.01 * abs(b):
                     return True
                 if a and abs(b * scale - a) <= 0.01 * abs(a):

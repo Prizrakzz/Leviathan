@@ -41,9 +41,33 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn)
     cits = cit.unify(None, out.get("calls"))
     body = reg.sanitize((out.get("answer", "") + _footer(cits)).strip())   # strip leaked slugs/tokens from the numbers footer
+    nv = _verify_numbers_answer(out.get("answer", ""), out.get("calls") or [])
+    if nv.get("mismatched"):                                       # the citv2b 0.107-vs-0.3636 fabrication class:
+        body = ("_[verifier: a value stated below does not match any looked-up row — treat stated "
+                "figures with caution]_\n\n" + body)               # the reader is warned, deterministically
     return {"answer": body, "intent": "numbers_only",
             "citations": [c.model_dump() for c in cits], "number_calls": out.get("calls", []),
-            "evidence": [], "asof": asof, "structured": None, "contract": None}
+            "evidence": [], "asof": asof, "structured": None, "contract": None,
+            "trace": {"numbers_verifier": nv}}
+
+
+def _verify_numbers_answer(answer: str, calls: list) -> dict:
+    """Deterministic check: every number the answer STATES must match some looked-up row value
+    (scale-aware — '31.4 million' == 31400000). Numbers agents have no citation ledger, so they
+    bypassed verify.py entirely; this closes the gap the 0.107-vs-0.3636 fabrication exposed."""
+    from leviathan.graphrag import verify as vf
+    row_vals = []
+    for c in calls:
+        for r in (c.get("rows") or []):
+            try:
+                row_vals.append(float(str(r.get("value")).replace(",", "")))
+            except (TypeError, ValueError):
+                continue
+    stated = [v for v in vf._numbers_in(answer)
+              if abs(v) >= 0.001 and not (1900 <= v <= 2100 and float(v).is_integer())]   # skip years
+    mismatched = [v for v in stated if row_vals and not vf._num_matches([v], row_vals)]
+    return {"stated": len(stated), "rows": len(row_vals), "mismatched": len(mismatched),
+            "mismatch_values": mismatched[:5]}
 
 
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
