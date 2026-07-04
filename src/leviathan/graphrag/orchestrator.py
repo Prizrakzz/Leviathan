@@ -374,6 +374,10 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
 
 def _session_writeback(res: dict, query: str, asof: str, session_id, store, state, graph, call) -> dict:
     """Append the TurnRecord + roll the Phase-2 summary. Ids and short strings only — the PIT firewall."""
+    # Graph identity stamp (audit/reproducibility): every real answer records WHICH causal graph produced
+    # it. Done here — the single choke point both the main branch and the live early-return pass through —
+    # and BEFORE the no-session early return, so it lands whether or not a session is active.
+    res.setdefault("trace", {})["graph_version"] = getattr(graph, "version", None)
     if not (store and session_id):
         return res
     import time as _time

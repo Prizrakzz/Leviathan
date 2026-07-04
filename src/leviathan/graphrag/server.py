@@ -48,7 +48,8 @@ class Ask(BaseModel):
 def healthz() -> dict:
     from leviathan.graphrag import providers as pv
     return {"status": "ok", "contracts": len(_graph().contracts), "provider": pv.provider(),
-            "evidence_backend": os.environ.get("EVIDENCE_BACKEND", "local")}
+            "evidence_backend": os.environ.get("EVIDENCE_BACKEND", "local"),
+            "graph_version": getattr(_graph(), "version", None)}
 
 
 @app.post("/v1/respond")

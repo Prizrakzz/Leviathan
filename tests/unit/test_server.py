@@ -15,6 +15,7 @@ from leviathan.graphrag import server as sv
 
 class _FakeGraph:
     contracts = {"arabica_coffee": object(), "corn": object()}
+    version = "gtest12ab34cd"
 
 
 def _client(monkeypatch, respond_fn):

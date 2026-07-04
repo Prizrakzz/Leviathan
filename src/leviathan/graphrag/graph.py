@@ -27,6 +27,28 @@ def load_contracts(paths=None) -> dict[str, cs.CausalContract]:
     return out
 
 
+def causal_graph_version(paths=None) -> str:
+    """A stable 12-hex content hash of the curated causal YAMLs — the graph's identity for audit and
+    reproducibility (which graph produced an answer / an eval). Deterministic from the YAML BYTES, so it's
+    independent of the build/image; the same files always hash the same, and any edge/threshold edit
+    changes it. Returns 'nograph' if nothing loads. This is the cheap tier of graph versioning; a per-edge
+    effective_date + as-of graph loader is deferred (build-plan Phase 6) until a backtest demands it."""
+    import hashlib
+    paths = paths or sorted(_CAUSAL_DIR.glob("*.yaml"))
+    h, any_read = hashlib.sha256(), False
+    for p in sorted(paths, key=lambda x: str(x)):
+        try:
+            data = open(p, "rb").read()                      # read FIRST — a missing file contributes nothing
+        except OSError:
+            continue
+        h.update(str(getattr(p, "name", p)).encode())
+        h.update(b"\0")
+        h.update(data)
+        h.update(b"\0")
+        any_read = True
+    return h.hexdigest()[:12] if any_read else "nograph"
+
+
 @dataclass
 class _Index:
     contract: cs.CausalContract
@@ -58,14 +80,18 @@ class CausalGraph:
     """Queryable view over one or more loaded contracts. `silver` (the live feature names) is injected for
     tests; in production it resolves from the feature_spine registry + node_silver_map via validate."""
 
-    def __init__(self, contracts: dict[str, cs.CausalContract], *, silver: set[str] | None = None):
+    def __init__(self, contracts: dict[str, cs.CausalContract], *, silver: set[str] | None = None,
+                 version: str | None = None):
         self.contracts = contracts
         self._idx = {k: _index(v) for k, v in contracts.items()}
         self._silver = cval.available_silver() if silver is None else set(silver)
+        # graph identity for audit/reproducibility (trace.graph_version, /healthz, eval headers). A
+        # production load computes it from the YAML bytes; synthetic test graphs pass 'test' or None.
+        self.version = version
 
     @classmethod
     def load(cls, paths=None) -> "CausalGraph":
-        return cls(load_contracts(paths))
+        return cls(load_contracts(paths), version=causal_graph_version(paths))
 
     def _ix(self, contract: str) -> _Index:
         if contract not in self._idx:

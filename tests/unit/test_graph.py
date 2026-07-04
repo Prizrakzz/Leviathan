@@ -101,3 +101,23 @@ def test_load_contracts_smoke():
         assert c.driver_ids()
     if "arabica_coffee" in contracts:                                # tolerant: gitignored YAMLs may be absent in CI
         assert g.CausalGraph(contracts).silver_summary("arabica_coffee")["drivers"] > 0
+
+
+def test_causal_graph_version_stable_and_content_sensitive(tmp_path):
+    a = tmp_path / "a.yaml"; b = tmp_path / "b.yaml"
+    a.write_text("contract: x\ndrivers: []\n", encoding="utf-8")
+    b.write_text("contract: y\ndrivers: []\n", encoding="utf-8")
+    paths = [a, b]
+    v1 = g.causal_graph_version(paths)
+    v2 = g.causal_graph_version(list(reversed(paths)))               # order-independent (sorted internally)
+    assert v1 == v2 and len(v1) == 12 and all(c in "0123456789abcdef" for c in v1)
+    a.write_text("contract: x\ndrivers: []\n# edited\n", encoding="utf-8")
+    assert g.causal_graph_version(paths) != v1                       # a content edit changes the hash
+    assert g.causal_graph_version([tmp_path / "missing.yaml"]) == "nograph"
+
+
+def test_load_stamps_version_and_init_accepts_override():
+    gr = g.CausalGraph.load()                                        # real YAMLs locally; empty->'nograph' in CI
+    assert isinstance(gr.version, str) and gr.version               # a non-empty identity either way
+    gr2 = g.CausalGraph({"x": cs.CausalContract(contract="x", drivers=[_d("d")])}, silver=set(), version="test")
+    assert gr2.version == "test"                                     # synthetic graphs pass their own id

@@ -394,11 +394,14 @@ def _num_line(out: dict) -> str:
     return ", ".join(parts)
 
 
-def report(rows: list[dict], *, model: str) -> str:
+def report(rows: list[dict], *, model: str, graph_version: str | None = None) -> str:
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     judged = [r["judge"] for r in rows if r.get("judge")]
     intent_rows = [r for r in rows if r["rubric"].get("expected_intent")]
-    lines = [f"# graphdev eval v3 — {model}", "", f"- contract routed correctly: **{routed}/{len(rows)}**"]
+    lines = [f"# graphdev eval v3 — {model}", ""]
+    if graph_version:
+        lines.append(f"- graph: `{graph_version}` (causal-YAML content hash — the graph this run scored)")
+    lines.append(f"- contract routed correctly: **{routed}/{len(rows)}**")
     if len(judged) < len(rows):                        # a degraded run must never masquerade as a full one
         lines.append(f"- **JUDGED {len(judged)}/{len(rows)}** — {len(rows) - len(judged)} judge call(s) "
                      "FAILED (see WARNs in the job log); judge averages cover judged rows only")
@@ -593,7 +596,7 @@ def _convo_history(rows: list[dict], row: dict) -> str:
         for r in sorted(prior, key=lambda x: x["turn"]))
 
 
-def convo_report(rows: list[dict], *, model: str) -> str:
+def convo_report(rows: list[dict], *, model: str, graph_version: str | None = None) -> str:
     import collections
     import statistics
     tally: dict = collections.defaultdict(lambda: [0, 0])
@@ -611,8 +614,10 @@ def convo_report(rows: list[dict], *, model: str) -> str:
     tot_read = sum(r["usage"]["read"] for r in rows)
     tot_in = sum(r["usage"]["input"] for r in rows)
     secs = [r["secs"] for r in rows]
-    lines = [f"# conversation eval v1 — {model}", "",
-             "## Session mechanics (deterministic)", ""]
+    lines = [f"# conversation eval v1 — {model}", ""]
+    if graph_version:
+        lines.append(f"- graph: `{graph_version}` (causal-YAML content hash — the graph this run scored)")
+    lines += ["", "## Session mechanics (deterministic)", ""]
     for k in sorted(tally):
         ok, n = tally[k]
         lines.append(f"- **{k}**: {ok}/{n}")
@@ -685,7 +690,7 @@ def _convos_main(args, path) -> int:
     _OUT.mkdir(parents=True, exist_ok=True)
     from pathlib import Path
     out_path = _OUT / f"report_convos_{Path(str(path)).stem}.md"
-    out_path.write_text(convo_report(rows, model=args.model), encoding="utf-8")
+    out_path.write_text(convo_report(rows, model=args.model, graph_version=graph.version), encoding="utf-8")
     s3uri = ev._evid_s3()
     if s3uri:
         import boto3
@@ -762,7 +767,7 @@ def main() -> int:
                 _judge_row(r)
     _OUT.mkdir(parents=True, exist_ok=True)
     out_path = _OUT / f"report_{args.model}.md"
-    out_path.write_text(report(rows, model=args.model), encoding="utf-8")
+    out_path.write_text(report(rows, model=args.model, graph_version=graph.version), encoding="utf-8")
     s3uri = ev._evid_s3()
     if s3uri:                                                     # persist so a Fargate run's report survives the container
         import boto3
