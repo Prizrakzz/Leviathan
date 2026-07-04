@@ -60,3 +60,6 @@ docs/graphrag/corpus_profile/
 !*.tfvars.example
 .terraform.lock.hcl
 
+
+# Leviathan product / UI design + build plans — PRIVATE, never public
+docs/private/
