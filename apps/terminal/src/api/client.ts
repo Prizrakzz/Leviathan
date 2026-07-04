@@ -1,4 +1,4 @@
-import { MOCK_CONVERGENCE, mockRespondStream } from './mock';
+import { MOCK_CONVERGENCE, MOCK_GRAPH, MOCK_REGIMES, MOCK_SERIES, mockRespondStream } from './mock';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -25,14 +25,31 @@ async function getJSON<T>(path: string): Promise<T> {
 const q = (asof?: string) => (asof ? `?asof=${encodeURIComponent(asof)}` : '');
 
 export function getConvergence(asof?: string): Promise<Schemas['ConvergenceMatrix']> {
-  if (MOCK) return Promise.resolve(MOCK_CONVERGENCE as Schemas['ConvergenceMatrix']);
+  if (MOCK) return Promise.resolve(MOCK_CONVERGENCE);
   return getJSON(`/v1/convergence${q(asof)}`);
 }
 
 export function getGraph(contract: string, asof?: string): Promise<Schemas['GraphTopology']> {
+  if (MOCK) return Promise.resolve(MOCK_GRAPH);
   return getJSON(`/v1/graph/${encodeURIComponent(contract)}${q(asof)}`);
 }
 
 export function getRegimes(contract: string, asof?: string): Promise<Schemas['ConvergenceRow']> {
+  if (MOCK) return Promise.resolve(MOCK_REGIMES);
   return getJSON(`/v1/regimes/${encodeURIComponent(contract)}${q(asof)}`);
+}
+
+export function getSeries(
+  table: string,
+  metric: string,
+  opts: { commodity?: string; asof?: string } = {},
+): Promise<Schemas['Series']> {
+  if (MOCK) return Promise.resolve(MOCK_SERIES);
+  const p = new URLSearchParams();
+  if (opts.commodity) p.set('commodity', opts.commodity);
+  if (opts.asof) p.set('asof', opts.asof);
+  const qs = p.toString();
+  return getJSON(
+    `/v1/series/${encodeURIComponent(table)}/${encodeURIComponent(metric)}${qs ? `?${qs}` : ''}`,
+  );
 }

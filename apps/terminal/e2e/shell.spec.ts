@@ -10,9 +10,20 @@ test('shell is keyboard-operable and streams a mocked turn', async ({ page }) =>
   await cmd.fill('KC frost 2021');
   await cmd.press('Enter');
 
-  // the staged pipeline appears, then the streamed note (mock ~ <1s)
+  // the staged pipeline appears, then the assembled Answer view (mock ~ <1s)
   await expect(page.getByTestId('pipeline')).toBeVisible();
-  await expect(page.getByText('INTEGRITY', { exact: false })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('note')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('dag')).toBeVisible(); // the live cascade DAG rendered
+  await expect(page.getByTestId('numbers')).toBeVisible();
+  await expect(page.getByText('INTEGRITY', { exact: false })).toBeVisible();
+
+  // blur the command bar, then `e` opens the receipts drawer, Escape closes it
+  await page.getByTestId('note').click();
+  await page.keyboard.press('e');
+  await expect(page.getByTestId('receipts')).toBeVisible();
+  await expect(page.getByText('cited', { exact: false }).first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('receipts')).toBeHidden();
 
   // ⌘K opens the palette (a global combo — works even from the command bar), Escape closes it
   await page.keyboard.press('ControlOrMeta+k');

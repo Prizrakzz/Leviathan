@@ -4,6 +4,8 @@ import { parseCommand } from '@/command/parser';
 import { useHotkeys } from '@/hotkeys/useHotkeys';
 import { useAsOf } from '@/store/asof';
 import { useUI, type ViewName } from '@/store/ui';
+import { noteToMarkdown } from '@/views/note/markdown';
+import { useUrlSync } from './useUrlSync';
 import { CommandPalette } from './CommandPalette';
 import { ShortcutSheet } from './ShortcutSheet';
 import { ThreadPane } from './ThreadPane';
@@ -20,6 +22,7 @@ export function Shell() {
   const [cmd, setCmd] = useState('');
   const [question, setQuestion] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
+  useUrlSync();
 
   const submit = (input: string) => {
     setCmd('');
@@ -50,11 +53,16 @@ export function Shell() {
     onToggleThread: () => useUI.getState().toggleThread(),
     onEscape: () => {
       useUI.getState().setPalette(false);
+      useUI.getState().setReceipts(false);
       setHelpOpen(false);
     },
     onAsOfStep: (dir, large) => asofStep(dir, large),
     onView: (v: ViewName) => useUI.getState().setView(v),
     onPanel: (n) => useUI.getState().focusPanel(n),
+    onReceipts: () => useUI.getState().toggleReceipts(),
+    onCopy: () => {
+      if (turn.result) void navigator.clipboard?.writeText(noteToMarkdown(turn.result));
+    },
     onHelp: () => setHelpOpen(true),
   });
 
