@@ -170,6 +170,40 @@ class CausalGraph:
         return {"drivers": len(c.drivers), "live": len(live), "planned": len(planned),
                 "live_ids": sorted(live), "planned_ids": sorted(planned)}
 
+    # ── per-contract topology (terminal cascade-DAG endpoint, build-plan P1.2) ─────────
+    def topology(self, contract: str) -> dict:
+        """One contract's cascade DAG as nodes + edges for the interactive terminal view (design §4.2):
+        its drivers (with silver_status + confidence), the terminal contract node, fan-in parent edges, and
+        inter-commodity hop targets (flagged `tracked` when the target is itself a loaded contract). Pure/
+        offline; graph_version-stamped so the frontend can cache per (contract, version). Unknown contract
+        raises KeyError -> the route maps it to 404. Firing/active overlay is applied by the route (needs an
+        as-of + silver), keeping this method pure of I/O."""
+        if contract not in self.contracts:
+            raise KeyError(contract)
+        c = self.contracts[contract]
+        tgt0 = c.target_metrics[0] if c.target_metrics else "price"
+        ids = {d.id for d in c.drivers}
+        nodes: dict[str, dict] = {contract: {"id": contract, "kind": "contract", "contract": contract,
+                                             "target_metric": tgt0}}
+        edges: list[dict] = []
+        for d in c.drivers:
+            nodes[d.id] = {"id": d.id, "kind": d.type, "contract": contract, "silver_ref": d.silver_ref,
+                           "silver_status": d.silver_status, "confidence": d.confidence}
+            edges.append({"source": d.id, "target": contract, "edge_type": d.edge_type or "drives",
+                          "sign": d.sign, "lag": d.lag, "mechanism": d.mechanism, "confidence": d.confidence,
+                          "target_metric": d.target_metric or tgt0})
+            for p in d.parents:                                      # fan-in: parent driver -> driver
+                if p in ids:
+                    edges.append({"source": p, "target": d.id, "edge_type": "drives", "sign": None})
+        for e in c.inter_commodity:                                 # cascade hop: contract -> other commodity
+            nodes.setdefault(e.driver_commodity, {"id": e.driver_commodity, "kind": "commodity",
+                                                  "contract": e.driver_commodity,
+                                                  "tracked": e.driver_commodity in self.contracts})
+            edges.append({"source": contract, "target": e.driver_commodity, "edge_type": e.relation,
+                          "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism})
+        return {"contract": contract, "graph_version": self.version,
+                "nodes": list(nodes.values()), "edges": edges}
+
     # ── flat export (debug / QA / L2 mermaid substrate) ───────────────────────────────
     def to_edge_list(self) -> list[dict]:
         """Flatten every contract into a canonical edge list — the THREE edge kinds as uniform rows:

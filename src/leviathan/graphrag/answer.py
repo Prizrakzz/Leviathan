@@ -337,9 +337,22 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
     return stable, volatile
 
 
+def _emit(on_stage, stage: str, **info) -> None:
+    """Fire a staged-pipeline progress callback for the granular SSE UI (build-plan P1.1). Best-effort:
+    a progress report must NEVER break or slow a turn, so any callback error is swallowed. `on_stage` is
+    None on every non-streamed caller (eval harness, POST /v1/respond, tests) -> strict no-op."""
+    if on_stage is None:
+        return
+    try:
+        on_stage(stage, info)
+    except Exception:  # noqa: BLE001 — progress reporting is cosmetic; it can never fail an answer
+        pass
+
+
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
-               focus_driver: str | None = None, use_blocks: bool = False, silver_lookup=None) -> dict:
+               focus_driver: str | None = None, use_blocks: bool = False, silver_lookup=None,
+               on_stage=None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -361,6 +374,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
               probe_retrieve=probe_retr)                          # probes = cheap existence checks, no reranker
+    _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes))
+    _emit(on_stage, "retrieving", props=int(sg.trace.get("n_evidence", 0) or 0))
     contracts = sg.seeds
     stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof)
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
@@ -381,6 +396,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     from leviathan.graphrag import verify as vf
     verifier = vf.verify_citations(structured, evidence, extra_number_calls,
                                    foreign_names=_foreign_regime_names(graph, contracts))
+    _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
+          stripped=int(verifier.get("stripped", 0) or 0))
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))
@@ -516,7 +533,8 @@ def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
-           planner: str | None = None, focus_driver: str | None = None, silver_lookup=None) -> dict:
+           planner: str | None = None, focus_driver: str | None = None, silver_lookup=None,
+           on_stage=None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -534,7 +552,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=raw_retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
-                          focus_driver=focus_driver, use_blocks=use_blocks, silver_lookup=silver_lookup)
+                          focus_driver=focus_driver, use_blocks=use_blocks, silver_lookup=silver_lookup,
+                          on_stage=on_stage)
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()
@@ -577,6 +596,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     from leviathan.graphrag import verify as vf
     verifier = vf.verify_citations(structured, evidence, extra_number_calls,
                                    foreign_names=_foreign_regime_names(graph, contracts))
+    _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
+          stripped=int(verifier.get("stripped", 0) or 0))
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))

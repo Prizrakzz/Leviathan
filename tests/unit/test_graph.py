@@ -37,6 +37,29 @@ def _graph() -> g.CausalGraph:
                          silver=SILVER)
 
 
+def test_topology_nodes_edges_and_intercommodity():
+    """P1.2 cascade DAG topology: drivers + contract + hop-targets as nodes; three edge kinds present."""
+    gr = _graph()
+    topo = gr.topology("arabica_coffee")
+    ids = {n["id"] for n in topo["nodes"]}
+    assert {"frost", "arabica_coffee", "robusta_coffee"} <= ids            # drivers + contract + inter-commodity
+    frost = next(n for n in topo["nodes"] if n["id"] == "frost")
+    assert frost["silver_status"] == "available" and frost["kind"] == "hazard"
+    cnode = next(n for n in topo["nodes"] if n["id"] == "arabica_coffee")
+    assert cnode["kind"] == "contract"
+    et = {(e["source"], e["target"]) for e in topo["edges"]}
+    assert ("frost", "arabica_coffee") in et                              # driver -> contract
+    assert ("la_nina", "frost") in et                                     # fan-in: parent -> driver
+    assert ("arabica_coffee", "robusta_coffee") in et                     # cascade hop
+    assert topo["graph_version"] == gr.version
+
+
+def test_topology_unknown_contract_raises():
+    import pytest
+    with pytest.raises(KeyError):
+        _graph().topology("nope")
+
+
 def test_cascade_ancestors_descendants_roots():
     gr = _graph()
     assert gr.ancestors("arabica_coffee", "stocks") == ["drought", "frost", "la_nina"]   # transitive upstream

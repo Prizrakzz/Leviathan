@@ -62,6 +62,21 @@ def test_sse_stream_emits_stage_then_result(monkeypatch):
     assert payload["answer"] == "streamed"
 
 
+def test_sse_stream_relays_granular_stage_ticks(monkeypatch):
+    """P1.1: the stream relays each on_stage tick as its own `stage` event before the terminal `result`."""
+    def fake_respond(query, *, graph, asof=None, session_id=None, on_stage=None, **kw):
+        for st in ("planning", "walking", "retrieving", "numbers", "verifying"):
+            on_stage(st, {"n": 1})
+        return {"answer": "done", "intent": "reasoning"}
+
+    c = _client(monkeypatch, fake_respond)
+    with c.stream("GET", "/v1/respond/stream", params={"question": "q"}) as r:
+        text = "".join(chunk for chunk in r.iter_text())
+    for st in ("planning", "walking", "retrieving", "numbers", "verifying"):
+        assert f'"stage": "{st}"' in text
+    assert text.count("event: stage") >= 5 and "event: result" in text     # all five ticks, then the result
+
+
 def test_sse_stream_reports_error_event_when_respond_raises(monkeypatch):
     def dead_respond(query, *, graph, asof=None, session_id=None, **kw):
         raise RuntimeError("boom")
