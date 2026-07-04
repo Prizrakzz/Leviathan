@@ -2185,6 +2185,18 @@ def model_candidate_certification_summary_key(
     )
 
 
+def snapshot_candidate_certification_key(
+    candidate_id: str,
+    filename: str = "certification_report.json",
+) -> str:
+    """S3 key for a grouped WASDE snapshot candidate smoke report."""
+    return (
+        f"model_artifacts/snapshot_candidate_certification/"
+        f"candidate_id={candidate_id}/"
+        f"{filename}"
+    )
+
+
 def raw_chris_key(slug: str, tenor: int) -> str:
     """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
 
