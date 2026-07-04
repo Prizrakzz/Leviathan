@@ -140,7 +140,7 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
 
 
 # ── 1.2 cascade DAG topology ──────────────────────────────────────────────────────────────────────
-@app.get("/v1/graph/{contract}")
+@app.get("/v1/graph/{contract}", response_model=M.GraphTopology)
 def graph_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
     try:
         topo = _graph().topology(contract)
@@ -161,7 +161,7 @@ def graph_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
 
 
 # ── 1.3 convergence matrix ──────────────────────────────────────────────────────────────────────────
-@app.get("/v1/convergence")
+@app.get("/v1/convergence", response_model=M.ConvergenceMatrix)
 def convergence_route(asof: Optional[str] = Query(None)) -> dict:
     from leviathan.graphrag import firing as F
     asof = asof or _today()
@@ -180,7 +180,7 @@ def convergence_route(asof: Optional[str] = Query(None)) -> dict:
 
 
 # ── 1.4 per-contract regimes (gauges) ────────────────────────────────────────────────────────────────
-@app.get("/v1/regimes/{contract}")
+@app.get("/v1/regimes/{contract}", response_model=M.ConvergenceRow)
 def regimes_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
     from leviathan.graphrag import firing as F
     asof = asof or _today()
@@ -192,7 +192,7 @@ def regimes_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
 
 
 # ── 1.5 vintage-aware series ─────────────────────────────────────────────────────────────────────────
-@app.get("/v1/series/{table}/{metric}")
+@app.get("/v1/series/{table}/{metric}", response_model=M.Series)
 def series_route(table: str, metric: str, commodity: Optional[str] = Query(None),
                  country: Optional[str] = Query(None), asof: Optional[str] = Query(None)) -> dict:
     from leviathan.graphrag.numbers import query as Q
@@ -217,7 +217,7 @@ def series_route(table: str, metric: str, commodity: Optional[str] = Query(None)
 
 
 # ── 1.6 live events rail (PIT kill-switch visible) ──────────────────────────────────────────────────
-@app.get("/v1/events")
+@app.get("/v1/events", response_model=M.EventsFeed)
 def events_route(contract: Optional[str] = Query(None), asof: Optional[str] = Query(None)) -> dict:
     asof = asof or _today()
     if asof < _today():                                           # PIT kill-switch: no headlines behind an as-of
@@ -248,7 +248,7 @@ class ItemIn(BaseModel):
     body: dict[str, Any] = {}
 
 
-@app.post("/v1/share")
+@app.post("/v1/share", response_model=M.ShareRef)
 def share_create(body: ShareIn, user: str = Depends(_require_user)) -> dict:
     from leviathan.graphrag import store as st
     snap = st.make_share(body.question, body.asof, body.payload)
@@ -256,7 +256,7 @@ def share_create(body: ShareIn, user: str = Depends(_require_user)) -> dict:
     return M.ShareRef(id=snap.id, url=f"/s/{snap.id}").model_dump()
 
 
-@app.get("/v1/share/{share_id}")
+@app.get("/v1/share/{share_id}", response_model=M.ShareSnapshot)
 def share_get(share_id: str) -> dict:                             # public read (a share link is shareable)
     snap = _store().get_share(share_id)
     if snap is None:
