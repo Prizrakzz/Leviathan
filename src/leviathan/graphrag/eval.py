@@ -209,7 +209,7 @@ def _metrics(r: dict) -> dict:
             "src_div": j.get("source_diversity"),
             "usefulness": j.get("usefulness"), "convexity": j.get("convexity"),
             "point_in_time": j.get("point_in_time"), "grounding": j.get("grounding"),
-            "halluc": len(j.get("hallucinations") or []), "gaps": j.get("gaps") or []}
+            "halluc": _n_halluc(j), "gaps": j.get("gaps") or []}
 
 
 def source_report(rows: list[dict]) -> list[str]:
@@ -297,6 +297,15 @@ def register_report(rows: list[dict]) -> list[str]:
     return L
 
 
+def _n_halluc(j: dict) -> int:
+    """Judge hallucination ITEM count, type-safe: a string-typed field is ONE claim, never its
+    character count (the 561-vs-37 convo explosion needed this to be decomposable per turn)."""
+    h = j.get("hallucinations")
+    if isinstance(h, list):
+        return len(h)
+    return 1 if h else 0
+
+
 def verifier_panel(traces: list[dict]) -> list[str]:
     """The deterministic citation_violations panel (plan sec 6.6) — counts fabricated attributions
     without a judge. Its absence made the 37->151 hallucination-tally diagnosis slow; never again."""
@@ -363,7 +372,7 @@ def report(rows: list[dict], *, model: str) -> str:
         lines.append(f"- **intent routed correctly: {iok}/{len(intent_rows)}** (numbers_only / reasoning / hybrid)")
     if judged:
         j_avg = lambda key: sum(j.get(key, 0) for j in judged) / len(judged)  # noqa: E731
-        halluc = sum(len(j.get("hallucinations") or []) for j in judged)
+        halluc = sum(_n_halluc(j) for j in judged)
         lines.append(f"- judge **usefulness {j_avg('usefulness'):.1f}** · **convexity {j_avg('convexity'):.1f}** · "
                      f"**point_in_time {j_avg('point_in_time'):.1f}** · grounding {j_avg('grounding'):.1f} /5 · "
                      f"hallucinated claims: {halluc}")
@@ -581,7 +590,7 @@ def convo_report(rows: list[dict], *, model: str) -> str:
                   f"- usefulness {javg('usefulness')} | convexity {javg('convexity')} | "
                   f"point_in_time {javg('point_in_time')} | grounding {javg('grounding')} | "
                   f"**continuity {javg('continuity')}** /5",
-                  f"- hallucinated claims: {sum(len(j.get('hallucinations') or []) for j in judged)}"]
+                  f"- hallucinated claims: {sum(_n_halluc(j) for j in judged)}"]
     lines += verifier_panel([(r["out"].get("trace") or {}).get("citation_verifier") for r in rows])
     for cid in dict.fromkeys(r["convo"] for r in rows):
         lines += ["", f"## {cid}", ""]
@@ -597,7 +606,7 @@ def convo_report(rows: list[dict], *, model: str) -> str:
                 lines.append(f"- verifier: stripped {vfr['stripped']} ({', '.join(sorted(vfr.get('by_rule') or {}))})")
             if j:
                 lines.append(f"- judge: usefulness {j.get('usefulness')} continuity {j.get('continuity')} "
-                             f"PIT {j.get('point_in_time')} — _{j.get('verdict')}_")
+                             f"PIT {j.get('point_in_time')} halluc {_n_halluc(j)} — _{j.get('verdict')}_")
             lines += ["", str(r["out"].get("answer") or "(no answer)"), ""]
     return "\n".join(lines)
 

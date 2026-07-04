@@ -22,6 +22,9 @@ import os
 import re
 
 HAIKU = "claude-haiku-4-5"
+SONNET = "claude-sonnet-4-6"           # DEFAULT planner (citv2 run measured Haiku non-determinism: the
+                                       # explicit-news and given-those-figures rules passed local smokes
+                                       # but flipped in the cloud; ~$0.01/turn is quality-over-pennies)
 MAX_STEPS = 3
 MAX_CONTRACTS = 2                       # mirrors answer()'s max_contracts / the walk's max_seeds
 
@@ -191,7 +194,7 @@ def plan_turn(query: str, *, graph, state_block: str | None = None, today: str |
     the orchestrator then runs its legacy classifier path, so the planner can never break an answer."""
     if os.environ.get("GRAPHRAG_DISPATCH", "llm") == "rules":
         return _FALLBACK
-    model = model or os.environ.get("GRAPHRAG_DISPATCH_MODEL") or HAIKU
+    model = model or os.environ.get("GRAPHRAG_DISPATCH_MODEL") or SONNET
     if call is None:
         from leviathan.graphrag import answer as an     # lazy: reuse the cached-sys-block caller
         call = an._call_opus
