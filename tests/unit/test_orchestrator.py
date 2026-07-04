@@ -92,3 +92,29 @@ def test_hybrid_injects_numbers_and_unifies_citations():
     assert {c["kind"] for c in out["citations"]} == {"evidence", "number"}   # machine list spans both
     assert "SILVER NUMBERS" in _reason_call.user                             # numbers injected into the reasoning prompt
     assert "[E1]" not in out["answer"]                                       # v2: no parallel footer numbering
+
+
+def test_respond_stamps_graph_version(monkeypatch):
+    """Audit stamp (build-plan Phase 0.1): every answer's trace records WHICH causal graph produced it."""
+    monkeypatch.setenv("GRAPHRAG_PLANNER", "onehop")               # skip the L2 embed load
+    gr = g.CausalGraph({"arabica_coffee": cs.CausalContract(
+        contract="arabica_coffee", aliases=["arabica"],
+        drivers=[cs.Driver(id="frost", type="hazard", sign="+", mechanism="m")])},
+        silver=set(), version="abc123def456")
+
+    def ok_call(system, user, *, model, tool):
+        return {"tldr": "t", "mechanism": "m", "sources": []}
+
+    def _retr(q, contract, *, k, asof=None, near=None):
+        return [{"date": "2021-07-20", "source": "GAIN", "source_key": "s3://x", "text": "frost"}]
+
+    res = orch.respond("arabica frost outlook", graph=gr, asof="2024-01-01", call=ok_call, retrieve=_retr,
+                       classify=lambda q, call=None: {"intent": "reasoning"})
+    assert res["trace"]["graph_version"] == "abc123def456"          # carried onto the answer
+
+    # floor path stamps it too (the key is ALWAYS present, even when the reasoner dies)
+    def dead(system, user, *, model, tool):
+        raise RuntimeError("down")
+    floored = orch.respond("arabica frost outlook", graph=gr, asof="2024-01-01", call=dead, retrieve=_retr,
+                           classify=lambda q, call=None: {"intent": "reasoning"})
+    assert floored["trace"]["floor"] == "evidence_only" and floored["trace"]["graph_version"] == "abc123def456"

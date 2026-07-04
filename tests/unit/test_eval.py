@@ -39,6 +39,9 @@ def test_run_and_report():
     assert rows[0]["rubric"]["routed_right"]
     rep = gev.report(rows, model="claude-sonnet-4-6")
     assert "GAIN" in rep and "routed correctly: **1/1**" in rep
+    assert "graph:" not in rep                                  # omitted when no version passed
+    rep2 = gev.report(rows, model="claude-sonnet-4-6", graph_version="deadbeef1234")
+    assert "graph: `deadbeef1234`" in rep2                      # audit stamp in the header when passed
 
 
 def test_judge_quant_persona_and_grounding_report():
