@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base skin — near-black canvas, Plex Sans body, tabular numerics for data. Token VALUES are injected on
+   :root at runtime by injectTokens(); everything here references var(--…) via Tailwind or directly. */
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-0);
+  color: var(--text);
+  font-family: '"IBM Plex Sans"', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Data/mono contexts use tabular numerics so columns align (design §2.2). */
+.font-mono,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus is unmistakable and cyan (design §7 a11y). Keyboard-first: never remove the ring. */
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+
+/* Motion is opt-out (design §2.4). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
