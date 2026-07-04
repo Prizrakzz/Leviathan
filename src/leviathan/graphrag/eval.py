@@ -317,6 +317,24 @@ def _n_halluc(j: dict) -> int:
     return 1 if h else 0
 
 
+def athena_panel() -> list[str]:
+    """S3-LIST-storm tripwire (Jul-2026, $134): per-run Athena telemetry. Planning time is the
+    projection-enumeration signature — the storm's ESR queries planned 26-31s to scan KBs. GATE:
+    p95 planning < 3s; a breach means a query lost its sargable partition predicates."""
+    from leviathan.graphrag.numbers import query as Q
+    s = Q.stats_summary()
+    if not s.get("n"):
+        return []
+    lines = ["", "## Athena panel (S3 LIST-storm tripwire)",
+             f"- queries: **{s['n']}** | planning p50/p95/max: {s['planning_p50_ms']}/"
+             f"**{s['planning_p95_ms']}**/{s['planning_max_ms']} ms (gate p95 < 3000) | "
+             f"scanned: {s['scanned_mb']} MB"]
+    if s["planning_p95_ms"] > 3000:
+        lines.append("- **WARNING: planning p95 over gate — partition-projection enumeration suspected; "
+                     "check partition predicates BEFORE running more evals (each breach bills S3 LISTs).**")
+    return lines
+
+
 def verifier_panel(traces: list[dict]) -> list[str]:
     """The deterministic citation_violations panel (plan sec 6.6) — counts fabricated attributions
     without a judge. Its absence made the 37->151 hallucination-tally diagnosis slow; never again."""
@@ -399,6 +417,7 @@ def report(rows: list[dict], *, model: str) -> str:
         lines += planner_report(rows) + [""]                           # L2 grounded-subgraph cascade panel
     lines += register_report(rows) + [""]                              # output-register discipline (leaked internal tokens)
     lines += verifier_panel([(r["out"].get("trace") or {}).get("citation_verifier") for r in rows]) + [""]
+    lines += athena_panel() + [""]                                     # S3 LIST-storm tripwire (planning-time gate)
     lines += source_report(rows) + [""]                                # multi-source lift (deterministic + judge)
     if judged:
         lines += grounding_report(rows) + [""]
@@ -612,6 +631,7 @@ def convo_report(rows: list[dict], *, model: str) -> str:
                   f"**continuity {javg('continuity')}** /5",
                   f"- hallucinated claims: {sum(_n_halluc(j) for j in judged)}"]
     lines += verifier_panel([(r["out"].get("trace") or {}).get("citation_verifier") for r in rows])
+    lines += athena_panel()                                            # S3 LIST-storm tripwire (planning-time gate)
     for cid in dict.fromkeys(r["convo"] for r in rows):
         lines += ["", f"## {cid}", ""]
         for r in [x for x in rows if x["convo"] == cid]:

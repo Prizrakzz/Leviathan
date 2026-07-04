@@ -236,3 +236,114 @@ def test_country_alias_canonicalization_when_region_unmapped():
     assert Q._canon_country("United States") == "united_states"
     assert Q._canon_country("Brazil") == "brazil"                   # pass-through for normal names
     assert Q._canon_country(None) is None
+
+
+# ── projection-enumeration guards (Jul-2026 S3 LIST storm: $134 of ListBucket in 2 days) ──────────────
+def _esr_projected() -> TableSpec:
+    """The production silver_esr shape: as_of_date is a PROJECTED string partition (yyyyMMdd) spanning
+    1990->NOW; commodity_code is a projected int partition. Without sargable bounds, one query = ~130-600K
+    S3 LISTs (measured 26-31s Athena planning time)."""
+    return TableSpec(id="silver_esr", description="", shape="wide", commodity_col="commodity_name",
+                     period_col="market_year", period_type="marketing_year", period_sql_type="int",
+                     period_offset=1, date_col="week_ending_date", knowledge_date_col="as_of_date",
+                     knowledge_semantics="data_date",
+                     grain_cols=["commodity_name", "country_code", "week_ending_date"],
+                     vintage_partition_col="as_of_date", vintage_partition_format="yyyyMMdd",
+                     commodity_code_col="commodity_code", commodity_codes={"corn_cbot": 401})
+
+
+def _esr_compact() -> TableSpec:
+    """The PRODUCTION serving shape post-fix: the agent-facing id stays silver_esr but SQL targets
+    silver_esr_compact (registered Glue partitions, one file per commodity, no projection anywhere)."""
+    return TableSpec(id="silver_esr", description="", athena_table="silver_esr_compact", shape="wide",
+                     commodity_col="commodity_name", period_col="market_year",
+                     period_type="marketing_year", period_sql_type="int", period_offset=1,
+                     date_col="week_ending_date", knowledge_date_col="as_of_date",
+                     knowledge_semantics="data_date", partition_cols=["commodity"],
+                     grain_cols=["commodity_name", "country_code", "week_ending_date"])
+
+
+def test_esr_serves_from_compact_table_with_partition_pruning():
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2013-03-01",
+                                commodity="corn_cbot", period="2012", agg="sum"), _esr_compact())
+    assert "FROM leviathan_dev.silver_esr_compact" in sql           # physical table swapped in
+    assert "commodity = 'corn_cbot'" in sql                         # registered-partition equality (1 file)
+    assert "commodity_name = 'corn_cbot'" in sql                    # identity filter rides along
+    assert "market_year = 2013" in sql                              # END-label equality (offset +1)
+    assert "CAST(week_ending_date AS varchar) <= '2013-03-01'" in sql   # PIT guard unchanged
+    assert "as_of_date >=" not in sql and "as_of_date <=" not in sql    # no vintage-axis bounds
+
+
+def test_projected_table_machinery_bands_market_year_only():
+    """If a spec ever points at a PROJECTED table again, the machinery bands the MY axis for
+    latest/window queries and NEVER emits (or casts) as_of_date bounds — the 2026-07-04 canary
+    proved date windows are semantically wrong for latest-snapshot-per-MY storage (the whole
+    backfilled history sits under the snapshot WRITE date)."""
+    ts = _esr_projected()
+    latest = build_sql(NumberQuery(table="silver_esr", metric="outstanding_sales_1000mt",
+                                   asof="2024-05-31", commodity="corn_cbot", agg="latest"), ts)
+    assert "market_year BETWEEN 2023 AND 2025" in latest            # MY axis collapsed 46 -> 3
+    assert "commodity_code = 401" in latest                         # projected code pruned
+    assert "as_of_date >=" not in latest and "as_of_date <=" not in latest
+    assert "CAST(as_of_date" not in latest                          # never cast a projected partition col
+    window = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2013-03-01",
+                                   commodity="corn_cbot", period_start="2012-06-01",
+                                   period_end="2012-09-01", agg="series"), ts)
+    assert "market_year BETWEEN 2012 AND 2014" in window
+
+
+def test_esr_unmapped_slug_skips_code_pruning_but_scopes_rows():
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2013-03-01",
+                                commodity="all_wheat", period="2012", agg="sum"), _esr_projected())
+    assert "commodity_code" not in sql                              # unmapped -> no code pruning ...
+    assert "commodity_name = 'all_wheat'" in sql                    # ... but rows still scoped by name
+
+
+def test_unprojected_tables_are_unchanged():
+    sql = build_sql(NumberQuery(table="silver_psd", metric="ending_stocks_mt", asof="2024-02-15",
+                                commodity="corn", period="2023"), _psd())
+    assert "as_of_date" not in sql and "commodity_code" not in sql  # no bounds injected where none belong
+
+
+def test_pit_oracle_ignores_cost_bounds():
+    """The SQL snapshot-locator bounds are COST caps, not semantics: the oracle keeps rows the window
+    would skip (bounded-staleness is documented), and the week_ending guard still rules."""
+    ts = _esr_projected()
+    rows = [{"commodity_name": "corn_cbot", "country_code": "1", "week_ending_date": "2012-08-30",
+             "as_of_date": "20120906", "weekly_exports_1000mt": 500.0},
+            {"commodity_name": "corn_cbot", "country_code": "1", "week_ending_date": "2013-06-06",
+             "as_of_date": "20130613", "weekly_exports_1000mt": 700.0}]
+    kept = apply_pit_filter(rows, NumberQuery(table="silver_esr", metric="weekly_exports_1000mt",
+                                              asof="2013-03-01", commodity="corn_cbot"), ts)
+    assert [r["week_ending_date"] for r in kept] == ["2012-08-30"]  # future week dropped, old snapshot kept
+
+
+def test_athena_stats_summary_and_reset():
+    from leviathan.graphrag.numbers import query as Q
+    Q.reset_stats()
+    assert Q.stats_summary() == {"n": 0}
+    Q.STATS.extend([{"planning_ms": 100, "total_ms": 900, "scanned_bytes": 1_000_000},
+                    {"planning_ms": 30_000, "total_ms": 200_000, "scanned_bytes": 500}])
+    s = Q.stats_summary()
+    assert s["n"] == 2 and s["planning_max_ms"] == 30_000 and s["planning_p50_ms"] == 100
+    assert s["scanned_mb"] == 1.0
+    Q.reset_stats()
+    assert Q.stats_summary() == {"n": 0}
+
+
+def test_athena_timeout_cancels_the_query(monkeypatch):
+    """An enumeration-class query must be CANCELLED at the deadline, not left billing S3 LISTs."""
+    from types import SimpleNamespace
+
+    from leviathan.graphrag.numbers import query as Q
+    monkeypatch.setenv("ATHENA_QUERY_TIMEOUT_S", "0")
+    stopped = []
+    client = SimpleNamespace(
+        start_query_execution=lambda **kw: {"QueryExecutionId": "qid-1"},
+        get_query_execution=lambda **kw: {"QueryExecution": {"Status": {"State": "RUNNING"}}},
+        stop_query_execution=lambda **kw: stopped.append(kw["QueryExecutionId"]),
+    )
+    import pytest
+    with pytest.raises(RuntimeError, match="cancelled"):
+        Q._athena(client, "SELECT 1", "db")
+    assert stopped == ["qid-1"]

@@ -50,21 +50,25 @@ class _FakeClient:
 
 
 @pytest.fixture(autouse=True)
-def _no_backoff_sleep(monkeypatch):
-    """Zero the exponential waits so retry tests run in milliseconds."""
+def _hermetic(monkeypatch):
+    """Zero the exponential waits AND pin the provider to anthropic — the SITE default lives in the
+    gitignored params.yaml (flipped to bedrock 2026-07-04), and tests must not depend on it. The
+    bedrock-switch test overrides the env itself."""
     monkeypatch.setattr(pv, "wait_exponential", lambda **kw: tenacity.wait_none())
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "anthropic")
 
 
 _TOOL = {"name": "emit_answer", "input_schema": {"type": "object"}}
 
 
 # ── provider factory ───────────────────────────────────────────────────────────────────────────────
-def test_default_provider_is_anthropic_and_models_pass_through(monkeypatch):
-    monkeypatch.delenv("GRAPHRAG_PROVIDER", raising=False)
+def test_anthropic_provider_passes_models_through(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API", "sk-test")
-    assert pv.provider() == "anthropic"
+    assert pv.provider() == "anthropic"                                   # env pin (fixture) wins
     assert pv.resolve_model("claude-sonnet-4-6") == "claude-sonnet-4-6"   # identity — offline unchanged
     assert isinstance(pv.make_client(), anthropic.Anthropic)
+    monkeypatch.delenv("GRAPHRAG_PROVIDER")                               # env unset -> params/site default
+    assert pv.provider() in ("anthropic", "bedrock")                      # whatever params.yaml says today
 
 
 def test_bedrock_switch_maps_profiles_and_client(monkeypatch):

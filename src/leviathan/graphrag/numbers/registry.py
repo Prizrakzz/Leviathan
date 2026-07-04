@@ -33,6 +33,10 @@ class Metric(BaseModel):
 class TableSpec(BaseModel):
     id: str
     description: str
+    athena_table: Optional[str] = None                       # physical Glue table when it differs from the id —
+    #                                                          e.g. silver_esr serves from silver_esr_compact
+    #                                                          (registered partitions; the projected original
+    #                                                          cost ~130-600K S3 LISTs/query, Jul-2026 storm)
     grain: str = ""
     shape: Literal["wide", "tall"]
     commodity_col: Optional[str] = None
@@ -50,6 +54,15 @@ class TableSpec(BaseModel):
     partition_cols: list[str] = []                           # injected-projection partitions: every query MUST carry
     #                                                          a static equality on EACH (silver_nasa_power:
     #                                                          commodity/country/region, mirroring the S3 layout)
+    # ── projection-enumeration guards (Jul-2026 S3 LIST storm: silver_esr projects as_of_date over
+    #    1990->NOW x market_year x commodity_code ~ 6.1M candidate prefixes; every query WITHOUT sargable
+    #    predicates on those columns made Athena LIST ~130-600K S3 prefixes — $134 in two days) ──────────
+    vintage_partition_col: Optional[str] = None              # a PROJECTED partition column holding the vintage/
+    #                                                          publication date; build_sql bounds it natively
+    #                                                          (never CAST — CAST defeats projection pruning)
+    vintage_partition_format: Literal["yyyyMMdd", "iso"] = "yyyyMMdd"   # the partition VALUE format
+    commodity_code_col: Optional[str] = None                 # projected int partition keyed by source code
+    commodity_codes: dict[str, int] = {}                     # slug -> source code (prunes the code partition)
     metric_col: Optional[str] = None                         # tall: column holding the metric NAME
     value_col: Optional[str] = None                          # tall: column holding the numeric VALUE
     unit_col: Optional[str] = None

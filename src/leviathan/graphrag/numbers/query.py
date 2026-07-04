@@ -46,8 +46,57 @@ def _dcol(col: str) -> str:
     rejects `date <= varchar`), while silver_psd.release_date / silver_fred_fx.data_date are strings. ISO-8601
     dates sort lexically == chronologically, and a DATE casts to 'YYYY-MM-DD', so a text compare is correct and
     type-agnostic. (A TIMESTAMP casts to 'YYYY-MM-DD HH:MM:...' — same-day rows compare conservatively, never
-    leaking a future value.)"""
+    leaking a future value.)
+
+    NEVER use this on a PROJECTED PARTITION column: wrapping one in CAST (or any function) makes the
+    predicate non-sargable, Athena cannot prune the projection, and it enumerates the FULL projected
+    space — one S3 LIST per candidate prefix (the Jul-2026 $134 LIST storm). Projected columns get
+    native-literal bounds via _vintage_partition_bounds instead."""
     return f"CAST({col} AS varchar)"
+
+
+def _fmt_pdate(iso: str, fmt: str) -> str:
+    """ISO 'YYYY-MM-DD' -> the partition-value format ('yyyyMMdd' strips dashes; 'iso' is identity)."""
+    return iso.replace("-", "") if fmt == "yyyyMMdd" else iso
+
+
+def _vintage_partition_bounds(spec: NumberQuery, ts: TableSpec) -> list[str]:
+    """SARGABLE snapshot-locator window on a projected vintage-partition column (silver_esr.as_of_date).
+    Native string compares in the partition's own value format — never CAST, so Athena prunes the
+    projection instead of LISTing every candidate prefix (the Jul-2026 $134 storm: ~130-600K LISTs/query).
+
+    NO bounds are emitted on the vintage column itself — the 2026-07-04 canary proved they are
+    semantically WRONG for this storage layout: silver_esr keeps ONE latest snapshot per marketing year
+    under the snapshot's WRITE date (the whole backfilled history sits at as_of_date ~ 2026-05-24), so a
+    window derived from the marketing year or asof either misses the only existing partition (the MY-sum
+    canary returned EMPTY) or still spans thousands of projected candidates. The vintage axis is pruned
+    CATALOG-side instead: silver_esr moved from partition projection to REGISTERED Glue partitions
+    (~350 real entries), which Athena prunes without any S3 enumeration and without query-shape
+    constraints. What this helper still contributes: the market_year band for latest-style queries
+    (collapses the 46-value MY axis when no period equality exists) — correct regardless of catalog
+    mode, and the point-in-time guard stays on week_ending_date exactly as before."""
+    col = ts.vintage_partition_col
+    if not col:
+        return []
+    w: list[str] = []
+    asof_y = int(spec.asof[:4])
+    if not spec.period and ts.period_col and ts.period_sql_type == "int":
+        if spec.period_start and spec.period_end:
+            # source END-year labels covering the window, +1/+2 margin
+            w.append(f"{ts.period_col} BETWEEN {int(spec.period_start[:4])} AND {int(spec.period_end[:4]) + 2}")
+        elif spec.agg == "latest":
+            # the MY containing asof carries END-label asof_y or asof_y+1; -1 for staleness margin
+            w.append(f"{ts.period_col} BETWEEN {asof_y - 1} AND {asof_y + 1}")
+    return w
+
+
+def _commodity_code_filter(spec: NumberQuery, ts: TableSpec) -> list[str]:
+    """Native equality on a projected int commodity-code partition when the slug maps (prunes 10x on
+    silver_esr). An unmapped slug just skips pruning — the identity filter on commodity_name still scopes
+    the ROWS; only the LIST cost is higher."""
+    if ts.commodity_code_col and spec.commodity and spec.commodity in ts.commodity_codes:
+        return [f"{ts.commodity_code_col} = {int(ts.commodity_codes[spec.commodity])}"]
+    return []
 
 
 def _value_expr(spec: NumberQuery, ts: TableSpec) -> str:
@@ -132,6 +181,7 @@ def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
 def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     """The identity/scope predicates (NOT the as-of guard)."""
     w: list[str] = list(_partition_filters(spec, ts)) if ts.partition_cols else []
+    w += _vintage_partition_bounds(spec, ts) + _commodity_code_filter(spec, ts)
     if spec.commodity and ts.commodity_col:
         w.append(f"{ts.commodity_col} = {_q(spec.commodity)}")
     if spec.country and ts.country_col and ts.country_col not in ts.partition_cols:
@@ -217,12 +267,13 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         fn = {"mean": "avg"}.get(spec.agg, spec.agg)
         return f"SELECT {fn}(value) AS value FROM ({sql})"
 
+    table = ts.athena_table or spec.table                     # agent-facing id -> physical Glue table
     if ts.knowledge_semantics == "vintage":
         # as-known: rank vintages within the identity group, keep the newest published on/before asof
         part = ", ".join(ts.group_cols()) or "1"
         inner = (f"SELECT {sel}, ROW_NUMBER() OVER (PARTITION BY {part} "
                  f"ORDER BY {ts.knowledge_date_col} DESC) AS _rn "
-                 f"FROM {db}.{spec.table} WHERE {where}")
+                 f"FROM {db}.{table} WHERE {where}")
         outcols = "value" + "".join(f", {a}" for _, a in extras)
         base = f"SELECT {outcols} FROM ({inner}) WHERE _rn = 1"
         if spec.agg in ("sum", "mean", "max", "min"):
@@ -230,7 +281,7 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         return base + f" LIMIT {int(spec.limit)}"
 
     # non-vintage (ingest / data_date / year_month)
-    base = f"SELECT {sel} FROM {db}.{spec.table} WHERE {where}"
+    base = f"SELECT {sel} FROM {db}.{table} WHERE {where}"
     if spec.agg in ("sum", "mean", "max", "min"):
         return _agg(base) + f" LIMIT {int(spec.limit)}"
     if spec.agg == "latest" and order:                        # the single most-recent observation on/before asof
@@ -326,20 +377,59 @@ def _retry(fn, tries: int = 6):
             raise
 
 
+# Per-process Athena telemetry — the S3-LIST-storm tripwire. Planning time IS the projection-enumeration
+# signature (the Jul-2026 storm queries planned for 26-31s while scanning KBs); the eval report prints a
+# panel over this and warns when p95 planning exceeds ~3s.
+STATS: list[dict] = []
+
+
+def reset_stats() -> None:
+    STATS.clear()
+
+
+def stats_summary() -> dict:
+    """{n, planning_ms p50/p95/max, exec_ms_max, scanned_mb} over the queries run since reset_stats()."""
+    if not STATS:
+        return {"n": 0}
+    plan = sorted(s.get("planning_ms", 0) for s in STATS)
+
+    def pct(p: float) -> int:
+        return int(plan[min(len(plan) - 1, int(p * (len(plan) - 1)))])
+    return {"n": len(STATS), "planning_p50_ms": pct(0.50), "planning_p95_ms": pct(0.95),
+            "planning_max_ms": plan[-1], "exec_ms_max": max(s.get("total_ms", 0) for s in STATS),
+            "scanned_mb": round(sum(s.get("scanned_bytes", 0) for s in STATS) / 1e6, 2)}
+
+
 def _athena(client, sql: str, db: str) -> list[dict]:
     import os
     import time
     bucket = os.environ.get("LEVIATHAN_BUCKET", "leviathan-dev-shahem-001")
+    deadline = time.time() + float(os.environ.get("ATHENA_QUERY_TIMEOUT_S", "180"))
     qid = _retry(lambda: client.start_query_execution(
         QueryString=sql, QueryExecutionContext={"Database": db},
         ResultConfiguration={"OutputLocation": f"s3://{bucket}/athena-results/"}))["QueryExecutionId"]
     while True:
-        st = _retry(lambda: client.get_query_execution(QueryExecutionId=qid))["QueryExecution"]["Status"]
+        qe = _retry(lambda: client.get_query_execution(QueryExecutionId=qid))["QueryExecution"]
+        st = qe["Status"]
         if st["State"] == "SUCCEEDED":
             break
         if st["State"] in ("FAILED", "CANCELLED"):
             raise RuntimeError(f"Athena {st['State']}: {st.get('StateChangeReason','')}\nSQL: {sql[:400]}")
+        if time.time() > deadline:
+            # a query still planning/running after the deadline is almost certainly enumerating a
+            # projection (the LIST-storm class) — CANCEL it so it cannot keep billing S3 LISTs, and fail
+            # loudly instead of quietly retrying (retries multiply the storm).
+            try:
+                client.stop_query_execution(QueryExecutionId=qid)
+            except Exception:  # noqa: BLE001
+                pass
+            raise RuntimeError(f"Athena query cancelled after {os.environ.get('ATHENA_QUERY_TIMEOUT_S', '180')}s "
+                               f"timeout (enumeration-class query? check partition predicates)\nSQL: {sql[:400]}")
         time.sleep(2)
+    s = qe.get("Statistics", {})
+    STATS.append({"planning_ms": s.get("QueryPlanningTimeInMillis", 0),
+                  "total_ms": s.get("TotalExecutionTimeInMillis", 0),
+                  "scanned_bytes": s.get("DataScannedInBytes", 0)})
     res = _retry(lambda: client.get_query_results(QueryExecutionId=qid, MaxResults=1000))
     hdr = [c["Name"] for c in res["ResultSet"]["ResultSetMetadata"]["ColumnInfo"]]
     return [{hdr[i]: c.get("VarCharValue", "") for i, c in enumerate(row["Data"])}
