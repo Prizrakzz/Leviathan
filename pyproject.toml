@@ -14,7 +14,7 @@ version = "0.1.0"
 description = "Commodity market-neutral trading system"
 requires-python = ">=3.9"
 dependencies = [
-    "anthropic>=0.40",      # Anthropic API client (Haiku chunking provider, Opus authoring, Sonnet serving)
+    "anthropic>=0.111",     # Anthropic + Bedrock clients (serving provider routing needs the modern AnthropicBedrock; Opus authoring stays 1P)
     "beautifulsoup4>=4.12",
     "boto3",
     "lxml>=4.9",

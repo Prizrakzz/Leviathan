@@ -98,17 +98,22 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
     (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number."""
     reg = reg or load_registry()
-    if client is None:
-        import anthropic
-        from leviathan.graphrag import batch_extract as bx
-        client = anthropic.Anthropic(api_key=bx._api_key())
+    if client is None:                             # real serving path -> provider-routed + retried
+        from leviathan.graphrag import providers as pv
+        client = pv.make_client()
+        model = pv.resolve_model(model)
+    else:
+        pv = None                                  # injected fake (tests): no provider, no backoff
     tools = [tool_schema(reg)]
     system = [{"type": "text", "text": system_prompt(reg), "cache_control": {"type": "ephemeral"}}]  # cached
     convo: list[dict] = [{"role": "user", "content": f"As-of date (fixed): {asof}\n\nQuestion: {question}"}]
     calls: list[dict] = []
 
     for _ in range(max_calls):
-        resp = client.messages.create(model=model, max_tokens=max_tokens, system=system, tools=tools, messages=convo)
+        def _one():
+            return client.messages.create(model=model, max_tokens=max_tokens, system=system,
+                                          tools=tools, messages=convo)
+        resp = pv.with_retry(_one) if pv else _one()
         uses = [b for b in resp.content if getattr(b, "type", None) == "tool_use"]
         if not uses:
             text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text")

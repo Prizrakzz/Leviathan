@@ -367,6 +367,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         volatile_blocks = volatile_blocks + [extra_context]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
+    degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
     evidence = [{**h, "contract": n.contract} for n in sg.nodes for h in n.evidence]
@@ -386,10 +387,13 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
         body = reg.sanitize(render(structured) + footer)
+    if degraded:
+        body = _DEGRADED_BANNER.format(m=degraded) + body
     return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits], "evidence": evidence,
             "model": model, "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
                                       "citation_verifier": verifier,
+                                      **({"degraded_model": degraded} if degraded else {}),
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
 
@@ -477,22 +481,35 @@ def _foreign_regime_names(graph: gph.CausalGraph, contracts: list[str]) -> set[s
             for s in c.convergence} - own
 
 
+_DEGRADED_BANNER = ("> **Degraded answer.** The primary reasoning model was unavailable; this answer "
+                    "came from {m} after retries. Treat conclusions with extra caution.\n\n")
+
+
+def _pop_degraded(structured) -> str | None:
+    """Lift the serving_call degradation tag off the structured dict (it must never render as content)."""
+    return structured.pop("_degraded_model", None) if isinstance(structured, dict) else None
+
+
 def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
-    """The real serving call. PROMPT CACHING: the system prompt is always a cached block, and when `user`
-    arrives as a (stable_prefix, volatile_tail) tuple the stable part — the per-contract graph context,
-    byte-identical across a session's turns — gets its own cache breakpoint. Turn 2+ of a conversation
-    (and a same-contract eval question within the 5-min TTL) reads the shared prefix at ~0.1x input price.
-    Injected test fakes keep the plain-string `user` API; only this real path structures blocks."""
-    import anthropic
-    from leviathan.graphrag import batch_extract as bx
-    client = anthropic.Anthropic(api_key=bx._api_key())
+    """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
+    production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
+    system prompt is always a cached block, and when `user` arrives as a (stable_prefix, volatile_tail)
+    tuple the stable part — the per-contract graph context, byte-identical across a session's turns —
+    gets its own cache breakpoint (manual blocks work identically on both providers). Turn 2+ of a
+    conversation reads the shared prefix at ~0.1x input price. Injected test fakes keep the plain-string
+    `user` API; only this real path structures blocks."""
+    from leviathan.graphrag import providers as pv
+    client = pv.make_client()
     sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
     if isinstance(user, tuple):
         stable, volatile = user
         user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": volatile}]
-    out, _ = ex.call_opus(client, sys_blocks, user, model=model, max_tokens=6000, tool=tool)   # answers grew (sources
+    out, degraded = pv.serving_call(client, sys_blocks, user, model=pv.resolve_model(model),
+                                    max_tokens=6000, tool=tool, degrade_to=ex.HAIKU)  # answers grew (sources
     # block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
+    if degraded and isinstance(out, dict):
+        out["_degraded_model"] = degraded          # popped by the consumer -> visible caveat + trace
     return out
 
 
@@ -547,6 +564,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         volatile_blocks.append(extra_context)
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
+    degraded = _pop_degraded(structured)
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
     seen_docs, uniq = set(), []
@@ -565,6 +583,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
         body = reg.sanitize(render(structured) + footer)          # sanitizer strips leaked internal tokens
+    if degraded:
+        body = _DEGRADED_BANNER.format(m=degraded) + body
     return {"answer": body, "structured": structured, "contract": contracts[0],
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits],
             "evidence": evidence, "model": model,
@@ -572,4 +592,5 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),
+                      **({"degraded_model": degraded} if degraded else {}),
                       "citation_verifier": verifier, "model": model}}

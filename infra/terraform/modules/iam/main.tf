@@ -132,16 +132,25 @@ resource "aws_iam_role_policy_attachment" "batch_job_role_orchestrator" {
 }
 
 # ---------------------------------------------------------------------------
-# Bedrock invoke policy — allows Batch containers to call Claude Haiku via
-# Amazon Bedrock for the text_to_graphrag extraction pipeline.
-# Scoped to the Haiku foundation model in us-east-1 only.
+# Bedrock invoke policy — allows Batch containers to call Claude via Amazon
+# Bedrock: Haiku (text_to_graphrag chunking) and, since the GraphRAG serving
+# provider moved to Bedrock, Sonnet 4.6 + Haiku 4.5 THROUGH the global.
+# cross-region inference profiles (providers.py). Profile invocations are
+# authorized against BOTH the profile ARN and the foundation-model ARNs in
+# whichever region the profile routes to — hence the region-wildcarded FM
+# ARNs. Still bedrock:InvokeModel only; no wildcard actions.
 # ---------------------------------------------------------------------------
+data "aws_caller_identity" "current" {}
+
 data "aws_iam_policy_document" "batch_job_bedrock" {
   statement {
-    sid     = "BedrockInvokeHaiku"
+    sid     = "BedrockInvokeServingModels"
     actions = ["bedrock:InvokeModel"]
     resources = [
-      "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5*",
+      "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*",
+      "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/global.anthropic.claude-sonnet-4-6",
+      "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
     ]
   }
 

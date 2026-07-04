@@ -163,6 +163,58 @@ def _live_search_terms(query: str, graph) -> list[str]:
     return [t for t in terms if t] or [query[:80]]
 
 
+_FLOOR_BANNER = ("**Service notice.** The reasoning model tier is temporarily unavailable (retries and "
+                 "model fallback exhausted). Below is the retrieved, dated evidence this question would "
+                 "have been reasoned over — no synthesized conclusions are included.")
+
+
+def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
+                   route_fn=None, near: Optional[str] = None) -> dict:
+    """The DETERMINISTIC FLOOR (plan: production fallback chain, last resort). When every LLM attempt —
+    backoff retries, then the degraded model — has failed, serve the parts of the stack that need no
+    model at all: lexical routing + hybrid retrieval + the citation formatter. An honest banner replaces
+    synthesis; the UI gets a respond()-shaped dict instead of a 500. No LLM call is permitted here (the
+    tiered router's LLM leg would just fail again), and a retrieval failure degrades further to the
+    banner alone — the floor itself must be unable to raise."""
+    import functools
+
+    from leviathan.graphrag import citations as cit
+    from leviathan.graphrag import evidence as ev
+    contracts: list = []
+    try:
+        contracts = [c for c in (route_fn(query, graph) if route_fn else []) if c in graph.contracts]
+    except Exception:  # noqa: BLE001 — a session route_fn may itself reach for the dead LLM tier
+        contracts = []
+    if not contracts:
+        contracts = [c for c in an.route(query, graph) if c in graph.contracts]   # lexical tier only
+    contracts = contracts[:2]
+    retr = functools.partial(ev.retrieve, **an._RETRIEVAL)
+    evidence, seen = [], set()
+    for c in contracts:
+        try:
+            hits = retr(query, c, k=5, asof=asof, near=near)
+        except Exception:  # noqa: BLE001 — evidence store down too -> banner-only floor
+            hits = []
+        for h in hits:
+            sk = h.get("source_key")
+            if sk and sk in seen:
+                continue
+            seen.add(sk)
+            evidence.append({**h, "contract": c})
+    lines = [f"- [{h.get('date', '?')}] {h.get('source', h.get('source_key', '?'))}: "
+             f"{str(h.get('text', ''))[:220]}" for h in evidence[:8]]
+    try:
+        cits = [c.model_dump() for c in cit.unify(evidence, None)]
+    except Exception:  # noqa: BLE001
+        cits = []
+    body = _FLOOR_BANNER + ("\n\n**Retrieved evidence (as-of " + asof + "):**\n" + "\n".join(lines)
+                            if lines else "\n\n(No evidence could be retrieved either.)")
+    return {"answer": body, "structured": None, "contract": contracts[0] if contracts else None,
+            "contracts": contracts, "citations": cits, "evidence": evidence, "model": "(unavailable)",
+            "intent": kind,
+            "trace": {"floor": "evidence_only", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}}
+
+
 def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
             numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
             planner: str | None = None, session_id: Optional[str] = None, session_store=None) -> dict:
@@ -248,27 +300,34 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
         # Legacy path — PIT KILL-SWITCH FIRST: a past as-of can never reach the news agent, so
         # backtested answers are physically unable to see today's headlines (ISO strings compare safely).
         if it.is_live(query) and asof >= _today():
-            res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
+            try:
+                res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
+            except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
+                res = _evidence_only(query, asof, graph=graph, kind="live", exc=e, route_fn=route_fn)
             res["intent_decision"] = {"intent": res["intent"], "live_checked": True}
             return _session_writeback(res, query, asof, session_id, store, state, graph, call)
         decided = (classify or it.classify_intent)(query, call=call)
         kind = decided["intent"]
 
-    if kind == "live":
-        res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
-    elif kind == "numbers_only":
-        hints = list(plan.contracts) if plan else []
-        if plan and plan.country:
-            hints.append(plan.country)                             # "And exports?" after Brazil = BRAZIL exports
-        nq = query if not hints else f"{query}\n(conversation context: this refers to {', '.join(hints)})"
-        res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn)
-    elif kind == "hybrid":
-        res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
-                         client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
-                         extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
-    else:
-        res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                            extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
+    try:
+        if kind == "live":
+            res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
+        elif kind == "numbers_only":
+            hints = list(plan.contracts) if plan else []
+            if plan and plan.country:
+                hints.append(plan.country)                         # "And exports?" after Brazil = BRAZIL exports
+            nq = query if not hints else f"{query}\n(conversation context: this refers to {', '.join(hints)})"
+            res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn)
+        elif kind == "hybrid":
+            res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
+                             client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
+                             extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
+        else:
+            res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
+                                planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
+                                silver_lookup=silver_lookup)
+    except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
+        res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)
     res["intent_decision"] = decided
     return _session_writeback(res, query, asof, session_id, store, state, graph, call)
 
