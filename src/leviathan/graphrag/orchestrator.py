@@ -72,9 +72,10 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
 
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
-                  near: str | None = None, silver_lookup=None) -> dict:
+                  near: str | None = None, silver_lookup=None, on_stage=None) -> dict:
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
-                    extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
+                    extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
+                    on_stage=on_stage)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -84,13 +85,14 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
 def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None,
                extra_context: str | None = None, route_fn=None, near: str | None = None,
-               silver_lookup=None) -> dict:
+               silver_lookup=None, on_stage=None) -> dict:
     nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn)
     calls = nums.get("calls", [])
+    an._emit(on_stage, "numbers", calls=len(calls))
     extra = "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x)
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                     extra_context=extra, extra_number_calls=calls, planner=planner, route_fn=route_fn,
-                    near=near, silver_lookup=silver_lookup)
+                    near=near, silver_lookup=silver_lookup, on_stage=on_stage)
     out["intent"] = "hybrid"
     out["number_calls"] = calls
     out["asof"] = asof
@@ -109,7 +111,7 @@ def contracts_for_driver(graph, driver_id: str, prefer: str = "") -> list[str]:
 
 
 def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
-             planner: str | None = None, gather=None, extract=None) -> dict:
+             planner: str | None = None, gather=None, extract=None, on_stage=None) -> dict:
     """The section-7.1 live branch: fetch trusted headlines -> typed LiveEvents -> event-rooted cascade.
     Returns a full result dict; when NO verified event is found it degrades to normal reasoning with an
     explicit live-check note (never a silently stale answer). `gather`/`extract` injectable for tests."""
@@ -121,7 +123,8 @@ def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: s
     nf.snapshot(items)                                             # audit copy (best-effort, never blocks)
     events = extract(items, call=call or an._call_opus, graph=graph) if items else []
     if not events:
-        res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
+        res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
+                            on_stage=on_stage)
         res["answer"] += ("\n\n_Live check: no verified shock headline from trusted sources at answer time; "
                           "the analysis above rests on the dated archive._")
         res["live_events"] = []
@@ -132,7 +135,7 @@ def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: s
     now = items[0].get("fetched_at", "") if items else ""
     block = nx.live_context_block(events, now)
     kw = dict(graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
-              extra_context=block, planner=planner)
+              extra_context=block, planner=planner, on_stage=on_stage)
     if seeds:
         kw.update(route_fn=lambda q, g: seeds, focus_driver=ev0.driver_id)
     out = an.answer(query, **kw)
@@ -253,7 +256,8 @@ def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
 
 def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
             numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
-            planner: str | None = None, session_id: Optional[str] = None, session_store=None) -> dict:
+            planner: str | None = None, session_id: Optional[str] = None, session_store=None,
+            on_stage=None) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
     `asof` defaults to today. The reasoning/hybrid branches default to the L2 deterministic grounded-subgraph
     walk (v1.1 reached judge parity with one-hop at 0/30 register leaks, and the roadmap — driver-slice
@@ -340,33 +344,42 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
         # Legacy path — PIT KILL-SWITCH FIRST: a past as-of can never reach the news agent, so
         # backtested answers are physically unable to see today's headlines (ISO strings compare safely).
         if it.is_live(query) and asof >= _today():
+            an._emit(on_stage, "planning", intent="live", contracts=[])
             try:
-                res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
+                res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
+                               on_stage=on_stage)
             except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
+                an._emit(on_stage, "floor")
                 res = _evidence_only(query, asof, graph=graph, kind="live", exc=e, route_fn=route_fn)
             res["intent_decision"] = {"intent": res["intent"], "live_checked": True}
             return _session_writeback(res, query, asof, session_id, store, state, graph, call)
         decided = (classify or it.classify_intent)(query, call=call)
         kind = decided["intent"]
 
+    an._emit(on_stage, "planning", intent=kind,                    # staged-pipeline (P1.1): first live tick
+             contracts=[c for c in (list(plan.contracts) if plan else []) if c in graph.contracts])
     try:
         if kind == "live":
-            res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner)
+            res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
+                           on_stage=on_stage)
         elif kind == "numbers_only":
             hints = list(plan.contracts) if plan else []
             if plan and plan.country:
                 hints.append(plan.country)                         # "And exports?" after Brazil = BRAZIL exports
             nq = query if not hints else f"{query}\n(conversation context: this refers to {', '.join(hints)})"
             res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn)
+            an._emit(on_stage, "numbers", calls=len(res.get("number_calls", [])))
         elif kind == "hybrid":
             res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                              client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
-                             extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup)
+                             extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
+                             on_stage=on_stage)
         else:
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
-                                silver_lookup=silver_lookup)
+                                silver_lookup=silver_lookup, on_stage=on_stage)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
+        an._emit(on_stage, "floor")
         res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)
     res["intent_decision"] = decided
     return _session_writeback(res, query, asof, session_id, store, state, graph, call)

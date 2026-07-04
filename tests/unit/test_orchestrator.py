@@ -118,3 +118,53 @@ def test_respond_stamps_graph_version(monkeypatch):
     floored = orch.respond("arabica frost outlook", graph=gr, asof="2024-01-01", call=dead, retrieve=_retr,
                            classify=lambda q, call=None: {"intent": "reasoning"})
     assert floored["trace"]["floor"] == "evidence_only" and floored["trace"]["graph_version"] == "abc123def456"
+
+
+def test_on_stage_pipeline_ticks_reasoning():
+    """P1.1 staged pipeline: a streamed reasoning turn emits ordered stage ticks with counts (L2 path)."""
+    stages = []
+    out = orch.respond("why is arabica bullish on a frost", graph=_graph(), asof="2024-06-01",
+                       classify=_force("reasoning"), call=_reason_call, retrieve=_retrieve,
+                       on_stage=lambda s, info: stages.append((s, info)))
+    names = [s for s, _ in stages]
+    assert names[0] == "planning"                                      # planning is always the first tick
+    assert {"planning", "walking", "retrieving", "verifying"} <= set(names)   # full L2 pipeline surfaced
+    walk = dict(stages)["walking"]
+    assert "nodes" in walk and "regimes" in walk                       # counts threaded onto the stage
+    assert out["intent"] == "reasoning"
+
+
+def test_on_stage_hybrid_emits_numbers():
+    """The hybrid path adds a `numbers` tick carrying the lookup count."""
+    stages = []
+    orch.respond("given low ending stocks is corn a buy", graph=_graph(), asof="2024-06-01",
+                 classify=_force("hybrid"), call=_reason_call, retrieve=_retrieve,
+                 numbers_client=_numbers_client(), query_fn=_query_fn,
+                 on_stage=lambda s, info: stages.append((s, info)))
+    names = [s for s, _ in stages]
+    assert names[0] == "planning" and "numbers" in names and "verifying" in names
+    assert dict(stages)["numbers"]["calls"] >= 1
+
+
+def test_on_stage_floor_tick():
+    """The deterministic-floor path emits a `floor` tick (design §5) when the reasoner dies."""
+    stages = []
+
+    def dead(system, user, *, model, tool):
+        raise RuntimeError("down")
+    res = orch.respond("why is arabica bullish on a frost", graph=_graph(), asof="2024-06-01",
+                       classify=_force("reasoning"), call=dead, retrieve=_retrieve,
+                       on_stage=lambda s, info: stages.append((s, info)))
+    assert "floor" in [s for s, _ in stages] and res["trace"].get("floor")
+
+
+def test_on_stage_callback_never_breaks_the_turn():
+    """A None callback is a no-op and a RAISING callback is swallowed — progress reporting is cosmetic."""
+    from leviathan.graphrag import answer as an
+    an._emit(None, "x")                                                # None -> no-op, no raise
+
+    def boom(stage, info):
+        raise ValueError("callback blew up")
+    out = orch.respond("why is arabica bullish on a frost", graph=_graph(), asof="2024-06-01",
+                       classify=_force("reasoning"), call=_reason_call, retrieve=_retrieve, on_stage=boom)
+    assert out["intent"] == "reasoning"                                # turn still completes normally
