@@ -1,5 +1,5 @@
 import { getIdToken } from '../auth/oidc';
-import { MOCK_CONVERGENCE, MOCK_GRAPH, MOCK_REGIMES, MOCK_SERIES, mockRespondStream } from './mock';
+import { MOCK_CONVERGENCE, MOCK_EVENTS, MOCK_GRAPH, MOCK_REGIMES, MOCK_SERIES, mockRespondStream } from './mock';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -25,6 +25,16 @@ export function respondStream(
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { headers: await authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
+  return (await res.json()) as T;
+}
+
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
   return (await res.json()) as T;
 }
@@ -59,4 +69,38 @@ export function getSeries(
   return getJSON(
     `/v1/series/${encodeURIComponent(table)}/${encodeURIComponent(metric)}${qs ? `?${qs}` : ''}`,
   );
+}
+
+export function getEvents(contract?: string, asof?: string): Promise<Schemas['EventsFeed']> {
+  if (MOCK) return Promise.resolve(MOCK_EVENTS);
+  const p = new URLSearchParams();
+  if (contract) p.set('contract', contract);
+  if (asof) p.set('asof', asof);
+  const qs = p.toString();
+  return getJSON(`/v1/events${qs ? `?${qs}` : ''}`);
+}
+
+// ── durable threads (per-user; requires auth in prod) ──────────────────────────────────────────────
+export interface ThreadItem {
+  id: string;
+  title?: string;
+  updated_at?: string;
+}
+
+export function getThreadTurns(threadId: string): Promise<Schemas['ThreadTurns']> {
+  if (MOCK) return Promise.resolve({ thread_id: threadId, turns: [] });
+  return getJSON(`/v1/threads/${encodeURIComponent(threadId)}/turns`);
+}
+
+export function listThreads(): Promise<{ items: ThreadItem[] }> {
+  if (MOCK) return Promise.resolve({ items: [] });
+  return getJSON(`/v1/threads`);
+}
+
+/** Upsert the thread index item (title for the switcher). Best-effort; swallows failures. */
+export function putThread(id: string, title: string): Promise<void> {
+  if (MOCK) return Promise.resolve();
+  return postJSON<{ id: string }>(`/v1/threads`, { id, body: { title, updated_at: new Date().toISOString() } })
+    .then(() => undefined)
+    .catch(() => undefined);
 }

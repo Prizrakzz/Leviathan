@@ -1,9 +1,13 @@
 import { useState } from 'react';
+import { putThread } from '@/api/client';
 import { useTurn } from '@/api/useTurn';
 import { parseCommand } from '@/command/parser';
 import { useHotkeys } from '@/hotkeys/useHotkeys';
 import { useAsOf } from '@/store/asof';
+import { useThread } from '@/store/thread';
 import { useUI, type ViewName } from '@/store/ui';
+import { noteToMarkdown } from '@/views/note/markdown';
+import { useUrlSync } from './useUrlSync';
 import { CommandPalette } from './CommandPalette';
 import { ShortcutSheet } from './ShortcutSheet';
 import { ThreadPane } from './ThreadPane';
@@ -20,6 +24,7 @@ export function Shell() {
   const [cmd, setCmd] = useState('');
   const [question, setQuestion] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
+  useUrlSync();
 
   const submit = (input: string) => {
     setCmd('');
@@ -38,7 +43,13 @@ export function Shell() {
     if ('contract' in p && p.contract) ui.setContract(p.contract);
     setQuestion(q);
     ui.setView('answer');
-    turn.start(q, { asof: p.asofOverride ?? useAsOf.getState().asof });
+    // Thread the turn: session_id = the current thread id (backend carries coreference + saves the turn).
+    const thread = useThread.getState();
+    if (!thread.title) {
+      thread.setTitleIfEmpty(q);
+      void putThread(thread.threadId, q); // register the thread for the switcher (best-effort)
+    }
+    turn.start(q, { asof: p.asofOverride ?? useAsOf.getState().asof, sessionId: thread.threadId });
   };
 
   useHotkeys({
@@ -50,11 +61,16 @@ export function Shell() {
     onToggleThread: () => useUI.getState().toggleThread(),
     onEscape: () => {
       useUI.getState().setPalette(false);
+      useUI.getState().setReceipts(false);
       setHelpOpen(false);
     },
     onAsOfStep: (dir, large) => asofStep(dir, large),
     onView: (v: ViewName) => useUI.getState().setView(v),
     onPanel: (n) => useUI.getState().focusPanel(n),
+    onReceipts: () => useUI.getState().toggleReceipts(),
+    onCopy: () => {
+      if (turn.result) void navigator.clipboard?.writeText(noteToMarkdown(turn.result));
+    },
     onHelp: () => setHelpOpen(true),
   });
 

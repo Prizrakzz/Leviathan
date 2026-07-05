@@ -29,15 +29,33 @@
       "post": {
         "summary": "Respond Route",
         "operationId": "respond_route_v1_respond_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Ask"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -45,8 +63,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Respond Route V1 Respond Post"
                 }
               }
@@ -110,6 +128,22 @@
                 }
               ],
               "title": "Asof"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -1026,6 +1060,62 @@
           }
         }
       }
+    },
+    "/v1/threads/{thread_id}/turns": {
+      "get": {
+        "summary": "Thread Turns",
+        "description": "Durable per-thread history (design \u00a73.1) \u2014 the PIT-safe turn records for a thread, oldest-first.\nConclusions + citation refs only; evidence is never persisted (re-derived on re-run).",
+        "operationId": "thread_turns_v1_threads__thread_id__turns_get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadTurns"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1693,6 +1783,152 @@
           "payload"
         ],
         "title": "ShareSnapshot"
+      },
+      "ThreadTurns": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/TurnRecord"
+            },
+            "type": "array",
+            "title": "Turns",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id"
+        ],
+        "title": "ThreadTurns"
+      },
+      "TurnRecord": {
+        "properties": {
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "structured": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured"
+          },
+          "asof": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "sources": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sources",
+            "default": []
+          },
+          "graph_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Version"
+          },
+          "contract": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract"
+          },
+          "contracts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contracts",
+            "default": []
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "TurnRecord",
+        "description": "One durable turn in a thread \u2014 the CONCLUSION only (PIT firewall): question + synthesized answer +\ncitation refs + the as-of/graph it was made under. NEVER carries retrieved evidence or raw number rows;\nthose re-derive under the turn's own as-of if it is re-run."
       },
       "ValidationError": {
         "properties": {

@@ -32,6 +32,51 @@ def test_make_share_pins_graph_version_from_trace():
     assert snap.graph_version == "abc" and snap.id
 
 
+def test_inmemory_turns_roundtrip_scoped_and_ordered():
+    s = st.InMemoryStore()
+    s.append_turn("u1", "thread-A", {"question": "q1", "answer": "a1"})
+    s.append_turn("u1", "thread-A", {"question": "q2", "answer": "a2"})
+    s.append_turn("u1", "thread-B", {"question": "other"})
+    s.append_turn("u2", "thread-A", {"question": "u2 secret"})            # different user
+    turns = s.list_turns("u1", "thread-A")
+    assert [t["question"] for t in turns] == ["q1", "q2"]                 # append order preserved
+    assert all("ts" in t for t in turns)                                 # ts stamped
+    assert s.list_turns("u1", "thread-B")[0]["question"] == "other"      # thread-scoped
+    assert s.list_turns("u1", "thread-A") != s.list_turns("u2", "thread-A")  # user-scoped, no leak
+
+
+def test_sanitize_turn_pit_firewall_drops_evidence():
+    """The load-bearing invariant: a durable turn NEVER carries retrieved evidence, raw number rows, or the
+    trace (which embeds resolved evidence text). Only the conclusion + citation refs survive."""
+    full = {
+        "question": "KC frost?",
+        "answer": "",
+        "structured": {"tldr": "convex spike", "sources": [{"ref": 1}]},
+        "asof": "2021-07-20",
+        "citations": [{"kind": "evidence", "ref": 1, "source": "usda_gain", "date": "2021-07-20"}],
+        "graph_version": "gv1",
+        "contract": "arabica_coffee",
+        # everything below MUST be stripped:
+        "evidence": [{"text": "secret frost report body", "source_key": "s3://gain/x"}],
+        "number_calls": [{"rows": [{"value": "0.36"}]}],
+        "trace": {"graph_version": "gv1", "citation_verifier": {"resolved": {"1": {"text": "evidence text"}}}},
+    }
+    rec = st.sanitize_turn(full)
+    assert "evidence" not in rec and "number_calls" not in rec and "trace" not in rec and "citations" not in rec
+    assert rec["question"] == "KC frost?" and rec["contract"] == "arabica_coffee"
+    assert rec["structured"]["tldr"] == "convex spike"
+    blob = str(rec)
+    assert "secret frost report body" not in blob and "evidence text" not in blob
+
+
+def test_append_turn_enforces_firewall_at_store_layer():
+    """Even if a caller passes a raw payload, the store strips it (defense in depth)."""
+    s = st.InMemoryStore()
+    s.append_turn("u1", "t1", {"question": "q", "evidence": [{"text": "leak"}], "trace": {"resolved": "x"}})
+    got = s.list_turns("u1", "t1")[0]
+    assert "evidence" not in got and "trace" not in got and "leak" not in str(got)
+
+
 def test_auth_off_returns_local_user(monkeypatch):
     monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
     assert auth.user_from_header(None) == auth.LOCAL_USER

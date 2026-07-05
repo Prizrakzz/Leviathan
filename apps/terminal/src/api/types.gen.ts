@@ -279,6 +279,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/threads/{thread_id}/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Thread Turns
+         * @description Durable per-thread history (design §3.1) — the PIT-safe turn records for a thread, oldest-first.
+         *     Conclusions + citation refs only; evidence is never persisted (re-derived on re-run).
+         */
+        get: operations["thread_turns_v1_threads__thread_id__turns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -525,6 +546,58 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** ThreadTurns */
+        ThreadTurns: {
+            /** Thread Id */
+            thread_id: string;
+            /**
+             * Turns
+             * @default []
+             */
+            turns: components["schemas"]["TurnRecord"][];
+        };
+        /**
+         * TurnRecord
+         * @description One durable turn in a thread — the CONCLUSION only (PIT firewall): question + synthesized answer +
+         *     citation refs + the as-of/graph it was made under. NEVER carries retrieved evidence or raw number rows;
+         *     those re-derive under the turn's own as-of if it is re-run.
+         */
+        TurnRecord: {
+            /** Question */
+            question?: string | null;
+            /** Answer */
+            answer?: string | null;
+            /** Structured */
+            structured?: {
+                [key: string]: unknown;
+            } | null;
+            /** Asof */
+            asof?: string | null;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: {
+                [key: string]: unknown;
+            }[];
+            /** Graph Version */
+            graph_version?: string | null;
+            /** Contract */
+            contract?: string | null;
+            /**
+             * Contracts
+             * @default []
+             */
+            contracts: string[];
+            /** Intent */
+            intent?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Ts */
+            ts?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -568,7 +641,9 @@ export interface operations {
     respond_route_v1_respond_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -607,7 +682,9 @@ export interface operations {
                 session_id?: string | null;
                 asof?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1166,6 +1243,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    thread_turns_v1_threads__thread_id__turns_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadTurns"];
                 };
             };
             /** @description Validation Error */

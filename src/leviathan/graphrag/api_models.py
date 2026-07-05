@@ -122,3 +122,27 @@ class ShareSnapshot(BaseModel):
     graph_version: Optional[str] = None
     created_at: str
     payload: dict[str, Any]                  # the full immutable respond() dict — reproducible, forwardable
+
+
+# ── 1.6 durable per-thread history (design §3.1) ───────────────────────────────────────────────────
+class TurnRecord(BaseModel):
+    """One durable turn in a thread — the CONCLUSION only (PIT firewall): question + synthesized answer +
+    citation refs + the as-of/graph it was made under. NEVER carries retrieved evidence or raw number rows;
+    those re-derive under the turn's own as-of if it is re-run."""
+    model_config = _RICH
+    question: Optional[str] = None
+    answer: Optional[str] = None
+    structured: Optional[dict[str, Any]] = None
+    asof: Optional[str] = None
+    sources: list[dict[str, Any]] = []       # citation refs only ({kind, ref, source, date}) — no evidence text
+    graph_version: Optional[str] = None
+    contract: Optional[str] = None
+    contracts: list[str] = []
+    intent: Optional[str] = None
+    model: Optional[str] = None
+    ts: Optional[str] = None
+
+
+class ThreadTurns(BaseModel):
+    thread_id: str
+    turns: list[TurnRecord] = []

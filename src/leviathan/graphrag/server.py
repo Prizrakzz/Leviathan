@@ -83,6 +83,54 @@ def _require_user(authorization: Optional[str] = Header(None)) -> str:
         raise HTTPException(status_code=401, detail=str(e))
 
 
+def _require_user_quota(authorization: Optional[str] = Header(None)) -> str:
+    """`_require_user` + a per-user DAILY turn cap (Stage 5, env `GRAPHRAG_TURN_QUOTA`). Each turn is real
+    Bedrock spend, so an open-signup public deploy caps per-account velocity. Over the cap -> 429. Quota
+    unset -> no cap; any counter/infra error -> ALLOW (fail-open; WAF rate-limit + the Bedrock daily budget
+    are the hard backstops, a counter glitch must not lock out a paying user)."""
+    user = _require_user(authorization)
+    cap = os.environ.get("GRAPHRAG_TURN_QUOTA")
+    if cap:
+        from leviathan.graphrag import store as st
+        try:
+            _store().incr_turn_quota(user, time.strftime("%Y-%m-%d", time.gmtime()), int(cap))
+        except st.QuotaExceeded:
+            raise HTTPException(status_code=429, detail=f"daily turn limit ({cap}) reached; try again tomorrow")
+        except Exception:  # noqa: BLE001 — fail open on any non-quota error
+            pass
+    return user
+
+
+def _turn_record(result: dict) -> dict:
+    """A PIT-safe durable turn from a respond() result: the synthesized answer + citation REFS + the
+    as-of/graph it was made under. NEVER the retrieved evidence, raw number rows, or trace (which embeds
+    resolved evidence text); store.sanitize_turn is the backstop that enforces this."""
+    trace = result.get("trace") or {}
+    return {
+        "question": result.get("question"),
+        "answer": result.get("answer"),
+        "structured": result.get("structured"),
+        "asof": result.get("asof"),
+        "sources": result.get("citations") or [],       # [{kind, ref, source, date}] — refs only, no text
+        "graph_version": trace.get("graph_version"),
+        "contract": result.get("contract"),
+        "contracts": result.get("contracts") or [],
+        "intent": result.get("intent"),
+        "model": result.get("model"),
+    }
+
+
+def _save_turn(user: str, session_id: Optional[str], result: dict) -> None:
+    """Append a durable, PIT-safe turn to the thread's history. Fail-open + no-op without a thread id:
+    persistence must NEVER break or slow a turn."""
+    if not session_id:
+        return
+    try:
+        _store().append_turn(user, session_id, _turn_record(result))
+    except Exception:  # noqa: BLE001 — history is best-effort; a store glitch must not fail the answer
+        pass
+
+
 # ── existing serving surface ────────────────────────────────────────────────────────────────────────
 class Ask(BaseModel):
     question: str
@@ -99,16 +147,18 @@ def healthz() -> dict:
 
 
 @app.post("/v1/respond")
-def respond_route(body: Ask, user: str = Depends(_require_user)) -> dict:
-    # Auth-gated (Stage 4): a turn is Bedrock spend, so only signed-in users may run it. When GRAPHRAG_AUTH
-    # is off (dev/eval), _require_user returns the local user and this is a no-op.
+def respond_route(body: Ask, user: str = Depends(_require_user_quota)) -> dict:
+    # Auth + per-user daily quota gated (Stage 4/5): a turn is Bedrock spend, so only signed-in users within
+    # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
     from leviathan.graphrag import orchestrator as orch
-    return orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id)
+    result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id)
+    _save_turn(user, body.session_id, result)            # durable per-thread history (PIT-safe, fail-open)
+    return result
 
 
 @app.get("/v1/respond/stream")
 def respond_stream(question: str, session_id: Optional[str] = None, asof: Optional[str] = None,
-                   user: str = Depends(_require_user)):
+                   user: str = Depends(_require_user_quota)):
     """SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own
     `stage` event, then the single terminal `result` (or `error`)."""
     from leviathan.graphrag import orchestrator as orch
@@ -121,8 +171,10 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
 
         def work() -> None:
             try:
-                out.put(("result", orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
-                                                 on_stage=on_stage)))
+                result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
+                                      on_stage=on_stage)
+                _save_turn(user, session_id, result)      # durable per-thread history (PIT-safe, fail-open)
+                out.put(("result", result))
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces
                 out.put(("error", {"error": f"{type(e).__name__}: {str(e)[:200]}"}))
 
@@ -288,3 +340,10 @@ def _register_item_routes(coll: str, kind: str) -> None:
 
 for _coll, _kind in (("threads", "thread"), ("watchlists", "watchlist"), ("workspaces", "workspace")):
     _register_item_routes(_coll, _kind)
+
+
+@app.get("/v1/threads/{thread_id}/turns", response_model=M.ThreadTurns)
+def thread_turns(thread_id: str, user: str = Depends(_require_user)) -> dict:
+    """Durable per-thread history (design §3.1) — the PIT-safe turn records for a thread, oldest-first.
+    Conclusions + citation refs only; evidence is never persisted (re-derived on re-run)."""
+    return {"thread_id": thread_id, "turns": _store().list_turns(user, thread_id)}
