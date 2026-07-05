@@ -295,6 +295,18 @@ def _write_predictions(s3, bucket, args, predictions, run_id, feature_set_sha) -
     buf = io.BytesIO()
     df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
     s3.put_object(Bucket=bucket, Key=key, Body=buf.getvalue())
+    # silver_model_predictions uses REGISTERED Glue partitions (de-projected 2026-07 — the projected
+    # family x daily-date grid was ~4,800x its real layout, the S3 LIST-storm class). A NEW partition dir
+    # must be registered or Athena never sees these rows. ensure_partition is idempotent; a registration
+    # failure is logged but never fails the training run (the deproject sync script catches up).
+    try:
+        from leviathan.storage.glue_partitions import ensure_partition
+        part_prefix = key.rsplit("/", 1)[0]
+        ensure_partition("leviathan_dev", "silver_model_predictions",
+                         [sanitize_artifact_name(model_family), pred_date],
+                         f"s3://{bucket}/{part_prefix}/")
+    except Exception as exc:  # noqa: BLE001 — registration must not kill a finished training run
+        logger.warning("glue partition registration failed (run deproject sync): %s", exc)
     return f"s3://{bucket}/{key}"
 
 

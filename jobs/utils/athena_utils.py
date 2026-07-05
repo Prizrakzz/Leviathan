@@ -113,6 +113,13 @@ def ensure_catalog() -> boto3.client:
     Tables use partition projection so Athena always resolves S3 paths from
     metadata — no crawler and no MSCK REPAIR TABLE ever needed.
 
+    !! EXCEPTION (2026-07): the SPARSE tables silver_wasde / silver_esr / silver_model_predictions use
+    REGISTERED partitions, not projection (their projected grids over-enumerated reality 42x-16,000x —
+    the Jul-2026 S3 LIST storm). Their DDL in sql/athena/ddl/ carries no projection properties, and a
+    DROP + CREATE DELETES their registered partitions — after recreating any of them, re-register:
+        python jobs/utils/deproject_glue_table.py --register --tables <table>
+
+    Dense tables (weather trio etc.) keep projection on purpose: their real layout ~= the grid.
     Both tables cover all 31 commodities via a commodity partition key with
     enum projection.  Country and region use injected projection — values come
     from WHERE clause predicates at query time.

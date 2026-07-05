@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Mark } from '@/tokens/Mark';
+import { authEnabled, userManager } from '../auth/oidc';
 
 /** The landing gate (design §8) — one page, not a marketing site. Near-black canvas, the convex mark, one
  *  line, a one-sentence descriptor, and two actions. Token-driven, so it shares the terminal's skin. */
@@ -18,12 +19,22 @@ export function Landing() {
         >
           Request access
         </a>
-        <Link
-          to="/app"
-          className="rounded-chip border border-amber px-4 py-2 text-amber hover:bg-bg-1"
-        >
-          Sign in
-        </Link>
+        {authEnabled ? (
+          <button
+            type="button"
+            onClick={() => void userManager?.signinRedirect()}
+            className="rounded-chip border border-amber px-4 py-2 text-amber hover:bg-bg-1"
+          >
+            Continue with Google
+          </button>
+        ) : (
+          <Link
+            to="/app"
+            className="rounded-chip border border-amber px-4 py-2 text-amber hover:bg-bg-1"
+          >
+            Sign in
+          </Link>
+        )}
       </div>
     </div>
   );

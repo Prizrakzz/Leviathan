@@ -63,3 +63,6 @@ docs/graphrag/corpus_profile/
 
 # Leviathan product / UI design + build plans — PRIVATE, never public
 docs/private/
+
+# terraform saved plans (may embed sensitive values) + plan text dumps
+infra/terraform/**/tfplan*

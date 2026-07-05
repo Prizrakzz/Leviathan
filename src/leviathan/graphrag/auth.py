@@ -17,17 +17,23 @@ def auth_on() -> bool:
 
 
 def verify_token(token: str) -> str:
-    """Verify a Cognito access/ID JWT -> subject. Raises on any failure (caller maps to 401). Imports PyJWT
-    lazily so the dependency is import-free when auth is off (the default)."""
-    import jwt                                                       # PyJWT
-    from jwt import PyJWKClient
-    region = os.environ["COGNITO_REGION"]
-    pool = os.environ["COGNITO_USER_POOL_ID"]
-    aud = os.environ.get("COGNITO_APP_CLIENT_ID")
-    iss = f"https://cognito-idp.{region}.amazonaws.com/{pool}"
-    signing_key = PyJWKClient(f"{iss}/.well-known/jwks.json").get_signing_key_from_jwt(token).key
-    claims = jwt.decode(token, signing_key, algorithms=["RS256"], issuer=iss,
-                        audience=aud, options={"verify_aud": aud is not None})
+    """Verify a Cognito ID/access JWT -> subject. Raises ValueError on ANY failure — malformed token,
+    bad signature, wrong issuer/audience, expiry, or JWKS-fetch error — so the caller maps every failure
+    to a clean 401 (never a 500). Imports PyJWT lazily so the dependency is import-free when auth is off."""
+    try:
+        import jwt                                                   # PyJWT
+        from jwt import PyJWKClient
+        region = os.environ["COGNITO_REGION"]
+        pool = os.environ["COGNITO_USER_POOL_ID"]
+        aud = os.environ.get("COGNITO_APP_CLIENT_ID")
+        iss = f"https://cognito-idp.{region}.amazonaws.com/{pool}"
+        signing_key = PyJWKClient(f"{iss}/.well-known/jwks.json").get_signing_key_from_jwt(token).key
+        claims = jwt.decode(token, signing_key, algorithms=["RS256"], issuer=iss,
+                            audience=aud, options={"verify_aud": aud is not None})
+    except ValueError:
+        raise
+    except Exception as e:  # noqa: BLE001 — any verification failure is a 401 (fail-closed)
+        raise ValueError(f"invalid token: {type(e).__name__}")
     return claims.get("sub") or claims.get("username") or LOCAL_USER
 
 

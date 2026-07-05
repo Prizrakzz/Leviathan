@@ -14,16 +14,14 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_esr (
 PARTITIONED BY (commodity_code int, market_year int, as_of_date string)
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/production/source=usda_esr'
+-- REGISTERED partitions since 2026-07 — DO NOT re-add partition projection. The projected
+-- code x MY x daily-as_of grid (~6M candidates over 370 real dirs, ~16,000x) was THE Jul-2026 S3 LIST
+-- storm ($134/2 days; ~130-600K LISTs per non-sargable query). NOTE the S3 dir key is `as_of=` while the
+-- partition COLUMN is as_of_date — partitions carry explicit Locations (MSCK cannot repair this table).
+-- After a DROP+CREATE from this DDL, re-register:
+--   python jobs/utils/deproject_glue_table.py --register --tables silver_esr
+-- New-partition writers must call leviathan.storage.glue_partitions.ensure_partition after the S3 write.
 TBLPROPERTIES (
     'EXTERNAL' = 'TRUE',
-    'parquet.compression' = 'SNAPPY',
-    'projection.as_of_date.format' = 'yyyyMMdd',
-    'projection.as_of_date.range' = '19900101,NOW',
-    'projection.as_of_date.type' = 'date',
-    'projection.commodity_code.type' = 'enum',
-    'projection.commodity_code.values' = '101,102,103,104,107,401,701,801,901,902',
-    'projection.enabled' = 'true',
-    'projection.market_year.range' = '1990,2035',
-    'projection.market_year.type' = 'integer',
-    'storage.location.template' = 's3://leviathan-dev-shahem-001/silver/production/source=usda_esr/commodity_code=${commodity_code}/market_year=${market_year}/as_of=${as_of_date}'
+    'parquet.compression' = 'SNAPPY'
 );

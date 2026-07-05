@@ -7,6 +7,7 @@ export type TurnStatus = 'idle' | 'streaming' | 'done' | 'error';
 export interface TurnState {
   status: TurnStatus;
   stages: StageEvent[];
+  draft: string; // accumulating synthesis deltas (the note streaming in before the verified result lands)
   result?: RespondResult;
   error?: string;
 }
@@ -16,18 +17,24 @@ export interface TurnState {
  * the terminal `result` (the note). Starting a new turn aborts the previous stream (design §7 SSE lifecycle).
  */
 export function useTurn() {
-  const [state, setState] = useState<TurnState>({ status: 'idle', stages: [] });
+  const [state, setState] = useState<TurnState>({ status: 'idle', stages: [], draft: '' });
   const abortRef = useRef<AbortController | null>(null);
 
   const start = useCallback((question: string, opts?: { asof?: string; sessionId?: string }) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    setState({ status: 'streaming', stages: [] });
+    setState({ status: 'streaming', stages: [], draft: '' });
     respondStream(
       { question, ...opts },
       {
-        onStage: (e) => setState((s) => ({ ...s, stages: [...s.stages, e] })),
+        // `token` stages are synthesis deltas → grow the draft; every other stage is a pipeline milestone.
+        onStage: (e) =>
+          setState((s) =>
+            e.stage === 'token'
+              ? { ...s, draft: s.draft + (e.text ?? '') }
+              : { ...s, stages: [...s.stages, e] },
+          ),
         onResult: (r) => setState((s) => ({ ...s, status: 'done', result: r })),
         onError: (er) => setState((s) => ({ ...s, status: 'error', error: er.error })),
       },

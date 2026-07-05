@@ -108,7 +108,7 @@ resource "aws_cloudwatch_metric_alarm" "dead_letter" {
   comparison_operator = "GreaterThanThreshold"
   threshold           = 0
   treat_missing_data  = "notBreaching"
-  alarm_actions       = []  # wire to aws_sns_topic.leviathan_alerts.arn when SNS is configured
+  alarm_actions       = [] # wire to aws_sns_topic.leviathan_alerts.arn when SNS is configured
 
   tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }

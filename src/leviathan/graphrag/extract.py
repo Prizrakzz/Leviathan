@@ -503,6 +503,37 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
     return tool_input, _usage_from(getattr(resp, "usage", None))
 
 
+def call_opus_stream(client, system: str, user, *, model: str = MODEL, max_tokens: int = 4096,
+                     tool: dict | None = None, on_token=None) -> tuple[dict, Usage]:
+    """Streaming forced-tool call — same contract as call_opus (returns (tool_input_dict, usage)), but relays
+    the tool's `input_json_delta` text to `on_token` as it generates so the UI can render the note live
+    instead of blocking on the full completion. The SDK assembles the final message. A progress callback must
+    NEVER break the turn, so its errors are swallowed."""
+    tool = tool or extraction_tool()
+    with client.messages.stream(
+        model=model, max_tokens=max_tokens, system=system,
+        messages=[{"role": "user", "content": user}],
+        tools=[tool],
+        tool_choice={"type": "tool", "name": tool["name"]},
+    ) as stream:
+        if on_token is not None:
+            for event in stream:
+                if getattr(event, "type", None) == "content_block_delta":
+                    pj = getattr(getattr(event, "delta", None), "partial_json", None)
+                    if pj:
+                        try:
+                            on_token(pj)
+                        except Exception:  # noqa: BLE001 — never let a UI callback break generation
+                            pass
+        final = stream.get_final_message()
+    if getattr(final, "stop_reason", None) == "max_tokens":
+        raise ValueError(f"output truncated at max_tokens={max_tokens} (stop_reason=max_tokens); raise max_tokens")
+    tool_input = next((b.input for b in final.content if getattr(b, "type", None) == "tool_use"), None)
+    if tool_input is None:
+        raise ValueError("model returned no tool_use block")
+    return tool_input, _usage_from(getattr(final, "usage", None))
+
+
 def _cache_control(ttl: str | None) -> dict:
     cc = {"type": "ephemeral"}
     if ttl == "1h":

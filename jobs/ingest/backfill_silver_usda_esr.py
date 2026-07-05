@@ -150,6 +150,17 @@ def main() -> None:
                 len(silver_df), len(parquet_bytes) // 1024,
                 BUCKET, s_key,
             )
+            # silver_esr uses REGISTERED Glue partitions (de-projected 2026-07: the projected
+            # code x MY x daily-as_of grid was ~16,000x the 370 real dirs — THE Jul-2026 LIST storm).
+            # Register the partition or Athena never sees it; idempotent, non-fatal on failure
+            # (jobs/utils/deproject_glue_table.py --register is the catch-up sync).
+            try:
+                from leviathan.storage.glue_partitions import ensure_partition
+                ensure_partition("leviathan_dev", "silver_esr",
+                                 [str(commodity_code), str(market_year), as_of_date],
+                                 f"s3://{BUCKET}/{s_key.rsplit('/', 1)[0]}/")
+            except Exception as exc:  # noqa: BLE001 — registration must not fail the backfill write
+                logger.warning("glue partition registration failed (run deproject sync): %s", exc)
             success += 1
 
         except Exception as exc:  # noqa: BLE001

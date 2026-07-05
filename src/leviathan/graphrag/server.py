@@ -99,13 +99,16 @@ def healthz() -> dict:
 
 
 @app.post("/v1/respond")
-def respond_route(body: Ask) -> dict:
+def respond_route(body: Ask, user: str = Depends(_require_user)) -> dict:
+    # Auth-gated (Stage 4): a turn is Bedrock spend, so only signed-in users may run it. When GRAPHRAG_AUTH
+    # is off (dev/eval), _require_user returns the local user and this is a no-op.
     from leviathan.graphrag import orchestrator as orch
     return orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id)
 
 
 @app.get("/v1/respond/stream")
-def respond_stream(question: str, session_id: Optional[str] = None, asof: Optional[str] = None):
+def respond_stream(question: str, session_id: Optional[str] = None, asof: Optional[str] = None,
+                   user: str = Depends(_require_user)):
     """SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own
     `stage` event, then the single terminal `result` (or `error`)."""
     from leviathan.graphrag import orchestrator as orch

@@ -97,3 +97,29 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
             return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool)
         out, _ = degraded()
         return out, degrade_to
+
+
+def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4096, tool: dict,
+                        degrade_to: Optional[str] = None, on_token) -> tuple[dict, Optional[str]]:
+    """Streaming variant of serving_call: relays the tool's input_json_delta text via `on_token` as the note
+    generates, and returns the SAME (tool_input, degraded_model). Robustness is preserved: an availability
+    error degrades to the fallback model (buffered — the fast path already failed), and any other stream-path
+    error falls back to the buffered `serving_call` on the primary model. So streaming is pure upside."""
+    try:
+        out, _ = with_retry(lambda: ex.call_opus_stream(client, system, user, model=model,
+                                                         max_tokens=max_tokens, tool=tool, on_token=on_token))
+        return out, None
+    except RETRYABLE:
+        fallback = resolve_model(degrade_to) if degrade_to else None
+        if not fallback or fallback == model:
+            raise
+
+        @retry(retry=retry_if_exception_type(RETRYABLE), reraise=True,
+               wait=wait_exponential(multiplier=2, min=2, max=8), stop=stop_after_attempt(2))
+        def degraded():
+            return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool)
+        out, _ = degraded()
+        return out, degrade_to
+    except Exception:  # noqa: BLE001 — a streaming-specific failure must never lose the answer
+        return serving_call(client, system, user, model=model, max_tokens=max_tokens, tool=tool,
+                            degrade_to=degrade_to)

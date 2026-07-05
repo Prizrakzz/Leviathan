@@ -130,7 +130,8 @@ def test_esr_pit_latest_report_per_week_no_leakage():
 def test_fx_latest_is_single_most_recent():
     sql = build_sql(NumberQuery(table="silver_fred_fx", metric="brl_usd", asof="2024-06-01", agg="latest"), _fx())
     assert "brl_usd AS value" in sql and "CAST(date AS varchar) <= '2024-06-01'" in sql
-    assert sql.strip().endswith("ORDER BY date DESC LIMIT 1")               # ORDER BY on the native col is unchanged
+    # native chrono col DESC first, then the deterministic total-order tiebreak (engine-parity, 2026-07-05)
+    assert "ORDER BY date DESC, " in sql and sql.strip().endswith("LIMIT 1")
 
 
 def test_oni_year_month_guard_no_leakage():

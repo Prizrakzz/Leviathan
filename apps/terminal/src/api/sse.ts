@@ -1,3 +1,4 @@
+import { getIdToken } from '../auth/oidc';
 import type { RespondResult, StageEvent } from './schema';
 
 export interface StreamHandlers {
@@ -69,8 +70,13 @@ export async function openRespondStream(
   const qs = new URLSearchParams({ question: params.question });
   if (params.asof) qs.set('asof', params.asof);
   if (params.sessionId) qs.set('session_id', params.sessionId);
+  // fetch-based SSE (not EventSource) -> we can set the Authorization header directly.
+  const token = await getIdToken();
   const res = await fetch(`${base}/v1/respond/stream?${qs.toString()}`, {
-    headers: { Accept: 'text/event-stream' },
+    headers: {
+      Accept: 'text/event-stream',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     signal,
   });
   if (!res.ok || !res.body) {

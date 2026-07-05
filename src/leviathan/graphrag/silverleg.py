@@ -160,12 +160,64 @@ def servable_refs() -> set[str]:
     return set(_HANDLERS) | set(_ALIAS)
 
 
+# ── shared vintage cache (cross-turn, default OFF — enable via GRAPHRAG_SILVER_CACHE at deploy) ──────
+# The per-turn memo below re-pays every Athena read (~3.5s each, sequential) on EVERY turn — measured as
+# the walk's dominant remaining cost (~14s "rest") after the rerank fix. PIT-safety makes caching trivial:
+# a HISTORICAL asof reads immutable vintage data -> cache FOREVER; a live/today asof gets a short TTL.
+_SHARED: dict[tuple, tuple[dict, float | None]] = {}     # key -> (result, expires_at | None=immortal)
+_SHARED_LOCK = None
+
+
+def _shared_enabled() -> bool:
+    import os
+    v = os.environ.get("GRAPHRAG_SILVER_CACHE") or str(_pr.get("serving.silver.shared_cache", ""))
+    return v.strip().lower() in ("1", "on", "true", "yes")
+
+
+def _shared_lock():
+    global _SHARED_LOCK
+    if _SHARED_LOCK is None:
+        import threading
+        _SHARED_LOCK = threading.Lock()
+    return _SHARED_LOCK
+
+
+def _shared_get(key: tuple):
+    if not _shared_enabled():
+        return None
+    import time
+    with _shared_lock():
+        hit = _SHARED.get(key)
+    if not hit:
+        return None
+    val, exp = hit
+    if exp is not None and time.time() > exp:
+        return None
+    return val
+
+
+def _shared_put(key: tuple, out: dict, asof_s: str) -> None:
+    if not _shared_enabled():
+        return
+    import datetime as _dt
+    import time
+    immortal = bool(asof_s) and asof_s < _dt.date.today().isoformat()   # vintage data is immutable
+    exp = None if immortal else time.time() + float(_pr.get("serving.silver.cache_ttl", 900))
+    with _shared_lock():
+        _SHARED[key] = (out, exp)
+
+
 def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None):
     """Build the `silver_lookup(contract, driver_id, asof)` callable ground() accepts. Memoized per
-    (ref, contract-or-global, asof); at most `cap` silver reads per answer; failures -> {live: False}."""
+    (ref, contract-or-global, asof); at most `cap` silver reads per answer; failures -> {live: False}.
+    THREAD-SAFE with single-flight: ground() now prefetches lookups in parallel, so concurrent callers of
+    the same key wait for one handler run instead of double-spending the budget on duplicate Athena reads."""
+    import threading
     cap = cap if cap is not None else int(_pr.get("serving.silver.cap", 8))
     memo: dict[tuple, dict] = {}
     budget = {"left": cap}
+    lk = threading.Lock()
+    inflight: dict[tuple, threading.Event] = {}
 
     def lookup(contract: str, driver_id: str, asof) -> dict:
         try:
@@ -179,14 +231,34 @@ def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None):
             scope = contract if ref == "psd_ending_stock_su_ratio" else (
                 contract if ref == "fred_fx_macro" else "_global")
             key = (ref, scope, asof_s)
-            if key in memo:
-                return {**memo[key], "ref": ref}
-            if budget["left"] <= 0:
-                return {"live": False, "ref": ref, "reason": "capped"}
-            budget["left"] -= 1
-            out = _HANDLERS[ref](query_fn, contract, asof_s)
-            memo[key] = out
-            return {**out, "ref": ref}
+            while True:
+                with lk:
+                    if key in memo:
+                        return {**memo[key], "ref": ref}
+                    shared = _shared_get(key)
+                    if shared is not None:                     # cross-turn hit: no budget, no Athena
+                        memo[key] = shared
+                        return {**shared, "ref": ref}
+                    ev_wait = inflight.get(key)
+                    if ev_wait is None:
+                        if budget["left"] <= 0:
+                            return {"live": False, "ref": ref, "reason": "capped"}
+                        budget["left"] -= 1
+                        inflight[key] = threading.Event()
+                        break                                  # this caller runs the handler
+                ev_wait.wait(timeout=60)                       # another caller is running it — wait + re-check
+            try:
+                out = _HANDLERS[ref](query_fn, contract, asof_s)
+                with lk:
+                    memo[key] = out
+                _shared_put(key, out, asof_s)
+                return {**out, "ref": ref}
+            finally:
+                # ALWAYS release waiters — on handler failure they re-loop and one retries (budget-bounded).
+                with lk:
+                    e = inflight.pop(key, None)
+                if e is not None:
+                    e.set()
         except Exception:  # noqa: BLE001 — a silver miss must never break the answer
             return {"live": False, "ref": None, "reason": "error"}
     return lookup

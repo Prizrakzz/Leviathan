@@ -144,8 +144,10 @@ data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "batch_job_bedrock" {
   statement {
-    sid     = "BedrockInvokeServingModels"
-    actions = ["bedrock:InvokeModel"]
+    sid = "BedrockInvokeServingModels"
+    # InvokeModelWithResponseStream added for the streamed note synthesis (serving_call_stream) — the UI
+    # renders the note token-by-token instead of blocking ~53s on the full completion.
+    actions = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
     resources = [
       "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5*",
       "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*",
@@ -154,10 +156,27 @@ data "aws_iam_policy_document" "batch_job_bedrock" {
     ]
   }
 
+  # Managed Cohere Rerank (bedrock-agent-runtime Rerank) — replaces the CPU bge cross-encoder in serving
+  # (rankers._bedrock_rerank_scores). Cuts the L2 walk's ~100s CPU rerank to sub-second.
+  # NOTE: bedrock:Rerank does NOT authorize against the foundation-model ARN the way InvokeModel does — a
+  # model-scoped resource yields AccessDenied — so the action is granted on "*" (a read-only scoring call);
+  # InvokeModel stays scoped to the rerank model.
+  statement {
+    sid       = "BedrockRerank"
+    actions   = ["bedrock:Rerank"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "BedrockRerankInvokeModel"
+    actions   = ["bedrock:InvokeModel"]
+    resources = ["arn:aws:bedrock:*::foundation-model/cohere.rerank-v3-5*"]
+  }
+
   # Required for Bedrock to auto-subscribe the role to the Anthropic model
   # on first use (resolves AccessDeniedException for aws-marketplace actions).
   statement {
-    sid     = "BedrockMarketplaceSubscribe"
+    sid = "BedrockMarketplaceSubscribe"
     actions = [
       "aws-marketplace:ViewSubscriptions",
       "aws-marketplace:Subscribe",
@@ -273,6 +292,41 @@ resource "aws_iam_policy" "athena_validation" {
 resource "aws_iam_role_policy_attachment" "glue_job_role_athena" {
   role       = aws_iam_role.glue_job_role.name
   policy_arn = aws_iam_policy.athena_validation.arn
+}
+
+# The GraphRAG serving ECS task reuses the Batch job role and hits Athena via the
+# numbers agent + the /v1/series and /v1/convergence endpoints. Codify that here
+# so serving no longer depends on an out-of-band (CLI-added) Athena grant.
+resource "aws_iam_role_policy_attachment" "batch_job_role_athena" {
+  role       = aws_iam_role.batch_job_role.name
+  policy_arn = aws_iam_policy.athena_validation.arn
+}
+
+# Stage 4: the serving task's store.py (durable terminal-store) + session.py (graphrag-sessions) read/write.
+# Gated on table ARNs being passed (empty list = no policy, so this stays a no-op until Stage 4).
+data "aws_iam_policy_document" "terminal_dynamodb" {
+  count = length(var.dynamodb_table_arns) > 0 ? 1 : 0
+  statement {
+    sid = "TerminalStoreRW"
+    actions = [
+      "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem",
+      "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
+    ]
+    resources = var.dynamodb_table_arns
+  }
+}
+
+resource "aws_iam_policy" "terminal_dynamodb" {
+  count       = length(var.dynamodb_table_arns) > 0 ? 1 : 0
+  name        = "${var.project_name}-${var.environment}-terminal-dynamodb-rw"
+  description = "Serving task RW on the terminal-store + graphrag-sessions DynamoDB tables."
+  policy      = data.aws_iam_policy_document.terminal_dynamodb[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_job_role_dynamodb" {
+  count      = length(var.dynamodb_table_arns) > 0 ? 1 : 0
+  role       = aws_iam_role.batch_job_role.name
+  policy_arn = aws_iam_policy.terminal_dynamodb[0].arn
 }
 
 # ---------------------------------------------------------------------------

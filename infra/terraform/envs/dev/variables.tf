@@ -55,3 +55,61 @@ variable "budget_alert_email" {
   default     = ""
 }
 
+# --- Phase 4: GraphRAG serving (ECS Fargate + ALB) --------------------------
+
+variable "serving_admin_cidrs" {
+  type        = list(string)
+  description = <<-EOT
+    CIDRs allowed inbound to the serving ALB. Stage 1 (private validation) MUST lock this to
+    your IP, e.g. ["203.0.113.4/32"] — supply at apply time (-var or tfvars). Stage 4 opens it
+    to 0.0.0.0/0 once Cognito + HTTPS front it. No default: an unset value is a mistake here.
+  EOT
+}
+
+variable "serving_image_tag" {
+  type        = string
+  description = "Tag of the leviathan-dev-leviathan-embedder serving image the task runs."
+  default     = "latest"
+}
+
+# Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
+variable "serving_certificate_arn" {
+  type        = string
+  description = "ACM cert ARN for the ALB HTTPS:443 listener + CloudFront (wildcard covers apex/www/api/auth)."
+  default     = "arn:aws:acm:us-east-1:668891723125:certificate/650c1f63-a62c-4ceb-a197-010cd1305635"
+}
+
+variable "public_domain" {
+  type        = string
+  description = "The public apex domain (Route53 zone Z01445327V6FBPHBK9AX, console-created)."
+  default     = "leviathanconvexity.com"
+}
+
+variable "public_zone_id" {
+  type        = string
+  description = "Route53 hosted zone id for public_domain (console-created; referenced, not managed)."
+  default     = "Z01445327V6FBPHBK9AX"
+}
+
+# Stage 4: Google federated sign-in via Cognito. Secrets live ONLY in the gitignored terraform.tfvars
+# (state is also gitignored) — never in a committed file. Empty defaults so Dynamo/IAM can apply before
+# these are supplied; the Cognito apply is gated on them being set.
+variable "google_oauth_client_id" {
+  type        = string
+  description = "Google Cloud OAuth 2.0 web client id (set in terraform.tfvars)."
+  default     = ""
+}
+
+variable "google_oauth_client_secret" {
+  type        = string
+  description = "Google Cloud OAuth 2.0 web client secret (set in terraform.tfvars)."
+  sensitive   = true
+  default     = ""
+}
+
+variable "cognito_domain_prefix" {
+  type        = string
+  description = "Cognito hosted-UI domain prefix -> https://<prefix>.auth.<region>.amazoncognito.com."
+  default     = "leviathan-terminal"
+}
+

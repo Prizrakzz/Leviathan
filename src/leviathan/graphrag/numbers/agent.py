@@ -119,8 +119,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text")
             return {"answer": text.strip(), "calls": calls}
         convo.append({"role": "assistant", "content": resp.content})
-        results = []
-        for b in uses:
+
+        def _exec(b) -> dict:
+            """One tool call -> its payload. Self-contained error taxonomy so a bad lookup never kills the
+            loop OR its batch-mates."""
             try:
                 spec = _forced_spec(asof, dict(b.input))
                 rows = Q.run(spec, query_fn=query_fn)
@@ -140,9 +142,22 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     except KeyError:
                         ksem = ""
                     status = "not_known" if ksem == "vintage" else "no_rows"
-                payload = {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status}
+                return {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status}
             except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
-                payload = {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}
+                return {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}
+
+        # The tool_use blocks within ONE model response are independent lookups, but each was executed
+        # serially at Athena's ~3.5s/query floor (a 3-query batch = ~11s of the turn). Run the batch
+        # concurrently — pool.map preserves input order, so calls/results/tool_use_ids stay aligned and
+        # the conversation the model sees is byte-identical. boto3 clients are thread-safe.
+        if len(uses) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=min(4, len(uses))) as pool:
+                payloads = list(pool.map(_exec, uses))
+        else:
+            payloads = [_exec(b) for b in uses]
+        results = []
+        for b, payload in zip(uses, payloads):
             calls.append(payload)
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(payload)[:6000]})
         convo.append({"role": "user", "content": results})

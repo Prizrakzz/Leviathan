@@ -2,6 +2,23 @@ output "bucket_name" {
   value = module.s3.bucket_name
 }
 
+# Stage 4 — Cognito (Google sign-in) + terminal store. Feed the VITE_COGNITO_* build env + serving env.
+output "cognito_user_pool_id" {
+  value = module.cognito.user_pool_id
+}
+
+output "cognito_app_client_id" {
+  value = module.cognito.app_client_id
+}
+
+output "cognito_hosted_domain" {
+  value = module.cognito.hosted_domain
+}
+
+output "terminal_store_table" {
+  value = module.dynamodb.table_name
+}
+
 output "bucket_arn" {
   value = module.s3.bucket_arn
 }
@@ -88,4 +105,26 @@ output "mlflow_tracking_uri" {
 output "sagemaker_training_role_arn" {
   value       = module.iam.sagemaker_training_role_arn
   description = "IAM role ARN to pass as RoleArn when submitting SageMaker Training Jobs."
+}
+
+# --- Phase 4: GraphRAG serving ----------------------------------------------
+
+output "serving_alb_dns_name" {
+  value       = module.serving_alb.alb_dns_name
+  description = "Serving ALB DNS — set VITE_API_BASE=http://<this> for the Stage-1 private live-turn validation."
+}
+
+output "serving_cluster_name" {
+  value       = module.serving.cluster_name
+  description = "ECS cluster running the GraphRAG serving service."
+}
+
+output "serving_service_name" {
+  value       = module.serving.service_name
+  description = "ECS service name (use for force-new-deployment after an image rebuild)."
+}
+
+output "serving_task_security_group_id" {
+  value       = module.serving.task_security_group_id
+  description = "Serving task SG (added to the RDS SG on 5432)."
 }

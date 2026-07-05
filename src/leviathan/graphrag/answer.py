@@ -351,8 +351,8 @@ def _emit(on_stage, stage: str, **info) -> None:
 
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
-               focus_driver: str | None = None, use_blocks: bool = False, silver_lookup=None,
-               on_stage=None) -> dict:
+               extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
+               silver_lookup=None, on_stage=None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -374,14 +374,23 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
               probe_retrieve=probe_retr)                          # probes = cheap existence checks, no reranker
-    _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes))
+    _gm = sg.trace.get("ground_ms") or {}
+    _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes),
+          ms_fill=_gm.get("fill"), ms_rest=_gm.get("rest"))
     _emit(on_stage, "retrieving", props=int(sg.trace.get("n_evidence", 0) or 0))
     contracts = sg.seeds
     stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof)
+    if extra_resolver is not None:                                # numbers ∥ walk JOIN (run_hybrid): the walk is
+        extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
         volatile_blocks = volatile_blocks + [extra_context]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
-    structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
+    # Stream the note when the caller wired an SSE progress channel (real serving call only; injected fakes
+    # keep the plain signature). The verifier still runs on the FINAL structured output below, so streaming is
+    # additive UX — the trust contract is unchanged.
+    on_token = (lambda t: _emit(on_stage, "token", text=t)) if on_stage is not None else None
+    call_kw = {"on_token": on_token} if (on_token is not None and call is _call_opus) else {}
+    structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
@@ -507,14 +516,15 @@ def _pop_degraded(structured) -> str | None:
     return structured.pop("_degraded_model", None) if isinstance(structured, dict) else None
 
 
-def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
+def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
     production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
     system prompt is always a cached block, and when `user` arrives as a (stable_prefix, volatile_tail)
     tuple the stable part — the per-contract graph context, byte-identical across a session's turns —
     gets its own cache breakpoint (manual blocks work identically on both providers). Turn 2+ of a
     conversation reads the shared prefix at ~0.1x input price. Injected test fakes keep the plain-string
-    `user` API; only this real path structures blocks."""
+    `user` API; only this real path structures blocks. When `on_token` is set (SSE turns) the note STREAMS
+    token-by-token via serving_call_stream (buffered otherwise — byte-identical for eval/POST)."""
     from leviathan.graphrag import providers as pv
     client = pv.make_client()
     sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
@@ -522,9 +532,12 @@ def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
         stable, volatile = user
         user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": volatile}]
-    out, degraded = pv.serving_call(client, sys_blocks, user, model=pv.resolve_model(model),
-                                    max_tokens=6000, tool=tool, degrade_to=ex.HAIKU)  # answers grew (sources
-    # block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
+    kw = dict(model=pv.resolve_model(model), max_tokens=6000, tool=tool, degrade_to=ex.HAIKU)  # answers grew
+    # (sources block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
+    if on_token is not None:
+        out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
+    else:
+        out, degraded = pv.serving_call(client, sys_blocks, user, **kw)
     if degraded and isinstance(out, dict):
         out["_degraded_model"] = degraded          # popped by the consumer -> visible caveat + trace
     return out
@@ -533,8 +546,8 @@ def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
-           planner: str | None = None, focus_driver: str | None = None, silver_lookup=None,
-           on_stage=None) -> dict:
+           extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
+           silver_lookup=None, on_stage=None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -552,8 +565,10 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=raw_retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
-                          focus_driver=focus_driver, use_blocks=use_blocks, silver_lookup=silver_lookup,
-                          on_stage=on_stage)
+                          extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
+                          silver_lookup=silver_lookup, on_stage=on_stage)
+    if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
+        extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()

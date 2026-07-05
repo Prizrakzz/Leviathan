@@ -14,6 +14,7 @@ WS-1 here = the walk + prior leg + mermaid + trace. The I/O legs (evidence, silv
 `ground()` (WS-2/4/5)."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -28,6 +29,8 @@ _NODE_BUDGET = int(_pr.get("serving.walk.node_budget", 10))
 _DEPTH = int(_pr.get("serving.walk.depth", 2))
 _MAX_SEEDS = int(_pr.get("serving.walk.max_seeds", 2))
 _RECENCY_DAYS = int(_pr.get("serving.ground.recency_days", 548))
+# The walk's per-node retrieves run concurrently to overlap the managed-rerank round-trips (env override wins).
+_WALK_WORKERS = int(os.environ.get("GRAPHRAG_WALK_WORKERS") or _pr.get("serving.walk.workers", 8))
 _PROBE_CAP = int(_pr.get("serving.ground.probe_cap", 24))
 _EVIDENCE_CAP = int(_pr.get("serving.ground.evidence_cap", 24))
 _K_BY_DEPTH = tuple(_pr.get("serving.ground.k_by_depth", (5, 3, 2)))
@@ -212,6 +215,34 @@ def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
         n.evidence = keep
 
 
+def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> None:
+    """Run the per-node evidence fetch concurrently (overlaps the slow managed-rerank round-trips). Falls back
+    to sequential when workers<=1 or a single node. On the REAL serving retriever we pre-warm the shared query
+    embedding once — else N parallel workers each recompute the same embedding (the old 26%-of-wall waste);
+    injected test fakes are not ev.retrieve, so the pre-warm (and any bge load) is skipped, keeping tests
+    hermetic + deterministic. `expected` = the EXACT count of nodes that will retrieve (skip-predicate applied
+    by the caller) — the rerank coalescer fires the single Bedrock request the moment they've all arrived."""
+    nodes = list(nodes)
+    if _WALK_WORKERS <= 1 or len(nodes) <= 1:
+        for n in nodes:
+            fn(n)
+        return
+    if getattr(retrieve, "func", retrieve) is ev.retrieve:
+        try:
+            ev.embed([query])
+        except Exception:  # noqa: BLE001 — a warmup miss must never break the walk
+            pass
+        try:                                       # managed-rerank quota is ~3 req/MIN: hint the coalescer so
+            from leviathan.graphrag import rankers as rk   # the walk's per-node reranks merge into ONE request
+            if rk._rerank_backend() == "bedrock":
+                rk.rerank_expect(expected if expected is not None else len(nodes))
+        except Exception:  # noqa: BLE001 — a hint miss only costs latency, never correctness
+            pass
+    import concurrent.futures as cf
+    with cf.ThreadPoolExecutor(max_workers=min(_WALK_WORKERS, len(nodes))) as pool:
+        list(pool.map(fn, nodes))
+
+
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
            asof=None, near=None, k_by_depth=_K_BY_DEPTH, evidence_cap: int = _EVIDENCE_CAP, driver_slices=None,
            probe_cap: int = _PROBE_CAP, recency_days: int = _RECENCY_DAYS, probe_retrieve=None) -> Subgraph:
@@ -241,16 +272,50 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             return f"drivers/{s}" if s else None
 
     from leviathan.graphrag import timeline as tl
-    for n in sg.nodes:                                             # per-node evidence, k decays with depth
+
+    def _fill(n):                                                  # per-node evidence, k decays with depth
         sp = _slice_of(n, slice_path)
         if n.kind == "driver" and (n.id not in backed or sp is None):
-            continue                                               # no slice -> prior-only node (no empty fetch)
+            return                                                 # no slice -> prior-only node (no empty fetch)
         k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
         n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near))
-        if n.evidence:                                             # RECEIPTED timeline: only for nodes that
-            n.episodes = tl.episodes_for(sp, asof, evidence=n.evidence)   # HAVE dated props (else no line at
-        # all — an episode the reasoner has no text for is what invited confabulation, measured 2026-07-04)
+        if n.evidence:                                             # RECEIPTED timeline: only for nodes that HAVE
+            n.episodes = tl.episodes_for(sp, asof, evidence=n.evidence)   # dated props (an episode the reasoner
+        # has no text for is what invited confabulation, measured 2026-07-04)
+
+    # The per-node retrieves are INDEPENDENT — each closure mutates only its own node. On pg the fetch is a fast
+    # pooled SQL round-trip, but the rerank is a slow MANAGED call: 10 sequential ~4s Cohere calls were ~40s of
+    # the walk. Run them concurrently so the rerank round-trips overlap (coalesced into one request).
+    import time as _time
+    _t0 = _time.perf_counter()
+    eligible = sum(1 for n in sg.nodes
+                   if not (n.kind == "driver" and (n.id not in backed or _slice_of(n, slice_path) is None)))
+    _parallel_fill(sg.nodes, _fill, query, retrieve, expected=eligible)
+    _t_fill = _time.perf_counter()
     _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
+
+    # ── parallel silver PREFETCH (serving only) ──────────────────────────────────────────────────────────
+    # The silver leg + firing both call silver_lookup sequentially; each servable ref is an Athena read
+    # (~3.5s) — measured as ~14s of the walk. The lookups are independent and make_silver_lookup is now
+    # single-flight thread-safe, so warm the memo in parallel here; the sequential loops below then hit it.
+    # Only ~<=5 unique keys exist per turn (su_ratio/fx per contract + oni global), so the cap never binds
+    # and parallel order cannot change semantics. Gated to the REAL retriever: hermetic tests keep exact
+    # sequential call patterns on their injected fakes.
+    if silver_lookup is not None and asof and getattr(retrieve, "func", None) is ev.retrieve:
+        pairs = {(n.contract, n.id) for n in sg.nodes if n.kind == "driver" and n.prior.get("silver_ref")}
+        for cid in sorted({n.contract for n in sg.nodes}):
+            if cid in graph.contracts:
+                pairs |= {(cid, d) for s in graph.contracts[cid].convergence for d in s.drivers}
+        if len(pairs) > 1:
+            import concurrent.futures as cf
+
+            def _pf(p):
+                try:
+                    silver_lookup(p[0], p[1], asof)
+                except Exception:  # noqa: BLE001 — prefetch must never break the answer
+                    pass
+            with cf.ThreadPoolExecutor(max_workers=min(8, len(pairs))) as _pool:
+                list(_pool.map(_pf, sorted(pairs)))
 
     ctx_text: dict[str, str] = {}                                 # contract -> its own evidence text (for active)
     for n in sg.nodes:
@@ -360,6 +425,10 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     sg.trace["regime_basis"] = regime_basis
     sg.trace["n_probes"] = probe_cap - budget["left"]
     sg.trace["silver_veto"] = vetoed                               # drivers observed NORMAL (excluded from firing)
+    # Phase timings (ms) — ride the `walking` SSE stage + the result trace, so a latency probe can see exactly
+    # where the walk's time goes (fill = parallel evidence fetch + coalesced rerank; rest = silver + firing).
+    _t_end = _time.perf_counter()
+    sg.trace["ground_ms"] = {"fill": int((_t_fill - _t0) * 1000), "rest": int((_t_end - _t_fill) * 1000)}
     return sg
 
 

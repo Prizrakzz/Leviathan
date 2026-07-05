@@ -86,15 +86,46 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None,
                extra_context: str | None = None, route_fn=None, near: str | None = None,
                silver_lookup=None, on_stage=None) -> dict:
-    nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn)
-    calls = nums.get("calls", [])
-    an._emit(on_stage, "numbers", calls=len(calls))
-    extra = "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x)
-    out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
-                    extra_context=extra, extra_number_calls=calls, planner=planner, route_fn=route_fn,
-                    near=near, silver_lookup=silver_lookup, on_stage=on_stage)
+    """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
+    only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
+    answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
+    pre-synthesis latency = max(numbers, walk), not the sum. Thread-safety: `client` is None in serving,
+    so answer_numbers builds its OWN provider client inside the thread (the shared Anthropic client is not
+    thread-safe); session state is read-only until the post-answer writeback."""
+    import concurrent.futures as cf
+
+    def _numbers() -> dict:
+        try:
+            nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn)
+        except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
+            nums = {"calls": [], "error": str(e)[:200]}
+        an._emit(on_stage, "numbers", calls=len(nums.get("calls", [])))   # emitted on COMPLETION
+        return nums
+
+    pool = cf.ThreadPoolExecutor(max_workers=1)
+    fut = pool.submit(_numbers)
+    holder: dict = {"calls": []}
+
+    def _resolve() -> tuple[str, list]:
+        """The synthesis-time join: bounded wait for the numbers thread; failure -> no-numbers, same as a
+        numbers error today."""
+        try:
+            calls = fut.result(timeout=300).get("calls", [])
+        except Exception:  # noqa: BLE001
+            calls = []
+        holder["calls"], holder["resolved"] = calls, True
+        return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
+
+    try:
+        out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
+                        extra_resolver=_resolve, planner=planner, route_fn=route_fn,
+                        near=near, silver_lookup=silver_lookup, on_stage=on_stage)
+    finally:
+        pool.shutdown(wait=False)
+    if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
+        _resolve()                      # still surface the numbers the agent found, as before
     out["intent"] = "hybrid"
-    out["number_calls"] = calls
+    out["number_calls"] = holder["calls"]
     out["asof"] = asof
     return out
 
@@ -307,7 +338,7 @@ def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retriev
     qfn = query_fn
     if state is not None:
         from leviathan.graphrag.numbers import query as Q
-        qfn = ss.cached_query_fn(state, query_fn or Q.athena_query_fn())
+        qfn = ss.cached_query_fn(state, query_fn or Q.default_query_fn())   # routed: pg mirror when flagged
 
     # Silver leg (F4): OBSERVED driver values feed regime firing. Built only on the REAL serving path
     # (call is None) so injected-fake tests stay hermetic; GRAPHRAG_SILVER=off is the rollback.

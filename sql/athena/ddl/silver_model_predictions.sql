@@ -28,14 +28,13 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_model_predictions (
 PARTITIONED BY (model_family string, prediction_date string)
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/model_predictions'
+-- REGISTERED partitions since 2026-07 — DO NOT re-add partition projection. The projected
+-- family x daily-date grid (~29K candidates over a handful of real prediction runs, ~4,800x) is the
+-- Jul-2026 S3 LIST-storm class; feature-engineering queries over prediction history would re-fire it.
+-- train_commodity._write_predictions registers each new partition via
+-- leviathan.storage.glue_partitions.ensure_partition. After a DROP+CREATE from this DDL, re-register:
+--   python jobs/utils/deproject_glue_table.py --register --tables silver_model_predictions
 TBLPROPERTIES (
     'EXTERNAL' = 'TRUE',
-    'parquet.compression' = 'SNAPPY',
-    'projection.enabled' = 'true',
-    'projection.model_family.type' = 'enum',
-    'projection.model_family.values' = 'tier1_production,tier2_sd,tier3_spread,anomaly,legacy_faostat_annual_anomaly,psd_production_anomaly,psd_balance_sheet_anomaly,psd_snd_anomaly_snapshot',
-    'projection.prediction_date.format' = 'yyyy-MM-dd',
-    'projection.prediction_date.range' = '2026-01-01,2035-12-31',
-    'projection.prediction_date.type' = 'date',
-    'storage.location.template' = 's3://leviathan-dev-shahem-001/silver/model_predictions/model_family=${model_family}/prediction_date=${prediction_date}/'
+    'parquet.compression' = 'SNAPPY'
 );

@@ -268,6 +268,8 @@ def _extras(ts: TableSpec) -> list[tuple[str, str]]:
         out.append((ts.date_col, "data_date"))
     if ts.period_col and ts.period_col not in (ts.knowledge_date_col, ts.date_col):
         out.append((ts.period_col, "period"))
+    if ts.country_col:                                   # without it a multi-country row is unattributable
+        out.append((ts.country_col, "country"))
     if ts.year_col:
         out.append((ts.year_col, "year"))
     if ts.month_col:
@@ -277,6 +279,16 @@ def _extras(ts: TableSpec) -> list[tuple[str, str]]:
     if ts.shape == "tall" and ts.metric_col:
         out.append((ts.metric_col, "metric"))
     return out
+
+
+def _total_order(extras: list[tuple[str, str]]) -> str:
+    """A deterministic TOTAL ordering over the aliased output columns, chronology first. Without one,
+    multi-row results under LIMIT are ENGINE-ARBITRARY — Athena and the pg mirror legitimately return
+    different row samples for the same SQL (found by the pg-parity gate, 2026-07-05). Output aliases are
+    valid ORDER BY targets on both Presto and Postgres."""
+    have = [a for _, a in extras]
+    pri = ["data_date", "period", "year", "month", "country", "metric", "knowledge_date", "unit"]
+    return ", ".join([a for a in pri if a in have] + ["value"])
 
 
 def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = ATHENA_DB) -> str:
@@ -291,7 +303,8 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
 
     def _agg(sql: str) -> str:
         fn = {"mean": "avg"}.get(spec.agg, spec.agg)
-        return f"SELECT {fn}(value) AS value FROM ({sql})"
+        # subquery ALIAS: optional on Athena/Presto, REQUIRED by Postgres — one SQL string serves both backends
+        return f"SELECT {fn}(value) AS value FROM ({sql}) AS _v"
 
     table = ts.athena_table or spec.table                     # agent-facing id -> physical Glue table
     if ts.knowledge_semantics == "vintage":
@@ -301,9 +314,11 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
                  f"ORDER BY {ts.knowledge_date_col} DESC) AS _rn "
                  f"FROM {db}.{table} WHERE {where}")
         outcols = "value" + "".join(f", {a}" for _, a in extras)
-        base = f"SELECT {outcols} FROM ({inner}) WHERE _rn = 1"
+        base = f"SELECT {outcols} FROM ({inner}) AS _v WHERE _rn = 1"   # alias: PG-required, Athena-accepted
         if spec.agg in ("sum", "mean", "max", "min"):
             base = _agg(base)
+        else:
+            base += f" ORDER BY {_total_order(extras)}"
         return base + f" LIMIT {int(spec.limit)}"
 
     # non-vintage (ingest / data_date / year_month)
@@ -311,9 +326,8 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     if spec.agg in ("sum", "mean", "max", "min"):
         return _agg(base) + f" LIMIT {int(spec.limit)}"
     if spec.agg == "latest" and order:                        # the single most-recent observation on/before asof
-        return base + f" ORDER BY {order} DESC LIMIT 1"
-    if order:                                                 # series/default: chronological
-        base += f" ORDER BY {order}"
+        return base + f" ORDER BY {order} DESC, {_total_order(extras)} LIMIT 1"
+    base += f" ORDER BY {_total_order(extras)}"               # series/default: chronological + total tiebreak
     return base + f" LIMIT {int(spec.limit)}"
 
 
@@ -368,15 +382,27 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
 
 
 def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB) -> list[dict]:
-    """Execute on Athena (or an injected query_fn(sql)->rows for tests). Returns rows as list[dict]."""
+    """Execute on the active backend (or an injected query_fn(sql)->rows for tests/session-cache wrappers).
+    Returns rows as list[dict]. The pg mirror's schema is NAMED like the Athena db, so the compiled SQL is
+    backend-agnostic — routing is purely a choice of executor."""
     sql = build_sql(spec, db=db)
     if query_fn is not None:
         return query_fn(sql)
-    return athena_query_fn(db=db)(sql)
+    return default_query_fn(db=db)(sql)
+
+
+def default_query_fn(db: str = ATHENA_DB):
+    """The executor for the ACTIVE numbers backend: the RDS pg mirror (with per-request Athena fallback on
+    the SAME SQL) when GRAPHRAG_NUMBERS_BACKEND=pg, else Athena. This is what callers should wrap (the
+    session SQL-keyed cache does) so backend routing survives the wrapping."""
+    from leviathan.graphrag.numbers import pgnumbers
+    if pgnumbers.enabled():
+        return pgnumbers.query_fn()
+    return athena_query_fn(db=db)
 
 
 def athena_query_fn(db: str = ATHENA_DB):
-    """The default executor as an injectable query_fn(sql)->rows — lets callers WRAP the real Athena
+    """The Athena executor as an injectable query_fn(sql)->rows — lets callers WRAP the real Athena
     path (e.g. the session-scoped SQL result cache) instead of only replacing it in tests."""
     import boto3
     from leviathan.common import config

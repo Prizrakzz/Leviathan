@@ -15,7 +15,11 @@ A/B + audit. The reasoning LLM is untouched: these only curate WHICH dated evide
 """
 from __future__ import annotations
 
+import logging
+import os
 import re
+
+log = logging.getLogger(__name__)
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -128,20 +132,171 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 # capping the pool materially changes retrieval. Speed comes from the rerank lock below, not the pool.
 RERANK_POOL = int(_pr.get("serving.retrieval.rerank_pool", 60))
 _reranker = None
-_RERANK_LOCK = None                    # ONE rerank at a time, at full thread speed (see rerank_scores)
+_RERANK_LOCK = None                    # ONE rerank at a time, at full thread speed (see _bge_rerank_scores)
+
+# Managed reranker (Bedrock Cohere Rerank) — the production default. The self-hosted CPU cross-encoder added
+# ~2-4s/node (~100s across an L2 walk) on GPU-less Fargate; a managed call is sub-second and downloads no
+# model. The swap is transparent: scores feed only sort + mmr_select (min-max normalized) — NO absolute-score
+# threshold anywhere — so Cohere's 0-1 scale is drop-in. Env flips backend without a rebuild.
+_DEFAULT_RERANK_MODEL = "arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0"
+_bedrock_rerank_client = None
+# QUOTA (measured 2026-07-05): Cohere Rerank on Bedrock is capped at THREE requests/min, NON-adjustable —
+# per-node calls (10/turn) can never fit, parallel or sequential; throttled calls silently degraded to the
+# CPU bge fallback (the "45s walk" was a Cohere/bge mixture). One request DOES take 300+ docs in ~2s and
+# cross-encoder scoring is pointwise, so batching across nodes is SCORE-IDENTICAL. Hence the coalescer below:
+# concurrent rerank calls within a turn merge into ONE Bedrock request (<= _COALESCE_MAX_DOCS docs).
+_COALESCE_MAX_DOCS = 1000            # API cap per request (10 nodes x pool 60 = 600, comfortably under)
+_COALESCE_IDLE_WINDOW = 0.25         # s — a lone caller (one-hop path) barely waits
+_COALESCE_HINT_WINDOW = 4.0          # s — the walk's callers arrive staggered by the serialized pg fetches
 
 
-def rerank_scores(query: str, texts: list[str]) -> list[float]:
-    """Cross-encoder relevance for (query, text) pairs — PRECISION. Self-hosted (sentence-transformers
-    CrossEncoder), same family as bge-m3, multilingual for the PT/ES/FR corpus. Deterministic (fixed weights).
+def _rerank_backend() -> str:
+    """`bge` (self-hosted CPU cross-encoder) or `bedrock` (managed Cohere Rerank). Env overrides params so the
+    ECS task flips it without a rebuild; default `bge` keeps offline/tests/eval byte-identical."""
+    return (os.environ.get("GRAPHRAG_RERANK_BACKEND")
+            or _pr.get("serving.retrieval.rerank_backend", "bge")).strip().lower()
+
+
+def _bedrock_rerank_call(query: str, docs: list[str]) -> list[float]:
+    """ONE raw Bedrock Rerank request (chunked only past the API doc cap). Adaptive client-side retry pacing
+    (the 3-req/min quota). Unreturned indices floor to 0.0, aligned to input order."""
+    global _bedrock_rerank_client
+    if _bedrock_rerank_client is None:
+        import boto3
+        from botocore.config import Config
+        _bedrock_rerank_client = boto3.client(
+            "bedrock-agent-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"),
+            config=Config(retries={"mode": "adaptive", "max_attempts": 8}))
+    model_arn = (os.environ.get("GRAPHRAG_RERANK_MODEL")
+                 or _pr.get("serving.retrieval.rerank_model", _DEFAULT_RERANK_MODEL))
+    max_chars = int(_pr.get("serving.retrieval.rerank_max_chars", 2000))
+    q = (((query or "").strip()) or " ")[:max_chars]
+    out: list[float] = []
+    for lo in range(0, len(docs), _COALESCE_MAX_DOCS):
+        chunk = [(((t or "").strip()) or " ")[:max_chars] for t in docs[lo:lo + _COALESCE_MAX_DOCS]]
+        resp = _bedrock_rerank_client.rerank(
+            queries=[{"type": "TEXT", "textQuery": {"text": q}}],
+            sources=[{"type": "INLINE", "inlineDocumentSource": {"type": "TEXT", "textDocument": {"text": d}}}
+                     for d in chunk],
+            rerankingConfiguration={
+                "type": "BEDROCK_RERANKING_MODEL",
+                "bedrockRerankingConfiguration": {
+                    "numberOfResults": len(chunk),
+                    "modelConfiguration": {"modelArn": model_arn},
+                },
+            },
+        )
+        scores = [0.0] * len(chunk)
+        for r in resp.get("results", []):
+            i = r.get("index")
+            if isinstance(i, int) and 0 <= i < len(scores):
+                scores[i] = float(r.get("relevanceScore", 0.0))
+        out.extend(scores)
+    return out
+
+
+class _RerankCoalescer:
+    """Merges concurrent same-query rerank calls into ONE Bedrock request (the 3-req/min quota budget is
+    ~one request per TURN). The first caller becomes the leader: it waits until the hinted batch size arrives
+    (`expect`, set by the walk) or the window lapses, drains the queue, fires one grouped request per distinct
+    query, and routes each caller's slice of scores back. Callers block on their event; leader errors propagate
+    to every member so the caller-level bge fallback stays intact."""
+
+    def __init__(self):
+        import threading
+        self._lock = threading.Lock()
+        self._pending: list[dict] = []
+        self._leading = False
+        self._expect = 0
+        self._window = _COALESCE_IDLE_WINDOW
+        self._last_arrival = 0.0
+
+    def expect(self, n: int, window: float = _COALESCE_HINT_WINDOW) -> None:
+        with self._lock:
+            self._expect = max(0, int(n))
+            self._window = float(window)
+
+    def submit(self, query: str, texts: list[str]) -> list[float]:
+        import threading
+        import time
+        e = {"q": query, "texts": texts, "ev": threading.Event(), "scores": None, "err": None}
+        lead = False
+        with self._lock:
+            self._pending.append(e)
+            self._last_arrival = time.time()
+            if not self._leading:
+                self._leading = True
+                lead = True
+        if lead:
+            self._lead()
+        if not e["ev"].wait(timeout=90):
+            raise TimeoutError("rerank coalescer timed out")
+        if e["err"] is not None:
+            raise e["err"]
+        return e["scores"]
+
+    def _lead(self) -> None:
+        import time
+        t0 = time.time()
+        while True:
+            with self._lock:
+                n, exp, win, last = len(self._pending), self._expect, self._window, self._last_arrival
+            now = time.time()
+            if exp and n >= exp:
+                break                                     # everyone the walk promised has arrived
+            if now - t0 >= (win if exp else _COALESCE_IDLE_WINDOW):
+                break                                     # hard window cap
+            if exp and n > 0 and now - last >= 0.8:
+                break                                     # QUIESCENCE: arrivals stagger ~0.25s apart (pg pool),
+                # so a 0.8s quiet gap means the stragglers (skipped/empty nodes) are never coming — don't
+                # burn the full window waiting for an over-counted expectation.
+            time.sleep(0.05)
+        with self._lock:
+            batch, self._pending = self._pending, []
+            self._leading = False
+            self._expect = 0                       # the hinted batch is done; stragglers form a tiny 2nd batch
+        groups: dict[str, list[dict]] = {}
+        for e in batch:
+            groups.setdefault(e["q"], []).append(e)
+        for q, entries in groups.items():
+            try:
+                flat = [t for e in entries for t in e["texts"]]
+                scores = _bedrock_rerank_call(q, flat)
+                i = 0
+                for e in entries:
+                    e["scores"] = scores[i:i + len(e["texts"])]
+                    i += len(e["texts"])
+            except Exception as err:  # noqa: BLE001 — propagate to every member; callers fall back
+                for e in entries:
+                    e["err"] = err
+            finally:
+                for e in entries:
+                    e["ev"].set()
+
+
+_COAL = _RerankCoalescer()
+
+
+def rerank_expect(n: int, window: float = _COALESCE_HINT_WINDOW) -> None:
+    """Hint from the walk: ~n rerank calls are about to arrive — coalesce them into one Bedrock request."""
+    _COAL.expect(n, window)
+
+
+def _bedrock_rerank_scores(query: str, texts: list[str]) -> list[float]:
+    """Relevance per (query, text) via Bedrock managed Rerank, aligned to INPUT order — coalesced across
+    concurrent callers (see _RerankCoalescer). Network-bound — no CPU lock."""
+    return _COAL.submit(query, texts)
+
+
+def _bge_rerank_scores(query: str, texts: list[str]) -> list[float]:
+    """Self-hosted bge cross-encoder (sentence-transformers), same family as bge-m3, multilingual for the
+    PT/ES/FR corpus. Deterministic (fixed weights).
 
     CONCURRENCY: the cross-encoder is the heaviest CPU op in serving. N eval workers each running it on
     cores/N torch threads was the July-3 slowdown (~8-16 min/answer) — thread-starved passes contending
     for the same cores. A global lock serializes reranks so each runs at FULL thread speed: same total
     CPU, no contention, ~10x per-op latency. Callers stay concurrent for everything else (LLM waits, pg)."""
     global _reranker, _RERANK_LOCK
-    if not texts:
-        return []
     if _RERANK_LOCK is None:
         import threading
         _RERANK_LOCK = threading.Lock()
@@ -150,3 +305,18 @@ def rerank_scores(query: str, texts: list[str]) -> list[float]:
             from sentence_transformers import CrossEncoder
             _reranker = CrossEncoder(RERANKER_MODEL)
         return [float(s) for s in _reranker.predict([(query, t) for t in texts])]
+
+
+def rerank_scores(query: str, texts: list[str]) -> list[float]:
+    """Cross-encoder relevance for (query, text) pairs — PRECISION. Dispatches to the configured backend
+    (`bedrock` managed Rerank in production, `bge` self-hosted offline). A Bedrock failure falls back to bge so
+    a turn never breaks — and logs EVERY failed request (a once-only warning hid a silent Cohere/bge mixture
+    during the Jul-5 throttling incident; with coalescing it's <=1-2 requests/turn, so this can't spam)."""
+    if not texts:
+        return []
+    if _rerank_backend() == "bedrock":
+        try:
+            return _bedrock_rerank_scores(query, texts)
+        except Exception as e:                                          # noqa: BLE001 — never break a turn
+            log.warning("bedrock rerank failed (%s: %s); falling back to bge", type(e).__name__, e)
+    return _bge_rerank_scores(query, texts)

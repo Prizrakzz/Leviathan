@@ -5,7 +5,8 @@
  * `orchestrator.respond` + `answer._emit` stage names.
  */
 
-/** Granular pipeline stages emitted over SSE (server.py / answer._emit). */
+/** Granular pipeline stages emitted over SSE (server.py / answer._emit). `token` carries a synthesis delta
+ *  (the note streaming token-by-token) rather than a pipeline milestone. */
 export type StageName =
   | 'accepted'
   | 'planning'
@@ -13,7 +14,8 @@ export type StageName =
   | 'retrieving'
   | 'numbers'
   | 'verifying'
-  | 'floor';
+  | 'floor'
+  | 'token';
 
 export interface StageEvent {
   stage: StageName;
@@ -25,6 +27,7 @@ export interface StageEvent {
   calls?: number;
   checked?: number;
   stripped?: number;
+  text?: string; // stage === 'token': a synthesis delta (partial tool-input JSON)
 }
 
 export interface RespondTrace {

@@ -24,14 +24,12 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_wasde (
 PARTITIONED BY (release_date string)
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/wasde'
+-- REGISTERED partitions since 2026-07 — DO NOT re-add partition projection. The daily-projected
+-- release_date grid (~19.5K candidates over 461 real monthly releases) made any non-sargable query
+-- enumerate S3 (the Jul-2026 LIST storm, $134/2 days). After a DROP+CREATE from this DDL, re-register
+-- partitions: python jobs/utils/deproject_glue_table.py --register --tables silver_wasde
+-- New-partition writers must call leviathan.storage.glue_partitions.ensure_partition after the S3 write.
 TBLPROPERTIES (
     'EXTERNAL' = 'TRUE',
-    'parquet.compression' = 'SNAPPY',
-    'projection.enabled' = 'true',
-    'projection.release_date.format' = 'yyyy-MM-dd',
-    'projection.release_date.interval' = '1',
-    'projection.release_date.interval.unit' = 'DAYS',
-    'projection.release_date.range' = '1973-01-01,NOW',
-    'projection.release_date.type' = 'date',
-    'storage.location.template' = 's3://leviathan-dev-shahem-001/silver/wasde/release_date=${release_date}'
+    'parquet.compression' = 'SNAPPY'
 );
