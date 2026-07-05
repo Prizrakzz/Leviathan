@@ -243,9 +243,21 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
         list(pool.map(fn, nodes))
 
 
+def _emit_stage(on_stage, stage: str, **info) -> None:
+    """Local copy of answer._emit's contract (avoids an answer<->planner import knot): best-effort progress
+    callback; None -> strict no-op; any callback error is swallowed."""
+    if on_stage is None:
+        return
+    try:
+        on_stage(stage, info)
+    except Exception:  # noqa: BLE001 — progress reporting is cosmetic; it can never fail a walk
+        pass
+
+
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
            asof=None, near=None, k_by_depth=_K_BY_DEPTH, evidence_cap: int = _EVIDENCE_CAP, driver_slices=None,
-           probe_cap: int = _PROBE_CAP, recency_days: int = _RECENCY_DAYS, probe_retrieve=None) -> Subgraph:
+           probe_cap: int = _PROBE_CAP, recency_days: int = _RECENCY_DAYS, probe_retrieve=None,
+           on_stage=None) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
     injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
 
@@ -290,7 +302,20 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     _t0 = _time.perf_counter()
     eligible = sum(1 for n in sg.nodes
                    if not (n.kind == "driver" and (n.id not in backed or _slice_of(n, slice_path) is None)))
-    _parallel_fill(sg.nodes, _fill, query, retrieve, expected=eligible)
+    fill_fn = _fill
+    if on_stage is not None:                                       # progress ticks (5.6 W5); the None path runs the
+        import threading as _th                                    # exact same closure as before — byte-identical
+        _plock, _pdone = _th.Lock(), [0]
+
+        def fill_fn(n):  # noqa: E306
+            _fill(n)
+            if n.kind == "driver" and (n.id not in backed or _slice_of(n, slice_path) is None):
+                return                                             # ineligible node — no evidence work happened
+            with _plock:
+                _pdone[0] += 1
+                d = _pdone[0]
+            _emit_stage(on_stage, "retrieving", done=d, total=eligible)
+    _parallel_fill(sg.nodes, fill_fn, query, retrieve, expected=eligible)
     _t_fill = _time.perf_counter()
     _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
 

@@ -84,23 +84,39 @@ export function getEvents(contract?: string, asof?: string): Promise<Schemas['Ev
 export interface ThreadItem {
   id: string;
   title?: string;
+  title_auto?: boolean;
+  created_at?: string;
   updated_at?: string;
 }
 
 export function getThreadTurns(threadId: string): Promise<Schemas['ThreadTurns']> {
-  if (MOCK) return Promise.resolve({ thread_id: threadId, turns: [] });
+  if (MOCK) return import('./mock').then((m) => m.mockThreadTurns(threadId));
   return getJSON(`/v1/threads/${encodeURIComponent(threadId)}/turns`);
 }
 
 export function listThreads(): Promise<{ items: ThreadItem[] }> {
-  if (MOCK) return Promise.resolve({ items: [] });
+  if (MOCK) return import('./mock').then((m) => m.mockListThreads());
   return getJSON(`/v1/threads`);
 }
 
-/** Upsert the thread index item (title for the switcher). Best-effort; swallows failures. */
-export function putThread(id: string, title: string): Promise<void> {
+/** Rename a thread. put_item overwrites the whole body, so resend everything the client knows; keep the
+ *  EXISTING updated_at (a rename must not reorder the list) and set title_auto so the server's Haiku
+ *  auto-title can never overwrite a user's rename. */
+export function renameThread(item: ThreadItem, title: string): Promise<void> {
   if (MOCK) return Promise.resolve();
-  return postJSON<{ id: string }>(`/v1/threads`, { id, body: { title, updated_at: new Date().toISOString() } })
-    .then(() => undefined)
-    .catch(() => undefined);
+  const body = {
+    title,
+    title_auto: true,
+    created_at: item.created_at,
+    updated_at: item.updated_at ?? new Date().toISOString(),
+  };
+  return postJSON<{ id: string }>(`/v1/threads`, { id: item.id, body }).then(() => undefined);
+}
+
+/** Delete a thread (the server purges its durable turns first). */
+export async function deleteThread(id: string): Promise<void> {
+  if (MOCK) return;
+  const path = `/v1/threads/${encodeURIComponent(id)}`;
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: await authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status} on DELETE ${path}`);
 }

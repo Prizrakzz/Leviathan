@@ -10,9 +10,11 @@ param(
     [string]$Bucket    = "leviathan-dev-terminal-spa",
     [string]$Alias     = "leviathanconvexity.com",
     [string]$Region    = "us-east-1",
-    # Cognito (Google sign-in). Authority = the user pool's OIDC issuer; client id from the app client.
+    # Cognito (Google sign-in). Authority = the user pool's OIDC issuer; client id from the app client;
+    # domain = the hosted-UI domain (5.6: enables full hosted-UI sign-out).
     [string]$CognitoAuthority = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_H4Fv4Leik",
-    [string]$CognitoClientId  = "2paur1lbb8c8fs2d15s2so5u50"
+    [string]$CognitoClientId  = "2paur1lbb8c8fs2d15s2so5u50",
+    [string]$CognitoDomain    = "leviathan-terminal.auth.us-east-1.amazoncognito.com"
 )
 $ErrorActionPreference = "Stop"
 
@@ -27,6 +29,7 @@ $env:VITE_MOCK = "0"
 $env:VITE_COGNITO_AUTHORITY = $CognitoAuthority
 $env:VITE_COGNITO_CLIENT_ID = $CognitoClientId
 $env:VITE_COGNITO_REDIRECT_URI = "https://$Alias/auth/callback"
+$env:VITE_COGNITO_DOMAIN = $CognitoDomain
 Push-Location $AppDir
 try {
     npm run build

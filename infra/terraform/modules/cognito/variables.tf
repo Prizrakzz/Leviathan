@@ -39,6 +39,12 @@ variable "logout_urls" {
   description = "Allowed sign-out redirect URLs."
 }
 
+variable "allowlist_emails" {
+  type        = string
+  description = "Comma-separated email allow-list for the pre-sign-up Lambda. Empty (default) = open signup."
+  default     = ""
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

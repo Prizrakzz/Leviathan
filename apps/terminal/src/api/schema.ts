@@ -6,16 +6,19 @@
  */
 
 /** Granular pipeline stages emitted over SSE (server.py / answer._emit). `token` carries a synthesis delta
- *  (the note streaming token-by-token) rather than a pipeline milestone. */
+ *  (the note streaming token-by-token) rather than a pipeline milestone. The union stays open
+ *  (`string & {}`) so a newer backend's stages never crash an older bundle. */
 export type StageName =
   | 'accepted'
   | 'planning'
   | 'walking'
   | 'retrieving'
   | 'numbers'
+  | 'synthesizing'
   | 'verifying'
   | 'floor'
-  | 'token';
+  | 'token'
+  | (string & {});
 
 export interface StageEvent {
   stage: StageName;
@@ -27,6 +30,10 @@ export interface StageEvent {
   calls?: number;
   checked?: number;
   stripped?: number;
+  done?: number; // retrieving progress: nodes filled so far
+  total?: number; // retrieving progress: eligible nodes
+  running?: boolean; // numbers progress tick (vs the final completion event)
+  table?: string; // numbers progress: the table just looked up
   text?: string; // stage === 'token': a synthesis delta (partial tool-input JSON)
 }
 

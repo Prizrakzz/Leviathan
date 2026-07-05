@@ -46,6 +46,43 @@ app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS, allow_credentials=Tru
 _STATE: dict = {}                                    # graph/store load once, on first use (fork-safe, test-swappable)
 
 
+@app.on_event("startup")
+def _warm_startup() -> None:
+    """Cold-start hardening (Stage 5.3 R1): before the task takes traffic, sync the bge model cache from S3
+    (avoids the ~327 s HuggingFace download on a fresh task) then warm bge-m3 so the FIRST real turn isn't the
+    model load. BLOCKS startup on purpose — the ALB only routes to the task once /healthz answers, and the
+    ECS health_check_grace (300 s) covers this window while the previous task (min=1) keeps serving. Every step
+    is fail-open: a cache/warm hiccup degrades to the image's HF-download path, it never stops the task coming up.
+
+    Gated on GRAPHRAG_HF_S3_CACHE (= s3://<bucket>/models/hf); unset -> pure passthrough (today's behavior, and
+    the test/eval default — so importing the app never loads torch)."""
+    uri = os.environ.get("GRAPHRAG_HF_S3_CACHE")
+    if not uri:
+        return
+    t0 = time.time()
+    try:
+        from leviathan.graphrag import hf_cache
+        res = hf_cache.ensure(uri)
+        # NOTE: do NOT force HF_HUB_OFFLINE here. The S3-reconstructed cache flattens the snapshot->blob symlink
+        # layout that offline resolution needs, so offline load raises "couldn't find them in the cached files".
+        # Online load reads the cached safetensors + a cheap etag re-validation and never re-fetches the pruned
+        # pytorch/onnx formats (sentence-transformers prefers safetensors) — proven by the pre-prune deploy.
+        print(f"[warm] hf_cache {uri} -> {res} sync_ms={int((time.time() - t0) * 1000)}", flush=True)
+    except Exception as e:  # noqa: BLE001 — degrade to the HF-download path; never block startup
+        print(f"[warm] hf_cache FAILED ({type(e).__name__}: {e}); falling back to HF download", flush=True)
+    tw = time.time()
+    try:
+        from leviathan.graphrag import evidence as ev
+        ev.embed(["warmup"])                              # loads the bge-m3 query embedder into this process
+        from leviathan.graphrag import rankers as rk
+        if rk._rerank_backend() == "bge":                 # warm the cross-encoder only when it's the active backend
+            rk.rerank_scores("warmup", ["warmup"])
+        print(f"[warm] models warm_ms={int((time.time() - tw) * 1000)} total_ms={int((time.time() - t0) * 1000)}",
+              flush=True)
+    except Exception as e:  # noqa: BLE001 — warmup is best-effort; the first turn just pays the load
+        print(f"[warm] model warm skipped ({type(e).__name__}: {e})", flush=True)
+
+
 def _today() -> str:
     return time.strftime("%Y-%m-%d", time.gmtime())
 
@@ -66,10 +103,14 @@ def _store():
 
 def _silver_lookup(cap: int = 256):
     """The deterministic OBSERVED-value lookup the firing endpoints share with the answer path. Tests
-    monkeypatch this (or set _STATE['query_fn']) to avoid Athena."""
+    monkeypatch this (or set _STATE['query_fn']) to avoid Athena. Routes through the RDS pg mirror when
+    enabled (5.6 W6) — the convergence matrix's ~100+ sequential lookups were an Athena query storm
+    (~15-30s cold + real S3 cost); pgnumbers keeps a per-request Athena fallback so a mirror gap degrades
+    to Athena latency, never an error."""
     from leviathan.graphrag import silverleg as slv
+    from leviathan.graphrag.numbers import pgnumbers
     from leviathan.graphrag.numbers import query as Q
-    qfn = _STATE.get("query_fn") or Q.athena_query_fn()
+    qfn = _STATE.get("query_fn") or (pgnumbers.query_fn() if pgnumbers.enabled() else Q.athena_query_fn())
     return slv.make_silver_lookup(_graph(), qfn, cap=cap)
 
 
@@ -83,22 +124,37 @@ def _require_user(authorization: Optional[str] = Header(None)) -> str:
         raise HTTPException(status_code=401, detail=str(e))
 
 
-def _require_user_quota(authorization: Optional[str] = Header(None)) -> str:
-    """`_require_user` + a per-user DAILY turn cap (Stage 5, env `GRAPHRAG_TURN_QUOTA`). Each turn is real
-    Bedrock spend, so an open-signup public deploy caps per-account velocity. Over the cap -> 429. Quota
-    unset -> no cap; any counter/infra error -> ALLOW (fail-open; WAF rate-limit + the Bedrock daily budget
-    are the hard backstops, a counter glitch must not lock out a paying user)."""
-    user = _require_user(authorization)
+def _require_identity(authorization: Optional[str] = Header(None)) -> dict:
+    """Like `_require_user` but returns the full identity dict ({sub} + email/name/picture when the ID
+    token carries them) — the profile record (5.6) needs the claims, not just the subject."""
+    from leviathan.graphrag import auth
+    try:
+        return auth.identity_from_header(authorization)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+def _require_identity_quota(authorization: Optional[str] = Header(None)) -> dict:
+    """`_require_identity` + a per-user DAILY turn cap (Stage 5, env `GRAPHRAG_TURN_QUOTA`). Each turn is
+    real Bedrock spend, so an open-signup public deploy caps per-account velocity. Over the cap -> 429.
+    Quota unset -> no cap; any counter/infra error -> ALLOW (fail-open; WAF rate-limit + the Bedrock daily
+    budget are the hard backstops, a counter glitch must not lock out a paying user)."""
+    ident = _require_identity(authorization)
     cap = os.environ.get("GRAPHRAG_TURN_QUOTA")
     if cap:
         from leviathan.graphrag import store as st
         try:
-            _store().incr_turn_quota(user, time.strftime("%Y-%m-%d", time.gmtime()), int(cap))
+            _store().incr_turn_quota(ident["sub"], time.strftime("%Y-%m-%d", time.gmtime()), int(cap))
         except st.QuotaExceeded:
             raise HTTPException(status_code=429, detail=f"daily turn limit ({cap}) reached; try again tomorrow")
         except Exception:  # noqa: BLE001 — fail open on any non-quota error
             pass
-    return user
+    return ident
+
+
+def _require_user_quota(authorization: Optional[str] = Header(None)) -> str:
+    """Subject-only view of `_require_identity_quota` (kept for callers that only need the user id)."""
+    return _require_identity_quota(authorization)["sub"]
 
 
 def _turn_record(result: dict) -> dict:
@@ -120,13 +176,70 @@ def _turn_record(result: dict) -> dict:
     }
 
 
-def _save_turn(user: str, session_id: Optional[str], result: dict) -> None:
-    """Append a durable, PIT-safe turn to the thread's history. Fail-open + no-op without a thread id:
-    persistence must NEVER break or slow a turn."""
+def _autotitle_thread(user: str, thread_id: str, question: str, fallback: str) -> None:
+    """Haiku 3-6 word thread title, fire-and-forget (daemon thread). Writes ONLY if the title is still the
+    truncated-question fallback and the user hasn't renamed (title_auto) — so a rename that raced in wins.
+    Injectable via _STATE['title_call'] for tests."""
+    try:
+        call = _STATE.get("title_call")
+        if call is None:
+            from leviathan.graphrag import providers as pv
+            def call(q: str) -> str:
+                client = pv.make_client()
+                out = client.messages.create(
+                    model=pv.resolve_model("claude-haiku-4-5"), max_tokens=30,
+                    messages=[{"role": "user", "content":
+                               "Give a terse 3-6 word title for a commodity-research thread that starts "
+                               f"with this question. Title only, no quotes, ASCII.\n\nQ: {q[:400]}"}])
+                return "".join(b.text for b in out.content if getattr(b, "type", "") == "text").strip()
+        title = (call(question) or "").strip().strip('"')[:80]
+        if not title:
+            return
+        cur = _store().get_item(user, "thread", thread_id) or {}
+        if cur.get("title_auto") or (cur.get("title") or "") not in ("", fallback):
+            return                                                   # user renamed (or state moved on) — keep theirs
+        _store().put_item(user, "thread", thread_id, {**cur, "title": title, "updated_at": cur.get("updated_at")
+                          or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+    except Exception:  # noqa: BLE001 — a title is a nicety; never surface a failure
+        pass
+
+
+def _ensure_thread_index(user: str, thread_id: str, question: str) -> None:
+    """Server-authoritative thread index (5.6): every saved turn upserts the thread item so the sidebar
+    list never depends on the client's best-effort registration. First turn also kicks the Haiku
+    auto-title (gated on GRAPHRAG_THREAD_TITLES; default off = tests/eval unchanged)."""
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    existing = _store().get_item(user, "thread", thread_id)
+    fallback = (question or "").strip()[:80] or thread_id
+    body = {
+        "title": (existing or {}).get("title") or fallback,
+        "title_auto": bool((existing or {}).get("title_auto", False)),
+        "created_at": (existing or {}).get("created_at") or now,
+        "updated_at": now,
+    }
+    _store().put_item(user, "thread", thread_id, body)
+    if existing is None and os.environ.get("GRAPHRAG_THREAD_TITLES", "off").lower() == "on":
+        threading.Thread(target=_autotitle_thread, args=(user, thread_id, question, body["title"]),
+                         daemon=True).start()
+
+
+def _save_turn(ident: dict, session_id: Optional[str], result: dict) -> None:
+    """Append a durable, PIT-safe turn to the thread's history + upsert the thread index + touch the
+    user's profile record. Fail-open + no-op without a thread id: persistence must NEVER break or slow
+    a turn. `ident` = {sub, email?, name?, ...} from the verified token (a plain user id string also
+    works for older callers/tests)."""
+    if isinstance(ident, str):                                       # tolerate the pre-5.6 signature
+        ident = {"sub": ident}
+    user = ident["sub"]
+    try:
+        _store().touch_profile(user, email=ident.get("email"), name=ident.get("name"))
+    except Exception:  # noqa: BLE001 — the profile record is best-effort bookkeeping
+        pass
     if not session_id:
         return
     try:
         _store().append_turn(user, session_id, _turn_record(result))
+        _ensure_thread_index(user, session_id, result.get("question") or "")
     except Exception:  # noqa: BLE001 — history is best-effort; a store glitch must not fail the answer
         pass
 
@@ -147,18 +260,18 @@ def healthz() -> dict:
 
 
 @app.post("/v1/respond")
-def respond_route(body: Ask, user: str = Depends(_require_user_quota)) -> dict:
+def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> dict:
     # Auth + per-user daily quota gated (Stage 4/5): a turn is Bedrock spend, so only signed-in users within
     # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
     from leviathan.graphrag import orchestrator as orch
     result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id)
-    _save_turn(user, body.session_id, result)            # durable per-thread history (PIT-safe, fail-open)
+    _save_turn(ident, body.session_id, result)           # durable per-thread history (PIT-safe, fail-open)
     return result
 
 
 @app.get("/v1/respond/stream")
 def respond_stream(question: str, session_id: Optional[str] = None, asof: Optional[str] = None,
-                   user: str = Depends(_require_user_quota)):
+                   ident: dict = Depends(_require_identity_quota)):
     """SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own
     `stage` event, then the single terminal `result` (or `error`)."""
     from leviathan.graphrag import orchestrator as orch
@@ -173,7 +286,7 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
             try:
                 result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
                                       on_stage=on_stage)
-                _save_turn(user, session_id, result)      # durable per-thread history (PIT-safe, fail-open)
+                _save_turn(ident, session_id, result)     # durable per-thread history (PIT-safe, fail-open)
                 out.put(("result", result))
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces
                 out.put(("error", {"error": f"{type(e).__name__}: {str(e)[:200]}"}))
@@ -216,18 +329,63 @@ def graph_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
 
 
 # ── 1.3 convergence matrix ──────────────────────────────────────────────────────────────────────────
+def _conv_warm_once() -> None:
+    """Compute the LIVE-asof convergence matrix into _STATE['conv_warm'] (5.6 W6). One entry, keyed
+    (asof, graph_version); the route serves it instantly on key match. Historical as-ofs stay on the
+    on-demand path."""
+    from leviathan.graphrag import firing as F
+    t0 = time.time()
+    asof = _today()
+    g = _graph()
+    key = (asof, getattr(g, "version", None))
+    rows = F.convergence_matrix(g, asof, _silver_lookup(),
+                                workers=int(os.environ.get("GRAPHRAG_CONVERGENCE_WORKERS", "8")))
+    out = M.ConvergenceMatrix(asof=asof, graph_version=key[1], rows=rows).model_dump()
+    _STATE["conv_warm"] = (time.time(), key, out)
+    print(f"[warm] convergence asof={asof} rows={len(rows)} ms={int((time.time() - t0) * 1000)}", flush=True)
+
+
+def _conv_warm_loop() -> None:
+    interval = int(os.environ.get("GRAPHRAG_CONVERGENCE_WARM_INTERVAL", "900"))
+    while True:
+        try:
+            _conv_warm_once()
+        except Exception as e:  # noqa: BLE001 — the warm cache is an optimization; the route still computes
+            print(f"[warm] convergence FAILED ({type(e).__name__}: {str(e)[:160]})", flush=True)
+        slept = 0
+        day = _today()
+        while slept < interval and _today() == day:      # re-fire early on UTC-midnight rollover
+            time.sleep(15)
+            slept += 15
+
+
+@app.on_event("startup")
+def _warm_convergence() -> None:
+    """Convergence warmer (5.6 W6): a NON-blocking daemon loop that keeps the live-asof matrix hot so the
+    heatmap opens in <1s instead of a cold multi-second lookup fan-out. Registered AFTER _warm_startup
+    (FastAPI runs startup hooks in order), gated on GRAPHRAG_CONVERGENCE_WARM=on — unset (tests/dev/eval)
+    is a pure no-op."""
+    if os.environ.get("GRAPHRAG_CONVERGENCE_WARM", "off").lower() != "on":
+        return
+    threading.Thread(target=_conv_warm_loop, daemon=True).start()
+
+
 @app.get("/v1/convergence", response_model=M.ConvergenceMatrix)
 def convergence_route(asof: Optional[str] = Query(None)) -> dict:
     from leviathan.graphrag import firing as F
     asof = asof or _today()
     g = _graph()
     key = (asof, getattr(g, "version", None))
+    warm = _STATE.get("conv_warm")
+    if warm and warm[1] == key:                                    # warmer-maintained live matrix (5.6 W6)
+        return warm[2]
     cache_on = os.environ.get("GRAPHRAG_CONVERGENCE_CACHE", "off").lower() == "on"
     if cache_on:                                                   # per-(asof, graph_version) TTL cache (deploy)
         hit = _STATE.get("conv_cache", {}).get(key)
         if hit and (time.time() - hit[0]) < int(os.environ.get("GRAPHRAG_CONVERGENCE_TTL", "120")):
             return hit[1]
-    rows = F.convergence_matrix(g, asof, _silver_lookup())
+    rows = F.convergence_matrix(g, asof, _silver_lookup(),
+                                workers=int(os.environ.get("GRAPHRAG_CONVERGENCE_WORKERS", "8")))
     out = M.ConvergenceMatrix(asof=asof, graph_version=getattr(g, "version", None), rows=rows).model_dump()
     if cache_on:
         _STATE.setdefault("conv_cache", {})[key] = (time.time(), out)
@@ -319,9 +477,16 @@ def share_get(share_id: str) -> dict:                             # public read 
     return M.ShareSnapshot(**snap.to_dict()).model_dump()
 
 
-def _register_item_routes(coll: str, kind: str) -> None:
-    def _list(user: str = Depends(_require_user)) -> dict:
-        return {"items": _store().list_items(user, kind)}
+def _register_item_routes(coll: str, kind: str, purge=None, on_list=None) -> None:
+    def _list(ident: dict = Depends(_require_identity)) -> dict:
+        if on_list is not None:
+            try:
+                on_list(ident)
+            except Exception:  # noqa: BLE001 — listing must never fail on a side-effect
+                pass
+        items = _store().list_items(ident["sub"], kind)
+        items.sort(key=lambda b: b.get("updated_at") or "", reverse=True)   # newest first for the sidebar
+        return {"items": items}
 
     def _put(body: ItemIn, user: str = Depends(_require_user)) -> dict:
         from leviathan.graphrag import store as st
@@ -330,6 +495,8 @@ def _register_item_routes(coll: str, kind: str) -> None:
         return {"id": item_id}
 
     def _del(item_id: str, user: str = Depends(_require_user)) -> dict:
+        if purge is not None:
+            purge(user, item_id)                          # purge FIRST: a failure leaves the item retryable
         _store().delete_item(user, kind, item_id)
         return {"ok": True}
 
@@ -338,8 +505,21 @@ def _register_item_routes(coll: str, kind: str) -> None:
     app.add_api_route(f"/v1/{coll}/{{item_id}}", _del, methods=["DELETE"])
 
 
-for _coll, _kind in (("threads", "thread"), ("watchlists", "watchlist"), ("workspaces", "workspace")):
-    _register_item_routes(_coll, _kind)
+def _touch_profile_async(ident: dict) -> None:
+    """Fire-and-forget profile upsert on the threads list (once per app boot) — records users who signed
+    in but never ran a turn. Daemon thread: never adds latency to the listing."""
+    threading.Thread(
+        target=lambda: _store().touch_profile(ident["sub"], email=ident.get("email"),
+                                              name=ident.get("name"), count_turn=False),
+        daemon=True).start()
+
+
+for _coll, _kind, _purge, _on_list in (
+    ("threads", "thread", lambda u, tid: _store().delete_turns(u, tid), _touch_profile_async),
+    ("watchlists", "watchlist", None, None),
+    ("workspaces", "workspace", None, None),
+):
+    _register_item_routes(_coll, _kind, purge=_purge, on_list=_on_list)
 
 
 @app.get("/v1/threads/{thread_id}/turns", response_model=M.ThreadTurns)

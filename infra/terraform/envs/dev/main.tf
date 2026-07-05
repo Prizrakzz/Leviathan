@@ -99,6 +99,14 @@ module "cloudwatch" {
   project_name = var.project_name
   environment  = var.environment
   aws_region   = var.aws_region
+
+  # Stage 5.2 serving observability: dashboard + alarms -> the alerting SNS topic.
+  alert_topic_arn  = module.alerting.topic_arn
+  alb_arn          = module.serving_alb.alb_arn
+  target_group_arn = module.serving_alb.target_group_arn
+  ecs_cluster_name = module.serving.cluster_name
+  ecs_service_name = module.serving.service_name
+  waf_web_acl_name = "${var.project_name}-${var.environment}-serving"
 }
 
 module "mlflow_server" {
@@ -151,11 +159,13 @@ module "serving_alb" {
   subnet_ids   = var.batch_subnet_ids
   admin_cidrs  = var.serving_admin_cidrs
 
-  # Stage 2: HTTPS:443 (wildcard ACM cert) + 80->301->443 redirect. SG still IP-locked (public_ingress
-  # stays false until Stage 5 verifies auth). Kill-switch = enable_https/public_ingress flags.
+  # Stage 2: HTTPS:443 (wildcard ACM cert) + 80->301->443 redirect.
+  # Stage 5 (2026-07-05): public_ingress=true opens 443 (+ the :80 redirect) to 0.0.0.0/0 — the site is
+  # public behind Google sign-in + WAF + per-user quota + Bedrock budget. KILL-SWITCH: set false + re-apply
+  # `-target=module.serving_alb.aws_security_group.alb` to instantly re-lock to admin_cidrs.
   enable_https    = true
   certificate_arn = var.serving_certificate_arn
-  public_ingress  = false
+  public_ingress  = true
 }
 
 # The public hosted zone was created in the console (Namecheap-delegated); reference it, don't manage it.
@@ -251,6 +261,23 @@ module "cognito" {
   logout_urls   = ["https://${var.public_domain}", "http://localhost:5173"]
 }
 
+# Stage 5 (public exposure hardening): alert fan-out + WAF on the ALB.
+module "alerting" {
+  source       = "../../modules/alerting"
+  project_name = var.project_name
+  environment  = var.environment
+  alert_email  = "ivanzkarpov@gmail.com"
+}
+
+# WAFv2: managed groups + rate limits (esp. /v1/respond*). Ships in COUNT mode (blocking_enabled=false);
+# flip to true after a 24-48h observation window.
+module "waf" {
+  source       = "../../modules/wafv2"
+  project_name = var.project_name
+  environment  = var.environment
+  alb_arn      = module.serving_alb.alb_arn
+}
+
 module "serving" {
   source = "../../modules/ecs_service"
 
@@ -273,6 +300,13 @@ module "serving" {
   guardrail_id          = module.bedrock_guardrail.guardrail_id
   leviathan_bucket      = var.bucket_name
 
+  # Stage 5.3 R2 (autoscaling review): cap scale-out at 2. min stays 1 (the BGE S3-cache makes a replacement
+  # cheap). We deliberately do NOT add request-count scaling: serving turns are I/O-bound (Bedrock/pg), so the
+  # existing CPU target-tracking policy rarely fires and the service effectively stays at 1 — and scaling OUT
+  # would split the Cohere managed-rerank quota (3 req/min, account-wide) across tasks, hurting latency. max=2
+  # is a CPU-spike safety valve only.
+  max_count = 2
+
   # Stage 1.5 latency fixes (env flips only; rollback = remove the key):
   #  - GRAPHRAG_RERANK_BACKEND: managed Cohere Rerank (coalesced, 1 req/turn — quota is 3/min) replaces the
   #    CPU bge cross-encoder that made the L2 walk ~100s. Rollback = "bge".
@@ -291,7 +325,7 @@ module "serving" {
     GRAPHRAG_RERANK_BACKEND  = "bedrock"
     GRAPHRAG_SILVER_CACHE    = "on"
     GRAPHRAG_NUMBERS_BACKEND = "pg"
-    GRAPHRAG_CORS_ORIGINS    = "https://leviathanconvexity.com,https://www.leviathanconvexity.com,http://localhost:5173"
+    GRAPHRAG_CORS_ORIGINS    = "https://leviathanconvexity.com,https://www.leviathanconvexity.com"
 
     GRAPHRAG_AUTH              = "on"
     COGNITO_REGION             = var.aws_region
@@ -301,6 +335,24 @@ module "serving" {
     GRAPHRAG_STORE_TABLE       = module.dynamodb.table_name
     GRAPHRAG_SESSIONS_TABLE    = data.aws_dynamodb_table.sessions.name
     GRAPHRAG_CONVERGENCE_CACHE = "on"
+    # Stage 5 public hardening: enable the provisioned Bedrock guardrail + per-user daily turn cap (429 over).
+    GRAPHRAG_GUARDRAIL  = module.bedrock_guardrail.guardrail_id
+    GRAPHRAG_TURN_QUOTA = "50"
+
+    # Stage 5.0/5.4 latency: tighten the rerank coalescer (default 4.0/0.8) — the exact eligible-count already
+    # short-circuits, so this only trims the empty-retrieval straggler wait. env-tunable, no rebuild.
+    GRAPHRAG_COALESCE_WINDOW     = "1.5"
+    GRAPHRAG_COALESCE_QUIESCENCE = "0.3"
+
+    # Stage 5.3 R1 (+ speed follow-up): cold-start cache. On startup the task syncs the bge models from S3 in
+    # parallel instead of downloading from HuggingFace; the first task self-seeds. The /v2 prefix holds the
+    # LEAN cache (safetensors-only, ~4.5 GB vs the v1 13.7 GB all-formats). Rollback = /models/hf or remove key.
+    GRAPHRAG_HF_S3_CACHE = "s3://${var.bucket_name}/models/hf/v2"
+
+    # Phase 5.6 UX: background convergence warmer (live-asof heatmap always hot; lookups route via the pg
+    # mirror with per-request Athena fallback) + Haiku thread auto-titles. Rollback for each = remove the key.
+    GRAPHRAG_CONVERGENCE_WARM = "on"
+    GRAPHRAG_THREAD_TITLES    = "on"
   }
 
   # Stage 1: guardrail on, auth off, CORS = localhost (defaults in the module).

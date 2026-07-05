@@ -95,8 +95,13 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     import concurrent.futures as cf
 
     def _numbers() -> dict:
+        # Per-lookup progress ticks (5.6 W5): {calls, running, table} while the agent works, then the
+        # final completion event below. on_call stays None on non-streamed callers -> byte-identical.
+        on_call = ((lambda k, t: an._emit(on_stage, "numbers", calls=k, running=True, table=t))
+                   if on_stage is not None else None)
         try:
-            nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn)
+            nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn,
+                                     on_call=on_call)
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
         an._emit(on_stage, "numbers", calls=len(nums.get("calls", [])))   # emitted on COMPLETION
@@ -285,10 +290,41 @@ def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
             "trace": {"floor": "evidence_only", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}}
 
 
-def respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
-            numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
-            planner: str | None = None, session_id: Optional[str] = None, session_store=None,
-            on_stage=None) -> dict:
+def respond(*args, **kwargs) -> dict:
+    """Per-turn TIMING wrapper (Stage 5.0/5.4 latency diagnostic): times `_respond`, stamps
+    `trace.timing_ms` = {total, fill, rest}, and logs one INFO line so the warm-turn phase breakdown is
+    visible in CloudWatch (also seeds 5.3's structured logs). Fully transparent — the real logic is
+    `_respond`; instrumentation is try-guarded and never alters or breaks an answer."""
+    import time
+    _t0 = time.perf_counter()
+    res = _respond(*args, **kwargs)
+    try:
+        tr = res.setdefault("trace", {})
+        gm = tr.get("ground_ms") or {}
+        total = int((time.perf_counter() - _t0) * 1000)
+        tr["timing_ms"] = {"total": total, "fill": gm.get("fill"), "rest": gm.get("rest")}
+        stripped = int((tr.get("citation_verifier") or {}).get("stripped", 0) or 0)
+        # print() (not logging) so the line reaches CloudWatch even though the app root logger sits at WARNING
+        # under uvicorn — ASCII-only, flushed. Human-readable companion to the EMF metric line below.
+        print(f"[timing] total_ms={total} intent={res.get('intent')} model={res.get('model')} "
+              f"ms_fill={gm.get('fill')} ms_rest={gm.get('rest')} stripped={stripped}", flush=True)
+        # Stage 5.3 R3: emit the same numbers as CloudWatch EMF -> auto-extracted metrics (Leviathan/Serving)
+        # feeding the serving dashboard. StripCount ties the primary quality signal (verifier strips) into ops.
+        from leviathan.graphrag import emf
+        emf.emit({"TurnLatencyMs": total, "MsFill": gm.get("fill"), "MsRest": gm.get("rest"),
+                  "StripCount": stripped},
+                 dimensions={"intent": res.get("intent"), "model": res.get("model")},
+                 units={"TurnLatencyMs": "Milliseconds", "MsFill": "Milliseconds",
+                        "MsRest": "Milliseconds", "StripCount": "Count"})
+    except Exception:  # noqa: BLE001 — instrumentation must never break an answer
+        pass
+    return res
+
+
+def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
+             numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
+             planner: str | None = None, session_id: Optional[str] = None, session_store=None,
+             on_stage=None) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
     `asof` defaults to today. The reasoning/hybrid branches default to the L2 deterministic grounded-subgraph
     walk (v1.1 reached judge parity with one-hop at 0/30 register leaks, and the roadmap — driver-slice

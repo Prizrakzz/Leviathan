@@ -372,8 +372,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 sg.trace["focus_driver"] = focus_driver
                 break
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
+    _emit(on_stage, "walking")                                    # early tick: the 8-20s ground starts NOW (5.6 W5)
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
-              probe_retrieve=probe_retr)                          # probes = cheap existence checks, no reranker
+              probe_retrieve=probe_retr, on_stage=on_stage)       # probes = cheap existence checks, no reranker
     _gm = sg.trace.get("ground_ms") or {}
     _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes),
           ms_fill=_gm.get("fill"), ms_rest=_gm.get("rest"))
@@ -390,6 +391,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # additive UX — the trust contract is unchanged.
     on_token = (lambda t: _emit(on_stage, "token", text=t)) if on_stage is not None else None
     call_kw = {"on_token": on_token} if (on_token is not None and call is _call_opus) else {}
+    _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
@@ -596,7 +598,9 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
     if extra_context:                                              # hybrid numbers / conversation state (volatile)
         volatile_blocks.append(extra_context)
+    _emit(on_stage, "retrieving", props=len(evidence))
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
+    _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     degraded = _pop_degraded(structured)
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in

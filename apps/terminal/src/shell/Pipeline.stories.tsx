@@ -1,16 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import type { StageEvent } from '@/api/schema';
+import type { StampedStage } from '@/api/useTurn';
 import { Pipeline } from './Pipeline';
 
-const STREAMING: StageEvent[] = [
-  { stage: 'planning', intent: 'hybrid', contracts: ['arabica_coffee'] },
-  { stage: 'walking', nodes: 7, regimes: 2 },
-  { stage: 'retrieving', props: 24 },
+const t0 = 0;
+const STREAMING: StampedStage[] = [
+  { stage: 'planning', intent: 'hybrid', contracts: ['arabica_coffee'], ts: t0 },
+  { stage: 'walking', ts: t0 + 400 },
+  { stage: 'retrieving', done: 3, total: 7, ts: t0 + 2600 },
+  { stage: 'numbers', calls: 1, running: true, table: 'silver_psd', ts: t0 + 3100 },
 ];
-const DONE: StageEvent[] = [
+const DONE: StampedStage[] = [
   ...STREAMING,
-  { stage: 'numbers', calls: 2 },
-  { stage: 'verifying', checked: 4, stripped: 0 },
+  { stage: 'walking', nodes: 7, regimes: 2, ts: t0 + 5200 },
+  { stage: 'retrieving', props: 24, ts: t0 + 5300 },
+  { stage: 'numbers', calls: 2, ts: t0 + 6100 },
+  { stage: 'synthesizing', ts: t0 + 6400 },
+  { stage: 'verifying', checked: 4, stripped: 0, ts: t0 + 21100 },
 ];
 
 const meta: Meta<typeof Pipeline> = { title: 'Shell/Pipeline', component: Pipeline };

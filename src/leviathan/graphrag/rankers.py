@@ -147,7 +147,22 @@ _bedrock_rerank_client = None
 # concurrent rerank calls within a turn merge into ONE Bedrock request (<= _COALESCE_MAX_DOCS docs).
 _COALESCE_MAX_DOCS = 1000            # API cap per request (10 nodes x pool 60 = 600, comfortably under)
 _COALESCE_IDLE_WINDOW = 0.25         # s — a lone caller (one-hop path) barely waits
-_COALESCE_HINT_WINDOW = 4.0          # s — the walk's callers arrive staggered by the serialized pg fetches
+_COALESCE_HINT_WINDOW = 4.0          # s — hard cap the leader waits for the hinted batch (env/param tunable)
+_COALESCE_QUIESCENCE = 0.8           # s — a quiet gap this long after the last arrival = the hinted stragglers
+#                                      (skipped/empty-retrieval nodes) aren't coming; don't burn the full window
+
+
+def _coalesce_window() -> float:
+    """Leader's hard-cap wait for the hinted batch. Env `GRAPHRAG_COALESCE_WINDOW` > params > code default,
+    so Stage 5.0/5.4 tunes it on the ECS task WITHOUT a rebuild (mirrors _rerank_backend's override)."""
+    return float(os.environ.get("GRAPHRAG_COALESCE_WINDOW")
+                 or _pr.get("serving.retrieval.coalesce_window", _COALESCE_HINT_WINDOW))
+
+
+def _coalesce_quiescence() -> float:
+    """Quiet-gap after the last arrival before the leader stops waiting on over-counted stragglers."""
+    return float(os.environ.get("GRAPHRAG_COALESCE_QUIESCENCE")
+                 or _pr.get("serving.retrieval.coalesce_quiescence", _COALESCE_QUIESCENCE))
 
 
 def _rerank_backend() -> str:
@@ -211,10 +226,10 @@ class _RerankCoalescer:
         self._window = _COALESCE_IDLE_WINDOW
         self._last_arrival = 0.0
 
-    def expect(self, n: int, window: float = _COALESCE_HINT_WINDOW) -> None:
+    def expect(self, n: int, window: float | None = None) -> None:
         with self._lock:
             self._expect = max(0, int(n))
-            self._window = float(window)
+            self._window = float(window) if window is not None else _coalesce_window()
 
     def submit(self, query: str, texts: list[str]) -> list[float]:
         import threading
@@ -238,6 +253,7 @@ class _RerankCoalescer:
     def _lead(self) -> None:
         import time
         t0 = time.time()
+        quiesce = _coalesce_quiescence()
         while True:
             with self._lock:
                 n, exp, win, last = len(self._pending), self._expect, self._window, self._last_arrival
@@ -246,9 +262,9 @@ class _RerankCoalescer:
                 break                                     # everyone the walk promised has arrived
             if now - t0 >= (win if exp else _COALESCE_IDLE_WINDOW):
                 break                                     # hard window cap
-            if exp and n > 0 and now - last >= 0.8:
+            if exp and n > 0 and now - last >= quiesce:
                 break                                     # QUIESCENCE: arrivals stagger ~0.25s apart (pg pool),
-                # so a 0.8s quiet gap means the stragglers (skipped/empty nodes) are never coming — don't
+                # so a quiet gap this long means the stragglers (skipped/empty nodes) are never coming — don't
                 # burn the full window waiting for an over-counted expectation.
             time.sleep(0.05)
         with self._lock:
@@ -277,8 +293,9 @@ class _RerankCoalescer:
 _COAL = _RerankCoalescer()
 
 
-def rerank_expect(n: int, window: float = _COALESCE_HINT_WINDOW) -> None:
-    """Hint from the walk: ~n rerank calls are about to arrive — coalesce them into one Bedrock request."""
+def rerank_expect(n: int, window: float | None = None) -> None:
+    """Hint from the walk: ~n rerank calls are about to arrive — coalesce them into one Bedrock request.
+    `window=None` -> the env/param-tunable default (_coalesce_window)."""
     _COAL.expect(n, window)
 
 

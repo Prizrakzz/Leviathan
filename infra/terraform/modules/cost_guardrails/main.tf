@@ -31,3 +31,37 @@ resource "aws_budgets_budget" "s3_daily" {
     subscriber_email_addresses = [var.alert_email]
   }
 }
+
+# Stage 5 (public exposure): the real runaway risk is authenticated turns burning Bedrock $ (open Google
+# signup). A DAILY Bedrock budget alerts at 100% FORECASTED (early warning) + 100% ACTUAL. Budgets lag ~a
+# day, so this is the backstop; WAF rate-limiting + the per-user turn cap are the real-time controls, and
+# the manual SG kill-switch (public_ingress=false) is the incident lever.
+resource "aws_budgets_budget" "bedrock_daily" {
+  name         = "${var.project_name}-${var.environment}-bedrock-daily"
+  budget_type  = "COST"
+  limit_amount = tostring(var.bedrock_daily_limit)
+  limit_unit   = "USD"
+  time_unit    = "DAILY"
+
+  cost_filter {
+    name   = "Service"
+    values = ["Amazon Bedrock"]
+  }
+
+  # DAILY budgets only support ACTUAL notifications (AWS constraint). Alert at 80% and 100% of the day's cap.
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = [var.alert_email]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = [var.alert_email]
+  }
+}

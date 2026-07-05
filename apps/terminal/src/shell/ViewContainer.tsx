@@ -4,12 +4,24 @@ import { AnswerView } from '@/views/AnswerView';
 import { ConvergenceView } from '@/views/ConvergenceView';
 import { DeepDiveView } from '@/views/DeepDiveView';
 
-/** The view container — renders the active opinionated view (design §3.2). */
-export function ViewContainer({ turn }: { turn: TurnState }) {
+/** The view container — renders the active opinionated view (design §3.2). The answer view owns its own
+ *  scroll container (conversation column + pinned composer), so it gets overflow-hidden; the others keep
+ *  the classic scrolling main. */
+export function ViewContainer({
+  turn,
+  question,
+  onAsk,
+}: {
+  turn: TurnState;
+  question: string;
+  onAsk: (q: string) => void;
+}) {
   const view = useUI((s) => s.view);
+  const cls =
+    view === 'answer' ? 'flex-1 min-h-0 overflow-hidden bg-bg-0' : 'flex-1 overflow-auto bg-bg-0 p-4';
   return (
-    <main className="flex-1 overflow-auto bg-bg-0 p-4" data-testid="view" data-view={view}>
-      {view === 'answer' && <AnswerView turn={turn} />}
+    <main className={cls} data-testid="view" data-view={view}>
+      {view === 'answer' && <AnswerView turn={turn} question={question} onAsk={onAsk} />}
       {view === 'convergence' && <ConvergenceView />}
       {view === 'deep' && <DeepDiveView />}
     </main>

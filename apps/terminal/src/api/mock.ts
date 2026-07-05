@@ -189,7 +189,9 @@ function pickResult(q: string, asof: string): RespondResult {
 
 export const MOCK_RESULT = goodResult('KC frost 2021', '2021-07-20');
 
-/** The mock stream: the five ordered ticks the backend emits, then the terminal result. */
+/** The mock stream (5.6): the full ordered tick sequence the backend emits — early walking, per-node
+ *  retrieval progress, per-lookup numbers ticks, synthesizing, then bursty `token` deltas (exercises the
+ *  typewriter) and the terminal result. */
 export async function mockRespondStream(
   params: { question: string; asof?: string },
   h: StreamHandlers,
@@ -210,17 +212,65 @@ export async function mockRespondStream(
       : [
           { stage: 'accepted' },
           { stage: 'planning', intent: result.intent, contracts: result.contracts },
+          { stage: 'walking' },
+          { stage: 'retrieving', done: 2, total: 7 },
+          { stage: 'numbers', calls: 1, running: true, table: 'silver_psd' },
+          { stage: 'retrieving', done: 5, total: 7 },
+          { stage: 'numbers', calls: 2, running: true, table: 'silver_oni' },
+          { stage: 'retrieving', done: 7, total: 7 },
           { stage: 'walking', nodes: 7, regimes: 1 },
           { stage: 'retrieving', props: 24 },
           { stage: 'numbers', calls: 3 },
-          { stage: 'verifying', checked: 3, stripped: 0 },
+          { stage: 'synthesizing' },
         ];
   for (const st of stages) {
     await sleep(delay);
     h.onStage?.(st);
   }
+  if (!refused && !floor && result.structured) {
+    // Bursty tool-JSON token deltas, like the real input_json_delta stream.
+    const body = JSON.stringify({ tldr: result.structured.tldr, mechanism: result.structured.mechanism });
+    for (let i = 0; i < body.length; i += 40) {
+      await sleep(delay / 2);
+      h.onStage?.({ stage: 'token', text: body.slice(i, i + 40) });
+    }
+    await sleep(delay);
+    h.onStage?.({ stage: 'verifying', checked: 3, stripped: 0 });
+  }
   await sleep(delay);
   h.onResult?.(result);
+}
+
+// ── mock threads (VITE_MOCK sidebar/conversation) ────────────────────────────────────────────────────
+const MOCK_THREADS = [
+  { id: 't-mock1', title: 'KC frost convexity 2021', title_auto: true, created_at: '2026-07-01T10:00:00Z', updated_at: '2026-07-04T18:30:00Z' },
+  { id: 't-mock2', title: 'Sugar su-ratio regimes', title_auto: true, created_at: '2026-06-28T09:00:00Z', updated_at: '2026-07-02T12:00:00Z' },
+];
+
+export function mockListThreads(): { items: typeof MOCK_THREADS } {
+  return { items: MOCK_THREADS };
+}
+
+export function mockThreadTurns(threadId: string): Schemas['ThreadTurns'] {
+  if (threadId !== 't-mock1') return { thread_id: threadId, turns: [] };
+  const r = MOCK_RESULT;
+  return {
+    thread_id: threadId,
+    turns: [
+      {
+        question: 'KC frost 2021 — what happened to the convexity setup?',
+        answer: 'TL;DR — ' + (r.structured?.tldr ?? '') + '\n\nWhy — ' + (r.structured?.mechanism ?? ''),
+        structured: { tldr: r.structured?.tldr, mechanism: r.structured?.mechanism },
+        asof: '2021-07-20',
+        sources: [],
+        graph_version: '3a69acfb87c5',
+        contracts: ['arabica_coffee'],
+        intent: 'hybrid',
+        model: 'claude-sonnet-4-6',
+        ts: '2026-07-04T18:30:00Z',
+      },
+    ],
+  };
 }
 
 // ── read-endpoint fixtures ───────────────────────────────────────────────────────────────────────────

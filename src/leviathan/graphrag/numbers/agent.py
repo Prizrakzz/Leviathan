@@ -94,9 +94,11 @@ def _forced_spec(asof: str, inp: dict) -> Q.NumberQuery:
 
 
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
-                   query_fn=None, max_calls: int = 6, max_tokens: int = 1500) -> dict:
+                   query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None) -> dict:
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
-    (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number."""
+    (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number.
+    `on_call(n_calls, table)` (default None = byte-identical) fires after each executed lookup — the SSE
+    progress hook (5.6 W5); errors are swallowed."""
     reg = reg or load_registry()
     if client is None:                             # real serving path -> provider-routed + retried
         from leviathan.graphrag import providers as pv
@@ -160,6 +162,11 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         for b, payload in zip(uses, payloads):
             calls.append(payload)
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(payload)[:6000]})
+            if on_call is not None:
+                try:
+                    on_call(len(calls), (payload.get("query") or {}).get("table"))
+                except Exception:  # noqa: BLE001 — progress reporting can never fail a lookup
+                    pass
         convo.append({"role": "user", "content": results})
     return {"answer": "(stopped: max tool calls reached)", "calls": calls}
 
