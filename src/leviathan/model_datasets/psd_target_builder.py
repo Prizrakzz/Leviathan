@@ -1,4 +1,5 @@
 """Build PSD-first target panels from silver PSD balance-sheet rows."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -9,47 +10,7 @@ from leviathan.model_datasets.psd_targets import (
     PSDTargetMetric,
     load_psd_metric_targets,
 )
-
-PSD_TARGET_COLUMNS = [
-    "source_dataset_version",
-    "dataset_key",
-    "commodity",
-    "contract_key",
-    "target_key",
-    "target_title",
-    "target_source",
-    "target_family",
-    "target_attribute",
-    "target_source_table",
-    "target_unit",
-    "target_value_unit",
-    "target_status",
-    "mapping_confidence",
-    "psd_source_slug",
-    "psd_commodity",
-    "psd_country",
-    "origin_key",
-    "origin_role",
-    "country",
-    "crop_year",
-    "target_market_year",
-    "actual_value",
-    "target_value",
-    "trend_prediction",
-    "prior_year_value",
-    "trailing_mean_prediction",
-    "zero_anomaly_baseline",
-    "prior_year_anomaly_baseline",
-    "trailing_mean_anomaly_baseline",
-    "trailing_trend_anomaly_baseline",
-    "history_years",
-    "is_trainable",
-    "excluded_reason",
-    "target_release_context",
-    "target_observation_release_date",
-    "target_source_vintage",
-    "psd_mapping_sha",
-]
+from leviathan.model_datasets.schema_columns import PSD_TARGET_COLUMNS
 
 PSD_REQUIRED_COLUMNS = {
     "leviathan_slug",
@@ -122,12 +83,14 @@ def _latest_release_rows(source: pd.DataFrame) -> pd.DataFrame:
     ordered = source.sort_values(
         ["leviathan_slug", "country", "market_year", "release_date"]
     ).reset_index(drop=True)
-    idx = ordered.groupby(
-        ["leviathan_slug", "country", "market_year"], sort=False
-    )["release_date"].idxmax()
-    return ordered.loc[idx].sort_values(
-        ["leviathan_slug", "country", "market_year"]
-    ).reset_index(drop=True)
+    idx = ordered.groupby(["leviathan_slug", "country", "market_year"], sort=False)[
+        "release_date"
+    ].idxmax()
+    return (
+        ordered.loc[idx]
+        .sort_values(["leviathan_slug", "country", "market_year"])
+        .reset_index(drop=True)
+    )
 
 
 def _row_exclusion_reason(
@@ -185,15 +148,14 @@ def _build_metric_rows(
         actual = float(row.actual_value) if _finite(row.actual_value) else np.nan
         prior = (
             history.loc[history["target_market_year"] < target_market_year]
-            if target_market_year is not None else history.iloc[0:0]
+            if target_market_year is not None
+            else history.iloc[0:0]
         )
         history_years = int(len(prior))
         prior_year_value = (
             by_year.get(target_market_year - 1) if target_market_year is not None else np.nan
         )
-        trailing_mean = (
-            float(prior["actual_value"].mean()) if history_years > 0 else np.nan
-        )
+        trailing_mean = float(prior["actual_value"].mean()) if history_years > 0 else np.nan
         trend_prediction = (
             _linear_prediction(
                 prior["target_market_year"].to_numpy(dtype=float),
@@ -205,13 +167,11 @@ def _build_metric_rows(
         )
         target_value = (
             _pct_deviation(actual, trend_prediction)
-            if _finite(trend_prediction)
-            and abs(float(trend_prediction)) > near_zero_trend_epsilon
+            if _finite(trend_prediction) and abs(float(trend_prediction)) > near_zero_trend_epsilon
             else np.nan
         )
         valid_trend_denominator = (
-            _finite(trend_prediction)
-            and abs(float(trend_prediction)) > near_zero_trend_epsilon
+            _finite(trend_prediction) and abs(float(trend_prediction)) > near_zero_trend_epsilon
         )
         excluded_reason = _row_exclusion_reason(
             actual=actual,
@@ -241,11 +201,13 @@ def _build_metric_rows(
             "zero_anomaly_baseline": 0.0,
             "prior_year_anomaly_baseline": (
                 _pct_deviation(prior_year_value, trend_prediction)
-                if valid_trend_denominator else np.nan
+                if valid_trend_denominator
+                else np.nan
             ),
             "trailing_mean_anomaly_baseline": (
                 _pct_deviation(trailing_mean, trend_prediction)
-                if valid_trend_denominator else np.nan
+                if valid_trend_denominator
+                else np.nan
             ),
             "trailing_trend_anomaly_baseline": 0.0,
             "history_years": history_years,
@@ -357,6 +319,8 @@ def build_psd_target_panel(
 
     if not rows:
         return pd.DataFrame(columns=PSD_TARGET_COLUMNS)
-    return pd.DataFrame(rows, columns=PSD_TARGET_COLUMNS).sort_values(
-        ["commodity", "origin_key", "target_key", "target_market_year"]
-    ).reset_index(drop=True)
+    return (
+        pd.DataFrame(rows, columns=PSD_TARGET_COLUMNS)
+        .sort_values(["commodity", "origin_key", "target_key", "target_market_year"])
+        .reset_index(drop=True)
+    )

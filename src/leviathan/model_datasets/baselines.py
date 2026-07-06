@@ -1,40 +1,12 @@
 """Fold-safe target and baseline construction."""
+
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
+from leviathan.model_datasets.schema_columns import BASELINE_COLUMNS, TARGET_COLUMNS
 from leviathan.model_datasets.targets import TargetDefinition
-
-TARGET_COLUMNS = [
-    "source_dataset_version",
-    "dataset_key",
-    "commodity",
-    "target_key",
-    "target_title",
-    "target_unit",
-    "country",
-    "crop_year",
-    "actual_value",
-    "target_value",
-    "trend_prediction",
-    "prior_year_value",
-    "trailing_mean_prediction",
-    "zero_anomaly_baseline",
-    "prior_year_anomaly_baseline",
-    "trailing_mean_anomaly_baseline",
-    "trailing_trend_anomaly_baseline",
-    "history_years",
-    "is_trainable",
-    "excluded_reason",
-]
-
-BASELINE_COLUMNS = {
-    "zero_anomaly": "zero_anomaly_baseline",
-    "prior_year": "prior_year_anomaly_baseline",
-    "trailing_mean": "trailing_mean_anomaly_baseline",
-    "trailing_linear_trend": "trailing_trend_anomaly_baseline",
-}
 
 
 def _finite(value: object) -> bool:
@@ -91,8 +63,7 @@ def build_trailing_anomaly_targets(
             .sort_values("crop_year")
         )
         by_year = {
-            int(row.crop_year): float(row.actual_value)
-            for row in history.itertuples(index=False)
+            int(row.crop_year): float(row.actual_value) for row in history.itertuples(index=False)
         }
 
         for row in group.itertuples(index=False):
@@ -100,15 +71,12 @@ def build_trailing_anomaly_targets(
             actual = float(row.actual_value) if _finite(row.actual_value) else np.nan
             prior = (
                 history.loc[history["crop_year"] < crop_year]
-                if crop_year is not None else history.iloc[0:0]
+                if crop_year is not None
+                else history.iloc[0:0]
             )
             history_years = int(len(prior))
-            prior_year_value = (
-                by_year.get(crop_year - 1) if crop_year is not None else np.nan
-            )
-            trailing_mean = (
-                float(prior["actual_value"].mean()) if history_years > 0 else np.nan
-            )
+            prior_year_value = by_year.get(crop_year - 1) if crop_year is not None else np.nan
+            trailing_mean = float(prior["actual_value"].mean()) if history_years > 0 else np.nan
             trend_prediction = (
                 _linear_prediction(
                     prior["crop_year"].to_numpy(dtype=float),
@@ -137,32 +105,34 @@ def build_trailing_anomaly_targets(
             else:
                 excluded_reason = ""
 
-            rows.append({
-                "source_dataset_version": source_dataset_version,
-                "dataset_key": definition.dataset_key,
-                "commodity": commodity,
-                "target_key": definition.target_key,
-                "target_title": definition.title,
-                "target_unit": definition.target_unit,
-                "country": str(country),
-                "crop_year": crop_year,
-                "actual_value": actual,
-                "target_value": target_value,
-                "trend_prediction": trend_prediction,
-                "prior_year_value": prior_year_value,
-                "trailing_mean_prediction": trailing_mean,
-                "zero_anomaly_baseline": 0.0,
-                "prior_year_anomaly_baseline": _pct_deviation(
-                    prior_year_value, trend_prediction
-                ),
-                "trailing_mean_anomaly_baseline": _pct_deviation(
-                    trailing_mean, trend_prediction
-                ),
-                "trailing_trend_anomaly_baseline": 0.0,
-                "history_years": history_years,
-                "is_trainable": is_trainable,
-                "excluded_reason": excluded_reason,
-            })
+            rows.append(
+                {
+                    "source_dataset_version": source_dataset_version,
+                    "dataset_key": definition.dataset_key,
+                    "commodity": commodity,
+                    "target_key": definition.target_key,
+                    "target_title": definition.title,
+                    "target_unit": definition.target_unit,
+                    "country": str(country),
+                    "crop_year": crop_year,
+                    "actual_value": actual,
+                    "target_value": target_value,
+                    "trend_prediction": trend_prediction,
+                    "prior_year_value": prior_year_value,
+                    "trailing_mean_prediction": trailing_mean,
+                    "zero_anomaly_baseline": 0.0,
+                    "prior_year_anomaly_baseline": _pct_deviation(
+                        prior_year_value, trend_prediction
+                    ),
+                    "trailing_mean_anomaly_baseline": _pct_deviation(
+                        trailing_mean, trend_prediction
+                    ),
+                    "trailing_trend_anomaly_baseline": 0.0,
+                    "history_years": history_years,
+                    "is_trainable": is_trainable,
+                    "excluded_reason": excluded_reason,
+                }
+            )
 
     return pd.DataFrame(rows, columns=TARGET_COLUMNS)
 
@@ -178,8 +148,7 @@ def compute_baseline_metrics(
     """Compute simple baseline metrics in target space."""
     rows = []
     trainable = target_df.loc[
-        target_df["is_trainable"].fillna(False).astype(bool)
-        & target_df["target_value"].notna()
+        target_df["is_trainable"].fillna(False).astype(bool) & target_df["target_value"].notna()
     ].copy()
     for baseline_name in baseline_names:
         column = BASELINE_COLUMNS.get(baseline_name)
@@ -187,28 +156,32 @@ def compute_baseline_metrics(
             continue
         valid = trainable.loc[trainable[column].notna(), ["target_value", column]]
         if valid.empty:
-            rows.append({
-                "dataset_key": dataset_key,
-                "commodity": commodity,
-                "target_key": target_key,
-                "baseline_name": baseline_name,
-                "n_rows": 0,
-                "rmse": np.nan,
-                "mae": np.nan,
-                "directional_accuracy": np.nan,
-            })
+            rows.append(
+                {
+                    "dataset_key": dataset_key,
+                    "commodity": commodity,
+                    "target_key": target_key,
+                    "baseline_name": baseline_name,
+                    "n_rows": 0,
+                    "rmse": np.nan,
+                    "mae": np.nan,
+                    "directional_accuracy": np.nan,
+                }
+            )
             continue
         residual = valid["target_value"].astype(float) - valid[column].astype(float)
         actual_sign = np.sign(valid["target_value"].astype(float))
         pred_sign = np.sign(valid[column].astype(float))
-        rows.append({
-            "dataset_key": dataset_key,
-            "commodity": commodity,
-            "target_key": target_key,
-            "baseline_name": baseline_name,
-            "n_rows": int(len(valid)),
-            "rmse": float(np.sqrt((residual ** 2).mean())),
-            "mae": float(residual.abs().mean()),
-            "directional_accuracy": float((actual_sign == pred_sign).mean()),
-        })
+        rows.append(
+            {
+                "dataset_key": dataset_key,
+                "commodity": commodity,
+                "target_key": target_key,
+                "baseline_name": baseline_name,
+                "n_rows": int(len(valid)),
+                "rmse": float(np.sqrt((residual**2).mean())),
+                "mae": float(residual.abs().mean()),
+                "directional_accuracy": float((actual_sign == pred_sign).mean()),
+            }
+        )
     return pd.DataFrame(rows)

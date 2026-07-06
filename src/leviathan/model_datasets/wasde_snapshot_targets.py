@@ -1,4 +1,5 @@
 """Build point-in-time WASDE snapshot target rows."""
+
 from __future__ import annotations
 
 import re
@@ -14,89 +15,21 @@ from leviathan.model_datasets.psd_targets import (
     PSDMetricTargetConfig,
     load_psd_metric_targets,
 )
+from leviathan.model_datasets.schema_columns import (
+    WASDE_SNAPSHOT_GROUP_KEY as GROUP_KEY,
+)
+from leviathan.model_datasets.schema_columns import (
+    WASDE_SNAPSHOT_NATURAL_KEY as NATURAL_KEY,
+)
+from leviathan.model_datasets.schema_columns import (
+    WASDE_SNAPSHOT_TARGET_COLUMNS,
+)
 from leviathan.model_datasets.wasde_snapshot_mapping import (
     WasdeSnapshotMappingConfig,
     WasdeSnapshotSurface,
     load_wasde_snapshot_mappings,
     normalize_wasde_token,
 )
-
-WASDE_SNAPSHOT_TARGET_COLUMNS = [
-    "source_dataset_version",
-    "dataset_key",
-    "contract_key",
-    "commodity",
-    "commodity_group",
-    "origin",
-    "origin_key",
-    "target_market_year",
-    "crop_year",
-    "target_key",
-    "target_family",
-    "target_attribute",
-    "target_source",
-    "target_value",
-    "target_anomaly_pct",
-    "actual_value",
-    "trend_prediction",
-    "prior_year_value",
-    "trailing_mean_prediction",
-    "zero_anomaly_baseline",
-    "prior_year_anomaly_baseline",
-    "trailing_mean_anomaly_baseline",
-    "trailing_trend_anomaly_baseline",
-    "history_years",
-    "target_available",
-    "target_observation_release_date",
-    "target_source_vintage",
-    "as_of_date",
-    "snapshot_stage",
-    "snapshot_month_code",
-    "snapshot_policy",
-    "snapshot_sequence",
-    "snapshot_count",
-    "target_event_label",
-    "target_event_threshold",
-    "target_event_threshold_type",
-    "target_event_direction",
-    "target_event_definition",
-    "sample_weight",
-    "cv_group",
-    "cv_time",
-    "is_trainable",
-    "excluded_reason",
-    "snapshot_available",
-    "mapping_confidence",
-    "target_status",
-    "psd_source_slug",
-    "psd_commodity",
-    "psd_country",
-    "origin_role",
-    "wasde_commodity",
-    "wasde_origin",
-    "wasde_region",
-    "wasde_release_count_for_group",
-    "psd_mapping_sha",
-    "wasde_mapping_sha",
-]
-
-NATURAL_KEY = [
-    "dataset_key",
-    "contract_key",
-    "origin_key",
-    "target_market_year",
-    "target_key",
-    "as_of_date",
-    "snapshot_stage",
-]
-
-GROUP_KEY = [
-    "dataset_key",
-    "contract_key",
-    "origin_key",
-    "target_market_year",
-    "target_key",
-]
 
 SNAPSHOT_POLICY = "wasde_release_month_v1"
 
@@ -248,14 +181,16 @@ def _snapshot_keys_for_specs(
                 "wasde_region",
             ]
         )
-    allowed = pd.DataFrame([
-        {
-            "contract_key": spec.contract_key,
-            "wasde_commodity": spec.wasde_commodity,
-            "wasde_origin": spec.origin_key,
-        }
-        for spec in specs
-    ]).drop_duplicates()
+    allowed = pd.DataFrame(
+        [
+            {
+                "contract_key": spec.contract_key,
+                "wasde_commodity": spec.wasde_commodity,
+                "wasde_origin": spec.origin_key,
+            }
+            for spec in specs
+        ]
+    ).drop_duplicates()
     matched = source.merge(
         allowed,
         on=["wasde_commodity", "wasde_origin"],
@@ -274,29 +209,34 @@ def _snapshot_keys_for_specs(
         )
     keys = (
         matched.rename(columns={"release_date": "as_of_date"})
-        .sort_values([
-            "contract_key",
-            "wasde_commodity",
-            "wasde_origin",
-            "target_market_year",
-            "as_of_date",
-            "wasde_region",
-        ])
-        .drop_duplicates([
-            "contract_key",
-            "wasde_commodity",
-            "wasde_origin",
-            "target_market_year",
-            "as_of_date",
-        ])
-        [[
-            "contract_key",
-            "wasde_commodity",
-            "wasde_origin",
-            "target_market_year",
-            "as_of_date",
-            "wasde_region",
-        ]]
+        .sort_values(
+            [
+                "contract_key",
+                "wasde_commodity",
+                "wasde_origin",
+                "target_market_year",
+                "as_of_date",
+                "wasde_region",
+            ]
+        )
+        .drop_duplicates(
+            [
+                "contract_key",
+                "wasde_commodity",
+                "wasde_origin",
+                "target_market_year",
+                "as_of_date",
+            ]
+        )[
+            [
+                "contract_key",
+                "wasde_commodity",
+                "wasde_origin",
+                "target_market_year",
+                "as_of_date",
+                "wasde_region",
+            ]
+        ]
         .reset_index(drop=True)
     )
     return keys
@@ -328,12 +268,17 @@ def _event_threshold(
             threshold = float(prior.abs().quantile(0.80))
     else:
         raise ValueError(
-            "target_event_threshold_type must be one of "
-            "fixed_5pct, fixed_10pct, history_quintile"
+            "target_event_threshold_type must be one of fixed_5pct, fixed_10pct, history_quintile"
         )
 
     if direction == "lower_is_stress":
-        return threshold, bool(value <= -threshold if threshold_type.startswith("fixed_") else value <= threshold), ""
+        return (
+            threshold,
+            bool(
+                value <= -threshold if threshold_type.startswith("fixed_") else value <= threshold
+            ),
+            "",
+        )
     if direction == "higher_is_stress":
         return threshold, bool(value >= threshold), ""
     if direction == "two_sided":
@@ -352,8 +297,7 @@ def build_event_labels(
         return targets.copy()
     out = targets.copy()
     metric_direction = {
-        key: metric.stress_event_direction
-        for key, metric in psd_config.metrics.items()
+        key: metric.stress_event_direction for key, metric in psd_config.metrics.items()
     }
     out["target_event_direction"] = out["target_key"].map(metric_direction).fillna("")
     out["target_event_threshold_type"] = target_event_threshold_type
@@ -382,8 +326,7 @@ def build_event_labels(
         if label is not None:
             out.at[idx, "target_event_label"] = bool(label)
             out.at[idx, "target_event_definition"] = (
-                f"{row['target_key']} {row['target_event_direction']} "
-                f"{target_event_threshold_type}"
+                f"{row['target_key']} {row['target_event_direction']} {target_event_threshold_type}"
             )
         else:
             out.at[idx, "target_event_definition"] = reason
@@ -405,30 +348,32 @@ def _metadata_rows_for_specs(
         mapping = spec.psd_mapping
         for target_key in mapping.allowed_targets:
             metric = psd_config.metrics[target_key]
-            rows.append({
-                "source_dataset_version": source_dataset_version,
-                "dataset_key": dataset_key,
-                "contract_key": spec.contract_key,
-                "commodity": spec.contract_key,
-                "commodity_group": commodity_group,
-                "origin": spec.origin_key,
-                "origin_key": spec.origin_key,
-                "target_key": target_key,
-                "target_title": metric_titles.get(target_key, target_key),
-                "target_family": metric.target_family,
-                "target_attribute": metric.psd_attribute,
-                "target_source": "psd",
-                "target_status": mapping.target_status,
-                "mapping_confidence": mapping.mapping_confidence,
-                "psd_source_slug": mapping.psd_source_slug,
-                "psd_commodity": mapping.psd_commodity,
-                "psd_country": spec.psd_country,
-                "origin_role": spec.origin_role,
-                "wasde_commodity": spec.wasde_commodity,
-                "wasde_origin": spec.origin_key,
-                "psd_mapping_sha": psd_config.config_sha,
-                "wasde_mapping_sha": mapping_config.config_sha,
-            })
+            rows.append(
+                {
+                    "source_dataset_version": source_dataset_version,
+                    "dataset_key": dataset_key,
+                    "contract_key": spec.contract_key,
+                    "commodity": spec.contract_key,
+                    "commodity_group": commodity_group,
+                    "origin": spec.origin_key,
+                    "origin_key": spec.origin_key,
+                    "target_key": target_key,
+                    "target_title": metric_titles.get(target_key, target_key),
+                    "target_family": metric.target_family,
+                    "target_attribute": metric.psd_attribute,
+                    "target_source": "psd",
+                    "target_status": mapping.target_status,
+                    "mapping_confidence": mapping.mapping_confidence,
+                    "psd_source_slug": mapping.psd_source_slug,
+                    "psd_commodity": mapping.psd_commodity,
+                    "psd_country": spec.psd_country,
+                    "origin_role": spec.origin_role,
+                    "wasde_commodity": spec.wasde_commodity,
+                    "wasde_origin": spec.origin_key,
+                    "psd_mapping_sha": psd_config.config_sha,
+                    "wasde_mapping_sha": mapping_config.config_sha,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -512,12 +457,11 @@ def expand_psd_targets_to_wasde_snapshots(
     joined["target_available"] = joined["actual_value"].notna()
     joined["snapshot_available"] = joined["as_of_date"].notna()
     metric_direction = {
-        key: metric.stress_event_direction
-        for key, metric in psd_config.metrics.items()
+        key: metric.stress_event_direction for key, metric in psd_config.metrics.items()
     }
-    joined["target_event_threshold_type"] = joined[
-        "target_event_threshold_type"
-    ].fillna(target_event_threshold_type)
+    joined["target_event_threshold_type"] = joined["target_event_threshold_type"].fillna(
+        target_event_threshold_type
+    )
     joined["target_event_direction"] = joined["target_event_direction"].fillna(
         joined["target_key"].map(metric_direction)
     )
@@ -552,9 +496,7 @@ def expand_psd_targets_to_wasde_snapshots(
     joined.loc[missing_target, "excluded_reason"] = "missing_target"
     joined["is_trainable"] = target_is_trainable & joined["snapshot_available"] & ~missing_target
 
-    return validate_snapshot_target_rows(
-        joined.reindex(columns=WASDE_SNAPSHOT_TARGET_COLUMNS)
-    )
+    return validate_snapshot_target_rows(joined.reindex(columns=WASDE_SNAPSHOT_TARGET_COLUMNS))
 
 
 def build_wasde_snapshot_target_rows(

@@ -1,4 +1,5 @@
 """Build semantic catalog and feature coverage maps for a gold dataset version."""
+
 from __future__ import annotations
 
 import argparse
@@ -23,7 +24,7 @@ from leviathan.features.semantic_catalog import (
     load_feature_groups,
     load_taxonomy,
 )
-from leviathan.features.spine import load_countries
+from leviathan.features.spine import SPINE_COLUMNS, load_countries
 from leviathan.storage.paths import (
     gold_feature_catalog_version_key,
     gold_feature_entity_map_version_key,
@@ -34,8 +35,6 @@ from leviathan.storage.paths import (
 from leviathan.storage.s3 import get_thread_local_s3_client
 
 logger = get_logger("feature_catalog_task")
-
-SPINE_COLUMNS = ["country", "crop_year", "feature", "value", "is_label", "event_time"]
 
 
 def _git_sha() -> str:
@@ -149,8 +148,7 @@ def _catalog_summary(
             (catalog_df["semantic_scope"] == "unknown_review_required").sum()
         ),
         "policy_counts": {
-            str(k): int(v)
-            for k, v in catalog_df["policy"].value_counts().sort_index().items()
+            str(k): int(v) for k, v in catalog_df["policy"].value_counts().sort_index().items()
         },
         "semantic_scope_counts": {
             str(k): int(v)
@@ -161,8 +159,7 @@ def _catalog_summary(
             for k, v in catalog_df["feature_family"].value_counts().sort_index().items()
         },
         "group_counts": {
-            str(k): int(v)
-            for k, v in group_map_df["group"].value_counts().sort_index().items()
+            str(k): int(v) for k, v in group_map_df["group"].value_counts().sort_index().items()
         },
     }
 
@@ -218,9 +215,11 @@ def build_and_write(args: argparse.Namespace) -> dict:
         raise ValueError("feature entity map is empty")
     if group_map_df.empty:
         raise ValueError("feature group map is empty")
-    if catalog_df.loc[catalog_df["feature"].str.startswith("cot_"), "policy"].ne(
-        "diagnostic_only"
-    ).any():
+    if (
+        catalog_df.loc[catalog_df["feature"].str.startswith("cot_"), "policy"]
+        .ne("diagnostic_only")
+        .any()
+    ):
         raise ValueError("COT features must be diagnostic_only")
 
     output_keys = {

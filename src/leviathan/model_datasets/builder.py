@@ -1,4 +1,5 @@
 """Build model-ready target tables and matrices from gold feature matrices."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,32 +9,11 @@ import pandas as pd
 
 from leviathan.features.feature_sets import selected_features_for_set
 from leviathan.model_datasets.baselines import (
-    TARGET_COLUMNS,
     build_trailing_anomaly_targets,
     compute_baseline_metrics,
 )
+from leviathan.model_datasets.schema_columns import MATRIX_ID_COLUMNS, TARGET_COLUMNS
 from leviathan.model_datasets.targets import TargetDefinition
-
-MATRIX_ID_COLUMNS = [
-    "source_dataset_version",
-    "dataset_key",
-    "commodity",
-    "target_key",
-    "country",
-    "crop_year",
-    "target_value",
-    "actual_value",
-    "trend_prediction",
-    "prior_year_value",
-    "trailing_mean_prediction",
-    "zero_anomaly_baseline",
-    "prior_year_anomaly_baseline",
-    "trailing_mean_anomaly_baseline",
-    "trailing_trend_anomaly_baseline",
-    "history_years",
-    "is_trainable",
-    "excluded_reason",
-]
 
 
 @dataclass(frozen=True)
@@ -82,9 +62,11 @@ def _matrix_for_target(
         how="left",
         validate="one_to_one",
     )
-    return merged[MATRIX_ID_COLUMNS + feature_cols].sort_values(
-        ["country", "crop_year"]
-    ).reset_index(drop=True)
+    return (
+        merged[MATRIX_ID_COLUMNS + feature_cols]
+        .sort_values(["country", "crop_year"])
+        .reset_index(drop=True)
+    )
 
 
 def build_commodity_model_datasets(
@@ -105,22 +87,26 @@ def build_commodity_model_datasets(
         if not definition.allows_commodity(commodity):
             continue
         if definition.label_column not in matrix.columns:
-            summaries.append({
-                "commodity": commodity,
-                "dataset_key": definition.dataset_key,
-                "target_key": definition.target_key,
-                "status": "skipped_missing_label",
-                "label_column": definition.label_column,
-            })
+            summaries.append(
+                {
+                    "commodity": commodity,
+                    "dataset_key": definition.dataset_key,
+                    "target_key": definition.target_key,
+                    "status": "skipped_missing_label",
+                    "label_column": definition.label_column,
+                }
+            )
             continue
         if matrix[definition.label_column].notna().sum() == 0:
-            summaries.append({
-                "commodity": commodity,
-                "dataset_key": definition.dataset_key,
-                "target_key": definition.target_key,
-                "status": "skipped_empty_label",
-                "label_column": definition.label_column,
-            })
+            summaries.append(
+                {
+                    "commodity": commodity,
+                    "dataset_key": definition.dataset_key,
+                    "target_key": definition.target_key,
+                    "status": "skipped_empty_label",
+                    "label_column": definition.label_column,
+                }
+            )
             continue
 
         target_df = _target_builder(
@@ -145,19 +131,21 @@ def build_commodity_model_datasets(
         matrices[(definition.dataset_key, definition.target_key)] = model_df
         metrics_frames.append(baseline_metrics)
         trainable_rows = int(target_df["is_trainable"].fillna(False).astype(bool).sum())
-        summaries.append({
-            "commodity": commodity,
-            "dataset_key": definition.dataset_key,
-            "target_key": definition.target_key,
-            "status": "built",
-            "row_count": int(len(target_df)),
-            "trainable_row_count": trainable_rows,
-            "feature_count": int(len(feature_cols)),
-            "label_column": definition.label_column,
-            "target_type": definition.target_type,
-            "min_history_years": int(definition.min_history_years),
-            "compatible_feature_sets": list(definition.compatible_feature_sets),
-        })
+        summaries.append(
+            {
+                "commodity": commodity,
+                "dataset_key": definition.dataset_key,
+                "target_key": definition.target_key,
+                "status": "built",
+                "row_count": int(len(target_df)),
+                "trainable_row_count": trainable_rows,
+                "feature_count": int(len(feature_cols)),
+                "label_column": definition.label_column,
+                "target_type": definition.target_type,
+                "min_history_years": int(definition.min_history_years),
+                "compatible_feature_sets": list(definition.compatible_feature_sets),
+            }
+        )
 
     target_tables = {
         dataset_key: pd.concat(frames, ignore_index=True)[TARGET_COLUMNS]
@@ -165,7 +153,8 @@ def build_commodity_model_datasets(
     }
     baseline_metrics = (
         pd.concat(metrics_frames, ignore_index=True)
-        if metrics_frames else pd.DataFrame(
+        if metrics_frames
+        else pd.DataFrame(
             columns=[
                 "dataset_key",
                 "commodity",
