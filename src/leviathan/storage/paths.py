@@ -1365,20 +1365,6 @@ def silver_psd_key() -> str:
     return "silver/psd/part-000.parquet"
 
 
-def bronze_fgis_key(year: int) -> str:
-    """S3 key for a USDA FGIS Export Inspections bronze Parquet (one calendar year).
-
-    Args:
-        year: Calendar year, e.g. ``2024``.
-    """
-    return (
-        f"bronze/production/"
-        f"source=usda_fgis_export_inspections/"
-        f"year={year}/"
-        f"part-000.parquet"
-    )
-
-
 def bronze_pink_sheet_key(release_ym: str) -> str:
     """S3 key for a World Bank Pink Sheet bronze Parquet (one monthly release).
 

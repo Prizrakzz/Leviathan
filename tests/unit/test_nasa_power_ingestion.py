@@ -64,11 +64,17 @@ class TestFetchNasaPowerDaily:
             fetch_nasa_power_daily(**_DEFAULT_KWARGS)
 
         args, kwargs = mock_get.call_args
-        assert args[0] == _BASE_URL or kwargs.get("url") == _BASE_URL or True
-        call_kwargs = mock_get.call_args[1] if mock_get.call_args[1] else {}
-        # params dict should contain lat/lon
-        params = call_kwargs.get("params", mock_get.call_args[0][1] if len(mock_get.call_args[0]) > 1 else {})
-        assert params.get("latitude") == 7.5 or params.get("lat") == 7.5 or True
+        assert args == (_BASE_URL,)
+        assert kwargs["timeout"] == 60
+        assert kwargs["params"] == {
+            "parameters": "T2M,PRECTOTCORR",
+            "community": "AG",
+            "longitude": -1.2,
+            "latitude": 7.5,
+            "start": "20200101",
+            "end": "20200103",
+            "format": "JSON",
+        }
 
     def test_raises_on_persistent_http_error(self):
         """tenacity wraps unhandled errors in RetryError after all attempts."""

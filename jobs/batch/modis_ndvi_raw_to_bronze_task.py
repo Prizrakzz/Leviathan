@@ -30,7 +30,7 @@ import pandas as pd
 import yaml
 
 from leviathan.common.logging import get_logger
-from leviathan.storage.paths import bronze_modis_ndvi_key, raw_modis_ndvi_key
+from leviathan.storage.paths import bronze_modis_ndvi_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.raw_to_bronze.modis_ndvi import parse_appeears_csv
 

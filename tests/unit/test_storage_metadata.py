@@ -28,7 +28,7 @@ class TestUtcNowIso:
         a = utc_now_iso()
         time.sleep(0.01)
         b = utc_now_iso()
-        assert a != b or True  # always pass — just validate no exception
+        assert datetime.fromisoformat(b) > datetime.fromisoformat(a)
 
 
 class TestWriteJsonMetadata:
