@@ -11,6 +11,7 @@ module.exports = {
   ignorePatterns: [
     'dist',
     'dist-mock',
+    'dist-prod',
     'storybook-static',
     'playwright-report',
     'node_modules',

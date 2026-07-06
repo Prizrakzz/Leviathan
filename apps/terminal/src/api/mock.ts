@@ -379,9 +379,12 @@ export function mockThreadTurns(threadId: string): Schemas['ThreadTurns'] {
       {
         question: 'KC frost 2021 — what happened to the convexity setup?',
         answer: 'TL;DR — ' + (r.structured?.tldr ?? '') + '\n\nWhy — ' + (r.structured?.mechanism ?? ''),
-        structured: { tldr: r.structured?.tldr, mechanism: r.structured?.mechanism },
+        // Carry structured.sources + the citation pointers so the durable turn RESOLVES its [n] chips —
+        // a real durable turn does. With empty sources the chips never rendered, which is exactly why the
+        // PastTurn "Tooltip must be used within TooltipProvider" throw stayed latent through every test (S2.2).
+        structured: { tldr: r.structured?.tldr, mechanism: r.structured?.mechanism, sources: r.structured?.sources },
         asof: '2021-07-20',
-        sources: [],
+        sources: (r.citations ?? []) as { [key: string]: unknown }[],
         graph_version: '3a69acfb87c5',
         contracts: ['arabica_coffee'],
         intent: 'hybrid',

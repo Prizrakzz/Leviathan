@@ -1,3 +1,4 @@
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { getGraph, getThreadTurns, suggest } from '@/api/client';
@@ -51,6 +52,13 @@ const mapErrorFallback = (
     </button>
   </div>
 );
+// S2.2: a single turn/drawer/chip throwing must degrade LOCALLY, never blank the whole terminal — the root
+// boundary is the last resort, not the first (a PastTurn tooltip throw took the whole app down).
+const pastTurnErrorFallback = (
+  <div className="border-b border-line pb-4 font-mono text-11 text-text-faint">
+    ▸ (this turn couldn’t be displayed)
+  </div>
+);
 // INTEGRITY strip is an eval/log signal, not user-facing (6.1); show it only in debug (localStorage lv-debug=1).
 const SHOW_INTEGRITY = typeof localStorage !== 'undefined' && localStorage.getItem('lv-debug') === '1';
 
@@ -58,32 +66,38 @@ const SHOW_INTEGRITY = typeof localStorage !== 'undefined' && localStorage.getIt
  *  the persisted `structured` (backend-sanitized in 6.1, so clean prose — no raw markup or internal ids).
  *  6.4: chips HOVER their official name + durable snippet via the durable resolved map (structured.sources
  *  + citation locator snippet); click is a noop on past turns (the receipts drawer is a live-turn surface). */
-function PastTurn({ t }: { t: TurnRecord }) {
+export function PastTurn({ t }: { t: TurnRecord }) {
   const s = (t.structured ?? null) as { tldr?: string; mechanism?: string } | null;
   const tldr = s?.tldr ?? '';
   const mechanism = s?.mechanism ?? '';
   const legacy = !tldr && !mechanism ? (t.answer ?? '') : '';
   const resolved = resolvedFor(t as Parameters<typeof resolvedFor>[0]);
   return (
-    <div className="border-b border-line pb-4" data-testid="past-turn">
-      <div className="font-mono text-12 text-cyan">▸ {t.question}</div>
-      {tldr && (
-        <p className="mt-2 font-sans text-14 font-semibold leading-snug text-text">
-          {renderInline(tldr, resolved, noop)}
-        </p>
-      )}
-      {mechanism && (
-        <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-          <FormattedNote text={mechanism} resolved={resolved} onOpen={noop} />
-        </div>
-      )}
-      {legacy && (
-        <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-          <FormattedNote text={legacy} resolved={resolved} onOpen={noop} />
-        </div>
-      )}
-      {t.asof && <div className="mt-1 font-mono text-11 text-text-faint">as of {t.asof}</div>}
-    </div>
+    // A durable turn's tldr/mechanism can contain resolved [n] chips, and CitationChip renders a Radix
+    // Tooltip — which THROWS ("must be used within TooltipProvider") without a provider ancestor. The live
+    // Note has its own provider; a past turn needs its own too, else the throw (outside the answer boundary)
+    // blanks the whole terminal. The mock fixture had empty sources → no chips → this stayed latent (S2.2).
+    <Tooltip.Provider delayDuration={150}>
+      <div className="border-b border-line pb-4" data-testid="past-turn">
+        <div className="font-mono text-12 text-cyan">▸ {t.question}</div>
+        {tldr && (
+          <p className="mt-2 font-sans text-14 font-semibold leading-snug text-text">
+            {renderInline(tldr, resolved, noop)}
+          </p>
+        )}
+        {mechanism && (
+          <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
+            <FormattedNote text={mechanism} resolved={resolved} onOpen={noop} />
+          </div>
+        )}
+        {legacy && (
+          <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
+            <FormattedNote text={legacy} resolved={resolved} onOpen={noop} />
+          </div>
+        )}
+        {t.asof && <div className="mt-1 font-mono text-11 text-text-faint">as of {t.asof}</div>}
+      </div>
+    </Tooltip.Provider>
   );
 }
 
@@ -180,7 +194,9 @@ export function AnswerView({
     <div className="flex h-full min-h-0 flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-auto p-4" data-testid="conversation">
         {past.map((t, i) => (
-          <PastTurn key={t.ts ?? i} t={t} />
+          <ErrorBoundary key={t.ts ?? i} fallback={pastTurnErrorFallback} resetKeys={[t.ts ?? i]}>
+            <PastTurn t={t} />
+          </ErrorBoundary>
         ))}
 
         {showLive && (
@@ -267,23 +283,27 @@ export function AnswerView({
         )}
 
         {turn.status !== 'streaming' && (
-          <SuggestionChips items={suggestQ.data?.suggestions ?? []} onAsk={onAsk} />
+          <ErrorBoundary fallback={null} resetKeys={[suggestKey]}>
+            <SuggestionChips items={suggestQ.data?.suggestions ?? []} onAsk={onAsk} />
+          </ErrorBoundary>
         )}
       </div>
 
       <Composer onSubmit={onAsk} streaming={turn.status === 'streaming'} autoFocus={false} />
 
       {r && (
-        <ReceiptsDrawer
-          result={r}
-          open={receiptsOpen}
-          onClose={() => {
-            setReceipts(false);
-            setPinnedRef(null);
-          }}
-          pinnedRef={pinnedRef}
-          onClearPin={() => setPinnedRef(null)}
-        />
+        <ErrorBoundary fallback={null} resetKeys={[question, asof]}>
+          <ReceiptsDrawer
+            result={r}
+            open={receiptsOpen}
+            onClose={() => {
+              setReceipts(false);
+              setPinnedRef(null);
+            }}
+            pinnedRef={pinnedRef}
+            onClearPin={() => setPinnedRef(null)}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );
