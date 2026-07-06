@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import type { StampedStage } from '@/api/useTurn';
 
 const ROWS: { key: string; label: string }[] = [
@@ -50,13 +50,17 @@ export function Pipeline({ stages, done }: { stages: StampedStage[]; done: boole
     return () => clearInterval(id);
   }, [done]);
 
-  const latest = new Map<string, StampedStage>();
-  const firstTs = new Map<string, number>();
-  for (const s of stages) {
-    latest.set(s.stage, s);
-    if (!firstTs.has(s.stage)) firstTs.set(s.stage, s.ts);
-  }
-  const lastTsOverall = stages.length ? stages[stages.length - 1]!.ts : 0;
+  // Derived maps depend only on `stages` — memoize so the 1s elapsed-tick and per-token parent re-renders
+  // don't rebuild them every frame (audit 5.7).
+  const { latest, firstTs, lastTsOverall } = useMemo(() => {
+    const latest = new Map<string, StampedStage>();
+    const firstTs = new Map<string, number>();
+    for (const s of stages) {
+      latest.set(s.stage, s);
+      if (!firstTs.has(s.stage)) firstTs.set(s.stage, s.ts);
+    }
+    return { latest, firstTs, lastTsOverall: stages.length ? stages[stages.length - 1]!.ts : 0 };
+  }, [stages]);
 
   // Elapsed per row ≈ from its first event to the NEXT seen row's first event (or now / stream end).
   // Numbers runs in parallel with the walk, so its span can overlap others — cosmetic, and honest.

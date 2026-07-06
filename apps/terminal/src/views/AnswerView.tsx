@@ -106,7 +106,7 @@ export function AnswerView({
     <div className="flex h-full min-h-0 flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-auto p-4" data-testid="conversation">
         {past.map((t, i) => (
-          <PastTurn key={i} t={t} />
+          <PastTurn key={t.ts ?? i} t={t} />
         ))}
 
         {showLive && (

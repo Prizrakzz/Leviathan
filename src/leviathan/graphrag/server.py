@@ -152,11 +152,6 @@ def _require_identity_quota(authorization: Optional[str] = Header(None)) -> dict
     return ident
 
 
-def _require_user_quota(authorization: Optional[str] = Header(None)) -> str:
-    """Subject-only view of `_require_identity_quota` (kept for callers that only need the user id)."""
-    return _require_identity_quota(authorization)["sub"]
-
-
 def _turn_record(result: dict) -> dict:
     """A PIT-safe durable turn from a respond() result: the synthesized answer + citation REFS + the
     as-of/graph it was made under. NEVER the retrieved evidence, raw number rows, or trace (which embeds
@@ -286,8 +281,8 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
             try:
                 result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
                                       on_stage=on_stage)
-                _save_turn(ident, session_id, result)     # durable per-thread history (PIT-safe, fail-open)
-                out.put(("result", result))
+                out.put(("result", result))               # deliver the note FIRST — the user isn't waiting on persistence
+                _save_turn(ident, session_id, result)     # then durable per-thread history (PIT-safe, fail-open, off the perceived path)
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces
                 out.put(("error", {"error": f"{type(e).__name__}: {str(e)[:200]}"}))
 

@@ -13,6 +13,7 @@ export function useTypewriter(draft: string, status: TurnStatus): { shown: strin
   const [shownLen, setShownLen] = useState(0);
   const [settled, setSettled] = useState(false);
   const raf = useRef<number | null>(null);
+  const shownRef = useRef(0); // authoritative cursor; state mirrors it for rendering
   const state = useRef({ draftLen: 0, done: false });
   state.current.draftLen = draft.length;
   state.current.done = status !== 'streaming';
@@ -20,6 +21,7 @@ export function useTypewriter(draft: string, status: TurnStatus): { shown: strin
   // A new turn (draft reset to empty) rewinds the cursor.
   useEffect(() => {
     if (draft.length === 0) {
+      shownRef.current = 0;
       setShownLen(0);
       setSettled(false);
     }
@@ -30,12 +32,19 @@ export function useTypewriter(draft: string, status: TurnStatus): { shown: strin
     let cancelled = false;
     const tick = () => {
       if (cancelled) return;
-      setShownLen((n) => {
-        const backlog = state.current.draftLen - n;
-        if (backlog <= 0) return n;
+      const backlog = state.current.draftLen - shownRef.current;
+      if (backlog <= 0) {
+        // Caught up. While streaming, keep polling (more tokens may arrive). Once the turn is DONE and
+        // fully revealed, STOP scheduling — otherwise the rAF spins a no-op setState forever (audit 5.7).
+        if (state.current.done) return;
+      } else {
         const base = Math.max(2, Math.ceil(backlog / 30));
-        return n + (state.current.done ? base * 5 : base);
-      });
+        shownRef.current = Math.min(
+          shownRef.current + (state.current.done ? base * 5 : base),
+          state.current.draftLen,
+        );
+        setShownLen(shownRef.current);
+      }
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
