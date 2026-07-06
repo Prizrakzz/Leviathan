@@ -1617,7 +1617,7 @@ bulletins:
     idm: "pdf_1d690a255b9a6da0d4412988394cdf6d"
     bulletin_num: None
     published_ym: "2023/03"
-    pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2023/03/1d690a255b9a6da0d4412988394cdf6d.pdf?utm_source=chatgpt.com'
+    pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2023/03/1d690a255b9a6da0d4412988394cdf6d.pdf'
     download_url: null
   - harvest_year: "2022/2023"
     idm: "pdf_53c6f39ee1652917a1ee0e8768602ec1"
@@ -1707,7 +1707,7 @@ bulletins:
     idm: "pdf_14d900986abb3b7537a661e79675dcd7"
     bulletin_num: None
     published_ym: "2025/03"
-    pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/03/14d900986abb3b7537a661e79675dcd7.pdf?utm_source=chatgpt.com'
+    pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2025/03/14d900986abb3b7537a661e79675dcd7.pdf'
     download_url: null
   - harvest_year: "2025/2026"
     idm: "pdf_8a21f3f937f7cd02b6ca133a3258abc8"

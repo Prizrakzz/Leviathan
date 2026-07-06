@@ -1,0 +1,138 @@
+{
+  "date": "2026-07-06",
+  "phase": "phase_1_baseline_inventory_and_quality_gates",
+  "workspace": "C:\\Users\\User\\Desktop\\Leviathan",
+  "git": {
+    "branch_summary": "main...origin/main [ahead 6, behind 72]",
+    "head": "ed901850f36804154dab3182a3ae2e5382a16b06",
+    "modified_entries": 71,
+    "deleted_entries": 1,
+    "untracked_status_entries": 100,
+    "total_porcelain_entries": 172,
+    "changed_tracked_files": 72,
+    "untracked_files": 474
+  },
+  "file_inventory": {
+    "repo_total": 7870,
+    "src": 228,
+    "jobs": 167,
+    "tests": 167,
+    "tests_unit_py_files": 155,
+    "apps_terminal_src": 102,
+    "infra": 57,
+    "sql": 60,
+    "configs": 145,
+    "docs": 45
+  },
+  "static_signal_counts": {
+    "weak_types": 908,
+    "broad_errors": 1992,
+    "legacy_markers": 1374,
+    "type_defs": 230
+  },
+  "read_only_exclusions": {
+    "policy": "GraphRAG files and AI-agent work areas are read-only for cleanup. They may be counted and reported but must not be edited, formatted, deleted, moved, or auto-fixed.",
+    "paths": [
+      "src/leviathan/graphrag/**",
+      "configs/graphrag/**",
+      "jobs/submit/submit_eval.py",
+      "jobs/utils/load_pg_evidence.py",
+      "jobs/utils/load_pg_numbers.py",
+      "jobs/submit/submit_batch_load_numbers_pg.py",
+      "jobs/batch/build_evidence_task.py",
+      "tests/unit/test_answer.py",
+      "tests/unit/test_citations.py",
+      "tests/unit/test_numbers_query.py",
+      "tests/unit/test_providers.py",
+      "tests/unit/test_serving_latency.py",
+      "tests/unit/test_register.py",
+      "tests/unit/test_store.py",
+      "tests/unit/test_display.py",
+      "tests/unit/test_emf.py",
+      "tests/unit/test_geo_routing.py",
+      "tests/unit/test_geography.py",
+      "tests/unit/test_hf_cache.py",
+      "tests/unit/test_suggest.py",
+      "tests/unit/test_ux56.py",
+      ".claude/**",
+      ".kiro/**"
+    ]
+  },
+  "cleanup_eligible_file_inventory": {
+    "src": 169,
+    "jobs": 162,
+    "tests": 153,
+    "apps_terminal_src": 102,
+    "configs": 145,
+    "docs": 48,
+    "sql": 60,
+    "infra": 57
+  },
+  "cleanup_eligible_static_signal_counts": {
+    "weak_types": 590,
+    "broad_errors": 1247,
+    "legacy_markers": 1192,
+    "type_defs": 165
+  },
+  "python_quality_gates": {
+    "ruff": {
+      "command": ".\\.venv\\Scripts\\python.exe -m ruff check src jobs tests",
+      "status": "failed",
+      "errors": 126,
+      "fixable": 123,
+      "notable_failure": "invalid syntax in jobs/ingest/discover_unica_wayback.py"
+    },
+    "mypy": {
+      "command": ".\\.venv\\Scripts\\python.exe -m mypy src",
+      "status": "failed",
+      "errors": 656,
+      "files_with_errors": 96,
+      "files_checked": 223,
+      "notable_failure": "pyproject mypy python_version is 3.9, unsupported by installed mypy; must be 3.10+"
+    },
+    "pytest": {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests",
+      "status": "failed_collection",
+      "items_collected_before_interruption": 1783,
+      "collection_errors": 2,
+      "notable_failure": "ModuleNotFoundError: No module named 'anthropic'"
+    }
+  },
+  "terminal_quality_gates": {
+    "typecheck": {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    "lint": {
+      "command": "npm run lint",
+      "status": "passed"
+    },
+    "test": {
+      "command": "npm run test",
+      "status": "passed",
+      "test_files_passed": 23,
+      "tests_passed": 80,
+      "duration_seconds": 155.2
+    },
+    "build": {
+      "command": "npm run build",
+      "status": "passed",
+      "duration_seconds": 82
+    }
+  },
+  "tool_availability": {
+    "python": {
+      "vulture": "installed 2.16",
+      "deptry": "missing",
+      "grimp": "missing",
+      "pydeps": "missing"
+    },
+    "terminal": {
+      "knip": "not installed as project dependency",
+      "madge": "not installed as project dependency",
+      "jscpd": "not installed as project dependency"
+    }
+  },
+  "phase_1_status": "complete",
+  "next_step": "complete phase 0 readiness before subagent research or cleanup edits"
+}

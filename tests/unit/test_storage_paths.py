@@ -1,7 +1,11 @@
 """Unit tests for leviathan.storage.paths."""
 from __future__ import annotations
 
+import inspect
+
+import leviathan.storage.paths as storage_paths
 from leviathan.storage.paths import (
+    bronze_fgis_key,
     bronze_production_key,
     bronze_weather_key,
     gold_feature_catalog_version_key,
@@ -31,6 +35,20 @@ from leviathan.storage.paths import (
     silver_production_key,
     silver_weather_key,
 )
+
+
+def test_bronze_fgis_key_has_single_definition() -> None:
+    source = inspect.getsource(storage_paths)
+    assert source.count("\ndef bronze_fgis_key(") == 1
+
+
+def test_bronze_fgis_key_format() -> None:
+    assert bronze_fgis_key(2024) == (
+        "bronze/production/"
+        "source=usda_fgis_export_inspections/"
+        "year=2024/"
+        "part-000.parquet"
+    )
 
 
 class TestRawCpcTifKey:
