@@ -1,12 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import * as ScrollArea from '@radix-ui/react-scroll-area';
+import { useEffect, useRef } from 'react';
 import type { RespondResult } from '@/api/schema';
 import { partitionReceipts, type ReceiptRow } from './partition';
 
-function Row({ r }: { r: ReceiptRow }) {
+function Row({ r, highlight, rowRef }: { r: ReceiptRow; highlight?: boolean; rowRef?: (el: HTMLDivElement | null) => void }) {
   const isNum = r.kind === 'number';
   return (
-    <div className="border-b border-line py-2">
+    <div ref={rowRef} className={`border-b border-line py-2 ${highlight ? 'rounded bg-bg-2/60 ring-1 ring-amber' : ''}`}>
       <div className="flex flex-wrap items-baseline gap-2 font-mono text-11">
         {r.ref && <span className={isNum ? 'text-cyan' : 'text-amber'}>[{r.ref}]</span>}
         <span className="text-text">{r.source}</span>
@@ -19,17 +20,28 @@ function Row({ r }: { r: ReceiptRow }) {
 }
 
 /** The receipts drawer (design §4.3): the trust layer made explicit — cited first, then retrieved-but-
- *  uncited, then verifier strips (normally 0). Opened by `e` or a citation/node click. */
+ *  uncited, then verifier strips (normally 0). Opened by `e` or a citation/node click; a click on `[n]`
+ *  PINS it (6.4) — the cited list filters to that source's document, the row is ringed + scrolled to. */
 export function ReceiptsDrawer({
   result,
   open,
   onClose,
+  pinnedRef,
+  onClearPin,
 }: {
   result: RespondResult;
   open: boolean;
   onClose: () => void;
+  pinnedRef?: string | null;
+  onClearPin?: () => void;
 }) {
   const r = partitionReceipts(result);
+  const pinnedKey = pinnedRef ? r.cited.find((row) => row.ref === pinnedRef)?.sourceKey : undefined;
+  const cited = pinnedKey ? r.cited.filter((row) => row.sourceKey === pinnedKey) : r.cited;
+  const pinRow = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (open && pinnedRef) pinRow.current?.scrollIntoView({ block: 'nearest' });
+  }, [open, pinnedRef]);
   const section = 'mt-3 font-mono text-11 uppercase tracking-wider';
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
@@ -48,22 +60,34 @@ export function ReceiptsDrawer({
               esc
             </Dialog.Close>
           </div>
-          <div className="px-3 py-1 font-mono text-11 text-text-dim">
-            {r.cited.length} cited · {r.strippedCount} stripped · all ≤ as-of ✓
+          <div className="flex items-center justify-between px-3 py-1 font-mono text-11 text-text-dim">
+            <span>
+              {cited.length} cited · {r.strippedCount} stripped · all ≤ as-of ✓
+            </span>
+            {pinnedKey && (
+              <button onClick={onClearPin} className="text-cyan hover:text-amber">
+                pinned [{pinnedRef}] · show all
+              </button>
+            )}
           </div>
           <ScrollArea.Root className="min-h-0 flex-1">
             <ScrollArea.Viewport className="h-full px-3 pb-4">
-              {r.cited.map((row, i) => (
-                <Row key={`c${i}`} r={row} />
+              {cited.map((row, i) => (
+                <Row
+                  key={`c${i}`}
+                  r={row}
+                  highlight={!!pinnedRef && row.ref === pinnedRef}
+                  rowRef={row.ref === pinnedRef ? (el) => (pinRow.current = el) : undefined}
+                />
               ))}
-              {r.uncited.length > 0 && <div className={`${section} text-text-faint`}>retrieved-but-uncited ({r.uncited.length})</div>}
-              {r.uncited.map((row, i) => (
-                <Row key={`u${i}`} r={row} />
-              ))}
-              {r.stripped.length > 0 && <div className={`${section} text-neg`}>stripped by verifier ({r.stripped.length})</div>}
-              {r.stripped.map((row, i) => (
-                <Row key={`s${i}`} r={row} />
-              ))}
+              {!pinnedKey && r.uncited.length > 0 && (
+                <div className={`${section} text-text-faint`}>retrieved-but-uncited ({r.uncited.length})</div>
+              )}
+              {!pinnedKey && r.uncited.map((row, i) => <Row key={`u${i}`} r={row} />)}
+              {!pinnedKey && r.stripped.length > 0 && (
+                <div className={`${section} text-neg`}>stripped by verifier ({r.stripped.length})</div>
+              )}
+              {!pinnedKey && r.stripped.map((row, i) => <Row key={`s${i}`} r={row} />)}
             </ScrollArea.Viewport>
             <ScrollArea.Scrollbar orientation="vertical" className="w-1.5">
               <ScrollArea.Thumb className="rounded bg-bg-2" />

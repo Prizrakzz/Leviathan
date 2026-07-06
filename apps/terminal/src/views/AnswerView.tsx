@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { getGraph, getThreadTurns, suggest } from '@/api/client';
 import type { components } from '@/api/types.gen';
 import type { TurnState } from '@/api/useTurn';
@@ -11,8 +11,8 @@ import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { EmptyState } from './answer/EmptyState';
 import { SuggestionChips } from './answer/SuggestionChips';
-import { CascadeDAG } from './dag/CascadeDAG';
 import { Banners } from './note/Banners';
+import { resolvedFor } from './note/citations';
 import { FormattedNote, renderInline } from './note/inlineFormat';
 import { IntegrityStrip } from './note/IntegrityStrip';
 import { Note } from './note/Note';
@@ -23,36 +23,40 @@ import { ReceiptsDrawer } from './receipts/ReceiptsDrawer';
 
 type TurnRecord = components['schemas']['TurnRecord'];
 
-const NO_CHIPS = {}; // past turns have no persisted resolved-citation map -> render [n] as plain text
+// 6.3: the interactive causal map is lazy — @xyflow/react + dagre + its CSS ride an async chunk off the
+// first-paint critical path (the map only mounts on a finalized answer).
+const CascadeFlow = lazy(() => import('./dag/CascadeFlow'));
+
 const noop = () => {};
 // INTEGRITY strip is an eval/log signal, not user-facing (6.1); show it only in debug (localStorage lv-debug=1).
 const SHOW_INTEGRITY = typeof localStorage !== 'undefined' && localStorage.getItem('lv-debug') === '1';
 
 /** One past (durable) turn of the active thread — full answer, ChatGPT-style (5.6 decision). Renders from
- *  the persisted `structured` (backend-sanitized in 6.1, so clean prose — no raw markup or internal ids),
- *  falling back to the legacy `answer` body only when a pre-6.1 turn has no structured fields. Citations
- *  render as plain text on past turns (the resolved map is trace-only, not persisted). */
+ *  the persisted `structured` (backend-sanitized in 6.1, so clean prose — no raw markup or internal ids).
+ *  6.4: chips HOVER their official name + durable snippet via the durable resolved map (structured.sources
+ *  + citation locator snippet); click is a noop on past turns (the receipts drawer is a live-turn surface). */
 function PastTurn({ t }: { t: TurnRecord }) {
   const s = (t.structured ?? null) as { tldr?: string; mechanism?: string } | null;
   const tldr = s?.tldr ?? '';
   const mechanism = s?.mechanism ?? '';
   const legacy = !tldr && !mechanism ? (t.answer ?? '') : '';
+  const resolved = resolvedFor(t as Parameters<typeof resolvedFor>[0]);
   return (
     <div className="border-b border-line pb-4" data-testid="past-turn">
       <div className="font-mono text-12 text-cyan">▸ {t.question}</div>
       {tldr && (
         <p className="mt-2 font-sans text-14 font-semibold leading-snug text-text">
-          {renderInline(tldr, NO_CHIPS, noop)}
+          {renderInline(tldr, resolved, noop)}
         </p>
       )}
       {mechanism && (
         <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-          <FormattedNote text={mechanism} resolved={NO_CHIPS} onOpen={noop} />
+          <FormattedNote text={mechanism} resolved={resolved} onOpen={noop} />
         </div>
       )}
       {legacy && (
         <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-          <FormattedNote text={legacy} resolved={NO_CHIPS} onOpen={noop} />
+          <FormattedNote text={legacy} resolved={resolved} onOpen={noop} />
         </div>
       )}
       {t.asof && <div className="mt-1 font-mono text-11 text-text-faint">as of {t.asof}</div>}
@@ -76,6 +80,12 @@ export function AnswerView({
   const r = turn.result;
   const receiptsOpen = useUI((s) => s.receiptsOpen);
   const setReceipts = useUI((s) => s.setReceipts);
+  // 6.4 click-pin: a [n] click opens the drawer pinned to that source; a node/hotkey open pins nothing.
+  const [pinnedRef, setPinnedRef] = useState<string | null>(null);
+  const openReceipts = (ref?: string) => {
+    setPinnedRef(ref ?? null);
+    setReceipts(true);
+  };
   const threadId = useThread((s) => s.threadId);
   const ready = useSession((s) => s.ready);
   const { shown, settled } = useTypewriter(turn.draft, turn.status);
@@ -97,10 +107,14 @@ export function AnswerView({
 
   const contract = r?.contract ?? r?.contracts?.[0] ?? null;
   const asof = r?.asof ?? '';
+  // 6.3 cross-commodity swap: clicking a tracked hop shows that contract's map; reset on a new answer.
+  const [mapContract, setMapContract] = useState<string | null>(null);
+  useEffect(() => setMapContract(null), [contract]);
+  const shownContract = mapContract ?? contract;
   const graphQ = useQuery({
-    queryKey: ['graph', contract, asof],
-    queryFn: () => getGraph(contract as string, asof),
-    enabled: !!contract && !!r?.structured,
+    queryKey: ['graph', shownContract, asof],
+    queryFn: () => getGraph(shownContract as string, asof),
+    enabled: !!shownContract && !!r?.structured,
     staleTime: 300_000,
   });
 
@@ -177,19 +191,33 @@ export function AnswerView({
                 <Banners result={r} />
                 {r.structured ? (
                   <>
-                    <Note result={r} onOpenReceipts={() => setReceipts(true)} />
-                    {graphQ.data ? (
-                      <CascadeDAG
-                        topo={graphQ.data}
-                        firedRegimes={trace.fired_regimes}
-                        drivers={trace.drivers}
-                        onNodeClick={() => setReceipts(true)}
-                      />
-                    ) : r.structured.diagram_mermaid ? (
-                      <pre className="overflow-auto rounded-panel border border-line bg-bg-1 p-2 font-mono text-11 text-text-dim">
-                        {r.structured.diagram_mermaid}
-                      </pre>
-                    ) : null}
+                    <Note
+                      result={r}
+                      onOpenReceipts={openReceipts}
+                      afterTldr={
+                        graphQ.data ? (
+                          <Suspense
+                            fallback={<div className="h-[300px] animate-pulse rounded-panel border border-line bg-bg-1" />}
+                          >
+                            {mapContract && (
+                              <button
+                                onClick={() => setMapContract(null)}
+                                className="mb-1 font-mono text-11 text-text-faint hover:text-cyan"
+                              >
+                                ← back to {(contract ?? '').replace(/_/g, ' ')}
+                              </button>
+                            )}
+                            <CascadeFlow
+                              topo={graphQ.data}
+                              firedRegimes={mapContract ? undefined : trace.fired_regimes}
+                              drivers={mapContract ? undefined : trace.drivers}
+                              onNodeClick={() => openReceipts()}
+                              onSwap={(id) => setMapContract(id)}
+                            />
+                          </Suspense>
+                        ) : null
+                      }
+                    />
                     <Numbers calls={r.number_calls ?? []} asof={asof} />
                     {SHOW_INTEGRITY && <IntegrityStrip result={r} />}
                   </>
@@ -197,7 +225,7 @@ export function AnswerView({
                   (r.evidence?.length ?? 0) > 0 && (
                     <button
                       className="rounded-chip border border-line px-2 py-1 font-mono text-11 text-cyan hover:bg-bg-1"
-                      onClick={() => setReceipts(true)}
+                      onClick={() => openReceipts()}
                     >
                       open receipts (e)
                     </button>
@@ -215,7 +243,18 @@ export function AnswerView({
 
       <Composer onSubmit={onAsk} streaming={turn.status === 'streaming'} autoFocus={false} />
 
-      {r && <ReceiptsDrawer result={r} open={receiptsOpen} onClose={() => setReceipts(false)} />}
+      {r && (
+        <ReceiptsDrawer
+          result={r}
+          open={receiptsOpen}
+          onClose={() => {
+            setReceipts(false);
+            setPinnedRef(null);
+          }}
+          pinnedRef={pinnedRef}
+          onClearPin={() => setPinnedRef(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvedMap, tokenizeCitations } from './citations';
+import { resolvedFor, resolvedMap, tokenizeCitations } from './citations';
 
 const resolved = {
   '1': { source: 'usda_gain_coffee', date: '2021-07-20' },
@@ -22,5 +22,29 @@ describe('citation tokenizer', () => {
     const m = resolvedMap({ trace: { citation_verifier: { resolved } } });
     expect(m['1']?.source).toBe('usda_gain_coffee');
     expect(resolvedMap({ trace: {} })).toEqual({});
+  });
+});
+
+describe('resolvedFor (6.4 unified live + durable)', () => {
+  it('durable turn: official name from structured.sources + snippet from citation locator', () => {
+    const turn = {
+      structured: { sources: [{ ref: 1, source: 'USDA WASDE', date: '2022-01-01', source_key: 's3://w/1' }] },
+      sources: [{ id: 'E1', kind: 'evidence', source: 'usda_wasde', locator: { source_key: 's3://w/1', snippet: 'stocks thin' } }],
+    };
+    const m = resolvedFor(turn);
+    expect(m['1']?.source).toBe('USDA WASDE'); // official, not the raw usda_wasde
+    expect(m['1']?.text).toBe('stocks thin'); // durable snippet joined by source_key
+  });
+
+  it('live result: official name wins over the raw verifier source; numbers carry a query locator', () => {
+    const live = {
+      structured: { sources: [{ ref: 1, source: 'USDA FAS GAIN Report — Corn', source_key: 's3://g/1' }, { ref: 'N1', source: 'USDA PSD' }] },
+      trace: { citation_verifier: { resolved: { '1': { source: 'usda_gain_corn', date: '2022', text: 'corn note' } } } },
+      citations: [{ id: 'N1', kind: 'number', locator: { kind: 'number', table: 'silver_psd', commodity: 'corn' } }],
+    };
+    const m = resolvedFor(live);
+    expect(m['1']?.source).toBe('USDA FAS GAIN Report — Corn'); // official, not raw
+    expect(m['1']?.text).toBe('corn note'); // live verifier text
+    expect(m['N1']?.locator?.table).toBe('silver_psd'); // number provenance for the popover
   });
 });

@@ -423,6 +423,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
@@ -490,6 +491,23 @@ def render(d: dict, *, include_ledger: bool = True) -> str:
         parts += ["", "**Sources**"] + [f"[{x.get('ref')}] {x.get('source')} · {x.get('date')} — {x.get('note', '')}"
                                          for x in srcs]
     return "\n".join(parts).strip()
+
+
+def _attach_provenance(structured: dict, verifier: dict) -> None:
+    """Stamp each kept evidence source with its `source_key` (6.4) so the frontend can join a model ref to
+    the citation row's snippet WITHOUT name-matching (structured.sources carry the OFFICIAL name after 6.1;
+    citations[] keep the RAW source for the receipts join). Runs after verify (which populated resolved +
+    rewrote structured.sources) — additive, never changes counts."""
+    if not isinstance(structured, dict):
+        return
+    resolved = (verifier or {}).get("resolved") or {}
+    for s in (structured.get("sources") or []):
+        if not isinstance(s, dict):
+            continue
+        ref = str(s.get("ref", "")).strip().strip("[]")
+        r = resolved.get(ref)
+        if isinstance(r, dict) and r.get("source_key"):
+            s["source_key"] = r["source_key"]
 
 
 def _humanize_structured(d: dict) -> None:
@@ -658,6 +676,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)

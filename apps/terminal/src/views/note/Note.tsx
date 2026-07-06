@@ -1,15 +1,24 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
+import type { ReactNode } from 'react';
 import type { RespondResult } from '@/api/schema';
-import { resolvedMap } from './citations';
+import { resolvedFor } from './citations';
 import { FormattedNote, renderInline } from './inlineFormat';
 
 /** The research note (design §4.1) — `structured.{tldr, mechanism, sources}` as a forwardable analyst
  *  note, with resolved citations as interactive chips. The floor/refusal/no-match states have no
  *  `structured` and render their banner instead (§5), so this returns null for them. */
-export function Note({ result, onOpenReceipts }: { result: RespondResult; onOpenReceipts: (ref?: string) => void }) {
+export function Note({
+  result,
+  onOpenReceipts,
+  afterTldr,
+}: {
+  result: RespondResult;
+  onOpenReceipts: (ref?: string) => void;
+  afterTldr?: ReactNode; // 6.3: the causal map renders here, between the TL;DR and "Why"
+}) {
   const s = result.structured;
   if (!s) return null;
-  const resolved = resolvedMap(result);
+  const resolved = resolvedFor(result);
   const sources = (s.sources ?? []) as { ref?: unknown; source?: unknown; date?: unknown }[];
   const label = 'font-mono text-11 uppercase tracking-wider text-text-dim';
   return (
@@ -19,6 +28,8 @@ export function Note({ result, onOpenReceipts }: { result: RespondResult; onOpen
         <p className="mt-1 font-sans text-18 font-semibold leading-snug text-text">
           {renderInline(s.tldr ?? '', resolved, onOpenReceipts)}
         </p>
+
+        {afterTldr && <div className="mt-3">{afterTldr}</div>}
 
         {s.mechanism && (
           <>

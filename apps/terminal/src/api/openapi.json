@@ -1517,6 +1517,17 @@
             "type": "string",
             "title": "Contract"
           },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
           "silver_status": {
             "anyOf": [
               {

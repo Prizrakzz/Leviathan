@@ -152,19 +152,37 @@ def _require_identity_quota(authorization: Optional[str] = Header(None)) -> dict
     return ident
 
 
+def _trim_citation_provenance(citations: list) -> list:
+    """Durable citations = refs + provenance POINTERS, not evidence text (PIT firewall). Each evidence
+    citation's payload carries the full retrieved text; drop it (keep only {source_key}) — the 140-char
+    display receipt survives on `locator.snippet` (6.4). Numbers payloads ({query, rows[:3]}) are the
+    re-runnable, leakage-safe provenance and stay. Idempotent; a non-dict/foreign shape passes through."""
+    out = []
+    for c in (citations or []):
+        if not isinstance(c, dict):
+            out.append(c)
+            continue
+        if c.get("kind") == "evidence":
+            pay = c.get("payload") or {}
+            c = {**c, "payload": {"source_key": pay.get("source_key")}}   # drop the full evidence text
+        out.append(c)
+    return out
+
+
 def _turn_record(result: dict, question: str) -> dict:
-    """A PIT-safe durable turn from a respond() result: the synthesized answer + citation REFS + the
-    as-of/graph it was made under. NEVER the retrieved evidence, raw number rows, or trace (which embeds
-    resolved evidence text); store.sanitize_turn is the backstop that enforces this. `question` comes from
-    the REQUEST (the server owns it) — respond()'s result dict never carries one, so relying on
-    `result.get("question")` stored null and broke the frontend's per-question dedup (5.8 fix)."""
+    """A PIT-safe durable turn from a respond() result: the synthesized answer + citation refs/POINTERS +
+    the as-of/graph it was made under. NEVER the retrieved evidence text or trace; `_trim_citation_provenance`
+    strips full evidence text off citation payloads (keeping source_key + the locator snippet), and
+    store.sanitize_turn is the allowlist backstop. `question` comes from the REQUEST (the server owns it) —
+    respond()'s result never carries one, so `result.get("question")` stored null and broke the frontend's
+    per-question dedup (5.8 fix)."""
     trace = result.get("trace") or {}
     return {
         "question": question,
         "answer": result.get("answer"),
         "structured": result.get("structured"),
         "asof": result.get("asof"),
-        "sources": result.get("citations") or [],       # [{kind, ref, source, date}] — refs only, no text
+        "sources": _trim_citation_provenance(result.get("citations") or []),   # refs + pointers, no evidence text
         "graph_version": trace.get("graph_version"),
         "contract": result.get("contract"),
         "contracts": result.get("contracts") or [],

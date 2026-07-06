@@ -455,6 +455,8 @@ export interface components {
             kind: string;
             /** Contract */
             contract: string;
+            /** Label */
+            label?: string | null;
             /** Silver Status */
             silver_status?: string | null;
             /** Confidence */

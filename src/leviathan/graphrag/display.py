@@ -101,6 +101,61 @@ def regime_label(name: str) -> str:
     return _titleize(core) + _dir_suffix(name)
 
 
+def _nodes() -> dict[str, str]:
+    return _cfg().get("nodes") or {}
+
+
+@functools.lru_cache(maxsize=1)
+def _contracts_hier() -> dict:
+    """contract slug -> hierarchy meta ({node, exchange, ...}) for map node labels. Same source as the
+    register slug map, read lazily so display.py stays import-cycle-free."""
+    try:
+        from leviathan.graphrag import evidence as ev
+        return ev._hier().get("contracts") or {}
+    except Exception:  # noqa: BLE001 — hierarchy missing -> de-underscore fallback
+        return {}
+
+
+def _contract_label(slug: str) -> str:
+    meta = _contracts_hier().get(slug)
+    if isinstance(meta, dict):
+        node = str(meta.get("node") or slug).replace("_", " ")
+        exch = meta.get("exchange")
+        return f"{exch} {node}".strip() if exch else node
+    return slug.replace("_", " ")
+
+
+def node_label(node_id: str, kind: str | None = None, contract: str | None = None) -> str:
+    """Human label for a causal-map node (6.3) — the one-vocabulary rule extended to the DAG surface. A
+    curated `nodes:` override wins; contract/commodity nodes get '{EXCH} {node}' from the hierarchy; a
+    driver id is de-underscored PRESERVING token case (so BRL/USD/ENSO/La_Niña read right — title-casing
+    would mangle them). A raw slug never renders as node text."""
+    if not node_id:
+        return node_id
+    ov = _nodes().get(node_id)
+    if ov:
+        return ov
+    if kind in ("contract", "commodity"):
+        return _contract_label(node_id)
+    return node_id.replace("_", " ")
+
+
+@functools.lru_cache(maxsize=1)
+def all_driver_ids() -> frozenset[str]:
+    """Every driver id declared across configs/graphrag/causal/*.yaml (for the `nodes:` override lint)."""
+    ids: set[str] = set()
+    for p in sorted((_CFG / "causal").glob("*.yaml")):
+        try:
+            doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        except Exception:  # noqa: BLE001
+            continue
+        for d in (doc.get("drivers") or []):
+            did = d.get("id") if isinstance(d, dict) else None
+            if did:
+                ids.add(str(did))
+    return frozenset(ids)
+
+
 @functools.lru_cache(maxsize=1)
 def all_regime_ids() -> tuple[str, ...]:
     """Every convergence-regime name declared across configs/graphrag/causal/*.yaml (the authoritative
@@ -138,6 +193,10 @@ def check_display_names() -> list[str]:
     for t in _tables():
         if not t.startswith("silver_"):
             errs.append(f"table key {t!r} should start with 'silver_'")
+    drivers = all_driver_ids()
+    for nid in sorted(_nodes()):                                    # every `nodes:` override is a real driver id
+        if drivers and nid not in drivers:
+            errs.append(f"node override {nid!r} is not a real driver id in causal/*.yaml")
     return errs
 
 

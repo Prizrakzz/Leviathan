@@ -20,6 +20,7 @@ class GraphNode(BaseModel):
     id: str
     kind: str                                # driver type | 'contract' | 'commodity'
     contract: str
+    label: Optional[str] = None              # human node text (6.3) — de-underscored / official; never a raw slug
     silver_status: Optional[str] = None
     confidence: Optional[str] = None         # qualitative label in the causal schema ('high'/'medium'/'low')
     active: Optional[bool] = None            # firing overlay, only when ?asof= supplied

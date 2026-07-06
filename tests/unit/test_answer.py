@@ -12,6 +12,25 @@ def _d(id, **o):
                      mechanism=o.pop("mechanism", "m"), **o)
 
 
+def test_attach_provenance_stamps_source_key_without_changing_sources():
+    """6.4: each kept evidence source gains its source_key (for the durable chip join) — additive, order
+    and membership unchanged; a ref the verifier didn't resolve gets no key."""
+    structured = {"sources": [{"ref": "1", "source": "usda_gain_corn", "date": "2022-01-01", "note": "x"},
+                              {"ref": "2", "source": "usda_wasde", "date": "2022-01-05"},
+                              {"ref": "N1", "source": "USDA PSD", "date": "2021-06-11"}]}
+    verifier = {"resolved": {"1": {"source_key": "text/source=usda_gain_corn/y/document.json"}}}
+    before = [dict(s) for s in structured["sources"]]
+    an._attach_provenance(structured, verifier)
+    assert len(structured["sources"]) == 3
+    assert structured["sources"][0]["source_key"] == "text/source=usda_gain_corn/y/document.json"
+    assert "source_key" not in structured["sources"][1]      # ref 2 not in resolved -> no key
+    assert "source_key" not in structured["sources"][2]      # numbers ref -> no evidence key
+    # nothing else mutated
+    for b, a in zip(before, structured["sources"]):
+        for k, v in b.items():
+            assert a[k] == v
+
+
 def test_humanize_structured_cleans_ui_fields():
     """The UI renders structured.{tldr,mechanism,sources} DIRECTLY (not the flattened body), so 6.1
     humanizes those in place: leaked regime ids/tokens gone, source ids -> official names."""

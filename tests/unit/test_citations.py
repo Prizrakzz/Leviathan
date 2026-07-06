@@ -33,6 +33,14 @@ def test_evidence_citation_carries_forward_compatible_page_slots():
     assert e.id == "E1" and e.kind == "evidence" and e.source == "usda_gain_wheat"
     assert e.locator["kind"] == "doc" and e.locator["source_key"] == "text/gain/xyz.json"
     assert "page" in e.locator and e.locator["page"] is None                # slot present, filled by page-recovery later
+    # 6.4: the 140-char display snippet rides the locator so a durable turn keeps a receipt after payload trim
+    assert e.locator["snippet"].startswith("Black Sea wheat export competition")
+
+
+def test_evidence_locator_snippet_truncates_at_140():
+    long = "x" * 300
+    e = from_evidence({"source": "s", "source_key": "k", "date": "2020-01-01", "text": long}, 1)
+    assert e.locator["snippet"] == "x" * 140 + "..." and len(e.locator["snippet"]) == 143
 
 
 def test_unify_numbers_and_evidence_into_one_numbered_list():

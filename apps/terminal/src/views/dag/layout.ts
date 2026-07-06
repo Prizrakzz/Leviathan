@@ -31,7 +31,7 @@ export interface DagLayout {
 }
 
 /** Edge stroke width by the causal YAML confidence (design §4.2: thickness = confidence). */
-const CONF_W: Record<string, number> = { high: 2.6, medium: 1.5, low: 0.8 };
+export const CONF_W: Record<string, number> = { high: 2.6, medium: 1.5, low: 0.8 };
 
 /** The set of driver/node ids lit at the as-of: those in a fired regime's `matched`, the trace `drivers`,
  *  or a node's `?asof=` firing overlay flag. */

@@ -180,15 +180,16 @@ class CausalGraph:
         as-of + silver), keeping this method pure of I/O."""
         if contract not in self.contracts:
             raise KeyError(contract)
+        from leviathan.graphrag import display as dp             # human node labels (6.3 one-vocab on the map)
         c = self.contracts[contract]
         tgt0 = c.target_metrics[0] if c.target_metrics else "price"
         ids = {d.id for d in c.drivers}
         nodes: dict[str, dict] = {contract: {"id": contract, "kind": "contract", "contract": contract,
-                                             "target_metric": tgt0}}
+                                             "label": dp.node_label(contract, "contract"), "target_metric": tgt0}}
         edges: list[dict] = []
         for d in c.drivers:
-            nodes[d.id] = {"id": d.id, "kind": d.type, "contract": contract, "silver_ref": d.silver_ref,
-                           "silver_status": d.silver_status, "confidence": d.confidence}
+            nodes[d.id] = {"id": d.id, "kind": d.type, "contract": contract, "label": dp.node_label(d.id, d.type),
+                           "silver_ref": d.silver_ref, "silver_status": d.silver_status, "confidence": d.confidence}
             edges.append({"source": d.id, "target": contract, "edge_type": d.edge_type or "drives",
                           "sign": d.sign, "lag": d.lag, "mechanism": d.mechanism, "confidence": d.confidence,
                           "target_metric": d.target_metric or tgt0})
@@ -198,6 +199,7 @@ class CausalGraph:
         for e in c.inter_commodity:                                 # cascade hop: contract -> other commodity
             nodes.setdefault(e.driver_commodity, {"id": e.driver_commodity, "kind": "commodity",
                                                   "contract": e.driver_commodity,
+                                                  "label": dp.node_label(e.driver_commodity, "commodity"),
                                                   "tracked": e.driver_commodity in self.contracts})
             edges.append({"source": contract, "target": e.driver_commodity, "edge_type": e.relation,
                           "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism})

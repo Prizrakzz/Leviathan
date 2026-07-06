@@ -81,8 +81,10 @@ def from_evidence(row: dict, i: int) -> Citation:
     text = row.get("text") or ""
     snippet = text[:140] + ("..." if len(text) > 140 else "")
     label = f"{src} ({date}): {snippet}"
+    # snippet (140-char) rides the locator so a durable turn keeps a click-to-hover receipt after the full
+    # evidence text is trimmed off the persisted payload (6.4); page/char stay null for the page-recovery.
     locator = {"kind": "doc", "source_key": sk, "page": row.get("page"),
-               "char_start": row.get("char_start"), "snippet": row.get("snippet")}
+               "char_start": row.get("char_start"), "snippet": snippet}
     return Citation(id=f"E{i}", kind="evidence", label=label, source=src, date=date,
                     locator=locator, payload={"source_key": sk, "text": text})
 

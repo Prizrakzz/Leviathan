@@ -9,9 +9,16 @@ interface Ev {
 }
 interface Cit {
   kind?: string;
+  id?: string;
   ref?: unknown;
   source?: string;
   date?: string;
+  locator?: { source_key?: string; snippet?: string };
+}
+interface Src {
+  ref?: unknown;
+  source?: unknown; // OFFICIAL name (6.1)
+  source_key?: unknown;
 }
 
 export interface ReceiptRow {
@@ -20,6 +27,7 @@ export interface ReceiptRow {
   date: string;
   snippet?: string;
   kind: string; // 'evidence' | 'number'
+  sourceKey?: string; // 6.4: the pin/filter key
 }
 export interface Receipts {
   cited: ReceiptRow[];
@@ -32,24 +40,43 @@ export interface Receipts {
 const key = (s?: string, d?: string) => `${s}|${d}`;
 
 /** Partition a turn's provenance into the three receipt tiers (design §4.3): the model's CITED items, the
- *  retrieved-but-uncited machine evidence, and any verifier STRIPS (normally 0, shown for auditability).
- *  Every row carries its date — all provably `≤ as-of`. Pure — unit-tested. */
+ *  retrieved-but-uncited machine evidence, and any verifier STRIPS (normally 0). CITED rows carry the
+ *  OFFICIAL source name (joined from structured.sources by ref/source_key) + the durable 140-char snippet
+ *  and their source_key for click-pinning (6.4). Every row is provably `≤ as-of`. Pure — unit-tested. */
 export function partitionReceipts(r: RespondResult): Receipts {
   const ev = (r.evidence ?? []) as Ev[];
-  const cits = (r.citations ?? []) as Cit[];
-  const snippetFor = (c: Cit) => ev.find((e) => key(e.source, e.date) === key(c.source, c.date))?.text;
+  const cits = ((r.citations ?? (r as { sources?: Cit[] }).sources) ?? []) as Cit[]; // live: citations; durable: sources
+  const structuredSources = ((r.structured as { sources?: Src[] } | null)?.sources ?? []) as Src[];
 
-  const cited: ReceiptRow[] = cits.map((c) => ({
-    ref: c.ref != null ? String(c.ref) : undefined,
-    source: String(c.source ?? '?'),
-    date: String(c.date ?? ''),
-    snippet: snippetFor(c),
-    kind: c.kind ?? 'evidence',
-  }));
+  const officialByRef = new Map<string, string>();
+  const officialByKey = new Map<string, string>();
+  for (const s of structuredSources) {
+    const name = typeof s.source === 'string' ? s.source : undefined;
+    if (!name) continue;
+    if (s.ref != null) officialByRef.set(String(s.ref), name);
+    if (typeof s.source_key === 'string') officialByKey.set(s.source_key, name);
+  }
+  const refOf = (c: Cit) => String(c.ref ?? c.id ?? '');
+  const evText = (c: Cit) =>
+    c.locator?.snippet ?? ev.find((e) => key(e.source, e.date) === key(c.source, c.date))?.text;
+
+  const cited: ReceiptRow[] = cits.map((c) => {
+    const ref = refOf(c);
+    const sk = c.locator?.source_key;
+    const official = officialByRef.get(ref) ?? (sk ? officialByKey.get(sk) : undefined);
+    return {
+      ref: ref || undefined,
+      source: official ?? String(c.source ?? '?'),
+      date: String(c.date ?? ''),
+      snippet: evText(c),
+      kind: c.kind ?? 'evidence',
+      sourceKey: sk,
+    };
+  });
   const citedKeys = new Set(cits.map((c) => key(c.source, c.date)));
   const uncited: ReceiptRow[] = ev
     .filter((e) => !e.cited && !citedKeys.has(key(e.source, e.date)))
-    .map((e) => ({ source: String(e.source ?? '?'), date: String(e.date ?? ''), snippet: e.text, kind: 'evidence' }));
+    .map((e) => ({ source: String(e.source ?? '?'), date: String(e.date ?? ''), snippet: e.text, kind: 'evidence', sourceKey: e.source_key }));
 
   const cv = (r.trace as { citation_verifier?: { stripped?: number; stripped_items?: ReceiptRow[] } } | undefined)
     ?.citation_verifier;
