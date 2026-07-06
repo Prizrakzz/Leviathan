@@ -172,6 +172,7 @@ def test_baseline_json_schema_and_rates():
     assert doc["total_strips"] == 1 and doc["total_claims"] == 10
     assert doc["strip_rate"] == 0.1 and doc["handle_strip_rate"] == 0.2
     assert doc["intent_ok"] == 1 and doc["intent_n"] == 2
+    assert doc["via_orchestrator"] is False                 # self-describing arm: one-hop unless stated
     assert doc["n_answers"] == 2 and doc["per_answer"][0]["id"] == "a"
     assert doc["per_answer"][0]["register_leaks"] == 0      # residual, post-sanitize
 
@@ -183,8 +184,9 @@ def test_baseline_json_convo_rows_compose_ids():
                                                      "claim_count": 2, "corrected": 0, "by_rule": {}}}},
              "mech": {"intent_ok": True}, "spec": {"q": "?"}}]
     doc = gev._baseline_json(rows, run_kind="convos", model="m", judged=True, eval_set="convos_v1",
-                             graph_version=None, corpus_fp="c")
+                             graph_version=None, corpus_fp="c", via_orchestrator=True)
     assert doc["per_answer"][0]["id"] == "wheat_thread/2" and doc["kind"] == "baseline_convos"
+    assert doc["via_orchestrator"] is True
 
 
 def test_corpus_fingerprint_local_deterministic_and_sensitive(tmp_path, monkeypatch):

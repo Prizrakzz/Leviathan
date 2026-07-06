@@ -38,15 +38,25 @@ logger = get_logger("submit_eval")
 
 
 def build_command(*, queries: str | None, convos: str | None, model: str, judge: bool,
-                  judge_model: str, k: int) -> list[str]:
+                  judge_model: str, k: int, workers: int | None = None,
+                  via_orchestrator: bool = False) -> list[str]:
     """The container command (the image ENTRYPOINT is `python`, so this is the arg list to it)."""
     cmd = ["-m", "leviathan.graphrag.eval", "--run", "--model", model, "--k", str(k)]
     if convos:
         cmd += ["--convos", convos]
     else:
         cmd += ["--queries", queries]
+    if via_orchestrator:
+        # The intent-branch serving path (numbers_only/reasoning/hybrid) — REQUIRED for any run whose
+        # intent accuracy is compared to the 22/30 baseline; plain answer() never sets out.intent
+        # (P7-P0.1: the A1 baseline arm silently measured the one-hop path without this).
+        cmd += ["--via-orchestrator"]
     if judge:
         cmd += ["--judge", "--judge-model", judge_model]
+    if workers is not None:
+        # e.g. --workers 1 for Bedrock-rerank arms: the Cohere Rerank quota is 3 req/min and each TURN is one
+        # coalesced request, so concurrent turns (default 4 workers) would throttle -> silent bge contamination.
+        cmd += ["--workers", str(workers)]
     return cmd
 
 
@@ -68,6 +78,12 @@ def main() -> None:
     ap.add_argument("--judge", action="store_true", help="add the independent Opus judge (usefulness/grounding)")
     ap.add_argument("--judge-model", default="claude-opus-4-8")
     ap.add_argument("--k", type=int, default=5)
+    ap.add_argument("--via-orchestrator", action="store_true",
+                    help="route queries through the full intent branch (orchestrator.respond) — the "
+                         "serving path; required for intent-accuracy baselines (22/30 lives here)")
+    ap.add_argument("--workers", type=int, default=None,
+                    help="eval concurrency inside the container (forwarded to eval --workers; "
+                         "use 1 for Bedrock-rerank arms — the Cohere quota is 3 requests/min)")
     ap.add_argument("--memory", type=int, default=32768, help="MiB; legal Fargate value for 8 vCPU (16/20/24/28/32 GB)")
     ap.add_argument("--vcpu", type=int, default=8)
     ap.add_argument("--queue", default=None,
@@ -82,7 +98,8 @@ def main() -> None:
 
     aws_region = get_required_env("AWS_REGION")
     command = build_command(queries=args.queries, convos=args.convos, model=args.model,
-                            judge=args.judge, judge_model=args.judge_model, k=args.k)
+                            judge=args.judge, judge_model=args.judge_model, k=args.k, workers=args.workers,
+                            via_orchestrator=args.via_orchestrator)
     overrides: dict = {
         "command": command,
         "resourceRequirements": [

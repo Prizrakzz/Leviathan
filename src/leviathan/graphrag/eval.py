@@ -397,7 +397,7 @@ def corpus_fingerprint() -> str:
 
 
 def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool, eval_set: str,
-                   graph_version: str | None, corpus_fp: str) -> dict:
+                   graph_version: str | None, corpus_fp: str, via_orchestrator: bool = False) -> dict:
     """The machine-readable baseline artifact (P7-P0.1): per-answer strip/claim/leak/intent detail plus the
     run-level reproducibility keys. `register_leaks` here is RESIDUAL (post-sanitize) leakage — the answer
     body was already sanitized at synthesis; do not read it as raw pre-sanitize leakage."""
@@ -432,6 +432,9 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "eval_set": eval_set, "model": model,
             "provider": _os.environ.get("GRAPHRAG_PROVIDER", "anthropic"),
             "judged": judged, "graph_version": graph_version, "corpus_fingerprint": corpus_fp,
+            # which path the arm measured: True = the intent-branch serving path (intent 22/30 lives
+            # there); False = plain one-hop answer() (intent is never set — do not compare intents)
+            "via_orchestrator": via_orchestrator,
             "n_answers": len(per),
             "total_strips": total_strips, "total_claims": total_claims, "total_handles": total_handles,
             "strip_rate": round(total_strips / max(1, total_claims), 6),
@@ -803,7 +806,8 @@ def _convos_main(args, path) -> int:
         print(f"  report -> s3://{b}/{k}")
     _write_baseline(_baseline_json(rows, run_kind="convos", model=args.model, judged=args.judge,
                                    eval_set=Path(str(path)).stem, graph_version=graph.version,
-                                   corpus_fp=corpus_fingerprint()))
+                                   corpus_fp=corpus_fingerprint(),
+                                   via_orchestrator=True))     # convos always run orchestrator.respond
     mech_ok = sum(sum(bool(v) for v in r["mech"].values()) for r in rows)
     mech_n = sum(len(r["mech"]) for r in rows)
     print(f"convo eval: {len(convos)} convos / {len(rows)} turns; mechanics {mech_ok}/{mech_n} -> {out_path}")
@@ -884,7 +888,8 @@ def main() -> int:
         print(f"  report -> s3://{b}/{k}")
     _write_baseline(_baseline_json(rows, run_kind="single", model=args.model, judged=args.judge,
                                    eval_set=(Path(args.queries).stem if args.queries else "default"),
-                                   graph_version=graph.version, corpus_fp=corpus_fingerprint()))
+                                   graph_version=graph.version, corpus_fp=corpus_fingerprint(),
+                                   via_orchestrator=args.via_orchestrator))
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     extra = ""
     if args.judge:
