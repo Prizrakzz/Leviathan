@@ -139,3 +139,7 @@ def test_eval_metric_and_panel_pick_up_leaks(monkeypatch):
     assert E._metrics(rows[1])["register_leaks"] >= 2                 # conf= + (+) + jargon
     panel = "\n".join(E.register_report(rows))
     assert "Output register" in panel and "answers with leaks: 1/2" in panel
+    # this test populates reg._slugs()/_display_map() under the empty-contracts stub; monkeypatch restores
+    # _hier at teardown but NOT the lru_cache -> without this, () leaks forward and later tests that rely on
+    # sanitize() humanizing real slugs (e.g. test_suggester_catalog) fail depending on collection order.
+    reg._slugs.cache_clear(); reg._display_map.cache_clear()

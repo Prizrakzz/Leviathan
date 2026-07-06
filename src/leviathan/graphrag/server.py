@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import re
 import threading
 import time
 from typing import Any, Optional
@@ -573,6 +574,160 @@ def _parse_suggestions(raw: str) -> list[str]:
     return out[:4]
 
 
+# ── 6.8 grounded suggester — data-scoped catalog + convexity house style (flag GRAPHRAG_SUGGEST_CATALOG) ─
+# When ON (and the convergence matrix is warm), the suggester is handed a catalog derived from OUR data —
+# tracked contracts, the regimes CLOSEST TO FIRING (from the warm matrix), answerable buffer/rate metrics,
+# and the driver lanes — and prompted in the convexity house style with a hard "answerable-only" rule, so it
+# can only propose questions we can actually answer (never energy inventories, metals, or non-covered geos).
+_SUGGEST_METRICS = ("ending stocks & stocks-to-use, weekly export pace (ESR), production/consumption, crush, "
+                    "weather anomalies (rain/heat z), FX, ENSO (ONI/IOD)")
+_SUGGEST_LANES = ("weather (frost/drought/harmattan/monsoon/La Nina), policy & trade (export bans/tariffs/"
+                  "MSP/DMO/biodiesel mandates), biofuel & energy (RIN/RFS/crude/natgas/fertilizer), macro "
+                  "(FX/freight/logistics), substitution, positioning, and stock/reserve buffers")
+# The answerable-gate denylist: subjects we hold NO data for. Energy is denied ONLY as an inventory/stock
+# (we have crude/natgas PRICES + biodiesel/renewable-diesel DEMAND as drivers — those stay); metals/financials
+# are always out. A grounded chip matching this is dropped.
+_SUGGEST_DENY = re.compile(
+    r"\b(diesel|gasoil|gasoline|heating oil|jet fuel|crude\s*oil|natural\s*gas|petroleum|refined product)\b"
+    r"[^.?!]{0,30}\b(inventor(y|ies)|stocks?|storage|buffers?|overhang|depletion|reserves?|days of (supply|cover))\b"
+    r"|\b(gold|silver|copper|iron ore|lithium|nickel|zinc|palladium|platinum|alumin\w+)\b"
+    r"|\b(bitcoin|crypto\w*|ethereum|equit\w+|s&p\s*500|nasdaq|treasur\w+|bond yield|fed funds|interest rate)\b",
+    re.I)
+
+
+def _suggest_scope(body: M.SuggestRequest, facts: Optional[dict]) -> list[str]:
+    """Lowercased, de-underscored scope terms (the user's markets/regions + the last turn's contracts) used to
+    pick which regimes-near-firing + headlines to surface. Empty -> global (top-N closest to firing)."""
+    terms: list[str] = []
+    f = facts or {}
+    for key in ("markets", "regions"):
+        v = f.get(key)
+        if isinstance(v, list):
+            terms += [str(x).strip().lower() for x in v if str(x).strip()]
+    terms += [c.replace("_", " ").lower() for c in (body.contracts or [])]
+    return list(dict.fromkeys(t for t in terms if t))[:12]
+
+
+def _suggest_catalog(scope: list[str]) -> Optional[dict]:
+    """Data-scoped catalog from the WARM convergence matrix (never computed live): tracked contracts + the
+    regimes closest to firing (scoped to the user's markets, else global top-N). None when the flag is off or
+    the matrix is cold -> the route then uses the byte-identical base prompt."""
+    if os.environ.get("GRAPHRAG_SUGGEST_CATALOG", "off").lower() != "on":
+        return None
+    warm = _STATE.get("conv_warm")
+    if not warm:
+        return None                                                    # cold -> no regime block (never live)
+    rows = (warm[2] or {}).get("rows") or []
+    cands: list[dict] = []
+    for r in rows:
+        cid, regs = r.get("contract"), (r.get("regimes") or [])
+        if not cid or not regs:
+            continue
+        top = regs[0]                                                  # rows are sorted fired-first, closest-first
+        cands.append({"contract": cid, "regime": top.get("name"), "direction": top.get("direction"),
+                      "proximity": top.get("proximity") or 0.0, "n_active": top.get("n_active"),
+                      "threshold": top.get("threshold"), "matched": top.get("matched") or []})
+    if not cands:
+        return None
+    scoped = [c for c in cands if any(t in str(c["contract"]).replace("_", " ").lower() for t in scope)] if scope else []
+    pool = sorted(scoped if len(scoped) >= 2 else cands, key=lambda c: -(c["proximity"] or 0.0))[:8]
+    return {"near": pool, "contracts": sorted({c["contract"] for c in cands})}
+
+
+def _suggest_catalog_text(cat: dict) -> str:
+    """Render the catalog into register-clean prompt lines. `reg.sanitize` humanizes contract slugs + regime
+    ids via the authoritative display registry (arabica_coffee -> spelled out; bullish_supply_squeeze ->
+    'supply squeeze (bullish)'); drivers are de-underscored (they are not register-leaky)."""
+    from leviathan.graphrag import register as reg
+    lines = ["Tracked contracts (ONLY ask about these): " + ", ".join(cat["contracts"])[:500]]
+    near = cat.get("near") or []
+    if near:
+        rl = []
+        for c in near:
+            prox = f'{c["n_active"]}/{c["threshold"]}' if c.get("threshold") else ""
+            drv = ", ".join(str(d).replace("_", " ") for d in (c.get("matched") or [])[:3])
+            rl.append(f"- {c['contract']}: {c['regime']} at {prox} (firing now: {drv or 'none yet'})")
+        lines.append("Regimes closest to tipping (drivers firing / threshold to fire):\n" + "\n".join(rl))
+    lines.append("Answerable fundamentals you may cite: " + _SUGGEST_METRICS)
+    lines.append("Any headline shock maps into one of these lanes: " + _SUGGEST_LANES)
+    return reg.sanitize("\n".join(lines))
+
+
+def _suggest_news_scoped(scope: str) -> list[str]:
+    """Per-scope headline cache (stale-while-revalidate, OFF the request path) — news scoped to the user's
+    markets. Mirrors `_suggest_news` but keyed by scope, bounded to 16 keys. Empty scope -> the global cache."""
+    if not scope.strip():
+        return _suggest_news()
+    now = time.time()
+    cache = _STATE.setdefault("suggest_news_cache", {})
+    refreshing = _STATE.setdefault("suggest_news_refreshing_keys", set())
+    key = scope.strip().lower()[:80]
+    ts, items = cache.get(key) or (0.0, [])
+    if now - ts > _SUGGEST_NEWS_TTL and key not in refreshing:
+        refreshing.add(key)
+
+        def _refresh(stale=items, k=key, q=scope):
+            try:
+                from leviathan.graphrag import orchestrator as orch
+                from leviathan.graphrag.news import fetch as nf
+                got = nf.gather(orch._live_search_terms(q, _graph()))
+                heads = [str(i.get("headline") or "").strip() for i in (got or [])]
+                cache[k] = (time.time(), [h for h in heads if h][:8])
+                if len(cache) > 16:                                    # bound: evict the oldest non-current key
+                    try:                                               # best-effort; a race must NOT lose the fresh fetch
+                        others = [x for x in list(cache) if x != k]    # snapshot keys (other threads may mutate)
+                        if others:
+                            cache.pop(min(others, key=lambda x: cache.get(x, (0.0,))[0]), None)
+                    except Exception:  # noqa: BLE001 — eviction is best-effort
+                        pass
+            except Exception:  # noqa: BLE001 — keep the stale list; never retry-storm
+                cache[k] = (time.time(), stale)
+            finally:
+                refreshing.discard(k)
+
+        threading.Thread(target=_refresh, daemon=True).start()
+    return items
+
+
+def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_text: str,
+                             heads: list[str]) -> str:
+    """The convexity-house-style, ANSWERABLE-ONLY prompt: short buffer+rate -> named-regime-tip questions
+    scoped to the catalog (our DAGs + silver), news-anchored to the user's markets. Used only when the catalog
+    flag is on and the matrix is warm; otherwise the route uses the byte-identical base `_suggest_prompt`."""
+    lines = [
+        "You suggest the NEXT question a commodity researcher would ask, in the house style of a convexity",
+        "desk: a supply BUFFER + a depletion/flow RATE tipping a NAMED regime. Return ONLY a JSON array of",
+        "EXACTLY 3 questions. Each MUST be under 120 characters -- count the characters, a longer one is",
+        "DISCARDED. Keep each to ONE buffer + ONE rate + ONE regime, no extra clauses. Plain English, ASCII,",
+        "no code_like names, no price targets.",
+        "HARD RULE -- answerable-only: reference ONLY the contracts, regimes, drivers and fundamentals listed",
+        "below. NEVER invent a commodity, inventory, geography or metric that is not listed (no energy/diesel",
+        "inventories, no metals, no non-listed countries).",
+        "Style (108 chars): 'Cane crush firm -- how fast must sugar ending stocks fall before the ethanol-",
+        "diversion regime fires?'",
+        "Mix: (1) a regime CLOSEST TO FIRING for the user's markets, (2) a cross-commodity CASCADE, (3) one",
+        "FUSED to a headline event mapped to a driver we track.",
+        "",
+        cat_text,
+    ]
+    if body.question:
+        lines.append(f"\nLast question: {body.question[:300]}")
+    if body.tldr:
+        lines.append(f"Answer TL;DR: {body.tldr[:400]}")
+    f = facts or {}
+    interests: list[str] = []
+    for key in ("markets", "interests", "regions"):
+        v = f.get(key)
+        if isinstance(v, list):
+            interests += [str(x).strip() for x in v if str(x).strip()]
+    if interests:
+        lines.append("User markets/interests: " + ", ".join(dict.fromkeys(interests))[:200])
+    if heads:
+        lines.append("Today's headlines (anchor the time-aware question to a market the user follows):\n"
+                     + "\n".join(f"- {h[:160]}" for h in heads))
+    return "\n".join(lines)
+
+
 @app.post("/v1/suggest", response_model=M.SuggestResponse)
 def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identity)) -> dict:
     """3-4 follow-up questions for the completed turn (or starters for `{}`). Fired once per turn BY THE
@@ -593,18 +748,31 @@ def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identit
         facts = (_store().get_profile(ident["sub"]) or {}).get("facts")
     except Exception:  # noqa: BLE001
         facts = None
-    prompt = _suggest_prompt(body, facts if isinstance(facts, dict) else None)
+    facts_d = facts if isinstance(facts, dict) else None
+    # 6.8 grounded path: when GRAPHRAG_SUGGEST_CATALOG=on AND the convergence matrix is warm, build a
+    # data-scoped catalog + the convexity house-style prompt; else the byte-identical base prompt. EVERYTHING
+    # below (catalog build, prompt build, model call, parse) is inside ONE try so ANY failure degrades to [].
     try:
+        scope = _suggest_scope(body, facts_d)
+        catalog = _suggest_catalog(scope)
+        if catalog:
+            heads = _suggest_news_scoped(" ".join(scope))
+            prompt = _suggest_prompt_grounded(body, facts_d, _suggest_catalog_text(catalog), heads)
+        else:
+            prompt = _suggest_prompt(body, facts_d)
         call = _STATE.get("suggest_call")
         if call is None:
             from leviathan.graphrag import providers as pv
             def call(p: str) -> str:
                 client = pv.make_client()
-                out = client.messages.create(model=pv.resolve_model("claude-haiku-4-5"), max_tokens=200,
+                out = client.messages.create(model=pv.resolve_model("claude-haiku-4-5"), max_tokens=320,
                                              messages=[{"role": "user", "content": p}])
                 return "".join(b.text for b in out.content if getattr(b, "type", "") == "text").strip()
-        return M.SuggestResponse(suggestions=_parse_suggestions(call(prompt) or "")).model_dump()
-    except Exception:  # noqa: BLE001 — model/provider failure -> no chips
+        sug = _parse_suggestions(call(prompt) or "")
+        if catalog:                                                    # answerable-gate: drop out-of-domain chips
+            sug = [s for s in sug if not _SUGGEST_DENY.search(s)]
+        return M.SuggestResponse(suggestions=sug).model_dump()
+    except Exception:  # noqa: BLE001 — ANY failure (catalog/prompt/model/parse) -> no chips
         return empty
 
 

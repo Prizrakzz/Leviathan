@@ -359,6 +359,14 @@ module "serving" {
     # in-thread topic-shift carry-breaker was removed by design (threads are the context boundary). Rollback
     # = remove the key.
     GRAPHRAG_GEO_ROUTING = "on"
+
+    # Phase 6.8: grounded query suggester. When on, /v1/suggest builds a data-scoped catalog from the WARM
+    # convergence matrix (regimes closest to firing, tracked contracts, answerable metrics + driver lanes) and
+    # prompts Haiku in the convexity house style with a hard answerable-only gate -> short, cascade/convergence-
+    # framed, news-anchored chips scoped to OUR data. A/B-validated (convexity 2%->88%, answerable 100%,
+    # register-clean 100%). Needs GRAPHRAG_CONVERGENCE_WARM=on (catalog reads the warm cache only; cold -> base
+    # prompt). Fail-open to the byte-identical base prompt on any error. Rollback = remove the key.
+    GRAPHRAG_SUGGEST_CATALOG = "on"
   }
 
   # Stage 1: guardrail on, auth off, CORS = localhost (defaults in the module).
