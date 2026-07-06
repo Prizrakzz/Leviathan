@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getSeries } from '@/api/client';
+import { useSession } from '@/store/session';
 import { SeriesChart } from './SeriesChart';
 import { isAnomaly, parsePoints, sparkPath, vintageIndex, xOf } from './scale';
 
@@ -16,10 +17,12 @@ function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
   const table = call.query?.table;
   const metric = call.query?.metric;
   const notYet = call.status === 'not_yet_pub';
+  // P7-P0.3: /v1/series is auth-gated — gate on session readiness alongside the click-to-expand.
+  const ready = useSession((s) => s.ready);
   const q = useQuery({
     queryKey: ['series', table, metric, call.query?.commodity, asof],
     queryFn: () => getSeries(table!, metric!, { commodity: call.query?.commodity, asof }),
-    enabled: !!table && !!metric && !notYet && open,
+    enabled: ready && !!table && !!metric && !notYet && open,
     staleTime: 60_000,
   });
 

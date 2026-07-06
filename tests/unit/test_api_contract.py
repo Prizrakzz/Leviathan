@@ -162,3 +162,34 @@ def test_receipt_reservation_is_openapi_zero_diff(monkeypatch):
     c = _client(monkeypatch)
     spec = sv.app.openapi()
     assert "Receipt" not in (spec.get("components", {}).get("schemas", {}))
+
+
+# ── P7-P0.3: identity auth on the read routes (no quota increment on reads) ──────────────────────────
+def test_read_routes_401_anon_when_auth_on(monkeypatch):
+    # With auth ON and no bearer, every regime/data read route refuses — the probability layer (M2/M6)
+    # must never land on an unauthenticated route (teardown CRITICAL #4).
+    c = _client(monkeypatch, lookup=_lookup())
+    monkeypatch.setenv("GRAPHRAG_AUTH", "on")
+    for path in ("/v1/graph/arabica_coffee", "/v1/convergence", "/v1/regimes/arabica_coffee",
+                 "/v1/series/silver_psd/ending_stocks_mt", "/v1/events"):
+        r = c.get(path)
+        assert r.status_code == 401, f"{path} -> {r.status_code} (expected 401 anon)"
+
+
+def test_read_routes_ok_when_auth_off(monkeypatch):
+    # Auth OFF (dev/eval/tests) stays a no-op: the identity dep resolves to the local user.
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    c = _client(monkeypatch, lookup=_lookup())
+    assert c.get("/v1/convergence").status_code == 200
+    assert c.get("/v1/regimes/arabica_coffee").status_code == 200
+    assert c.get("/v1/graph/arabica_coffee").status_code == 200
+
+
+def test_read_routes_use_identity_not_quota(monkeypatch):
+    # Read-heavy fetches must NOT burn the per-user daily respond quota: with a 1-turn quota set,
+    # repeated convergence reads still succeed (the quota dep is only on the respond routes).
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    monkeypatch.setenv("GRAPHRAG_TURN_QUOTA", "1")
+    c = _client(monkeypatch, lookup=_lookup())
+    for _ in range(3):
+        assert c.get("/v1/convergence").status_code == 200
