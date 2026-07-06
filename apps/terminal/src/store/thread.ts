@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 /** A fresh, collision-resistant thread id. Used as the turn `session_id` so the backend carries multi-turn
  *  coreference memory AND appends each turn to this thread's durable history (pk=user, sk=turn#<id>#…). */
@@ -10,10 +9,15 @@ export function newThreadId(): string {
 
 /**
  * The active conversation thread (design §3.1). One thread = one `session_id`; a turn carries it so the
- * backend threads coreference ("it", "that contract") and persists the turn. `newThread` starts a clean
- * context; `openThread` switches to a saved one (its durable turns re-load from the backend). The active
- * thread persists across reloads (5.6 W3, localStorage `lv-thread`); a fresh interactive LOGIN starts a
- * new thread instead (App.tsx callback).
+ * backend threads coreference ("it", "that contract") within the thread and persists the turn.
+ *
+ * A THREAD IS THE CONTEXT BOUNDARY (5.8, user decision): a new thread is a new session and carries NOTHING
+ * from any other thread — so context can only ever cross turns you deliberately keep in the same thread.
+ * This store is NOT persisted: every page load / visit starts a FRESH thread (module init picks a new id),
+ * so opening the app is always a clean session. Past threads live server-side and re-open from the sidebar
+ * via `openThread` (which re-loads their durable turns AND rebinds the backend session by id). Navigating
+ * within the SPA does not reload the module, so a thread survives clicking around — only a real visit/reload
+ * resets it. `newThread` starts a clean context on demand (the "+ new" button).
  */
 export interface ThreadState {
   threadId: string;
@@ -23,15 +27,10 @@ export interface ThreadState {
   setTitleIfEmpty: (t: string) => void;
 }
 
-export const useThread = create<ThreadState>()(
-  persist(
-    (set) => ({
-      threadId: newThreadId(),
-      title: null,
-      newThread: () => set({ threadId: newThreadId(), title: null }),
-      openThread: (id, title = null) => set({ threadId: id, title }),
-      setTitleIfEmpty: (t) => set((s) => (s.title ? s : { title: t })),
-    }),
-    { name: 'lv-thread', partialize: (s) => ({ threadId: s.threadId, title: s.title }) },
-  ),
-);
+export const useThread = create<ThreadState>()((set) => ({
+  threadId: newThreadId(),
+  title: null,
+  newThread: () => set({ threadId: newThreadId(), title: null }),
+  openThread: (id, title = null) => set({ threadId: id, title }),
+  setTitleIfEmpty: (t) => set((s) => (s.title ? s : { title: t })),
+}));

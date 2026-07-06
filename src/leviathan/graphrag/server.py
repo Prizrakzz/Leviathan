@@ -152,13 +152,15 @@ def _require_identity_quota(authorization: Optional[str] = Header(None)) -> dict
     return ident
 
 
-def _turn_record(result: dict) -> dict:
+def _turn_record(result: dict, question: str) -> dict:
     """A PIT-safe durable turn from a respond() result: the synthesized answer + citation REFS + the
     as-of/graph it was made under. NEVER the retrieved evidence, raw number rows, or trace (which embeds
-    resolved evidence text); store.sanitize_turn is the backstop that enforces this."""
+    resolved evidence text); store.sanitize_turn is the backstop that enforces this. `question` comes from
+    the REQUEST (the server owns it) — respond()'s result dict never carries one, so relying on
+    `result.get("question")` stored null and broke the frontend's per-question dedup (5.8 fix)."""
     trace = result.get("trace") or {}
     return {
-        "question": result.get("question"),
+        "question": question,
         "answer": result.get("answer"),
         "structured": result.get("structured"),
         "asof": result.get("asof"),
@@ -218,11 +220,12 @@ def _ensure_thread_index(user: str, thread_id: str, question: str) -> None:
                          daemon=True).start()
 
 
-def _save_turn(ident: dict, session_id: Optional[str], result: dict) -> None:
+def _save_turn(ident: dict, session_id: Optional[str], result: dict, *, question: str = "") -> None:
     """Append a durable, PIT-safe turn to the thread's history + upsert the thread index + touch the
     user's profile record. Fail-open + no-op without a thread id: persistence must NEVER break or slow
     a turn. `ident` = {sub, email?, name?, ...} from the verified token (a plain user id string also
-    works for older callers/tests)."""
+    works for older callers/tests). `question` = the request text (the server owns it; not read back from
+    respond()'s result, which never carries one)."""
     if isinstance(ident, str):                                       # tolerate the pre-5.6 signature
         ident = {"sub": ident}
     user = ident["sub"]
@@ -233,8 +236,8 @@ def _save_turn(ident: dict, session_id: Optional[str], result: dict) -> None:
     if not session_id:
         return
     try:
-        _store().append_turn(user, session_id, _turn_record(result))
-        _ensure_thread_index(user, session_id, result.get("question") or "")
+        _store().append_turn(user, session_id, _turn_record(result, question))
+        _ensure_thread_index(user, session_id, question)
     except Exception:  # noqa: BLE001 — history is best-effort; a store glitch must not fail the answer
         pass
 
@@ -260,7 +263,7 @@ def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> 
     # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
     from leviathan.graphrag import orchestrator as orch
     result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id)
-    _save_turn(ident, body.session_id, result)           # durable per-thread history (PIT-safe, fail-open)
+    _save_turn(ident, body.session_id, result, question=body.question)   # durable history (PIT-safe, fail-open)
     return result
 
 
@@ -282,7 +285,7 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
                 result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
                                       on_stage=on_stage)
                 out.put(("result", result))               # deliver the note FIRST — the user isn't waiting on persistence
-                _save_turn(ident, session_id, result)     # then durable per-thread history (PIT-safe, fail-open, off the perceived path)
+                _save_turn(ident, session_id, result, question=question)  # then durable history (fail-open, off the perceived path)
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces
                 out.put(("error", {"error": f"{type(e).__name__}: {str(e)[:200]}"}))
 

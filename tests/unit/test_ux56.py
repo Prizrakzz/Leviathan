@@ -40,7 +40,9 @@ def _client(monkeypatch, respond_fn=None):
 
 
 def _fake_respond(query, *, graph, asof=None, session_id=None, **kw):
-    return {"question": query, "answer": f"note for {query}", "structured": {"tldr": "t"},
+    # NOTE: no "question" key — respond() never emits one. The server must inject the request question
+    # into the durable turn itself (5.8 regression: relying on result.get("question") stored null).
+    return {"answer": f"note for {query}", "structured": {"tldr": "t"},
             "asof": asof or "2026-01-01", "citations": [], "contracts": ["arabica_coffee"],
             "intent": "reasoning", "model": "m", "trace": {"graph_version": "gv1"}}
 
@@ -126,7 +128,11 @@ def test_save_turn_registers_thread_index_and_bumps_updated_at(monkeypatch):
     assert item is not None and item["title"] == "first corn question"
     assert item["created_at"] and item["updated_at"] and item["title_auto"] is False
     first_updated = item["updated_at"]
-    assert store.list_turns("local", "t-abc")[0]["answer"] == "note for first corn question"
+    turn0 = store.list_turns("local", "t-abc")[0]
+    assert turn0["answer"] == "note for first corn question"
+    # 5.8 regression: the durable turn carries the REQUEST question (respond() never emits one). A null
+    # here broke the frontend per-question dedup and rendered the answer twice.
+    assert turn0["question"] == "first corn question"
     time.sleep(1.1)                                                  # updated_at has 1s resolution
     c.post("/v1/respond", json={"question": "follow-up", "session_id": "t-abc"})
     item2 = store.get_item("local", "thread", "t-abc")

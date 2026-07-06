@@ -353,6 +353,12 @@ module "serving" {
     # mirror with per-request Athena fallback) + Haiku thread auto-titles. Rollback for each = remove the key.
     GRAPHRAG_CONVERGENCE_WARM = "on"
     GRAPHRAG_THREAD_TITLES    = "on"
+
+    # Phase 5.8: country-aware live-news search only — a country named with no commodity ("news on India")
+    # searches that country instead of generic keywords. Deterministic; affects live turns only. The fuzzy
+    # in-thread topic-shift carry-breaker was removed by design (threads are the context boundary). Rollback
+    # = remove the key.
+    GRAPHRAG_GEO_ROUTING = "on"
   }
 
   # Stage 1: guardrail on, auth off, CORS = localhost (defaults in the module).

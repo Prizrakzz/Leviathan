@@ -71,8 +71,9 @@ function AuthedApp() {
   );
 }
 
-/** Fresh interactive login → start a NEW empty thread (user decision: land on a clean composer). A plain
- *  reload keeps the persisted thread; only the explicit sign-in redirect resets it. */
+/** Fresh interactive login → start a NEW empty thread (user decision: land on a clean composer). The
+ *  thread store is no longer persisted (5.8), so every visit/reload already starts fresh; this newThread()
+ *  is belt-and-suspenders for the login redirect. Past threads re-open from the sidebar. */
 function CallbackLanding() {
   useEffect(() => {
     useThread.getState().newThread();

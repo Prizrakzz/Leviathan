@@ -15,6 +15,7 @@ answer is leakage-consistent.
 from __future__ import annotations
 
 import datetime as _dt
+import os
 from typing import Optional
 
 from leviathan.graphrag import answer as an
@@ -186,9 +187,20 @@ def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: s
     return out
 
 
+def _geo_routing_on() -> bool:
+    """Geography routing feature flag (5.8). Default off -> byte-identical to pre-5.8 behavior. Now scoped
+    to ONE deterministic behavior: the country-aware live-news search (name a country with no commodity ->
+    search that country instead of generic keywords). The fuzzy in-thread topic-shift carry-breaker was
+    removed by design — threads are the context boundary (a new thread is a clean session). Rollback = drop
+    the env var."""
+    return os.environ.get("GRAPHRAG_GEO_ROUTING", "off").lower() == "on"
+
+
 def _live_search_terms(query: str, graph) -> list[str]:
     """Search terms for the site-scoped providers: shock keywords found IN the query (else the default
-    policy probes from news_sources.yaml) x the query's commodity (word-boundary, incl. head nouns)."""
+    policy probes from news_sources.yaml) x the query's commodity (word-boundary, incl. head nouns).
+    When the query names a COUNTRY but no commodity (e.g. "news on India"), fall back to the country so
+    the fetch actually searches it instead of generic keywords (5.8, flag-gated)."""
     from leviathan.graphrag import harvest as hv
     from leviathan.graphrag.news import extract_live as nx
     from leviathan.graphrag.news import fetch as nf
@@ -199,6 +211,12 @@ def _live_search_terms(query: str, graph) -> list[str]:
     hits = cm.findall(query) if cm else []
     comm = hits[0] if hits else ""
     terms = [f"{k} {comm}".strip() for k in kws[:3]]
+    if _geo_routing_on() and not comm:
+        from leviathan.graphrag import geography as geo
+        country = geo.resolve_country(query)
+        if country:
+            label = country.replace("_", " ")
+            terms = [f"{k} {label}".strip() for k in kws[:3]] + [label]
     return [t for t in terms if t] or [query[:80]]
 
 
@@ -358,8 +376,8 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     asof = asof or (state.asof_latest if state else None) or _today()   # explicit > carried > today
     sblock = ss.state_block(snap) if (snap and (snap.turns or state.contracts)) else None
     route_fn = None
-    if state and state.contracts:
-        def route_fn(q, g):
+    if state and state.contracts:                                       # a thread carries its own contracts; threads
+        def route_fn(q, g):                                             # are the context boundary (5.8: no in-thread
             """Anaphora-aware routing: an explicit commodity mention (lexical tier) always wins; a SHORT
             follow-up with no mention ("does it get worse?") resolves from prior-turn contracts — more
             reliable than letting the semantic/LLM tiers guess at a pronoun (plan 7.2)."""
@@ -423,8 +441,11 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         decided = (classify or it.classify_intent)(query, call=call)
         kind = decided["intent"]
 
-    an._emit(on_stage, "planning", intent=kind,                    # staged-pipeline (P1.1): first live tick
-             contracts=[c for c in (list(plan.contracts) if plan else []) if c in graph.contracts])
+    # 5.8: a live turn re-routes off the news event and ignores plan.contracts, so don't display the
+    # carried contracts on its planning tick (the misleading soybeans/wheat under an India question).
+    _tick_contracts = [] if (_geo_routing_on() and kind == "live") else \
+        [c for c in (list(plan.contracts) if plan else []) if c in graph.contracts]
+    an._emit(on_stage, "planning", intent=kind, contracts=_tick_contracts)   # staged-pipeline (P1.1)
     try:
         if kind == "live":
             res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
