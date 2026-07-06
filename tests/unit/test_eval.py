@@ -143,3 +143,66 @@ def test_planner_panel_reports_l2_structure():
     assert m["is_l2"] and m["n_kept"] == 3 and m["n_contracts"] == 2 and m["n_regimes"] == 1 and m["leg_grounded"] == 1.0
     panel = "\n".join(E.planner_report(rows))
     assert "L2 planner" in panel and "cross-commodity" in panel
+
+
+# ── P7-P0.1: strip-RATE rollup + baseline artifact + corpus fingerprint ──────────────────────────────
+def _mk_row(rid, strips, claims, checked, answer="Clean prose.", intent="reasoning", intent_ok=True):
+    return {"q": {"id": rid, "contract": "corn", "expected_intent": intent},
+            "out": {"answer": answer, "intent": intent,
+                    "trace": {"citation_verifier": {"enabled": True, "checked": checked, "stripped": strips,
+                                                    "claim_count": claims, "corrected": 0,
+                                                    "by_rule": {"fabricated_citation": strips} if strips else {}}}},
+            "rubric": {"routed_right": True, "intent_ok": intent_ok}}
+
+
+def test_verifier_panel_reports_strip_rate():
+    traces = [r["out"]["trace"]["citation_verifier"] for r in
+              [_mk_row("a", 1, 4, 3), _mk_row("b", 0, 6, 2)]]
+    panel = "\n".join(gev.verifier_panel(traces))
+    assert "strip RATE: 0.1000" in panel                    # 1 strip / 10 sentence-claims
+    assert "10 sentence-claims" in panel
+
+
+def test_baseline_json_schema_and_rates():
+    rows = [_mk_row("a", 1, 4, 3), _mk_row("b", 0, 6, 2, intent_ok=False)]
+    doc = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v3",
+                             graph_version="g12", corpus_fp="c34")
+    assert doc["kind"] == "baseline_single" and doc["eval_set"] == "v3"
+    assert doc["graph_version"] == "g12" and doc["corpus_fingerprint"] == "c34"
+    assert doc["total_strips"] == 1 and doc["total_claims"] == 10
+    assert doc["strip_rate"] == 0.1 and doc["handle_strip_rate"] == 0.2
+    assert doc["intent_ok"] == 1 and doc["intent_n"] == 2
+    assert doc["n_answers"] == 2 and doc["per_answer"][0]["id"] == "a"
+    assert doc["per_answer"][0]["register_leaks"] == 0      # residual, post-sanitize
+
+
+def test_baseline_json_convo_rows_compose_ids():
+    rows = [{"convo": "wheat_thread", "turn": 2,
+             "out": {"answer": "x", "intent": "hybrid",
+                     "trace": {"citation_verifier": {"enabled": True, "checked": 1, "stripped": 0,
+                                                     "claim_count": 2, "corrected": 0, "by_rule": {}}}},
+             "mech": {"intent_ok": True}, "spec": {"q": "?"}}]
+    doc = gev._baseline_json(rows, run_kind="convos", model="m", judged=True, eval_set="convos_v1",
+                             graph_version=None, corpus_fp="c")
+    assert doc["per_answer"][0]["id"] == "wheat_thread/2" and doc["kind"] == "baseline_convos"
+
+
+def test_corpus_fingerprint_local_deterministic_and_sensitive(tmp_path, monkeypatch):
+    # local mode: filenames+sizes + driver_slices.yaml bytes; deterministic; flips on any corpus change.
+    evdir = tmp_path / "evidence"
+    evdir.mkdir()
+    (evdir / "corn.jsonl").write_text('{"t": 1}\n', encoding="utf-8")
+    drv = tmp_path / "driver_slices.yaml"
+    drv.write_text("drivers: {}\n", encoding="utf-8")
+    from leviathan.graphrag import evidence as _ev
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    monkeypatch.setattr(_ev, "_EVID_DIR", evdir)
+    monkeypatch.setattr(_ev, "_DRIVER_PATH", drv)
+    a = gev.corpus_fingerprint()
+    b = gev.corpus_fingerprint()
+    assert a == b and len(a) == 12 and a != "unknown"       # deterministic 12-hex
+    (evdir / "corn.jsonl").write_text('{"t": 1}\n{"t": 2}\n', encoding="utf-8")
+    assert gev.corpus_fingerprint() != a                    # slice change flips it
+    c = gev.corpus_fingerprint()
+    drv.write_text("drivers: {new_slice: {category: x, terms: [y]}}\n", encoding="utf-8")
+    assert gev.corpus_fingerprint() != c                    # alias/term edit flips it (E1 visibility)

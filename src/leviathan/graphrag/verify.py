@@ -121,11 +121,19 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
     ONE validated source list numbered by the model's own handles (the dual-list mismatch inflated the
     judge's hallucination tally 37->151 while grounding/PIT rose).
     GRAPHRAG_VERIFY=off -> no-op. Never raises: verification must never break an answer."""
-    report = {"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "by_rule": {}, "resolved": {}}
+    report = {"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "claim_count": 0,
+              "by_rule": {}, "resolved": {}}
     if os.environ.get("GRAPHRAG_VERIFY", "on") == "off" or not structured:
         report["enabled"] = False
         return report
     try:
+        # claim_count (P7-P0.1): the strip-RATE denominator = non-empty SENTENCES across the draft prose,
+        # captured FIRST (cheap, regex-only) and BEFORE _verify_field mutates tldr/mechanism — so a later
+        # verifier failure still leaves the denominator populated, and an all-uncited answer reads
+        # strip_rate 0 rather than NaN (handles-based `checked` stays as the secondary denominator).
+        _orig_prose = (structured.get("tldr") or "") + " " + (structured.get("mechanism") or "")
+        report["claim_count"] = len([s for s in _SENT_SPLIT.split(_orig_prose) if s.strip()])
+
         evidence = evidence or []
         number_calls = number_calls or []
 

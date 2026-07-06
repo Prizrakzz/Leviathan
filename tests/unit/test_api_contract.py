@@ -134,3 +134,31 @@ def test_watchlist_crud(monkeypatch):
     assert len(items) == 1 and items[0]["id"] == wid and items[0]["contracts"] == ["corn", "arabica_coffee"]
     assert c.delete(f"/v1/watchlists/{wid}").json()["ok"] is True
     assert c.get("/v1/watchlists").json()["items"] == []
+
+
+# ── P7-P0.6/0.7: shared Receipt contract + provenance reservations ───────────────────────────────────
+def test_receipt_contract_roundtrips_all_kinds():
+    # The ONE shared receipt shape A5 (per-claim confidence) and M6 (probability receipts) both consume.
+    from leviathan.graphrag import api_models as M
+    ev = M.Receipt(kind="evidence", label="USDA PSD, Apr 2024", detail="snippet...")
+    an = M.Receipt(kind="analogue", label="7 of 30 analogue years", n=30, years=[1997, 2009, 2015])
+    nu = M.Receipt(kind="number", label="S/U 0.02", confidence=0.9)
+    assert ev.kind == "evidence" and an.n == 30 and an.years[0] == 1997 and nu.confidence == 0.9
+    with pytest.raises(Exception):
+        M.Receipt(kind="vibes", label="nope")                       # kind is enum-locked
+
+def test_turn_and_share_accept_reserved_provenance_fields():
+    # chunk_version / calibration_version are RESERVED — default None, accepted when populated.
+    from leviathan.graphrag import api_models as M
+    t = M.TurnRecord(question="q")
+    assert t.chunk_version is None and t.calibration_version is None
+    t2 = M.TurnRecord(question="q", chunk_version="c1abc", calibration_version="k9def")
+    assert t2.chunk_version == "c1abc" and t2.calibration_version == "k9def"
+    s = M.ShareSnapshot(id="x", question="q", created_at="2026-07-07", payload={})
+    assert s.chunk_version is None and s.calibration_version is None
+
+def test_receipt_reservation_is_openapi_zero_diff(monkeypatch):
+    # Reservation doctrine: an unreferenced model must NOT appear in the OpenAPI dump (=> no types.gen drift).
+    c = _client(monkeypatch)
+    spec = sv.app.openapi()
+    assert "Receipt" not in (spec.get("components", {}).get("schemas", {}))

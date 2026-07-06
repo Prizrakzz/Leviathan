@@ -313,3 +313,13 @@ def test_embed_memoizes_single_text_calls(monkeypatch):
         assert calls["n"] == 3                                   # bulk path untouched (no memo)
     finally:
         ev._Q_CACHE.clear()
+
+
+def test_slice_for_driver_annotation_resolves():
+    # P7-P0.4: evidence.py used Optional in an annotation without importing it -- latent NameError under
+    # typing.get_type_hints (masked by `from __future__ import annotations`). Pin that hints now resolve.
+    import typing
+
+    from leviathan.graphrag import evidence as ev
+    hints = typing.get_type_hints(ev.slice_for_driver)
+    assert hints["return"] == typing.Optional[str]

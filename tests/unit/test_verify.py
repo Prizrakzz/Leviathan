@@ -119,3 +119,32 @@ def test_foreign_regime_name_stripped_own_survives():
     assert "bullish_protein_squeeze" not in s["tldr"]                # another contract's regime = fabrication
     assert "bullish_weather_squeeze" in s["tldr"]                    # this contract's own regime survives
     assert rep["by_rule"].get("foreign_regime_name") == 1
+
+
+# ── P7-P0.1: claim_count — the strip-RATE denominator ────────────────────────────────────────────────
+def test_claim_count_counts_sentences_pre_strip():
+    # Three sentences, one cited (supported), one cited (fabricated -> stripped), one uncited.
+    s = {"tldr": "Prices rose on the 2012 US drought [2]. Turkish hazelnut tariffs doubled overnight [9].",
+         "mechanism": "Buffers were thin.",
+         "sources": [{"ref": "2", "source": "usda_wasde", "date": "2012-08-10"},
+                     {"ref": "9", "source": "made_up_journal", "date": "1999-01-01"}]}
+    rep = vf.verify_citations(s, EV, NUMS)
+    assert rep["claim_count"] == 3                          # sentences, counted BEFORE any handle stripping
+    assert rep["checked"] >= 2                              # handles remain the secondary denominator
+    assert rep["stripped"] >= 1                             # the fabricated [9] ledger row / claim strips
+    # the denominator is not reduced by the strip (captured pre-mutation)
+    assert rep["claim_count"] == 3
+
+
+def test_claim_count_zero_handles_answer_not_degenerate():
+    # An all-uncited answer: claim_count counts sentences; handles checked == 0; rate reads 0, never NaN.
+    s = {"tldr": "Stocks are tight. Exports are slow.", "mechanism": "", "sources": []}
+    rep = vf.verify_citations(s, EV, NUMS)
+    assert rep["claim_count"] == 2 and rep["checked"] == 0 and rep["stripped"] == 0
+    assert rep["stripped"] / max(1, rep["claim_count"]) == 0.0
+
+
+def test_claim_count_zero_when_verifier_off(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_VERIFY", "off")
+    rep = vf.verify_citations({"tldr": "One. Two."}, EV, NUMS)
+    assert rep["enabled"] is False and rep.get("claim_count", 0) == 0

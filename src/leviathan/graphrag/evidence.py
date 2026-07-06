@@ -12,6 +12,7 @@ import math
 import os
 import random
 from datetime import date
+from typing import Optional
 
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import harvest as hv
