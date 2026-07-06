@@ -32,6 +32,16 @@ def _slugs() -> tuple[str, ...]:
         return ()
 
 
+def _regime_ids() -> tuple[str, ...]:
+    """Convergence-regime ids (bullish_drought_squeeze, ...) that must be humanized in prose, longest-first.
+    Sourced from the display registry (authoritative over the causal DAGs)."""
+    try:
+        from leviathan.graphrag import display as dp
+        return dp.all_regime_ids()
+    except Exception:  # noqa: BLE001 — registry missing -> skip regime handling
+        return ()
+
+
 def _strip_mermaid(text: str) -> str:
     return re.sub(r"```mermaid.*?```", " ", text or "", flags=re.S)   # the diagram MAY carry signs; the prose may not
 
@@ -50,6 +60,9 @@ def register_leaks(text: str) -> list[tuple[str, str]]:
     for slug in _slugs():
         for m in re.finditer(r"\b" + re.escape(slug) + r"\b", prose):
             hits.append((slug, _ctx(prose, m)))
+    for rid in _regime_ids():                                            # raw convergence-regime id in prose
+        for m in re.finditer(r"\b" + re.escape(rid) + r"\b", prose):
+            hits.append((rid, _ctx(prose, m)))
     return hits
 
 
@@ -66,6 +79,16 @@ _JARGON_SUBS = [                                                         # graph
     (re.compile(r"\bthe edge sign\b", re.I), "the direction"),
     (re.compile(r"\bthe node\b", re.I), "the driver"),
 ]
+
+
+def _regime_label(rid: str) -> str:
+    """Humanize a convergence-regime id via the display registry (bullish_drought_squeeze ->
+    'drought squeeze (bullish)'); falls back to the raw de-underscored id if the registry is missing."""
+    try:
+        from leviathan.graphrag import display as dp
+        return dp.regime_label(rid)
+    except Exception:  # noqa: BLE001
+        return rid.replace("_", " ")
 
 
 def _sign_word(s: str) -> str:
@@ -120,5 +143,7 @@ def sanitize(text: str) -> str:
             seg = rx.sub(repl, seg)
         for slug in _slugs():                                            # longest-first (from _slugs) -> no partials
             seg = re.sub(r"\b" + re.escape(slug) + r"\b", disp.get(slug, slug.replace("_", " ")), seg)
+        for rid in _regime_ids():                                        # longest-first -> humanize regime ids
+            seg = re.sub(r"\b" + re.escape(rid) + r"\b", _regime_label(rid), seg)
         parts[i] = seg
     return "".join(parts)

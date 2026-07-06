@@ -140,6 +140,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suggest Route
+         * @description 3-4 follow-up questions for the completed turn (or starters for `{}`). Fired once per turn BY THE
+         *     CLIENT; identity-gated but NEVER the turn quota — a separate namespaced daily counter caps the Haiku
+         *     spend, and every failure mode degrades to `[]` (chips are a nicety, never an error state).
+         */
+        post: operations["suggest_route_v1_suggest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/share": {
         parameters: {
             query?: never;
@@ -546,6 +568,40 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * SuggestRequest
+         * @description The turn packet the CLIENT sends after a completed turn (or `{}` on thread start). The server
+         *     enriches with profile facts + cached news headlines — it never re-reads evidence or session state.
+         */
+        SuggestRequest: {
+            /** Thread Id */
+            thread_id?: string | null;
+            /** Question */
+            question?: string | null;
+            /** Tldr */
+            tldr?: string | null;
+            /**
+             * Contracts
+             * @default []
+             */
+            contracts: string[];
+            /** Intent */
+            intent?: string | null;
+            /** Asof */
+            asof?: string | null;
+        };
+        /**
+         * SuggestResponse
+         * @description 3-4 follow-up questions (or [] — over-cap, kill-switch, parse failure all degrade to empty;
+         *     suggestions are a nicety and must never surface an error).
+         */
+        SuggestResponse: {
+            /**
+             * Suggestions
+             * @default []
+             */
+            suggestions: string[];
+        };
         /** ThreadTurns */
         ThreadTurns: {
             /** Thread Id */
@@ -862,6 +918,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventsFeed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggest_route_v1_suggest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestResponse"];
                 };
             };
             /** @description Validation Error */

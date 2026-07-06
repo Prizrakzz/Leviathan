@@ -483,6 +483,63 @@
         }
       }
     },
+    "/v1/suggest": {
+      "post": {
+        "summary": "Suggest Route",
+        "description": "3-4 follow-up questions for the completed turn (or starters for `{}`). Fired once per turn BY THE\nCLIENT; identity-gated but NEVER the turn quota \u2014 a separate namespaced daily counter caps the Haiku\nspend, and every failure mode degrades to `[]` (chips are a nicety, never an error state).",
+        "operationId": "suggest_route_v1_suggest_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/share": {
       "post": {
         "summary": "Share Create",
@@ -1783,6 +1840,91 @@
           "payload"
         ],
         "title": "ShareSnapshot"
+      },
+      "SuggestRequest": {
+        "properties": {
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "tldr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tldr"
+          },
+          "contracts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contracts",
+            "default": []
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          },
+          "asof": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          }
+        },
+        "type": "object",
+        "title": "SuggestRequest",
+        "description": "The turn packet the CLIENT sends after a completed turn (or `{}` on thread start). The server\nenriches with profile facts + cached news headlines \u2014 it never re-reads evidence or session state."
+      },
+      "SuggestResponse": {
+        "properties": {
+          "suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggestions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "SuggestResponse",
+        "description": "3-4 follow-up questions (or [] \u2014 over-cap, kill-switch, parse failure all degrade to empty;\nsuggestions are a nicety and must never surface an error)."
       },
       "ThreadTurns": {
         "properties": {

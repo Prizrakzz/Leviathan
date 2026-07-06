@@ -4,6 +4,11 @@
  *  NO integrity strip: those render only on the FINAL, verified structured note (Note.tsx / IntegrityStrip),
  *  preserving "trust machinery renders post-verify." */
 
+import { FormattedNote, renderInline } from './inlineFormat';
+
+const NO_CHIPS = {}; // streaming draft renders inline markup but NO citation chips (chips are post-verify)
+const noop = () => {};
+
 function unescapeJson(s: string): string {
   return s.replace(/\\n/g, '\n').replace(/\\t/g, '  ').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
 }
@@ -36,17 +41,17 @@ export function StreamingNote({ draft }: { draft: string }) {
       <div className={label}>
         TL;DR <span className="text-amber">· drafting</span>
       </div>
-      <p className="mt-1 whitespace-pre-wrap font-sans text-18 font-semibold leading-snug text-text">
-        {tldr}
+      <p className="mt-1 font-sans text-18 font-semibold leading-snug text-text">
+        {renderInline(tldr, NO_CHIPS, noop)}
         {!mechanism && caret}
       </p>
       {mechanism && (
         <>
           <div className={`mt-4 ${label}`}>Why</div>
-          <p className="mt-1 whitespace-pre-wrap font-sans text-14 leading-relaxed text-text">
-            {mechanism}
+          <div className="mt-1 font-sans text-14 leading-relaxed text-text">
+            <FormattedNote text={mechanism} resolved={NO_CHIPS} onOpen={noop} />
             {caret}
-          </p>
+          </div>
         </>
       )}
     </article>

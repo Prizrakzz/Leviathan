@@ -105,6 +105,24 @@ def test_sanitize_idempotent(monkeypatch):
         reg._display_map.cache_clear()
 
 
+def test_regime_id_flagged_as_leak():
+    toks = _tokens("A bullish_drought_squeeze needs three drivers; watch for a bearish_glut.")
+    assert "bullish_drought_squeeze" in toks and "bearish_glut" in toks    # raw regime ids are internal
+
+
+def test_sanitize_humanizes_regime_ids(monkeypatch):
+    _hier_stub(monkeypatch)
+    try:
+        dirty = "The bullish_drought_squeeze aligns with drought; a bearish_glut is the offset."
+        clean = reg.sanitize(dirty)
+        assert "bullish_drought_squeeze" not in clean and "bearish_glut" not in clean
+        assert "drought squeeze (bullish)" in clean and "supply glut (bearish)" in clean
+        assert reg.register_leaks(clean) == []                             # humanized -> no leak remains
+    finally:
+        reg._slugs.cache_clear()
+        reg._display_map.cache_clear()
+
+
 def test_eval_metric_and_panel_pick_up_leaks(monkeypatch):
     from leviathan.graphrag import eval as E
     monkeypatch.setattr(ev, "_hier", lambda: {"contracts": {}})

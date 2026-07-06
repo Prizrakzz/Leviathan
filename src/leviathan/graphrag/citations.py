@@ -25,7 +25,11 @@ class Citation(BaseModel):
 
 
 def _source_label(table: str) -> str:
-    return table.replace("silver_", "").replace("_", " ").upper()      # silver_noaa_oni -> NOAA ONI
+    """Official label for a silver table — delegates to the display registry (6.1) so the number
+    citation, the sources footer, and the lint agree on one name; falls back to the legacy
+    strip-'silver_'+upper for an unmapped table."""
+    from leviathan.graphrag import display as dp
+    return dp.table_label(table)
 
 
 def _fmt(v) -> str:
@@ -70,6 +74,9 @@ def from_number(call: dict, i: int) -> Citation:
 def from_evidence(row: dict, i: int) -> Citation:
     """Build a Citation from a retrieve() evidence row. page/char/snippet are forward-compatible slots (null until
     the page-citation recovery populates them) so document citations become click-to-page with no schema change."""
+    # source stays the RAW id here so the machine citation list stays join-keyed to `evidence` rows (the
+    # receipts drawer partitions by source|date); official display names are applied where the text is
+    # SHOWN (structured.sources + the cited-sources footer). 6.4 gives the drawer official names via source_key.
     src, sk, date = row.get("source", ""), row.get("source_key", ""), row.get("date")
     text = row.get("text") or ""
     snippet = text[:140] + ("..." if len(text) > 140 else "")

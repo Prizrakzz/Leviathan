@@ -447,6 +447,124 @@ def events_route(contract: Optional[str] = Query(None), asof: Optional[str] = Qu
     return M.EventsFeed(contract=contract, asof=asof, live=True, events=events).model_dump()
 
 
+# ── 6.2 query suggester — decoupled Haiku side-channel (never touches the answer path) ──────────────
+_SUGGEST_NEWS_TTL = 900   # seconds; headlines refresh at most 4x/hour, off the request path
+
+
+def _suggest_news() -> list[str]:
+    """Top headlines for the suggester prompt — cached, STALE-WHILE-REVALIDATE. Serves whatever is
+    cached immediately; on TTL expiry a daemon thread does ONE keyless `nf.gather()` sweep (raw
+    headlines, NO LLM — /v1/events' per-call fetch+extract is exactly what this must not do). A fetch
+    error keeps the stale list; the first-ever call returns [] and warms in the background."""
+    now = time.time()
+    ts, items = _STATE.get("suggest_news") or (0.0, [])
+    if now - ts > _SUGGEST_NEWS_TTL and not _STATE.get("suggest_news_refreshing"):
+        _STATE["suggest_news_refreshing"] = True
+
+        def _refresh(stale=items):
+            try:
+                from leviathan.graphrag import orchestrator as orch
+                from leviathan.graphrag.news import fetch as nf
+                got = nf.gather(orch._live_search_terms("", _graph()))
+                heads = [str(i.get("headline") or "").strip() for i in (got or [])]
+                _STATE["suggest_news"] = (time.time(), [h for h in heads if h][:8])
+            except Exception:  # noqa: BLE001 — keep the stale list; never retry-storm
+                _STATE["suggest_news"] = (time.time(), stale)
+            finally:
+                _STATE.pop("suggest_news_refreshing", None)
+
+        threading.Thread(target=_refresh, daemon=True).start()
+    return items
+
+
+def _suggest_prompt(body: M.SuggestRequest, facts: Optional[dict]) -> str:
+    """The Haiku prompt: role + strict output contract + the turn packet + optional facts/headlines.
+    ASCII, hard-truncated fields (the packet is client-supplied text)."""
+    lines = [
+        "You suggest the NEXT question a commodity researcher would ask in a research terminal that",
+        "answers from causal driver graphs, official-source evidence (USDA/WASDE/GAIN etc.) and",
+        "supply/demand balance sheets, with an interest in convexity (buffer exhaustion, regime tips).",
+        "Return ONLY a JSON array of 3-4 short questions. Each: under 110 characters, plain English,",
+        "ASCII, specific and answerable from fundamentals -- no internal identifiers, no code_like_names,",
+        "no price targets. Mix: one going deeper on the last answer, one on an adjacent contract or",
+        "driver, and one time-aware question when headlines are given.",
+    ]
+    if body.question or body.tldr:
+        if body.question:
+            lines.append(f"\nLast question: {body.question[:300]}")
+        if body.tldr:
+            lines.append(f"Answer TL;DR: {body.tldr[:400]}")
+        if body.contracts:
+            lines.append("Contracts in focus: " + ", ".join(c.replace("_", " ") for c in body.contracts[:4]))
+    else:
+        lines.append("\nThis is a NEW empty session -- suggest strong starter questions a researcher"
+                     " would actually ask today.")
+    interests = (facts or {}).get("markets") or (facts or {}).get("interests")
+    if interests:
+        lines.append("User interests: " + (", ".join(interests) if isinstance(interests, list) else str(interests))[:200])
+    heads = _suggest_news()
+    if heads:
+        lines.append("Today's headlines:\n" + "\n".join(f"- {h[:160]}" for h in heads))
+    return "\n".join(lines)
+
+
+def _parse_suggestions(raw: str) -> list[str]:
+    """First JSON array in the completion -> <=4 clean chips. Deterministic guards (the one-vocab
+    doctrine applies to chips): strings only, trimmed, <=140 chars, ZERO register leaks (an internal
+    id can never render as a chip), deduped. Anything unparseable -> []."""
+    from leviathan.graphrag import register as reg
+    m = None
+    try:
+        a, b = raw.index("["), raw.rindex("]")
+        m = json.loads(raw[a:b + 1])
+    except Exception:  # noqa: BLE001 — parse failure -> no chips, never an error
+        return []
+    out: list[str] = []
+    for s in (m if isinstance(m, list) else []):
+        if not isinstance(s, str):
+            continue
+        s = s.strip().strip('"').strip()
+        if not s or len(s) > 140 or s in out or reg.register_leaks(s):
+            continue
+        out.append(s)
+    return out[:4]
+
+
+@app.post("/v1/suggest", response_model=M.SuggestResponse)
+def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identity)) -> dict:
+    """3-4 follow-up questions for the completed turn (or starters for `{}`). Fired once per turn BY THE
+    CLIENT; identity-gated but NEVER the turn quota — a separate namespaced daily counter caps the Haiku
+    spend, and every failure mode degrades to `[]` (chips are a nicety, never an error state)."""
+    empty = M.SuggestResponse(suggestions=[]).model_dump()
+    if os.environ.get("GRAPHRAG_SUGGEST", "on").lower() != "on":       # kill-switch, no redeploy
+        return empty
+    from leviathan.graphrag import store as st
+    try:                                                               # sk=quota#suggest#<day> — the turn
+        cap = int(os.environ.get("GRAPHRAG_SUGGEST_QUOTA", "200"))     # quota counter is untouched
+        _store().incr_turn_quota(ident["sub"], f"suggest#{time.strftime('%Y-%m-%d', time.gmtime())}", cap)
+    except st.QuotaExceeded:
+        return empty
+    except Exception:  # noqa: BLE001 — counter glitch -> fail open
+        pass
+    try:
+        facts = (_store().get_profile(ident["sub"]) or {}).get("facts")
+    except Exception:  # noqa: BLE001
+        facts = None
+    prompt = _suggest_prompt(body, facts if isinstance(facts, dict) else None)
+    try:
+        call = _STATE.get("suggest_call")
+        if call is None:
+            from leviathan.graphrag import providers as pv
+            def call(p: str) -> str:
+                client = pv.make_client()
+                out = client.messages.create(model=pv.resolve_model("claude-haiku-4-5"), max_tokens=200,
+                                             messages=[{"role": "user", "content": p}])
+                return "".join(b.text for b in out.content if getattr(b, "type", "") == "text").strip()
+        return M.SuggestResponse(suggestions=_parse_suggestions(call(prompt) or "")).model_dump()
+    except Exception:  # noqa: BLE001 — model/provider failure -> no chips
+        return empty
+
+
 # ── 1.7 share snapshots + per-user persistence (auth default-off) ───────────────────────────────────
 class ShareIn(BaseModel):
     question: str

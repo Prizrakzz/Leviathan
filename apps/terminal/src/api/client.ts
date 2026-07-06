@@ -80,6 +80,14 @@ export function getEvents(contract?: string, asof?: string): Promise<Schemas['Ev
   return getJSON(`/v1/events${qs ? `?${qs}` : ''}`);
 }
 
+// ── 6.2 query suggester (decoupled; fired once per completed turn / thread start) ──────────────────
+export type SuggestPacket = Schemas['SuggestRequest'];
+
+export function suggest(packet: SuggestPacket): Promise<Schemas['SuggestResponse']> {
+  if (MOCK) return import('./mock').then((m) => m.mockSuggest(packet));
+  return postJSON(`/v1/suggest`, packet);
+}
+
 // ── durable threads (per-user; requires auth in prod) ──────────────────────────────────────────────
 export interface ThreadItem {
   id: string;

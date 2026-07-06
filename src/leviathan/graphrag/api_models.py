@@ -146,3 +146,21 @@ class TurnRecord(BaseModel):
 class ThreadTurns(BaseModel):
     thread_id: str
     turns: list[TurnRecord] = []
+
+
+# ── 6.2 query suggester (decoupled Haiku side-channel; never touches the answer path) ───────────────
+class SuggestRequest(BaseModel):
+    """The turn packet the CLIENT sends after a completed turn (or `{}` on thread start). The server
+    enriches with profile facts + cached news headlines — it never re-reads evidence or session state."""
+    thread_id: Optional[str] = None
+    question: Optional[str] = None
+    tldr: Optional[str] = None
+    contracts: list[str] = []
+    intent: Optional[str] = None
+    asof: Optional[str] = None
+
+
+class SuggestResponse(BaseModel):
+    """3-4 follow-up questions (or [] — over-cap, kill-switch, parse failure all degrade to empty;
+    suggestions are a nicety and must never surface an error)."""
+    suggestions: list[str] = []

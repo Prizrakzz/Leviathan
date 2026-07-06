@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
-import { getGraph, getThreadTurns } from '@/api/client';
+import { getGraph, getThreadTurns, suggest } from '@/api/client';
 import type { components } from '@/api/types.gen';
 import type { TurnState } from '@/api/useTurn';
 import { Composer } from '@/shell/Composer';
@@ -10,8 +10,10 @@ import { useSession } from '@/store/session';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { EmptyState } from './answer/EmptyState';
+import { SuggestionChips } from './answer/SuggestionChips';
 import { CascadeDAG } from './dag/CascadeDAG';
 import { Banners } from './note/Banners';
+import { FormattedNote, renderInline } from './note/inlineFormat';
 import { IntegrityStrip } from './note/IntegrityStrip';
 import { Note } from './note/Note';
 import { StreamingNote } from './note/StreamingNote';
@@ -21,27 +23,37 @@ import { ReceiptsDrawer } from './receipts/ReceiptsDrawer';
 
 type TurnRecord = components['schemas']['TurnRecord'];
 
-/** One past (durable) turn of the active thread — full answer, ChatGPT-style (5.6 decision). Turns saved
- *  before full-note persistence carry only a tldr; render whatever is present. */
+const NO_CHIPS = {}; // past turns have no persisted resolved-citation map -> render [n] as plain text
+const noop = () => {};
+// INTEGRITY strip is an eval/log signal, not user-facing (6.1); show it only in debug (localStorage lv-debug=1).
+const SHOW_INTEGRITY = typeof localStorage !== 'undefined' && localStorage.getItem('lv-debug') === '1';
+
+/** One past (durable) turn of the active thread — full answer, ChatGPT-style (5.6 decision). Renders from
+ *  the persisted `structured` (backend-sanitized in 6.1, so clean prose — no raw markup or internal ids),
+ *  falling back to the legacy `answer` body only when a pre-6.1 turn has no structured fields. Citations
+ *  render as plain text on past turns (the resolved map is trace-only, not persisted). */
 function PastTurn({ t }: { t: TurnRecord }) {
   const s = (t.structured ?? null) as { tldr?: string; mechanism?: string } | null;
   const tldr = s?.tldr ?? '';
   const mechanism = s?.mechanism ?? '';
-  const full = t.answer ?? '';
+  const legacy = !tldr && !mechanism ? (t.answer ?? '') : '';
   return (
     <div className="border-b border-line pb-4" data-testid="past-turn">
       <div className="font-mono text-12 text-cyan">▸ {t.question}</div>
-      {tldr && <p className="mt-2 font-sans text-14 font-semibold leading-snug text-text">{tldr}</p>}
-      {mechanism && (
-        <p className="mt-1 whitespace-pre-wrap font-sans text-13 leading-relaxed text-text-dim">{mechanism}</p>
+      {tldr && (
+        <p className="mt-2 font-sans text-14 font-semibold leading-snug text-text">
+          {renderInline(tldr, NO_CHIPS, noop)}
+        </p>
       )}
-      {full && (
-        <details className="mt-2">
-          <summary className="cursor-pointer font-mono text-11 text-text-faint hover:text-cyan">
-            full note
-          </summary>
-          <div className="mt-1 whitespace-pre-wrap font-sans text-13 leading-relaxed text-text-dim">{full}</div>
-        </details>
+      {mechanism && (
+        <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
+          <FormattedNote text={mechanism} resolved={NO_CHIPS} onOpen={noop} />
+        </div>
+      )}
+      {legacy && (
+        <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
+          <FormattedNote text={legacy} resolved={NO_CHIPS} onOpen={noop} />
+        </div>
       )}
       {t.asof && <div className="mt-1 font-mono text-11 text-text-faint">as of {t.asof}</div>}
     </div>
@@ -92,8 +104,33 @@ export function AnswerView({
     staleTime: 300_000,
   });
 
+  // 6.2 suggester — fired ONCE per completed turn (never per input). Keyed on the latest turn's
+  // question: the live result and its persisted copy share the key, so the turn settling into `past`
+  // never refetches. A reopened thread suggests off its LAST persisted turn.
+  const lastTurn = past.length ? past[past.length - 1] : null;
+  const liveDone = turn.status === 'done' && !!r?.structured && !!question;
+  const suggestKey = liveDone ? question : (lastTurn?.question ?? null);
+  const suggestQ = useQuery({
+    queryKey: ['suggest', threadId, suggestKey],
+    queryFn: () =>
+      suggest(
+        liveDone
+          ? { thread_id: threadId, question, tldr: r?.structured?.tldr ?? null,
+              contracts: r?.contracts ?? [], intent: r?.intent ?? null, asof: r?.asof ?? null }
+          : { thread_id: threadId, question: lastTurn?.question ?? null,
+              tldr: (lastTurn?.structured as { tldr?: string } | null)?.tldr ?? null,
+              contracts: lastTurn?.contracts ?? [], intent: lastTurn?.intent ?? null,
+              asof: lastTurn?.asof ?? null },
+      ),
+    enabled: ready && !!suggestKey && turn.status !== 'streaming' && turn.status !== 'error',
+    staleTime: Infinity,
+  });
+
   const scrollRef = useRef<HTMLDivElement>(null);
-  useAutoScroll(scrollRef, `${shown.length}:${turn.stages.length}:${past.length}:${turn.status}`);
+  useAutoScroll(
+    scrollRef,
+    `${shown.length}:${turn.stages.length}:${past.length}:${turn.status}:${suggestQ.data?.suggestions.length ?? 0}`,
+  );
 
   // Brand-new thread, nothing asked yet → the hero landing.
   if (turn.status === 'idle' && !question && past.length === 0 && !turnsQ.isLoading)
@@ -154,7 +191,7 @@ export function AnswerView({
                       </pre>
                     ) : null}
                     <Numbers calls={r.number_calls ?? []} asof={asof} />
-                    <IntegrityStrip result={r} />
+                    {SHOW_INTEGRITY && <IntegrityStrip result={r} />}
                   </>
                 ) : (
                   (r.evidence?.length ?? 0) > 0 && (
@@ -169,6 +206,10 @@ export function AnswerView({
               </div>
             )}
           </div>
+        )}
+
+        {turn.status !== 'streaming' && (
+          <SuggestionChips items={suggestQ.data?.suggestions ?? []} onAsk={onAsk} />
         )}
       </div>
 

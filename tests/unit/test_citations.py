@@ -29,6 +29,7 @@ def test_evidence_citation_carries_forward_compatible_page_slots():
     row = {"source": "usda_gain_wheat", "source_key": "text/gain/xyz.json", "date": "2017-04-17",
            "text": "Black Sea wheat export competition with US HRS is limited by quality differences."}
     e = from_evidence(row, 1)
+    # source stays the RAW id (join-keyed to evidence rows); official names are applied at display time
     assert e.id == "E1" and e.kind == "evidence" and e.source == "usda_gain_wheat"
     assert e.locator["kind"] == "doc" and e.locator["source_key"] == "text/gain/xyz.json"
     assert "page" in e.locator and e.locator["page"] is None                # slot present, filled by page-recovery later

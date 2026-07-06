@@ -12,6 +12,26 @@ def _d(id, **o):
                      mechanism=o.pop("mechanism", "m"), **o)
 
 
+def test_humanize_structured_cleans_ui_fields():
+    """The UI renders structured.{tldr,mechanism,sources} DIRECTLY (not the flattened body), so 6.1
+    humanizes those in place: leaked regime ids/tokens gone, source ids -> official names."""
+    d = {
+        "tldr": "A bullish_drought_squeeze read; conf=high on drought.",
+        "mechanism": "La Nina raises price (bullish). A bearish_glut is the offset.",
+        "sources": [{"ref": 1, "source": "usda_gain_corn", "date": "2022-01-01",
+                     "note": "supports the bullish_drought_squeeze"}],
+    }
+    an._humanize_structured(d)
+    assert "bullish_drought_squeeze" not in d["tldr"] and "conf=" not in d["tldr"]
+    assert "drought squeeze (bullish)" in d["tldr"] and "high confidence" in d["tldr"]
+    assert "bearish_glut" not in d["mechanism"] and "supply glut (bearish)" in d["mechanism"]
+    assert d["sources"][0]["source"] == "USDA FAS GAIN Report — Corn"
+    assert "bullish_drought_squeeze" not in d["sources"][0]["note"]
+    # no internal-token leaks survive in the reader-facing fields
+    from leviathan.graphrag import register as reg
+    assert reg.register_leaks(d["tldr"] + " " + d["mechanism"]) == []
+
+
 def _graph() -> g.CausalGraph:
     coffee = cs.CausalContract(
         contract="arabica_coffee", aliases=["arabica", "KC"],
@@ -151,7 +171,7 @@ def test_answer_renders_single_validated_source_list():
 
     out = an.answer("arabica coffee outlook", graph=gr, retrieve=fake_retrieve, call=fake_call)
     assert out["answer"].count("## Sources") == 1
-    assert "[1] usda_wasde (2022-01-01):" in out["answer"]                    # model handle, true metadata
+    assert "[1] USDA WASDE (2022-01-01):" in out["answer"]                    # model handle, official name (6.1)
     assert "[E1]" not in out["answer"]                                        # the parallel footer is gone
     assert out["citations"] and out["citations"][0]["kind"] == "evidence"     # machine list unchanged
     assert out["citations"][0]["locator"]["kind"] == "doc"

@@ -220,6 +220,7 @@ def _metrics(r: dict) -> dict:
             "src_div": j.get("source_diversity"),
             "usefulness": j.get("usefulness"), "convexity": j.get("convexity"),
             "point_in_time": j.get("point_in_time"), "grounding": j.get("grounding"),
+            "answer_chars": len(out.get("answer") or ""),              # 6.2 conciseness: deterministic length signal
             "halluc": _n_halluc(j), "gaps": j.get("gaps") or []}
 
 
@@ -305,6 +306,11 @@ def register_report(rows: list[dict]) -> list[str]:
         L.append(f"- most-leaked tokens: {top}")
     else:
         L.append("- no internal tokens leaked into prose")
+    chars = [x["answer_chars"] for x in m if x.get("answer_chars")]
+    if chars:                                                          # 6.2 conciseness gate: compare across runs
+        import statistics
+        L.append(f"- answer length: mean {statistics.mean(chars):.0f} chars, max {max(chars)} "
+                 f"(conciseness signal — compare vs the prior run)")
     return L
 
 

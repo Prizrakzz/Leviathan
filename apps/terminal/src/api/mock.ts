@@ -71,16 +71,17 @@ function goodResult(question: string, asof: string): RespondResult {
     structured: {
       tldr:
         'A July frost landing in an off-year would compound an already-thin buffer, producing a convex ' +
-        '(larger-than-linear) ICE arabica spike. [1][2]',
+        '(larger-than-linear) ICE arabica spike. **Net read: bullish.** [1][2]',
       mechanism:
-        "Radiative frost in Brazil's southern arabica belt kills buds → next crop ↓ [1]; in a biennial " +
-        'off-year the amplifier interaction compounds the loss [2]; with tenderable stocks already low ' +
-        '[N1] the price response steepens past the buffer kink.',
+        'The chain runs in three steps:\n\n' +
+        "- Radiative frost in Brazil's southern arabica belt kills buds, cutting the next crop (bullish) [1]\n" +
+        '- In a biennial off-year the loss compounds — the two effects amplify each other (bullish) [2]\n' +
+        '- With tenderable stocks already low [N1], the price response steepens past the buffer kink',
       diagram_mermaid: 'graph LR; frost-->stocks; stocks-->price',
       sources: [
-        { ref: 1, source: 'usda_gain_coffee', date: '2021-07-20' },
-        { ref: 2, source: 'usda_wasde', date: '2021-07-12' },
-        { ref: 'N1', source: 'silver_psd', date: '2021-06-11' },
+        { ref: 1, source: 'USDA FAS GAIN Report — Coffee', date: '2021-07-20' },
+        { ref: 2, source: 'USDA WASDE', date: '2021-07-12' },
+        { ref: 'N1', source: 'USDA PSD', date: '2021-06-11' },
       ],
     },
     contract: 'arabica_coffee',
@@ -352,3 +353,22 @@ export const MOCK_EVENTS: Schemas['EventsFeed'] = {
     },
   ],
 };
+
+// ── 6.2 query suggester ─────────────────────────────────────────────────────────────────────────────
+/** Mock follow-ups: distinct sets for a turn packet vs an empty (thread-start) packet, after a short
+ *  delay so loading states render in VITE_MOCK=1. */
+export function mockSuggest(packet: Schemas['SuggestRequest']): Promise<Schemas['SuggestResponse']> {
+  const followups = [
+    'How thin are certified arabica stocks right now?',
+    'What would a second July frost do to the KC curve?',
+    'How does the biennial off-year interact with frost losses?',
+  ];
+  const starters = [
+    'Which contracts have convergence regimes closest to firing?',
+    'Walk me through the KC arabica frost convexity setup',
+    'What does a weak BRL do to the sugar supply squeeze?',
+    'US corn ending stocks vs the 5-year average - implications?',
+  ];
+  const items = packet.question || packet.tldr ? followups : starters;
+  return new Promise((resolve) => setTimeout(() => resolve({ suggestions: items }), 300));
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mockListThreads, mockRespondStream, mockThreadTurns } from './mock';
+import { mockListThreads, mockRespondStream, mockSuggest, mockThreadTurns } from './mock';
 import type { RespondResult, StageEvent } from './schema';
 
 describe('mockRespondStream', () => {
@@ -30,6 +30,16 @@ describe('mockRespondStream', () => {
     expect(() => JSON.parse(draft) as unknown).not.toThrow();
     expect(result?.trace?.graph_version).toBe('3a69acfb87c5');
     expect(result?.asof).toBe('2021-07-20');
+  });
+});
+
+describe('mockSuggest (6.2)', () => {
+  it('returns follow-ups for a turn packet and starters for an empty packet', async () => {
+    const follow = await mockSuggest({ question: 'why tight?', tldr: 't', contracts: [] });
+    const start = await mockSuggest({ contracts: [] });
+    expect(follow.suggestions.length).toBeGreaterThan(0);
+    expect(start.suggestions.length).toBeGreaterThan(0);
+    expect(follow.suggestions).not.toEqual(start.suggestions); // distinct sets exercise both surfaces
   });
 });
 

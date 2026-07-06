@@ -87,8 +87,20 @@ _SYSTEM = (
     "OUTPUT REGISTER: reason internally with the graph's signs/driver-ids, but WRITE for the researcher — say "
     "bullish/bearish (or supportive/pressuring), NOT '+/-'; 'the driver is active, confirmed by <dated evidence>', "
     "NOT 'the node fired'; 'the effects compound/offset', NOT 'the leg cancels'; spell out contract names (the "
-    "Dalian soybean contract, not soybeans_no_2_dce); NEVER emit internal tokens (conf=, sign=, node, edge, raw "
-    "slugs) in the prose.\n"
+    "Dalian soybean contract, not soybeans_no_2_dce). NEVER emit an internal identifier of ANY kind in the prose: "
+    "no driver/contract slugs, no convergence-regime ids (write 'a drought-driven supply squeeze', NEVER "
+    "'bullish_drought_squeeze'), no silver table names, no threshold tokens (conf=, sign=, any_n_of, edge). Describe "
+    "every regime, driver, and threshold in plain English — the reader must never see a name that exists only in "
+    "our internal tables.\n"
+    "TONE & FORMAT: write as a senior quant mentoring a sharp colleague — precise, calm, plain English; lead with "
+    "the point, state confidence in words inline, no hype and no filler hedging. You MAY use **bold** for the lead "
+    "term of a point and '-' bullets for a short enumeration, sparingly and professionally; do NOT use headings, "
+    "tables, code fences, blockquotes, or _underscore_ emphasis.\n"
+    "LENGTH DISCIPLINE: answer ONLY what was asked. tldr: 1-3 sentences. mechanism: scoped to the question — "
+    "target 120-180 words; exceed only when the question itself demands enumeration (per-member divergence "
+    "across a complex, a dated multi-hop cascade), and even then stay tight. Do NOT pad with adjacent drivers, "
+    "background, or watch-lists the user didn't ask for — the terminal suggests follow-up questions, so depth "
+    "belongs to the NEXT turn, not this one. Shorter and exactly-on-point beats exhaustive.\n"
     "TEMPORAL DISCIPLINE (cascades are about timing): each evidence item shows when it was 'reported <date>' and, "
     "when known, when the 'event <date>' actually occurred — PREFER the event date for sequencing. For a cascade/"
     "convergence question, lay the cited events out as a DATED sequence (earliest trigger -> downstream effect) "
@@ -119,8 +131,10 @@ _SYSTEM = (
     "manufacture severity, outcomes, or magnitudes from a bare count or date.\n"
     "Emit via emit_answer, reader-first for a PM to skim:\n"
     "- tldr: 2-4 sentences, bottom line FIRST (net price direction + the key driver). Inline [n] for evidence-backed claims.\n"
-    "- mechanism: the causal chain / key drivers (sign each in words — 'raises price (bullish)' or 'lowers (bearish)'); NAME the convergence "
-    "regime for confluence questions; make clear which claims are MODEL vs CITED observation. Brief list, NO giant tables. Cite [n].\n"
+    "- mechanism: the causal chain / key drivers (sign each in words — 'raises price (bullish)' or 'lowers (bearish)'); for a "
+    "confluence question DESCRIBE the convergence scenario in plain words (e.g. 'a drought-driven supply squeeze that needs "
+    "several drivers to line up'), never its internal id; make clear which claims are MODEL vs CITED observation. Brief list, "
+    "NO giant tables. Cite [n].\n"
     "- diagram_mermaid: ONLY for a cascade (TRACE a chain) or convergence (CONFLUENCE) question — a small `flowchart LR` "
     "(<=8 nodes, sign in each PLAIN-TEXT label, no emoji, e.g. frost[\"frost +\"] --> stocks[\"stocks drain +\"]) ending "
     "at a price node. For 'what drives X' / policy / simple questions, leave it an EMPTY string.\n"
@@ -409,6 +423,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))
@@ -477,6 +492,30 @@ def render(d: dict, *, include_ledger: bool = True) -> str:
     return "\n".join(parts).strip()
 
 
+def _humanize_structured(d: dict) -> None:
+    """Sanitize the structured fields the UI renders DIRECTLY into reader register (6.1). The frontend
+    shows `structured.{tldr,mechanism,sources}`, NOT the flattened body, so this is where leaked internal
+    tokens, raw regime ids, and internal source ids are removed for the live AND persisted note. Runs
+    AFTER verify (which mutates tldr/mechanism to strip fabricated citations) and mutates in place, so
+    the object returned + persisted is already clean."""
+    if not isinstance(d, dict):
+        return
+    for fld in ("tldr", "mechanism"):
+        v = d.get(fld)
+        if isinstance(v, str) and v:
+            d[fld] = reg.sanitize(v)
+    srcs = d.get("sources")
+    if isinstance(srcs, list):
+        from leviathan.graphrag import display as dp
+        for s in srcs:
+            if not isinstance(s, dict):
+                continue
+            if s.get("source"):
+                s["source"] = dp.source_name(str(s["source"]))
+            if isinstance(s.get("note"), str) and s["note"]:
+                s["note"] = reg.sanitize(s["note"])
+
+
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
@@ -497,7 +536,9 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
                 continue
         elif ref in resolved:
             r = resolved[ref]
-            lines.append(f"[{ref}] {r.get('source')} ({r.get('date')}): {r.get('snippet')}")
+            from leviathan.graphrag import display as dp
+            lines.append(f"[{ref}] {dp.source_name(str(r.get('source') or ''))} "
+                         f"({r.get('date')}): {r.get('snippet')}")
     return ("\n\n## Sources\n" + "\n".join(lines)) if lines else ""
 
 
@@ -617,6 +658,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))
