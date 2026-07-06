@@ -540,6 +540,108 @@
         }
       }
     },
+    "/v1/profile": {
+      "get": {
+        "summary": "Get Profile Route",
+        "description": "The signed-in user's own profile \u2014 identity claims + facts + the onboarding flag. Auth-gated; a\nmissing record returns identity-only defaults (facts={}, onboarded=false).",
+        "operationId": "get_profile_route_v1_profile_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Put Profile Route",
+        "description": "Update the user's facts and/or onboarding flag \u2014 a PARTIAL update (omitted fields unchanged). Facts\nare normalized server-side before the write; the fresh profile is returned. A genuine store failure\npropagates (the client must know a save didn't persist \u2014 unlike the fire-and-forget touch_profile).",
+        "operationId": "put_profile_route_v1_profile_put",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/share": {
       "post": {
         "summary": "Share Create",
@@ -1657,6 +1759,115 @@
         },
         "type": "object",
         "title": "ItemIn"
+      },
+      "Profile": {
+        "properties": {
+          "sub": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "facts": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Facts",
+            "default": {}
+          },
+          "onboarded": {
+            "type": "boolean",
+            "title": "Onboarded",
+            "default": false
+          },
+          "turn_count": {
+            "type": "integer",
+            "title": "Turn Count",
+            "default": 0
+          },
+          "first_seen": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen"
+          },
+          "last_seen": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Profile",
+        "description": "The signed-in user's own profile (auth-gated GET /v1/profile). Identity claims (name/email) mirror\nthe ID token; `facts` is the user-authored preference dict (markets/regions/seat/notes) that personalizes\nthe query suggester \u2014 PREFERENCES, never evidence, so the PIT firewall is untouched. `onboarded` gates the\nfirst-run flow. turn_count/first_seen are display-only bookkeeping."
+      },
+      "ProfileUpdate": {
+        "properties": {
+          "facts": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facts"
+          },
+          "onboarded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onboarded"
+          }
+        },
+        "type": "object",
+        "title": "ProfileUpdate",
+        "description": "PUT /v1/profile body \u2014 a partial update. `facts` is normalized server-side (known keys only, capped\ncounts/lengths); `onboarded` flips the first-run gate. Omitted fields are left unchanged."
       },
       "RegimeCard": {
         "properties": {

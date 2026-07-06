@@ -13,9 +13,11 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { authEnabled, userManager } from './auth/oidc';
 import { ErrorBoundary } from './shell/ErrorBoundary';
-import { injectTokens } from './tokens/tokens';
+import { useUI } from './store/ui';
+import { applyAccent, injectTokens } from './tokens/tokens';
 
 injectTokens(); // set the design-token CSS var values on :root before first paint
+applyAccent(useUI.getState().accent); // then the user's persisted accent (6.6), also pre-paint (no flash)
 
 const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } });
 

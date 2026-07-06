@@ -11,10 +11,13 @@ import { useUI, type ViewName } from '@/store/ui';
 import { noteToMarkdown } from '@/views/note/markdown';
 import { useUrlSync } from './useUrlSync';
 import { CommandPalette } from './CommandPalette';
+import { ErrorBoundary } from './ErrorBoundary';
 import { ShortcutSheet } from './ShortcutSheet';
 import { ThreadSidebar } from './ThreadSidebar';
 import { TopBar } from './TopBar';
 import { ViewContainer } from './ViewContainer';
+import Onboarding from '@/views/onboarding/Onboarding';
+import SettingsModal from '@/views/settings/SettingsModal';
 
 /** The terminal shell (design §3.1): the fixed top bar, the thread sidebar, the view container (answer =
  *  conversation column + composer), the command palette, and the full hotkey system. Owns the active turn. */
@@ -105,6 +108,14 @@ export function Shell() {
         onRun={submit}
       />
       {helpOpen && <ShortcutSheet onClose={() => setHelpOpen(false)} />}
+      {/* Settings + onboarding (6.6) — always mounted, self-gated on open/profile state. Wrapped so a
+          fault in either can never blank the terminal (S2.x lesson). */}
+      <ErrorBoundary fallback={null}>
+        <SettingsModal />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <Onboarding />
+      </ErrorBoundary>
     </div>
   );
 }

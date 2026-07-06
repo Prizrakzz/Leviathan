@@ -76,7 +76,9 @@ class Store(Protocol):
     def delete_turns(self, user_id: str, thread_id: str) -> int: ...
     def touch_profile(self, user_id: str, *, email: Optional[str] = None, name: Optional[str] = None,
                       count_turn: bool = True) -> None: ...
-    def get_profile(self, user_id: str) -> Optional[dict]: ...
+    def get_profile(self, user_id: str, *, consistent: bool = False) -> Optional[dict]: ...
+    def update_profile(self, user_id: str, *, facts: Optional[dict] = None,
+                       onboarded: Optional[bool] = None) -> None: ...
 
 
 # ── in-memory (tests / local) ──────────────────────────────────────────────────────────────────────
@@ -134,8 +136,18 @@ class InMemoryStore:
         if name is not None:
             p["name"] = name
 
-    def get_profile(self, user_id: str) -> Optional[dict]:
-        return self._profiles.get(user_id)
+    def get_profile(self, user_id: str, *, consistent: bool = False) -> Optional[dict]:
+        return self._profiles.get(user_id)                           # in-memory is always consistent
+
+    def update_profile(self, user_id: str, *, facts: Optional[dict] = None,
+                       onboarded: Optional[bool] = None) -> None:
+        p = self._profiles.setdefault(user_id, {"first_seen": _now(), "turn_count": 0})
+        if facts is not None:
+            p["facts"] = facts
+        if onboarded is not None:
+            p["onboarded"] = bool(onboarded)
+            if onboarded:
+                p.setdefault("onboarded_at", _now())
 
 
 # ── DynamoDB (serving) — PK pk, SK sk, NO TTL (durable) ─────────────────────────────────────────────
@@ -273,8 +285,36 @@ class DynamoStore:
             kwargs["ExpressionAttributeNames"] = names
         self.db.update_item(**kwargs)
 
-    def get_profile(self, user_id: str) -> Optional[dict]:
-        it = self.db.get_item(TableName=self.table,
+    def update_profile(self, user_id: str, *, facts: Optional[dict] = None,
+                       onboarded: Optional[bool] = None) -> None:
+        """User-authored profile prefs (6.6) — facts (a JSON blob attr) + the onboarding flag — written as
+        native attributes on the SAME profile item as touch_profile's bookkeeping. Independent SET clauses,
+        so this never races touch_profile (they touch disjoint attributes). An UpdateItem on a not-yet-created
+        profile creates it with just these attrs (get_profile tolerates a partial record)."""
+        sets: list[str] = []
+        vals: dict = {}
+        if facts is not None:
+            sets.append("facts = :f")
+            vals[":f"] = {"S": json.dumps(facts, ensure_ascii=True)}
+        if onboarded is not None:
+            sets.append("onboarded = :ob")
+            vals[":ob"] = {"BOOL": bool(onboarded)}
+            if onboarded:
+                sets.append("onboarded_at = if_not_exists(onboarded_at, :now)")
+                vals[":now"] = {"S": _now()}
+        if not sets:
+            return
+        self.db.update_item(
+            TableName=self.table,
+            Key={"pk": {"S": f"user#{user_id}"}, "sk": {"S": "profile"}},
+            UpdateExpression="SET " + ", ".join(sets),
+            ExpressionAttributeValues=vals,
+        )
+
+    def get_profile(self, user_id: str, *, consistent: bool = False) -> Optional[dict]:
+        # `consistent=True` on the PUT read-after-write so a save's response can't echo the pre-update copy
+        # (DynamoDB GetItem is eventually consistent by default); GET stays eventual (cheaper).
+        it = self.db.get_item(TableName=self.table, ConsistentRead=consistent,
                               Key={"pk": {"S": f"user#{user_id}"}, "sk": {"S": "profile"}}).get("Item")
         if not it:
             return None
@@ -282,7 +322,17 @@ class DynamoStore:
         for k, v in it.items():
             if k in ("pk", "sk"):
                 continue
-            out[k] = int(v["N"]) if "N" in v else v.get("S")
+            if "N" in v:
+                out[k] = int(v["N"])
+            elif "BOOL" in v:
+                out[k] = v["BOOL"]
+            else:
+                out[k] = v.get("S")
+        if isinstance(out.get("facts"), str):                    # the facts blob is stored as a JSON string
+            try:
+                out["facts"] = json.loads(out["facts"])
+            except (ValueError, TypeError):
+                out["facts"] = {}
         return out
 
 

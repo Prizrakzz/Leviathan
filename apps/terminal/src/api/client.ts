@@ -39,6 +39,16 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function putJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
+  return (await res.json()) as T;
+}
+
 const q = (asof?: string) => (asof ? `?asof=${encodeURIComponent(asof)}` : '');
 
 export function getConvergence(asof?: string): Promise<Schemas['ConvergenceMatrix']> {
@@ -78,6 +88,22 @@ export function getEvents(contract?: string, asof?: string): Promise<Schemas['Ev
   if (asof) p.set('asof', asof);
   const qs = p.toString();
   return getJSON(`/v1/events${qs ? `?${qs}` : ''}`);
+}
+
+// ── 6.6 profile / settings / onboarding (auth-gated per-user) ──────────────────────────────────────
+export type Profile = Schemas['Profile'];
+export type ProfileUpdate = Schemas['ProfileUpdate'];
+
+/** The signed-in user's own profile (identity + facts + onboarding flag). `VITE_MOCK=1` routes to the mock. */
+export function getProfile(): Promise<Profile> {
+  if (MOCK) return import('./mock').then((m) => m.mockGetProfile());
+  return getJSON(`/v1/profile`);
+}
+
+/** Update facts and/or the onboarding flag (a partial update). Returns the fresh, server-normalized profile. */
+export function putProfile(update: ProfileUpdate): Promise<Profile> {
+  if (MOCK) return import('./mock').then((m) => m.mockPutProfile(update));
+  return putJSON(`/v1/profile`, update);
 }
 
 // ── 6.2 query suggester (decoupled; fired once per completed turn / thread start) ──────────────────

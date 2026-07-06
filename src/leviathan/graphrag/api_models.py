@@ -165,3 +165,27 @@ class SuggestResponse(BaseModel):
     """3-4 follow-up questions (or [] — over-cap, kill-switch, parse failure all degrade to empty;
     suggestions are a nicety and must never surface an error)."""
     suggestions: list[str] = []
+
+
+# ── 6.6 settings / profile facts / onboarding (design §6.6) ─────────────────────────────────────────
+class Profile(BaseModel):
+    """The signed-in user's own profile (auth-gated GET /v1/profile). Identity claims (name/email) mirror
+    the ID token; `facts` is the user-authored preference dict (markets/regions/seat/notes) that personalizes
+    the query suggester — PREFERENCES, never evidence, so the PIT firewall is untouched. `onboarded` gates the
+    first-run flow. turn_count/first_seen are display-only bookkeeping."""
+    model_config = _RICH
+    sub: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+    facts: dict[str, Any] = {}
+    onboarded: bool = False
+    turn_count: int = 0
+    first_seen: Optional[str] = None
+    last_seen: Optional[str] = None
+
+
+class ProfileUpdate(BaseModel):
+    """PUT /v1/profile body — a partial update. `facts` is normalized server-side (known keys only, capped
+    counts/lengths); `onboarded` flips the first-run gate. Omitted fields are left unchanged."""
+    facts: Optional[dict[str, Any]] = None
+    onboarded: Optional[bool] = None

@@ -69,3 +69,30 @@ export const REGIME_STATE = { dormant: 'text-faint', armed: 'amber', firing: 'am
 export function injectTokens(el: HTMLElement = document.documentElement): void {
   for (const [name, value] of Object.entries(CSS_VARS)) el.style.setProperty(name, value);
 }
+
+// ── §2.6 accent presets (6.6) — the interactive accent is user-swappable ──────────────────────────────
+/**
+ * The single user-facing appearance choice (design decision: "one accent swap only"). The palette's greys
+ * and brand-amber are fixed; only the INTERACTIVE accent (selection, links, focus ring, DAG highlight, the
+ * live indicator — the `cyan`/`live` token vars) swaps. Both presets reuse existing PALETTE hex values, so
+ * no new token is introduced and the tokens bijection stays intact.
+ *   - `cyan`  → the design default (teal-on-black, two-tone with brand amber)
+ *   - `amber` → a monochrome amber terminal (interactive == brand)
+ */
+export const ACCENTS = { cyan: PALETTE.cyan, amber: PALETTE.amber } as const;
+export type AccentName = keyof typeof ACCENTS;
+
+/** The interactive-accent CSS vars overridden by an accent choice (a subset of the palette keys). */
+const ACCENT_VARS = ['--cyan', '--live'] as const;
+
+/**
+ * Override the interactive-accent CSS vars with the chosen accent. Called on boot right after injectTokens()
+ * and whenever the user changes it, so the swap is instant and flash-free. `cyan` restores the design
+ * default. No-op where there is no DOM (SSR/node without jsdom).
+ */
+export function applyAccent(accent: AccentName, el?: HTMLElement): void {
+  const target = el ?? (typeof document !== 'undefined' ? document.documentElement : undefined);
+  if (!target) return;
+  const value = ACCENTS[accent] ?? ACCENTS.cyan;
+  for (const name of ACCENT_VARS) target.style.setProperty(name, value);
+}

@@ -101,6 +101,18 @@ def _store():
     return _STATE["store"]
 
 
+def _s3():
+    """A process-wide boto3 S3 client for the read-routes (PDF recovery). Loaded once, test-swappable via
+    _STATE['s3']. Uses the shared retry config so a transient S3 blip degrades rather than 500s."""
+    if "s3" not in _STATE:
+        import boto3
+        from botocore.config import Config
+        _STATE["s3"] = boto3.client(
+            "s3", region_name=os.environ.get("AWS_REGION", "us-east-1"),
+            config=Config(retries={"max_attempts": 5, "mode": "adaptive"}))
+    return _STATE["s3"]
+
+
 def _silver_lookup(cap: int = 256):
     """The deterministic OBSERVED-value lookup the firing endpoints share with the answer path. Tests
     monkeypatch this (or set _STATE['query_fn']) to avoid Athena. Routes through the RDS pg mirror when
@@ -517,9 +529,22 @@ def _suggest_prompt(body: M.SuggestRequest, facts: Optional[dict]) -> str:
     else:
         lines.append("\nThis is a NEW empty session -- suggest strong starter questions a researcher"
                      " would actually ask today.")
-    interests = (facts or {}).get("markets") or (facts or {}).get("interests")
+    f = facts or {}
+    interests: list[str] = []                                          # 6.6: fold every list-shaped fact key
+    for key in ("markets", "interests", "regions"):
+        v = f.get(key)
+        if isinstance(v, list):
+            interests += [str(x).strip() for x in v if str(x).strip()]
+        elif isinstance(v, str) and v.strip():
+            interests.append(v.strip())
     if interests:
-        lines.append("User interests: " + (", ".join(interests) if isinstance(interests, list) else str(interests))[:200])
+        lines.append("User interests: " + ", ".join(dict.fromkeys(interests))[:200])
+    seat = f.get("seat")
+    if isinstance(seat, str) and seat.strip():
+        lines.append(f"User seat: {seat.strip()[:40]}")
+    notes = f.get("notes")
+    if isinstance(notes, list) and notes:
+        lines.append("User notes: " + "; ".join(str(n).strip() for n in notes if str(n).strip())[:200])
     heads = _suggest_news()
     if heads:
         lines.append("Today's headlines:\n" + "\n".join(f"- {h[:160]}" for h in heads))
@@ -581,6 +606,67 @@ def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identit
         return M.SuggestResponse(suggestions=_parse_suggestions(call(prompt) or "")).model_dump()
     except Exception:  # noqa: BLE001 — model/provider failure -> no chips
         return empty
+
+
+# ── 6.6 settings / profile facts / onboarding (auth-gated; prefs, never the answer path) ────────────
+_FACT_KEYS_LIST = ("markets", "regions", "notes")
+_FACTS_MAX_ITEMS = 12
+_FACT_MAX_LEN = 140
+_SEAT_MAX_LEN = 40
+
+
+def _sanitize_facts(facts: Any) -> dict:
+    """Normalize the client-supplied facts dict to KNOWN keys with bounded, trimmed values — it is
+    user-authored text that later flows into the suggester prompt. Unknown keys dropped; each list capped at
+    12 items x 140 chars (blanks removed); seat capped at 40. Anything malformed collapses to {}."""
+    if not isinstance(facts, dict):
+        return {}
+    out: dict = {}
+    for key in _FACT_KEYS_LIST:
+        v = facts.get(key)
+        if isinstance(v, list):
+            cleaned = [str(x).strip()[:_FACT_MAX_LEN] for x in v if str(x).strip()]
+            if cleaned:
+                out[key] = cleaned[:_FACTS_MAX_ITEMS]
+    seat = facts.get("seat")
+    if isinstance(seat, str) and seat.strip():
+        out["seat"] = seat.strip()[:_SEAT_MAX_LEN]
+    return out
+
+
+def _profile_payload(ident: dict, *, consistent: bool = False) -> dict:
+    """Assemble the Profile response: the stored record's fields, falling back to the ID-token claims for
+    name/email (a user who signed in but never ran a turn has claims but a thin/absent record). `consistent`
+    forces a strongly-consistent read for the PUT read-after-write."""
+    p = _store().get_profile(ident["sub"], consistent=consistent) or {}
+    facts = p.get("facts")
+    return M.Profile(
+        sub=ident.get("sub"),
+        email=p.get("email") or ident.get("email"),
+        name=p.get("name") or ident.get("name"),
+        facts=facts if isinstance(facts, dict) else {},
+        onboarded=bool(p.get("onboarded")),
+        turn_count=int(p.get("turn_count") or 0),
+        first_seen=p.get("first_seen"),
+        last_seen=p.get("last_seen"),
+    ).model_dump()
+
+
+@app.get("/v1/profile", response_model=M.Profile)
+def get_profile_route(ident: dict = Depends(_require_identity)) -> dict:
+    """The signed-in user's own profile — identity claims + facts + the onboarding flag. Auth-gated; a
+    missing record returns identity-only defaults (facts={}, onboarded=false)."""
+    return _profile_payload(ident)
+
+
+@app.put("/v1/profile", response_model=M.Profile)
+def put_profile_route(body: M.ProfileUpdate, ident: dict = Depends(_require_identity)) -> dict:
+    """Update the user's facts and/or onboarding flag — a PARTIAL update (omitted fields unchanged). Facts
+    are normalized server-side before the write; the fresh profile is returned. A genuine store failure
+    propagates (the client must know a save didn't persist — unlike the fire-and-forget touch_profile)."""
+    facts = _sanitize_facts(body.facts) if body.facts is not None else None
+    _store().update_profile(ident["sub"], facts=facts, onboarded=body.onboarded)
+    return _profile_payload(ident, consistent=True)                  # read-after-write must not echo a stale copy
 
 
 # ── 1.7 share snapshots + per-user persistence (auth default-off) ───────────────────────────────────

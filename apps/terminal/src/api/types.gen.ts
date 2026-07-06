@@ -162,6 +162,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Profile Route
+         * @description The signed-in user's own profile — identity claims + facts + the onboarding flag. Auth-gated; a
+         *     missing record returns identity-only defaults (facts={}, onboarded=false).
+         */
+        get: operations["get_profile_route_v1_profile_get"];
+        /**
+         * Put Profile Route
+         * @description Update the user's facts and/or onboarding flag — a PARTIAL update (omitted fields unchanged). Facts
+         *     are normalized server-side before the write; the fresh profile is returned. A genuine store failure
+         *     propagates (the client must know a save didn't persist — unlike the fire-and-forget touch_profile).
+         */
+        put: operations["put_profile_route_v1_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/share": {
         parameters: {
             query?: never;
@@ -495,6 +522,57 @@ export interface components {
             body: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * Profile
+         * @description The signed-in user's own profile (auth-gated GET /v1/profile). Identity claims (name/email) mirror
+         *     the ID token; `facts` is the user-authored preference dict (markets/regions/seat/notes) that personalizes
+         *     the query suggester — PREFERENCES, never evidence, so the PIT firewall is untouched. `onboarded` gates the
+         *     first-run flow. turn_count/first_seen are display-only bookkeeping.
+         */
+        Profile: {
+            /** Sub */
+            sub?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Name */
+            name?: string | null;
+            /**
+             * Facts
+             * @default {}
+             */
+            facts: {
+                [key: string]: unknown;
+            };
+            /**
+             * Onboarded
+             * @default false
+             */
+            onboarded: boolean;
+            /**
+             * Turn Count
+             * @default 0
+             */
+            turn_count: number;
+            /** First Seen */
+            first_seen?: string | null;
+            /** Last Seen */
+            last_seen?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ProfileUpdate
+         * @description PUT /v1/profile body — a partial update. `facts` is normalized server-side (known keys only, capped
+         *     counts/lengths); `onboarded` flips the first-run gate. Omitted fields are left unchanged.
+         */
+        ProfileUpdate: {
+            /** Facts */
+            facts?: {
+                [key: string]: unknown;
+            } | null;
+            /** Onboarded */
+            onboarded?: boolean | null;
         };
         /** RegimeCard */
         RegimeCard: {
@@ -955,6 +1033,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_profile_route_v1_profile_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_profile_route_v1_profile_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
                 };
             };
             /** @description Validation Error */

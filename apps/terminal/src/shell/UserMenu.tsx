@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { authEnabled, userManager } from '@/auth/oidc';
+import { useSettings } from '@/store/settings';
 
 /** The signed-in user (5.6 W1): real name + Google avatar from the ID-token profile claims (Cognito maps
  *  name/given_name/picture from Google; they populate at each user's next sign-in — email local-part is
- *  the fallback until then), with a sign-out dropdown. Mock/local builds (no AuthProvider) keep a stub. */
+ *  the fallback until then), with a Settings entry (6.6) + sign-out dropdown. Mock/local builds (no
+ *  AuthProvider) keep a stub that still opens Settings, so the UI is fully exercisable without a backend. */
 export function UserMenu() {
   if (!authEnabled)
     return (
-      <button aria-label="user menu" className="font-mono text-12 text-text-dim hover:text-text">
+      <button
+        aria-label="user menu"
+        onClick={() => useSettings.getState().openSettings('profile')}
+        className="font-mono text-12 text-text-dim hover:text-text"
+      >
         user ▾
       </button>
     );
@@ -75,6 +81,15 @@ function AuthedUserMenu() {
         <div className="absolute right-0 top-7 z-30 w-56 rounded-panel border border-line bg-bg-1 p-2 shadow-lg">
           <div className="truncate px-2 py-1 font-sans text-12 text-text">{p.name ?? label}</div>
           {p.email && <div className="truncate px-2 pb-1 font-mono text-11 text-text-faint">{p.email}</div>}
+          <button
+            className="mt-1 w-full rounded-chip border border-line px-2 py-1 text-left font-mono text-12 text-text-dim hover:border-cyan hover:text-cyan"
+            onClick={() => {
+              setOpen(false);
+              useSettings.getState().openSettings('profile');
+            }}
+          >
+            settings
+          </button>
           <button
             className="mt-1 w-full rounded-chip border border-line px-2 py-1 text-left font-mono text-12 text-text-dim hover:border-neg hover:text-neg"
             onClick={() => void signOut()}

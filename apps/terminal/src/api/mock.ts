@@ -360,6 +360,30 @@ export async function mockRespondStream(
   h.onResult?.(result);
 }
 
+// ── 6.6 profile / settings / onboarding (VITE_MOCK) ────────────────────────────────────────────────
+// Module-level so a mock PUT persists across the session (until a hard reload, which restarts the module —
+// so onboarding re-demos on reload, matching a first-run). Starts un-onboarded to exercise the flow.
+let _mockProfile: Schemas['Profile'] = {
+  sub: 'mock-user',
+  email: 'you@example.com',
+  name: 'Mock Trader',
+  facts: {},
+  onboarded: false,
+  turn_count: 12,
+  first_seen: '2026-06-01T09:00:00Z',
+  last_seen: '2026-07-04T18:30:00Z',
+};
+
+export function mockGetProfile(): Promise<Schemas['Profile']> {
+  return new Promise((resolve) => setTimeout(() => resolve({ ..._mockProfile }), 120));
+}
+
+export function mockPutProfile(update: Schemas['ProfileUpdate']): Promise<Schemas['Profile']> {
+  if (update.facts != null) _mockProfile = { ..._mockProfile, facts: update.facts };
+  if (update.onboarded != null) _mockProfile = { ..._mockProfile, onboarded: update.onboarded };
+  return new Promise((resolve) => setTimeout(() => resolve({ ..._mockProfile }), 120));
+}
+
 // ── mock threads (VITE_MOCK sidebar/conversation) ────────────────────────────────────────────────────
 const MOCK_THREADS = [
   { id: 't-mock1', title: 'KC frost convexity 2021', title_auto: true, created_at: '2026-07-01T10:00:00Z', updated_at: '2026-07-04T18:30:00Z' },
