@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mockListThreads, mockRespondStream, mockSuggest, mockThreadTurns } from './mock';
+import { mockGraph, mockListThreads, mockRespondStream, mockSuggest, mockThreadTurns } from './mock';
 import type { RespondResult, StageEvent } from './schema';
 
 describe('mockRespondStream', () => {
@@ -30,6 +30,30 @@ describe('mockRespondStream', () => {
     expect(() => JSON.parse(draft) as unknown).not.toThrow();
     expect(result?.trace?.graph_version).toBe('3a69acfb87c5');
     expect(result?.asof).toBe('2021-07-20');
+  });
+});
+
+describe('mock is commodity-aware (S2.1 — no single-fixture stale-render)', () => {
+  it('routes a sugar/BRL question to the raw_sugar answer, not the arabica fixture', async () => {
+    let frost: RespondResult | undefined;
+    let sugar: RespondResult | undefined;
+    await mockRespondStream({ question: 'KC arabica frost setup', asof: '2021-07-20' }, { onResult: (r) => (frost = r) }, { delay: 0 });
+    await mockRespondStream({ question: 'what does a weak BRL do to the sugar squeeze?', asof: '2024-05-11' }, { onResult: (r) => (sugar = r) }, { delay: 0 });
+    expect(frost?.contract).toBe('arabica_coffee');
+    expect(sugar?.contract).toBe('raw_sugar');
+    expect(sugar?.structured?.tldr).not.toBe(frost?.structured?.tldr); // different answer, not a stale echo
+    expect(sugar?.structured?.tldr?.toLowerCase()).toContain('ethanol');
+  });
+
+  it('returns a commodity-matched DAG: raw_sugar → the sugar topology, else arabica', () => {
+    const sugarTopo = mockGraph('raw_sugar');
+    const arabicaTopo = mockGraph('arabica_coffee');
+    expect(sugarTopo.contract).toBe('raw_sugar');
+    expect(arabicaTopo.contract).toBe('arabica_coffee');
+    // the sugar answer's fired drivers are real nodes in the sugar topology (the firing overlay lights up)
+    const ids = new Set(sugarTopo.nodes.map((n) => n.id));
+    expect(ids.has('sugar_ethanol_parity')).toBe(true);
+    expect(ids.has('India_ethanol_diversion')).toBe(true);
   });
 });
 

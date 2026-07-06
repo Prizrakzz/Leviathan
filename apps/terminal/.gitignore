@@ -7,3 +7,4 @@ test-results
 .env.local
 *.log
 .DS_Store
+dist-mock

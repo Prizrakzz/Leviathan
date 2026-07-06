@@ -1,0 +1,1058 @@
+{
+"contract": "raw_sugar",
+"graph_version": "3a69acfb87c5",
+"asof": null,
+"nodes": [
+{
+"id": "raw_sugar",
+"kind": "contract",
+"contract": "raw_sugar",
+"label": "ICE raw sugar",
+"silver_status": null,
+"confidence": null,
+"active": null,
+"target_metric": "price"
+},
+{
+"id": "El_Nino",
+"kind": "climate_driver",
+"contract": "raw_sugar",
+"label": "El Nino",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "oni_climate"
+},
+{
+"id": "La_Nina",
+"kind": "climate_driver",
+"contract": "raw_sugar",
+"label": "La Nina",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "oni_climate"
+},
+{
+"id": "IOD_positive",
+"kind": "climate_driver",
+"contract": "raw_sugar",
+"label": "IOD positive",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "iod_climate"
+},
+{
+"id": "monsoon_weak",
+"kind": "climate_driver",
+"contract": "raw_sugar",
+"label": "monsoon weak",
+"silver_status": "available",
+"confidence": "high",
+"active": null,
+"silver_ref": "drought_z"
+},
+{
+"id": "drought",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "drought",
+"silver_status": "available",
+"confidence": "high",
+"active": null,
+"silver_ref": "drought_z"
+},
+{
+"id": "frost",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "frost",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "frost_event_flag"
+},
+{
+"id": "heat_stress",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "heat stress",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "heat_stress_z"
+},
+{
+"id": "excess_rain",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "excess rain",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "stage_precip_z"
+},
+{
+"id": "orange_rust",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "orange rust",
+"silver_status": "planned",
+"confidence": "low",
+"active": null,
+"silver_ref": "orange_rust_flag"
+},
+{
+"id": "sugarcane_smut",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "sugarcane smut",
+"silver_status": "planned",
+"confidence": "low",
+"active": null,
+"silver_ref": "sugarcane_smut_flag"
+},
+{
+"id": "ratoon_stunting",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "ratoon stunting",
+"silver_status": "planned",
+"confidence": "low",
+"active": null,
+"silver_ref": "ratoon_stunting_flag"
+},
+{
+"id": "red_rot",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "red rot",
+"silver_status": "planned",
+"confidence": "low",
+"active": null,
+"silver_ref": "red_rot_flag"
+},
+{
+"id": "waterlogging",
+"kind": "hazard",
+"contract": "raw_sugar",
+"label": "waterlogging",
+"silver_status": "planned",
+"confidence": "low",
+"active": null,
+"silver_ref": "waterlogging_flag"
+},
+{
+"id": "favorable_rainfall",
+"kind": "beneficial_weather",
+"contract": "raw_sugar",
+"label": "favorable rainfall",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "stage_precip_z"
+},
+{
+"id": "sugar_ethanol_parity",
+"kind": "instrument",
+"contract": "raw_sugar",
+"label": "sugar ethanol parity",
+"silver_status": "available",
+"confidence": "high",
+"active": null,
+"silver_ref": "unica_sugar_biweekly"
+},
+{
+"id": "crude_oil",
+"kind": "macro_energy",
+"contract": "raw_sugar",
+"label": "crude oil",
+"silver_status": "available",
+"confidence": "high",
+"active": null,
+"silver_ref": "pink_sheet_input_costs"
+},
+{
+"id": "BRL_USD",
+"kind": "macro_fx",
+"contract": "raw_sugar",
+"label": "BRL USD",
+"silver_status": "available",
+"confidence": "high",
+"active": null,
+"silver_ref": "fred_fx_macro"
+},
+{
+"id": "dollar_index",
+"kind": "macro_fx",
+"contract": "raw_sugar",
+"label": "dollar index",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "fred_fx_macro"
+},
+{
+"id": "biodiesel_mandate",
+"kind": "policy_event",
+"contract": "raw_sugar",
+"label": "biodiesel mandate",
+"silver_status": "planned",
+"confidence": "medium",
+"active": null,
+"silver_ref": "biodiesel_mandate_flag"
+},
+{
+"id": "India_export_ban",
+"kind": "policy_event",
+"contract": "raw_sugar",
+"label": "India export ban",
+"silver_status": "available",
+"confidence": "high",
+"active": null,
+"silver_ref": "export"
+},
+{
+"id": "India_ethanol_diversion",
+"kind": "policy_event",
+"contract": "raw_sugar",
+"label": "India ethanol diversion",
+"silver_status": "planned",
+"confidence": "high",
+"active": null,
+"silver_ref": "india_ethanol_diversion_flag"
+},
+{
+"id": "Brazil_export_tax",
+"kind": "policy_event",
+"contract": "raw_sugar",
+"label": "Brazil export tax",
+"silver_status": "available",
+"confidence": "low",
+"active": null,
+"silver_ref": "export"
+},
+{
+"id": "Thailand_production",
+"kind": "supply_state",
+"contract": "raw_sugar",
+"label": "Thailand production",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "production"
+},
+{
+"id": "China_import_quota_VAT",
+"kind": "policy_event",
+"contract": "raw_sugar",
+"label": "China import quota VAT",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "import"
+},
+{
+"id": "freight_rates",
+"kind": "logistics",
+"contract": "raw_sugar",
+"label": "freight rates",
+"silver_status": "available",
+"confidence": "low",
+"active": null,
+"silver_ref": "pink_sheet_input_costs"
+},
+{
+"id": "export_pace_lag",
+"kind": "state_marker",
+"contract": "raw_sugar",
+"label": "export pace lag",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "export"
+},
+{
+"id": "ending_stock_ratio",
+"kind": "supply_state",
+"contract": "raw_sugar",
+"label": "ending stock ratio",
+"silver_status": "available",
+"confidence": "high",
+"active": null,
+"silver_ref": "psd_ending_stock_su_ratio"
+},
+{
+"id": "cot_positioning",
+"kind": "positioning",
+"contract": "raw_sugar",
+"label": "cot positioning",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "cot_mm_positioning"
+},
+{
+"id": "tenderable_collapse",
+"kind": "state_marker",
+"contract": "raw_sugar",
+"label": "tenderable collapse",
+"silver_status": "planned",
+"confidence": "low",
+"active": null,
+"silver_ref": "tenderable_collapse_flag"
+},
+{
+"id": "blocking_high",
+"kind": "climate_driver",
+"contract": "raw_sugar",
+"label": "blocking high",
+"silver_status": "planned",
+"confidence": "low",
+"active": null,
+"silver_ref": "blocking_high_z"
+},
+{
+"id": "IOD_negative",
+"kind": "climate_driver",
+"contract": "raw_sugar",
+"label": "IOD negative",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "iod_climate"
+},
+{
+"id": "monsoon_active",
+"kind": "climate_driver",
+"contract": "raw_sugar",
+"label": "monsoon active",
+"silver_status": "available",
+"confidence": "medium",
+"active": null,
+"silver_ref": "drought_z"
+},
+{
+"id": "white_sugar",
+"kind": "commodity",
+"contract": "white_sugar",
+"label": "ICE white sugar",
+"silver_status": null,
+"confidence": null,
+"active": null,
+"tracked": true
+},
+{
+"id": "ethanol",
+"kind": "commodity",
+"contract": "ethanol",
+"label": "ethanol",
+"silver_status": null,
+"confidence": null,
+"active": null,
+"tracked": false
+},
+{
+"id": "corn",
+"kind": "commodity",
+"contract": "corn",
+"label": "corn",
+"silver_status": null,
+"confidence": null,
+"active": null,
+"tracked": true
+}
+],
+"edges": [
+{
+"source": "El_Nino",
+"target": "raw_sugar",
+"edge_type": "teleconnects_to",
+"sign": "-",
+"lag": "1-3 quarters",
+"mechanism": "El Nino tends to bring drier weather to India/Thailand (bearish supply for those origins) but wetter conditions to Brazil's Center-South, making the net effect on global cane ambiguous.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "La_Nina",
+"target": "raw_sugar",
+"edge_type": "teleconnects_to",
+"sign": "+",
+"lag": "1-3 quarters",
+"mechanism": "La Nina typically dries Brazil's Center-South cane belt and can disrupt Asian rainfall patterns, reducing cane yields and tightening global balances.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "IOD_positive",
+"target": "raw_sugar",
+"edge_type": "teleconnects_to",
+"sign": "+",
+"lag": "1-2 quarters",
+"mechanism": "A positive Indian Ocean Dipole suppresses monsoon rainfall over Indian and East African cane regions, lowering cane tonnage and exportable surplus.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "monsoon_weak",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "1-3 quarters",
+"mechanism": "A weak/deficient SW monsoon reduces water availability for Indian cane in Maharashtra/UP/Karnataka, cutting yields and the exportable surplus that anchors world price.",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "El_Nino",
+"target": "monsoon_weak",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "IOD_positive",
+"target": "monsoon_weak",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "drought",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "0-3 quarters",
+"mechanism": "Prolonged drought in Brazil CS or India stresses cane during grand-growth, reducing stalk weight and sucrose accumulation and tightening supply.",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "La_Nina",
+"target": "drought",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "monsoon_weak",
+"target": "drought",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "El_Nino",
+"target": "drought",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "frost",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Frost in southern Brazil cane areas (e.g. Parana, southern Sao Paulo) damages standing cane and ratoons, reducing both current tonnage and next-season recovery.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "blocking_high",
+"target": "frost",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "heat_stress",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Excess heat during the grand growth stage accelerates evapotranspiration and limits stalk elongation, lowering cane tonnage per hectare.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "drought",
+"target": "heat_stress",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "La_Nina",
+"target": "heat_stress",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "excess_rain",
+"target": "raw_sugar",
+"edge_type": "disrupts",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "Excessive rain during harvest delays cutting and transport, lowers ATR (sucrose content) and dilutes juice, reducing recoverable sugar and slowing exports.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "La_Nina",
+"target": "excess_rain",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "IOD_negative",
+"target": "excess_rain",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "orange_rust",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Sugarcane orange rust outbreaks defoliate susceptible varieties, reducing photosynthesis and cane yield in affected regions.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "excess_rain",
+"target": "orange_rust",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "sugarcane_smut",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "1-2 quarters",
+"mechanism": "Smut whip formation diverts plant resources and reduces millable cane and sucrose in infected stools.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "ratoon_stunting",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "2-4 quarters",
+"mechanism": "Ratoon stunting disease silently reduces stalk height and tonnage across successive ratoon cycles, depressing structural yield.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "red_rot",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Red rot ('cancer') rots the cane internodes in Indian subtropical belts, destroying sucrose and forcing premature harvest.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "excess_rain",
+"target": "red_rot",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "waterlogging",
+"target": "red_rot",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "waterlogging",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "Waterlogged fields suffocate cane roots and impede mechanical harvest in low-lying Indian and Brazilian areas, reducing recoverable sugar.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "excess_rain",
+"target": "waterlogging",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "favorable_rainfall",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "-",
+"lag": "0-2 quarters",
+"mechanism": "Timely rains during cane grand growth boost stalk weight and sucrose, raising production and pressuring price lower.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "IOD_negative",
+"target": "favorable_rainfall",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "monsoon_active",
+"target": "favorable_rainfall",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "sugar_ethanol_parity",
+"target": "raw_sugar",
+"edge_type": "diverted_to",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "When ethanol (driven by domestic gasoline/hydrous prices) is more profitable than sugar, Brazilian mills divert cane to ethanol, reducing sugar output and lifting world price; the sugar mix is the swing variable.",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "crude_oil",
+"target": "sugar_ethanol_parity",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "BRL_USD",
+"target": "sugar_ethanol_parity",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "biodiesel_mandate",
+"target": "sugar_ethanol_parity",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "crude_oil",
+"target": "raw_sugar",
+"edge_type": "causes",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Higher crude/gasoline prices raise ethanol's relative value, incentivizing cane diversion away from sugar and tightening sugar supply (also lifts freight/input costs).",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "BRL_USD",
+"target": "raw_sugar",
+"edge_type": "causes",
+"sign": "-",
+"lag": "0-2 quarters",
+"mechanism": "A weaker Brazilian real incentivizes Brazilian mills to sell sugar for export (higher local-currency revenue) and increases sugar-mix allocation, boosting global supply and pressuring the dollar-denominated #11 price lower.",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "dollar_index",
+"target": "raw_sugar",
+"edge_type": "causes",
+"sign": "-",
+"lag": "0-2 quarters",
+"mechanism": "A stronger broad US dollar pressures dollar-priced soft commodities by reducing affordability for importers and weakening producer currencies.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "biodiesel_mandate",
+"target": "raw_sugar",
+"edge_type": "subsidizes",
+"sign": "+",
+"lag": "1-3 quarters",
+"mechanism": "Higher Brazilian ethanol blending mandates (anidro/RenovaBio) and tax policy raise structural ethanol demand, encouraging cane diversion to ethanol and away from sugar.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "India_export_ban",
+"target": "raw_sugar",
+"edge_type": "restricts",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Indian sugar export restrictions/quotas remove the world's second-largest producer from the export market, tightening global availability and lifting price.",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "monsoon_weak",
+"target": "India_export_ban",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "drought",
+"target": "India_export_ban",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "biodiesel_mandate",
+"target": "India_export_ban",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "India_ethanol_diversion",
+"target": "raw_sugar",
+"edge_type": "diverted_to",
+"sign": "+",
+"lag": "1-3 quarters",
+"mechanism": "India's E20 ethanol blending program diverts sugarcane juice/B-heavy molasses to ethanol, reducing sugar production and exportable surplus.",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "biodiesel_mandate",
+"target": "India_ethanol_diversion",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "Brazil_export_tax",
+"target": "raw_sugar",
+"edge_type": "restricts",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Brazilian export levies/registration changes can reduce exportable sugar supply reaching the world market.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "Thailand_production",
+"target": "raw_sugar",
+"edge_type": "produces",
+"sign": "-",
+"lag": "1-3 quarters",
+"mechanism": "Thailand is the world's #2 exporter; rebounds in Thai cane (rainfall-driven) add export supply and pressure world price lower, while drought-driven contractions tighten it.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "drought",
+"target": "Thailand_production",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "El_Nino",
+"target": "Thailand_production",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "favorable_rainfall",
+"target": "Thailand_production",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "China_import_quota_VAT",
+"target": "raw_sugar",
+"edge_type": "restricts",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "China import policy (TRQ allocation, out-of-quota tariffs, processing rules) gates Chinese import demand, the marginal pull on world raw sugar.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "freight_rates",
+"target": "raw_sugar",
+"edge_type": "disrupts",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "Higher bulk freight and Brazilian port congestion (Santos line-ups) widen origin differentials and can delay shipment, affecting nearby supply and the white-raw arbitrage.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "crude_oil",
+"target": "freight_rates",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "export_pace_lag",
+"target": "raw_sugar",
+"edge_type": "delays",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "Slow shipment pace from a dominant origin (logistics/port limits) reduces nearby physical availability and supports front-month price.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "freight_rates",
+"target": "export_pace_lag",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "excess_rain",
+"target": "export_pace_lag",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "ending_stock_ratio",
+"target": "raw_sugar",
+"edge_type": "causes",
+"sign": "-",
+"lag": "0-2 quarters",
+"mechanism": "Higher global stocks-to-use ratio signals ample balance-sheet cushion, dampening price; tightening S/U is bullish.",
+"confidence": "high",
+"target_metric": "price"
+},
+{
+"source": "drought",
+"target": "ending_stock_ratio",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "sugar_ethanol_parity",
+"target": "ending_stock_ratio",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "India_export_ban",
+"target": "ending_stock_ratio",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "Thailand_production",
+"target": "ending_stock_ratio",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "favorable_rainfall",
+"target": "ending_stock_ratio",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "cot_positioning",
+"target": "raw_sugar",
+"edge_type": "amplifies",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "Managed-money net length amplifies price moves; extreme positioning sets up squeezes/liquidations that overshoot fundamentals.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "tenderable_collapse",
+"target": "raw_sugar",
+"edge_type": "causes",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "Scarcity of deliverable raw sugar against the expiring #11 contract can force a delivery squeeze, spiking nearby price.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "export_pace_lag",
+"target": "tenderable_collapse",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "sugar_ethanol_parity",
+"target": "tenderable_collapse",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "blocking_high",
+"target": "raw_sugar",
+"edge_type": "teleconnects_to",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "A blocking high can channel polar air masses into southern Brazil, triggering frost events in cane regions.",
+"confidence": "low",
+"target_metric": "price"
+},
+{
+"source": "IOD_negative",
+"target": "raw_sugar",
+"edge_type": "teleconnects_to",
+"sign": "-",
+"lag": "1-2 quarters",
+"mechanism": "A negative IOD enhances monsoon rainfall over India, boosting cane yields and exportable surplus, pressuring world price.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "monsoon_active",
+"target": "raw_sugar",
+"edge_type": "affects_yield_of",
+"sign": "-",
+"lag": "1-3 quarters",
+"mechanism": "A robust SW monsoon replenishes reservoirs and soil moisture in Indian cane areas, raising production and easing global tightness.",
+"confidence": "medium",
+"target_metric": "price"
+},
+{
+"source": "IOD_negative",
+"target": "monsoon_active",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "La_Nina",
+"target": "monsoon_active",
+"edge_type": "drives",
+"sign": null,
+"lag": null,
+"mechanism": null,
+"confidence": null
+},
+{
+"source": "raw_sugar",
+"target": "white_sugar",
+"edge_type": "substitutes_for",
+"sign": "+",
+"lag": "0-1 quarters",
+"mechanism": "Raw and white (refined) sugar are tightly linked via the white premium (refining margin); a strong white premium incentivizes refiners to buy raws, pulling raw price up, and the two move together as substitutes for end demand.",
+"confidence": null
+},
+{
+"source": "raw_sugar",
+"target": "ethanol",
+"edge_type": "competes_with",
+"sign": "+",
+"lag": "0-2 quarters",
+"mechanism": "Sugarcane is split between sugar and ethanol; when ethanol economics dominate, mills divert cane to ethanol, reducing raw sugar supply and lifting raw sugar price (the dominant Brazilian cross-product competition).",
+"confidence": null
+},
+{
+"source": "raw_sugar",
+"target": "corn",
+"edge_type": "competes_with",
+"sign": "+",
+"lag": "1-3 quarters",
+"mechanism": "In Brazil, corn ethanol expansion can substitute for cane ethanol at the margin, freeing cane for sugar; conversely high corn prices favor cane ethanol, indirectly linking sugar mix decisions to corn economics.",
+"confidence": null
+}
+]
+}

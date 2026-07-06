@@ -9,6 +9,11 @@ import type { TurnStatus } from '@/api/useTurn';
  * completes it drains 5× faster and flips `settled`, which is what AnswerView waits for before swapping
  * to the final verified note (no abrupt draft→final jump).
  */
+
+// Max time the note waits on the reveal before force-settling — matches the rAF 5× drain budget, so the
+// visible-tab animation always finishes first and this only fires when rAF is paused (S2.1 fix).
+const DRAIN_MS = 800;
+
 export function useTypewriter(draft: string, status: TurnStatus): { shown: string; settled: boolean } {
   const [shownLen, setShownLen] = useState(0);
   const [settled, setSettled] = useState(false);
@@ -26,6 +31,17 @@ export function useTypewriter(draft: string, status: TurnStatus): { shown: strin
       setSettled(false);
     }
   }, [draft.length === 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Also rewind whenever the turn ENTERS streaming — `status` flips to 'streaming' once per turn, so this
+  // resets a stale `settled` even across two back-to-back token-less turns where the draft never left ''
+  // (the `draft.length===0` dep above wouldn't toggle) (S2.1 review).
+  useEffect(() => {
+    if (status === 'streaming') {
+      shownRef.current = 0;
+      setShownLen(0);
+      setSettled(false);
+    }
+  }, [status]);
 
   useEffect(() => {
     if (status === 'idle') return;
@@ -51,6 +67,37 @@ export function useTypewriter(draft: string, status: TurnStatus): { shown: strin
     return () => {
       cancelled = true;
       if (raf.current != null) cancelAnimationFrame(raf.current);
+    };
+  }, [status]);
+
+  // Visibility-independent settle FLOOR (S2.1). `requestAnimationFrame` is PAUSED in a backgrounded/hidden
+  // tab, so the reveal loop above can never flip `settled` there — and AnswerView gates the ENTIRE answer
+  // (Note + causal map + Numbers) on `settled`, so during the ~26–60s turn a user who looks away returns to
+  // a completed pipeline and an empty answer body: the "streams, then blacks out on finish" bug. When the
+  // turn ends, force-complete the reveal within DRAIN_MS regardless of rAF; if the tab is already hidden,
+  // settle immediately (no point animating an invisible tab). The rAF 5× drain still wins first when the tab
+  // is visible, so the smooth reveal is unchanged.
+  useEffect(() => {
+    if (status === 'idle' || status === 'streaming') return;
+    const finish = () => {
+      shownRef.current = state.current.draftLen;
+      setShownLen(state.current.draftLen);
+      setSettled(true);
+    };
+    // No document (SSR/test env) or the tab is already hidden → settle at once (nothing to animate).
+    if (typeof document === 'undefined' || status === 'error' || document.hidden) {
+      finish();
+      return;
+    }
+    const timer = setTimeout(finish, DRAIN_MS);
+    // If the tab is backgrounded WHILE draining, settle at once so a later refocus shows a complete note.
+    const onHide = () => {
+      if (document.hidden) finish();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onHide);
     };
   }, [status]);
 

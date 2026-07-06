@@ -3,7 +3,9 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { getGraph, getThreadTurns, suggest } from '@/api/client';
 import type { components } from '@/api/types.gen';
 import type { TurnState } from '@/api/useTurn';
+import { retryImport } from '@/lib/retryImport';
 import { Composer } from '@/shell/Composer';
+import { ErrorBoundary } from '@/shell/ErrorBoundary';
 import { Pipeline } from '@/shell/Pipeline';
 import { useAutoScroll } from '@/shell/useAutoScroll';
 import { useSession } from '@/store/session';
@@ -24,10 +26,31 @@ import { ReceiptsDrawer } from './receipts/ReceiptsDrawer';
 type TurnRecord = components['schemas']['TurnRecord'];
 
 // 6.3: the interactive causal map is lazy — @xyflow/react + dagre + its CSS ride an async chunk off the
-// first-paint critical path (the map only mounts on a finalized answer).
-const CascadeFlow = lazy(() => import('./dag/CascadeFlow'));
+// first-paint critical path (the map only mounts on a finalized answer). retryImport heals a transient
+// chunk miss (e.g. the just-deployed window); a hard failure surfaces to the map's ErrorBoundary (S2.1).
+const CascadeFlow = lazy(() => retryImport(() => import('./dag/CascadeFlow')));
 
 const noop = () => {};
+
+// A caught render error inside a finalized answer degrades to a readable line instead of blanking the app.
+const answerErrorFallback = (
+  <div className="rounded-panel border border-line bg-bg-1 p-3 font-mono text-12 text-neg">
+    couldn’t render this answer ·{' '}
+    <button onClick={() => window.location.reload()} className="text-cyan hover:text-amber">
+      reload
+    </button>
+  </div>
+);
+// A failed map chunk keeps the note intact. resetKeys can re-render a render-time throw, but React.lazy
+// caches a REJECTED import forever — so for a genuinely missing chunk the honest escape is a reload (S2.1 review).
+const mapErrorFallback = (
+  <div className="rounded-panel border border-line bg-bg-1 p-3 font-mono text-11 text-text-faint">
+    causal map unavailable ·{' '}
+    <button onClick={() => window.location.reload()} className="text-cyan hover:text-amber">
+      reload
+    </button>
+  </div>
+);
 // INTEGRITY strip is an eval/log signal, not user-facing (6.1); show it only in debug (localStorage lv-debug=1).
 const SHOW_INTEGRITY = typeof localStorage !== 'undefined' && localStorage.getItem('lv-debug') === '1';
 
@@ -187,51 +210,58 @@ export function AnswerView({
             )}
 
             {finalReady && (
-              <div className="space-y-4">
-                <Banners result={r} />
-                {r.structured ? (
-                  <>
-                    <Note
-                      result={r}
-                      onOpenReceipts={openReceipts}
-                      afterTldr={
-                        graphQ.data ? (
-                          <Suspense
-                            fallback={<div className="h-[300px] animate-pulse rounded-panel border border-line bg-bg-1" />}
-                          >
-                            {mapContract && (
-                              <button
-                                onClick={() => setMapContract(null)}
-                                className="mb-1 font-mono text-11 text-text-faint hover:text-cyan"
+              // A render error inside a finalized answer (note/map/numbers) degrades to a readable line —
+              // it must NEVER unmount the app (S2.1). resetKeys re-mount it on the next question.
+              <ErrorBoundary fallback={answerErrorFallback} resetKeys={[question, asof]}>
+                <div className="space-y-4">
+                  <Banners result={r} />
+                  {r.structured ? (
+                    <>
+                      <Note
+                        result={r}
+                        onOpenReceipts={openReceipts}
+                        afterTldr={
+                          graphQ.data ? (
+                            // The map is its OWN boundary: a failed causal map keeps the note intact.
+                            <ErrorBoundary fallback={mapErrorFallback} resetKeys={[shownContract]}>
+                              <Suspense
+                                fallback={<div className="h-[300px] animate-pulse rounded-panel border border-line bg-bg-1" />}
                               >
-                                ← back to {(contract ?? '').replace(/_/g, ' ')}
-                              </button>
-                            )}
-                            <CascadeFlow
-                              topo={graphQ.data}
-                              firedRegimes={mapContract ? undefined : trace.fired_regimes}
-                              drivers={mapContract ? undefined : trace.drivers}
-                              onNodeClick={() => openReceipts()}
-                              onSwap={(id) => setMapContract(id)}
-                            />
-                          </Suspense>
-                        ) : null
-                      }
-                    />
-                    <Numbers calls={r.number_calls ?? []} asof={asof} />
-                    {SHOW_INTEGRITY && <IntegrityStrip result={r} />}
-                  </>
-                ) : (
-                  (r.evidence?.length ?? 0) > 0 && (
-                    <button
-                      className="rounded-chip border border-line px-2 py-1 font-mono text-11 text-cyan hover:bg-bg-1"
-                      onClick={() => openReceipts()}
-                    >
-                      open receipts (e)
-                    </button>
-                  )
-                )}
-              </div>
+                                {mapContract && (
+                                  <button
+                                    onClick={() => setMapContract(null)}
+                                    className="mb-1 font-mono text-11 text-text-faint hover:text-cyan"
+                                  >
+                                    ← back to {(contract ?? '').replace(/_/g, ' ')}
+                                  </button>
+                                )}
+                                <CascadeFlow
+                                  topo={graphQ.data}
+                                  firedRegimes={mapContract ? undefined : trace.fired_regimes}
+                                  drivers={mapContract ? undefined : trace.drivers}
+                                  onNodeClick={() => openReceipts()}
+                                  onSwap={(id) => setMapContract(id)}
+                                />
+                              </Suspense>
+                            </ErrorBoundary>
+                          ) : null
+                        }
+                      />
+                      <Numbers calls={r.number_calls ?? []} asof={asof} />
+                      {SHOW_INTEGRITY && <IntegrityStrip result={r} />}
+                    </>
+                  ) : (
+                    (r.evidence?.length ?? 0) > 0 && (
+                      <button
+                        className="rounded-chip border border-line px-2 py-1 font-mono text-11 text-cyan hover:bg-bg-1"
+                        onClick={() => openReceipts()}
+                      >
+                        open receipts (e)
+                      </button>
+                    )
+                  )}
+                </div>
+              </ErrorBoundary>
             )}
           </div>
         )}

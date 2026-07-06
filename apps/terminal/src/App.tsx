@@ -4,11 +4,13 @@ import { useAuth } from 'react-oidc-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { authEnabled } from './auth/oidc';
 import { Landing } from './landing/Landing';
+import { retryImport } from './lib/retryImport';
 import { useSession } from './store/session';
 import { useThread } from './store/thread';
 
 // The landing gate and terminal are ONE app; the terminal is lazy-loaded behind the auth gate (§7).
-const Terminal = lazy(() => import('./shell/Terminal'));
+// retryImport heals a transient chunk miss in the just-deployed window (S2.1).
+const Terminal = lazy(() => retryImport(() => import('./shell/Terminal')));
 
 const loading = <div className="p-6 font-mono text-12 text-text-dim">loading terminal…</div>;
 

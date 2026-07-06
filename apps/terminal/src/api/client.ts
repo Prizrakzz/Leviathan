@@ -1,5 +1,5 @@
 import { getIdToken } from '../auth/oidc';
-import { MOCK_CONVERGENCE, MOCK_EVENTS, MOCK_GRAPH, MOCK_REGIMES, MOCK_SERIES, mockRespondStream } from './mock';
+import { MOCK_CONVERGENCE, MOCK_EVENTS, MOCK_REGIMES, MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -47,7 +47,7 @@ export function getConvergence(asof?: string): Promise<Schemas['ConvergenceMatri
 }
 
 export function getGraph(contract: string, asof?: string): Promise<Schemas['GraphTopology']> {
-  if (MOCK) return Promise.resolve(MOCK_GRAPH);
+  if (MOCK) return Promise.resolve(mockGraph(contract)); // per-contract mock so the DAG matches the answer
   return getJSON(`/v1/graph/${encodeURIComponent(contract)}${q(asof)}`);
 }
 

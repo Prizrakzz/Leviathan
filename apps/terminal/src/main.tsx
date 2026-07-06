@@ -12,6 +12,7 @@ import { AuthProvider } from 'react-oidc-context';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { authEnabled, userManager } from './auth/oidc';
+import { ErrorBoundary } from './shell/ErrorBoundary';
 import { injectTokens } from './tokens/tokens';
 
 injectTokens(); // set the design-token CSS var values on :root before first paint
@@ -23,6 +24,26 @@ const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, ret
 function onSigninCallback() {
   window.history.replaceState({}, document.title, '/auth/callback');
 }
+
+// The absolute backstop (S2.1): if anything below the providers throws — a shell/route error, a failed
+// lazy chunk — show a readable panel with a reload instead of a blank dark page. Errors below this are
+// contained by the finer-grained boundaries in AnswerView; this only fires for a truly fatal render.
+const rootFallback = (
+  <div className="flex min-h-screen items-center justify-center bg-bg-0 p-6">
+    <div className="max-w-sm rounded-panel border border-line bg-bg-1 p-4 text-center">
+      <div className="font-mono text-12 uppercase tracking-wider text-neg">something went wrong</div>
+      <p className="mt-2 font-sans text-13 text-text-dim">
+        The terminal hit an unexpected error. Reloading usually fixes it.
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-3 rounded-chip border border-cyan px-3 py-1 font-mono text-11 text-cyan hover:bg-bg-2"
+      >
+        reload
+      </button>
+    </div>
+  </div>
+);
 
 // Only mount the OIDC provider when Cognito is configured (prod). Local/mock builds skip it entirely.
 function AuthShell({ children }: { children: ReactNode }) {
@@ -38,12 +59,14 @@ function AuthShell({ children }: { children: ReactNode }) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <QueryClientProvider client={qc}>
-      <AuthShell>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </AuthShell>
-    </QueryClientProvider>
+    <ErrorBoundary fallback={rootFallback}>
+      <QueryClientProvider client={qc}>
+        <AuthShell>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthShell>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

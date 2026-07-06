@@ -1,5 +1,6 @@
 import type { components } from './types.gen';
 import graphArabica from './fixtures/graph.arabica.json';
+import graphSugar from './fixtures/graph.raw_sugar.json';
 import type { RespondResult, StageEvent } from './schema';
 import type { StreamHandlers } from './sse';
 
@@ -129,6 +130,110 @@ function goodResult(question: string, asof: string): RespondResult {
   };
 }
 
+// A SECOND commodity fixture (raw_sugar) so a mock walkthrough can tell answers apart by question — the
+// single canned fixture made a sugar question render the arabica answer, which read as a stale-render bug.
+const SUGAR_EVIDENCE = [
+  {
+    ref: 1,
+    source: 'unica_brazil',
+    date: '2024-05-30',
+    source_key: 's3://unica/2024-05',
+    text: 'Center-South mills lifted the ethanol mix as a weaker real raised parity, trimming the sugar share of the crush.',
+    contract: 'raw_sugar',
+    cited: true,
+  },
+  {
+    ref: 2,
+    source: 'usda_gain_sugar',
+    date: '2024-05-15',
+    source_key: 's3://gain/sb-2024-05',
+    text: 'Brazil 2024/25 sugar output forecast eased as cane diverts to ethanol on stronger domestic parity.',
+    contract: 'raw_sugar',
+    cited: true,
+  },
+  {
+    source: 'iso_report',
+    date: '2024-05-02',
+    source_key: 's3://iso/2024-05',
+    text: 'Global sugar balance tightening on lower expected Center-South output.',
+    contract: 'raw_sugar',
+    cited: false,
+  },
+];
+
+const SUGAR_NUMBERS = [
+  {
+    ref: 'N1',
+    query: { table: 'silver_psd', metric: 'su_ratio', commodity: 'raw_sugar' },
+    rows: [{ value: '0.41', z: '-1.1', knowledge_date: '2024-05-11', period: '2024' }],
+    status: 'ok',
+  },
+];
+
+function rawSugarResult(question: string, asof: string): RespondResult {
+  return {
+    answer: '',
+    structured: {
+      tldr:
+        'A weaker BRL lifts domestic ethanol parity, nudging Center-South mills to divert cane from sugar ' +
+        'to ethanol — tightening exportable supply into an already-snug balance. **Net read: mildly bullish.** [1][2]',
+      mechanism:
+        'The chain runs in three steps:\n\n' +
+        '- A weaker real raises the ethanol-parity price mills receive domestically (bullish sugar) [1]\n' +
+        '- Mills lift the ethanol mix, cutting the sugar share of the cane crush [2]\n' +
+        '- With stocks-to-use already below trend [N1], the reduced export share steepens the price response',
+      diagram_mermaid: 'graph LR; brl-->parity; parity-->supply; supply-->price',
+      sources: [
+        { ref: 1, source: 'UNICA Center-South Report', date: '2024-05-30', source_key: 's3://unica/2024-05' },
+        { ref: 2, source: 'USDA FAS GAIN Report — Sugar', date: '2024-05-15', source_key: 's3://gain/sb-2024-05' },
+        { ref: 'N1', source: 'USDA PSD', date: '2024-05-11' },
+      ],
+    },
+    contract: 'raw_sugar',
+    contracts: ['raw_sugar'],
+    citations: [
+      { kind: 'evidence', id: 'E1', ref: 1, source: 'unica_brazil', date: '2024-05-30',
+        locator: { kind: 'doc', source_key: 's3://unica/2024-05', snippet: SUGAR_EVIDENCE[0]!.text } },
+      { kind: 'evidence', id: 'E2', ref: 2, source: 'usda_gain_sugar', date: '2024-05-15',
+        locator: { kind: 'doc', source_key: 's3://gain/sb-2024-05', snippet: SUGAR_EVIDENCE[1]!.text } },
+      { kind: 'number', id: 'N1', ref: 'N1', source: 'silver_psd', date: '2024-05-11',
+        locator: { kind: 'number', table: 'silver_psd', metric: 'su_ratio', commodity: 'raw_sugar', asof } },
+    ],
+    evidence: SUGAR_EVIDENCE,
+    number_calls: SUGAR_NUMBERS,
+    intent: 'hybrid',
+    model: 'claude-sonnet-4-6',
+    trace: {
+      graph_version: '3a69acfb87c5',
+      // real raw_sugar node ids, so the firing overlay + seed light actual sugar nodes on the sugar DAG
+      fired_regimes: [
+        {
+          contract: 'raw_sugar',
+          name: 'bullish_ethanol_pull',
+          direction: '+',
+          matched: ['sugar_ethanol_parity', 'India_ethanol_diversion'],
+          threshold: 2,
+        },
+      ],
+      drivers: ['sugar_ethanol_parity', 'India_ethanol_diversion'],
+      citation_verifier: {
+        enabled: true,
+        checked: 3,
+        stripped: 0,
+        corrected: 0,
+        by_rule: {},
+        resolved: {
+          '1': { source: 'unica_brazil', date: '2024-05-30', text: SUGAR_EVIDENCE[0]!.text },
+          '2': { source: 'usda_gain_sugar', date: '2024-05-15', text: SUGAR_EVIDENCE[1]!.text },
+          N1: { source: 'silver_psd', date: '2024-05-11', text: 'stocks-to-use 0.41 (z=-1.1)' },
+        },
+      },
+    },
+    asof,
+    question,
+  };
+}
+
 function degradedResult(q: string, asof: string): RespondResult {
   const r = goodResult(q, asof);
   r.model = 'claude-haiku-4-5';
@@ -182,14 +287,23 @@ function noMatchResult(q: string, asof: string): RespondResult {
   };
 }
 
-/** Pick a result variant from the question text so a mock dev can exercise every state. */
+/** Pick a result variant from the question text so a mock dev can exercise every state. Commodity keywords
+ *  (sugar/BRL) route to the raw_sugar fixture so answers differ by question — otherwise a mock walkthrough
+ *  renders the SAME arabica answer for every commodity (which looks like a stale-render bug). */
 function pickResult(q: string, asof: string): RespondResult {
   const s = q.toLowerCase();
   if (s.includes('degrad')) return degradedResult(q, asof);
   if (s.includes('floor')) return floorResult(q, asof);
   if (s.includes('ignore all') || s.includes('refuse')) return refusalResult(q, asof);
   if (s.includes('nomatch')) return noMatchResult(q, asof);
+  if (s.includes('sugar') || s.includes('brl')) return rawSugarResult(q, asof);
   return goodResult(q, asof);
+}
+
+/** The mock graph for a contract — the DAG must match the answered commodity (client.getGraph routes here in
+ *  mock mode). raw_sugar → the sugar topology; everything else → arabica. */
+export function mockGraph(contract: string): Schemas['GraphTopology'] {
+  return /sugar/.test(contract) ? (graphSugar as unknown as Schemas['GraphTopology']) : MOCK_GRAPH;
 }
 
 export const MOCK_RESULT = goodResult('KC frost 2021', '2021-07-20');

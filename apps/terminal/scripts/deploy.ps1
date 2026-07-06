@@ -40,17 +40,37 @@ try {
 $Dist = Join-Path $AppDir "dist"
 if (-not (Test-Path (Join-Path $Dist "index.html"))) { throw "no dist/index.html - build did not emit" }
 
-# 2) Upload. Hashed assets are immutable (1yr); everything else (index.html, mark.svg) is no-cache
-#    so a new deploy surfaces immediately. --delete on the root pass prunes stale non-asset files.
-Write-Host "[deploy] syncing root (no-cache, --delete, excluding assets)"
-& aws s3 sync "$Dist/" "s3://$Bucket/" --delete --exclude "assets/*" `
-    --cache-control "no-cache" --region $Region
-if ($LASTEXITCODE -ne 0) { throw "s3 sync (root) failed" }
-
-Write-Host "[deploy] syncing assets (immutable)"
+# 2) ATOMIC UPLOAD ORDER (S2.1): hashed assets FIRST, then verify every built asset is actually at the
+#    origin, and ONLY THEN flip index.html. The old order (index first, assets after) left a ~40-60s window
+#    where the new index referenced a chunk the origin lacked -> the SPA 403/404->index.html rewrite handed
+#    the dynamic import HTML-with-200 instead of JS -> the lazy chunk load rejected -> blank screen.
+Write-Host "[deploy] syncing assets (immutable) FIRST"
 & aws s3 sync "$Dist/assets/" "s3://$Bucket/assets/" `
     --cache-control "public,max-age=31536000,immutable" --region $Region
 if ($LASTEXITCODE -ne 0) { throw "s3 sync (assets) failed" }
+
+# Completeness gate: every asset in the new build must exist at the origin before the shell flips. Guards a
+# partial sync AND S3 read-after-write lag (short retry). A miss here means the flip would strand a chunk.
+$assets = Get-ChildItem -File "$Dist/assets"
+Write-Host "[deploy] verifying $($assets.Count) assets at the origin before flipping the shell"
+foreach ($a in $assets) {
+    $key = "assets/$($a.Name)"
+    $ok = $false
+    for ($try = 1; $try -le 3; $try++) {
+        aws s3api head-object --bucket $Bucket --key $key --region $Region *> $null
+        if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $ok) { throw "asset missing at origin after sync: $key (aborting BEFORE flipping index.html)" }
+}
+Write-Host "[deploy] all assets present at origin"
+
+# Now the shell: index.html + mark.svg etc. are no-cache so a new deploy surfaces immediately. --delete
+# prunes stale non-asset files (never assets -> in-flight users on the old index keep their immutable chunks).
+Write-Host "[deploy] flipping shell (no-cache, --delete, excluding assets)"
+& aws s3 sync "$Dist/" "s3://$Bucket/" --delete --exclude "assets/*" `
+    --cache-control "no-cache" --region $Region
+if ($LASTEXITCODE -ne 0) { throw "s3 sync (root) failed" }
 
 # 3) Invalidate the entrypoint on CloudFront (assets are immutable, so only the shell needs it).
 $DistId = (& aws cloudfront list-distributions --region $Region `

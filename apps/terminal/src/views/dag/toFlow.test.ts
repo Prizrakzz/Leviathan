@@ -70,4 +70,24 @@ describe('toFlow (6.3 progressive disclosure)', () => {
     if (pos) expect(pos.className).toBe('stroke-pos');
     if (neg) expect(neg.className).toBe('stroke-neg');
   });
+
+  // S2.1: 5 oilseed contracts fan PARALLEL edges into soybean_oil/soybeans; `${src}->${tgt}` collided,
+  // dropping a duplicate + warning in React Flow. The `#i` suffix makes every edge id unique.
+  it('gives parallel edges unique ids (no React Flow key collision)', () => {
+    const parallel = {
+      contract: 'c',
+      nodes: [
+        { id: 'c', kind: 'contract', contract: 'c' },
+        { id: 'a', kind: 'demand', contract: 'c' },
+      ],
+      edges: [
+        { source: 'a', target: 'c', sign: '+', confidence: 'high' },
+        { source: 'a', target: 'c', sign: '-', confidence: 'low' }, // parallel edge, same endpoints
+      ],
+    } as unknown as Topo;
+    const { edges } = toFlow(parallel, new Set(), new Set(['c', 'a']));
+    const ids = edges.map((e) => e.id);
+    expect(edges.length).toBe(2);
+    expect(new Set(ids).size).toBe(ids.length); // all unique
+  });
 });

@@ -91,8 +91,10 @@ export function toFlow(topo: Topo, active: Set<string>, visible: Set<string>): {
       hiddenParents: hiddenParentCount(topo, ln.id, visible),
     },
   }));
-  const edges: CascadeRFEdge[] = laid.edges.map((le) => ({
-    id: `${le.source}->${le.target}`,
+  const edges: CascadeRFEdge[] = laid.edges.map((le, i) => ({
+    // `#i` disambiguates PARALLEL edges (5 oilseed contracts fan two edges into soybean_oil/soybeans) —
+    // React Flow requires unique edge ids or it drops a duplicate + warns (S2.1 fix).
+    id: `${le.source}->${le.target}#${i}`,
     source: le.source,
     target: le.target,
     markerEnd: { type: 'arrowclosed' } as Edge['markerEnd'],

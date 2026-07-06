@@ -10,6 +10,7 @@ module.exports = {
   extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
   ignorePatterns: [
     'dist',
+    'dist-mock',
     'storybook-static',
     'playwright-report',
     'node_modules',

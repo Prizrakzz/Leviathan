@@ -57,4 +57,32 @@ describe('useTypewriter', () => {
     render(<Harness draft="partial" status="error" />);
     expect(out.settled).toBe(true);
   });
+
+  // S2.1: rAF is PAUSED in a backgrounded tab, so the reveal loop can't flip `settled` there — the timer
+  // floor must. Without frames flushed, settle happens via the DRAIN_MS setTimeout.
+  it('settles via the timer floor when rAF never fires (backgrounded tab)', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const text = 'z'.repeat(300);
+    const { rerender } = render(<Harness draft="" status="streaming" />);
+    rerender(<Harness draft={text} status="streaming" />);
+    rerender(<Harness draft={text} status="done" />); // NO frames flushed → cursor stuck (rAF paused)
+    expect(out.settled).toBe(false);
+    act(() => vi.advanceTimersByTime(800));
+    expect(out.settled).toBe(true);
+    expect(out.shown).toBe(text); // force-completed the reveal
+    vi.useRealTimers();
+  });
+
+  // S2.1: if the tab is already hidden when the turn completes, settle at once (no point animating).
+  it('settles immediately when the tab is hidden at completion', () => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    const text = 'q'.repeat(200);
+    const { rerender } = render(<Harness draft="" status="streaming" />);
+    rerender(<Harness draft={text} status="streaming" />);
+    rerender(<Harness draft={text} status="done" />); // no frames, no timers advanced
+    expect(out.settled).toBe(true);
+    expect(out.shown).toBe(text);
+    // restore: drop the instance override so the prototype getter (visible) is used again
+    delete (document as unknown as { hidden?: unknown }).hidden;
+  });
 });
