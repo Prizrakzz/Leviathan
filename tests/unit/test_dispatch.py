@@ -73,6 +73,7 @@ def test_plan_turn_prompt_carries_state_and_enum_orders_carried_first():
                      today="2026-07-03", state_contracts=["hard_red_winter_wheat_kcbt"], call=call)
     assert p.contracts == ["hard_red_winter_wheat_kcbt"] and p.kind() == "reasoning"
     assert "NEVER answer the question" in seen["system"]                # the constitution, cached-stable
+    assert "are REASONING even when phrased as a count" in seen["system"]   # P1.3 regime/timing routing rule
     assert "discussing contracts: wheat" in seen["user"] and "TODAY: 2026-07-03" in seen["user"]
     enum = seen["tool"]["input_schema"]["properties"]["contracts"]["items"]["enum"]
     assert enum[0] == "hard_red_winter_wheat_kcbt"                      # carried contract leads the enum

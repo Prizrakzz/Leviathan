@@ -45,3 +45,12 @@ def test_convexity_state_question_is_not_numbers_only():
     # without an LLM, a data cue + a convexity cue must fall to hybrid, never numbers_only
     d = it.classify_intent("Given where corn stocks-to-use sat, is a yield shock convex or linear?")
     assert d["intent"] == "hybrid"
+
+
+def test_regime_count_questions_never_route_numbers_only():
+    # P1.3: a "how many"/count phrasing about a REGIME/timing must not become a pure lookup (numbers_only ->
+    # structured=None -> no map). Both cues fire, so the fallback lands reasoning-or-hybrid; either mounts the map.
+    for q in ("How many weeks before the squeeze fires?",
+              "How many weeks before the regime breaks?",
+              "What's corn's stocks-to-use threshold number?"):
+        assert it.classify_intent(q)["intent"] in ("reasoning", "hybrid"), q

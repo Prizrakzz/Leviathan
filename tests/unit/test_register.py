@@ -32,8 +32,31 @@ def test_graph_jargon_flagged():
 def test_clean_researcher_prose_has_no_leaks():
     clean = ("Soybeans read bullish into 2021: the drought driver is active, confirmed by the 2021-07 WASDE "
              "cut to Brazilian output. The price response turns convex once ending stocks fall below the buffer, "
-             "a classic tail-risk regime. A strong dollar is a bearish offset. Stocks-to-use fell 5-10%.")
+             "a classic tail-risk regime. A strong dollar is a bearish offset. Stocks-to-use fell 5-10%. This is "
+             "outside the tracked driver model; a real-time read isn't available and the observed data is silent.")
     assert reg.register_leaks(clean) == []                            # register-approved phrasing trips nothing
+
+
+def test_internal_architecture_prose_flagged():
+    toks = _tokens("This link is outside the mapped graph; the causal graph lacks it and the live-feature layer "
+                   "isn't here. No dated evidence item covers it in the silver numbers layer.")
+    assert {"mapped graph", "causal graph", "live-feature layer", "dated evidence item",
+            "silver numbers layer"} <= toks                          # P1.1: internal-layer prose is a leak
+
+
+def test_sanitize_rewrites_architecture_prose(monkeypatch):
+    _hier_stub(monkeypatch)
+    try:
+        dirty = ("The signal is outside the mapped graph; the causal graph lacks it, the live-feature layer isn't "
+                 "here, and no dated evidence item exists in the silver numbers layer.")
+        clean = reg.sanitize(dirty)
+        assert reg.register_leaks(clean) == []                        # the load-bearing property
+        assert "tracked driver model" in clean and "driver model" in clean and "real-time data" in clean
+        assert "observed data" in clean and "dated source" in clean
+        assert "mapped graph" not in clean and "causal graph" not in clean and "live-feature layer" not in clean
+    finally:
+        reg._slugs.cache_clear()
+        reg._display_map.cache_clear()
 
 
 def test_mermaid_signs_are_not_prose_leaks():
@@ -105,6 +128,24 @@ def test_sanitize_idempotent(monkeypatch):
         reg._display_map.cache_clear()
 
 
+def test_regime_id_flagged_as_leak():
+    toks = _tokens("A bullish_drought_squeeze needs three drivers; watch for a bearish_glut.")
+    assert "bullish_drought_squeeze" in toks and "bearish_glut" in toks    # raw regime ids are internal
+
+
+def test_sanitize_humanizes_regime_ids(monkeypatch):
+    _hier_stub(monkeypatch)
+    try:
+        dirty = "The bullish_drought_squeeze aligns with drought; a bearish_glut is the offset."
+        clean = reg.sanitize(dirty)
+        assert "bullish_drought_squeeze" not in clean and "bearish_glut" not in clean
+        assert "drought squeeze (bullish)" in clean and "supply glut (bearish)" in clean
+        assert reg.register_leaks(clean) == []                             # humanized -> no leak remains
+    finally:
+        reg._slugs.cache_clear()
+        reg._display_map.cache_clear()
+
+
 def test_eval_metric_and_panel_pick_up_leaks(monkeypatch):
     from leviathan.graphrag import eval as E
     monkeypatch.setattr(ev, "_hier", lambda: {"contracts": {}})
@@ -121,3 +162,7 @@ def test_eval_metric_and_panel_pick_up_leaks(monkeypatch):
     assert E._metrics(rows[1])["register_leaks"] >= 2                 # conf= + (+) + jargon
     panel = "\n".join(E.register_report(rows))
     assert "Output register" in panel and "answers with leaks: 1/2" in panel
+    # this test populates reg._slugs()/_display_map() under the empty-contracts stub; monkeypatch restores
+    # _hier at teardown but NOT the lru_cache -> without this, () leaks forward and later tests that rely on
+    # sanitize() humanizing real slugs (e.g. test_suggester_catalog) fail depending on collection order.
+    reg._slugs.cache_clear(); reg._display_map.cache_clear()

@@ -18,6 +18,11 @@ _MARKERS = re.compile(r"(conf\s*=|sign\s*=|edge_type|any_n_of|silver_ref|silver_
 _SIGN = re.compile(r"\(\s*[+\-]\s*\)|\(\s*\+\s*/\s*\-\s*\)|\bsign\s*[:=]?\s*[+\-]")
 # Causal-graph jargon that a researcher would never write.
 _JARGON = re.compile(r"\bnode fired\b|\bthe node\b|\bcausal node\b|\bgraph edge\b|\bthe edge sign\b", re.I)
+# Internal-architecture prose that names OUR layers, not the market — a reader must never see these (P1.1 A1).
+# NB: 'the node fired' is already covered by _JARGON; do not duplicate it here.
+_PROSE_PHRASES = re.compile(
+    r"\bcausal graph\b|\bmapped graph\b|\blive-feature layer\b|\bsilver numbers layer\b|\bdated evidence item\b",
+    re.I)
 
 
 @functools.lru_cache(maxsize=1)
@@ -29,6 +34,16 @@ def _slugs() -> tuple[str, ...]:
         contracts = ev._hier().get("contracts") or {}
         return tuple(sorted({c for c in contracts if "_" in c}, key=len, reverse=True))
     except Exception:  # noqa: BLE001 — hierarchy missing -> just skip the slug check
+        return ()
+
+
+def _regime_ids() -> tuple[str, ...]:
+    """Convergence-regime ids (bullish_drought_squeeze, ...) that must be humanized in prose, longest-first.
+    Sourced from the display registry (authoritative over the causal DAGs)."""
+    try:
+        from leviathan.graphrag import display as dp
+        return dp.all_regime_ids()
+    except Exception:  # noqa: BLE001 — registry missing -> skip regime handling
         return ()
 
 
@@ -44,12 +59,15 @@ def register_leaks(text: str) -> list[tuple[str, str]]:
     """(token, short-context) for each internal-representation leak in the reader prose. Empty list = clean."""
     prose = _strip_mermaid(text)
     hits: list[tuple[str, str]] = []
-    for rx in (_MARKERS, _SIGN, _JARGON):
+    for rx in (_MARKERS, _SIGN, _JARGON, _PROSE_PHRASES):
         for m in rx.finditer(prose):
             hits.append((m.group(0).strip(), _ctx(prose, m)))
     for slug in _slugs():
         for m in re.finditer(r"\b" + re.escape(slug) + r"\b", prose):
             hits.append((slug, _ctx(prose, m)))
+    for rid in _regime_ids():                                            # raw convergence-regime id in prose
+        for m in re.finditer(r"\b" + re.escape(rid) + r"\b", prose):
+            hits.append((rid, _ctx(prose, m)))
     return hits
 
 
@@ -65,7 +83,24 @@ _JARGON_SUBS = [                                                         # graph
     (re.compile(r"\bgraph edge\b", re.I), "the link"),
     (re.compile(r"\bthe edge sign\b", re.I), "the direction"),
     (re.compile(r"\bthe node\b", re.I), "the driver"),
+    # Internal-architecture prose (mirror _PROSE_PHRASES). Multi-word forms first so a shorter phrase can't
+    # partial-match inside a longer one; none of these reintroduce a detected token.
+    (re.compile(r"\bmapped graph\b", re.I), "tracked driver model"),
+    (re.compile(r"\bcausal graph\b", re.I), "driver model"),
+    (re.compile(r"\blive-feature layer\b", re.I), "real-time data"),
+    (re.compile(r"\bsilver numbers layer\b", re.I), "observed data"),
+    (re.compile(r"\bdated evidence item\b", re.I), "dated source"),
 ]
+
+
+def _regime_label(rid: str) -> str:
+    """Humanize a convergence-regime id via the display registry (bullish_drought_squeeze ->
+    'drought squeeze (bullish)'); falls back to the raw de-underscored id if the registry is missing."""
+    try:
+        from leviathan.graphrag import display as dp
+        return dp.regime_label(rid)
+    except Exception:  # noqa: BLE001
+        return rid.replace("_", " ")
 
 
 def _sign_word(s: str) -> str:
@@ -120,5 +155,7 @@ def sanitize(text: str) -> str:
             seg = rx.sub(repl, seg)
         for slug in _slugs():                                            # longest-first (from _slugs) -> no partials
             seg = re.sub(r"\b" + re.escape(slug) + r"\b", disp.get(slug, slug.replace("_", " ")), seg)
+        for rid in _regime_ids():                                        # longest-first -> humanize regime ids
+            seg = re.sub(r"\b" + re.escape(rid) + r"\b", _regime_label(rid), seg)
         parts[i] = seg
     return "".join(parts)

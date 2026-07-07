@@ -48,33 +48,29 @@ _SYSTEM = (
     "You are a commodities analyst writing for a QUANT RESEARCHER studying how fundamental supply/demand shocks "
     "propagate through balance sheets and WHERE the price response turns CONVEX (buffer exhaustion, tipping "
     "thresholds, regime switches). This is RESEARCH, not a trading desk: do NOT give position sizing, price "
-    "targets, or 'how much to trade'. Use ONLY the curated causal graph + dated evidence in the prompt — never "
+    "targets, or 'how much to trade'. Use ONLY the curated driver model + dated source reports in the prompt — never "
     "invent drivers, signs, numbers, or sources.\n"
     "GROUNDING DISCIPLINE (critical — you will be judged on this):\n"
-    "- APPROVED EDGES ONLY: reason strictly over the driver / inter-commodity / convergence edges SHOWN in the graph. "
+    "- APPROVED EDGES ONLY: reason strictly over the driver / inter-commodity / convergence linkages SHOWN to you. "
     "Do NOT introduce a driver, causal link, or regime that isn't in the prompt; if the question implies a link the "
-    "graph lacks, say it is outside the mapped graph rather than inventing it.\n"
+    "model lacks, say it is outside the tracked driver model rather than inventing it.\n"
     "- CONFIDENCE: each driver is tagged conf=high|medium|low. Present a low-confidence driver as a HYPOTHESIS ('one "
     "lower-confidence channel is ...'), never as an established mechanism; lean on high-confidence edges first.\n"
     "- COMMIT TO A BASE-CASE LEAN. A PM needs a direction: state a net bull/bear/neutral base case and which leg you "
     "expect to dominate and why (a caveat is fine). Do NOT hide behind 'indeterminate/ambiguous' — only decline a lean "
-    "when the graph itself gives opposing SAME-confidence drivers with no tiebreaker, and then say exactly that.\n"
-    "- REASON ONLY FROM THE GRAPH'S MECHANISM. Explain WHY using the driver's stated sign/lag/edge — do NOT invent a "
-    "physical, volumetric, or agronomic rationale the graph doesn't state (e.g. 'meal volume exceeds oil so it falls "
-    "more'); if the graph's mechanism doesn't cover it, say so rather than manufacture a justification.\n"
-    "- ATTRIBUTION vs CONFIDENCE: a driver's conf tag is NOT a measured historical attribution. 'The graph rates BRL "
+    "when the model itself gives opposing SAME-confidence drivers with no tiebreaker, and then say exactly that.\n"
+    "- REASON ONLY FROM THE MODEL'S MECHANISM. Explain WHY using the driver's stated sign/lag/edge — do NOT invent a "
+    "physical, volumetric, or agronomic rationale the model doesn't state (e.g. 'meal volume exceeds oil so it falls "
+    "more'); if the model's mechanism doesn't cover it, say so rather than manufacture a justification.\n"
+    "- ATTRIBUTION vs CONFIDENCE: a driver's conf tag is NOT a measured historical attribution. 'The model rates BRL "
     "higher-confidence than El Nino' is legitimate; 'BRL did the heavy lifting historically' is NOT, unless a cited "
     "dated item actually decomposes the two. Say which it is — model-ranked vs evidence-measured.\n"
-    "- Distinguish MECHANISM from OBSERVATION. The graph's drivers/signs/regimes are an authoritative MODEL of what "
-    "moves price — state them as mechanism ('drought is a bullish driver', 'the squeeze regime needs N of ...'). Do "
-    "NOT assert a driver as an OBSERVED current fact ('stocks have collapsed', 'disease is killing trees', 'specs are "
-    "long') unless a CITED dated evidence item says so. If it is model-not-observation, phrase it that way.\n"
-    "- Be honest about evidence COVERAGE. If the evidence is sparse, single-dated, or doesn't cover the period the "
-    "question implies, SAY SO ('the only dated evidence here is from <date>; I can't confirm the current state') "
-    "rather than padding with unconfirmed claims.\n"
-    "- A real-time 'what is the state TODAY' read needs the live-feature layer, which is NOT in this prompt. If asked "
-    "for a current read, give the framework + what to watch and say the live read needs that layer — never fabricate "
-    "a current state.\n"
+    "- BE HONEST, ONCE — model vs observed, then move on. The drivers/signs/regimes are an authoritative MODEL of "
+    "what moves price; state them as mechanism ('drought is a bullish driver', 'the squeeze needs several drivers to "
+    "line up'), and call a driver an OBSERVED current fact ('stocks have collapsed', 'specs are long') ONLY when a "
+    "cited dated item says so. If the evidence is sparse or doesn't cover the period the question implies, say so in "
+    "ONE sentence and give the framework + what to watch; a real-time current-state read isn't available here. Do not "
+    "stack caveats.\n"
     "- NEVER invent a number, threshold, percentage, or price level. Every figure you state MUST come from a cited "
     "evidence item; if you have no cited number, say 'magnitude not in the evidence' rather than fabricate one (e.g. "
     "do NOT write 'a >15% export lag is bullish' unless a source gives that figure).\n"
@@ -84,21 +80,32 @@ _SYSTEM = (
     "WATCH-LIST drivers that confirm it; cite the magnitudes/dates the evidence gives. Frame in the researcher's "
     "lexicon USED CORRECTLY AND ONLY WHEN THE MECHANISM EARNS IT — convex/linear, tail risk (right/left tail), "
     "skew/asymmetry, regime, base rate; a misused 'tail risk' is worse than plain language.\n"
-    "OUTPUT REGISTER: reason internally with the graph's signs/driver-ids, but WRITE for the researcher — say "
-    "bullish/bearish (or supportive/pressuring), NOT '+/-'; 'the driver is active, confirmed by <dated evidence>', "
-    "NOT 'the node fired'; 'the effects compound/offset', NOT 'the leg cancels'; spell out contract names (the "
-    "Dalian soybean contract, not soybeans_no_2_dce); NEVER emit internal tokens (conf=, sign=, node, edge, raw "
-    "slugs) in the prose.\n"
+    "OUTPUT REGISTER: reason internally with the model's signs and ids, but WRITE for the researcher. Say "
+    "bullish/bearish (or supportive/pressuring) in words rather than signs; say 'the driver is active, confirmed "
+    "by [n]' and 'the effects compound' or 'offset'. Spell out every contract, driver, and regime in plain English "
+    "— name the Dalian soybean contract, describe 'a drought-driven supply squeeze'. NEVER emit an internal "
+    "identifier of ANY kind in the prose: no slugs, no convergence-regime ids, no table names, no threshold tokens. "
+    "Describe every regime, driver, and threshold in plain English — the reader must never see a name that exists "
+    "only in our internal tables.\n"
+    "TONE & FORMAT: write as a senior quant mentoring a sharp colleague — precise, calm, plain English; lead with "
+    "the point, state confidence in words inline, no hype and no filler hedging. You MAY use **bold** for the lead "
+    "term of a point and '-' bullets for a short enumeration, sparingly and professionally; do NOT use headings, "
+    "tables, code fences, blockquotes, or _underscore_ emphasis.\n"
+    "LENGTH DISCIPLINE: answer ONLY what was asked. tldr: 1-3 sentences. mechanism: scoped to the question — "
+    "target 120-180 words; exceed only when the question itself demands enumeration (per-member divergence "
+    "across a complex, a dated multi-hop cascade), and even then stay tight. Do NOT pad with adjacent drivers, "
+    "background, or watch-lists the user didn't ask for — the terminal suggests follow-up questions, so depth "
+    "belongs to the NEXT turn, not this one. Shorter and exactly-on-point beats exhaustive.\n"
     "TEMPORAL DISCIPLINE (cascades are about timing): each evidence item shows when it was 'reported <date>' and, "
     "when known, when the 'event <date>' actually occurred — PREFER the event date for sequencing. For a cascade/"
     "convergence question, lay the cited events out as a DATED sequence (earliest trigger -> downstream effect) "
     "using the ACTUAL dates, and state realized lags as concrete deltas ('B40 effective 2023-02 -> palm stock draw "
-    "reported 2023-04, ~2 months') rather than vague 'a couple quarters'; compare the realized lag to the graph's "
+    "reported 2023-04, ~2 months') rather than vague 'a couple quarters'; compare the realized lag to the model's "
     "lag prior and flag if it ran fast/slow. Use exact dates, never invent one; if only a report date exists, say so.\n"
     "CROSS-CUTTING DRIVERS: a 'CROSS-CUTTING DRIVER EVIDENCE' block may carry the cascade TRIGGERS (a biodiesel "
     "mandate, a freight spike, an FX move, an El Nino onset) that don't name the commodity but move it via the "
-    "graph's driver edges — use them to ground the FIRST link of a cascade and tie each to the driver's silver "
-    "measure when the graph names one; keep them as mechanism unless a dated item confirms the magnitude.\n"
+    "model's driver edges — use them to ground the FIRST link of a cascade and tie each to the driver's observed "
+    "measure when the model names one; keep them as mechanism unless a dated item confirms the magnitude.\n"
     "SOURCE TRUST: each evidence item is tagged [T1]-[T4] by source trust (T1 official balance-sheet WASDE/FAS > "
     "T2 USDA attache GAIN > T3 producer/industry body fnc/mpoc/conab > T4 macro/price outlook wb_cmo). Draw on ALL "
     "tiers for breadth, but in `sources` ORDER citations most-trusted (lowest T) FIRST and note each source's "
@@ -106,21 +113,28 @@ _SYSTEM = (
     "MULTIPLE CONTRACTS / COMPLEX MEMBERS: report where members AGREE vs where sign or magnitude DIVERGES, "
     "per member — NEVER average them into one blended read; for this researcher the spread between members IS "
     "the trade.\n"
+    "CONTEXT COMMODITIES: a non-tradeable or untracked commodity (barley, sunflower, sorghum, fish meal) shown as "
+    "an INTER-COMMODITY linkage is answered LINKAGE-FIRST — lead with the mechanism and sign of the linkage shown "
+    "('barley competes with corn in feed rations, so a barley shortfall is supportive of corn'), add one note that "
+    "it is not itself a tracked contract, and never open with an apology. Use ONLY the linkages shown; never invent "
+    "one the model doesn't carry.\n"
     "RESOLVED FROM THE THREAD: if the question did not name a commodity and you are reading it through the "
     "CONVERSATION STATE (a pronoun, 'the Kansas one', 'back to wheat'), open the TL;DR by stating that reading "
     "in plain words ('Reading this as KC wheat from our thread') so a wrong guess is instantly visible.\n"
     "PER-HOP CITATIONS: in a multi-hop cascade, each hop beyond the first carries its OWN dated citation; a hop "
-    "with none is labeled '(mechanism only — no dated evidence at this hop)' rather than borrowing the first "
+    "with none is labeled '(mechanism only — no dated source at this hop)' rather than borrowing the first "
     "hop's citation downstream.\n"
     "DATED EPISODES: a 'DATED EPISODES' line gives REPORT TIMESTAMPS — WHEN the corpus documents a driver, with "
     "a sample cited report — NOT a description of what happened. NEVER state what occurred in an episode unless a "
-    "DATED EVIDENCE item says so; use the timestamps only to place cited evidence in time (e.g. 'the corpus "
+    "cited dated item says so; use the timestamps only to place cited evidence in time (e.g. 'the corpus "
     "documents frost in 2021, consistent with [n]') or to note the corpus is silent for a period. Do not "
     "manufacture severity, outcomes, or magnitudes from a bare count or date.\n"
     "Emit via emit_answer, reader-first for a PM to skim:\n"
     "- tldr: 2-4 sentences, bottom line FIRST (net price direction + the key driver). Inline [n] for evidence-backed claims.\n"
-    "- mechanism: the causal chain / key drivers (sign each in words — 'raises price (bullish)' or 'lowers (bearish)'); NAME the convergence "
-    "regime for confluence questions; make clear which claims are MODEL vs CITED observation. Brief list, NO giant tables. Cite [n].\n"
+    "- mechanism: the causal chain / key drivers (sign each in words — 'raises price (bullish)' or 'lowers (bearish)'); for a "
+    "confluence question DESCRIBE the convergence scenario in plain words (e.g. 'a drought-driven supply squeeze that needs "
+    "several drivers to line up'), never its internal id; make clear which claims are MODEL vs CITED observation. Brief list, "
+    "NO giant tables. Cite [n].\n"
     "- diagram_mermaid: ONLY for a cascade (TRACE a chain) or convergence (CONFLUENCE) question — a small `flowchart LR` "
     "(<=8 nodes, sign in each PLAIN-TEXT label, no emoji, e.g. frost[\"frost +\"] --> stocks[\"stocks drain +\"]) ending "
     "at a price node. For 'what drives X' / policy / simple questions, leave it an EMPTY string.\n"
@@ -288,7 +302,7 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
                             f"{b.get('source', '')} {b.get('date', '')})")
                 return f"{d} ({b.get('source', '?')}, {b.get('date', '?')})"
             any_obs = any(b.get("kind") == "observed" for r in fired for b in (r.get("basis") or {}).values())
-            vlines.append("CONVERGENCE CONDITIONS SUPPORTED NEAR THE AS-OF (OBSERVED = a real silver value "
+            vlines.append("CONVERGENCE CONDITIONS SUPPORTED NEAR THE AS-OF (OBSERVED = a real observed value "
                           "at the as-of vintage, safe to state as measured; others are textual evidence only):"
                           if any_obs else
                           "CONVERGENCE CONDITIONS DOCUMENTED NEAR THE AS-OF (textual evidence only — NOT "
@@ -305,7 +319,7 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
                           "(e.g. stocks-to-use, the premium level) that would confirm or refute it.")
         veto = (sg.trace.get("silver_veto") or {}).get(cid) or {}
         if veto:
-            vlines.append("DRIVERS OBSERVED NORMAL IN SILVER at the as-of (they did NOT count toward any "
+            vlines.append("DRIVERS OBSERVED NORMAL IN THE OBSERVED DATA at the as-of (they did NOT count toward any "
                           "regime; treat documented mentions of them as stale or anticipatory): "
                           + ", ".join(f"{d} ({v.get('value')} {v.get('unit', '')}, z={v.get('z')})"
                                       for d, v in veto.items()))
@@ -351,8 +365,8 @@ def _emit(on_stage, stage: str, **info) -> None:
 
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
-               focus_driver: str | None = None, use_blocks: bool = False, silver_lookup=None,
-               on_stage=None) -> dict:
+               extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
+               silver_lookup=None, on_stage=None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -372,16 +386,27 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 sg.trace["focus_driver"] = focus_driver
                 break
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
+    _emit(on_stage, "walking")                                    # early tick: the 8-20s ground starts NOW (5.6 W5)
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
-              probe_retrieve=probe_retr)                          # probes = cheap existence checks, no reranker
-    _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes))
+              probe_retrieve=probe_retr, on_stage=on_stage)       # probes = cheap existence checks, no reranker
+    _gm = sg.trace.get("ground_ms") or {}
+    _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes),
+          ms_fill=_gm.get("fill"), ms_rest=_gm.get("rest"))
     _emit(on_stage, "retrieving", props=int(sg.trace.get("n_evidence", 0) or 0))
     contracts = sg.seeds
     stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof)
+    if extra_resolver is not None:                                # numbers ∥ walk JOIN (run_hybrid): the walk is
+        extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
         volatile_blocks = volatile_blocks + [extra_context]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
-    structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
+    # Stream the note when the caller wired an SSE progress channel (real serving call only; injected fakes
+    # keep the plain signature). The verifier still runs on the FINAL structured output below, so streaming is
+    # additive UX — the trust contract is unchanged.
+    on_token = (lambda t: _emit(on_stage, "token", text=t)) if on_stage is not None else None
+    call_kw = {"on_token": on_token} if (on_token is not None and call is _call_opus) else {}
+    _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
+    structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
@@ -398,6 +423,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
+    _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))
@@ -466,6 +493,47 @@ def render(d: dict, *, include_ledger: bool = True) -> str:
     return "\n".join(parts).strip()
 
 
+def _attach_provenance(structured: dict, verifier: dict) -> None:
+    """Stamp each kept evidence source with its `source_key` (6.4) so the frontend can join a model ref to
+    the citation row's snippet WITHOUT name-matching (structured.sources carry the OFFICIAL name after 6.1;
+    citations[] keep the RAW source for the receipts join). Runs after verify (which populated resolved +
+    rewrote structured.sources) — additive, never changes counts."""
+    if not isinstance(structured, dict):
+        return
+    resolved = (verifier or {}).get("resolved") or {}
+    for s in (structured.get("sources") or []):
+        if not isinstance(s, dict):
+            continue
+        ref = str(s.get("ref", "")).strip().strip("[]")
+        r = resolved.get(ref)
+        if isinstance(r, dict) and r.get("source_key"):
+            s["source_key"] = r["source_key"]
+
+
+def _humanize_structured(d: dict) -> None:
+    """Sanitize the structured fields the UI renders DIRECTLY into reader register (6.1). The frontend
+    shows `structured.{tldr,mechanism,sources}`, NOT the flattened body, so this is where leaked internal
+    tokens, raw regime ids, and internal source ids are removed for the live AND persisted note. Runs
+    AFTER verify (which mutates tldr/mechanism to strip fabricated citations) and mutates in place, so
+    the object returned + persisted is already clean."""
+    if not isinstance(d, dict):
+        return
+    for fld in ("tldr", "mechanism"):
+        v = d.get(fld)
+        if isinstance(v, str) and v:
+            d[fld] = reg.sanitize(v)
+    srcs = d.get("sources")
+    if isinstance(srcs, list):
+        from leviathan.graphrag import display as dp
+        for s in srcs:
+            if not isinstance(s, dict):
+                continue
+            if s.get("source"):
+                s["source"] = dp.source_name(str(s["source"]))
+            if isinstance(s.get("note"), str) and s["note"]:
+                s["note"] = reg.sanitize(s["note"])
+
+
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
@@ -486,7 +554,9 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
                 continue
         elif ref in resolved:
             r = resolved[ref]
-            lines.append(f"[{ref}] {r.get('source')} ({r.get('date')}): {r.get('snippet')}")
+            from leviathan.graphrag import display as dp
+            lines.append(f"[{ref}] {dp.source_name(str(r.get('source') or ''))} "
+                         f"({r.get('date')}): {r.get('snippet')}")
     return ("\n\n## Sources\n" + "\n".join(lines)) if lines else ""
 
 
@@ -507,14 +577,15 @@ def _pop_degraded(structured) -> str | None:
     return structured.pop("_degraded_model", None) if isinstance(structured, dict) else None
 
 
-def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
+def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
     production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
     system prompt is always a cached block, and when `user` arrives as a (stable_prefix, volatile_tail)
     tuple the stable part — the per-contract graph context, byte-identical across a session's turns —
     gets its own cache breakpoint (manual blocks work identically on both providers). Turn 2+ of a
     conversation reads the shared prefix at ~0.1x input price. Injected test fakes keep the plain-string
-    `user` API; only this real path structures blocks."""
+    `user` API; only this real path structures blocks. When `on_token` is set (SSE turns) the note STREAMS
+    token-by-token via serving_call_stream (buffered otherwise — byte-identical for eval/POST)."""
     from leviathan.graphrag import providers as pv
     client = pv.make_client()
     sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
@@ -522,9 +593,12 @@ def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
         stable, volatile = user
         user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": volatile}]
-    out, degraded = pv.serving_call(client, sys_blocks, user, model=pv.resolve_model(model),
-                                    max_tokens=6000, tool=tool, degrade_to=ex.HAIKU)  # answers grew (sources
-    # block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
+    kw = dict(model=pv.resolve_model(model), max_tokens=6000, tool=tool, degrade_to=ex.HAIKU)  # answers grew
+    # (sources block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
+    if on_token is not None:
+        out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
+    else:
+        out, degraded = pv.serving_call(client, sys_blocks, user, **kw)
     if degraded and isinstance(out, dict):
         out["_degraded_model"] = degraded          # popped by the consumer -> visible caveat + trace
     return out
@@ -533,8 +607,8 @@ def _call_opus(system: str, user, *, model: str, tool: dict) -> dict:
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
-           planner: str | None = None, focus_driver: str | None = None, silver_lookup=None,
-           on_stage=None) -> dict:
+           extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
+           silver_lookup=None, on_stage=None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -552,8 +626,10 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=raw_retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
-                          focus_driver=focus_driver, use_blocks=use_blocks, silver_lookup=silver_lookup,
-                          on_stage=on_stage)
+                          extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
+                          silver_lookup=silver_lookup, on_stage=on_stage)
+    if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
+        extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
     # (a soymeal-vs-soyoil spread -> one meal + one oil, not two oils; a single-commodity Q -> one shard, not two).
     contracts, seen = [], set()
@@ -581,7 +657,9 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
     if extra_context:                                              # hybrid numbers / conversation state (volatile)
         volatile_blocks.append(extra_context)
+    _emit(on_stage, "retrieving", props=len(evidence))
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
+    _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     structured = call(_SYSTEM, _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     degraded = _pop_degraded(structured)
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
@@ -598,6 +676,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
+    _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))

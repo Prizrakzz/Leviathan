@@ -12,6 +12,45 @@ def _d(id, **o):
                      mechanism=o.pop("mechanism", "m"), **o)
 
 
+def test_attach_provenance_stamps_source_key_without_changing_sources():
+    """6.4: each kept evidence source gains its source_key (for the durable chip join) — additive, order
+    and membership unchanged; a ref the verifier didn't resolve gets no key."""
+    structured = {"sources": [{"ref": "1", "source": "usda_gain_corn", "date": "2022-01-01", "note": "x"},
+                              {"ref": "2", "source": "usda_wasde", "date": "2022-01-05"},
+                              {"ref": "N1", "source": "USDA PSD", "date": "2021-06-11"}]}
+    verifier = {"resolved": {"1": {"source_key": "text/source=usda_gain_corn/y/document.json"}}}
+    before = [dict(s) for s in structured["sources"]]
+    an._attach_provenance(structured, verifier)
+    assert len(structured["sources"]) == 3
+    assert structured["sources"][0]["source_key"] == "text/source=usda_gain_corn/y/document.json"
+    assert "source_key" not in structured["sources"][1]      # ref 2 not in resolved -> no key
+    assert "source_key" not in structured["sources"][2]      # numbers ref -> no evidence key
+    # nothing else mutated
+    for b, a in zip(before, structured["sources"]):
+        for k, v in b.items():
+            assert a[k] == v
+
+
+def test_humanize_structured_cleans_ui_fields():
+    """The UI renders structured.{tldr,mechanism,sources} DIRECTLY (not the flattened body), so 6.1
+    humanizes those in place: leaked regime ids/tokens gone, source ids -> official names."""
+    d = {
+        "tldr": "A bullish_drought_squeeze read; conf=high on drought.",
+        "mechanism": "La Nina raises price (bullish). A bearish_glut is the offset.",
+        "sources": [{"ref": 1, "source": "usda_gain_corn", "date": "2022-01-01",
+                     "note": "supports the bullish_drought_squeeze"}],
+    }
+    an._humanize_structured(d)
+    assert "bullish_drought_squeeze" not in d["tldr"] and "conf=" not in d["tldr"]
+    assert "drought squeeze (bullish)" in d["tldr"] and "high confidence" in d["tldr"]
+    assert "bearish_glut" not in d["mechanism"] and "supply glut (bearish)" in d["mechanism"]
+    assert d["sources"][0]["source"] == "USDA FAS GAIN Report — Corn"
+    assert "bullish_drought_squeeze" not in d["sources"][0]["note"]
+    # no internal-token leaks survive in the reader-facing fields
+    from leviathan.graphrag import register as reg
+    assert reg.register_leaks(d["tldr"] + " " + d["mechanism"]) == []
+
+
 def _graph() -> g.CausalGraph:
     coffee = cs.CausalContract(
         contract="arabica_coffee", aliases=["arabica", "KC"],
@@ -151,7 +190,7 @@ def test_answer_renders_single_validated_source_list():
 
     out = an.answer("arabica coffee outlook", graph=gr, retrieve=fake_retrieve, call=fake_call)
     assert out["answer"].count("## Sources") == 1
-    assert "[1] usda_wasde (2022-01-01):" in out["answer"]                    # model handle, true metadata
+    assert "[1] USDA WASDE (2022-01-01):" in out["answer"]                    # model handle, official name (6.1)
     assert "[E1]" not in out["answer"]                                        # the parallel footer is gone
     assert out["citations"] and out["citations"][0]["kind"] == "evidence"     # machine list unchanged
     assert out["citations"][0]["locator"]["kind"] == "doc"
