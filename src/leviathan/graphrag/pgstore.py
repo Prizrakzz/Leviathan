@@ -23,11 +23,44 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from typing import Optional
 
 DIM = 1024                                                   # bge-m3 (and Titan v2) embedding width
 
 _CONN = None
+# The module connection is a SINGLE psycopg connection (not concurrency-safe). The L2 walk now fetches nodes
+# in parallel (to overlap the managed-rerank round-trips), so serialize cursor use here — the SQL fetch is
+# milliseconds, and the slow rerank happens OUTSIDE this lock, back in pg_retrieve.
+_PG_LOCK = threading.Lock()
+
+# Serving-path connection POOL: a turn issues ~34 round-trips (10 fill fetches + ~24 regime probes); one
+# lock-serialized connection made that ~8.5s of the walk. A few pooled autocommit connections un-serialize it
+# (RDS t4g.micro handles this comfortably). Callers that pass an explicit `conn` (tests, the loader) keep the
+# old single-connection + lock path.
+_POOL = None
+_POOL_SIZE = int(os.environ.get("EVIDENCE_PG_POOL", "4"))
+
+
+def _acquire():
+    global _POOL
+    import queue as _q
+    import psycopg
+    if _POOL is None:
+        with _PG_LOCK:
+            if _POOL is None:
+                p: _q.Queue = _q.Queue()
+                for _ in range(max(1, _POOL_SIZE)):
+                    p.put(None)                          # lazy slots — connect on first checkout
+                _POOL = p
+    conn = _POOL.get()
+    if conn is None or conn.closed:
+        conn = psycopg.connect(dsn(), autocommit=True)
+    return conn
+
+
+def _release(conn) -> None:
+    _POOL.put(conn)
 
 
 def dsn() -> Optional[str]:
@@ -115,7 +148,7 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
                      hybrid: bool = True, conn=None) -> list[dict]:
     """ONE round-trip: dense CTE + (optionally) lexical CTE, RRF-fused in SQL (c=60, same as rankers.rrf_fuse).
     Rows come back with their vectors so rerank/MMR run in-process unchanged."""
-    conn = conn or connect()
+    pooled = conn is None
     qv = _vec_lit(query_vec)
     where = "node = %(node)s" + (" AND date <= %(asof)s" if asof else "")
     params = {"node": node, "asof": asof, "qv": qv, "k": fetch_k, "tsq": _tsquery(query_text) if hybrid else ""}
@@ -134,9 +167,18 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
         fused = (f"WITH dense AS ({dense}) "
                  "SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.vector::text "
                  "FROM dense d JOIN evidence_props p USING (id) ORDER BY d.rnk LIMIT %(k)s")
-    with conn.cursor() as cur:
-        cur.execute(fused, params)
-        rows = cur.fetchall()
+    if pooled:                                               # serving path: pooled conns, concurrent fetches
+        c = _acquire()
+        try:
+            with c.cursor() as cur:
+                cur.execute(fused, params)
+                rows = cur.fetchall()
+        finally:
+            _release(c)
+    else:                                                    # explicit conn (tests/loader): serialized as before
+        with _PG_LOCK, conn.cursor() as cur:
+            cur.execute(fused, params)
+            rows = cur.fetchall()
     return [{"id": r[0], "source": r[1], "source_key": r[2], "date": r[3], "event_date": r[4],
              "text": r[5], "vector": _vec_parse(r[6])} for r in rows]
 

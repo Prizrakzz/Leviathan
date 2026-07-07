@@ -55,7 +55,15 @@ def fire_contract(graph: gph.CausalGraph, contract: str, asof: str, silver_looku
     return {"contract": contract, "regimes": regimes, "drivers": drivers}
 
 
-def convergence_matrix(graph: gph.CausalGraph, asof: str, silver_lookup) -> list[dict]:
+def convergence_matrix(graph: gph.CausalGraph, asof: str, silver_lookup, workers: int = 1) -> list[dict]:
     """`fire_contract` fanned over every loaded contract — the 31-row Convergence heatmap (design §4.8).
-    Deterministic; the silver reads are memoized/capped in the shared `silver_lookup`."""
-    return [fire_contract(graph, cid, asof, silver_lookup) for cid in sorted(graph.contracts)]
+    Deterministic; the silver reads are memoized/capped in the shared `silver_lookup` (which is
+    single-flight thread-safe, so `workers>1` parallelizes the I/O-bound lookups with an output list
+    IDENTICAL to the serial one — pool.map preserves order). Default 1 = byte-identical for existing
+    callers."""
+    contracts = sorted(graph.contracts)
+    if workers > 1 and len(contracts) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(lambda cid: fire_contract(graph, cid, asof, silver_lookup), contracts))
+    return [fire_contract(graph, cid, asof, silver_lookup) for cid in contracts]

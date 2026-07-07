@@ -91,10 +91,26 @@ def check_hierarchy() -> list[str]:
     return coverage_check()
 
 
+def check_geography() -> list[str]:
+    """Geography routing index integrity (5.8) — every curated contract/driver/region/origin id is real.
+    Delegates to the resolver so lint and the runtime router agree by construction."""
+    from leviathan.graphrag.geography import check_geography as _cg
+    return _cg()
+
+
+def check_display_names() -> list[str]:
+    """Display-name registry integrity (6.1) — every convergence regime has a curated label (so no raw
+    internal id can leak to the reader). Delegates to the resolver so lint and the runtime sanitizer
+    agree by construction."""
+    from leviathan.graphrag.display import check_display_names as _cd
+    return _cd()
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
-                        ("hierarchy", check_hierarchy())):
+                        ("hierarchy", check_hierarchy()), ("geography", check_geography()),
+                        ("display_names", check_display_names())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")
