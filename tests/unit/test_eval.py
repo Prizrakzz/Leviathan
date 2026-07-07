@@ -189,6 +189,67 @@ def test_baseline_json_convo_rows_compose_ids():
     assert doc["via_orchestrator"] is True
 
 
+def test_is_slice_key_accepts_slices_rejects_everything_else():
+    # P7-P2.0: only retrieval slices belong in the fingerprint — root <node>.jsonl + drivers/*.jsonl.
+    for ok in ("corn.jsonl", "arabica_coffee.jsonl", "drivers/el_nino.jsonl"):
+        assert gev._is_slice_key(ok), ok
+    for bad in ("chunks/ab12cd.jsonl", "_raw/corn.jsonl", "eval/baseline_x.json",
+                "eval/report.md", "live_events/2026.jsonl", "drivers/nested/x.jsonl", "corn.parquet"):
+        assert not gev._is_slice_key(bad), bad
+
+
+def test_corpus_fingerprint_s3_hashes_only_slice_keys(monkeypatch):
+    # P7-P2.0 regression: the old code listed a non-existent evidence/ subprefix and hashed ZERO slice
+    # keys in S3 mode — a slice-content rebuild never flipped the fingerprint. Now: slice keys drive the
+    # hash; chunks/_raw/eval keys are inert.
+    from leviathan.graphrag import evidence as _ev
+
+    class _Pag:
+        def __init__(self, contents):
+            self._c = contents
+        def paginate(self, Bucket, Prefix):
+            yield {"Contents": [{"Key": Prefix + k, "ETag": e} for k, e in self._c]}
+
+    class _Client:
+        def __init__(self, contents):
+            self._p = _Pag(contents)
+        def get_paginator(self, _name):
+            return self._p
+
+    import boto3
+    base = [("corn.jsonl", "e1"), ("drivers/el_nino.jsonl", "e2"), ("chunks/aa.jsonl", "e3"),
+            ("eval/report.md", "e4"), ("_raw/corn.jsonl", "e5")]
+    monkeypatch.setattr(_ev, "_evid_s3", lambda: "s3://bkt/graphrag_evidence")
+    monkeypatch.setattr(_ev, "_DRIVER_PATH", type("P", (), {"exists": lambda self: False})())
+    monkeypatch.setattr(boto3, "client", lambda _svc: _Client(base))
+    a = gev.corpus_fingerprint()
+    assert a != "unknown"
+    # a slice ETag change flips it
+    changed = [("corn.jsonl", "e1-NEW")] + base[1:]
+    monkeypatch.setattr(boto3, "client", lambda _svc: _Client(changed))
+    assert gev.corpus_fingerprint() != a
+    # a chunks/-cache add or a new eval report does NOT flip it
+    noise = base + [("chunks/bb.jsonl", "e6"), ("eval/baseline_new.json", "e7")]
+    monkeypatch.setattr(boto3, "client", lambda _svc: _Client(noise))
+    assert gev.corpus_fingerprint() == a
+
+
+def test_corpus_fingerprint_local_excludes_cache_dirs(tmp_path, monkeypatch):
+    # local mode mirrors the S3 filter: chunks/ and _raw/ files never move the fingerprint.
+    from leviathan.graphrag import evidence as _ev
+    evdir = tmp_path / "evidence"
+    (evdir / "chunks").mkdir(parents=True)
+    (evdir / "corn.jsonl").write_text('{"t": 1}\n', encoding="utf-8")
+    drv = tmp_path / "driver_slices.yaml"
+    drv.write_text("drivers: {}\n", encoding="utf-8")
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    monkeypatch.setattr(_ev, "_EVID_DIR", evdir)
+    monkeypatch.setattr(_ev, "_DRIVER_PATH", drv)
+    a = gev.corpus_fingerprint()
+    (evdir / "chunks" / "aa.jsonl").write_text('{"t": 9}\n', encoding="utf-8")
+    assert gev.corpus_fingerprint() == a                    # doc-cache add is inert
+
+
 def test_corpus_fingerprint_local_deterministic_and_sensitive(tmp_path, monkeypatch):
     # local mode: filenames+sizes + driver_slices.yaml bytes; deterministic; flips on any corpus change.
     evdir = tmp_path / "evidence"

@@ -369,26 +369,42 @@ def verifier_panel(traces: list[dict]) -> list[str]:
             f"- answers with >=1 strip: {sum(1 for v in vs if v.get('stripped'))}/{len(vs)}"]
 
 
+def _is_slice_key(rel: str) -> bool:
+    """True iff a key path RELATIVE to the evidence base is a retrieval slice: a root `<node>.jsonl`
+    (commodity) or `drivers/<name>.jsonl`. Excludes chunks/ (doc cache), _raw/ (archives), eval/ (reports),
+    live_events/ and anything else under the shared prefix — those don't change what retrieval returns."""
+    if not rel.endswith(".jsonl"):
+        return False
+    head, _, tail = rel.partition("/")
+    return (not tail) or (head == "drivers" and "/" not in tail)
+
+
 def corpus_fingerprint() -> str:
     """12-hex identity of the evidence corpus a run retrieved from (P7-P0.1 baseline axis, independent of
-    graph_version): S3 mode = ONE paginated LIST of the evidence/ prefix hashing every key+ETag (no
-    downloads, ~hundreds of keys — bounded, not a LIST storm); local mode = slice filenames+sizes; plus the
-    driver_slices.yaml bytes (so an alias/term edit flips the fingerprint even when no slice bytes moved).
-    A slice rebuild or reroute flips THIS; a causal-YAML edit flips graph_version — the baseline keys both."""
+    graph_version): S3 mode = ONE paginated LIST of the evidence base hashing every SLICE key+ETag (root
+    `<node>.jsonl` + `drivers/*.jsonl` only — no downloads, bounded, not a LIST storm; chunks/_raw/eval keys
+    are excluded so a doc-cache add or an eval report never flips it); local mode = slice filenames+sizes;
+    plus the driver_slices.yaml bytes (so an alias/term edit flips the fingerprint even when no slice bytes
+    moved). A slice rebuild or reroute flips THIS; a causal-YAML edit flips graph_version — the baseline
+    keys both. (P7-P2.0 fix: this used to list a non-existent `evidence/` subprefix, hashing zero slice keys
+    in S3 mode — a content rebuild was invisible.)"""
     import hashlib
     h = hashlib.sha256()
     try:
         s3uri = ev._evid_s3()
         if s3uri:
             import boto3
-            b, prefix = ev._parse_s3(s3uri.rstrip("/") + "/evidence/")
+            b, prefix = ev._parse_s3(s3uri.rstrip("/") + "/")
             pag = boto3.client("s3").get_paginator("list_objects_v2")
             for page in pag.paginate(Bucket=b, Prefix=prefix):
                 for o in page.get("Contents") or []:
-                    h.update(f"{o['Key']}:{o.get('ETag', '')};".encode())
+                    if _is_slice_key(o["Key"][len(prefix):]):
+                        h.update(f"{o['Key']}:{o.get('ETag', '')};".encode())
         else:
             for p in sorted(ev._EVID_DIR.glob("**/*.jsonl")):
-                h.update(f"{p.relative_to(ev._EVID_DIR)}:{p.stat().st_size};".encode())
+                rel = p.relative_to(ev._EVID_DIR).as_posix()
+                if _is_slice_key(rel):
+                    h.update(f"{rel}:{p.stat().st_size};".encode())
         if ev._DRIVER_PATH.exists():
             h.update(ev._DRIVER_PATH.read_bytes())
     except Exception:  # noqa: BLE001 — a fingerprint failure must never break an eval run
