@@ -338,7 +338,8 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
 
 # ── 1.2 cascade DAG topology ──────────────────────────────────────────────────────────────────────
 @app.get("/v1/graph/{contract}", response_model=M.GraphTopology)
-def graph_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
+def graph_route(contract: str, asof: Optional[str] = Query(None),
+                ident: dict = Depends(_require_identity)) -> dict:
     try:
         topo = _graph().topology(contract)
     except KeyError:
@@ -400,7 +401,8 @@ def _warm_convergence() -> None:
 
 
 @app.get("/v1/convergence", response_model=M.ConvergenceMatrix)
-def convergence_route(asof: Optional[str] = Query(None)) -> dict:
+def convergence_route(asof: Optional[str] = Query(None),
+                      ident: dict = Depends(_require_identity)) -> dict:
     from leviathan.graphrag import firing as F
     asof = asof or _today()
     g = _graph()
@@ -423,7 +425,8 @@ def convergence_route(asof: Optional[str] = Query(None)) -> dict:
 
 # ── 1.4 per-contract regimes (gauges) ────────────────────────────────────────────────────────────────
 @app.get("/v1/regimes/{contract}", response_model=M.ConvergenceRow)
-def regimes_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
+def regimes_route(contract: str, asof: Optional[str] = Query(None),
+                  ident: dict = Depends(_require_identity)) -> dict:
     from leviathan.graphrag import firing as F
     asof = asof or _today()
     try:
@@ -436,7 +439,8 @@ def regimes_route(contract: str, asof: Optional[str] = Query(None)) -> dict:
 # ── 1.5 vintage-aware series ─────────────────────────────────────────────────────────────────────────
 @app.get("/v1/series/{table}/{metric}", response_model=M.Series)
 def series_route(table: str, metric: str, commodity: Optional[str] = Query(None),
-                 country: Optional[str] = Query(None), asof: Optional[str] = Query(None)) -> dict:
+                 country: Optional[str] = Query(None), asof: Optional[str] = Query(None),
+                 ident: dict = Depends(_require_identity)) -> dict:
     from leviathan.graphrag.numbers import query as Q
     from leviathan.graphrag.numbers.registry import load_registry
     asof = asof or _today()
@@ -460,7 +464,8 @@ def series_route(table: str, metric: str, commodity: Optional[str] = Query(None)
 
 # ── 1.6 live events rail (PIT kill-switch visible) ──────────────────────────────────────────────────
 @app.get("/v1/events", response_model=M.EventsFeed)
-def events_route(contract: Optional[str] = Query(None), asof: Optional[str] = Query(None)) -> dict:
+def events_route(contract: Optional[str] = Query(None), asof: Optional[str] = Query(None),
+                 ident: dict = Depends(_require_identity)) -> dict:
     asof = asof or _today()
     if asof < _today():                                           # PIT kill-switch: no headlines behind an as-of
         return M.EventsFeed(contract=contract, asof=asof, live=False, events=[]).model_dump()

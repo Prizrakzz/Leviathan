@@ -21,21 +21,72 @@ from leviathan.graphrag import chunking as ch
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import harvest as hv
+from leviathan.graphrag import novelty as nv
 
 _OUT = ex._CFG / "evidence" / "_batches"
 _MAX_BLOCK_CHARS = 5000
+_FULLTEXT_CAP = 60000            # per-doc full_text head-cut before chunking (law #7: this cut is never silent --
+#                                  the W1.2 dark-tally carries the count of docs it truncated)
 
 
-def _doc_blocks(s3, node: str, key: str, matcher=None) -> list:
+def _chunk_version() -> str | None:
+    """Corpus-vintage stamp for props minted THIS pass (W2.2). Agent 1 owns the source of truth
+    (`evidence.current_chunk_version`); absent in a pre-P3 tree this degrades to None, and version-absence
+    itself marks a pre-P3 prop (correction #3). Read at parse time so a mid-pass config change cannot split a
+    single batch's vintage across records."""
+    fn = getattr(ev, "current_chunk_version", None)
+    return fn() if callable(fn) else None
+
+
+def _locate_span(needle: str, block_text: str | None, block_start, block_end, cursor: int):
+    """Char offsets for a returned prop within its source block (W2.1). Returns
+    (char_start, char_end, offset_kind, next_cursor):
+
+      exact -- `needle` (the prop's verbatim_span, else its text) is found in block_text at/after `cursor`;
+               offsets are ABSOLUTE doc positions (block_start + local index) and the cursor advances past it,
+               so in-order props on one block never re-match an earlier occurrence (the propositional_chunks
+               find-with-cursor pattern, chunking.py).
+      block -- a rewritten prop that does not appear verbatim, but the block's own span is known: fall back to
+               [block_start, block_end] (correction #5 -- propositional rewrites often floor to the block).
+      none  -- no block text available at all (e.g. a pre-W2.1 manifest with no block fields): offsets are None.
+    """
+    if not block_text:
+        return None, None, "none", cursor
+    bstart = block_start if isinstance(block_start, int) else 0
+    bend = block_end if isinstance(block_end, int) else bstart + len(block_text)
+    idx = block_text.find(needle, cursor) if needle else -1
+    if idx >= 0:
+        start = bstart + idx
+        return start, start + len(needle), "exact", idx + len(needle)
+    return bstart, bend, "block", cursor
+
+
+def _read_doc(s3, key: str) -> dict | None:
+    """ONE S3 GET for a corpus doc (json) -> dict, or None on any read/parse error. Isolated so a caller that
+    needs BOTH the novelty-gate full_text and the chunk blocks reads the body ONCE (law #6 -- no double GET
+    per doc in the fill loop)."""
+    from leviathan.graphrag.corpus_recon import BUCKET
+    try:
+        return json.loads(s3.get_object(Bucket=BUCKET, Key=key)["Body"].read())
+    except Exception:                                          # skip a malformed/unreadable doc (don't crash the run)
+        return None
+
+
+def _doc_blocks(s3, node: str, key: str, matcher=None, *, doc: dict | None = None, tally=None) -> list:
     """Deterministic blocks for one doc + its shared metadata (free; no LLM). When a matcher is given, skip
     a doc that doesn't mention the commodity BEFORE chunking — so we don't pay Haiku to chunk off-topic docs
-    (the inline build_index already does this; the batch path used to chunk everything then filter props)."""
-    from leviathan.graphrag.corpus_recon import BUCKET, _source_of
-    try:
-        doc = json.loads(s3.get_object(Bucket=BUCKET, Key=key)["Body"].read())
-    except Exception:                                          # skip a malformed/unreadable doc (don't crash the run)
+    (the inline build_index already does this; the batch path used to chunk everything then filter props).
+    `doc` lets the novelty gate hand back the body it already read (one GET). `tally`, when given, records a
+    doc whose full_text exceeded _FULLTEXT_CAP as a 60k head-cut (law #7 -- no silent truncation)."""
+    from leviathan.graphrag.corpus_recon import _source_of
+    if doc is None:
+        doc = _read_doc(s3, key)
+    if doc is None:
         return []
-    full = (doc.get("full_text") or "")[:60000]
+    raw_full = doc.get("full_text") or ""
+    if tally is not None and len(raw_full) > _FULLTEXT_CAP:
+        tally.note_truncated(key)
+    full = raw_full[:_FULLTEXT_CAP]
     if not full.strip() or (matcher is not None and not matcher.search(full)):
         return []
     blocks = ch.chunk_document(full_text=full, source_key=key, source=_source_of(key),
@@ -43,6 +94,15 @@ def _doc_blocks(s3, node: str, key: str, matcher=None) -> list:
                                extraction_method=doc.get("extraction_method"), doc_id=key, target_chars=_MAX_BLOCK_CHARS)
     meta = {"contract": node, "source_key": key, "source": _source_of(key), "date": str(ev._doc_date(doc, key))}
     return [(blk, meta) for blk in blocks]
+
+
+def _block_meta(meta: dict, blk) -> dict:
+    """Per-block manifest entry: the shared doc meta PLUS the block's text and char span, so retrieve() can
+    locate each returned prop's offset within its block (W2.1) at parse time -- the doc body is NOT re-fetched
+    on retrieve (law #6), and the block text is the only way to recover an EXACT sub-offset for a verbatim
+    prop. Additive: contract/source_key/source/date are untouched, older consumers ignore the new keys."""
+    return {**meta, "block_text": blk.verbatim_span,
+            "block_start": blk.char_start, "block_end": blk.char_end}
 
 
 # ── doc-keyed chunk cache: chunk each unique document ONCE, ever (WS-MS6+) ─────────────────
@@ -108,7 +168,7 @@ def _build_requests(s3, nodes, n_docs, seed):
                 requests.append({"custom_id": cid, "params": {                   # no tools, no caching (see header)
                     "model": ex.HAIKU, "max_tokens": 4096, "system": ch._PROP_SYSTEM,
                     "messages": [{"role": "user", "content": blk.verbatim_span}]}})
-                manifest[cid] = meta
+                manifest[cid] = _block_meta(meta, blk)                            # + block span for W2.1 offsets
     return requests, manifest, sampling
 
 
@@ -158,11 +218,93 @@ def _text_of(result) -> str:
     return "".join(b.text for b in result.result.message.content if getattr(b, "type", None) == "text")
 
 
-def _route_and_write(by_node: dict, *, backend: str | None = None, drivers: bool = True) -> int:
+# ── W1.2 dark-at-birth tally: every prop lands in exactly one named state (no silent fourth state) ──────────
+class DarkTally:
+    """Per-pass accounting of where every routed prop lands, so 'valuable but invisible' stops being an
+    epistemic shrug and becomes a queue with a size. Four mutually-exclusive states per prop:
+
+        both           -- matched a commodity matcher AND has >=1 driver slice
+        commodity_only -- matched a commodity, no driver slice
+        driver_only    -- matched NO commodity, but has >=1 driver slice
+        neither         -- matched no commodity and no driver slice (the E2-clustering queue)
+
+    Props are deduped by (source_key, text) and the commodity/driver signals OR-fold across the (possibly
+    multi-node) passes that touch the same prop, so a prop routed under two commodities is counted ONCE. Fed
+    only the booleans the routing loop already computed -- pure in-memory, no S3 (law #6). `truncated_docs`
+    rides the same manifest: source_keys whose full_text was 60k head-cut (law #7)."""
+
+    def __init__(self, *, label: str = "dark_tally"):
+        self.label = label
+        self._seen: dict = {}                            # (source_key, text) -> [commodity_hit, driver_hit]
+        self.truncated_docs: set = set()                 # source_keys 60k head-cut at chunk time (law #7)
+
+    def add(self, source_key, text, *, commodity_hit: bool, driver_hit: bool) -> None:
+        k = (source_key, text)
+        cur = self._seen.get(k)
+        if cur is None:
+            self._seen[k] = [bool(commodity_hit), bool(driver_hit)]
+        else:
+            cur[0] = cur[0] or bool(commodity_hit)
+            cur[1] = cur[1] or bool(driver_hit)
+
+    def note_truncated(self, source_key) -> None:
+        self.truncated_docs.add(source_key)
+
+    def counts(self) -> dict:
+        c = {"both": 0, "commodity_only": 0, "driver_only": 0, "neither": 0}
+        for comm, drv in self._seen.values():
+            if comm and drv:
+                c["both"] += 1
+            elif comm:
+                c["commodity_only"] += 1
+            elif drv:
+                c["driver_only"] += 1
+            else:
+                c["neither"] += 1
+        return c
+
+    def neither_keys(self) -> list:
+        """source_keys of the `neither` props -- the E2-clustering queue (deduped, sorted for a stable diff)."""
+        return sorted({k[0] for k, (comm, drv) in self._seen.items() if not comm and not drv})
+
+    def manifest(self) -> dict:
+        return {"tally": self.label, "n_props": len(self._seen), "counts": self.counts(),
+                "neither_source_keys": self.neither_keys(),
+                "n_docs_truncated_60k": len(self.truncated_docs),
+                "truncated_source_keys": sorted(self.truncated_docs)}
+
+
+def _flush_dark_tally(tally: "DarkTally") -> str:
+    """Write the tally manifest (local configs/graphrag/eval/ + optional EVIDENCE_S3/eval/ -- the e0_harness
+    write_text+put_object idiom) and print an ASCII summary. Timestamped filename so a rerun never overwrites
+    the prior artifact (the census BEFORE-overwrite lesson). Returns the local path."""
+    from pathlib import Path
+    payload = tally.manifest()
+    c = payload["counts"]
+    name = f"dark_tally_{tally.label}_{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
+    out = ex._CFG / "eval" / name
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    base = ev._evid_s3()
+    if base:
+        import boto3
+        b, k = ev._parse_s3(base.rstrip("/") + f"/eval/{name}")
+        boto3.client("s3").put_object(Bucket=b, Key=k, Body=json.dumps(payload).encode("utf-8"))
+    print(f"  dark-tally [{tally.label}]: both={c['both']} commodity_only={c['commodity_only']} "
+          f"driver_only={c['driver_only']} neither={c['neither']} "
+          f"(neither-queue={len(payload['neither_source_keys'])}, 60k-truncated docs={payload['n_docs_truncated_60k']})")
+    print(f"  dark-tally manifest -> {out}")
+    return str(out)
+
+
+def _route_and_write(by_node: dict, *, backend: str | None = None, drivers: bool = True,
+                     tally: "DarkTally | None" = None) -> int:
     """Write the _raw/<node> archive (EVERY prop, unembedded) + route to commodity & driver slices (embed the
     routed). Shared by retrieve (props from the batch) and reroute (props from the persisted _raw archive). The
     archive is the future-proofing: re-deriving slices after the driver YAML grows NEVER re-chunks — chunk once,
-    route forever. Pure-driver props (B40/freight/FX/El Nino/metals) are routed to driver slices, not dropped."""
+    route forever. Pure-driver props (B40/freight/FX/El Nino/metals) are routed to driver slices, not dropped.
+    When a `tally` is passed (W1.2, opt-in), each prop is also classified into the four dark-at-birth states and
+    a manifest is written at the end — the routing output itself is byte-identical either way."""
     backend = backend or ev.DEFAULT_BACKEND
     driver_sink: dict[str, list[dict]] | None = {} if drivers else None
     total = 0
@@ -180,35 +322,50 @@ def _route_and_write(by_node: dict, *, backend: str | None = None, drivers: bool
         ev._evid_write(node, "\n".join(json.dumps(r) for r in kept))
         print(f"  {node}: {len(kept)} props -> evidence/{node}.jsonl  ({len(raw)} archived to _raw/)")
         total += len(kept)
+        if tally is not None:                                                  # in-memory reclassification (no S3)
+            for r in raw:
+                tally.add(r["source_key"], r["text"], commodity_hit=bool(matcher.search(r["text"])),
+                          driver_hit=bool(ev.driver_slices_for(r["text"])))
     if driver_sink:
         dtotal = ev.write_driver_slices(driver_sink, backend=backend)
         print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
+    if tally is not None:
+        _flush_dark_tally(tally)
     return total
 
 
-def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20, drivers: bool = True) -> int:
-    """Poll the batch, parse every prop (with event_date), write the doc-keyed chunk cache (chunks/<doc>), then
-    route via _route_and_write (_raw archive + commodity + driver slices). Pure-driver props are KEPT. With a
-    cache-aware `sampling` manifest, each node's props are gathered from the doc-cache (newly chunked + already
-    cached) — so a re-build only paid Haiku for new docs."""
+def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20, drivers: bool = True,
+             tally: bool = False) -> int:
+    """Poll the batch, parse every prop (with event_date + W2.1 char offsets + chunk_version), write the
+    doc-keyed chunk cache (chunks/<doc>), then route via _route_and_write (_raw archive + commodity + driver
+    slices). Pure-driver props are KEPT. With a cache-aware `sampling` manifest, each node's props are gathered
+    from the doc-cache (newly chunked + already cached) — so a re-build only paid Haiku for new docs. The offset
+    fields ride the `base` dict, so they propagate into the cache AND every slice via **base for free. `tally`
+    (opt-in) runs the W1.2 dark-at-birth classification over the routed props."""
     payload = _load_manifest_full(bid)
     manifest, sampling, doclist = payload["manifest"], payload.get("sampling"), payload.get("doclist", False)
     while client.messages.batches.retrieve(bid).processing_status != "ended":
         print(f"  batch {bid}: still processing ...")
         time.sleep(poll_s)
+    cv = _chunk_version()                                            # one vintage stamp for the whole pass
     props_by_doc: dict[str, list[dict]] = {}                          # source_key -> props (for the doc cache)
     by_node: dict[str, list[dict]] = {}                              # contract -> props (old-manifest path)
     for r in client.messages.batches.results(bid):
         if getattr(r.result, "type", None) != "succeeded" or r.custom_id not in manifest:
             continue
         m = manifest[r.custom_id]
+        block_text, block_start, block_end = m.get("block_text"), m.get("block_start"), m.get("block_end")
+        cursor = 0                                                   # per-block find cursor (props arrive in block order)
         for i, item in enumerate(ch._parse_json_array(_text_of(r))):
             prop = (item.get("proposition") or "").strip()
             if not prop:
                 continue
             ev_dt, ev_prec = ch._parse_event_date(item.get("event_date"), item.get("event_date_precision"))
+            span = (item.get("verbatim_span") or "").strip()        # prefer the verbatim span for an EXACT hit
+            cstart, cend, okind, cursor = _locate_span(span or prop, block_text, block_start, block_end, cursor)
             base = {"date": m["date"], "source": m["source"], "source_key": m["source_key"], "text": prop,
-                    "event_date": str(ev_dt) if ev_dt else None, "event_date_precision": ev_prec}
+                    "event_date": str(ev_dt) if ev_dt else None, "event_date_precision": ev_prec,
+                    "char_start": cstart, "char_end": cend, "offset_kind": okind, "chunk_version": cv}
             rid = f"{r.custom_id}#{i}"
             props_by_doc.setdefault(m["source_key"], []).append({"id": rid, **base})
             by_node.setdefault(m["contract"], []).append({"id": rid, "contract": m["contract"], **base})
@@ -220,42 +377,54 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
     if sampling:                                                     # cache-aware: gather cached+new per node
         by_node = {node: [{**p, "contract": node} for key in docs for p in _read_doc_cache(key)]
                    for node, docs in sampling.items()}
-    return _route_and_write(by_node, backend=backend, drivers=drivers)
+    dt = DarkTally(label="retrieve") if tally else None
+    return _route_and_write(by_node, backend=backend, drivers=drivers, tally=dt)
 
 
-def reroute(*, nodes=None, backend: str | None = None, drivers: bool = True) -> int:
+def reroute(*, nodes=None, backend: str | None = None, drivers: bool = True, tally: bool = False) -> int:
     """Re-derive commodity + driver slices from the persisted _raw archive — NO re-chunk, NO Anthropic call.
-    Run after expanding driver_slices.yaml (or commodity terms) to capture newly-defined nodes for free."""
+    Run after expanding driver_slices.yaml (or commodity terms) to capture newly-defined nodes for free.
+    `tally` (opt-in) runs the W1.2 dark-at-birth classification over the rerouted props."""
     nodes = nodes or ev.all_nodes()
     by_node = {n: recs for n in nodes if (recs := ev.load_index(f"_raw/{n}"))}
     if not by_node:
         raise SystemExit("no _raw/ archive found — run --retrieve first (it writes the _raw archive).")
-    return _route_and_write(by_node, backend=backend, drivers=drivers)
+    dt = DarkTally(label="reroute") if tally else None
+    return _route_and_write(by_node, backend=backend, drivers=drivers, tally=dt)
 
 
-def rebuild_slices(*, backend: str | None = None, drivers: bool = True) -> int:
+def rebuild_slices(*, backend: str | None = None, drivers: bool = True, tally: bool = False) -> int:
     """Re-derive ALL slices from the whole chunks/ doc-cache (WS-MS7) — the doc-cache is the master. Routes each
     prop to EVERY matching commodity slice (all 24 matchers) AND, independently over the WHOLE cache, to its
     driver slices — so multi-commodity docs (a WASDE) land in each commodity and pure-driver props (B40/freight)
     are NOT lost to the commodity filter. Deliberately does NOT touch the _raw archive: the cache is a superset of
-    it, and _raw is keyed per contract (pure-driver props live under a doc's contract there). Free: no Anthropic."""
+    it, and _raw is keyed per contract (pure-driver props live under a doc's contract there). Free: no Anthropic.
+    `tally` (opt-in) runs the W1.2 dark-at-birth classification GLOBALLY (commodity_hit = ANY matcher fires) --
+    the `neither` bucket here is the genuinely dark-at-birth queue. The chunks/ cache holds no full_text, so the
+    60k-truncation count is 0 on a pure rebuild (it is measured at chunk time; see _build_requests_from_docs)."""
     backend = backend or ev.DEFAULT_BACKEND
     nodes = ev.all_nodes()
     matchers = {n: hv.build_matcher(ev.match_forms(n)) for n in nodes}
     by_node: dict[str, list[dict]] = {n: [] for n in nodes}
     driver_sink: dict[str, list[dict]] | None = {} if drivers else None
+    dt = DarkTally(label="rebuild") if tally else None
     ndocs = 0
     for h in _cached_hashes():
         recs = ev.load_index(f"chunks/{h}")
         if recs:
             ndocs += 1
         for p in recs:
+            comm_hit = False
             for n in nodes:                                        # every matching commodity slice (multi-label)
                 if matchers[n].search(p["text"]):
                     by_node[n].append({**p, "contract": n})
+                    comm_hit = True
+            drv_slices = ev.driver_slices_for(p["text"]) if driver_sink is not None else []
             if driver_sink is not None:                            # driver slices over the WHOLE cache, commodity-independent
-                for dn in ev.driver_slices_for(p["text"]):
+                for dn in drv_slices:
                     driver_sink.setdefault(dn, []).append({**p, "driver": dn})
+            if dt is not None:
+                dt.add(p.get("source_key"), p["text"], commodity_hit=comm_hit, driver_hit=bool(drv_slices))
     if not ndocs:
         raise SystemExit("chunks/ doc-cache is empty — run a --retrieve first.")
     print(f"rebuild-slices: routing props from {ndocs} cached docs into commodity + driver slices")
@@ -271,6 +440,8 @@ def rebuild_slices(*, backend: str | None = None, drivers: bool = True) -> int:
     if driver_sink:
         dtotal = ev.write_driver_slices(driver_sink, backend=backend)
         print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
+    if dt is not None:
+        _flush_dark_tally(dt)
     return total
 
 
@@ -304,25 +475,73 @@ def select_docs(sources, *, before_year=None, after_year=None, exclude_cached: b
     return out
 
 
-def _build_requests_from_docs(s3, doc_keys):
+def _build_novelty_gate(*, threshold: float = nv.DEFAULT_THRESHOLD) -> "nv.NoveltyGate":
+    """Seed a NoveltyGate from the chunks/ cache ONCE (list chunks/ once, load each cached doc's props once --
+    a one-time setup cost analogous to make_uncached_count_fn, NEVER inside the candidate loop; law #6).
+    Prop-space signatures only (the cache holds no full_text)."""
+    props_by_doc = {h: ev.load_index(f"chunks/{h}") for h in _cached_hashes()}
+    props_by_doc = {h: ps for h, ps in props_by_doc.items() if ps}
+    return nv.NoveltyGate(nv.corpus_signatures(props_by_doc), threshold=threshold)
+
+
+def _build_requests_from_docs(s3, doc_keys, *, gate=None, ledger: list | None = None, tally=None):
     """Cache-aware batch requests for a specific doc list (no per-node sampling; chunk the WHOLE doc, no matcher
-    pre-filter — the fill targets these docs on purpose)."""
+    pre-filter — the fill targets these docs on purpose). The KEY-based skip gate (_cached_hashes) makes re-runs
+    safe (prop ids are batch-relative — a re-chunk would re-number them). When a `gate` (W2.3 novelty) is given,
+    each candidate body is read ONCE, near-dup-checked, and either chunked or skipped-with-a-logged-reason (into
+    `ledger`) — a >60k doc is flagged partial and never auto-skipped on tail novelty. `tally` records 60k
+    head-cuts (law #7). gate=None keeps the path byte-identical (no extra reads)."""
     requests, manifest = [], {}
     cached = _cached_hashes()
     for key in dict.fromkeys(doc_keys):                     # dedupe, preserve order
-        if _doc_cache_node(key).split("/")[-1] in cached:
+        if _doc_cache_node(key).split("/")[-1] in cached:   # the idempotency skip gate (correction #2)
             continue
-        for blk, meta in _doc_blocks(s3, "_docs", key, matcher=None):
+        doc = _read_doc(s3, key) if gate is not None else None
+        if gate is not None:                                # novelty pass: body already in hand, one GET
+            if doc is None:
+                continue
+            verdict = gate.check(key, doc.get("full_text") or "")
+            if verdict["skip"]:
+                if ledger is not None:
+                    ledger.append(verdict)
+                continue
+        for blk, meta in _doc_blocks(s3, "_docs", key, matcher=None, doc=doc, tally=tally):
             cid = f"r{len(requests):06d}"
             requests.append({"custom_id": cid, "params": {
                 "model": ex.HAIKU, "max_tokens": 4096, "system": ch._PROP_SYSTEM,
                 "messages": [{"role": "user", "content": blk.verbatim_span}]}})
-            manifest[cid] = meta
+            manifest[cid] = _block_meta(meta, blk)          # + block span for W2.1 offsets
     return requests, manifest
 
 
-def submit_docs(s3, client, doc_keys) -> str:
-    requests, manifest = _build_requests_from_docs(s3, doc_keys)
+def _flush_novelty_ledger(ledger: list, tally: "DarkTally | None" = None) -> str:
+    """Write the W2.3 skip ledger — every skipped candidate {source_key, reason, score, partial_60k_flag} plus
+    the 60k-partial count — to configs/graphrag/eval/ + optional EVIDENCE_S3/eval/ (the e0_harness idiom). Law
+    #7: no silent skip. Timestamped so a rerun never clobbers the prior ledger."""
+    from pathlib import Path
+    payload = {"ledger": "novelty_skips", "n_skipped": len(ledger), "skips": ledger,
+               "n_docs_truncated_60k": len(tally.truncated_docs) if tally else 0,
+               "truncated_source_keys": sorted(tally.truncated_docs) if tally else []}
+    name = f"novelty_ledger_{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
+    out = ex._CFG / "eval" / name
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    base = ev._evid_s3()
+    if base:
+        import boto3
+        b, k = ev._parse_s3(base.rstrip("/") + f"/eval/{name}")
+        boto3.client("s3").put_object(Bucket=b, Key=k, Body=json.dumps(payload).encode("utf-8"))
+    print(f"  novelty ledger: {len(ledger)} skips, {payload['n_docs_truncated_60k']} 60k-truncated docs -> {out}")
+    return str(out)
+
+
+def submit_docs(s3, client, doc_keys, *, novelty: bool = False) -> str:
+    gate = _build_novelty_gate() if novelty else None
+    ledger: list | None = [] if novelty else None
+    tly = DarkTally(label="novelty_fill") if novelty else None
+    requests, manifest = _build_requests_from_docs(s3, doc_keys, gate=gate, ledger=ledger, tally=tly)
+    if novelty:
+        _flush_novelty_ledger(ledger, tly)
     if not requests:
         raise SystemExit("all requested docs already in the chunk cache — run --rebuild-slices (no new chunking).")
     bid = client.messages.batches.create(requests=requests).id
@@ -380,6 +599,11 @@ def main() -> int:
     ap.add_argument("--before", type=int, default=None, help="fill: keep only docs with year < N")
     ap.add_argument("--after", type=int, default=None, help="fill: keep only docs with year >= N")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--dark-tally", action="store_true",
+                    help="W1.2: classify every routed prop into {both,commodity_only,driver_only,neither} + write "
+                         "a manifest (opt-in; applies to --retrieve/--reroute/--rebuild-slices)")
+    ap.add_argument("--novelty", action="store_true",
+                    help="W2.3: near-dup gate on a --fill (skip docs already covered; every skip logged)")
     args = ap.parse_args()
     if args.nodes == "all":
         nodes = ev.all_nodes()
@@ -394,11 +618,11 @@ def main() -> int:
     srcs = [s for s in args.sources.split(",") if s]
     # ── free modes (no Anthropic call) ────────────────────────────────────────────
     if args.rebuild_slices:                                            # route the whole chunks/ cache -> slices
-        rebuild_slices()
+        rebuild_slices(tally=args.dark_tally)
         return 0
     if args.reroute:                                                   # re-derive from the _raw archive
         print(f"reroute {len(nodes)} node(s) from _raw archive -> commodity + driver slices")
-        reroute(nodes=nodes)
+        reroute(nodes=nodes, tally=args.dark_tally)
         return 0
     if args.measure_orphan_drivers:                                    # Gap-2 sizing
         print("orphan-driver measurement:", measure_orphan_drivers(s3, srcs))
@@ -409,14 +633,19 @@ def main() -> int:
         if not keys:
             return 0
         if args.dry_run:                                               # chunk locally (free) to size the real block count
-            reqs, manifest = _build_requests_from_docs(s3, keys)
+            gate = _build_novelty_gate() if args.novelty else None
+            ledger: list | None = [] if args.novelty else None
+            tly = DarkTally(label="novelty_fill") if args.novelty else None
+            reqs, manifest = _build_requests_from_docs(s3, keys, gate=gate, ledger=ledger, tally=tly)
+            if args.novelty:
+                _flush_novelty_ledger(ledger, tly)
             ndocs = len({m["source_key"] for m in manifest.values()})
             lo, hi = len(reqs) * 0.002, len(reqs) * 0.007              # naive vs empirical (output tokens dominate; $70 lesson)
             print(f"FILL dry-run: {len(reqs)} blocks over {ndocs} NEW docs; Haiku batch est ~${lo:.0f}-{hi:.0f}")
             return 0
         import anthropic
         from leviathan.graphrag import batch_extract as bx
-        submit_docs(s3, anthropic.Anthropic(api_key=bx._api_key()), keys)
+        submit_docs(s3, anthropic.Anthropic(api_key=bx._api_key()), keys, novelty=args.novelty)
         return 0
     if args.dry_run:                                                   # node-sampling dry-run (cost estimate)
         import collections
@@ -432,7 +661,7 @@ def main() -> int:
     from leviathan.graphrag import batch_extract as bx
     client = anthropic.Anthropic(api_key=bx._api_key())
     if args.retrieve:
-        retrieve(s3, client, args.retrieve)
+        retrieve(s3, client, args.retrieve, tally=args.dark_tally)
     elif args.submit:
         submit(s3, client, nodes=nodes, n_docs=args.n_docs)
     elif args.run:

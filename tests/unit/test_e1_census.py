@@ -182,6 +182,149 @@ def test_summary_lines_are_ascii(tmp_path, monkeypatch):
         _reset()
 
 
+# ── W1.3 standing gate: archive-before-overwrite + --diff regression logic ────────────────────────────
+def _census_doc(*, n_dark: int, by_reason: dict, n_consumed: int, orphan: dict, slices) -> dict:
+    """A minimal but census()-shaped artifact for the diff/archive tests. `slices` is a list of tuples
+    (name, consumed[, orphan_kind]); orphan_kind defaults to 'retire' for orphans so a plain (name, False)
+    reads as dead corpus. Synthetic ids/props — the diff never inspects real DAG/slice content."""
+    sl = []
+    for t in slices:
+        name, consumed = t[0], t[1]
+        kind = t[2] if len(t) > 2 else (None if consumed else "retire")
+        sl.append({"slice": name, "n_dag_ids": 1, "n_routed_props": 1 if consumed else 0,
+                   "consumed": consumed, "orphan_kind": kind})
+    n_orphan = sum(1 for s in sl if not s["consumed"])
+    return {"census": "E1_darkness", "basis": "synthetic",
+            "id_totals": {"n_ids": n_dark + 10, "n_backed": 10, "n_dark": n_dark,
+                          "by_reason": by_reason, "n_fold_recoverable": 0},
+            "slice_totals": {"n_slices": len(sl), "n_consumed": n_consumed, "n_orphan": n_orphan,
+                             "orphan_by_kind": orphan},
+            "ids": [], "slices": sl}
+
+
+def test_write_archives_prior_json_before_overwrite(tmp_path, monkeypatch):
+    # The FIXED-filename census clobbers its own e1_census.json on a rerun; W1.3 must copy the prior to a
+    # timestamped BEFORE snapshot first (the P2 overwrite lesson). Assert the prior survives and the primary
+    # json now holds the NEW doc.
+    import json
+    out = tmp_path / "eval"
+    out.mkdir()
+    monkeypatch.setattr(ec, "_OUT", out)
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)          # local-only; upload=False below regardless
+    (out / "e1_census.json").write_text('{"census": "E1_darkness", "sentinel": "BEFORE"}', encoding="utf-8")
+    ec.write(_census_doc(n_dark=1, by_reason={"unbacked": 1}, n_consumed=2, orphan={},
+                         slices=[("a", True)]), upload=False)
+    # the primary json now holds the NEW census
+    assert json.loads((out / "e1_census.json").read_text(encoding="utf-8"))["id_totals"]["n_dark"] == 1
+    # ...and exactly one timestamped archive preserves the prior BEFORE-copy byte-for-byte
+    archives = sorted(out.glob("e1_census_*.json"))
+    assert len(archives) == 1
+    assert json.loads(archives[0].read_text(encoding="utf-8"))["sentinel"] == "BEFORE"
+
+
+def test_write_archive_false_is_overwrite_only(tmp_path, monkeypatch):
+    # archive=False restores the exact pre-W1.3 overwrite-only path (no BEFORE-copy).
+    out = tmp_path / "eval"
+    out.mkdir()
+    monkeypatch.setattr(ec, "_OUT", out)
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    (out / "e1_census.json").write_text('{"sentinel": "old"}', encoding="utf-8")
+    ec.write(_census_doc(n_dark=0, by_reason={}, n_consumed=1, orphan={}, slices=[("a", True)]),
+             upload=False, archive=False)
+    assert not list(out.glob("e1_census_*.json"))
+
+
+def test_write_first_run_makes_no_archive(tmp_path, monkeypatch):
+    # No prior e1_census.json -> nothing to archive (the archive is opt-out-able but also a no-op on run #1).
+    out = tmp_path / "eval"
+    out.mkdir()
+    monkeypatch.setattr(ec, "_OUT", out)
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    ec.write(_census_doc(n_dark=0, by_reason={}, n_consumed=1, orphan={}, slices=[("a", True)]), upload=False)
+    assert not list(out.glob("e1_census_*.json")) and (out / "e1_census.json").exists()
+
+
+def test_diff_census_computes_deltas():
+    base = _census_doc(n_dark=5, by_reason={"unbacked": 5, "exact": 3, "alias": 2},
+                       n_consumed=8, orphan={"retire": 2, "keep": 1}, slices=[("a", True), ("b", True)])
+    cur = _census_doc(n_dark=3, by_reason={"unbacked": 3, "exact": 3, "alias": 4},
+                      n_consumed=10, orphan={"retire": 2, "keep": 0}, slices=[("a", True), ("b", True)])
+    d = ec.diff_census(base, cur)
+    assert d["d_dark"] == -2 and d["d_consumed"] == 2 and d["d_retire"] == 0
+    assert d["by_reason_delta"] == {"alias": 2, "exact": 0, "unbacked": -2}
+    assert d["n_dark"] == {"baseline": 5, "current": 3}
+    assert not d["regressed"] and d["consumed_to_orphan"] == []
+
+
+def test_run_diff_exit_zero_when_improved_and_ascii():
+    base = _census_doc(n_dark=5, by_reason={"unbacked": 5}, n_consumed=8, orphan={"retire": 2},
+                       slices=[("a", True), ("b", True)])
+    cur = _census_doc(n_dark=3, by_reason={"unbacked": 3}, n_consumed=10, orphan={"retire": 2},
+                      slices=[("a", True), ("b", True)])
+    code, lines = ec.run_diff(cur, base)                      # run_diff(current, baseline)
+    assert code == 0
+    for line in lines:
+        line.encode("ascii")                                  # cp1252 console safety
+
+
+def test_run_diff_fails_when_retire_grows():
+    base = _census_doc(n_dark=3, by_reason={}, n_consumed=10, orphan={"retire": 1}, slices=[("a", True)])
+    cur = _census_doc(n_dark=3, by_reason={}, n_consumed=10, orphan={"retire": 3}, slices=[("a", True)])
+    code, lines = ec.run_diff(cur, base)
+    assert code == 1 and ec.diff_census(base, cur)["d_retire"] == 2
+    assert any("retire count grew" in ln for ln in lines)
+
+
+def test_run_diff_fails_on_consumed_to_orphan_transition():
+    # slice 'a' was consumed, is now a 'keep' orphan (routed-but-empty) -> a stranding regression EVEN THOUGH
+    # retire didn't grow: the two fail signals are independent.
+    base = _census_doc(n_dark=3, by_reason={}, n_consumed=2, orphan={"retire": 0},
+                       slices=[("a", True), ("b", True)])
+    cur = _census_doc(n_dark=3, by_reason={}, n_consumed=1, orphan={"retire": 0, "keep": 1},
+                      slices=[("a", False, "keep"), ("b", True)])
+    d = ec.diff_census(base, cur)
+    assert d["consumed_to_orphan"] == ["a"] and d["regressed"] and d["d_retire"] == 0
+    code, _ = ec.run_diff(cur, base)
+    assert code == 1
+
+
+def test_run_diff_vanished_slice_is_not_a_regression():
+    # A consumed slice that DISAPPEARS from the current census is a curation act (rename/retire), not a silent
+    # stranding -> the gate must not fire on it.
+    base = _census_doc(n_dark=3, by_reason={}, n_consumed=2, orphan={"retire": 0},
+                       slices=[("a", True), ("gone", True)])
+    cur = _census_doc(n_dark=3, by_reason={}, n_consumed=1, orphan={"retire": 0}, slices=[("a", True)])
+    d = ec.diff_census(base, cur)
+    assert d["consumed_to_orphan"] == [] and not d["regressed"]
+
+
+def test_load_baseline_prefers_explicit_then_newest_local_archive(tmp_path, monkeypatch):
+    out = tmp_path / "eval"
+    out.mkdir()
+    monkeypatch.setattr(ec, "_OUT", out)
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)          # no S3 fallback in this test
+    (out / "e1_census_20260101T000000Z.json").write_text('{"tag": "old"}', encoding="utf-8")
+    (out / "e1_census_20260707T120000Z.json").write_text('{"tag": "new"}', encoding="utf-8")
+    # default -> newest archive (lexical == chronological on the zero-padded stamp)
+    doc, label = ec.load_baseline(None)
+    assert doc["tag"] == "new" and label.endswith("20260707T120000Z.json")
+    # explicit --baseline path wins over the newest archive
+    doc2, _ = ec.load_baseline(str(out / "e1_census_20260101T000000Z.json"))
+    assert doc2["tag"] == "old"
+    # a missing explicit path -> (None, reason), not a crash
+    d3, r3 = ec.load_baseline(str(out / "nope.json"))
+    assert d3 is None and "not found" in r3
+
+
+def test_load_baseline_none_when_no_archive_and_no_s3(tmp_path, monkeypatch):
+    out = tmp_path / "eval"
+    out.mkdir()
+    monkeypatch.setattr(ec, "_OUT", out)
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    doc, reason = ec.load_baseline(None)
+    assert doc is None and "no baseline" in reason
+
+
 def test_s3_mode_lists_drivers_prefix_once(tmp_path, monkeypatch):
     # In S3 mode the on-disk slice enumeration is ONE list_objects_v2 LIST of the drivers/ prefix — never
     # a per-slice existence probe (the July LIST-storm discipline). Assert exactly one paginate() call and

@@ -53,6 +53,29 @@ def s3_nodes() -> list[str]:
     return sorted(out)
 
 
+def _run_census_gate(baseline: str | None) -> int:
+    """Opt-in W1.3 post-load standing gate: after a slice load, re-derive the E1 darkness census over the
+    freshly loaded flat-file corpus and diff it against a prior copy, returning the census --diff exit code
+    (nonzero == a consumed->orphan transition or retire-count growth) so the wrapper FAILS the load on a
+    stranding regression. The baseline is a `--census-baseline` path, else the newest local/S3 archive.
+
+    A missing baseline is a SOFT skip (returns 0) -- the first opt-in load has nothing to compare and must
+    not false-fail. LIST discipline: census() lists the drivers/ prefix exactly once (its own guarantee) and
+    the S3 baseline fallback is a single eval/ LIST -- no per-slice probe, no LIST inside a loop."""
+    from leviathan.graphrag import e1_census as ec
+    doc, label = ec.load_baseline(baseline)
+    if doc is None:
+        print(f"census-gate: {label}; skipping the gate (first load?)")
+        return 0
+    current = ec.census()
+    code, lines = ec.run_diff(current, doc)
+    print("census-gate diff:")
+    for line in lines:
+        print("  " + line)
+    print(f"census-gate baseline -> {label}  (exit {code})")
+    return code
+
+
 def _load_one(node: str) -> tuple[str, int, str]:
     """Worker: read one slice (S3/local) + upsert on its OWN connection (psycopg conns aren't shared across
     threads). Returns (node, rows, err)."""
@@ -74,6 +97,13 @@ def main() -> int:
     ap.add_argument("--table", default=None,
                     help="target pg table (default: EVIDENCE_PG_TABLE env or evidence_props). Use "
                          "evidence_props_shadow for a blue-green shadow load; flip with pg_evidence_swap.py")
+    ap.add_argument("--census-gate", action="store_true",
+                    help="opt-in W1.3 gate: after the load, run the E1 darkness census --diff over the loaded "
+                         "slice corpus and FAIL (nonzero exit) on a consumed->orphan transition or retire-count "
+                         "growth. Default off -> the load path is byte-identical.")
+    ap.add_argument("--census-baseline", default=None, metavar="PATH",
+                    help="--census-gate only: the prior e1_census.json to diff against (default: newest "
+                         "archived copy, then the newest S3 eval/ archive)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -107,6 +137,8 @@ def main() -> int:
                 total += n
                 print(f"  {node}: {n} props")
     print(f"loaded {total} props across {len(nodes)} slices into {target}")
+    if args.census_gate:                                       # opt-in W1.3 gate; nonzero fails the load
+        return _run_census_gate(args.census_baseline)
     return 0
 
 

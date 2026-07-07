@@ -400,3 +400,75 @@ def test_fold_importable_from_both_modules():
     from leviathan.graphrag import evidence as ev
     assert ev.fold is ec.fold                                 # ONE implementation, not two copies
     assert ev.fold("El_Niño") == "El_Nino" and ev.fold("frost") == "frost"
+
+
+# ── W1.1 write-time orphan guard + W2.2 chunk_version plumbing (Phase 7 P3) ───────────────────────────
+# The guard inverts driver_alias() into the set of slice names >=1 DAG id reaches; a sink slice outside that
+# set is WARNED (ASCII line + optional collector) but STILL written (soft, never refuses -- the E1b flow).
+# Hermetic: a synthetic _driver_raw so backed_slice_names() is fully determined by the fixture, every driver
+# cache reset in try/finally (a leaked _DRIVER_ALIAS would poison unrelated tests).
+_ORPHAN_DRIVERS = {
+    "drivers": {"freight": {"category": "logistics", "terms": ["freight"]}},
+    "dag_alias": {"freight": ["ocean_freight"]},              # freight backed by identity + an aliased dag id
+}
+
+
+def test_write_driver_slices_warns_on_orphan_but_still_writes(tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    monkeypatch.setattr(ev, "_driver_raw", lambda: _ORPHAN_DRIVERS)
+    ev._reset()
+    try:
+        assert ev.backed_slice_names() == {"freight"}         # inversion of driver_alias(): only the backed slice
+        rec = lambda drv: {"id": "x", "driver": drv, "date": "2023-01-01", "source": "WB", "source_key": "k1",
+                           "text": "freight rates doubled", "event_date": None, "event_date_precision": None}
+        sink = {"freight": [rec("freight")], "ghost_slice": [rec("ghost_slice")]}
+        warns: list = []
+        n = ev.write_driver_slices(sink, warnings=warns)
+        assert n == 2                                         # BOTH slices written -- the guard never refuses
+        assert len(ev.load_index("drivers/ghost_slice")) == 1 and len(ev.load_index("drivers/freight")) == 1
+        assert len(warns) == 1 and "ghost_slice" in warns[0]  # only the orphan warned; the backed slice silent
+        assert "freight" not in warns[0] and warns[0].startswith("WARN")
+        assert warns[0].encode("ascii")                       # WARN line is ASCII-safe (cp1252 stdout rule)
+    finally:
+        ev._reset()
+
+
+def test_write_driver_slices_no_warn_collector_still_writes(tmp_path, monkeypatch):
+    # warnings=None (the default, unchanged call sites) must not raise and must still write the orphan.
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    monkeypatch.setattr(ev, "_driver_raw", lambda: _ORPHAN_DRIVERS)
+    ev._reset()
+    try:
+        rec = {"id": "x", "driver": "ghost_slice", "date": "2023-01-01", "source": "WB", "source_key": "k1",
+               "text": "freight rates doubled", "event_date": None, "event_date_precision": None}
+        n = ev.write_driver_slices({"ghost_slice": [rec]})     # no collector passed -> None branch
+        assert n == 1 and len(ev.load_index("drivers/ghost_slice")) == 1
+    finally:
+        ev._reset()
+
+
+def test_prop_record_chunk_version_optional():
+    # W2.2: _prop_record stamps chunk_version ONLY when provided; default omits the field (byte-identical).
+    p = _PD("c1", "Palm oil demand rose.", date(2023, 2, 1))
+    base = ev._prop_record(p, key="k1")
+    assert "chunk_version" not in base                        # default -> field absent (not written as null)
+    stamped = ev._prop_record(p, key="k1", chunk_version="cafebabe1234-20260707")
+    assert stamped["chunk_version"] == "cafebabe1234-20260707"
+    assert {k: v for k, v in stamped.items() if k != "chunk_version"} == base   # ONLY the new field added
+
+
+def test_current_chunk_version_str_or_none(monkeypatch):
+    # W2.2: current_chunk_version() = corpus_fingerprint + UTC date, or None when the fingerprint is unavailable.
+    import re
+
+    from leviathan.graphrag import eval as gev
+    monkeypatch.setattr(gev, "corpus_fingerprint", lambda: "abcdef012345")
+    v = ev.current_chunk_version()
+    assert isinstance(v, str) and re.match(r"^abcdef012345-\d{8}$", v)   # <fp>-YYYYMMDD, deterministic shape
+    assert v.encode("ascii") and v == ev.current_chunk_version()        # ASCII-safe + stable within a UTC day
+    monkeypatch.setattr(gev, "corpus_fingerprint", lambda: "unknown")
+    assert ev.current_chunk_version() is None                          # LIST/import-failure sentinel -> None
+    monkeypatch.setattr(gev, "corpus_fingerprint", lambda: "")
+    assert ev.current_chunk_version() is None                          # empty fingerprint -> None (omit stamp)

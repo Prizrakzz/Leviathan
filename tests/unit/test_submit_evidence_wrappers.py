@@ -21,10 +21,11 @@ import pytest
 # submit tests shell out via subprocess for the same reason). We want the PURE builders in-process, so load
 # each wrapper by file path; their top-level `leviathan.*` imports resolve via src/ already on sys.path.
 _SUBMIT_DIR = Path(__file__).resolve().parents[2] / "jobs" / "submit"
+_UTILS_DIR = Path(__file__).resolve().parents[2] / "jobs" / "utils"
 
 
-def _load(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SUBMIT_DIR / f"{name}.py")
+def _load(name: str, base: Path = _SUBMIT_DIR):
+    spec = importlib.util.spec_from_file_location(name, base / f"{name}.py")
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -33,6 +34,7 @@ def _load(name: str):
 
 maint = _load("submit_batch_evidence_maintenance")
 pgload = _load("submit_batch_load_pg_evidence")
+pgutil = _load("load_pg_evidence", _UTILS_DIR)               # jobs/utils loader (in-process census gate)
 
 
 # ---------------------------------------------------------------------------
@@ -175,3 +177,61 @@ class TestPgLoadBuildCommand:
         cmd = pgload.build_command(nodes=["corn"], load_all=True, table=None)
 
         assert "--all" in cmd and "--nodes" not in cmd
+
+
+# ---------------------------------------------------------------------------
+# submit_batch_evidence_maintenance — W1.3 census-gate command wrapping
+# ---------------------------------------------------------------------------
+
+class TestCensusGateCommand:
+    def test_gate_wraps_rebuild_with_census_diff(self) -> None:
+        base = maint.build_command(mode="rebuild-slices")
+        cmd = maint.build_gated_command(base)
+
+        # ENTRYPOINT is `python`, so a gated command is a single `python -c` chain.
+        assert cmd[0] == "-c"
+        script = cmd[1]
+        compile(script, "<gate>", "exec")                    # the chain must be valid python
+        # the maintenance module runs first, the census gate after it
+        assert "leviathan.graphrag.evidence_batch" in script and "--rebuild-slices" in script
+        assert "leviathan.graphrag.e1_census" in script and "--diff" in script
+        # the gate runs ONLY on rebuild success and its exit code propagates (rc or <gate>)
+        assert "rc or" in script and "sys.exit" in script
+
+    def test_gate_preserves_reroute_nodes(self) -> None:
+        base = maint.build_command(mode="reroute", nodes="corn,soybeans")
+        script = maint.build_gated_command(base)[1]
+
+        assert "--reroute" in script and "corn,soybeans" in script
+
+    def test_ungated_command_is_byte_identical(self) -> None:
+        # Opt-in: without --census-gate the command is exactly build_command()'s output (default unchanged).
+        assert maint.build_command(mode="reroute") == [
+            "-m", "leviathan.graphrag.evidence_batch", "--reroute"]
+
+
+# ---------------------------------------------------------------------------
+# load_pg_evidence — W1.3 in-process post-load census gate
+# ---------------------------------------------------------------------------
+
+class TestPgLoadCensusGate:
+    def test_soft_skips_without_baseline(self, monkeypatch) -> None:
+        # First opt-in load has nothing to diff -> a soft skip (exit 0), never a false failure.
+        from leviathan.graphrag import e1_census as ec
+        monkeypatch.setattr(ec, "load_baseline", lambda b=None: (None, "no baseline"))
+        assert pgutil._run_census_gate(None) == 0
+
+    def test_returns_diff_exit_code_on_regression(self, monkeypatch) -> None:
+        # A regression from run_diff (exit 1) must propagate out of the gate so the load fails.
+        from leviathan.graphrag import e1_census as ec
+        monkeypatch.setattr(ec, "load_baseline", lambda b=None: ({"baseline": 1}, "base.json"))
+        monkeypatch.setattr(ec, "census", lambda: {"current": 1})
+        monkeypatch.setattr(ec, "run_diff", lambda cur, base: (1, ["REGRESSION retire count grew by 2"]))
+        assert pgutil._run_census_gate(None) == 1
+
+    def test_returns_zero_when_clean(self, monkeypatch) -> None:
+        from leviathan.graphrag import e1_census as ec
+        monkeypatch.setattr(ec, "load_baseline", lambda b=None: ({"baseline": 1}, "base.json"))
+        monkeypatch.setattr(ec, "census", lambda: {"current": 1})
+        monkeypatch.setattr(ec, "run_diff", lambda cur, base: (0, ["VERDICT ok (exit 0)"]))
+        assert pgutil._run_census_gate(None) == 0

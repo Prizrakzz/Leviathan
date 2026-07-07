@@ -255,11 +255,40 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
     return out[:n]
 
 
-def _prop_record(p, *, key: str) -> dict:
-    """Shared fields for a stored prop — incl. the WS-MS6 event_date temporal pair (None when unstated)."""
-    return {"date": str(p.document_date), "source": p.source, "source_key": key, "text": p.proposition,
-            "event_date": str(p.event_date) if getattr(p, "event_date", None) else None,
-            "event_date_precision": getattr(p, "event_date_precision", None)}
+def _prop_record(p, *, key: str, chunk_version: str | None = None) -> dict:
+    """Shared fields for a stored prop — incl. the WS-MS6 event_date temporal pair (None when unstated).
+
+    chunk_version (P7-P3 W2.2): when a caller passes the current corpus-vintage tag, stamp a `chunk_version`
+    field so downstream can tell WHICH corpus pass produced the prop. Default None => the field is OMITTED
+    (not written as null), so a pre-P3 slice record stays byte-identical and version-absence itself marks a
+    pre-vintage prop. One added field here propagates into the driver slice via `**base` in _one() for free."""
+    rec = {"date": str(p.document_date), "source": p.source, "source_key": key, "text": p.proposition,
+           "event_date": str(p.event_date) if getattr(p, "event_date", None) else None,
+           "event_date_precision": getattr(p, "event_date_precision", None)}
+    if chunk_version is not None:
+        rec["chunk_version"] = chunk_version
+    return rec
+
+
+def current_chunk_version() -> str | None:
+    """The corpus-vintage tag to stamp onto props chunked in THIS pass, or None when unavailable.
+
+    Format: `<corpus_fingerprint>-<UTC-date>` (e.g. `c34d5e6f7a8b-20260707`) — the eval corpus_fingerprint()
+    12-hex slice+alias identity joined to a UTC calendar date (time.strftime over gmtime). eval is imported
+    LAZILY: eval imports evidence at module load, so a top-level import here would cycle. A fingerprint of
+    "unknown" (its documented LIST/import-failure sentinel) or an empty string maps to None so callers OMIT
+    the stamp rather than write a meaningless vintage; any other exception path also returns None (a version
+    tag must never break a build). Deterministic within a UTC day. evidence_batch.retrieve() calls this ONCE
+    per pass and threads the result into _prop_record(..., chunk_version=...)."""
+    import time
+    try:
+        from leviathan.graphrag import eval as gev
+        fp = gev.corpus_fingerprint()
+    except Exception:                                         # noqa: BLE001 — a vintage tag must never break a build
+        return None
+    if not fp or fp == "unknown":
+        return None
+    return f"{fp}-{time.strftime('%Y%m%d', time.gmtime())}"
 
 
 def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: str | None = None,
@@ -590,6 +619,15 @@ def backed_dag_ids() -> set:
     return set(driver_alias().keys())
 
 
+def backed_slice_names() -> set:
+    """The INVERSE of backed_dag_ids(): slice names that >=1 backing DAG id resolves to — every value in
+    driver_alias() (the identity self-maps for exact-name slices + the curated dag_alias targets + accent-
+    folded ids). A driver slice ABSENT from this set is a write-time orphan: no DAG id (exact-name or aliased)
+    reaches it, so props written there are unreachable by slice_for_driver()/ground(). Pure config read
+    (driver_slices.yaml, cached), non-circular — deliberately does NOT touch display.all_driver_ids()."""
+    return set(driver_alias().values())
+
+
 def check_driver_slices() -> list[str]:
     """Darkness lint over the driver-slice wiring (Phase 7 P2 W2) — the resolver behind config_check's
     ('driver_slices', ...) tuple. Returns one message per HARD problem, empty == clean. Two hard checks over
@@ -679,13 +717,29 @@ def driver_slices_for(text: str) -> list[str]:
 
 
 def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock=None,
-                        max_per: int = 4000) -> int:
+                        max_per: int = 4000, warnings: list | None = None) -> int:
     """Embed + write the accumulated driver props to evidence/drivers/<driver>.jsonl. Dedups the re-chunk
     artifact (same prop harvested from the same doc under multiple commodity builds) by (source_key, text),
-    KEEPING cross-source / cross-date instances (the persistence + corroboration signal). Returns props written."""
+    KEEPING cross-source / cross-date instances (the persistence + corroboration signal). Returns props written.
+
+    W1.1 write-time orphan guard (P7-P3): before writing, invert backed_dag_ids()/driver_alias() once
+    (backed_slice_names() — a cached, non-circular config read, NO per-slice S3 LIST) into the set of slice
+    names >=1 DAG id reaches. A sink slice OUTSIDE that set is a stranded write — no DAG id resolves to it, so
+    its props would be invisible to slice_for_driver(). The guard RECORDS it (an ASCII WARN line to stdout +
+    an append to the optional `warnings` collector) but NEVER refuses: a legitimate E1b flow authors a slice
+    before its alias lands, and the doctrine keeps pure-driver props — hard-refusing would clobber a build in
+    progress. Pass `warnings=[]` to surface the orphan list to a caller/manifest; write behavior is unchanged."""
     backend = backend or DEFAULT_BACKEND
+    backed = backed_slice_names()                            # slice names a DAG id reaches (computed once, cached)
     total = 0
     for driver, recs in driver_sink.items():
+        if driver not in backed:                            # stranded-at-write: soft WARN, still written (W1.1)
+            safe = str(driver).encode("ascii", "backslashreplace").decode("ascii")   # cp1252-safe stdout
+            msg = (f"WARN write_driver_slices: driver slice '{safe}' has no backing DAG id "
+                   f"(orphan -- no exact-name/alias resolves to it); writing anyway")
+            print(msg)
+            if warnings is not None:
+                warnings.append(msg)
         seen, uniq = set(), []
         for r in recs:
             k = (r.get("source_key"), r["text"])

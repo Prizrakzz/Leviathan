@@ -54,6 +54,29 @@ def build_command(*, mode: str, nodes: str | None = None) -> list[str]:
     return cmd
 
 
+# The E1 darkness census --diff invocation the census-gate chains AFTER the maintenance module in-job.
+_CENSUS_GATE_CMD = ["-m", "leviathan.graphrag.e1_census", "--diff"]
+
+
+def build_gated_command(base_cmd: list[str]) -> list[str]:
+    """Wrap a maintenance command (from `build_command`) so the SAME Batch job runs the E1 census --diff
+    standing gate AFTER the rebuild/reroute and EXITS NONZERO if the census regressed (a consumed->orphan
+    transition or a grown retire count — W1.3). The image ENTRYPOINT is `python`, so a container command is
+    exactly one python invocation; we therefore return a `python -c` chain that shells the maintenance module
+    first and, ONLY on its success (rc == 0), the census gate — propagating whichever exit code is nonzero
+    (`rc or <gate>`), so a failed rebuild is never masked by a clean census, nor vice-versa.
+
+    OPT-IN + additive: reached only via --census-gate. The ungated path returns build_command() byte-for-byte,
+    so a default maintenance submit is unchanged. The gate resolves its baseline the same way the CLI does
+    (newest local archive, else the newest S3 eval/ archive under the job's EVIDENCE_S3 shadow prefix)."""
+    script = (
+        "import subprocess, sys; "
+        f"rc = subprocess.call([sys.executable, *{list(base_cmd)!r}]); "
+        f"sys.exit(rc or subprocess.call([sys.executable, *{_CENSUS_GATE_CMD!r}]))"
+    )
+    return ["-c", script]
+
+
 def _normalize_prefix(uri: str) -> str:
     """Canonicalize an s3:// evidence prefix for equality: drop a trailing slash so a shadow that only differs
     by a `/` (or its absence) isn't mistaken for a distinct prefix, and vice-versa."""
@@ -127,6 +150,10 @@ def main() -> None:
     ap.add_argument("--memory", type=int, default=16384, help="MiB (bge-m3 weights ~2.5 GB + working set)")
     ap.add_argument("--queue", default=None,
                     help="override the Batch queue (default: on-demand for --rebuild-slices, shared for --reroute)")
+    ap.add_argument("--census-gate", action="store_true",
+                    help="opt-in W1.3 standing gate: after the rebuild/reroute, run the E1 darkness census "
+                         "--diff in the SAME job and FAIL it (nonzero exit) on a consumed->orphan transition or "
+                         "retire-count growth. Default off -> the container command is byte-identical.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -143,6 +170,8 @@ def main() -> None:
                                 aws_region=aws_region, override=args.i_know_this_is_live)
 
     command = build_command(mode=mode, nodes=args.nodes)
+    if args.census_gate:                                     # opt-in: chain the census --diff gate in-job (W1.3)
+        command = build_gated_command(command)
     overrides: dict = {
         "command": command,
         "environment": [{"name": "EVIDENCE_S3", "value": args.evidence_s3}],

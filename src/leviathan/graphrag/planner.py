@@ -330,6 +330,16 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
          "dark_reason": ("unbacked_id" if n.id not in backed
                          else ("no_slice" if _slice_of(n, slice_path) is None else None))}
         for n in sg.nodes if n.kind == "driver"]
+    # P7-P3 W1.4: count-only retrieval telemetry. A cheap in-memory per-slice increment feeding the
+    # {unreachable | reachable-never-asked | used} triage — reads ONLY {slice, dark, n_evidence} counts,
+    # NEVER evidence text (the PIT firewall) and never mutates the trace. Guarded so a telemetry bug can
+    # never break a walk; the durable flush() to S3 is a separate/periodic step (no I/O in this hot path).
+    # ground() runs on reasoning/hybrid turns only (numbers-only turns build no legs), so no intent gate.
+    try:
+        from leviathan.graphrag import retrieval_telemetry as _rt
+        _rt.record(sg.trace["driver_legs"])
+    except Exception:  # noqa: BLE001 — telemetry is never allowed to perturb the answer
+        pass
     _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
 
     # ── parallel silver PREFETCH (serving only) ──────────────────────────────────────────────────────────
