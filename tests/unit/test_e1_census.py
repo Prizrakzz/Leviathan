@@ -88,14 +88,17 @@ def test_id_census_reasons_and_fold(tmp_path, monkeypatch):
         # honestly dark: no identity, no alias -> unbacked, no slice
         assert not by["lonely_dark"]["backed"] and by["lonely_dark"]["reason"] == "unbacked"
         assert by["lonely_dark"]["slice"] is None
-        # accented id: dark today (byte-exact miss) but folds onto the 'el_nino' exact slice -> recoverable
+        # accented id: W1 wired accent-folding INTO driver_alias(), so El_Nino now RESOLVES (folds onto the
+        # 'el_nino' slice) instead of merely being fold-recoverable -> backed, reason 'alias', not recoverable
+        # anymore (nothing net-new left to fold; fold_recoverable is the pre-registration ceiling).
         acc = by["El_Niño"]
-        assert not acc["backed"] and acc["reason"] == "unbacked" and acc["fold_recoverable"]
+        assert acc["backed"] and acc["reason"] == "alias" and acc["slice"] == "el_nino"
+        assert not acc["fold_recoverable"]
 
         it = doc["id_totals"]
-        assert it["n_ids"] == 4 and it["n_backed"] == 2 and it["n_dark"] == 2
-        assert it["by_reason"] == {"exact": 1, "alias": 1, "unbacked": 2}
-        assert it["n_fold_recoverable"] == 1                  # only El_Nino; lonely_dark folds to itself
+        assert it["n_ids"] == 4 and it["n_backed"] == 3 and it["n_dark"] == 1
+        assert it["by_reason"] == {"exact": 1, "alias": 2, "unbacked": 1}
+        assert it["n_fold_recoverable"] == 0                  # El_Nino now resolves in driver_alias() -> 0 left
     finally:
         _reset()
 
@@ -109,7 +112,8 @@ def test_slice_census_consumed_and_orphans(tmp_path, monkeypatch):
         _slice(evdir, "alias_target", 2)
         # orphan_corpus: props on disk but NO dag id routes here -> retire candidate
         _slice(evdir, "orphan_corpus", 5)
-        # el_nino: no id routes here today (El_Nino is byte-dark pre-fold) and no file -> empty
+        # el_nino: post-W1 the accented El_Nino folds ONTO this slice, so a dag id now routes here — but no
+        # file exists -> a 'keep' orphan (an E1b build target), no longer 'empty'
         doc = ec.census()
         by = {r["slice"]: r for r in doc["slices"]}
 
@@ -119,12 +123,12 @@ def test_slice_census_consumed_and_orphans(tmp_path, monkeypatch):
         # retire orphan: has props, zero routed ids
         assert not by["orphan_corpus"]["consumed"] and by["orphan_corpus"]["orphan_kind"] == "retire"
         assert by["orphan_corpus"]["n_dag_ids"] == 0 and by["orphan_corpus"]["n_routed_props"] == 5
-        # empty declared slice: no id, no props
-        assert by["el_nino"]["orphan_kind"] == "empty"
+        # routed-but-empty slice: the folded El_Nino routes here, no file -> keep (build), not empty
+        assert by["el_nino"]["n_dag_ids"] == 1 and by["el_nino"]["orphan_kind"] == "keep"
 
         st = doc["slice_totals"]
         assert st["n_slices"] == 4 and st["n_consumed"] == 2 and st["n_orphan"] == 2
-        assert st["orphan_by_kind"] == {"retire": 1, "empty": 1}
+        assert st["orphan_by_kind"] == {"retire": 1, "keep": 1}
     finally:
         _reset()
 
@@ -163,7 +167,8 @@ def test_write_emits_json_and_ascii_md(tmp_path, monkeypatch):
         assert "E1 darkness census" in md and "retire candidates" in md
         import json
         loaded = json.loads((out / "e1_census.json").read_text(encoding="utf-8"))
-        assert loaded["id_totals"]["n_dark"] == 2 and loaded["census"] == "E1_darkness"
+        # n_dark == 1 post-W1: only lonely_dark stays dark (El_Nino folds onto its slice in driver_alias())
+        assert loaded["id_totals"]["n_dark"] == 1 and loaded["census"] == "E1_darkness"
     finally:
         _reset()
 

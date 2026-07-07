@@ -20,6 +20,18 @@ from leviathan.graphrag import params as _prm
 
 _FETCH_K = int(_prm.get("serving.retrieval.fetch_k", 60))
 
+
+def fold(s: str) -> str:
+    """Accent-FOLD a string: NFKD-decompose then drop combining marks, so El_Nino/La_Nina collapse
+    onto their ASCII forms (n~ -> n). NOT NFC — NFC keeps the precomposed n~ and stays byte-disjoint from
+    the ASCII slice name; only stripping the combining mark recovers the match (E1 census correction #8).
+
+    Lives here (not e1_census) so driver_alias()'s accent-fold registration and e1_census's fold_recoverable
+    metric share ONE implementation. e1_census re-imports it — the reverse (evidence importing e1_census)
+    would cycle, since e1_census already imports evidence."""
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+
 _EVID_DIR = ex._CFG / "evidence"
 
 
@@ -541,8 +553,31 @@ def driver_alias() -> dict:
                 continue
             for did in ids or []:
                 alias.setdefault(did, slice_name)              # first owner wins (curated to be unique)
+        # Accent-fold registration: an accented DAG id (El_Nino/La_Nina) is byte-disjoint from its ASCII
+        # slice name and would resolve to nothing. Fold the alias keys once, then for any DAG id whose
+        # folded form is backed, register the accented id -> that slice — so slice_for_driver("El_Nino")
+        # resolves without minting an entry per accented id in the YAML. display is imported LAZILY inside
+        # the function (verified cycle-safe: display.py imports evidence only lazily at display.py:113) and
+        # guarded so a missing/broken display registry never breaks driver resolution.
+        folded_backed = {fold(k): v for k, v in alias.items()}
+        try:
+            from leviathan.graphrag import display as _dp
+            for did in _dp.all_driver_ids():
+                if did not in alias and fold(did) != did and fold(did) in folded_backed:
+                    alias.setdefault(did, folded_backed[fold(did)])
+        except Exception:                                      # noqa: BLE001 — display gone -> return alias so far
+            pass
         _DRIVER_ALIAS = alias
     return _DRIVER_ALIAS
+
+
+def _reset() -> None:
+    """Null the three plain module-global caches (_DRIVER_CACHE/_DRIVER_MATCHERS/_DRIVER_ALIAS) so the next
+    read re-parses driver_slices.yaml — the hermetic-test reset dedupes the hand-written reset sites in the
+    suite. Deliberately does NOT touch display.all_driver_ids.cache_clear() (that lives in display, and
+    folding it in would force evidence to import display eagerly — the call sites clear it themselves)."""
+    global _DRIVER_CACHE, _DRIVER_MATCHERS, _DRIVER_ALIAS
+    _DRIVER_CACHE = _DRIVER_MATCHERS = _DRIVER_ALIAS = None
 
 
 def slice_for_driver(dag_id: str) -> Optional[str]:
@@ -553,6 +588,79 @@ def slice_for_driver(dag_id: str) -> Optional[str]:
 def backed_dag_ids() -> set:
     """DAG driver ids that resolve to an evidence slice (exact-name + curated aliases)."""
     return set(driver_alias().keys())
+
+
+def check_driver_slices() -> list[str]:
+    """Darkness lint over the driver-slice wiring (Phase 7 P2 W2) — the resolver behind config_check's
+    ('driver_slices', ...) tuple. Returns one message per HARD problem, empty == clean. Two hard checks over
+    the parent-inclusive causal driver set (display.all_driver_ids()):
+
+      (a) DARKNESS   -- every DAG id must either resolve to a slice (backed_dag_ids: identity + dag_alias +
+                        accent-fold) OR carry a `waivers:` entry (silver-only crosses / honestly-deferred
+                        gaps). An id that is neither is DARK and unaccounted -> error. The exit gate is
+                        n_dark <= |waivers|: this makes 'dark but unwaivered' the failing class.
+      (b) DUPLICATE-OWNERSHIP -- an id on 2+ DISTINCT slices' RHS is a hard error (a real double-owner
+                        regression). An RHS entry whose id EQUALS its own slice name (export_ban, frost) is a
+                        benign self-alias — driver_alias()'s setdefault makes it a no-op identity entry, not a
+                        second owner — so it is skipped, never flagged.
+
+    The topical-token quality heuristic is deliberately NOT a hard error — see driver_slice_alias_warnings().
+    A dag_alias remap is authored under adversarial human review (the curation pass), and a legitimate concept
+    alias routinely shares no literal underscore token with its slice ('section301_tariffs' -> 'tariff',
+    'port_closure' -> 'freight', 'RenovaBio' -> 'biodiesel_mandate'); making that a hard failure taxes ~1-in-5
+    good aliases (P2 plan risk #5). Darkness and double-ownership are the load-bearing invariants; topical
+    drift is an advisory a human clears.
+
+    display is imported LAZILY (cycle-safe; guarded) — a clean checkout with no private configs has no causal
+    dir, so all_driver_ids() is empty and the lint passes vacuously (this is a pre-ship CLI check, not a CI
+    gate; D3 in the parent plan)."""
+    from leviathan.graphrag import display as dp
+    errs: list[str] = []
+    backed = backed_dag_ids()
+    waivers = _driver_raw().get("waivers") or {}
+    dag_alias = _driver_raw().get("dag_alias") or {}
+
+    # (a) darkness: an id must resolve OR be waived
+    for did in sorted(dp.all_driver_ids()):
+        if did not in backed and did not in waivers:
+            errs.append(f"dark id {did}: no slice, no waiver")
+
+    # (b) duplicate-ownership: an id on 2+ DISTINCT slices' RHS. A RHS==own-slice-name entry is a benign
+    #     self-alias (setdefault no-op), NOT an owner, so it is excluded from the owner count.
+    owners: dict[str, set[str]] = {}
+    for slice_name, ids in dag_alias.items():
+        for did in ids or []:
+            if did == slice_name:                             # self-alias is not an ownership claim
+                continue
+            owners.setdefault(did, set()).add(slice_name)
+    for did, slices in sorted(owners.items()):
+        if len(slices) >= 2:
+            errs.append(f"duplicate id {did}: routed to {sorted(slices)}")
+
+    return errs
+
+
+def driver_slice_alias_warnings() -> list[str]:
+    """ADVISORY (non-fatal) topical-token heuristic over dag_alias: each RHS id should share an accent-folded
+    underscore token with its target slice (name tokens PRIMARY; the slice's `terms` phrases widen the set).
+    Zero overlap flags the urea->area fuzzy class — but ALSO legitimate concept aliases with no shared literal
+    token, so a human reviews the list rather than the build failing on it. Empty == every alias shares a token."""
+    warns: list[str] = []
+    specs = driver_specs()
+    dag_alias = _driver_raw().get("dag_alias") or {}
+    for slice_name, ids in dag_alias.items():
+        if slice_name not in specs:                            # RHS on a non-existent slice is dead config,
+            continue                                           # not this heuristic's concern
+        slice_tokens = {fold(w.lower()) for w in slice_name.split("_") if w}
+        for phrase in (specs[slice_name].get("terms") or []):
+            slice_tokens |= {fold(w.lower()) for w in str(phrase).split() if w}
+        for did in ids or []:
+            if did == slice_name:                             # benign self-alias, skip
+                continue
+            id_tokens = {fold(t.lower()) for t in did.split("_") if t}
+            if not (id_tokens & slice_tokens):
+                warns.append(f"alias {did} -> {slice_name}: no shared topical token (review)")
+    return warns
 
 
 def driver_matchers() -> dict:

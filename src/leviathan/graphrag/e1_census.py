@@ -37,22 +37,19 @@ from __future__ import annotations
 
 import json
 import os
-import unicodedata
 from pathlib import Path
 
 from leviathan.graphrag import display as dp
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 
+# fold() lives in evidence.py (the D1 accent-fold signal) and is re-exported here — driver_alias()'s
+# accent-fold registration and this census's fold_recoverable metric MUST share one implementation. The
+# import direction is forced: e1_census already imports evidence, so evidence importing e1_census would
+# cycle; the helper therefore has to live in evidence and be re-imported here.
+from leviathan.graphrag.evidence import fold  # noqa: F401 — re-exported for id_census + the test suite
+
 _OUT = ex._CFG / "eval"
-
-
-# ── accent-folding (the D1 signal) ──────────────────────────────────────────────────────────────────
-def fold(s: str) -> str:
-    """Accent-FOLD a driver id: NFKD-decompose then drop combining marks, so El_Nino/La_Nina collapse
-    onto their ASCII forms (n~ -> n). NOT NFC — NFC keeps the precomposed n~ and stays byte-disjoint from
-    the ASCII slice name; only stripping the combining mark recovers the match (correction #8)."""
-    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
 
 
 # ── per-id census ───────────────────────────────────────────────────────────────────────────────────
