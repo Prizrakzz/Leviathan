@@ -317,6 +317,19 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             _emit_stage(on_stage, "retrieving", done=d, total=eligible)
     _parallel_fill(sg.nodes, fill_fn, query, retrieve, expected=eligible)
     _t_fill = _time.perf_counter()
+    # P7-P0.2: per-driver-leg evidence report — the E0/E3 sparsity-attribution instrumentation. Purely
+    # additive to the trace (the trace is never persisted to durable turns — PIT firewall intact). A leg is
+    # `dark` when it was dropped as prior-only; dark_reason separates the two OR'd sub-conditions at the
+    # _fill guard above (unbacked id = alias-map gap vs no slice file) — they have different E1 fixes.
+    # n_evidence is captured PRE-dedup deliberately: it answers "did dated props EXIST for this leg"
+    # (the attribution question), not "how many survived the cross-node dedup" (a serving artifact).
+    sg.trace["driver_legs"] = [
+        {"key": list(n.key), "backed": n.id in backed, "slice": _slice_of(n, slice_path),
+         "n_evidence": len(n.evidence or []),
+         "dark": n.id not in backed or _slice_of(n, slice_path) is None,
+         "dark_reason": ("unbacked_id" if n.id not in backed
+                         else ("no_slice" if _slice_of(n, slice_path) is None else None))}
+        for n in sg.nodes if n.kind == "driver"]
     _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
 
     # ── parallel silver PREFETCH (serving only) ──────────────────────────────────────────────────────────

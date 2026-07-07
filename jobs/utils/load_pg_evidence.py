@@ -5,11 +5,18 @@ already carry their bge-m3 vectors. S3 stays the source of truth; the pg table i
 
     python jobs/utils/load_pg_evidence.py --nodes corn soybeans          # specific slices
     python jobs/utils/load_pg_evidence.py --all                          # every local slice + S3 driver slices
+    python jobs/utils/load_pg_evidence.py --all --table evidence_props_shadow   # blue-green shadow load
     (EVIDENCE_PG_DSN must point at the target Postgres; EVIDENCE_S3 enables the drivers/ listing + S3 reads)
+
+--table drives the blue-green shadow flow: load a `_shadow` table, verify it, then flip it live with
+jobs/utils/pg_evidence_swap.py. It's forwarded by setting EVIDENCE_PG_TABLE in the environment BEFORE the
+worker threads spawn, because pgstore resolves the table per-call from that env var — so every worker's
+init_schema/upsert lands on the same target without threading a parameter through the pool.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from leviathan.common import config
@@ -64,8 +71,15 @@ def main() -> int:
     ap.add_argument("--nodes", nargs="*", default=None, help="slice names (e.g. corn drivers/el_nino)")
     ap.add_argument("--all", action="store_true", help="all local slices + S3 driver slices")
     ap.add_argument("--workers", type=int, default=8, help="parallel slice loads (S3 read + upsert per worker)")
+    ap.add_argument("--table", default=None,
+                    help="target pg table (default: EVIDENCE_PG_TABLE env or evidence_props). Use "
+                         "evidence_props_shadow for a blue-green shadow load; flip with pg_evidence_swap.py")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+
+    if args.table:                                             # resolved per-call by pgstore.table_name();
+        os.environ["EVIDENCE_PG_TABLE"] = args.table           # set BEFORE workers spawn so every conn agrees
+    target = pgstore.table_name()                              # validates the name (ValueError on garbage)
 
     nodes = args.nodes or []
     if args.all:
@@ -74,7 +88,7 @@ def main() -> int:
         print("nothing to load (pass --nodes or --all)")
         return 1
     if args.dry_run:
-        print(f"would load {len(nodes)} slices: {nodes[:8]}{' ...' if len(nodes) > 8 else ''}")
+        print(f"would load {len(nodes)} slices into {target}: {nodes[:8]}{' ...' if len(nodes) > 8 else ''}")
         return 0
     if not pgstore.dsn():
         print("EVIDENCE_PG_DSN not set")
@@ -92,7 +106,7 @@ def main() -> int:
             else:
                 total += n
                 print(f"  {node}: {n} props")
-    print(f"loaded {total} props across {len(nodes)} slices")
+    print(f"loaded {total} props across {len(nodes)} slices into {target}")
     return 0
 
 

@@ -23,10 +23,35 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import threading
 from typing import Optional
 
 DIM = 1024                                                   # bge-m3 (and Titan v2) embedding width
+
+# Blue-green plumbing: every DDL/DML statement below resolves its table name through table_name() at CALL
+# time (never at import), so a shadow rebuild can point the loader at `evidence_props_shadow`, verify it,
+# then flip live<->shadow with a transactional rename (jobs/utils/pg_evidence_swap.py) — the pre-flip table
+# is retained for rollback. Default stays `evidence_props`, so unset-env behavior is byte-identical.
+_DEFAULT_TABLE = "evidence_props"
+# A pg identifier we interpolate straight into DDL/DML (no bind-param path exists for table names). The
+# strict lower-snake regex keeps SQL injection impossible: the only accepted characters are the ones a
+# legitimate table name uses, so a hostile EVIDENCE_PG_TABLE can never smuggle a quote or a semicolon.
+_TABLE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def table_name() -> str:
+    """Resolve the evidence table from EVIDENCE_PG_TABLE (default `evidence_props`), validated at call time.
+
+    Resolved per-call (NOT cached at import) so a subprocess/env flip — the loader's --table, the swap
+    tool's guard query, a shadow eval's `--env EVIDENCE_PG_TABLE=evidence_props_shadow` — takes effect
+    without a re-import, and so tests can monkeypatch the env. Rejects anything that isn't lower-snake:
+    the name is interpolated into SQL and there is no bind-parameter form for an identifier, so validation
+    is the injection barrier, not an f-string escape."""
+    name = (os.environ.get("EVIDENCE_PG_TABLE") or _DEFAULT_TABLE).strip()
+    if not _TABLE_RE.match(name):
+        raise ValueError(f"EVIDENCE_PG_TABLE {name!r} is not a valid table name (^[a-z_][a-z0-9_]*$)")
+    return name
 
 _CONN = None
 # The module connection is a SINGLE psycopg connection (not concurrency-safe). The L2 walk now fetches nodes
@@ -78,12 +103,20 @@ def connect():
 
 
 def init_schema(conn=None, *, dim: int = DIM) -> None:
-    """Idempotent DDL. `tsv` is a stored generated column ('simple' config: no stemming — B40/ZL/CIF stay whole).
-    Indexes: btree(node, date) for the filtered exact scan + GIN(tsv) for the lexical leg. No HNSW on purpose."""
+    """Idempotent DDL for the resolved table (table_name()). `tsv` is a stored generated column ('simple'
+    config: no stemming — B40/ZL/CIF stay whole). Indexes: btree(node, date) for the filtered exact scan +
+    GIN(tsv) for the lexical leg. No HNSW on purpose.
+
+    Index names are DERIVED from the table name (`<t>_node_date`, `<t>_tsv`) so building the shadow table
+    while the live table exists doesn't collide on a shared index name. NB the swap tool renames the TABLE
+    only — Postgres keeps indexes attached across a table rename but does NOT rename them, so post-flip the
+    indexes carry their pre-flip (shadow-derived) names. That's cosmetic: they stay attached and functional,
+    and the next rebuild's CREATE INDEX IF NOT EXISTS is keyed on the (new) table's own derived names."""
     conn = conn or connect()
+    t = table_name()
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
     conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS evidence_props (
+        CREATE TABLE IF NOT EXISTS {t} (
             id         text PRIMARY KEY,
             node       text NOT NULL,
             source     text,
@@ -96,8 +129,8 @@ def init_schema(conn=None, *, dim: int = DIM) -> None:
             vector     vector({dim}) NOT NULL,
             tsv        tsvector GENERATED ALWAYS AS (to_tsvector('simple', text)) STORED
         )""")
-    conn.execute("CREATE INDEX IF NOT EXISTS evidence_props_node_date ON evidence_props (node, date)")
-    conn.execute("CREATE INDEX IF NOT EXISTS evidence_props_tsv ON evidence_props USING gin (tsv)")
+    conn.execute(f"CREATE INDEX IF NOT EXISTS {t}_node_date ON {t} (node, date)")
+    conn.execute(f"CREATE INDEX IF NOT EXISTS {t}_tsv ON {t} USING gin (tsv)")
 
 
 def prop_id(node: str, rec: dict) -> str:
@@ -122,7 +155,8 @@ def upsert(node: str, records: list[dict], conn=None, *, batch: int = 500) -> in
     reloads cleanly. Returns rows written."""
     conn = conn or connect()
     n = 0
-    sql = ("INSERT INTO evidence_props (id,node,source,source_key,date,event_date,backend,text,meta,vector) "
+    t = table_name()
+    sql = (f"INSERT INTO {t} (id,node,source,source_key,date,event_date,backend,text,meta,vector) "
            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::vector) "
            "ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date, event_date=EXCLUDED.event_date, meta=EXCLUDED.meta")
     with conn.cursor() as cur:
@@ -149,24 +183,25 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
     """ONE round-trip: dense CTE + (optionally) lexical CTE, RRF-fused in SQL (c=60, same as rankers.rrf_fuse).
     Rows come back with their vectors so rerank/MMR run in-process unchanged."""
     pooled = conn is None
+    t = table_name()
     qv = _vec_lit(query_vec)
     where = "node = %(node)s" + (" AND date <= %(asof)s" if asof else "")
     params = {"node": node, "asof": asof, "qv": qv, "k": fetch_k, "tsq": _tsquery(query_text) if hybrid else ""}
     dense = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY vector <=> %(qv)s::vector) AS rnk "
-             f"FROM evidence_props WHERE {where} ORDER BY vector <=> %(qv)s::vector LIMIT %(k)s")
+             f"FROM {t} WHERE {where} ORDER BY vector <=> %(qv)s::vector LIMIT %(k)s")
     if hybrid and params["tsq"]:
         lex = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(tsv, to_tsquery('simple', %(tsq)s)) DESC) AS rnk "
-               f"FROM evidence_props WHERE {where} AND tsv @@ to_tsquery('simple', %(tsq)s) LIMIT %(k)s")
+               f"FROM {t} WHERE {where} AND tsv @@ to_tsquery('simple', %(tsq)s) LIMIT %(k)s")
         fused = (f"WITH dense AS ({dense}), lex AS ({lex}), "
                  "fused AS (SELECT COALESCE(d.id, l.id) AS id, "
                  "COALESCE(1.0/(60+d.rnk),0) + COALESCE(1.0/(60+l.rnk),0) AS score "
                  "FROM dense d FULL OUTER JOIN lex l USING (id)) "
                  "SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.vector::text "
-                 "FROM fused f JOIN evidence_props p USING (id) ORDER BY f.score DESC LIMIT %(k)s")
+                 f"FROM fused f JOIN {t} p USING (id) ORDER BY f.score DESC LIMIT %(k)s")
     else:
         fused = (f"WITH dense AS ({dense}) "
                  "SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.vector::text "
-                 "FROM dense d JOIN evidence_props p USING (id) ORDER BY d.rnk LIMIT %(k)s")
+                 f"FROM dense d JOIN {t} p USING (id) ORDER BY d.rnk LIMIT %(k)s")
     if pooled:                                               # serving path: pooled conns, concurrent fetches
         c = _acquire()
         try:

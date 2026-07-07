@@ -86,6 +86,35 @@ def test_suggest_guards_drop_leaks_longs_dupes_and_cap_at_4(monkeypatch):
     assert out == ["Good question?", "Second?", "Third?", "Fourth?"]   # leak/dupe/long/non-str dropped, <=4
 
 
+def test_mints_number_whitelists_labels_rejects_magnitudes():
+    # survivors: named digit-tokens (codes, ONI band either order, grades, years, fractions, windows, quarters)
+    for keep in ("Does the B40 mandate divert palm toward the diversion regime?",
+                 "Will an E15 waiver lift the ethanol grind?",
+                 "As ONI 0.5 flips to El Nino, is soy convex?",
+                 "A 0.5 ONI reading -- does the teleconnection fire?",
+                 "Is No. 2 yellow corn's basis tightening?",
+                 "How did the 2016 analog play out for coffee?",
+                 "Corn ending stocks vs the 5-year average -- convex?",
+                 "At 2/4 drivers, how close is the squeeze?",
+                 "Does a Q4 crush surge tip the ethanol regime?"):
+        assert not sv._mints_number(keep), keep
+    # dropped: minted magnitudes (unit/scale words) and bare ratio decimals
+    for drop in ("Will Brazil's crop fall 16 million bags before the squeeze?",
+                 "Does stocks-to-use below 0.45 ratio tip it?",
+                 "Is a >15% export lag bullish?",
+                 "Will ending stocks drop 5 MMT?",
+                 "Does a 40% tariff cascade to soymeal?"):
+        assert sv._mints_number(drop), drop
+
+
+def test_suggest_drops_minted_number_keeps_clean(monkeypatch):
+    raw = ('["Will Brazil lose 16 million bags before the squeeze fires?", '
+           '"As ONI 0.5 flips to El Nino, is the soy teleconnection convex?"]')
+    c = _client(monkeypatch, call=lambda p: raw)
+    out = c.post("/v1/suggest", json=_PACKET).json()["suggestions"]
+    assert out == ["As ONI 0.5 flips to El Nino, is the soy teleconnection convex?"]   # minted magnitude dropped
+
+
 def test_suggest_kill_switch_short_circuits_before_model(monkeypatch):
     called = {}
     c = _client(monkeypatch, call=lambda p: called.setdefault("hit", True) or "[]")

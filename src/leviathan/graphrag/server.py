@@ -552,10 +552,38 @@ def _suggest_prompt(body: M.SuggestRequest, facts: Optional[dict]) -> str:
     return "\n".join(lines)
 
 
+# ── P1.2 suggester numeric guard: a chip asks about DIRECTION and CONFLUENCE, never a minted numeric level ──
+# Known digit-tokens that are NAMES/labels, not invented magnitudes — whitelisted so the magnitude reject can't
+# kill them. ORDER MATTERS: these spans are neutralized BEFORE the reject runs (else "ONI 0.5" dies on the
+# bare-ratio rule). Year handling mirrors the orchestrator's 1900-2100 integer-year predicate.
+_NUM_OK = re.compile(
+    r"\b[BE]\d{1,3}\b"                                                 # biofuel mandate codes: B40, E15, B35
+    r"|\bONI\s*[+\-]?\d+(?:\.\d+)?\b|\b[+\-]?\d+(?:\.\d+)?\s*ONI\b"     # the ONI band, either order: ONI 0.5 / 0.5 ONI
+    r"|\bNo\.?\s*\d+\b"                                                # grade names: No. 2
+    r"|\b(?:19|20)\d{2}\b"                                             # 4-digit years 1900-2099
+    r"|\bQ[1-4]\b|\bH[12]\b"                                           # quarter / half labels
+    r"|\b\d{1,2}\s*/\s*\d{1,2}\b"                                      # proximity fractions: 2/4
+    r"|\b\d{1,3}-(?:year|yr|day|week|month|quarter|season|hour)s?\b",  # windows: 5-year, 90-day
+    re.I)
+# A minted numeric MAGNITUDE a chip must never assert (the "fake threshold" failure, per the 6.8 audit): a
+# number bound to a unit/scale word, or a bare ratio decimal.
+_NUM_BAD = re.compile(
+    r"\d[\d.,]*\s*%"                                                   # a percentage: 15%, 40% (% is not a \w, so no \b)
+    r"|\d[\d.,]*\s*(?:million|billion|mmt|thousand|bags|bushels?|tonnes?|tons?|percent|cents?|ratio)\b"
+    r"|\b0\.\d+\b", re.I)
+
+
+def _mints_number(s: str) -> bool:
+    """True if a chip states a specific numeric level/threshold/quantity (drop it — chips ask about direction and
+    confluence, not levels). Whitelisted digit-tokens (codes, years, ONI band, grades, fractions, windows) are
+    neutralized FIRST so a legitimate label can't trip the magnitude reject. Pure regex on a str — never raises."""
+    return bool(_NUM_BAD.search(_NUM_OK.sub(" ", s)))
+
+
 def _parse_suggestions(raw: str) -> list[str]:
     """First JSON array in the completion -> <=4 clean chips. Deterministic guards (the one-vocab
     doctrine applies to chips): strings only, trimmed, <=140 chars, ZERO register leaks (an internal
-    id can never render as a chip), deduped. Anything unparseable -> []."""
+    id can never render as a chip), no minted numeric level (_mints_number), deduped. Unparseable -> []."""
     from leviathan.graphrag import register as reg
     m = None
     try:
@@ -568,7 +596,7 @@ def _parse_suggestions(raw: str) -> list[str]:
         if not isinstance(s, str):
             continue
         s = s.strip().strip('"').strip()
-        if not s or len(s) > 140 or s in out or reg.register_leaks(s):
+        if not s or len(s) > 140 or s in out or reg.register_leaks(s) or _mints_number(s):
             continue
         out.append(s)
     return out[:4]
@@ -703,6 +731,8 @@ def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_
         "HARD RULE -- answerable-only: reference ONLY the contracts, regimes, drivers and fundamentals listed",
         "below. NEVER invent a commodity, inventory, geography or metric that is not listed (no energy/diesel",
         "inventories, no metals, no non-listed countries).",
+        "NEVER state a specific numeric level, threshold, or quantity (no '16 million bags', no '0.45 ratio', no",
+        "'>15% lag') -- ask about DIRECTION and CONFLUENCE; you do not have the live values.",
         "Style (108 chars): 'Cane crush firm -- how fast must sugar ending stocks fall before the ethanol-",
         "diversion regime fires?'",
         "Mix: (1) a regime CLOSEST TO FIRING for the user's markets, (2) a cross-commodity CASCADE, (3) one",

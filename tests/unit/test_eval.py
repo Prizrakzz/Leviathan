@@ -143,3 +143,129 @@ def test_planner_panel_reports_l2_structure():
     assert m["is_l2"] and m["n_kept"] == 3 and m["n_contracts"] == 2 and m["n_regimes"] == 1 and m["leg_grounded"] == 1.0
     panel = "\n".join(E.planner_report(rows))
     assert "L2 planner" in panel and "cross-commodity" in panel
+
+
+# ── P7-P0.1: strip-RATE rollup + baseline artifact + corpus fingerprint ──────────────────────────────
+def _mk_row(rid, strips, claims, checked, answer="Clean prose.", intent="reasoning", intent_ok=True):
+    return {"q": {"id": rid, "contract": "corn", "expected_intent": intent},
+            "out": {"answer": answer, "intent": intent,
+                    "trace": {"citation_verifier": {"enabled": True, "checked": checked, "stripped": strips,
+                                                    "claim_count": claims, "corrected": 0,
+                                                    "by_rule": {"fabricated_citation": strips} if strips else {}}}},
+            "rubric": {"routed_right": True, "intent_ok": intent_ok}}
+
+
+def test_verifier_panel_reports_strip_rate():
+    traces = [r["out"]["trace"]["citation_verifier"] for r in
+              [_mk_row("a", 1, 4, 3), _mk_row("b", 0, 6, 2)]]
+    panel = "\n".join(gev.verifier_panel(traces))
+    assert "strip RATE: 0.1000" in panel                    # 1 strip / 10 sentence-claims
+    assert "10 sentence-claims" in panel
+
+
+def test_baseline_json_schema_and_rates():
+    rows = [_mk_row("a", 1, 4, 3), _mk_row("b", 0, 6, 2, intent_ok=False)]
+    doc = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v3",
+                             graph_version="g12", corpus_fp="c34")
+    assert doc["kind"] == "baseline_single" and doc["eval_set"] == "v3"
+    assert doc["graph_version"] == "g12" and doc["corpus_fingerprint"] == "c34"
+    assert doc["total_strips"] == 1 and doc["total_claims"] == 10
+    assert doc["strip_rate"] == 0.1 and doc["handle_strip_rate"] == 0.2
+    assert doc["intent_ok"] == 1 and doc["intent_n"] == 2
+    assert doc["via_orchestrator"] is False                 # self-describing arm: one-hop unless stated
+    assert doc["n_answers"] == 2 and doc["per_answer"][0]["id"] == "a"
+    assert doc["per_answer"][0]["register_leaks"] == 0      # residual, post-sanitize
+
+
+def test_baseline_json_convo_rows_compose_ids():
+    rows = [{"convo": "wheat_thread", "turn": 2,
+             "out": {"answer": "x", "intent": "hybrid",
+                     "trace": {"citation_verifier": {"enabled": True, "checked": 1, "stripped": 0,
+                                                     "claim_count": 2, "corrected": 0, "by_rule": {}}}},
+             "mech": {"intent_ok": True}, "spec": {"q": "?"}}]
+    doc = gev._baseline_json(rows, run_kind="convos", model="m", judged=True, eval_set="convos_v1",
+                             graph_version=None, corpus_fp="c", via_orchestrator=True)
+    assert doc["per_answer"][0]["id"] == "wheat_thread/2" and doc["kind"] == "baseline_convos"
+    assert doc["via_orchestrator"] is True
+
+
+def test_is_slice_key_accepts_slices_rejects_everything_else():
+    # P7-P2.0: only retrieval slices belong in the fingerprint — root <node>.jsonl + drivers/*.jsonl.
+    for ok in ("corn.jsonl", "arabica_coffee.jsonl", "drivers/el_nino.jsonl"):
+        assert gev._is_slice_key(ok), ok
+    for bad in ("chunks/ab12cd.jsonl", "_raw/corn.jsonl", "eval/baseline_x.json",
+                "eval/report.md", "live_events/2026.jsonl", "drivers/nested/x.jsonl", "corn.parquet"):
+        assert not gev._is_slice_key(bad), bad
+
+
+def test_corpus_fingerprint_s3_hashes_only_slice_keys(monkeypatch):
+    # P7-P2.0 regression: the old code listed a non-existent evidence/ subprefix and hashed ZERO slice
+    # keys in S3 mode — a slice-content rebuild never flipped the fingerprint. Now: slice keys drive the
+    # hash; chunks/_raw/eval keys are inert.
+    from leviathan.graphrag import evidence as _ev
+
+    class _Pag:
+        def __init__(self, contents):
+            self._c = contents
+        def paginate(self, Bucket, Prefix):
+            yield {"Contents": [{"Key": Prefix + k, "ETag": e} for k, e in self._c]}
+
+    class _Client:
+        def __init__(self, contents):
+            self._p = _Pag(contents)
+        def get_paginator(self, _name):
+            return self._p
+
+    import boto3
+    base = [("corn.jsonl", "e1"), ("drivers/el_nino.jsonl", "e2"), ("chunks/aa.jsonl", "e3"),
+            ("eval/report.md", "e4"), ("_raw/corn.jsonl", "e5")]
+    monkeypatch.setattr(_ev, "_evid_s3", lambda: "s3://bkt/graphrag_evidence")
+    monkeypatch.setattr(_ev, "_DRIVER_PATH", type("P", (), {"exists": lambda self: False})())
+    monkeypatch.setattr(boto3, "client", lambda _svc: _Client(base))
+    a = gev.corpus_fingerprint()
+    assert a != "unknown"
+    # a slice ETag change flips it
+    changed = [("corn.jsonl", "e1-NEW")] + base[1:]
+    monkeypatch.setattr(boto3, "client", lambda _svc: _Client(changed))
+    assert gev.corpus_fingerprint() != a
+    # a chunks/-cache add or a new eval report does NOT flip it
+    noise = base + [("chunks/bb.jsonl", "e6"), ("eval/baseline_new.json", "e7")]
+    monkeypatch.setattr(boto3, "client", lambda _svc: _Client(noise))
+    assert gev.corpus_fingerprint() == a
+
+
+def test_corpus_fingerprint_local_excludes_cache_dirs(tmp_path, monkeypatch):
+    # local mode mirrors the S3 filter: chunks/ and _raw/ files never move the fingerprint.
+    from leviathan.graphrag import evidence as _ev
+    evdir = tmp_path / "evidence"
+    (evdir / "chunks").mkdir(parents=True)
+    (evdir / "corn.jsonl").write_text('{"t": 1}\n', encoding="utf-8")
+    drv = tmp_path / "driver_slices.yaml"
+    drv.write_text("drivers: {}\n", encoding="utf-8")
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    monkeypatch.setattr(_ev, "_EVID_DIR", evdir)
+    monkeypatch.setattr(_ev, "_DRIVER_PATH", drv)
+    a = gev.corpus_fingerprint()
+    (evdir / "chunks" / "aa.jsonl").write_text('{"t": 9}\n', encoding="utf-8")
+    assert gev.corpus_fingerprint() == a                    # doc-cache add is inert
+
+
+def test_corpus_fingerprint_local_deterministic_and_sensitive(tmp_path, monkeypatch):
+    # local mode: filenames+sizes + driver_slices.yaml bytes; deterministic; flips on any corpus change.
+    evdir = tmp_path / "evidence"
+    evdir.mkdir()
+    (evdir / "corn.jsonl").write_text('{"t": 1}\n', encoding="utf-8")
+    drv = tmp_path / "driver_slices.yaml"
+    drv.write_text("drivers: {}\n", encoding="utf-8")
+    from leviathan.graphrag import evidence as _ev
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    monkeypatch.setattr(_ev, "_EVID_DIR", evdir)
+    monkeypatch.setattr(_ev, "_DRIVER_PATH", drv)
+    a = gev.corpus_fingerprint()
+    b = gev.corpus_fingerprint()
+    assert a == b and len(a) == 12 and a != "unknown"       # deterministic 12-hex
+    (evdir / "corn.jsonl").write_text('{"t": 1}\n{"t": 2}\n', encoding="utf-8")
+    assert gev.corpus_fingerprint() != a                    # slice change flips it
+    c = gev.corpus_fingerprint()
+    drv.write_text("drivers: {new_slice: {category: x, terms: [y]}}\n", encoding="utf-8")
+    assert gev.corpus_fingerprint() != c                    # alias/term edit flips it (E1 visibility)

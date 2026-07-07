@@ -142,7 +142,11 @@ def node_label(node_id: str, kind: str | None = None, contract: str | None = Non
 
 @functools.lru_cache(maxsize=1)
 def all_driver_ids() -> frozenset[str]:
-    """Every driver id declared across configs/graphrag/causal/*.yaml (for the `nodes:` override lint)."""
+    """Every driver id declared across configs/graphrag/causal/*.yaml (for the `nodes:` override lint).
+
+    Includes ids referenced only in `parents:` lists — a parent-only id is a real DAG node even when it
+    is never declared as a top-level `drivers[].id`, and any lint built on this set (display `nodes:`
+    overrides, the driver-slice darkness lint) would silently under-check without them (P7-P0.4)."""
     ids: set[str] = set()
     for p in sorted((_CFG / "causal").glob("*.yaml")):
         try:
@@ -150,9 +154,14 @@ def all_driver_ids() -> frozenset[str]:
         except Exception:  # noqa: BLE001
             continue
         for d in (doc.get("drivers") or []):
-            did = d.get("id") if isinstance(d, dict) else None
+            if not isinstance(d, dict):
+                continue
+            did = d.get("id")
             if did:
                 ids.add(str(did))
+            for pid in (d.get("parents") or []):
+                if pid:
+                    ids.add(str(pid))
     return frozenset(ids)
 
 

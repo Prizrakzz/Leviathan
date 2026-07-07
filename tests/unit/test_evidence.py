@@ -313,3 +313,90 @@ def test_embed_memoizes_single_text_calls(monkeypatch):
         assert calls["n"] == 3                                   # bulk path untouched (no memo)
     finally:
         ev._Q_CACHE.clear()
+
+
+def test_slice_for_driver_annotation_resolves():
+    # P7-P0.4: evidence.py used Optional in an annotation without importing it -- latent NameError under
+    # typing.get_type_hints (masked by `from __future__ import annotations`). Pin that hints now resolve.
+    import typing
+
+    from leviathan.graphrag import evidence as ev
+    hints = typing.get_type_hints(ev.slice_for_driver)
+    assert hints["return"] == typing.Optional[str]
+
+
+# ── accent-fold registration (Phase 7 P2 W1) ─────────────────────────────────────────────────────────
+# driver_alias() folds accented DAG ids (El_Nino/La_Nina) onto their ASCII slice names so slice_for_driver
+# resolves them without a per-id YAML entry. These are hermetic: a synthetic causal dir (so
+# display.all_driver_ids() sees the accented id) + a synthetic driver_slices.yaml, with EVERY cache reset in
+# try/finally (mirrors test_e1_census._wire — a leaked fixture cache would poison other tests).
+_FOLD_CAUSAL = (
+    "contract: test_contract\n"
+    "drivers:\n"
+    "- id: exact_slice\n"
+    "- id: "
+    "El_Niño\n"                                            # accented id, byte-disjoint from the ASCII slice
+)
+_FOLD_DRIVERS = (
+    "drivers:\n"
+    "  exact_slice: {category: hazard, terms: [frost]}\n"
+    "  el_nino: {category: teleconnection, terms: [enso]}\n"   # ASCII slice the accented id folds onto
+    "dag_alias:\n"
+    "  el_nino: [El_Nino]\n"                                   # the ASCII case-variant that El_Nino folds onto
+)
+
+
+def _wire_fold(monkeypatch, tmp_path, *, causal_yaml=_FOLD_CAUSAL, driver_yaml=_FOLD_DRIVERS):
+    """Point display at a synthetic causal dir and evidence at a synthetic driver_slices.yaml, caches cleared.
+    Returns the evidence dir. Caller MUST reset in a finally (see the try/finally in each test)."""
+    from leviathan.graphrag import display as dp
+    from leviathan.graphrag import evidence as ev
+    causal = tmp_path / "causal"
+    causal.mkdir()
+    (causal / "fixture.yaml").write_text(causal_yaml, encoding="utf-8")
+    monkeypatch.setattr(dp, "_CFG", tmp_path)                 # display globs _CFG/causal/*.yaml
+    drv = tmp_path / "driver_slices.yaml"
+    drv.write_text(driver_yaml, encoding="utf-8")
+    monkeypatch.setattr(ev, "_DRIVER_PATH", drv)
+    ev._reset()
+    dp.all_driver_ids.cache_clear()
+    return ev
+
+
+def test_driver_alias_accent_folds_accented_ids(tmp_path, monkeypatch):
+    from leviathan.graphrag import display as dp
+    from leviathan.graphrag import evidence as ev
+    _wire_fold(monkeypatch, tmp_path)
+    try:
+        # the accented id resolves onto the ASCII 'el_nino' slice via the fold pass (was None pre-W1)
+        assert ev.slice_for_driver("El_Niño") == "el_nino"
+        assert "El_Niño" in ev.backed_dag_ids()          # now counted backed by the census
+        # an exact-name slice still resolves by identity; a non-existent id is still None
+        assert ev.slice_for_driver("exact_slice") == "exact_slice"
+        assert ev.slice_for_driver("nonesuch_driver") is None
+    finally:
+        ev._reset()
+        dp.all_driver_ids.cache_clear()
+
+
+def test_reset_nulls_the_three_driver_globals(tmp_path, monkeypatch):
+    from leviathan.graphrag import evidence as ev
+    _wire_fold(monkeypatch, tmp_path)
+    try:
+        ev.driver_specs(); ev.driver_alias(); ev.driver_matchers()   # populate all three caches
+        assert ev._DRIVER_CACHE is not None and ev._DRIVER_ALIAS is not None
+        assert ev._DRIVER_MATCHERS is not None
+        ev._reset()
+        assert ev._DRIVER_CACHE is None and ev._DRIVER_ALIAS is None and ev._DRIVER_MATCHERS is None
+    finally:
+        ev._reset()
+        from leviathan.graphrag import display as dp
+        dp.all_driver_ids.cache_clear()
+
+
+def test_fold_importable_from_both_modules():
+    # import hygiene: fold() lives in evidence and is re-exported from e1_census (the reverse import cycles).
+    from leviathan.graphrag import e1_census as ec
+    from leviathan.graphrag import evidence as ev
+    assert ev.fold is ec.fold                                 # ONE implementation, not two copies
+    assert ev.fold("El_Niño") == "El_Nino" and ev.fold("frost") == "frost"

@@ -7,7 +7,7 @@ rich, evolving graph/silver/respond dicts: the CORE fields are pinned, extra fie
 forward-compat rather than 500-ing a response."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -68,6 +68,23 @@ class RegimeCard(BaseModel):
     proximity: float                         # n_active / threshold, capped 1.0 — heatmap shading
 
 
+class Receipt(BaseModel):
+    """RESERVED (Phase 7 P0.6): the ONE shared per-claim provenance receipt that BOTH the structured-answer
+    schema v2 (6.7/A5 per-claim confidence) and the probability layer (M6 analogue-year receipts) will
+    consume — designed up front so the two tracks never mint incompatible receipt shapes on the same FE
+    renderer. No route emits it yet; it stays out of the OpenAPI dump/types.gen until one does.
+
+    kind='evidence' -> a cited dated document; 'analogue' -> historical analogue years backing a counted
+    probability (n + years populated); 'number' -> an observed silver value lookup."""
+    model_config = _RICH
+    kind: Literal["evidence", "analogue", "number"]
+    label: str                               # short display text ("USDA PSD, Apr 2024" / "7 of 30 analogue years")
+    detail: Optional[str] = None             # hover/tooltip body (snippet, query, method note)
+    n: Optional[int] = None                  # analogue: n_analogues; ordinal 'k of n' denominators
+    years: Optional[list[int]] = None        # analogue: the actual years — the receipts ARE the explanation
+    confidence: Optional[float] = None       # deterministic citation-derived score (G10) — never model-minted
+
+
 class ConvergenceRow(BaseModel):
     contract: str
     regimes: list[RegimeCard]
@@ -121,6 +138,8 @@ class ShareSnapshot(BaseModel):
     question: str
     asof: Optional[str] = None
     graph_version: Optional[str] = None
+    chunk_version: Optional[str] = None      # RESERVED (P0.7): corpus-chunk vintage — stamped from Phase 3 (E4)
+    calibration_version: Optional[str] = None  # RESERVED (P0.7): probability-calibration vintage — from Phase 5 (M3)
     created_at: str
     payload: dict[str, Any]                  # the full immutable respond() dict — reproducible, forwardable
 
@@ -137,6 +156,8 @@ class TurnRecord(BaseModel):
     asof: Optional[str] = None
     sources: list[dict[str, Any]] = []       # citation refs only ({kind, ref, source, date}) — no evidence text
     graph_version: Optional[str] = None
+    chunk_version: Optional[str] = None      # RESERVED (P0.7): corpus-chunk vintage — stamped from Phase 3 (E4)
+    calibration_version: Optional[str] = None  # RESERVED (P0.7): probability-calibration vintage — from Phase 5 (M3)
     contract: Optional[str] = None
     contracts: list[str] = []
     intent: Optional[str] = None

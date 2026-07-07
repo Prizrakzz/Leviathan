@@ -352,15 +352,132 @@ def verifier_panel(traces: list[dict]) -> list[str]:
         for k, c in (v.get("by_rule") or {}).items():
             by[k] = by.get(k, 0) + c
     rules = ", ".join(f"{k} x{c}" for k, c in sorted(by.items(), key=lambda x: -x[1])) or "(none)"
+    total_strips = sum(v.get("stripped", 0) for v in vs)
+    total_claims = sum(v.get("claim_count", 0) for v in vs)          # sentence-claims (P7-P0.1 denominator)
+    total_handles = sum(v.get("checked", 0) for v in vs)
     return ["", "## Citation verifier (deterministic) — PRIMARY cross-run quality signal", "",
             "_Judge-free + credit-independent: the un-gameable measure of fabricated citation. Compare THIS "
             "across runs; judge-hallucination deltas under ~8/25 turns are within measured judge noise (RCA-561)._",
             "",
-            f"- handles checked: **{sum(v.get('checked', 0) for v in vs)}** | "
-            f"stripped: **{sum(v.get('stripped', 0) for v in vs)}** | "
+            f"- handles checked: **{total_handles}** | "
+            f"stripped: **{total_strips}** | "
             f"ledger dates corrected: {sum(v.get('corrected', 0) for v in vs)}",
+            f"- **strip RATE: {total_strips / max(1, total_claims):.4f}** "
+            f"(strips / {total_claims} sentence-claims; handle-rate "
+            f"{total_strips / max(1, total_handles):.4f}) — the baseline-v0 comparison metric",
             f"- violations by rule: {rules}",
             f"- answers with >=1 strip: {sum(1 for v in vs if v.get('stripped'))}/{len(vs)}"]
+
+
+def _is_slice_key(rel: str) -> bool:
+    """True iff a key path RELATIVE to the evidence base is a retrieval slice: a root `<node>.jsonl`
+    (commodity) or `drivers/<name>.jsonl`. Excludes chunks/ (doc cache), _raw/ (archives), eval/ (reports),
+    live_events/ and anything else under the shared prefix — those don't change what retrieval returns."""
+    if not rel.endswith(".jsonl"):
+        return False
+    head, _, tail = rel.partition("/")
+    return (not tail) or (head == "drivers" and "/" not in tail)
+
+
+def corpus_fingerprint() -> str:
+    """12-hex identity of the evidence corpus a run retrieved from (P7-P0.1 baseline axis, independent of
+    graph_version): S3 mode = ONE paginated LIST of the evidence base hashing every SLICE key+ETag (root
+    `<node>.jsonl` + `drivers/*.jsonl` only — no downloads, bounded, not a LIST storm; chunks/_raw/eval keys
+    are excluded so a doc-cache add or an eval report never flips it); local mode = slice filenames+sizes;
+    plus the driver_slices.yaml bytes (so an alias/term edit flips the fingerprint even when no slice bytes
+    moved). A slice rebuild or reroute flips THIS; a causal-YAML edit flips graph_version — the baseline
+    keys both. (P7-P2.0 fix: this used to list a non-existent `evidence/` subprefix, hashing zero slice keys
+    in S3 mode — a content rebuild was invisible.)"""
+    import hashlib
+    h = hashlib.sha256()
+    try:
+        s3uri = ev._evid_s3()
+        if s3uri:
+            import boto3
+            b, prefix = ev._parse_s3(s3uri.rstrip("/") + "/")
+            pag = boto3.client("s3").get_paginator("list_objects_v2")
+            for page in pag.paginate(Bucket=b, Prefix=prefix):
+                for o in page.get("Contents") or []:
+                    if _is_slice_key(o["Key"][len(prefix):]):
+                        h.update(f"{o['Key']}:{o.get('ETag', '')};".encode())
+        else:
+            for p in sorted(ev._EVID_DIR.glob("**/*.jsonl")):
+                rel = p.relative_to(ev._EVID_DIR).as_posix()
+                if _is_slice_key(rel):
+                    h.update(f"{rel}:{p.stat().st_size};".encode())
+        if ev._DRIVER_PATH.exists():
+            h.update(ev._DRIVER_PATH.read_bytes())
+    except Exception:  # noqa: BLE001 — a fingerprint failure must never break an eval run
+        return "unknown"
+    return h.hexdigest()[:12]
+
+
+def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool, eval_set: str,
+                   graph_version: str | None, corpus_fp: str, via_orchestrator: bool = False) -> dict:
+    """The machine-readable baseline artifact (P7-P0.1): per-answer strip/claim/leak/intent detail plus the
+    run-level reproducibility keys. `register_leaks` here is RESIDUAL (post-sanitize) leakage — the answer
+    body was already sanitized at synthesis; do not read it as raw pre-sanitize leakage."""
+    import datetime as _dt
+    import os as _os
+    per = []
+    for r in rows:
+        out = r.get("out") or {}
+        v = ((out.get("trace") or {}).get("citation_verifier")) or {}
+        if run_kind == "convos":
+            rid = f"{r.get('convo')}/{r.get('turn')}"                # convo rows have no single query id
+            intent_ok = (r.get("mech") or {}).get("intent_ok")
+        else:
+            rid = str((r.get("q") or {}).get("id"))
+            intent_ok = (r.get("rubric") or {}).get("intent_ok")
+        j = r.get("judge") or {}
+        per.append({"id": rid,
+                    "strips": v.get("stripped", 0),
+                    "claim_count": v.get("claim_count", 0),
+                    "handles_checked": v.get("checked", 0),
+                    "by_rule": v.get("by_rule") or {},
+                    "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
+                    "intent": out.get("intent"),
+                    "intent_ok": intent_ok,
+                    "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
+                                                "source_diversity", "continuity") if k in j} or None})
+    total_strips = sum(p["strips"] for p in per)
+    total_claims = sum(p["claim_count"] for p in per)
+    total_handles = sum(p["handles_checked"] for p in per)
+    return {"kind": f"baseline_{run_kind}",
+            "ts": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "eval_set": eval_set, "model": model,
+            "provider": _os.environ.get("GRAPHRAG_PROVIDER", "anthropic"),
+            "judged": judged, "graph_version": graph_version, "corpus_fingerprint": corpus_fp,
+            # which path the arm measured: True = the intent-branch serving path (intent 22/30 lives
+            # there); False = plain one-hop answer() (intent is never set — do not compare intents)
+            "via_orchestrator": via_orchestrator,
+            "n_answers": len(per),
+            "total_strips": total_strips, "total_claims": total_claims, "total_handles": total_handles,
+            "strip_rate": round(total_strips / max(1, total_claims), 6),
+            "handle_strip_rate": round(total_strips / max(1, total_handles), 6),
+            "register_leaks_total": sum(p["register_leaks"] for p in per),
+            "intent_ok": sum(1 for p in per if p["intent_ok"]),
+            "intent_n": sum(1 for p in per if p["intent_ok"] is not None),
+            "per_answer": per}
+
+
+def _write_baseline(doc: dict) -> None:
+    """Persist the baseline artifact locally (gitignored configs/graphrag/eval/) and — when EVIDENCE_S3 is
+    set — to s3://<EVIDENCE_S3>/eval/ (the durable copy; the local twin never reaches the public repo)."""
+    import json as _json
+    name = (f"baseline_{doc['eval_set']}_{doc['provider']}_"
+            f"{doc['ts'].replace('-', '').replace(':', '')}.json")
+    _OUT.mkdir(parents=True, exist_ok=True)
+    p = _OUT / name
+    p.write_text(_json.dumps(doc, indent=2), encoding="utf-8")
+    s3uri = ev._evid_s3()
+    if s3uri:
+        import boto3
+        b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/{name}")
+        boto3.client("s3").put_object(Bucket=b, Key=k, Body=p.read_bytes())
+        print(f"  baseline -> s3://{b}/{k}")
+    print(f"  baseline json -> {p} (strip_rate {doc['strip_rate']}, {doc['total_claims']} claims, "
+          f"leaks {doc['register_leaks_total']}, intent {doc['intent_ok']}/{doc['intent_n']})")
 
 
 def grounding_report(rows: list[dict]) -> list[str]:
@@ -703,6 +820,10 @@ def _convos_main(args, path) -> int:
         b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/report_convos_{Path(str(path)).stem}_{args.model}.md")
         boto3.client("s3").put_object(Bucket=b, Key=k, Body=out_path.read_bytes())
         print(f"  report -> s3://{b}/{k}")
+    _write_baseline(_baseline_json(rows, run_kind="convos", model=args.model, judged=args.judge,
+                                   eval_set=Path(str(path)).stem, graph_version=graph.version,
+                                   corpus_fp=corpus_fingerprint(),
+                                   via_orchestrator=True))     # convos always run orchestrator.respond
     mech_ok = sum(sum(bool(v) for v in r["mech"].values()) for r in rows)
     mech_n = sum(len(r["mech"]) for r in rows)
     print(f"convo eval: {len(convos)} convos / {len(rows)} turns; mechanics {mech_ok}/{mech_n} -> {out_path}")
@@ -781,6 +902,10 @@ def main() -> int:
         b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/report_{args.model}_{stem}.md")
         boto3.client("s3").put_object(Bucket=b, Key=k, Body=out_path.read_bytes())
         print(f"  report -> s3://{b}/{k}")
+    _write_baseline(_baseline_json(rows, run_kind="single", model=args.model, judged=args.judge,
+                                   eval_set=(Path(args.queries).stem if args.queries else "default"),
+                                   graph_version=graph.version, corpus_fp=corpus_fingerprint(),
+                                   via_orchestrator=args.via_orchestrator))
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     extra = ""
     if args.judge:

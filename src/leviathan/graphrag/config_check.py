@@ -106,11 +106,21 @@ def check_display_names() -> list[str]:
     return _cd()
 
 
+def check_driver_slices() -> list[str]:
+    """Driver-slice darkness lint (7-P2 W2) — every causal DAG driver id resolves to an evidence slice or
+    carries a waiver (hard), and no id is double-owned (hard). Topical-token drift is a separate advisory
+    (driver_slice_alias_warnings, printed as WARN, never fatal). Delegates to the evidence resolver so lint
+    and the runtime slice router agree by construction."""
+    from leviathan.graphrag.evidence import check_driver_slices as _cds
+    return _cds()
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
                         ("hierarchy", check_hierarchy()), ("geography", check_geography()),
-                        ("display_names", check_display_names())):
+                        ("display_names", check_display_names()),
+                        ("driver_slices", check_driver_slices())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")
@@ -118,6 +128,13 @@ def main() -> int:
                 print(f"  - {e}")
         else:
             print(f"PASS {label}")
+    # Advisory (non-fatal): topical-token near-misses a human reviews but that never fail the build.
+    from leviathan.graphrag.evidence import driver_slice_alias_warnings
+    warns = driver_slice_alias_warnings()
+    if warns:
+        print(f"WARN driver_slices ({len(warns)} topical near-misses — human-reviewed aliases, non-fatal):")
+        for w in warns:
+            print(f"  - {w}")
     return 1 if failures else 0
 
 

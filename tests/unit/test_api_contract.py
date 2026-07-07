@@ -134,3 +134,62 @@ def test_watchlist_crud(monkeypatch):
     assert len(items) == 1 and items[0]["id"] == wid and items[0]["contracts"] == ["corn", "arabica_coffee"]
     assert c.delete(f"/v1/watchlists/{wid}").json()["ok"] is True
     assert c.get("/v1/watchlists").json()["items"] == []
+
+
+# ── P7-P0.6/0.7: shared Receipt contract + provenance reservations ───────────────────────────────────
+def test_receipt_contract_roundtrips_all_kinds():
+    # The ONE shared receipt shape A5 (per-claim confidence) and M6 (probability receipts) both consume.
+    from leviathan.graphrag import api_models as M
+    ev = M.Receipt(kind="evidence", label="USDA PSD, Apr 2024", detail="snippet...")
+    an = M.Receipt(kind="analogue", label="7 of 30 analogue years", n=30, years=[1997, 2009, 2015])
+    nu = M.Receipt(kind="number", label="S/U 0.02", confidence=0.9)
+    assert ev.kind == "evidence" and an.n == 30 and an.years[0] == 1997 and nu.confidence == 0.9
+    with pytest.raises(Exception):
+        M.Receipt(kind="vibes", label="nope")                       # kind is enum-locked
+
+def test_turn_and_share_accept_reserved_provenance_fields():
+    # chunk_version / calibration_version are RESERVED — default None, accepted when populated.
+    from leviathan.graphrag import api_models as M
+    t = M.TurnRecord(question="q")
+    assert t.chunk_version is None and t.calibration_version is None
+    t2 = M.TurnRecord(question="q", chunk_version="c1abc", calibration_version="k9def")
+    assert t2.chunk_version == "c1abc" and t2.calibration_version == "k9def"
+    s = M.ShareSnapshot(id="x", question="q", created_at="2026-07-07", payload={})
+    assert s.chunk_version is None and s.calibration_version is None
+
+def test_receipt_reservation_is_openapi_zero_diff(monkeypatch):
+    # Reservation doctrine: an unreferenced model must NOT appear in the OpenAPI dump (=> no types.gen drift).
+    c = _client(monkeypatch)
+    spec = sv.app.openapi()
+    assert "Receipt" not in (spec.get("components", {}).get("schemas", {}))
+
+
+# ── P7-P0.3: identity auth on the read routes (no quota increment on reads) ──────────────────────────
+def test_read_routes_401_anon_when_auth_on(monkeypatch):
+    # With auth ON and no bearer, every regime/data read route refuses — the probability layer (M2/M6)
+    # must never land on an unauthenticated route (teardown CRITICAL #4).
+    c = _client(monkeypatch, lookup=_lookup())
+    monkeypatch.setenv("GRAPHRAG_AUTH", "on")
+    for path in ("/v1/graph/arabica_coffee", "/v1/convergence", "/v1/regimes/arabica_coffee",
+                 "/v1/series/silver_psd/ending_stocks_mt", "/v1/events"):
+        r = c.get(path)
+        assert r.status_code == 401, f"{path} -> {r.status_code} (expected 401 anon)"
+
+
+def test_read_routes_ok_when_auth_off(monkeypatch):
+    # Auth OFF (dev/eval/tests) stays a no-op: the identity dep resolves to the local user.
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    c = _client(monkeypatch, lookup=_lookup())
+    assert c.get("/v1/convergence").status_code == 200
+    assert c.get("/v1/regimes/arabica_coffee").status_code == 200
+    assert c.get("/v1/graph/arabica_coffee").status_code == 200
+
+
+def test_read_routes_use_identity_not_quota(monkeypatch):
+    # Read-heavy fetches must NOT burn the per-user daily respond quota: with a 1-turn quota set,
+    # repeated convergence reads still succeed (the quota dep is only on the respond routes).
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    monkeypatch.setenv("GRAPHRAG_TURN_QUOTA", "1")
+    c = _client(monkeypatch, lookup=_lookup())
+    for _ in range(3):
+        assert c.get("/v1/convergence").status_code == 200

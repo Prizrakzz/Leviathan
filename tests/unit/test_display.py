@@ -39,6 +39,25 @@ def test_all_regime_ids_reads_causal_dir():
     assert lens == sorted(lens, reverse=True)
 
 
+def test_node_label_driver_contract_and_override():
+    # driver id: de-underscore, PRESERVE token case (BRL/ENSO must not be title-cased)
+    assert dp.node_label("BlackSea_export_quota_war", "hazard") == "BlackSea export quota war"
+    assert dp.node_label("crude_oil", "demand") == "crude oil"
+    # contract/commodity: routed through the hierarchy ('{EXCH} {node}')
+    lbl = dp.node_label("soybeans_no_2_dce", "contract")
+    assert "_" not in lbl and lbl != "soybeans_no_2_dce"
+    # a curated nodes: override wins when present
+    if dp._nodes():
+        k = next(iter(dp._nodes()))
+        assert dp.node_label(k, "hazard") == dp._nodes()[k]
+
+
+def test_all_driver_ids_and_node_override_lint():
+    ids = dp.all_driver_ids()
+    assert "frost" in ids or len(ids) > 50            # real drivers across the DAGs
+    assert dp.check_display_names() == []             # every nodes: override (if any) is a real driver id
+
+
 def test_check_display_names_clean_every_regime_labelled():
     # the load-bearing guarantee: no causal regime lacks a label, no label is stale
     assert dp.check_display_names() == []
@@ -48,3 +67,26 @@ def test_curated_regime_set_matches_causal_exactly():
     curated = set(dp._regimes())
     causal = set(dp.all_regime_ids())
     assert curated == causal                                        # symmetric: no missing, no stale
+
+
+def test_all_driver_ids_includes_parent_only_ids(tmp_path, monkeypatch):
+    # P7-P0.4: a driver id referenced ONLY in a `parents:` list is a real DAG node; any lint built on
+    # all_driver_ids() (nodes: overrides, the driver-slice darkness lint) must see it. Synthetic fixture
+    # only -- public tests never embed real DAG content.
+    causal = tmp_path / "causal"
+    causal.mkdir()
+    (causal / "fixture.yaml").write_text(
+        "contract: test_contract\n"
+        "drivers:\n"
+        "- id: declared_driver\n"
+        "  parents: [parent_only_driver]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dp, "_CFG", tmp_path)
+    dp.all_driver_ids.cache_clear()
+    try:
+        ids = dp.all_driver_ids()
+        assert "declared_driver" in ids
+        assert "parent_only_driver" in ids                 # the P0.4 fix: parents are folded in
+    finally:
+        dp.all_driver_ids.cache_clear()                    # never leak the fixture cache to other tests
