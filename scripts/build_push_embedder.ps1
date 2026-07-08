@@ -29,6 +29,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Build context = THIS script's repo root, NEVER the caller's cwd. The old `docker build ... .` silently
+# packaged whatever tree the shell happened to sit in — on 2026-07-08 that baked a 4-commits-stale main-repo
+# src/ into :20260708c (:latest), crashing the chained census gate on a 6h shadow rebuild and nearly shipping
+# a serving image without the 6.5 route. Worktree-invoked builds now always package the worktree.
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+Write-Host "==> Build context: $RepoRoot" -ForegroundColor Cyan
+
 $EcrBase     = "${AccountId}.dkr.ecr.${Region}.amazonaws.com"
 $LatestImage = "${EcrBase}/${RepoName}:latest"
 $TaggedImage = "${EcrBase}/${RepoName}:${Tag}"
@@ -66,8 +73,8 @@ $ErrorActionPreference = "SilentlyContinue"
 docker build `
     @PlatformArgs `
     --tag $LatestImage `
-    --file docker/leviathan_embedder/Dockerfile `
-    . 2>&1
+    --file (Join-Path $RepoRoot "docker/leviathan_embedder/Dockerfile") `
+    $RepoRoot 2>&1
 $buildExit = $LASTEXITCODE
 $ErrorActionPreference = $prevEAP
 if ($buildExit -ne 0) { throw "docker build failed (exit $buildExit)" }
