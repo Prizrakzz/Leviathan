@@ -472,3 +472,18 @@ def test_current_chunk_version_str_or_none(monkeypatch):
     assert ev.current_chunk_version() is None                          # LIST/import-failure sentinel -> None
     monkeypatch.setattr(gev, "corpus_fingerprint", lambda: "")
     assert ev.current_chunk_version() is None                          # empty fingerprint -> None (omit stamp)
+
+
+# ══ S6 dating fix (cycle-2 W0a): _pub_date gains the wb_cmo `release=YYYY-MM` branch ═══════════════════════
+def test_pub_date_release_branch():
+    """wb_cmo props now date to the release month (day 1), not the year->Jan-1 fallback."""
+    assert ev._pub_date("text/source=wb_cmo_outlook/release=2020-05/document.json") == date(2020, 5, 1)
+
+
+def test_pub_date_release_branch_no_false_match():
+    """`release=` must NOT fire on `release_date=` (char after `release` there is `_`), nor on undated keys."""
+    assert ev._pub_date("text/source=usda_wasde/release_date=1973-09-17/d.json") is None
+    assert ev._pub_date("x/no_date/d.json") is None
+    # the two pre-existing branches still win their own formats
+    assert ev._pub_date("x/publication_date=20200515/d.json") == date(2020, 5, 15)
+    assert ev._pub_date("x/report_05-15-2021/d.json") == date(2021, 5, 15)

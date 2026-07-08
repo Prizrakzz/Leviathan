@@ -434,3 +434,38 @@ def test_skip_gate_idempotency_cached_doc_never_reenters_a_batch(monkeypatch):
     from leviathan.storage import s3 as st
     monkeypatch.setattr(st, "list_s3_keys", lambda *a, **k: [key])
     assert eb.select_docs(["usda_wasde"]) == []                    # cached key filtered out of the fill selection
+
+
+# ══ S6 dating fix (cycle-2 W0a): `release=YYYY-MM` keys (wb_cmo_outlook) become selectable ═════════════════
+def test_key_year_wb_cmo_now_dated():
+    """The wb_cmo blind spot: `release=YYYY-MM` yielded None (100% of 147 docs skipped by select_docs)."""
+    assert eb._key_year("text/source=wb_cmo_outlook/release=1994-11/document.json") == 1994
+
+
+def test_key_year_existing_formats_unchanged():
+    """Every pre-S6 key format parses byte-identically (the fix is purely additive)."""
+    assert eb._key_year("text/source=usda_wasde/release_date=1973-09-17/document.json") == 1973
+    assert eb._key_year("x/publication_date=20200515/document.json") == 2020
+    assert eb._key_year("x/crop_year=2019/document.json") == 2019
+    assert eb._key_year("x/release_month=200805/document.json") == 2008
+    # gain keys carry no year token in the key itself (dated by inner publication_date only)
+    assert eb._key_year("text/source=usda_gain_coffee/country=BR/no_year/document.json") is None
+
+
+def test_select_docs_now_sees_wb_cmo(monkeypatch):
+    """Pre-fix: y is None -> the era-filter `continue` dropped every wb_cmo doc. Post-fix it survives."""
+    from leviathan.storage import s3 as st
+    monkeypatch.setattr(st, "list_s3_keys",
+                        lambda *a, **k: ["text/source=wb_cmo_outlook/release=1999-05/document.json"])
+    assert eb.select_docs(["wb_cmo_outlook"], exclude_cached=False) == \
+        ["text/source=wb_cmo_outlook/release=1999-05/document.json"]
+
+
+def test_select_docs_era_filter_on_wb_cmo(monkeypatch):
+    """--before/--after era filters now apply to wb_cmo keys (before_year keeps year < N)."""
+    from leviathan.storage import s3 as st
+    monkeypatch.setattr(st, "list_s3_keys",
+                        lambda *a, **k: ["text/source=wb_cmo_outlook/release=1999-05/document.json",
+                                         "text/source=wb_cmo_outlook/release=2005-10/document.json"])
+    assert eb.select_docs(["wb_cmo_outlook"], before_year=2000, exclude_cached=False) == \
+        ["text/source=wb_cmo_outlook/release=1999-05/document.json"]

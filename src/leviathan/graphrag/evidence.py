@@ -156,6 +156,12 @@ def _pub_date(key: str) -> date | None:
             return date(int(m[3]), int(m[1]), int(m[2]))
         except ValueError:
             pass
+    m = re.search(r"release=(\d{4})-(\d{2})", key)                    # wb_cmo_outlook release=YYYY-MM (S6);
+    if m:                                                             # `release=` cannot fire on `release_date=`
+        try:                                                          # (the char after `release` there is `_`)
+            return date(int(m[1]), int(m[2]), 1)
+        except ValueError:
+            pass
     return None
 
 

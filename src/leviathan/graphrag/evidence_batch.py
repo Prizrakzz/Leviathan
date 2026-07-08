@@ -446,7 +446,8 @@ def rebuild_slices(*, backend: str | None = None, drivers: bool = True, tally: b
 
 
 # ── targeted doc-list fills (WS-MS7): chunk a specific set of docs, cache-aware ────────────
-_YEAR_RE = __import__("re").compile(r"(?:release_date|release_month|publication_date|year|crop_year)=(\d{4})")
+_YEAR_RE = __import__("re").compile(
+    r"(?:release_date|release_month|publication_date|year|crop_year|release)=(\d{4})")   # `release=` = wb_cmo (S6)
 
 
 def _key_year(key: str):
