@@ -130,7 +130,10 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 # CE pool = full fetch_k. MEASURED (2026-07-03 ablation, 18 serving retrieves x 10 v3 queries): 41.7% of
 # final picks under pool-60 come from fusion ranks 25-60 — the CE rescues deep candidates constantly, so
 # capping the pool materially changes retrieval. Speed comes from the rerank lock below, not the pool.
-RERANK_POOL = int(_pr.get("serving.retrieval.rerank_pool", 60))
+# GRAPHRAG_RERANK_POOL env overrides params (the Stage-L pool sweep varies 60/90/120 per eval arm without
+# an image rebuild per arm); unset -> params -> 60, byte-identical default.
+RERANK_POOL = int(os.environ.get("GRAPHRAG_RERANK_POOL")
+                  or _pr.get("serving.retrieval.rerank_pool", 60))
 _reranker = None
 _RERANK_LOCK = None                    # ONE rerank at a time, at full thread speed (see _bge_rerank_scores)
 
