@@ -129,11 +129,18 @@ def main() -> int:
         else:
             print(f"PASS {label}")
     # Advisory (non-fatal): topical-token near-misses a human reviews but that never fail the build.
-    from leviathan.graphrag.evidence import driver_slice_alias_warnings
+    from leviathan.graphrag.evidence import bare_name_warnings, driver_slice_alias_warnings
     warns = driver_slice_alias_warnings()
     if warns:
         print(f"WARN driver_slices ({len(warns)} topical near-misses — human-reviewed aliases, non-fatal):")
         for w in warns:
+            print(f"  - {w}")
+    # Advisory (non-fatal): a commodity node whose matcher misses its own bare head-commodity word (the C1
+    # coffee-bug class) — caught by lint, not by a billed shadow rebuild. Fix = one extra_terms line.
+    bare = bare_name_warnings()
+    if bare:
+        print(f"WARN bare_name ({len(bare)} nodes miss their own head-commodity word -- non-fatal):")
+        for w in bare:
             print(f"  - {w}")
     return 1 if failures else 0
 

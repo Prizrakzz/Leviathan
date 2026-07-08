@@ -701,6 +701,42 @@ def driver_slice_alias_warnings() -> list[str]:
     return warns
 
 
+# Bare tokens that are NOT commodity head-words: a node's matcher legitimately fails to fire on these and it
+# is NOT a vocabulary gap. Exchange grade codes (the 'wheat' head form covers the commodity), varietal/colour/
+# origin qualifiers (never a tradeable commodity on their own), and generic co-product/form words that another
+# surface form already covers OR that are exactly the bare-generic the urea->area over-fire law forbids adding.
+_BARE_NAME_BENIGN = frozenset({
+    "hrs", "hrw", "srw",                                      # exchange grade codes -> 'wheat' covers it
+    "white", "yellow", "raw", "french",                      # colour/origin qualifiers, not commodities alone
+    "oil", "meal", "juice", "soybean",                       # generic co-product/form words another form covers
+})
+
+
+def bare_name_warnings() -> list[str]:
+    """ADVISORY (non-fatal) bare-name sweep over all_nodes(): a commodity node whose OWN matcher
+    (build_matcher(match_forms(node))) fails to fire on its bare HEAD-commodity token has a vocabulary gap —
+    the corpus names the commodity generically ('coffee', 'sugar', 'palm') and the node never catches it (the
+    C1 coffee-bug class: 'arabica coffee' the spaced id never fires on bare 'coffee'). The fix is one line in
+    evidence_windows.yaml:extra_terms[node].
+
+    Only HEAD-commodity tokens are flagged. Benign classes are suppressed (see _BARE_NAME_BENIGN): grade codes
+    (hrs/hrw/srw), colour/origin qualifiers (white/yellow/raw/french) and generic co-product/form words
+    (oil/meal/juice/soybean) — each is either already covered by another surface form or is exactly the
+    bare-generic the urea->area over-fire law rejects. Empty == every node fires on its own head word.
+
+    Companion to driver_slice_alias_warnings(): both are non-fatal advisories surfaced by config_check.main so
+    this vocabulary-gap class is caught by lint, not by a billed shadow rebuild. Pure config read (all_nodes()
+    + the per-node match_forms + an in-memory matcher), no S3/network."""
+    warns: list[str] = []
+    for node in all_nodes():
+        matcher = hv.build_matcher(match_forms(node))
+        for tok in node.split("_"):
+            if tok and tok not in _BARE_NAME_BENIGN and not matcher.search(tok):
+                warns.append(f"node {node}: bare head-commodity word {tok!r} does not fire on its own "
+                             f"matcher -- add it to evidence_windows.yaml:extra_terms[{node}]")
+    return warns
+
+
 def driver_matchers() -> dict:
     """One on-topic matcher per driver slice (cached), built from each driver's terms."""
     global _DRIVER_MATCHERS

@@ -211,6 +211,47 @@ def test_cross_slice_duplicate_is_flagged(tmp_path, monkeypatch):
         _reset()
 
 
+# ── D5 bare-name sweep (Phase 7 E4) ──────────────────────────────────────────────────────────────────
+# bare_name_warnings() flags a commodity node whose OWN matcher misses its bare head-commodity word (the C1
+# coffee-bug class: 'arabica coffee' never fires on bare 'coffee'), while suppressing the benign grade-code/
+# qualifier/generic-form tokens. Hermetic: synthesize the node set + each node's alias/extra_terms surface
+# forms (so match_forms is fully fixture-determined); monkeypatch auto-undoes, no cache to leak.
+def _wire_nodes(monkeypatch, node_forms: dict):
+    """node_forms = {node_id: {"aliases": [...], "extra_terms": [...]}}. Drives all_nodes() + match_forms()."""
+    monkeypatch.setattr(ev, "all_nodes", lambda: sorted(node_forms))
+    monkeypatch.setattr(ev, "_aliases", lambda n: list(node_forms.get(n, {}).get("aliases", [])))
+    monkeypatch.setattr(ev, "_extra_terms", lambda n: list(node_forms.get(n, {}).get("extra_terms", [])))
+
+
+def test_bare_name_flags_missing_head_commodity_word(monkeypatch):
+    # 'arabica coffee' (the spaced id) + alias 'arabica' never fire on bare 'coffee' -> the real gap; the
+    # 'arabica' token DOES fire (via its alias) so only 'coffee' is flagged.
+    _wire_nodes(monkeypatch, {"arabica_coffee": {"aliases": ["arabica"], "extra_terms": []}})
+    warns = ev.bare_name_warnings()
+    assert len(warns) == 1
+    assert "arabica_coffee" in warns[0] and "'coffee'" in warns[0]
+    assert "extra_terms" in warns[0]                          # message points the reviewer at the one-line fix
+    assert warns[0].encode("ascii")                           # ASCII-safe (cp1252 stdout rule)
+
+
+def test_bare_name_clean_once_head_word_in_extra_terms(monkeypatch):
+    # the C1 fix: adding the bare word to extra_terms makes the node's matcher fire -> no warning.
+    _wire_nodes(monkeypatch, {"arabica_coffee": {"aliases": ["arabica"], "extra_terms": ["coffee"]}})
+    assert ev.bare_name_warnings() == []
+
+
+def test_bare_name_suppresses_benign_qualifiers_and_forms(monkeypatch):
+    # 'raw'/'french'/grade codes are qualifiers and 'oil'/'meal'/'juice' generic co-product forms -- a matcher
+    # miss on any of these is NOT a gap and must be suppressed (each covered by another form or bare-generic).
+    _wire_nodes(monkeypatch, {
+        "raw_sugar":  {"aliases": [], "extra_terms": ["sugar"]},   # 'raw' benign; 'sugar' fires
+        "palm_oil":   {"aliases": [], "extra_terms": ["palm"]},    # 'oil' benign; 'palm' fires
+        "hrs_wheat":  {"aliases": [], "extra_terms": ["wheat"]},   # 'hrs' grade code benign; 'wheat' fires
+        "orange_juice": {"aliases": ["orange"], "extra_terms": []},  # 'juice' benign; 'orange' fires via alias
+    })
+    assert ev.bare_name_warnings() == []
+
+
 def test_config_check_wrapper_delegates(tmp_path, monkeypatch):
     # the thin config_check.check_driver_slices() wrapper must call the evidence resolver (lint and the
     # runtime router agree by construction). Point both at a synthetic dark config and assert the flag surfaces.
