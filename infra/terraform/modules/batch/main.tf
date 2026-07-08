@@ -42,7 +42,10 @@ resource "aws_batch_compute_environment" "ondemand" {
 
   compute_resources {
     type      = "FARGATE"
-    max_vcpus = min(var.max_vcpus, 8)
+    # 16 (was 8): a 16-vCPU evidence rebuild must be placeable, and eval arms shouldn't serialize behind
+    # one 8-vCPU slot (2026-07-08 pool-sweep + rebuild-OOM lessons; applied live via
+    # update-compute-environment the same day -- this line mirrors that already-live value).
+    max_vcpus = min(var.max_vcpus, 16)
 
     subnets            = var.subnet_ids
     security_group_ids = var.security_group_ids
