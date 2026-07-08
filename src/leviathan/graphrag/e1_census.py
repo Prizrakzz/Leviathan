@@ -119,6 +119,53 @@ def _slice_names_on_disk() -> set[str]:
     return {p.stem for p in d.glob("*.jsonl")} if d.exists() else set()
 
 
+# ── era (facet-thinness) helpers ──────────────────────────────────────────────────────────────────────
+# A thick slice hollow in a historical era is what the analogue engine cannot serve. The era histogram is
+# derived from the SAME load_index records slice_census already loads (ZERO new S3 GETs). event_date (the
+# date the prop is ABOUT) is preferred over date (publication) for the bucket; unparseable / future years
+# fall to "undated" -- a data-quality note, never an era gap (so undated never triggers thin_eras).
+_ERAS = ("pre1990", "1990s", "2000s", "2010_17", "2018_26", "undated")
+_REAL_ERAS = _ERAS[:5]                                         # the five datable eras (undated excluded)
+THICK_MIN = 100                                               # only slices with >= this many props are judged
+THIN_MAX = 10                                                 # a real era below this in a thick slice = a gap
+
+
+def _era_of(rec: dict) -> str:
+    """Bucket one prop record by era. event_date first, else date; unparseable or year > 2026 -> 'undated'."""
+    raw = rec.get("event_date") or rec.get("date")
+    try:
+        year = int(str(raw)[:4])
+    except (TypeError, ValueError):
+        return "undated"
+    if year < 1990:
+        return "pre1990"
+    if year <= 1999:
+        return "1990s"
+    if year <= 2009:
+        return "2000s"
+    if year <= 2017:
+        return "2010_17"
+    if year <= 2026:
+        return "2018_26"
+    return "undated"                                          # future year -> data-quality note, not an era
+
+
+def _era_hist(recs: list[dict]) -> dict:
+    """Per-era record count over loaded props; ALL SIX era keys explicit (zero-count eras included)."""
+    h = {e: 0 for e in _ERAS}
+    for rec in recs:
+        h[_era_of(rec)] += 1
+    return h
+
+
+def _thin_eras(n_props: int, hist: dict) -> list[str]:
+    """Thickness-gated gap flag: [] unless the slice is thick (>= THICK_MIN props); else the REAL eras
+    (undated excluded) below THIN_MAX, in chronological order. A small slice being sparse is not a gap."""
+    if n_props < THICK_MIN:
+        return []
+    return [e for e in _REAL_ERAS if hist[e] < THIN_MAX]
+
+
 def slice_census(alias_map: dict, all_ids, spec_names, disk_names: set[str]) -> list[dict]:
     """One record per driver slice (a `drivers:` spec name UNION an on-disk drivers/<name>.jsonl):
       n_dag_ids  -- how many REAL DAG ids route here, from the {dag_id -> slice} alias_map inversion
@@ -142,7 +189,10 @@ def slice_census(alias_map: dict, all_ids, spec_names, disk_names: set[str]) -> 
     out: list[dict] = []
     for name in sorted(set(spec_names) | disk_names):
         n_ids = inv.get(name, 0)
-        n_props = len(ev.load_index(f"drivers/{name}")) if name in disk_names else 0
+        recs = ev.load_index(f"drivers/{name}") if name in disk_names else []  # the ONE GET per slice
+        n_props = len(recs)
+        era_hist = _era_hist(recs)                            # derived from the SAME load -- no extra GET
+        thin_eras = _thin_eras(n_props, era_hist)             # [] unless the slice is thick (>= THICK_MIN)
         consumed = n_ids >= 1 and n_props >= 1
         if consumed:
             orphan_kind = None
@@ -153,7 +203,8 @@ def slice_census(alias_map: dict, all_ids, spec_names, disk_names: set[str]) -> 
         else:
             orphan_kind = "empty"
         out.append({"slice": name, "n_dag_ids": n_ids, "n_routed_props": n_props,
-                    "consumed": consumed, "orphan_kind": orphan_kind})
+                    "consumed": consumed, "orphan_kind": orphan_kind,
+                    "era_hist": era_hist, "thin_eras": thin_eras})
     return out
 
 
@@ -163,7 +214,8 @@ def slice_totals(recs: list[dict]) -> dict:
         if r["orphan_kind"]:
             by_kind[r["orphan_kind"]] = by_kind.get(r["orphan_kind"], 0) + 1
     return {"n_slices": len(recs), "n_consumed": sum(1 for r in recs if r["consumed"]),
-            "n_orphan": sum(1 for r in recs if not r["consumed"]), "orphan_by_kind": by_kind}
+            "n_orphan": sum(1 for r in recs if not r["consumed"]), "orphan_by_kind": by_kind,
+            "n_thick_with_thin_eras": sum(1 for r in recs if r.get("thin_eras"))}
 
 
 # ── assembly ────────────────────────────────────────────────────────────────────────────────────────
@@ -204,11 +256,30 @@ def _md(doc: dict) -> str:
           f"- **slices:** {st['n_slices']} | **consumed:** {st['n_consumed']} | "
           f"**orphan:** {st['n_orphan']}",
           f"- orphan split: {st['orphan_by_kind']} "
-          "(retire = props but no id routes here; keep = routed but empty -> build, never retire)", "",
+          "(retire = props but no id routes here; keep = routed but empty -> build, never retire)",
+          f"- **thick slices with historical-era gaps:** {st.get('n_thick_with_thin_eras', 0)} "
+          "(see Facet thinness below)", "",
           "| slice | #dag_ids | #props | consumed | orphan |", "|---|--|--|--|--|"]
     for r in doc["slices"]:
         L.append(f"| {r['slice']} | {r['n_dag_ids']} | {r['n_routed_props']} | "
                  f"{'y' if r['consumed'] else 'n'} | {r['orphan_kind'] or ''} |")
+
+    # Facet thinness: thick slices (>= THICK_MIN props) that are hollow (< THIN_MAX) in >=1 REAL era -- the
+    # analogue-serving gaps. undated is never a thin era (data-quality note), so it is a display column only.
+    thin = [r for r in doc["slices"] if r.get("thin_eras")]
+    L += ["", "## Facet thinness (thick slices with historical-era gaps)", "",
+          f"- gate: THICK_MIN={THICK_MIN} props to be judged, THIN_MAX={THIN_MAX} props per real era "
+          "(undated excluded -- a data-quality note, not an era gap)", ""]
+    if thin:
+        L += ["| slice | #props | pre1990 | 1990s | 2000s | 2010_17 | 2018_26 | undated | thin eras |",
+              "|---|--|--|--|--|--|--|--|--|"]
+        for r in thin:
+            h = r["era_hist"]
+            L.append(f"| {r['slice']} | {r['n_routed_props']} | {h['pre1990']} | {h['1990s']} | "
+                     f"{h['2000s']} | {h['2010_17']} | {h['2018_26']} | {h['undated']} | "
+                     f"{', '.join(r['thin_eras'])} |")
+    else:
+        L.append("- none (no thick slice has a sub-threshold real era)")
 
     retire = [r["slice"] for r in doc["slices"] if r["orphan_kind"] == "retire"]
     keep = [r["slice"] for r in doc["slices"] if r["orphan_kind"] == "keep"]

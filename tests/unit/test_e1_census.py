@@ -173,6 +173,137 @@ def test_write_emits_json_and_ascii_md(tmp_path, monkeypatch):
         _reset()
 
 
+# ── era classifier / facet-thinness (pure, hermetic — no S3/disk) ─────────────────────────────────────
+def test_era_of_boundary_years():
+    # every inclusive boundary of the six buckets, driven off the 'date' key (event_date absent).
+    cases = {
+        1989: "pre1990", 1990: "1990s", 1999: "1990s",
+        2000: "2000s", 2009: "2000s", 2010: "2010_17",
+        2017: "2010_17", 2018: "2018_26", 2026: "2018_26",
+        2027: "undated",                                      # a year > 2026 -> data-quality note, not an era
+    }
+    for year, era in cases.items():
+        assert ec._era_of({"date": f"{year}-06-15"}) == era, year
+
+
+def test_era_of_none_and_garbage_are_undated():
+    assert ec._era_of({"date": None, "event_date": None}) == "undated"
+    assert ec._era_of({"date": "not-a-year"}) == "undated"
+    assert ec._era_of({}) == "undated"                        # neither key present
+
+
+def test_era_of_event_date_overrides_date():
+    # event_date (what the prop is ABOUT) wins over date (publication) when present.
+    assert ec._era_of({"event_date": "1985-03-01", "date": "2020-01-01"}) == "pre1990"
+
+
+def test_era_of_event_date_none_falls_back_to_date():
+    assert ec._era_of({"event_date": None, "date": "2005-07-01"}) == "2000s"
+
+
+def test_era_hist_has_all_six_keys_with_explicit_zeros():
+    recs = [{"date": "2019-01-01"}, {"event_date": "2020-01-01"}, {"date": "bad"}]
+    h = ec._era_hist(recs)
+    assert h == {"pre1990": 0, "1990s": 0, "2000s": 0, "2010_17": 0, "2018_26": 2, "undated": 1}
+    assert set(h) == set(ec._ERAS)                            # zero-count eras are still present
+
+
+def test_thin_eras_empty_when_slice_below_thick_min():
+    # a small slice (< THICK_MIN) that is hollow everywhere is NOT judged -> thin_eras == [].
+    hollow = {e: 0 for e in ec._ERAS}
+    assert ec._thin_eras(ec.THICK_MIN - 1, hollow) == []
+
+
+def test_thin_eras_flags_only_sub_threshold_real_eras_in_order():
+    # thick slice hollow in pre1990 (0) and 1990s (5, < THIN_MAX); other real eras healthy; undated large.
+    hist = {"pre1990": 0, "1990s": 5, "2000s": 120, "2010_17": 200, "2018_26": 175, "undated": 90}
+    assert ec._thin_eras(150, hist) == ["pre1990", "1990s"]   # chronological, undated excluded
+
+
+def test_thin_eras_never_includes_undated():
+    # undated below THIN_MAX must NOT flag; a thick slice with all REAL eras healthy has no thin eras.
+    hist = {"pre1990": 50, "1990s": 50, "2000s": 50, "2010_17": 50, "2018_26": 50, "undated": 0}
+    assert ec._thin_eras(250, hist) == []
+
+
+def test_slice_totals_counts_thick_with_thin_eras():
+    recs = [
+        {"consumed": True, "orphan_kind": None, "thin_eras": ["pre1990"]},
+        {"consumed": True, "orphan_kind": None, "thin_eras": ["1990s", "2000s"]},
+        {"consumed": True, "orphan_kind": None, "thin_eras": []},          # thick but no gap
+        {"consumed": False, "orphan_kind": "retire", "thin_eras": []},     # thin slice, not judged
+    ]
+    st = ec.slice_totals(recs)
+    assert st["n_thick_with_thin_eras"] == 2
+    assert st["n_slices"] == 4 and st["n_consumed"] == 3      # existing keys intact
+
+
+def _slice_dated(evdir, name, era_counts):
+    """Write drivers/<name>.jsonl with records carrying event_date years, so the census era histogram is
+    exercised end-to-end. era_counts maps a representative year -> count."""
+    import json as _json
+    d = evdir / "drivers"
+    d.mkdir(exist_ok=True)
+    lines = []
+    for year, n in era_counts.items():
+        for _ in range(n):
+            lines.append(_json.dumps({"event_date": f"{year}-06-01", "date": f"{year}-06-01", "text": "x"}))
+    (d / f"{name}.jsonl").write_text("\n".join(lines), encoding="utf-8")
+
+
+def test_slice_census_emits_era_hist_and_thin_eras_end_to_end(tmp_path, monkeypatch):
+    evdir = _wire(monkeypatch, tmp_path, causal_yaml=_CAUSAL, driver_yaml=_DRIVERS)
+    try:
+        # exact_slice: THICK (120 props) but hollow pre-2000 -> thin_eras pre1990 + 1990s; zero-count 2000s.
+        _slice_dated(evdir, "exact_slice", {2019: 100, 2015: 20})
+        # orphan_corpus: thin slice (< THICK_MIN) -> era_hist present but thin_eras == [] (not judged).
+        _slice_dated(evdir, "orphan_corpus", {2019: 10})
+        doc = ec.census()
+        by = {r["slice"]: r for r in doc["slices"]}
+
+        assert by["exact_slice"]["n_routed_props"] == 120
+        assert by["exact_slice"]["era_hist"] == {
+            "pre1990": 0, "1990s": 0, "2000s": 0, "2010_17": 20, "2018_26": 100, "undated": 0}
+        assert by["exact_slice"]["thin_eras"] == ["pre1990", "1990s", "2000s"]
+
+        assert by["orphan_corpus"]["n_routed_props"] == 10
+        assert by["orphan_corpus"]["thin_eras"] == []         # sub-threshold slice is never judged
+        assert by["orphan_corpus"]["era_hist"]["2018_26"] == 10
+
+        assert doc["slice_totals"]["n_thick_with_thin_eras"] == 1
+    finally:
+        _reset()
+
+
+def test_facet_thinness_md_section_renders_ascii(tmp_path, monkeypatch):
+    evdir = _wire(monkeypatch, tmp_path, causal_yaml=_CAUSAL, driver_yaml=_DRIVERS)
+    out = tmp_path / "eval"
+    monkeypatch.setattr(ec, "_OUT", out)
+    try:
+        _slice_dated(evdir, "exact_slice", {2019: 120})       # thick, hollow in every historical era
+        doc = ec.census()
+        md = ec._md(doc)
+        header = "## Facet thinness (thick slices with historical-era gaps)"
+        assert header in md
+        start = md.index(header)
+        end = md.index("## Work items", start)                # bound to just the facet section (next header)
+        section = md[start:end]
+        section.encode("ascii")                               # its literals are ASCII (cp1252-safe report path)
+        assert "exact_slice" in section and "pre1990" in section
+    finally:
+        _reset()
+
+
+def test_facet_thinness_md_none_when_no_thick_gap(tmp_path, monkeypatch):
+    evdir = _wire(monkeypatch, tmp_path, causal_yaml=_CAUSAL, driver_yaml=_DRIVERS)
+    try:
+        _slice_dated(evdir, "orphan_corpus", {2019: 5})       # only a thin slice -> no thick gap
+        md = ec._md(ec.census())
+        assert "none (no thick slice has a sub-threshold real era)" in md
+    finally:
+        _reset()
+
+
 def test_summary_lines_are_ascii(tmp_path, monkeypatch):
     _wire(monkeypatch, tmp_path, causal_yaml=_CAUSAL, driver_yaml=_DRIVERS)
     try:
