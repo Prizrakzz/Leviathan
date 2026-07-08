@@ -193,3 +193,65 @@ def test_read_routes_use_identity_not_quota(monkeypatch):
     c = _client(monkeypatch, lookup=_lookup())
     for _ in range(3):
         assert c.get("/v1/convergence").status_code == 200
+
+
+# ── 6.5 click-to-page route (GET /v1/citation/pdf) — auth + kill-switch + shape (resolver mocked) ────
+def _mock_resolver(monkeypatch, fn):
+    from leviathan.graphrag import pdfpage
+    monkeypatch.setattr(pdfpage, "resolve_pdf_page", fn)
+
+
+def test_citation_pdf_401_anon_when_auth_on(monkeypatch):
+    # Read-route auth (P0.3): the click-to-page endpoint refuses an anonymous caller when auth is on.
+    c = _client(monkeypatch)
+    monkeypatch.setenv("GRAPHRAG_AUTH", "on")
+    assert c.get("/v1/citation/pdf", params={"source_key": "text/x/document.json"}).status_code == 401
+
+
+def test_citation_pdf_404_when_killswitch_off(monkeypatch):
+    # GRAPHRAG_PDF_LINKS=off -> 404 (FE hides the affordance); the resolver is never even reached.
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    monkeypatch.setenv("GRAPHRAG_PDF_LINKS", "off")
+    _mock_resolver(monkeypatch, lambda *a, **k: (_ for _ in ()).throw(AssertionError("resolver called w/ switch off")))
+    c = _client(monkeypatch)
+    assert c.get("/v1/citation/pdf", params={"source_key": "text/x/document.json"}).status_code == 404
+
+
+def test_citation_pdf_200_shape_with_mocked_resolver(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    monkeypatch.setenv("GRAPHRAG_PDF_LINKS", "on")
+    seen = {}
+
+    def fake(source_key, snippet=None, char_start=None, offset_kind=None):
+        seen.update(source_key=source_key, snippet=snippet, char_start=char_start, offset_kind=offset_kind)
+        return {"url": "https://s3.example/doc.pdf?e=900", "page": 4, "kind": "pdf", "expires_in": 900}
+
+    _mock_resolver(monkeypatch, fake)
+    c = _client(monkeypatch)
+    r = c.get("/v1/citation/pdf", params={"source_key": "text/s/document.json", "snippet": "frost",
+                                          "char_start": 12, "offset_kind": "exact"})
+    assert r.status_code == 200
+    assert r.json() == {"url": "https://s3.example/doc.pdf?e=900", "page": 4, "kind": "pdf", "expires_in": 900}
+    assert seen == {"source_key": "text/s/document.json", "snippet": "frost", "char_start": 12,
+                    "offset_kind": "exact"}                       # query params flow through verbatim
+
+
+def test_citation_pdf_404_when_document_missing(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    from leviathan.graphrag import pdfpage
+
+    def fake(*a, **k):
+        raise pdfpage.PdfDocumentMissing("gone")
+
+    _mock_resolver(monkeypatch, fake)
+    c = _client(monkeypatch)
+    assert c.get("/v1/citation/pdf", params={"source_key": "text/gone/document.json"}).status_code == 404
+
+
+def test_citation_pdf_never_500_on_resolver_error(monkeypatch):
+    # Belt+braces: even an unexpected resolver exception degrades to a 200 page-null shape, never a 500.
+    monkeypatch.delenv("GRAPHRAG_AUTH", raising=False)
+    _mock_resolver(monkeypatch, lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    c = _client(monkeypatch)
+    r = c.get("/v1/citation/pdf", params={"source_key": "text/s/document.json"})
+    assert r.status_code == 200 and r.json()["page"] is None

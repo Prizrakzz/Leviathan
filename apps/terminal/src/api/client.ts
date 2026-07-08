@@ -106,6 +106,35 @@ export function putProfile(update: ProfileUpdate): Promise<Profile> {
   return putJSON(`/v1/profile`, update);
 }
 
+// ── 6.5 PDF click-to-page (auth rides authHeaders via getJSON; gated server-side by GRAPHRAG_PDF_LINKS) ──
+/** The resolved source-PDF pointer: a presigned URL (~900s), the 1-indexed `page` the cited passage was
+ *  found on (`null` when it couldn't be localized — the modal opens at the top), the raw `kind`
+ *  (pdf/html/txt), and the presign TTL. Mirrors the backend `CitationPdf` model. */
+export interface PdfPage {
+  url: string;
+  page: number | null;
+  kind: string;
+  expires_in: number;
+}
+
+/** Resolve a citation's source PDF + page. `snippet`/`charStart`/`offsetKind` come off the chip's doc
+ *  locator (6.5): a char offset resolves an EXACT page for new/E4 props, the snippet drives server-side
+ *  fuzzy-match for legacy props. `VITE_MOCK=1` routes to the in-repo mock. The kill-switch 404s when off;
+ *  the rejection surfaces to the modal's error state (which keeps the raw-download escape). */
+export function getPdfPage(
+  sourceKey: string,
+  snippet?: string,
+  charStart?: number,
+  offsetKind?: string,
+): Promise<PdfPage> {
+  if (MOCK) return import('./mock').then((m) => m.mockGetPdfPage(sourceKey, snippet, charStart, offsetKind));
+  const p = new URLSearchParams({ source_key: sourceKey });
+  if (snippet) p.set('snippet', snippet);
+  if (charStart != null) p.set('char_start', String(charStart));
+  if (offsetKind) p.set('offset_kind', offsetKind);
+  return getJSON(`/v1/citation/pdf?${p.toString()}`);
+}
+
 // ── 6.2 query suggester (decoupled; fired once per completed turn / thread start) ──────────────────
 export type SuggestPacket = Schemas['SuggestRequest'];
 

@@ -48,3 +48,54 @@ describe('resolvedFor (6.4 unified live + durable)', () => {
     expect(m['N1']?.locator?.table).toBe('silver_psd'); // number provenance for the popover
   });
 });
+
+describe('resolvedFor doc locator (6.5 click-to-page)', () => {
+  it('emits a doc locator {kind, source_key, snippet} for a structured source with a source_key', () => {
+    const turn = {
+      structured: { sources: [{ ref: 1, source: 'USDA WASDE', date: '2022-01-01', source_key: 's3://w/1' }] },
+      sources: [{ id: 'E1', kind: 'evidence', locator: { source_key: 's3://w/1', snippet: 'stocks thin' } }],
+    };
+    const loc = resolvedFor(turn)['1']?.locator;
+    expect(loc?.kind).toBe('doc');
+    expect(loc?.source_key).toBe('s3://w/1');
+    expect(loc?.snippet).toBe('stocks thin'); // the resolved snippet flows into the locator
+  });
+
+  it('passes char_start/offset_kind through WHEN the source carries them (D1 exact page)', () => {
+    const turn = {
+      structured: { sources: [{ ref: 1, source: 'GAIN', source_key: 's3://g/1', char_start: 4096, offset_kind: 'exact' }] },
+      sources: [{ id: 'E1', kind: 'evidence', locator: { source_key: 's3://g/1', snippet: 'frost' } }],
+    };
+    const loc = resolvedFor(turn)['1']?.locator;
+    expect(loc?.char_start).toBe(4096);
+    expect(loc?.offset_kind).toBe('exact');
+  });
+
+  it('OMITS char_start/offset_kind when the source lacks them (legacy props, defensive)', () => {
+    const turn = {
+      structured: { sources: [{ ref: 1, source: 'GAIN', source_key: 's3://g/1' }] },
+      sources: [{ id: 'E1', kind: 'evidence', locator: { source_key: 's3://g/1', snippet: 'frost' } }],
+    };
+    const loc = resolvedFor(turn)['1']?.locator ?? {};
+    expect(loc.kind).toBe('doc');
+    expect('char_start' in loc).toBe(false);
+    expect('offset_kind' in loc).toBe(false);
+  });
+
+  it('a number ref keeps its number locator even when its source has a source_key (precedence)', () => {
+    const turn = {
+      structured: { sources: [{ ref: 'N1', source: 'USDA PSD', source_key: 's3://n/1' }] },
+      citations: [{ id: 'N1', kind: 'number', locator: { kind: 'number', table: 'silver_psd', commodity: 'corn' } }],
+    };
+    const loc = resolvedFor(turn)['N1']?.locator;
+    expect(loc?.kind).toBe('number'); // number wins over the doc locator
+    expect(loc?.table).toBe('silver_psd');
+  });
+
+  it('no source_key → no locator (unchanged for number-less, key-less refs)', () => {
+    const turn = {
+      structured: { sources: [{ ref: 1, source: 'A wire report', date: '2022-01-01' }] },
+    };
+    expect(resolvedFor(turn)['1']?.locator).toBeUndefined();
+  });
+});

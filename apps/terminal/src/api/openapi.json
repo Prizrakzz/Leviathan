@@ -198,6 +198,22 @@
               ],
               "title": "Asof"
             }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -243,6 +259,22 @@
                 }
               ],
               "title": "Asof"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -298,6 +330,22 @@
                 }
               ],
               "title": "Asof"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -395,6 +443,22 @@
               ],
               "title": "Asof"
             }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -457,6 +521,22 @@
               ],
               "title": "Asof"
             }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
@@ -466,6 +546,110 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventsFeed"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/citation/pdf": {
+      "get": {
+        "summary": "Citation Pdf Route",
+        "description": "Resolve a document citation's `locator` (source_key + optional snippet/char_start/offset_kind) to a\npresigned source-PDF url + the best 1-indexed page (6.5). Identity-gated like the other read routes.\nKill-switch `GRAPHRAG_PDF_LINKS` (default ON, mirroring GRAPHRAG_SUGGEST) -> 404 when off, so the FE hides\nthe affordance with no redeploy. Never 500: a resolver miss degrades to page=null with the url still set;\na MISSING document.json is the only 404 the resolver itself triggers.",
+        "operationId": "citation_pdf_route_v1_citation_pdf_get",
+        "parameters": [
+          {
+            "name": "source_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Key"
+            }
+          },
+          {
+            "name": "snippet",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Snippet"
+            }
+          },
+          {
+            "name": "char_start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Char Start"
+            }
+          },
+          {
+            "name": "offset_kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Offset Kind"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationPdf"
                 }
               }
             }
@@ -1314,6 +1498,41 @@
         ],
         "title": "Ask"
       },
+      "CitationPdf": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "kind",
+          "expires_in"
+        ],
+        "title": "CitationPdf",
+        "description": "The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,\nthe best-guess 1-indexed `page` (null when unresolvable -- the modal opens at the top with a 'page unknown'\nbanner), the raw doc `kind` (pdf/html/txt/other) so the FE picks a viewer, and the presign TTL in seconds.\nNever an error shape -- a resolver miss degrades to page=null with the url still set; the route 404s ONLY\nwhen the document.json itself is gone (or the GRAPHRAG_PDF_LINKS kill-switch is off)."
+      },
       "ConvergenceMatrix": {
         "properties": {
           "asof": {
@@ -2043,6 +2262,28 @@
             ],
             "title": "Graph Version"
           },
+          "chunk_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Version"
+          },
+          "calibration_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibration Version"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -2235,6 +2476,28 @@
               }
             ],
             "title": "Graph Version"
+          },
+          "chunk_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Version"
+          },
+          "calibration_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibration Version"
           },
           "contract": {
             "anyOf": [

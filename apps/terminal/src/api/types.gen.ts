@@ -140,6 +140,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/citation/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Citation Pdf Route
+         * @description Resolve a document citation's `locator` (source_key + optional snippet/char_start/offset_kind) to a
+         *     presigned source-PDF url + the best 1-indexed page (6.5). Identity-gated like the other read routes.
+         *     Kill-switch `GRAPHRAG_PDF_LINKS` (default ON, mirroring GRAPHRAG_SUGGEST) -> 404 when off, so the FE hides
+         *     the affordance with no redeploy. Never 500: a resolver miss degrades to page=null with the url still set;
+         *     a MISSING document.json is the only 404 the resolver itself triggers.
+         */
+        get: operations["citation_pdf_route_v1_citation_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/suggest": {
         parameters: {
             query?: never;
@@ -361,6 +385,24 @@ export interface components {
             session_id?: string | null;
             /** Asof */
             asof?: string | null;
+        };
+        /**
+         * CitationPdf
+         * @description The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,
+         *     the best-guess 1-indexed `page` (null when unresolvable -- the modal opens at the top with a 'page unknown'
+         *     banner), the raw doc `kind` (pdf/html/txt/other) so the FE picks a viewer, and the presign TTL in seconds.
+         *     Never an error shape -- a resolver miss degrades to page=null with the url still set; the route 404s ONLY
+         *     when the document.json itself is gone (or the GRAPHRAG_PDF_LINKS kill-switch is off).
+         */
+        CitationPdf: {
+            /** Url */
+            url: string;
+            /** Page */
+            page?: number | null;
+            /** Kind */
+            kind: string;
+            /** Expires In */
+            expires_in: number;
         };
         /** ConvergenceMatrix */
         ConvergenceMatrix: {
@@ -639,6 +681,10 @@ export interface components {
             asof?: string | null;
             /** Graph Version */
             graph_version?: string | null;
+            /** Chunk Version */
+            chunk_version?: string | null;
+            /** Calibration Version */
+            calibration_version?: string | null;
             /** Created At */
             created_at: string;
             /** Payload */
@@ -718,6 +764,10 @@ export interface components {
             }[];
             /** Graph Version */
             graph_version?: string | null;
+            /** Chunk Version */
+            chunk_version?: string | null;
+            /** Calibration Version */
+            calibration_version?: string | null;
             /** Contract */
             contract?: string | null;
             /**
@@ -851,7 +901,9 @@ export interface operations {
             query?: {
                 asof?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path: {
                 contract: string;
             };
@@ -884,7 +936,9 @@ export interface operations {
             query?: {
                 asof?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -915,7 +969,9 @@ export interface operations {
             query?: {
                 asof?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path: {
                 contract: string;
             };
@@ -950,7 +1006,9 @@ export interface operations {
                 country?: string | null;
                 asof?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path: {
                 table: string;
                 metric: string;
@@ -985,7 +1043,9 @@ export interface operations {
                 contract?: string | null;
                 asof?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -998,6 +1058,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventsFeed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    citation_pdf_route_v1_citation_pdf_get: {
+        parameters: {
+            query: {
+                source_key: string;
+                snippet?: string | null;
+                char_start?: number | null;
+                offset_kind?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationPdf"];
                 };
             };
             /** @description Validation Error */

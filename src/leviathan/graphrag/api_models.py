@@ -188,6 +188,19 @@ class SuggestResponse(BaseModel):
     suggestions: list[str] = []
 
 
+# ── 6.5 click-to-page (GET /v1/citation/pdf) ────────────────────────────────────────────────────────
+class CitationPdf(BaseModel):
+    """The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,
+    the best-guess 1-indexed `page` (null when unresolvable -- the modal opens at the top with a 'page unknown'
+    banner), the raw doc `kind` (pdf/html/txt/other) so the FE picks a viewer, and the presign TTL in seconds.
+    Never an error shape -- a resolver miss degrades to page=null with the url still set; the route 404s ONLY
+    when the document.json itself is gone (or the GRAPHRAG_PDF_LINKS kill-switch is off)."""
+    url: str
+    page: Optional[int] = None
+    kind: str
+    expires_in: int
+
+
 # ── 6.6 settings / profile facts / onboarding (design §6.6) ─────────────────────────────────────────
 class Profile(BaseModel):
     """The signed-in user's own profile (auth-gated GET /v1/profile). Identity claims (name/email) mirror

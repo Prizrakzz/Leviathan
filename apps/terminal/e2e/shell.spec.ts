@@ -47,3 +47,24 @@ test('shell is keyboard-operable and streams a mocked turn', async ({ page }) =>
   await page.keyboard.press('?');
   await expect(page.getByTestId('shortcuts')).toBeVisible();
 });
+
+// 6.5: a cited receipts row carries a "pdf" affordance that opens the source in the lazy pdf.js modal.
+// The mock resolves a data-url doc (an empty-doc-safe value), so we assert the modal MOUNTS — the page
+// raster itself is a browser concern, not part of this wiring smoke.
+test('a receipts row opens the source PDF in the pdf.js modal', async ({ page }) => {
+  await page.goto('/app');
+  const cmd = page.getByRole('textbox', { name: 'command' });
+  await cmd.fill('KC frost 2021');
+  await cmd.press('Enter');
+
+  await expect(page.getByTestId('note')).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId('note').click(); // blur the command bar so `e` is a hotkey
+  await page.keyboard.press('e');
+  await expect(page.getByTestId('receipts')).toBeVisible();
+
+  // the first cited row (it carries a source_key) exposes the pdf affordance → the modal mounts lazily
+  await page.getByRole('button', { name: /pdf/i }).first().click();
+  await expect(page.getByTestId('pdf')).toBeVisible();
+  await page.getByRole('button', { name: 'close pdf' }).click();
+  await expect(page.getByTestId('pdf')).toBeHidden();
+});

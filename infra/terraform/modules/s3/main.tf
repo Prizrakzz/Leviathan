@@ -119,3 +119,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
     }
   }
 }
+# 6.5 click-to-page (P3-W4/B3): the SPA's pdf.js fetches presigned raw/ PDFs cross-origin (the presigned S3
+# URL is a third origin vs the CloudFront SPA), and SOP requires Access-Control-Allow-Origin on the GET
+# regardless of Range. GET/HEAD only — CORS grants no auth; access still requires the presigned signature.
+resource "aws_s3_bucket_cors_configuration" "data_lake_pdf_cors" {
+  bucket = aws_s3_bucket.data_lake.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = [
+      "https://leviathanconvexity.com",
+      "https://www.leviathanconvexity.com",
+      "http://localhost:5173",
+    ]
+    expose_headers  = ["Content-Length", "Content-Type", "Accept-Ranges", "Content-Range", "ETag"]
+    max_age_seconds = 3600
+  }
+}

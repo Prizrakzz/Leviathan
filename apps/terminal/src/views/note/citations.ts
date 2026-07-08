@@ -10,8 +10,20 @@ export interface ResolvedCite {
 }
 export type ResolvedMap = Record<string, ResolvedCite>;
 
-type Src = { ref?: unknown; source?: unknown; date?: unknown; source_key?: unknown };
+type Src = { ref?: unknown; source?: unknown; date?: unknown; source_key?: unknown; char_start?: unknown; offset_kind?: unknown };
 type Cit = { id?: unknown; kind?: unknown; locator?: { source_key?: unknown; snippet?: unknown; kind?: unknown } };
+
+/** The doc locator (6.5) a chip carries to open its source PDF: the text-layer `source_key` + the cited
+ *  snippet, and — WHEN the structured source carries them (new/E4 props) — the char offset that lets the
+ *  backend resolve an EXACT page. Offsets are passed through defensively (optional chaining): absent on
+ *  legacy props, so their keys are OMITTED rather than set to undefined. Legacy props still get a locator
+ *  (source_key + snippet), resolving via server-side snippet fuzzy-match. */
+function docLocator(sourceKey: string, snippet: string | undefined, src?: Src): Record<string, unknown> {
+  const loc: Record<string, unknown> = { kind: 'doc', source_key: sourceKey, snippet };
+  if (src?.char_start !== undefined) loc.char_start = src.char_start;
+  if (src?.offset_kind !== undefined) loc.offset_kind = src.offset_kind;
+  return loc;
+}
 
 /** Unified resolved-citation map (6.4) — works for a LIVE result (trace.citation_verifier.resolved) AND a
  *  durable turn (structured.sources + citations[].locator.snippet), so chips hover the same official
@@ -45,7 +57,10 @@ export function resolvedFor(r: {
     const text = lr?.text ?? (typeof sk === 'string' ? snippetByKey.get(sk) : undefined);
     const source = (ss?.source as string | undefined) ?? lr?.source;
     if (source == null && text == null && !numLocByRef.has(ref)) continue; // nothing to show → no chip
-    out[ref] = { source, date: (ss?.date as string | undefined) ?? lr?.date, text, locator: numLocByRef.get(ref) };
+    // Number locators keep precedence (a number ref keeps its query locator); otherwise a structured source
+    // WITH a source_key gets a doc locator so the chip can open its source PDF at the cited page (6.5).
+    const locator = numLocByRef.get(ref) ?? (typeof sk === 'string' ? docLocator(sk, text, ss) : undefined);
+    out[ref] = { source, date: (ss?.date as string | undefined) ?? lr?.date, text, locator };
   }
   return out;
 }

@@ -1,4 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
+import { usePdf } from '@/store/pdf';
 import { useUI } from '@/store/ui';
 import type { ResolvedCite } from './citations';
 
@@ -26,8 +27,10 @@ export function CitationChip({
   const isNumber = /^[A-Za-z]/.test(refId); // N1 / E2 …
   const loc = resolved.locator;
   const isNumberLoc = loc?.kind === 'number';
+  const isDocLoc = loc?.kind === 'doc' && typeof loc.source_key === 'string';
   const setView = useUI((s) => s.setView);
   const setContract = useUI((s) => s.setContract);
+  const openPdf = usePdf((s) => s.openPdf);
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
@@ -65,6 +68,23 @@ export function CitationChip({
                 </button>
               )}
             </>
+          )}
+          {/* 6.5: a doc citation opens its SOURCE PDF at the cited page — the clean slot beside the
+              number branch's "open series" (which stays number-gated). */}
+          {isDocLoc && loc && (
+            <button
+              onClick={() =>
+                openPdf({
+                  sourceKey: loc.source_key as string,
+                  snippet: typeof loc.snippet === 'string' ? loc.snippet : undefined,
+                  charStart: typeof loc.char_start === 'number' ? loc.char_start : undefined,
+                  offsetKind: typeof loc.offset_kind === 'string' ? loc.offset_kind : undefined,
+                })
+              }
+              className="mt-1 block font-mono text-11 text-amber hover:text-cyan"
+            >
+              open PDF ▸
+            </button>
           )}
           <Tooltip.Arrow className="fill-line" />
         </Tooltip.Content>

@@ -1,10 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { getConvergence } from '@/api/client';
 import { useTurn } from '@/api/useTurn';
 import { parseCommand } from '@/command/parser';
 import { useHotkeys } from '@/hotkeys/useHotkeys';
+import { retryImport } from '@/lib/retryImport';
 import { useAsOf } from '@/store/asof';
+import { usePdf } from '@/store/pdf';
 import { useSession } from '@/store/session';
 import { useThread } from '@/store/thread';
 import { useUI, type ViewName } from '@/store/ui';
@@ -19,12 +21,18 @@ import { ViewContainer } from './ViewContainer';
 import Onboarding from '@/views/onboarding/Onboarding';
 import SettingsModal from '@/views/settings/SettingsModal';
 
+// 6.5: the PDF click-to-page modal pulls in pdf.js + its worker — lazy so that whole chunk stays off the
+// first-paint critical path (mounted only once `open`, mirroring the CascadeFlow pattern). retryImport
+// heals a transient chunk miss in the just-deployed window (S2.1).
+const PdfModal = lazy(() => retryImport(() => import('@/views/pdf/PdfModal')));
+
 /** The terminal shell (design §3.1): the fixed top bar, the thread sidebar, the view container (answer =
  *  conversation column + composer), the command palette, and the full hotkey system. Owns the active turn. */
 export function Shell() {
   const turn = useTurn();
   const paletteOpen = useUI((s) => s.paletteOpen);
   const threadCollapsed = useUI((s) => s.threadCollapsed);
+  const pdfOpen = usePdf((s) => s.open);
   const sessionReady = useSession((s) => s.ready);
   const asof = useAsOf((s) => s.asof);
   const asofStep = useAsOf((s) => s.step);
@@ -116,6 +124,15 @@ export function Shell() {
       <ErrorBoundary fallback={null}>
         <Onboarding />
       </ErrorBoundary>
+      {/* 6.5: the PDF modal is mounted only while open so pdf.js rides its own lazy chunk. A fault in the
+          viewer can never blank the terminal (S2.x lesson). */}
+      {pdfOpen && (
+        <ErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <PdfModal />
+          </Suspense>
+        </ErrorBoundary>
+      )}
     </div>
   );
 }

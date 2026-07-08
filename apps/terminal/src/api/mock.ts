@@ -1,3 +1,4 @@
+import type { PdfPage } from './client';
 import type { components } from './types.gen';
 import graphArabica from './fixtures/graph.arabica.json';
 import graphSugar from './fixtures/graph.raw_sugar.json';
@@ -358,6 +359,22 @@ export async function mockRespondStream(
   }
   await sleep(delay);
   h.onResult?.(result);
+}
+
+// ── 6.5 PDF click-to-page (VITE_MOCK) ──────────────────────────────────────────────────────────────
+/** A fixed resolved-PDF pointer so the mock walkthrough / e2e can open the modal without a backend. The
+ *  URL is an empty-doc-safe data: URI (pdf.js surfaces an error state, which the modal handles by keeping
+ *  the raw-download escape) — the point is to exercise the chip/row -> modal wiring, not to raster bytes.
+ *  Args are accepted (and ignored) so the mock matches `client.getPdfPage`'s signature. */
+export function mockGetPdfPage(
+  _sourceKey: string,
+  _snippet?: string,
+  _charStart?: number,
+  _offsetKind?: string,
+): Promise<PdfPage> {
+  return new Promise((resolve) =>
+    setTimeout(() => resolve({ url: 'data:application/pdf;base64,', page: 2, kind: 'pdf', expires_in: 900 }), 60),
+  );
 }
 
 // ── 6.6 profile / settings / onboarding (VITE_MOCK) ────────────────────────────────────────────────

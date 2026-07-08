@@ -2,8 +2,9 @@
 
 A Citation carries a human `label`, a `source`, a knowledge `date`, and a machine `locator` (the click-target the
 UI resolves): for a number, the exact leakage-safe query to re-run as a drill-down; for a document, a pointer to
-the source doc. The document locator already carries `page`/`char_start`/`snippet` SLOTS — null today, auto-filled
-when the page-citation recovery lands — so numbers and page-level document citations render through one path.
+the source doc. The document locator carries `page`/`char_start`/`char_end`/`offset_kind`/`snippet` SLOTS — the
+char/offset fields populate for W2.1 props and drive 6.5 click-to-page (deterministic offsets-first page
+recovery, fuzzy snippet-match fallback) — so numbers and page-level document citations render through one path.
 """
 from __future__ import annotations
 
@@ -82,9 +83,12 @@ def from_evidence(row: dict, i: int) -> Citation:
     snippet = text[:140] + ("..." if len(text) > 140 else "")
     label = f"{src} ({date}): {snippet}"
     # snippet (140-char) rides the locator so a durable turn keeps a click-to-hover receipt after the full
-    # evidence text is trimmed off the persisted payload (6.4); page/char stay null for the page-recovery.
+    # evidence text is trimmed off the persisted payload (6.4). page/char stay null for old props; W2.1 props
+    # carry char_start/char_end/offset_kind ('exact'|'block'|'none') -- copied through so 6.5 click-to-page can
+    # resolve the source PDF page DETERMINISTICALLY (offsets-first) instead of fuzzy-matching the snippet.
     locator = {"kind": "doc", "source_key": sk, "page": row.get("page"),
-               "char_start": row.get("char_start"), "snippet": snippet}
+               "char_start": row.get("char_start"), "char_end": row.get("char_end"),
+               "offset_kind": row.get("offset_kind"), "snippet": snippet}
     return Citation(id=f"E{i}", kind="evidence", label=label, source=src, date=date,
                     locator=locator, payload={"source_key": sk, "text": text})
 
