@@ -374,6 +374,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     state = snap.state if snap else None
     asof_explicit = asof is not None                                    # the caller's arg outranks everything
     asof = asof or (state.asof_latest if state else None) or _today()   # explicit > carried > today
+    live_pit_suppressed = False   # set when an EXPLICIT news ask is vetoed by the PIT kill-switch (note below)
     sblock = ss.state_block(snap) if (snap and (snap.turns or state.contracts)) else None
     route_fn = None
     if state and state.contracts:                                       # a thread carries its own contracts; threads
@@ -424,10 +425,19 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         kind = plan.kind()
         if kind == "live" and asof < _today():
             kind = "reasoning"                                         # PIT kill-switch (executor half)
+            live_pit_suppressed = it.is_news_explicit(query)           # ...but never SILENTLY (root-cause fix)
+        elif kind != "live" and it.is_news_explicit(query) and asof >= _today():
+            # Deterministic promotion: an EXPLICIT news ask at a today as-of routes live, full stop — the
+            # dispatch prompt already states this rule; this makes it law when the LLM misroutes. Narrow
+            # matcher only (is_news_explicit): ambient "today"/"right now" stays routable to numbers/
+            # reasoning (a blanket is_live promotion would hijack "corn exports today?").
+            kind = "live"
         decided = plan.trace() | {"intent": kind}
     else:
         # Legacy path — PIT KILL-SWITCH FIRST: a past as-of can never reach the news agent, so
         # backtested answers are physically unable to see today's headlines (ISO strings compare safely).
+        if it.is_news_explicit(query) and asof < _today():
+            live_pit_suppressed = True                                 # explicit ask vetoed by PIT -> note below
         if it.is_live(query) and asof >= _today():
             an._emit(on_stage, "planning", intent="live", contracts=[])
             try:
@@ -469,6 +479,15 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         an._emit(on_stage, "floor")
         res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)
+    if live_pit_suppressed:
+        # The root-cause fix (news-agent silence): the user LITERALLY asked for news but the PIT
+        # kill-switch vetoed the live route (historical as-of). Say so — mirrors run_live's no-events
+        # note; an archive answer masquerading as a news answer is the failure mode this closes.
+        res["answer"] = (res.get("answer") or "") + (
+            f"\n\n_Live check: you asked for news, but live headlines are disabled at a historical "
+            f"as-of (horizon = {asof}). Set the as-of horizon to today for current headlines; the "
+            f"analysis above draws on the dated archive only._")
+        decided = (decided or {}) | {"live_suppressed_pit": True}
     res["intent_decision"] = decided
     return _session_writeback(res, query, asof, session_id, store, state, graph, call)
 

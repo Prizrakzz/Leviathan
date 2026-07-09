@@ -37,6 +37,22 @@ def is_live(query: str) -> bool:
     return bool(_LIVE.search(query or ""))
 
 
+# EXPLICIT news ask — the narrow subset of _LIVE where the user literally requested news/headlines. Split
+# from _LIVE (the news-agent root-cause fix): _LIVE's ambient nowness words ("today", "right now") also
+# appear in numbers/reasoning questions ("corn exports today?"), so they must never FORCE the live route;
+# an explicit "any news ..." must. Used two ways in the orchestrator: (1) deterministic promotion to the
+# live route when the dispatcher misroutes an explicit ask at a today as-of, and (2) the visible
+# suppression note when the PIT kill-switch (historical as-of) vetoes an explicit ask — never silently.
+_NEWS_EXPLICIT = re.compile(
+    r"\b(any news|latest news|news (?:on|about|around|regarding|related|from|for)|headlines|"
+    r"what just happened|breaking news|what's new|whats new)\b", re.I)
+
+
+def is_news_explicit(query: str) -> bool:
+    """Did the user LITERALLY ask for news/headlines (not just mention the present moment)?"""
+    return bool(_NEWS_EXPLICIT.search(query or ""))
+
+
 def _mk(intent: str) -> dict:
     return {"intent": intent,
             "needs_numbers": intent in ("numbers_only", "hybrid"),

@@ -54,3 +54,20 @@ def test_regime_count_questions_never_route_numbers_only():
               "How many weeks before the regime breaks?",
               "What's corn's stocks-to-use threshold number?"):
         assert it.classify_intent(q)["intent"] in ("reasoning", "hybrid"), q
+
+
+# ══ is_news_explicit (news-agent root-cause fix): narrow explicit-ask matcher ═════════════════════════════
+def test_is_news_explicit_matches_literal_news_asks():
+    from leviathan.graphrag.intent import is_news_explicit
+    assert is_news_explicit("any news related to that from a week or so?")   # the production query
+    assert is_news_explicit("any news on corn?")
+    assert is_news_explicit("latest news about the palm ban")
+    assert is_news_explicit("news regarding sugar exports")
+    assert is_news_explicit("what just happened to cotton?")
+
+
+def test_is_news_explicit_rejects_ambient_nowness():
+    from leviathan.graphrag.intent import is_news_explicit
+    assert not is_news_explicit("corn exports today?")
+    assert not is_news_explicit("thoughts on wheat right now?")
+    assert not is_news_explicit("is the squeeze breaking this week?")

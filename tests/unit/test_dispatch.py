@@ -170,3 +170,54 @@ def test_plan_country_validated_and_reaches_numbers_hint(monkeypatch):
     call = _call_factory({"steps": ["numbers"], "contracts": ["corn"], "country": "Brazil"})
     orch.respond("And exports?", graph=_graph(), call=call)
     assert "corn, Brazil" in seen["q"]                               # geography rides the context hint
+
+
+# ══ news-agent root-cause fix (2026-07-09): PIT veto is never silent; explicit news asks are law ══════════
+def test_pit_demotion_of_explicit_news_ask_carries_visible_note():
+    """The production failure: 'any news ... ?' at a historical as-of silently answered from the archive.
+    The demotion stands (PIT firewall) but must now SAY SO and flag intent_decision."""
+    call = _call_factory({"steps": ["live", "reasoning"], "contracts": ["corn"]})
+    out = orch.respond("any news related to that from a week or so?", graph=_graph(), call=call,
+                       retrieve=_retrieve, asof="2020-01-01")
+    assert out["intent"] == "reasoning"                                # the guard is still law
+    assert "live headlines are disabled at a historical as-of" in out["answer"].lower()
+    assert out["intent_decision"]["live_suppressed_pit"] is True
+
+
+def test_explicit_news_ask_at_today_promoted_to_live_even_if_plan_says_reasoning(monkeypatch):
+    """Deterministic promotion: the dispatch prompt's explicit-news rule becomes law when the LLM misroutes."""
+    sentinel = {"answer": "live!", "intent": "live", "citations": [], "evidence": [], "structured": None,
+                "contract": None, "live_events": [], "number_calls": [], "asof": ""}
+    called = {}
+
+    def fake_live(query, asof, **kw):
+        called["live"] = True
+        return dict(sentinel, asof=asof)
+    monkeypatch.setattr(orch, "run_live", fake_live)
+    call = _call_factory({"steps": ["reasoning"], "contracts": ["corn"]})   # dispatcher misroutes
+    out = orch.respond("any news on corn?", graph=_graph(), call=call, retrieve=_retrieve)  # asof defaults today
+    assert called.get("live") is True
+    assert out["intent"] == "live"
+
+
+def test_ambient_today_query_is_not_hijacked_to_live(monkeypatch):
+    """Narrowness: 'today' alone (is_live but NOT is_news_explicit) must stay routable to numbers."""
+    seen = {}
+
+    def fake_numbers(query, asof, **kw):
+        seen["numbers"] = True
+        return {"answer": "42", "intent": "numbers_only", "citations": [], "number_calls": [],
+                "evidence": [], "asof": asof, "structured": None, "contract": None}
+    monkeypatch.setattr(orch, "run_numbers_only", fake_numbers)
+    call = _call_factory({"steps": ["numbers"], "contracts": ["corn"]})
+    out = orch.respond("corn exports today?", graph=_graph(), call=call)
+    assert seen.get("numbers") is True and out["intent"] == "numbers_only"
+
+
+def test_non_news_past_asof_gets_no_suppression_note():
+    """A plain archive question at a past as-of must NOT gain the live-suppression note."""
+    call = _call_factory({"steps": ["reasoning"], "contracts": ["corn"]})
+    out = orch.respond("why was corn bullish that season?", graph=_graph(), call=call,
+                       retrieve=_retrieve, asof="2020-01-01")
+    assert "live headlines are disabled" not in (out["answer"] or "").lower()
+    assert "live_suppressed_pit" not in out["intent_decision"]
