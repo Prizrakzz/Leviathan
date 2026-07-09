@@ -50,7 +50,17 @@ export function ThreadSidebar({ turn }: { turn: TurnState }) {
   return (
     <aside className="flex w-[300px] shrink-0 flex-col overflow-hidden border-r border-line bg-bg-0">
       <div className="flex items-center justify-between border-b border-line px-4 py-2">
-        <div className="font-mono text-11 uppercase tracking-wider text-text-dim">threads</div>
+        <div className="flex items-center gap-2">
+          <button
+            className="shrink-0 rounded-chip border border-line px-1 font-mono text-11 text-text-dim hover:border-cyan hover:text-cyan"
+            onClick={() => useUI.getState().toggleThread()}
+            aria-label="collapse threads"
+            title="collapse (Ctrl+\)"
+          >
+            ‹
+          </button>
+          <div className="font-mono text-11 uppercase tracking-wider text-text-dim">threads</div>
+        </div>
         <button
           className="shrink-0 rounded-chip border border-line px-1.5 font-mono text-11 text-cyan hover:bg-bg-1"
           onClick={() => {

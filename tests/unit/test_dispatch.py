@@ -142,6 +142,22 @@ def test_respond_numbers_step_gets_contract_context_hint(monkeypatch):
     assert "conversation context" in seen["q"] and "hard_red_winter_wheat_kcbt" in seen["q"]
 
 
+def test_respond_numbers_step_passes_planner_contracts_for_map(monkeypatch):
+    """G12: the numbers branch hands the PLANNER's resolved contracts (not a lexical re-route) to
+    run_numbers_only so a coreference numeric turn ('And exports?') still mounts the cascade map."""
+    seen = {}
+
+    def fake_numbers(query, asof, **kw):
+        seen.update(kw)
+        return {"answer": "42", "intent": "numbers_only", "citations": [], "number_calls": [],
+                "evidence": [], "asof": asof, "structured": None, "contract": None}
+    monkeypatch.setattr(orch, "run_numbers_only", fake_numbers)
+    call = _call_factory({"steps": ["numbers"], "contracts": ["hard_red_winter_wheat_kcbt"]})
+    orch.respond("And exports?", graph=_graph(), call=call)
+    assert seen["contracts"] == ["hard_red_winter_wheat_kcbt"]           # plan.contracts reached the call
+    assert seen["graph"] is not None                                     # lexical fallback stays available
+
+
 def test_respond_fallback_plan_uses_legacy_classifier(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_DISPATCH", "rules")
     called = {}

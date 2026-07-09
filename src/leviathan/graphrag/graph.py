@@ -183,7 +183,7 @@ class CausalGraph:
         from leviathan.graphrag import display as dp             # human node labels (6.3 one-vocab on the map)
         c = self.contracts[contract]
         tgt0 = c.target_metrics[0] if c.target_metrics else "price"
-        ids = {d.id for d in c.drivers}
+        by_id = self._ix(contract).by_id                          # W1.4: fan-in edges inherit the parent's mechanism
         nodes: dict[str, dict] = {contract: {"id": contract, "kind": "contract", "contract": contract,
                                              "label": dp.node_label(contract, "contract"), "target_metric": tgt0}}
         edges: list[dict] = []
@@ -194,8 +194,11 @@ class CausalGraph:
                           "sign": d.sign, "lag": d.lag, "mechanism": d.mechanism, "confidence": d.confidence,
                           "target_metric": d.target_metric or tgt0})
             for p in d.parents:                                      # fan-in: parent driver -> driver
-                if p in ids:
-                    edges.append({"source": p, "target": d.id, "edge_type": "drives", "sign": None})
+                if p in by_id:
+                    # The parent's own one-sentence mechanism doubles as the hover text — before W1.4 these
+                    # 983 edges (45% of the map) rendered a blank tooltip (the FE binds hover to `mechanism`).
+                    edges.append({"source": p, "target": d.id, "edge_type": "drives", "sign": None,
+                                  "mechanism": by_id[p].mechanism})
         for e in c.inter_commodity:                                 # cascade hop: contract -> other commodity
             nodes.setdefault(e.driver_commodity, {"id": e.driver_commodity, "kind": "commodity",
                                                   "contract": e.driver_commodity,

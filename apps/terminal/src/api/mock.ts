@@ -271,6 +271,27 @@ function refusalResult(q: string, asof: string): RespondResult {
   };
 }
 
+export function numbersOnlyResult(q: string, asof: string): RespondResult {
+  // W1.2: a pure-numeric turn — structured stays null (no walk ran) but contract/contracts ARE resolved
+  // backend-side so the FE mounts the cascade map, and r.answer is the numbers markdown the FE must render.
+  return {
+    answer:
+      'US arabica ending stocks for 2021/22 were about 3.2 million bags [N1], versus 3.9 the prior ' +
+      'year [N1].\n\n## Sources\n[N1] USDA PSD — stocks (arabica_coffee)',
+    structured: null,
+    contract: 'arabica_coffee',
+    contracts: ['arabica_coffee'],
+    citations: [],
+    evidence: [],
+    number_calls: NUMBER_CALLS,
+    intent: 'numbers_only',
+    model: 'claude-haiku-4-5',
+    trace: { graph_version: '3a69acfb87c5', numbers_verifier: { mismatched: false } },
+    asof,
+    question: q,
+  };
+}
+
 function noMatchResult(q: string, asof: string): RespondResult {
   return {
     answer: 'No tracked contract matched this question.',
@@ -297,6 +318,7 @@ function pickResult(q: string, asof: string): RespondResult {
   if (s.includes('floor')) return floorResult(q, asof);
   if (s.includes('ignore all') || s.includes('refuse')) return refusalResult(q, asof);
   if (s.includes('nomatch')) return noMatchResult(q, asof);
+  if (s.includes('numbers') || s.includes('ending stocks')) return numbersOnlyResult(q, asof);
   if (s.includes('sugar') || s.includes('brl')) return rawSugarResult(q, asof);
   return goodResult(q, asof);
 }

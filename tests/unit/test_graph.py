@@ -60,6 +60,21 @@ def test_topology_unknown_contract_raises():
         _graph().topology("nope")
 
 
+def test_topology_fanin_edges_inherit_parent_mechanism():
+    """W1.4: fan-in (parent->driver) edges carry the PARENT's mechanism — before this, 45% of map edges
+    rendered a blank hover tooltip (the FE binds hover text to `mechanism`)."""
+    drivers = [_d("enso", mechanism="ENSO shifts rainfall over growing regions"),
+               _d("frost", parents=["enso"], mechanism="freezes damage trees")]
+    gr = g.CausalGraph({"c": cs.CausalContract(contract="c", drivers=drivers)}, silver=set())
+    topo = gr.topology("c")
+    fanin = next(e for e in topo["edges"] if (e["source"], e["target"]) == ("enso", "frost"))
+    assert fanin["mechanism"] == "ENSO shifts rainfall over growing regions"   # the PARENT's, not the child's
+    # and every fan-in edge in the shared fixture is non-null too (no blank hovers remain)
+    for e in _graph().topology("arabica_coffee")["edges"]:
+        if e["edge_type"] == "drives" and e.get("sign") is None:               # the fan-in shape
+            assert e.get("mechanism")
+
+
 def test_cascade_ancestors_descendants_roots():
     gr = _graph()
     assert gr.ancestors("arabica_coffee", "stocks") == ["drought", "frost", "la_nina"]   # transitive upstream

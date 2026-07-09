@@ -151,7 +151,10 @@ export function AnswerView({
   const graphQ = useQuery({
     queryKey: ['graph', shownContract, asof],
     queryFn: () => getGraph(shownContract as string, asof),
-    enabled: !!shownContract && !!r?.structured,
+    // W1.2-FE: numeric turns mount the map too (contract resolved backend-side, structured stays null).
+    // NOT bare !!shownContract — a floor turn keeps its contract with structured=null and would mount a
+    // map under the Service-notice banner; this gate targets exactly the two map-eligible states.
+    enabled: !!shownContract && (!!r?.structured || r?.intent === 'numbers_only'),
     staleTime: 300_000,
   });
 
@@ -189,6 +192,38 @@ export function AnswerView({
 
   const finalReady = turn.status === 'done' && settled && !!r;
   const trace = (r?.trace ?? {}) as { fired_regimes?: { matched?: string[] }[]; drivers?: string[] };
+
+  // The causal map, computed once and shared by BOTH finalReady branches (W1.1/W1.2-FE):
+  // fetch error → a readable "unavailable" line (never a silent vanish — the old code kept the error
+  // boundary INSIDE the data guard, so a dead /v1/graph meant no map and no message on every causal turn);
+  // data → the lazy interactive DAG (its own boundary; a failed chunk keeps the answer intact); else null.
+  // graphQ.enabled guarantees data only exists for structured OR numbers_only turns, so rendering it in
+  // the non-structured branch stays null for floor/refused/no-match.
+  const mapSlot = graphQ.isError ? (
+    mapErrorFallback
+  ) : graphQ.data ? (
+    <ErrorBoundary fallback={mapErrorFallback} resetKeys={[shownContract]}>
+      <Suspense
+        fallback={<div className="h-[300px] animate-pulse rounded-panel border border-line bg-bg-1" />}
+      >
+        {mapContract && (
+          <button
+            onClick={() => setMapContract(null)}
+            className="mb-1 font-mono text-11 text-text-faint hover:text-cyan"
+          >
+            ← back to {(contract ?? '').replace(/_/g, ' ')}
+          </button>
+        )}
+        <CascadeFlow
+          topo={graphQ.data}
+          firedRegimes={mapContract ? undefined : trace.fired_regimes}
+          drivers={mapContract ? undefined : trace.drivers}
+          onNodeClick={() => openReceipts()}
+          onSwap={(id) => setMapContract(id)}
+        />
+      </Suspense>
+    </ErrorBoundary>
+  ) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -233,48 +268,33 @@ export function AnswerView({
                   <Banners result={r} />
                   {r.structured ? (
                     <>
-                      <Note
-                        result={r}
-                        onOpenReceipts={openReceipts}
-                        afterTldr={
-                          graphQ.data ? (
-                            // The map is its OWN boundary: a failed causal map keeps the note intact.
-                            <ErrorBoundary fallback={mapErrorFallback} resetKeys={[shownContract]}>
-                              <Suspense
-                                fallback={<div className="h-[300px] animate-pulse rounded-panel border border-line bg-bg-1" />}
-                              >
-                                {mapContract && (
-                                  <button
-                                    onClick={() => setMapContract(null)}
-                                    className="mb-1 font-mono text-11 text-text-faint hover:text-cyan"
-                                  >
-                                    ← back to {(contract ?? '').replace(/_/g, ' ')}
-                                  </button>
-                                )}
-                                <CascadeFlow
-                                  topo={graphQ.data}
-                                  firedRegimes={mapContract ? undefined : trace.fired_regimes}
-                                  drivers={mapContract ? undefined : trace.drivers}
-                                  onNodeClick={() => openReceipts()}
-                                  onSwap={(id) => setMapContract(id)}
-                                />
-                              </Suspense>
-                            </ErrorBoundary>
-                          ) : null
-                        }
-                      />
+                      <Note result={r} onOpenReceipts={openReceipts} afterTldr={mapSlot} />
                       <Numbers calls={r.number_calls ?? []} asof={asof} />
                       {SHOW_INTEGRITY && <IntegrityStrip result={r} />}
                     </>
                   ) : (
-                    (r.evidence?.length ?? 0) > 0 && (
-                      <button
-                        className="rounded-chip border border-line px-2 py-1 font-mono text-11 text-cyan hover:bg-bg-1"
-                        onClick={() => openReceipts()}
-                      >
-                        open receipts (e)
-                      </button>
-                    )
+                    <>
+                      {mapSlot}
+                      {/* W1.1.3: numeric turns stream no tokens and carry no structured note — before this,
+                          r.answer (the numbers markdown) rendered NOWHERE once settled. Gated on intent, NOT
+                          structured==null: floor/refused are also null but already render replacement banners. */}
+                      {r.intent === 'numbers_only' && r.answer && (
+                        <div
+                          className="max-w-3xl font-sans text-14 leading-relaxed text-text"
+                          data-testid="numbers-answer"
+                        >
+                          <FormattedNote text={r.answer} resolved={resolvedFor(r)} onOpen={openReceipts} />
+                        </div>
+                      )}
+                      {(r.evidence?.length ?? 0) > 0 && (
+                        <button
+                          className="rounded-chip border border-line px-2 py-1 font-mono text-11 text-cyan hover:bg-bg-1"
+                          onClick={() => openReceipts()}
+                        >
+                          open receipts (e)
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </ErrorBoundary>

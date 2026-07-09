@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import graphArabica from '@/api/fixtures/graph.arabica.json';
 import type { components } from '@/api/types.gen';
 import { firingActiveSet } from './layout';
-import { expandNode, hiddenParentCount, nodeLabel, parentsOf, seedVisible, toFlow } from './toFlow';
+import { expandNode, hiddenParentCount, nodeLabel, parentsOf, seedVisible, seedWithFocus, toFlow } from './toFlow';
 
 type Topo = components['schemas']['GraphTopology'];
 const topo = graphArabica as unknown as Topo;
@@ -28,6 +28,28 @@ describe('toFlow (6.3 progressive disclosure)', () => {
     expect(seed.has('arabica_coffee')).toBe(true);
     expect(seed.size).toBeGreaterThan(1);
     expect(seed.size).toBeLessThanOrEqual(9); // contract + <=8
+  });
+
+  it('seedWithFocus forces an out-of-cap node into the set, CONNECTED to the visible sub-graph', () => {
+    const base = seedVisible(topo, new Set(), 8);
+    // pick a node that seedVisible left out (a deep upstream driver)
+    const hidden = topo.nodes.find((n) => !base.has(n.id) && n.kind !== 'commodity');
+    if (!hidden) return; // fixture too small to hide anything; nothing to prove
+    const withFocus = seedWithFocus(topo, base, hidden.id);
+    expect(withFocus.has(hidden.id)).toBe(true);
+    // connectivity: the focus node has at least one edge into the final visible set (never floats)
+    const connected = topo.edges.some(
+      (e) => (e.source === hidden.id && withFocus.has(e.target)) ||
+             (e.target === hidden.id && withFocus.has(e.source)),
+    );
+    expect(connected).toBe(true);
+  });
+
+  it('seedWithFocus is a no-op (same ref) for empty, unknown, or already-visible focus', () => {
+    const base = seedVisible(topo, new Set(), 8);
+    expect(seedWithFocus(topo, base, undefined)).toBe(base);
+    expect(seedWithFocus(topo, base, 'not_a_node')).toBe(base);
+    expect(seedWithFocus(topo, base, topo.contract)).toBe(base);
   });
 
   it('expandNode reveals exactly a node\'s direct parents', () => {

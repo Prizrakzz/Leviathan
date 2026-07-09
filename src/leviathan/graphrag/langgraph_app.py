@@ -41,7 +41,8 @@ def build_app(*, classify=None):
 
     def numbers_node(s: dict) -> dict:
         return {"result": orch.run_numbers_only(s["query"], s["asof"], client=s.get("numbers_client"),
-                                                model=s.get("numbers_model", orch.na.HAIKU), query_fn=s.get("query_fn"))}
+                                                model=s.get("numbers_model", orch.na.HAIKU), query_fn=s.get("query_fn"),
+                                                graph=s.get("graph"))}   # G12 parity: conductor turns get the map contract too
 
     def reasoning_node(s: dict) -> dict:
         return {"result": orch.run_reasoning(s["query"], s["asof"], graph=s.get("graph"), call=s.get("call"),

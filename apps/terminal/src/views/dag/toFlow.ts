@@ -51,6 +51,30 @@ export function seedVisible(topo: Topo, active: Set<string>, cap = 8): Set<strin
   return s;
 }
 
+/** Force `focus` into a visible set for full-surface / deep-link focus mode (W1.3). seedVisible caps at
+ *  contract + firing + top-8, so a driver selected from OUTSIDE that cap (a deep upstream driver) is absent
+ *  and can't be centered on. Adds the focus node and — so it renders CONNECTED, not floating — BFS-walks its
+ *  OUTGOING edges toward the contract, stopping each branch at the first already-visible node. No-op
+ *  (returns the SAME base ref) when focus is empty, unknown to the topo, or already visible. */
+export function seedWithFocus(topo: Topo, base: Set<string>, focus?: string): Set<string> {
+  if (!focus || base.has(focus) || !topo.nodes.some((n) => n.id === focus)) return base;
+  const next = new Set(base);
+  next.add(focus);
+  const queue = [focus];
+  const seen = new Set<string>([focus]);
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const e of topo.edges) {
+      if (e.source !== cur || seen.has(e.target)) continue;
+      seen.add(e.target);
+      if (next.has(e.target)) continue;                     // reached the visible sub-graph — branch done
+      next.add(e.target);
+      queue.push(e.target);
+    }
+  }
+  return next;
+}
+
 /** Expand: add a node's direct parents to the visible set (returns a NEW set). */
 export function expandNode(topo: Topo, id: string, visible: Set<string>): Set<string> {
   const next = new Set(visible);

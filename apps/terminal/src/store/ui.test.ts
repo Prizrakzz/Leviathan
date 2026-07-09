@@ -30,4 +30,22 @@ describe('ui store (persist migration — 5.6 view-prune)', () => {
     await useUI.persist.rehydrate();
     expect(useUI.getState().view).toBe('answer');
   });
+
+  it('v2→3: backfills threadCollapsed=false for a pre-v3 blob (W1.6)', async () => {
+    localStorage.setItem(
+      'lv-ui',
+      JSON.stringify({ state: { view: 'answer', accent: 'cyan' }, version: 2 }),
+    );
+    await useUI.persist.rehydrate();
+    expect(useUI.getState().threadCollapsed).toBe(false);
+  });
+
+  it('v3: a persisted collapsed sidebar survives reload (W1.6)', async () => {
+    localStorage.setItem(
+      'lv-ui',
+      JSON.stringify({ state: { view: 'answer', accent: 'cyan', threadCollapsed: true }, version: 3 }),
+    );
+    await useUI.persist.rehydrate();
+    expect(useUI.getState().threadCollapsed).toBe(true);
+  });
 });

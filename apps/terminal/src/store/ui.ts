@@ -51,13 +51,19 @@ export const useUI = create<UIState>()(
       // v2 (5.6 view-prune): a returning user's localStorage may hold view:'convergence'/'deep' or a stale
       // `contract` — both removed. Coerce any persisted view to 'answer' and drop `contract` so the store
       // never boots into a now-deleted view (which would render an empty <main>).
-      version: 2,
+      // v3 (P1 W1.6): threadCollapsed becomes persisted — a pre-v3 blob lacks it; backfill false.
+      // NB the next persisted-key addition (P1.5 tabs/panel split) must be a v4 bump, not a v3 edit.
+      version: 3,
       migrate: (s: unknown) => {
         const prev = (s ?? {}) as Record<string, unknown>;
         const { contract: _contract, ...rest } = prev;
-        return { ...rest, view: 'answer' as ViewName };
+        return {
+          ...rest,
+          view: 'answer' as ViewName,
+          threadCollapsed: typeof rest.threadCollapsed === 'boolean' ? rest.threadCollapsed : false,
+        };
       },
-      partialize: (s) => ({ view: s.view, accent: s.accent }),
+      partialize: (s) => ({ view: s.view, accent: s.accent, threadCollapsed: s.threadCollapsed }),
     },
   ),
 );

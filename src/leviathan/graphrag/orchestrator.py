@@ -38,7 +38,8 @@ def _footer(cits) -> str:
     return ("\n\n## Sources\n" + cit.render(cits)) if cits else ""
 
 
-def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIKU, query_fn=None) -> dict:
+def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIKU, query_fn=None,
+                     graph=None, contracts=None) -> dict:
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn)
     cits = cit.unify(None, out.get("calls"))
     body = reg.sanitize((out.get("answer", "") + _footer(cits)).strip())   # strip leaked slugs/tokens from the numbers footer
@@ -46,9 +47,19 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     if nv.get("mismatched"):                                       # the citv2b 0.107-vs-0.3636 fabrication class:
         body = ("_[verifier: a value stated below does not match any looked-up row — treat stated "
                 "figures with caution]_\n\n" + body)               # the reader is warned, deterministically
+    # G12: numeric turns carry the resolved contract(s) so the FE mounts the cascade map (structured stays
+    # None — no walk ran). `contracts` arrive from the caller's route_fn/plan resolution; the lexical route
+    # is a last resort only when routing produced nothing (a direct/legacy caller with no session).
+    mc = [c for c in (contracts or []) if graph is None or c in graph.contracts]
+    if not mc and graph is not None:
+        try:
+            mc = [c for c in an.route(query, graph) if c in graph.contracts][:2]
+        except Exception:  # noqa: BLE001 — routing must never break a numbers answer
+            mc = []
     return {"answer": body, "intent": "numbers_only",
             "citations": [c.model_dump() for c in cits], "number_calls": out.get("calls", []),
-            "evidence": [], "asof": asof, "structured": None, "contract": None,
+            "evidence": [], "asof": asof, "structured": None,
+            "contract": (mc[0] if mc else None), "contracts": mc,
             "trace": {"numbers_verifier": nv}}
 
 
@@ -498,7 +509,18 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             if plan and plan.country:
                 hints.append(plan.country)                         # "And exports?" after Brazil = BRAZIL exports
             nq = query if not hints else f"{query}\n(conversation context: this refers to {', '.join(hints)})"
-            res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn)
+            # G12: mount the cascade map on numeric turns too. Key it off the SAME routing the reasoning
+            # branch uses (planner pc / session coreference via route_fn), NOT a fresh lexical route —
+            # a coreference numeric turn ("and its exports?") lexically routes to nothing. RAW `query` on
+            # purpose: route_fn's short-follow-up coreference gate keys on len(query) (<=80).
+            try:
+                _mc = [c for c in route_fn(query, graph) if c in graph.contracts] if route_fn else []
+            except Exception:  # noqa: BLE001 — a session route_fn may reach a dead tier; never break the answer
+                _mc = []
+            if not _mc and plan is not None:
+                _mc = [c for c in plan.contracts if c in graph.contracts]
+            res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn,
+                                   graph=graph, contracts=_mc)
             an._emit(on_stage, "numbers", calls=len(res.get("number_calls", [])))
         elif kind == "hybrid":
             res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,

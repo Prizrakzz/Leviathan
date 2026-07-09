@@ -78,7 +78,21 @@ export function Shell() {
     <div className="flex h-screen flex-col bg-bg-0 text-text">
       <TopBar cmd={cmd} setCmd={setCmd} onSubmit={submit} onPalette={() => useUI.getState().setPalette(true)} />
       <div className="flex flex-1 overflow-hidden">
-        {!threadCollapsed && <ThreadSidebar turn={turn} />}
+        {threadCollapsed ? (
+          // W1.6: collapsed → a slim expand rail, never NOTHING (the old branch rendered no affordance;
+          // only the hotkey could bring the sidebar back).
+          <button
+            onClick={() => useUI.getState().toggleThread()}
+            aria-label="expand threads"
+            title="expand threads (Ctrl+\)"
+            className="flex w-8 shrink-0 flex-col items-center gap-2 border-r border-line bg-bg-0 pt-2 font-mono text-11 text-text-dim hover:bg-bg-2 hover:text-cyan"
+          >
+            <span>›</span>
+            <span className="uppercase tracking-wider [writing-mode:vertical-rl]">threads</span>
+          </button>
+        ) : (
+          <ThreadSidebar turn={turn} />
+        )}
         <ViewContainer turn={turn} question={question} onAsk={ask} />
       </div>
       <CommandPalette open={paletteOpen} onClose={() => useUI.getState().setPalette(false)} />

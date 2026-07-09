@@ -31,7 +31,13 @@ export function Banners({ result }: { result: RespondResult }) {
       </Banner>
     );
   }
-  const noMatch = !result.structured && (result.contracts ?? []).length === 0;
+  // W1.1.2: numbers_only turns have structured=null BY DESIGN (no walk ran) — they must never claim
+  // "no contract matched". By this line refused/floor already early-returned, so the only null-structured
+  // states left are numbers_only and a genuinely-unrouted reasoning turn (which still banners).
+  const noMatch =
+    !result.structured &&
+    result.intent !== 'numbers_only' &&
+    (result.contracts ?? []).length === 0;
   return (
     <>
       {t.degraded_model && (

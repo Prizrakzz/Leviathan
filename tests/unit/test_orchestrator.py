@@ -74,6 +74,24 @@ def test_numbers_only_runs_numbers_skips_graph():
     assert out["evidence"] == [] and out["number_calls"]                 # numbers ran; the graph path did NOT
     assert "## Sources" in out["answer"] and "[N1]" in out["answer"]
     assert out["citations"][0]["kind"] == "number"
+    # G12: the numeric turn now carries the lexically-routed contract so the FE can mount the cascade map
+    # (structured stays None — no walk ran; the map fetch is keyed on contract alone).
+    assert out["contract"] == "corn" and out["contracts"] == ["corn"]
+    assert out["structured"] is None
+
+
+def test_numbers_only_passed_contracts_beat_lexical_route():
+    """G12 precedence: caller-resolved contracts (planner/coreference route_fn) win over the lexical
+    fallback — 'and its exports?' lexically routes to nothing, so the caller's resolution must stick."""
+    out = orch.run_numbers_only("what were US corn ending stocks", "2024-06-01",
+                                client=_numbers_client(), query_fn=_query_fn,
+                                graph=_graph(), contracts=["arabica_coffee"])
+    assert out["contract"] == "arabica_coffee" and out["contracts"] == ["arabica_coffee"]
+    # unknown caller contracts are dropped (graph enum-lock), then the lexical fallback recovers
+    out2 = orch.run_numbers_only("what were US corn ending stocks", "2024-06-01",
+                                 client=_numbers_client(), query_fn=_query_fn,
+                                 graph=_graph(), contracts=["not_a_contract"])
+    assert out2["contracts"] == ["corn"]                              # fallback: lexical route, enum-locked
 
 
 def test_reasoning_runs_graph_skips_numbers():

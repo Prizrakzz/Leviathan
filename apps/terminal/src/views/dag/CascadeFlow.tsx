@@ -1,6 +1,8 @@
 import {
   Background,
+  Controls,
   Handle,
+  MiniMap,
   type NodeProps,
   Position,
   ReactFlow,
@@ -16,6 +18,7 @@ import {
   expandNode,
   firingActiveSet,
   seedVisible,
+  seedWithFocus,
   toFlow,
 } from './toFlow';
 
@@ -71,6 +74,9 @@ function CascadeInner({
   onNodeClick,
   onSwap,
   height,
+  fullSurface,
+  focus,
+  showMinimap,
 }: {
   topo: Topo;
   firedRegimes?: { matched?: string[] }[];
@@ -78,11 +84,14 @@ function CascadeInner({
   onNodeClick?: (id: string) => void;
   onSwap?: (id: string) => void;
   height: number;
+  fullSurface?: boolean;
+  focus?: string;
+  showMinimap?: boolean;
 }) {
   const active = useMemo(() => firingActiveSet(topo, firedRegimes, drivers), [topo, firedRegimes, drivers]);
-  const [visible, setVisible] = useState<Set<string>>(() => seedVisible(topo, active));
-  // re-seed when the answer (topo/firing) changes
-  useEffect(() => setVisible(seedVisible(topo, active)), [topo, active]);
+  const [visible, setVisible] = useState<Set<string>>(() => seedWithFocus(topo, seedVisible(topo, active), focus));
+  // re-seed when the answer (topo/firing) OR the focus target changes
+  useEffect(() => setVisible(seedWithFocus(topo, seedVisible(topo, active), focus)), [topo, active, focus]);
 
   const expand = useCallback((id: string) => setVisible((v) => expandNode(topo, id, v)), [topo]);
   const { nodes, edges } = useMemo(() => toFlow(topo, active, visible), [topo, active, visible]);
@@ -92,15 +101,29 @@ function CascadeInner({
   );
 
   const rf = useReactFlow();
+  // Whole-graph fit — the default. SUPPRESSED while a focus node is pinned (focus mode owns the viewport;
+  // without this gate every expand would yank the camera off the focused node).
   useEffect(() => {
+    if (focus) return;
     const t = setTimeout(() => rf.fitView({ padding: 0.2, duration: 200 }), 0);
     return () => clearTimeout(t);
-  }, [visible, rf]);
+  }, [visible, rf, focus]);
+  // Focus mode — center on the pinned node (forced into `visible` by seedWithFocus). Deps are [focus, rf]
+  // only, so expanding upstream in focus mode doesn't re-yank; the Controls fit button re-frames on demand.
+  useEffect(() => {
+    if (!focus) return;
+    const t = setTimeout(() => rf.fitView({ nodes: [{ id: focus }], padding: 0.4, duration: 250 }), 0);
+    return () => clearTimeout(t);
+  }, [focus, rf]);
 
   const [hover, setHover] = useState<CascadeEdgeData | null>(null);
 
   return (
-    <div className="relative rounded-panel border border-line bg-bg-1" style={{ height }} data-testid="dag">
+    <div
+      className={`relative bg-bg-1 ${fullSurface ? 'h-full w-full' : 'rounded-panel border border-line'}`}
+      style={fullSurface ? undefined : { height }}
+      data-testid="dag"
+    >
       <ReactFlow
         nodes={withHandlers}
         edges={edges}
@@ -116,6 +139,8 @@ function CascadeInner({
         onEdgeMouseLeave={() => setHover(null)}
       >
         <Background gap={16} color="var(--line)" />
+        {fullSurface && <Controls showInteractive={false} className="border border-line" />}
+        {fullSurface && showMinimap && <MiniMap pannable zoomable className="!bg-bg-1" />}
       </ReactFlow>
       {hover?.mechanism && (
         <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-sm rounded-chip border border-line bg-bg-0/90 p-2 font-sans text-12 text-text-dim">
@@ -135,6 +160,9 @@ export default function CascadeFlow({
   onNodeClick,
   onSwap,
   height = 300,
+  fullSurface = false,
+  focus,
+  showMinimap = false,
 }: {
   topo: Topo;
   firedRegimes?: { matched?: string[] }[];
@@ -142,6 +170,11 @@ export default function CascadeFlow({
   onNodeClick?: (id: string) => void;
   onSwap?: (id: string) => void;
   height?: number;
+  /** W1.3 full-surface mode (P1.5 GraphTab / deep-link): h-full container + zoom Controls + focus centering.
+   *  The ANCESTOR must provide a resolved height — a bare mount collapses to 0. */
+  fullSurface?: boolean;
+  focus?: string;
+  showMinimap?: boolean;
 }) {
   return (
     <ReactFlowProvider>
@@ -152,6 +185,9 @@ export default function CascadeFlow({
         onNodeClick={onNodeClick}
         onSwap={onSwap}
         height={height}
+        fullSurface={fullSurface}
+        focus={focus}
+        showMinimap={showMinimap}
       />
     </ReactFlowProvider>
   );
