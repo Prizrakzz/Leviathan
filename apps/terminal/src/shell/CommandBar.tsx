@@ -14,7 +14,7 @@ export function CommandBar({
       aria-label="command"
       spellCheck={false}
       autoComplete="off"
-      placeholder="ask a convexity question, or a code — KC frost 2021 · CVX · SB su-ratio · C deep"
+      placeholder="ask a convexity question, or a code — KC frost 2021 · SB su-ratio"
       className="w-full rounded-chip border border-line bg-bg-1 px-3 py-1 font-mono text-14 text-text placeholder:text-text-faint focus:border-cyan"
       value={value}
       onChange={(e) => onChange(e.target.value)}

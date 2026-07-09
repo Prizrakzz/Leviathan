@@ -1,6 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { usePdf } from '@/store/pdf';
-import { useUI } from '@/store/ui';
 import type { ResolvedCite } from './citations';
 
 /** The number citation's query provenance line (6.4): "{table} · {metric} · {scope} · asof {asof}". */
@@ -28,8 +27,6 @@ export function CitationChip({
   const loc = resolved.locator;
   const isNumberLoc = loc?.kind === 'number';
   const isDocLoc = loc?.kind === 'doc' && typeof loc.source_key === 'string';
-  const setView = useUI((s) => s.setView);
-  const setContract = useUI((s) => s.setContract);
   const openPdf = usePdf((s) => s.openPdf);
   return (
     <Tooltip.Root>
@@ -54,20 +51,7 @@ export function CitationChip({
           </div>
           {resolved.text && <div className="mt-1 text-text-dim">{resolved.text}</div>}
           {isNumberLoc && loc && (
-            <>
-              <div className="mt-1 font-mono text-11 text-text-dim">{numberProvenance(loc)}</div>
-              {typeof loc.commodity === 'string' && (
-                <button
-                  onClick={() => {
-                    setContract(loc.commodity as string);
-                    setView('deep');
-                  }}
-                  className="mt-1 font-mono text-11 text-cyan hover:text-amber"
-                >
-                  open series ▸
-                </button>
-              )}
-            </>
+            <div className="mt-1 font-mono text-11 text-text-dim">{numberProvenance(loc)}</div>
           )}
           {/* 6.5: a doc citation opens its SOURCE PDF at the cited page — the clean slot beside the
               number branch's "open series" (which stays number-gated). */}

@@ -31,9 +31,6 @@ const METRICS = new Set([
 ]);
 
 export type ParsedCommand =
-  | { kind: 'view'; view: 'convergence' }
-  | { kind: 'deep'; contract: string }
-  | { kind: 'compare'; contracts: string[] }
   | { kind: 'numbers'; contract: string; metric: string; asofOverride?: string }
   | { kind: 'ask'; contract: string; question: string; asofOverride?: string }
   | { kind: 'nl'; question: string; asofOverride?: string };
@@ -56,21 +53,9 @@ export function parseCommand(input: string): ParsedCommand {
   const tokens = text.split(/\s+/);
   const head = tokens[0] as string;
 
-  // Bare code: CVX -> convergence view (no ticker).
-  if (tokens.length === 1 && head.toUpperCase() === 'CVX') return { kind: 'view', view: 'convergence' };
-
   const c0 = ticker(head);
   if (c0) {
     const rest = tokens.slice(1);
-    // "<T> vs <T>" -> compare
-    if (rest.length === 2 && rest[0]?.toLowerCase() === 'vs') {
-      const c1 = ticker(rest[1] as string);
-      if (c1) return { kind: 'compare', contracts: [c0, c1] };
-    }
-    // "<T> deep" or bare "<T>" -> deep-dive
-    if (rest.length === 0 || (rest.length === 1 && rest[0]?.toLowerCase() === 'deep')) {
-      return { kind: 'deep', contract: c0 };
-    }
     // "<T> <metric>" -> numbers (a single metric-looking token: in the table, or hyphenated)
     if (rest.length === 1) {
       const tok = (rest[0] as string).toLowerCase();
@@ -78,7 +63,9 @@ export function parseCommand(input: string): ParsedCommand {
         return withAsof({ kind: 'numbers', contract: c0, metric: tok }) as ParsedCommand;
       }
     }
-    // "<T> <words…>" -> an ask scoped to that contract (e.g. "KC frost 2021")
+    // Anything else with a leading ticker — a bare "<T>", "<T> deep", "<T> vs <T>", or "<T> <words…>" —
+    // folds into an ask scoped to that contract, routed to the Answer view (5.6 view-prune: the deep-dive +
+    // compare views were removed, so a leading code is now just a question about that contract).
     return withAsof({ kind: 'ask', contract: c0, question: text }) as ParsedCommand;
   }
 

@@ -439,35 +439,6 @@ export function mockThreadTurns(threadId: string): Schemas['ThreadTurns'] {
 // ── read-endpoint fixtures ───────────────────────────────────────────────────────────────────────────
 export const MOCK_GRAPH = graphArabica as unknown as Schemas['GraphTopology'];
 
-export const MOCK_REGIMES: Schemas['ConvergenceRow'] = {
-  contract: 'arabica_coffee',
-  regimes: [
-    {
-      name: 'bullish_supply_squeeze',
-      direction: '+',
-      matched: ['frost', 'low_stocks'],
-      threshold: 2,
-      fired: true,
-      n_active: 2,
-      proximity: 1,
-    },
-    {
-      name: 'demand_led_tightening',
-      direction: '+',
-      matched: ['low_stocks'],
-      threshold: 2,
-      fired: false,
-      n_active: 1,
-      proximity: 0.5,
-    },
-  ],
-  drivers: [
-    { id: 'frost', live: true, verdict: 'observed', z: -2.1, value: 0.09, unit: 'flag', ref: 'frost_event_flag', knowledge_date: '2021-07-15' },
-    { id: 'low_stocks', live: true, verdict: 'observed', z: -1.4, value: 0.36, unit: 'ratio', ref: 'psd_su_ratio', knowledge_date: '2021-06-11' },
-    { id: 'drought', live: false, verdict: null, z: null, value: null, unit: '', ref: null, knowledge_date: '' },
-  ],
-};
-
 export const MOCK_SERIES: Schemas['Series'] = {
   table: 'silver_psd',
   metric: 'su_ratio',
@@ -481,38 +452,6 @@ export const MOCK_SERIES: Schemas['Series'] = {
     { period: '2019', value: '0.49', knowledge_date: '2019-06-10' },
     { period: '2020', value: '0.44', knowledge_date: '2020-06-11' },
     { period: '2021', value: '0.36', knowledge_date: '2021-06-11' },
-  ],
-};
-
-export const MOCK_CONVERGENCE: Schemas['ConvergenceMatrix'] = {
-  asof: '2021-07-20',
-  graph_version: '3a69acfb87c5',
-  rows: [MOCK_REGIMES],
-};
-
-export const MOCK_EVENTS: Schemas['EventsFeed'] = {
-  contract: 'arabica_coffee',
-  asof: '2021-07-20',
-  live: false,
-  events: [
-    {
-      source: 'usda_gain_coffee',
-      title: 'Frost damages southern Minas Gerais coffee districts',
-      summary: 'Overnight radiative frost hit key arabica-producing districts in southern Brazil.',
-      url: 'https://example.gov/gain/kc-2021-07-20',
-      date: '2021-07-20',
-      driver_id: 'frost',
-      commodity: 'arabica_coffee',
-    },
-    {
-      source: 'reuters',
-      title: 'Arabica futures spike on Brazil frost reports',
-      summary: 'ICE arabica jumped as traders assessed frost damage to the 2022 crop.',
-      url: 'https://example.com/reuters/kc-frost',
-      date: '2021-07-19',
-      driver_id: null,
-      commodity: 'arabica_coffee',
-    },
   ],
 };
 

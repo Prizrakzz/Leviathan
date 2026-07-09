@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react';
-import type { ViewName } from '@/store/ui';
 
 /**
  * The terminal hotkey system (design §3.3). Keyboard-first: mouse is supported but never required.
  * Global combos (⌘K, ⌘↵, ⌘\, Esc) fire even while typing; single-key bindings are suppressed inside inputs
- * so the command bar is usable. `g` is a leader for view switches (`g a/c/d`). `,`/`.` (the keys under `‹ ›`)
- * step the as-of; Shift = a larger jump.
+ * so the command bar is usable. `,`/`.` (the keys under `‹ ›`) step the as-of; Shift = a larger jump. (The
+ * `g` view-switch leader was retired in the 5.6 view-prune — Answer is now the only view.)
  */
 export interface HotkeyHandlers {
   onPalette?: () => void;
@@ -14,7 +13,6 @@ export interface HotkeyHandlers {
   onEscape?: () => void;
   onAsOfStep?: (dir: -1 | 1, large: boolean) => void;
   onPanel?: (n: number) => void;
-  onView?: (v: ViewName) => void;
   onHelp?: () => void;
   onCopy?: () => void;
   onReceipts?: () => void;
@@ -29,8 +27,6 @@ function isTyping(t: EventTarget | null): boolean {
 export function useHotkeys(handlers: HotkeyHandlers): void {
   const h = useRef(handlers);
   h.current = handlers;
-  const leader = useRef<'g' | null>(null);
-  const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -41,24 +37,11 @@ export function useHotkeys(handlers: HotkeyHandlers): void {
       if (mod && e.key.toLowerCase() === 'k') return void (e.preventDefault(), H.onPalette?.());
       if (mod && e.key === 'Enter') return void (e.preventDefault(), H.onSubmit?.());
       if (mod && e.key === '\\') return void (e.preventDefault(), H.onToggleThread?.());
-      if (e.key === 'Escape') return void ((leader.current = null), H.onEscape?.());
+      if (e.key === 'Escape') return void H.onEscape?.();
       if (mod) return; // leave other mod-combos to the browser
       if (isTyping(e.target)) return; // never hijack typing
 
-      if (leader.current === 'g') {
-        leader.current = null;
-        const v: Record<string, ViewName> = { a: 'answer', c: 'convergence', d: 'deep' };
-        const view = v[e.key.toLowerCase()];
-        if (view) return void (e.preventDefault(), H.onView?.(view));
-        return;
-      }
-
       switch (e.key) {
-        case 'g':
-          leader.current = 'g';
-          window.clearTimeout(timer.current);
-          timer.current = window.setTimeout(() => (leader.current = null), 800);
-          return;
         case ',':
           return void (e.preventDefault(), H.onAsOfStep?.(-1, e.shiftKey));
         case '<':

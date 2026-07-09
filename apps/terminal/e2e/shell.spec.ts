@@ -34,11 +34,6 @@ test('shell is keyboard-operable and streams a mocked turn', async ({ page }) =>
   // move focus out of the command bar so single-key hotkeys are active (they are suppressed while typing)
   await page.getByTestId('view').click();
 
-  // g c switches to the convergence view
-  await page.keyboard.press('g');
-  await page.keyboard.press('c');
-  await expect(page.getByTestId('view')).toHaveAttribute('data-view', 'convergence');
-
   // ‹/› step the as-of off live -> BACKTEST pill
   await page.keyboard.press(',');
   await expect(page.getByRole('button', { name: 'return to live' })).toBeVisible();

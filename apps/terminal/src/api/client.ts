@@ -1,5 +1,5 @@
 import { getIdToken } from '../auth/oidc';
-import { MOCK_CONVERGENCE, MOCK_EVENTS, MOCK_REGIMES, MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
+import { MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -51,19 +51,9 @@ async function putJSON<T>(path: string, body: unknown): Promise<T> {
 
 const q = (asof?: string) => (asof ? `?asof=${encodeURIComponent(asof)}` : '');
 
-export function getConvergence(asof?: string): Promise<Schemas['ConvergenceMatrix']> {
-  if (MOCK) return Promise.resolve(MOCK_CONVERGENCE);
-  return getJSON(`/v1/convergence${q(asof)}`);
-}
-
 export function getGraph(contract: string, asof?: string): Promise<Schemas['GraphTopology']> {
   if (MOCK) return Promise.resolve(mockGraph(contract)); // per-contract mock so the DAG matches the answer
   return getJSON(`/v1/graph/${encodeURIComponent(contract)}${q(asof)}`);
-}
-
-export function getRegimes(contract: string, asof?: string): Promise<Schemas['ConvergenceRow']> {
-  if (MOCK) return Promise.resolve(MOCK_REGIMES);
-  return getJSON(`/v1/regimes/${encodeURIComponent(contract)}${q(asof)}`);
 }
 
 export function getSeries(
@@ -79,15 +69,6 @@ export function getSeries(
   return getJSON(
     `/v1/series/${encodeURIComponent(table)}/${encodeURIComponent(metric)}${qs ? `?${qs}` : ''}`,
   );
-}
-
-export function getEvents(contract?: string, asof?: string): Promise<Schemas['EventsFeed']> {
-  if (MOCK) return Promise.resolve(MOCK_EVENTS);
-  const p = new URLSearchParams();
-  if (contract) p.set('contract', contract);
-  if (asof) p.set('asof', asof);
-  const qs = p.toString();
-  return getJSON(`/v1/events${qs ? `?${qs}` : ''}`);
 }
 
 // ── 6.6 profile / settings / onboarding (auth-gated per-user) ──────────────────────────────────────

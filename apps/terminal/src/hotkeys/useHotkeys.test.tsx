@@ -18,14 +18,6 @@ describe('useHotkeys', () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
-  it('the g-leader switches views (g c → convergence)', () => {
-    const onView = vi.fn();
-    render(<Harness handlers={{ onView }} />);
-    fireEvent.keyDown(document, { key: 'g' });
-    fireEvent.keyDown(document, { key: 'c' });
-    expect(onView).toHaveBeenCalledWith('convergence');
-  });
-
   it(', and . step the as-of; Shift makes the step large', () => {
     const onAsOfStep = vi.fn();
     render(<Harness handlers={{ onAsOfStep }} />);

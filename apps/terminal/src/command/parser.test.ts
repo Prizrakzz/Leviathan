@@ -2,19 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { parseCommand } from './parser';
 
 describe('parseCommand (function codes → intents)', () => {
-  it('CVX opens the convergence view', () => {
-    expect(parseCommand('CVX')).toEqual({ kind: 'view', view: 'convergence' });
+  it('"C deep" and a bare ticker fold into an ask scoped to that contract (5.6 view-prune)', () => {
+    expect(parseCommand('C deep')).toEqual({ kind: 'ask', contract: 'corn', question: 'C deep' });
+    expect(parseCommand('KC')).toEqual({ kind: 'ask', contract: 'arabica_coffee', question: 'KC' });
   });
 
-  it('"C deep" and a bare ticker open the deep-dive', () => {
-    expect(parseCommand('C deep')).toEqual({ kind: 'deep', contract: 'corn' });
-    expect(parseCommand('KC')).toEqual({ kind: 'deep', contract: 'arabica_coffee' });
-  });
-
-  it('"KC vs RC" compares two contracts', () => {
+  it('"KC vs RC" folds into an ask (the compare view was removed)', () => {
     expect(parseCommand('KC vs RC')).toEqual({
-      kind: 'compare',
-      contracts: ['arabica_coffee', 'robusta_coffee'],
+      kind: 'ask',
+      contract: 'arabica_coffee',
+      question: 'KC vs RC',
     });
   });
 
