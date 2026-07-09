@@ -142,9 +142,9 @@ function CascadeInner({
         {fullSurface && <Controls showInteractive={false} className="border border-line" />}
         {fullSurface && showMinimap && <MiniMap pannable zoomable className="!bg-bg-1" />}
       </ReactFlow>
-      {hover?.mechanism && (
+      {(hover?.blurb ?? hover?.mechanism) && (
         <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-sm rounded-chip border border-line bg-bg-0/90 p-2 font-sans text-12 text-text-dim">
-          {hover.mechanism}
+          {hover?.blurb ?? hover?.mechanism}
         </div>
       )}
     </div>

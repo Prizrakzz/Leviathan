@@ -115,12 +115,38 @@ def check_driver_slices() -> list[str]:
     return _cds()
 
 
+def check_edge_blurbs() -> list[str]:
+    """Blurb word-cap lint (P8-P1 W1.5) — a set blurb must be <=MAX_WORDS (hard; over-length means either a
+    truncated draft or hand-edit drift). MISSING blurbs are a WARN, not an error: the rollout is gated/partial
+    by design (over-limit drafts are skipped at apply and fall back to mechanism on hover)."""
+    from leviathan.causal import blurb as bl
+    from leviathan.causal import schema as cs
+    errs = []
+    for p in sorted(bl._CAUSAL_DIR.glob("*.yaml")):
+        c = cs.load(p)
+        for d in c.drivers:
+            if d.blurb and len(d.blurb.split()) > bl.MAX_WORDS:
+                errs.append(f"{c.contract}/{d.id}: blurb is {len(d.blurb.split())} words (>{bl.MAX_WORDS})")
+        for e in c.inter_commodity:
+            if e.blurb and len(e.blurb.split()) > bl.MAX_WORDS:
+                errs.append(f"{c.contract}->{e.driver_commodity}: blurb is {len(e.blurb.split())} words "
+                            f"(>{bl.MAX_WORDS})")
+    return errs
+
+
+def blurb_presence_warnings() -> list[str]:
+    """Advisory: edges with mechanism but no blurb (the hover falls back to mechanism — works, just longer)."""
+    from leviathan.causal import blurb as bl
+    return [f"{t['contract']}/{t['id']} ({t['kind']})" for t in bl._targets()]
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
                         ("hierarchy", check_hierarchy()), ("geography", check_geography()),
                         ("display_names", check_display_names()),
-                        ("driver_slices", check_driver_slices())):
+                        ("driver_slices", check_driver_slices()),
+                        ("edge_blurbs", check_edge_blurbs())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")
@@ -142,6 +168,11 @@ def main() -> int:
         print(f"WARN bare_name ({len(bare)} nodes miss their own head-commodity word -- non-fatal):")
         for w in bare:
             print(f"  - {w}")
+    # Advisory (non-fatal): un-blurbed edges — hover falls back to mechanism; count-only to keep output sane.
+    missing_blurbs = blurb_presence_warnings()
+    if missing_blurbs:
+        print(f"WARN edge_blurbs ({len(missing_blurbs)} edges have mechanism but no blurb -- hover falls "
+              "back to mechanism, non-fatal)")
     return 1 if failures else 0
 
 

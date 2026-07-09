@@ -19,6 +19,7 @@ export type CascadeRFNode = Node<CascadeNodeData>;
 export interface CascadeEdgeData {
   sign: string | null;
   mechanism: string | null;
+  blurb: string | null;   // W1.5: <=18-word plain-English hover line; hover renders blurb ?? mechanism
   confidence: string | null;
   active: boolean;
   [key: string]: unknown;
@@ -127,6 +128,8 @@ export function toFlow(topo: Topo, active: Set<string>, visible: Set<string>): {
     data: {
       sign: (le.edge.sign as string | null) ?? null,
       mechanism: (le.edge.mechanism as string | null) ?? null,
+      // object-cast: GraphEdge is extra='allow' server-side; blurb rides untyped until a types.gen regen
+      blurb: ((le.edge as Record<string, unknown>).blurb as string | null) ?? null,
       confidence: (le.edge.confidence as string | null) ?? null,
       active: le.active,
     },

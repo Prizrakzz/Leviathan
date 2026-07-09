@@ -38,6 +38,9 @@ class Driver(_Base):
     type: str                            # vocab node type: hazard|climate_driver|policy_event|instrument|macro|commodity|...
     sign: Sign                           # effect on the target_metric (+ up / - down / 0 ambiguous)
     mechanism: str                       # one-sentence causal explanation
+    blurb: Optional[str] = None          # <=15-word plain-English hover tooltip (compressed from mechanism;
+    #                                      None until the W1.5 blurb pass fills it — word-cap enforced by
+    #                                      config_check, accuracy by human ratification, never the schema)
     lag: str = ""                        # e.g. "0-2 quarters"; "" = contemporaneous/unspecified
     region: Optional[str] = None         # geography anchor (vocab region / country_origin)
     edge_type: str = "causes"            # curated edge type from the vocab taxonomy
@@ -63,6 +66,7 @@ class InterCommodityEdge(_Base):
     relation: str                        # substitutes_for|competes_with|crushed_into|feedstock_for|...
     sign: Sign
     mechanism: str = ""
+    blurb: Optional[str] = None          # <=15-word hover tooltip (compressed from mechanism; W1.5)
     lag: str = ""
 
 

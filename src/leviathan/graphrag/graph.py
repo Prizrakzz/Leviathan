@@ -191,21 +191,21 @@ class CausalGraph:
             nodes[d.id] = {"id": d.id, "kind": d.type, "contract": contract, "label": dp.node_label(d.id, d.type),
                            "silver_ref": d.silver_ref, "silver_status": d.silver_status, "confidence": d.confidence}
             edges.append({"source": d.id, "target": contract, "edge_type": d.edge_type or "drives",
-                          "sign": d.sign, "lag": d.lag, "mechanism": d.mechanism, "confidence": d.confidence,
-                          "target_metric": d.target_metric or tgt0})
+                          "sign": d.sign, "lag": d.lag, "mechanism": d.mechanism, "blurb": d.blurb,
+                          "confidence": d.confidence, "target_metric": d.target_metric or tgt0})
             for p in d.parents:                                      # fan-in: parent driver -> driver
                 if p in by_id:
-                    # The parent's own one-sentence mechanism doubles as the hover text — before W1.4 these
+                    # The parent's own blurb/mechanism doubles as the hover text — before W1.4 these
                     # 983 edges (45% of the map) rendered a blank tooltip (the FE binds hover to `mechanism`).
                     edges.append({"source": p, "target": d.id, "edge_type": "drives", "sign": None,
-                                  "mechanism": by_id[p].mechanism})
+                                  "mechanism": by_id[p].mechanism, "blurb": by_id[p].blurb})
         for e in c.inter_commodity:                                 # cascade hop: contract -> other commodity
             nodes.setdefault(e.driver_commodity, {"id": e.driver_commodity, "kind": "commodity",
                                                   "contract": e.driver_commodity,
                                                   "label": dp.node_label(e.driver_commodity, "commodity"),
                                                   "tracked": e.driver_commodity in self.contracts})
             edges.append({"source": contract, "target": e.driver_commodity, "edge_type": e.relation,
-                          "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism})
+                          "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism, "blurb": e.blurb})
         return {"contract": contract, "graph_version": self.version,
                 "nodes": list(nodes.values()), "edges": edges}
 
@@ -245,8 +245,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Causal graph utilities (pure/offline).")
     ap.add_argument("--edge-list", action="store_true", help="print the canonical flat edge list")
     ap.add_argument("--csv", action="store_true", help="with --edge-list: CSV instead of JSONL")
+    ap.add_argument("--topology", metavar="CONTRACT",
+                    help="print one contract's topology JSON (the /v1/graph payload; FE fixture regen: "
+                         "python -m leviathan.graphrag.graph --topology arabica_coffee > graph.arabica.json)")
     args = ap.parse_args()
     g = CausalGraph.load()
+    if args.topology:
+        print(json.dumps(g.topology(args.topology), indent=2, ensure_ascii=False))
+        return 0
     if args.edge_list:
         rows = g.to_edge_list()
         if args.csv and rows:
