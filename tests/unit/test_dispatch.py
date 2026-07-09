@@ -221,3 +221,40 @@ def test_non_news_past_asof_gets_no_suppression_note():
                        retrieve=_retrieve, asof="2020-01-01")
     assert "live headlines are disabled" not in (out["answer"] or "").lower()
     assert "live_suppressed_pit" not in out["intent_decision"]
+
+
+# ══ news-agent root-cause fix, part 2: thread coreference reaches the live SEARCH ════════════════════════
+def test_live_search_terms_fall_back_to_thread_contracts():
+    """'any news related to that?' names no commodity — the search must pin to the THREAD's contracts,
+    not generic probe keywords (the production noise mode)."""
+    g = _graph()
+    terms = orch._live_search_terms("any news related to that from a week or so?", g,
+                                    context_contracts=["cotton", "white_sugar", "corn"])
+    joined = " | ".join(terms)
+    assert "cotton" in joined and "white sugar" in joined and "corn" in joined
+
+
+def test_live_search_terms_query_commodity_still_beats_context():
+    g = _graph()
+    terms = orch._live_search_terms("any news on corn?", g, context_contracts=["cotton"])
+    joined = " | ".join(terms)
+    assert "corn" in joined and "cotton" not in joined
+
+
+def test_search_name_strips_exchange_codes():
+    assert orch._search_name("hard_red_winter_wheat_kcbt") == "hard red winter wheat"
+    assert orch._search_name("white_sugar") == "white sugar"
+
+
+def test_respond_live_turn_passes_thread_contracts_to_run_live(monkeypatch):
+    """The plan's coreference-resolved contracts must reach run_live (and thus the headline search)."""
+    seen = {}
+
+    def fake_live(query, asof, **kw):
+        seen["ctx"] = kw.get("context_contracts")
+        return {"answer": "live!", "intent": "live", "citations": [], "evidence": [], "structured": None,
+                "contract": None, "live_events": [], "number_calls": [], "asof": asof}
+    monkeypatch.setattr(orch, "run_live", fake_live)
+    call = _call_factory({"steps": ["live"], "contracts": ["corn"]})
+    orch.respond("any news related to that from a week or so?", graph=_graph(), call=call, retrieve=_retrieve)
+    assert seen.get("ctx") == ["corn"]

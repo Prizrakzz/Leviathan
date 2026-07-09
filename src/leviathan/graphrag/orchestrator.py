@@ -148,20 +148,25 @@ def contracts_for_driver(graph, driver_id: str, prefer: str = "") -> list[str]:
 
 
 def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
-             planner: str | None = None, gather=None, extract=None, on_stage=None) -> dict:
+             planner: str | None = None, gather=None, extract=None, on_stage=None,
+             context_contracts=None, route_fn=None) -> dict:
     """The section-7.1 live branch: fetch trusted headlines -> typed LiveEvents -> event-rooted cascade.
     Returns a full result dict; when NO verified event is found it degrades to normal reasoning with an
-    explicit live-check note (never a silently stale answer). `gather`/`extract` injectable for tests."""
+    explicit live-check note (never a silently stale answer). `gather`/`extract` injectable for tests.
+    `context_contracts` (the thread's resolved contracts) pin the headline SEARCH when the query itself
+    names no commodity — a coreference news ask ("any news related to that?") searches the thread's
+    commodities instead of generic probes; `route_fn` keeps that coreference through the no-events
+    reasoning fallback and the no-seed cascade (news-agent root-cause fix, part 2)."""
     from leviathan.graphrag.news import extract_live as nx
     from leviathan.graphrag.news import fetch as nf
     gather = gather or nf.gather
     extract = extract or nx.extract_events
-    items = gather(_live_search_terms(query, graph))
+    items = gather(_live_search_terms(query, graph, context_contracts))
     nf.snapshot(items)                                             # audit copy (best-effort, never blocks)
     events = extract(items, call=call or an._call_opus, graph=graph) if items else []
     if not events:
         res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                            on_stage=on_stage)
+                            route_fn=route_fn, on_stage=on_stage)
         res["answer"] += ("\n\n_Live check: no verified shock headline from trusted sources at answer time; "
                           "the analysis above rests on the dated archive._")
         res["live_events"] = []
@@ -175,6 +180,8 @@ def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: s
               extra_context=block, planner=planner, on_stage=on_stage)
     if seeds:
         kw.update(route_fn=lambda q, g: seeds, focus_driver=ev0.driver_id)
+    elif route_fn is not None:
+        kw.update(route_fn=route_fn)                               # no event seed -> the thread's coreference routes
     out = an.answer(query, **kw)
     header = "**Live context** (external, fetched " + (now or "now") + "): " + "; ".join(
         f"[{e.source}] {e.summary}" for e in events) + \
@@ -196,11 +203,23 @@ def _geo_routing_on() -> bool:
     return os.environ.get("GRAPHRAG_GEO_ROUTING", "off").lower() == "on"
 
 
-def _live_search_terms(query: str, graph) -> list[str]:
+_EXCHANGE_TOKENS = frozenset({"kcbt", "cbot", "mgex", "cme", "ice", "jse", "zce", "dce", "matif", "nybot"})
+
+
+def _search_name(contract_id: str) -> str:
+    """A contract id as a news-searchable phrase: underscores to spaces, exchange codes dropped
+    (hard_red_winter_wheat_kcbt -> "hard red winter wheat"; white_sugar -> "white sugar")."""
+    return " ".join(t for t in contract_id.split("_") if t not in _EXCHANGE_TOKENS)
+
+
+def _live_search_terms(query: str, graph, context_contracts=None) -> list[str]:
     """Search terms for the site-scoped providers: shock keywords found IN the query (else the default
     policy probes from news_sources.yaml) x the query's commodity (word-boundary, incl. head nouns).
     When the query names a COUNTRY but no commodity (e.g. "news on India"), fall back to the country so
-    the fetch actually searches it instead of generic keywords (5.8, flag-gated)."""
+    the fetch actually searches it instead of generic keywords (5.8, flag-gated). When the query names
+    NEITHER (a coreference — "any news related to that?"), fall back to the THREAD's resolved contracts
+    (the news-agent root-cause fix, part 2): the session already knows what "that" is; searching generic
+    probe keywords instead of the thread's commodities made coreference news asks return noise."""
     from leviathan.graphrag import harvest as hv
     from leviathan.graphrag.news import extract_live as nx
     from leviathan.graphrag.news import fetch as nf
@@ -211,7 +230,16 @@ def _live_search_terms(query: str, graph) -> list[str]:
     hits = cm.findall(query) if cm else []
     comm = hits[0] if hits else ""
     terms = [f"{k} {comm}".strip() for k in kws[:3]]
-    if _geo_routing_on() and not comm:
+    if not comm and context_contracts:
+        names = [_search_name(c) for c in list(context_contracts)[:3]]
+        names = [n for n in names if n]
+        if names:
+            # one probe keyword per thread commodity (coverage over depth: a cotton+sugar+corn thread
+            # should see all three searched), plus a second keyword on the first commodity.
+            terms = [f"{kws[0]} {n}".strip() for n in names]
+            if len(kws) > 1:
+                terms.append(f"{kws[1]} {names[0]}".strip())
+    if _geo_routing_on() and not comm and not context_contracts:
         from leviathan.graphrag import geography as geo
         country = geo.resolve_country(query)
         if country:
@@ -440,9 +468,10 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             live_pit_suppressed = True                                 # explicit ask vetoed by PIT -> note below
         if it.is_live(query) and asof >= _today():
             an._emit(on_stage, "planning", intent="live", contracts=[])
+            _ctx = [c for c in ((state.contracts if state else None) or []) if c in graph.contracts] or None
             try:
                 res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                               on_stage=on_stage)
+                               on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn)
             except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
                 an._emit(on_stage, "floor")
                 res = _evidence_only(query, asof, graph=graph, kind="live", exc=e, route_fn=route_fn)
@@ -458,8 +487,12 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     an._emit(on_stage, "planning", intent=kind, contracts=_tick_contracts)   # staged-pipeline (P1.1)
     try:
         if kind == "live":
+            # Thread coreference reaches the news SEARCH ("any news related to that?"): the plan's
+            # resolved contracts first, else the session's carried contracts (root-cause fix, part 2).
+            _ctx = [c for c in ((list(plan.contracts) if plan else None)
+                                or (state.contracts if state else None) or []) if c in graph.contracts] or None
             res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                           on_stage=on_stage)
+                           on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn)
         elif kind == "numbers_only":
             hints = list(plan.contracts) if plan else []
             if plan and plan.country:
