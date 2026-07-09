@@ -388,6 +388,10 @@ export async function mockRespondStream(
  *  URL is an empty-doc-safe data: URI (pdf.js surfaces an error state, which the modal handles by keeping
  *  the raw-download escape) — the point is to exercise the chip/row -> modal wiring, not to raster bytes.
  *  Args are accepted (and ignored) so the mock matches `client.getPdfPage`'s signature. */
+// A real (tiny) 1-page PDF so the mock click-to-pdf flow renders instead of erroring: the old empty
+// data URL made pdf.js fail and the download save a 0-byte file on every mock walkthrough.
+const MOCK_PDF_URL = 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCA2MSA+PiBzdHJlYW0KQlQgL0YxIDI0IFRmIDcyIDcyMCBUZCAoTGV2aWF0aGFuIG1vY2sgc291cmNlIGRvY3VtZW50KSBUaiBFVAplbmRzdHJlYW0gZW5kb2JqCjUgMCBvYmogPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+IGVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAgbiAKMDAwMDAwMDM1MiAwMDAwMCBuIAp0cmFpbGVyIDw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjQyMgolJUVPRg==';
+
 export function mockGetPdfPage(
   _sourceKey: string,
   _snippet?: string,
@@ -395,7 +399,7 @@ export function mockGetPdfPage(
   _offsetKind?: string,
 ): Promise<PdfPage> {
   return new Promise((resolve) =>
-    setTimeout(() => resolve({ url: 'data:application/pdf;base64,', page: 2, kind: 'pdf', expires_in: 900 }), 60),
+    setTimeout(() => resolve({ url: MOCK_PDF_URL, page: 1, kind: 'pdf', expires_in: 900 }), 60),
   );
 }
 

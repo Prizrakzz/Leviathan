@@ -1,20 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MOCK_RESULT, numbersOnlyResult } from '@/api/mock';
 import type { TurnState } from '@/api/useTurn';
+import { useUI } from '@/store/ui';
 import { AnswerView } from './AnswerView';
 
-// The lazy CascadeFlow chunk pulls @xyflow/react (ResizeObserver etc.) — stub it: these tests assert the
-// MOUNT CONDITION CHAIN (graphQ → mapSlot → branch), not the DAG's own rendering (toFlow/layout unit tests
-// cover that). The stub preserves the lazy-import seam.
-vi.mock('./dag/CascadeFlow', () => ({
-  default: () => <div data-testid="dag-stub" />,
-}));
-
-const getGraph = vi.fn();
 vi.mock('@/api/client', () => ({
-  getGraph: (...a: unknown[]) => getGraph(...a),
   getThreadTurns: () => Promise.resolve({ turns: [] }),
   suggest: () => Promise.resolve({ suggestions: [] }),
 }));
@@ -32,39 +25,31 @@ function mount(turn: TurnState, question: string) {
   );
 }
 
-// settled flips via useTypewriter's 800ms drain timer in jsdom (rAF path may be throttled) — give findBy
-// headroom past DRAIN_MS.
+// settled flips via useTypewriter's 800ms drain timer in jsdom — give findBy headroom past DRAIN_MS.
 const T = { timeout: 4000 };
 
-describe('AnswerView map-mount chain (W1.1/W1.2-FE)', () => {
+describe('AnswerView graph chip + numbers rendering (P1.5: graph is TAB-ONLY, never inline)', () => {
   beforeEach(() => {
-    getGraph.mockReset();
+    useUI.setState({ tabs: [], activeTabId: null });
   });
 
-  it('reasoning turn: graphQ resolves → CascadeFlow mounts inside the note', async () => {
-    getGraph.mockResolvedValue({ contract: 'arabica_coffee', graph_version: 'v', nodes: [], edges: [] });
+  it('reasoning turn: NO inline map; the chip pushes a graph tab with the firing snapshot', async () => {
     mount(doneTurn(MOCK_RESULT), 'KC frost 2021');
-    expect(await screen.findByTestId('dag-stub', undefined, T)).toBeTruthy();
-    expect(getGraph).toHaveBeenCalledWith('arabica_coffee', MOCK_RESULT.asof);
+    const chip = await screen.findByTestId('open-full-graph', undefined, T);
+    expect(screen.queryByTestId('dag')).toBeNull(); // the graph never renders in the chat
+    await userEvent.click(chip);
+    const tabs = useUI.getState().tabs;
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]!.kind).toBe('graph');
+    expect((tabs[0]!.params as { contract: string }).contract).toBe('arabica_coffee');
+    expect((tabs[0]!.params as { drivers?: string[] }).drivers).toEqual(['frost', 'low_stocks']);
   });
 
-  it('graph fetch failure is VISIBLE, never a silent vanish (W1.1.1)', async () => {
-    getGraph.mockRejectedValue(new Error('boom'));
-    mount(doneTurn(MOCK_RESULT), 'KC frost 2021');
-    // Before W1.1 the error surface lived INSIDE the data guard → a dead /v1/graph rendered nothing at all.
-    expect(await screen.findByText(/causal map unavailable/i, undefined, T)).toBeTruthy();
-    expect(screen.queryByTestId('dag-stub')).toBeNull();
-  });
-
-  it('numbers_only turn: map mounts, r.answer renders, and NO no-match banner (W1.1.2/3 + W1.2-FE)', async () => {
-    getGraph.mockResolvedValue({ contract: 'arabica_coffee', graph_version: 'v', nodes: [], edges: [] });
+  it('numbers_only turn: r.answer renders, chip renders, and NO no-match banner (W1.1.2/3)', async () => {
     const r = numbersOnlyResult('what were ending stocks', '2024-06-01');
     mount(doneTurn(r), 'what were ending stocks');
-    // the numbers markdown body — before W1.1.3 it rendered NOWHERE once the turn settled
     expect(await screen.findByTestId('numbers-answer', undefined, T)).toBeTruthy();
-    // the map, keyed on the backend-resolved contract despite structured=null
-    expect(await screen.findByTestId('dag-stub', undefined, T)).toBeTruthy();
-    // and the wrong banner is gone
+    expect(await screen.findByTestId('open-full-graph', undefined, T)).toBeTruthy();
     expect(screen.queryByText(/No tracked contract matched/i)).toBeNull();
   });
 });

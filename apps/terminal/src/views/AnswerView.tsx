@@ -1,10 +1,9 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useQuery } from '@tanstack/react-query';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { getGraph, getThreadTurns, suggest } from '@/api/client';
+import { useRef, useState } from 'react';
+import { getThreadTurns, suggest } from '@/api/client';
 import type { components } from '@/api/types.gen';
 import type { TurnState } from '@/api/useTurn';
-import { retryImport } from '@/lib/retryImport';
 import { Composer } from '@/shell/Composer';
 import { ErrorBoundary } from '@/shell/ErrorBoundary';
 import { Pipeline } from '@/shell/Pipeline';
@@ -26,27 +25,12 @@ import { ReceiptsDrawer } from './receipts/ReceiptsDrawer';
 
 type TurnRecord = components['schemas']['TurnRecord'];
 
-// 6.3: the interactive causal map is lazy — @xyflow/react + dagre + its CSS ride an async chunk off the
-// first-paint critical path (the map only mounts on a finalized answer). retryImport heals a transient
-// chunk miss (e.g. the just-deployed window); a hard failure surfaces to the map's ErrorBoundary (S2.1).
-const CascadeFlow = lazy(() => retryImport(() => import('./dag/CascadeFlow')));
-
 const noop = () => {};
 
 // A caught render error inside a finalized answer degrades to a readable line instead of blanking the app.
 const answerErrorFallback = (
   <div className="rounded-panel border border-line bg-bg-1 p-3 font-mono text-12 text-neg">
     couldn’t render this answer ·{' '}
-    <button onClick={() => window.location.reload()} className="text-cyan hover:text-amber">
-      reload
-    </button>
-  </div>
-);
-// A failed map chunk keeps the note intact. resetKeys can re-render a render-time throw, but React.lazy
-// caches a REJECTED import forever — so for a genuinely missing chunk the honest escape is a reload (S2.1 review).
-const mapErrorFallback = (
-  <div className="rounded-panel border border-line bg-bg-1 p-3 font-mono text-11 text-text-faint">
-    causal map unavailable ·{' '}
     <button onClick={() => window.location.reload()} className="text-cyan hover:text-amber">
       reload
     </button>
@@ -144,19 +128,6 @@ export function AnswerView({
 
   const contract = r?.contract ?? r?.contracts?.[0] ?? null;
   const asof = r?.asof ?? '';
-  // 6.3 cross-commodity swap: clicking a tracked hop shows that contract's map; reset on a new answer.
-  const [mapContract, setMapContract] = useState<string | null>(null);
-  useEffect(() => setMapContract(null), [contract]);
-  const shownContract = mapContract ?? contract;
-  const graphQ = useQuery({
-    queryKey: ['graph', shownContract, asof],
-    queryFn: () => getGraph(shownContract as string, asof),
-    // W1.2-FE: numeric turns mount the map too (contract resolved backend-side, structured stays null).
-    // NOT bare !!shownContract — a floor turn keeps its contract with structured=null and would mount a
-    // map under the Service-notice banner; this gate targets exactly the two map-eligible states.
-    enabled: !!shownContract && (!!r?.structured || r?.intent === 'numbers_only'),
-    staleTime: 300_000,
-  });
 
   // 6.2 suggester — fired ONCE per completed turn (never per input). Keyed on the latest turn's
   // question: the live result and its persisted copy share the key, so the turn settling into `past`
@@ -193,60 +164,26 @@ export function AnswerView({
   const finalReady = turn.status === 'done' && settled && !!r;
   const trace = (r?.trace ?? {}) as { fired_regimes?: { matched?: string[] }[]; drivers?: string[] };
 
-  // The causal map, computed once and shared by BOTH finalReady branches (W1.1/W1.2-FE):
-  // fetch error → a readable "unavailable" line (never a silent vanish — the old code kept the error
-  // boundary INSIDE the data guard, so a dead /v1/graph meant no map and no message on every causal turn);
-  // data → the lazy interactive DAG (its own boundary; a failed chunk keeps the answer intact); else null.
-  // graphQ.enabled guarantees data only exists for structured OR numbers_only turns, so rendering it in
-  // the non-structured branch stays null for floor/refused/no-match.
-  const mapSlot = graphQ.isError ? (
-    mapErrorFallback
-  ) : graphQ.data ? (
-    <ErrorBoundary fallback={mapErrorFallback} resetKeys={[shownContract]}>
-      <Suspense
-        fallback={<div className="h-[300px] animate-pulse rounded-panel border border-line bg-bg-1" />}
+  // P1.5 (user-directed): the graph renders as a WORKSPACE TAB ONLY — never inline in the chat (the
+  // double-render read as a bug). The answer carries just this chip; the tab owns rendering, its own
+  // loading/error states, and a life independent of the turn. Gated to the two map-eligible states
+  // (floor/refused keep their contract with structured=null and must NOT offer a graph).
+  const mapSlot =
+    contract && (r?.structured || r?.intent === 'numbers_only') ? (
+      <button
+        data-testid="open-full-graph"
+        onClick={() =>
+          useUI.getState().openTab({
+            kind: 'graph',
+            title: (contract ?? '').replace(/_/g, ' '),
+            params: { contract, asof, firedRegimes: trace.fired_regimes, drivers: trace.drivers },
+          })
+        }
+        className="mb-1 block rounded-chip border border-line px-2 py-1 font-mono text-11 text-text-dim hover:border-cyan hover:text-cyan"
       >
-        <div className="mb-1 flex items-center gap-3">
-          {mapContract && (
-            <button
-              onClick={() => setMapContract(null)}
-              className="font-mono text-11 text-text-faint hover:text-cyan"
-            >
-              ← back to {(contract ?? '').replace(/_/g, ' ')}
-            </button>
-          )}
-          {/* P1.5: push a workspace GraphTab — the map gets a life independent of this turn. Snapshots
-              this answer's firing so the tab lights the same drivers; the tab's query hits the same
-              react-query key, so opening is an instant cache hit. */}
-          <button
-            data-testid="open-full-graph"
-            onClick={() =>
-              useUI.getState().openTab({
-                kind: 'graph',
-                title: (shownContract ?? '').replace(/_/g, ' '),
-                params: {
-                  contract: shownContract as string,
-                  asof,
-                  firedRegimes: mapContract ? undefined : trace.fired_regimes,
-                  drivers: mapContract ? undefined : trace.drivers,
-                },
-              })
-            }
-            className="font-mono text-11 text-text-faint hover:text-cyan"
-          >
-            open full graph ↗
-          </button>
-        </div>
-        <CascadeFlow
-          topo={graphQ.data}
-          firedRegimes={mapContract ? undefined : trace.fired_regimes}
-          drivers={mapContract ? undefined : trace.drivers}
-          onNodeClick={() => openReceipts()}
-          onSwap={(id) => setMapContract(id)}
-        />
-      </Suspense>
-    </ErrorBoundary>
-  ) : null;
+        open causal graph ↗
+      </button>
+    ) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">

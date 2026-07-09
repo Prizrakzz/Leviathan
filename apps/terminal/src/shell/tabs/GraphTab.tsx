@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getGraph } from '@/api/client';
 import type { GraphTabParams } from '@/store/tabs';
+import { useUI } from '@/store/ui';
 import CascadeFlow from '@/views/dag/CascadeFlow';
 
 /** A workspace graph tab (P1.5): the full-surface causal map. The DOCUMENT AREA supplies the resolved
@@ -35,6 +36,10 @@ export default function GraphTab({ params }: { params: GraphTabParams }) {
         focus={params.focus}
         firedRegimes={params.firedRegimes}
         drivers={params.drivers}
+        onSwap={(id) =>
+          // a tracked cross-commodity hop opens as its OWN tab (tabs are the graph surface now)
+          useUI.getState().openTab({ kind: 'graph', title: id.replace(/_/g, ' '), params: { contract: id, asof: params.asof } })
+        }
       />
     </div>
   );
