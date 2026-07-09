@@ -2,12 +2,11 @@ import * as Dialog from '@radix-ui/react-dialog';
 import * as ScrollArea from '@radix-ui/react-scroll-area';
 import { useEffect, useRef } from 'react';
 import type { RespondResult } from '@/api/schema';
-import { usePdf } from '@/store/pdf';
+import { useUI } from '@/store/ui';
 import { partitionReceipts, type ReceiptRow } from './partition';
 
 function Row({ r, highlight, rowRef }: { r: ReceiptRow; highlight?: boolean; rowRef?: (el: HTMLDivElement | null) => void }) {
   const isNum = r.kind === 'number';
-  const openPdf = usePdf((s) => s.openPdf);
   const sourceKey = r.sourceKey;
   return (
     <div ref={rowRef} className={`border-b border-line py-2 ${highlight ? 'rounded bg-bg-2/60 ring-1 ring-amber' : ''}`}>
@@ -17,11 +16,17 @@ function Row({ r, highlight, rowRef }: { r: ReceiptRow; highlight?: boolean; row
         <span className="text-text-dim">{r.date}</span>
         <span className="text-pos">≤ as-of ✓</span>
         {/* 6.5: a row with a text-layer key opens its source PDF at the cited page (same handler the
-            citation chip uses). Only rows that carry a sourceKey get the affordance. */}
+            citation chip uses). P1.5: as a workspace tab. Only rows with a sourceKey get the affordance. */}
         {sourceKey && (
           <button
             type="button"
-            onClick={() => openPdf({ sourceKey, snippet: r.snippet })}
+            onClick={() =>
+              useUI.getState().openTab({
+                kind: 'pdf',
+                title: r.source ?? sourceKey.split('/').pop() ?? 'Source PDF',
+                params: { sourceKey, snippet: r.snippet },
+              })
+            }
             className="ml-auto text-text-faint hover:text-cyan"
           >
             pdf ▸

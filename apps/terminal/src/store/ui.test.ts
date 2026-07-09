@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { DEFAULT_PANEL_PX } from './tabs';
 import { useUI } from './ui';
 
 describe('ui store (persist migration — 5.6 view-prune)', () => {
@@ -47,5 +48,34 @@ describe('ui store (persist migration — 5.6 view-prune)', () => {
     );
     await useUI.persist.rehydrate();
     expect(useUI.getState().threadCollapsed).toBe(true);
+  });
+
+  it('v3→4: backfills tabs=[], activeTabId=null, panelPx=default for a pre-v4 blob (P1.5)', async () => {
+    localStorage.setItem(
+      'lv-ui',
+      JSON.stringify({ state: { view: 'answer', accent: 'cyan', threadCollapsed: true }, version: 3 }),
+    );
+    await useUI.persist.rehydrate();
+    const s = useUI.getState();
+    expect(s.tabs).toEqual([]);
+    expect(s.activeTabId).toBeNull();
+    expect(s.panelPx).toBe(DEFAULT_PANEL_PX);
+    expect(s.threadCollapsed).toBe(true); // v3 backfill still intact through the v4 migrate
+  });
+
+  it('v4: a persisted workspace (tabs + active + panel) survives reload (P1.5)', async () => {
+    const tab = { id: 'graph:corn:', kind: 'graph', title: 'corn', params: { contract: 'corn' } };
+    localStorage.setItem(
+      'lv-ui',
+      JSON.stringify({
+        state: { view: 'answer', accent: 'cyan', threadCollapsed: false, tabs: [tab], activeTabId: tab.id, panelPx: 480 },
+        version: 4,
+      }),
+    );
+    await useUI.persist.rehydrate();
+    const s = useUI.getState();
+    expect(s.tabs).toHaveLength(1);
+    expect(s.activeTabId).toBe('graph:corn:');
+    expect(s.panelPx).toBe(480);
   });
 });

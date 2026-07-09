@@ -14,7 +14,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { ShortcutSheet } from './ShortcutSheet';
 import { ThreadSidebar } from './ThreadSidebar';
 import { TopBar } from './TopBar';
-import { ViewContainer } from './ViewContainer';
+import { Workspace } from './Workspace';
 import Onboarding from '@/views/onboarding/Onboarding';
 import SettingsModal from '@/views/settings/SettingsModal';
 
@@ -93,7 +93,7 @@ export function Shell() {
         ) : (
           <ThreadSidebar turn={turn} />
         )}
-        <ViewContainer turn={turn} question={question} onAsk={ask} />
+        <Workspace turn={turn} question={question} onAsk={ask} />
       </div>
       <CommandPalette open={paletteOpen} onClose={() => useUI.getState().setPalette(false)} />
       {helpOpen && <ShortcutSheet onClose={() => setHelpOpen(false)} />}

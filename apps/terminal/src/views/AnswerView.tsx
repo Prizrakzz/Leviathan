@@ -206,14 +206,37 @@ export function AnswerView({
       <Suspense
         fallback={<div className="h-[300px] animate-pulse rounded-panel border border-line bg-bg-1" />}
       >
-        {mapContract && (
+        <div className="mb-1 flex items-center gap-3">
+          {mapContract && (
+            <button
+              onClick={() => setMapContract(null)}
+              className="font-mono text-11 text-text-faint hover:text-cyan"
+            >
+              ← back to {(contract ?? '').replace(/_/g, ' ')}
+            </button>
+          )}
+          {/* P1.5: push a workspace GraphTab — the map gets a life independent of this turn. Snapshots
+              this answer's firing so the tab lights the same drivers; the tab's query hits the same
+              react-query key, so opening is an instant cache hit. */}
           <button
-            onClick={() => setMapContract(null)}
-            className="mb-1 font-mono text-11 text-text-faint hover:text-cyan"
+            data-testid="open-full-graph"
+            onClick={() =>
+              useUI.getState().openTab({
+                kind: 'graph',
+                title: (shownContract ?? '').replace(/_/g, ' '),
+                params: {
+                  contract: shownContract as string,
+                  asof,
+                  firedRegimes: mapContract ? undefined : trace.fired_regimes,
+                  drivers: mapContract ? undefined : trace.drivers,
+                },
+              })
+            }
+            className="font-mono text-11 text-text-faint hover:text-cyan"
           >
-            ← back to {(contract ?? '').replace(/_/g, ' ')}
+            open full graph ↗
           </button>
-        )}
+        </div>
         <CascadeFlow
           topo={graphQ.data}
           firedRegimes={mapContract ? undefined : trace.fired_regimes}

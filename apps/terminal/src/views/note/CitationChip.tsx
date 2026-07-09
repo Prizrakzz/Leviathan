@@ -1,5 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { usePdf } from '@/store/pdf';
+import { useUI } from '@/store/ui';
 import type { ResolvedCite } from './citations';
 
 /** The number citation's query provenance line (6.4): "{table} · {metric} · {scope} · asof {asof}". */
@@ -27,7 +27,6 @@ export function CitationChip({
   const loc = resolved.locator;
   const isNumberLoc = loc?.kind === 'number';
   const isDocLoc = loc?.kind === 'doc' && typeof loc.source_key === 'string';
-  const openPdf = usePdf((s) => s.openPdf);
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
@@ -53,16 +52,20 @@ export function CitationChip({
           {isNumberLoc && loc && (
             <div className="mt-1 font-mono text-11 text-text-dim">{numberProvenance(loc)}</div>
           )}
-          {/* 6.5: a doc citation opens its SOURCE PDF at the cited page — the clean slot beside the
-              number branch's "open series" (which stays number-gated). */}
+          {/* 6.5: a doc citation opens its SOURCE PDF at the cited page. P1.5: as a WORKSPACE TAB —
+              dedupe by sourceKey means a second citation into an open doc focuses it + jumps its page. */}
           {isDocLoc && loc && (
             <button
               onClick={() =>
-                openPdf({
-                  sourceKey: loc.source_key as string,
-                  snippet: typeof loc.snippet === 'string' ? loc.snippet : undefined,
-                  charStart: typeof loc.char_start === 'number' ? loc.char_start : undefined,
-                  offsetKind: typeof loc.offset_kind === 'string' ? loc.offset_kind : undefined,
+                useUI.getState().openTab({
+                  kind: 'pdf',
+                  title: resolved.source ?? String(loc.source_key).split('/').pop() ?? 'Source PDF',
+                  params: {
+                    sourceKey: loc.source_key as string,
+                    snippet: typeof loc.snippet === 'string' ? loc.snippet : undefined,
+                    charStart: typeof loc.char_start === 'number' ? loc.char_start : undefined,
+                    offsetKind: typeof loc.offset_kind === 'string' ? loc.offset_kind : undefined,
+                  },
                 })
               }
               className="mt-1 block font-mono text-11 text-amber hover:text-cyan"

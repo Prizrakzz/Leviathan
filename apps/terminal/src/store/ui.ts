@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { createTabsSlice, DEFAULT_PANEL_PX, type TabsSlice } from '@/store/tabs';
 import { type AccentName, applyAccent } from '@/tokens/tokens';
 
 export type ViewName = 'answer';
@@ -10,7 +11,7 @@ export type ViewName = 'answer';
  *  per-contract Deep-Dive were removed), so `view` is a single-member enum kept for the URL/hotkey plumbing.
  *  The accent (6.6 Appearance) is client-only + instant — setAccent re-applies the CSS vars synchronously so
  *  the swap has no round-trip. */
-export interface UIState {
+export interface UIState extends TabsSlice {
   view: ViewName;
   accent: AccentName;
   threadCollapsed: boolean;
@@ -29,6 +30,7 @@ export interface UIState {
 export const useUI = create<UIState>()(
   persist(
     (set) => ({
+      ...createTabsSlice(set), // P1.5 workspace tabs + panelPx (persisted via partialize below)
       view: 'answer', // the only view after the 5.6 view-prune
       accent: 'cyan', // the design default; 'amber' = a monochrome amber terminal (6.6)
       threadCollapsed: false,
@@ -52,8 +54,9 @@ export const useUI = create<UIState>()(
       // `contract` — both removed. Coerce any persisted view to 'answer' and drop `contract` so the store
       // never boots into a now-deleted view (which would render an empty <main>).
       // v3 (P1 W1.6): threadCollapsed becomes persisted — a pre-v3 blob lacks it; backfill false.
-      // NB the next persisted-key addition (P1.5 tabs/panel split) must be a v4 bump, not a v3 edit.
-      version: 3,
+      // v4 (P1.5 workspace): tabs/activeTabId/panelPx become persisted (locator-only params — a rehydrated
+      // tab refetches by contract/sourceKey, never replays a url). THE bump is spent; next addition = v5.
+      version: 4,
       migrate: (s: unknown) => {
         const prev = (s ?? {}) as Record<string, unknown>;
         const { contract: _contract, ...rest } = prev;
@@ -61,9 +64,19 @@ export const useUI = create<UIState>()(
           ...rest,
           view: 'answer' as ViewName,
           threadCollapsed: typeof rest.threadCollapsed === 'boolean' ? rest.threadCollapsed : false,
+          tabs: Array.isArray(rest.tabs) ? rest.tabs : [],
+          activeTabId: typeof rest.activeTabId === 'string' ? rest.activeTabId : null,
+          panelPx: typeof rest.panelPx === 'number' ? rest.panelPx : DEFAULT_PANEL_PX,
         };
       },
-      partialize: (s) => ({ view: s.view, accent: s.accent, threadCollapsed: s.threadCollapsed }),
+      partialize: (s) => ({
+        view: s.view,
+        accent: s.accent,
+        threadCollapsed: s.threadCollapsed,
+        tabs: s.tabs,
+        activeTabId: s.activeTabId,
+        panelPx: s.panelPx,
+      }),
     },
   ),
 );
