@@ -1,5 +1,6 @@
 import { getIdToken } from '../auth/oidc';
-import type { RespondResult, StageEvent } from './schema';
+import type { ContextAttachment, RespondResult, StageEvent } from './schema';
+import { MAX_ATTACH } from '@/store/chips';
 
 export interface StreamHandlers {
   onStage?: (e: StageEvent) => void;
@@ -63,13 +64,15 @@ function dispatchBlock(block: string, h: StreamHandlers): boolean {
 /** Open the real SSE endpoint and pump it through parseSSE. Mock mode routes elsewhere (client.ts). */
 export async function openRespondStream(
   base: string,
-  params: { question: string; asof?: string; sessionId?: string },
+  params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[] },
   h: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
   const qs = new URLSearchParams({ question: params.question });
   if (params.asof) qs.set('asof', params.asof);
   if (params.sessionId) qs.set('session_id', params.sessionId);
+  // P2: attachments ride a JSON-encoded param (the stream is GET-only); cap mirrors the store's MAX_ATTACH
+  if (params.context?.length) qs.set('context', JSON.stringify(params.context.slice(0, MAX_ATTACH)));
   // fetch-based SSE (not EventSource) -> we can set the Authorization header directly.
   const token = await getIdToken();
   const res = await fetch(`${base}/v1/respond/stream?${qs.toString()}`, {

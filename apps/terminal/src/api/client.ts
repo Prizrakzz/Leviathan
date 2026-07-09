@@ -1,5 +1,6 @@
 import { getIdToken } from '../auth/oidc';
 import { MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
+import type { ContextAttachment } from './schema';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -16,7 +17,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 /** Stream a turn. `VITE_MOCK=1` routes to the in-repo mock so the whole UI runs without the backend. */
 export function respondStream(
-  params: { question: string; asof?: string; sessionId?: string },
+  params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[] },
   h: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {

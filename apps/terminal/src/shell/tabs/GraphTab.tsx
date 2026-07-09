@@ -40,6 +40,17 @@ export default function GraphTab({ params }: { params: GraphTabParams }) {
           // a tracked cross-commodity hop opens as its OWN tab (tabs are the graph surface now)
           useUI.getState().openTab({ kind: 'graph', title: id.replace(/_/g, ' '), params: { contract: id, asof: params.asof } })
         }
+        // P2 attach-from-graph: the STORE write lives here (CascadeFlow stays presentational). The
+        // backend resolver re-validates every id against the graph — these are gestures, not truth.
+        onNodeAttach={({ driver_id, label }) =>
+          useUI.getState().addChip({ type: 'node', contract: params.contract, driver_id, label })
+        }
+        onEdgeAttach={({ source, target, sourceLabel, targetLabel }) =>
+          useUI.getState().addChip({
+            type: 'edge', contract: params.contract, source, target,
+            label: `${sourceLabel} → ${targetLabel}`,
+          })
+        }
       />
     </div>
   );

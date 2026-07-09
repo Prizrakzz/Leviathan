@@ -34,3 +34,13 @@ export const useThread = create<ThreadState>()((set) => ({
   openThread: (id, title = null) => set({ threadId: id, title }),
   setTitleIfEmpty: (t) => set((s) => (s.title ? s : { title: t })),
 }));
+
+// P2 per-thread context firewall: attachments are gestures at THIS thread's graph. On any thread switch
+// (newThread / openThread / delete->new) drop them so a chip never crosses the thread boundary (the
+// thread-is-context-boundary rule above). Lives HERE (thread -> ui) because the reverse home would cycle:
+// chips.ts -> ui.ts -> chips.ts. One subscription covers every switch path, present and future.
+import { useUI } from './ui';
+
+useThread.subscribe((s, prev) => {
+  if (s.threadId !== prev.threadId) useUI.getState().clearChips();
+});

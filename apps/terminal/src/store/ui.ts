@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { type ChipsSlice, createChipsSlice } from '@/store/chips';
 import { createTabsSlice, DEFAULT_PANEL_PX, type TabsSlice } from '@/store/tabs';
 import { type AccentName, applyAccent } from '@/tokens/tokens';
 
@@ -11,7 +12,7 @@ export type ViewName = 'answer';
  *  per-contract Deep-Dive were removed), so `view` is a single-member enum kept for the URL/hotkey plumbing.
  *  The accent (6.6 Appearance) is client-only + instant — setAccent re-applies the CSS vars synchronously so
  *  the swap has no round-trip. */
-export interface UIState extends TabsSlice {
+export interface UIState extends TabsSlice, ChipsSlice {
   view: ViewName;
   accent: AccentName;
   threadCollapsed: boolean;
@@ -31,6 +32,7 @@ export const useUI = create<UIState>()(
   persist(
     (set) => ({
       ...createTabsSlice(set), // P1.5 workspace tabs + panelPx (persisted via partialize below)
+      ...createChipsSlice(set), // P2 context chips — EPHEMERAL (absent from partialize; thread-switch clears)
       view: 'answer', // the only view after the 5.6 view-prune
       accent: 'cyan', // the design default; 'amber' = a monochrome amber terminal (6.6)
       threadCollapsed: false,

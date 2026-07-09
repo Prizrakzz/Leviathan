@@ -42,8 +42,18 @@ export interface RespondTrace {
   degraded_model?: string;
   floor?: string;
   fired_regimes?: unknown[];
+  attachment_note?: string; // P2 resolver: a future-dated @event was PIT-withheld (rendered as a banner)
   [k: string]: unknown;
 }
+
+/** P2 typed context attachments — the wire shape the GET `context` param carries (hand-typed: the SSE
+ *  request isn't in the OpenAPI surface). The event variant deliberately omits driver_id/mechanism:
+ *  the backend code-maps the driver from event_type and looks mechanisms up in the graph, IGNORING any
+ *  client value (injection posture). */
+export type ContextAttachment =
+  | { type: 'node'; contract: string; driver_id: string }
+  | { type: 'edge'; contract: string; source: string; target: string }
+  | { type: 'event'; event_type: string; commodity: string; date?: string; summary?: string; country?: string };
 
 export interface RespondResult {
   answer: string;

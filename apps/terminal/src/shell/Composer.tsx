@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { AttachedChips } from './AttachedChips';
 
 /**
  * The follow-up composer (5.6 W4) — a ChatGPT-style prompt box pinned under the answer view, so "where do
@@ -47,6 +48,7 @@ export function Composer({
 
   return (
     <div className={hero ? 'w-full max-w-2xl' : 'border-t border-line bg-bg-0 px-4 py-3'}>
+      <AttachedChips />
       <div className="relative">
         <textarea
           ref={ref}

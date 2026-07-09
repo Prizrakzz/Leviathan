@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import os
+import re
 from typing import Optional
 
 from leviathan.graphrag import answer as an
@@ -84,10 +85,11 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
 
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
-                  near: str | None = None, silver_lookup=None, on_stage=None) -> dict:
+                  near: str | None = None, silver_lookup=None, on_stage=None,
+                  focus_driver: str | None = None) -> dict:
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                    on_stage=on_stage)
+                    on_stage=on_stage, focus_driver=focus_driver)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -97,7 +99,7 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
 def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None,
                extra_context: str | None = None, route_fn=None, near: str | None = None,
-               silver_lookup=None, on_stage=None) -> dict:
+               silver_lookup=None, on_stage=None, focus_driver: str | None = None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -136,7 +138,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
-                        near=near, silver_lookup=silver_lookup, on_stage=on_stage)
+                        near=near, silver_lookup=silver_lookup, on_stage=on_stage,
+                        focus_driver=focus_driver)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -156,6 +159,115 @@ def contracts_for_driver(graph, driver_id: str, prefer: str = "") -> list[str]:
     elif prefer and prefer in graph.contracts:
         cids = [prefer] + cids
     return cids[:2]
+
+
+# ── typed context attachments (P2): validate FE graph gestures into seeds + a non-citable block ──────
+_EMPTY_ATT = {"contracts": [], "focus_driver": None, "block": None, "near": None, "suppressed_note": None}
+_ERA_RE = re.compile(r"^\d{4}(-\d{2})?$")
+
+
+def _event_era(date: str | None) -> str | None:
+    d = (date or "").strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}", d):
+        return d[:7]                       # YYYY-MM analogue-era prefix (matches near's YYYY / YYYY-MM shape)
+    return d if _ERA_RE.match(d) else None
+
+
+def _attachment_block(node_edge_lines: list[str], events: list) -> str | None:
+    """The labeled, NON-CITABLE block (rides extra_context -> volatile; the verifier strips any citation
+    aimed here as fabricated). node/edge = a pointer into the driver model; @event reuses the news
+    external-shock wrapper so its injection framing is identical to run_live's."""
+    parts = []
+    if node_edge_lines:
+        parts.append("=== USER-ATTACHED FOCUS (the researcher pointed at these tracked driver-model "
+                     "elements; CENTER the analysis here. A POINTER into the driver model, NOT new "
+                     "evidence -- cite only dated corpus items) ===\n" + "\n".join(node_edge_lines))
+    if events:
+        from leviathan.graphrag.news import extract_live as nx
+        parts.append(nx.live_context_block(events, "user-attached (not a live fetch)"))
+    return "\n\n".join(parts) if parts else None
+
+
+def _resolve_attachments(context, graph, asof: str) -> dict:
+    """Validate typed FE gestures -> {contracts, focus_driver, block, near, suppressed_note}. The client is
+    never trusted for ids/mechanisms (driver_id/mechanism are re-derived server-side; unknown ids are
+    DROPPED, never raised on). Cap 4 attachments in, 2 walk seeds out."""
+    from leviathan.graphrag import api_models as M
+    from leviathan.graphrag.news import contracts as nc
+    from leviathan.graphrag.news import extract_live as nx
+    seeds: list[str] = []
+    focus = None
+    near = None
+    node_edge_lines: list[str] = []
+    events: list = []
+    suppressed: list[str] = []
+
+    def _seed(cid):
+        if cid in graph.contracts and cid not in seeds:
+            seeds.append(cid)
+
+    for raw in (context or [])[:4]:
+        try:
+            a = raw if hasattr(raw, "type") else M.ContextAttachment.model_validate(raw)
+        except Exception:  # noqa: BLE001 — a malformed attachment is dropped, never trusted
+            continue
+        if a.type == "node":
+            if a.contract not in graph.contracts:
+                continue
+            try:
+                d = graph.driver(a.contract, a.driver_id)          # validates the driver lives in the contract
+            except (KeyError, TypeError):
+                continue
+            _seed(a.contract)                                      # ALWAYS seed the driver's own contract (else
+            focus = focus or a.driver_id                           # the walk force-insert silently no-ops)
+            node_edge_lines.append(f"- FOCUS DRIVER: {a.driver_id} in {a.contract} -- "
+                                   f"{reg.sanitize(d.mechanism)[:240]}")
+        elif a.type == "edge":
+            if a.contract not in graph.contracts:
+                continue
+            drv_ids = {dd.id for dd in graph.contracts[a.contract].drivers}
+            src, tgt = a.source, a.target
+            if src in drv_ids and (tgt == a.contract or tgt in drv_ids):   # driver->contract OR parent->driver
+                mech = graph.driver(a.contract, src).mechanism             # SERVER-side (client value ignored)
+                _seed(a.contract)
+                focus = focus or src
+            elif src == a.contract:                                        # contract -> inter-commodity hop
+                xl = next((e for e in graph.cross_links(a.contract) if e["driver_commodity"] == tgt), None)
+                if xl is None:
+                    continue
+                mech = xl.get("mechanism") or ""
+                _seed(a.contract)
+                if xl.get("tracked"):
+                    _seed(tgt)                     # an untracked target can't seed a walk; the block carries it
+            else:
+                continue
+            node_edge_lines.append(f"- CASCADE LINK: {src} --> {tgt} [{a.contract}] -- "
+                                   f"{reg.sanitize(mech)[:240]}")
+        elif a.type == "event":
+            if a.event_type not in nc.EVENT_TYPES:                          # enum-lock; a client can't mint a type
+                continue
+            if a.date and asof and str(a.date) > str(asof):                 # PIT: a future event is fully withheld
+                suppressed.append(f"an attached event dated {a.date} is after the analysis horizon ({asof}) "
+                                  f"and was left out; move the as-of to {a.date} or later to include it")
+                continue
+            comm = a.commodity if a.commodity in graph.contracts else ""
+            summ = reg.sanitize(str(a.summary or "")).replace("\n", " ")[:300]
+            driver = nx.EVENT_DRIVER.get(a.event_type)                      # CODE-mapped; client driver_id IGNORED
+            if a.event_type == "weather_advisory":
+                driver = nx._weather_driver(str(a.summary or ""))
+            events.append(nc.LiveEvent(event_type=a.event_type, commodity=comm, driver_id=driver,
+                                       country=reg.sanitize(str(a.country or ""))[:60], summary=summ,
+                                       headline=str(a.summary or "")[:140]))
+            if driver:
+                for c in contracts_for_driver(graph, driver, prefer=comm):
+                    _seed(c)
+                focus = focus or driver
+            elif comm:
+                _seed(comm)
+            near = near or _event_era(a.date)
+    return {"contracts": seeds[:2], "focus_driver": focus,
+            "block": _attachment_block(node_edge_lines, events),
+            "near": near, "suppressed_note": ("; ".join(suppressed)) if suppressed else None}
 
 
 def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
@@ -381,7 +493,7 @@ def respond(*args, **kwargs) -> dict:
 def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
              numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
              planner: str | None = None, session_id: Optional[str] = None, session_store=None,
-             on_stage=None) -> dict:
+             on_stage=None, context=None) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
     `asof` defaults to today. The reasoning/hybrid branches default to the L2 deterministic grounded-subgraph
     walk (v1.1 reached judge parity with one-hop at 0/30 register leaks, and the roadmap — driver-slice
@@ -415,6 +527,11 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     asof = asof or (state.asof_latest if state else None) or _today()   # explicit > carried > today
     live_pit_suppressed = False   # set when an EXPLICIT news ask is vetoed by the PIT kill-switch (note below)
     sblock = ss.state_block(snap) if (snap and (snap.turns or state.contracts)) else None
+    # ── typed context attachments (P2), part 1: a cheap PRESENCE flag only. The legacy live early-return
+    # consults it (an attached turn never enters run_live — it would overwrite extra_context and drop the
+    # block). The actual RESOLVE happens after dispatch, where asof is FINAL — the PIT date>asof check must
+    # compare against the final horizon or a future event leaks past a plan-set cutoff (⚠verified subtlety).
+    _att_present = bool(context) and os.environ.get("GRAPHRAG_CONTEXT_ATTACH", "on").lower() == "on"
     route_fn = None
     if state and state.contracts:                                       # a thread carries its own contracts; threads
         def route_fn(q, g):                                             # are the context boundary (5.8: no in-thread
@@ -477,7 +594,10 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         # backtested answers are physically unable to see today's headlines (ISO strings compare safely).
         if it.is_news_explicit(query) and asof < _today():
             live_pit_suppressed = True                                 # explicit ask vetoed by PIT -> note below
-        if it.is_live(query) and asof >= _today():
+        # P2 (⚠verified): the attachment guard on this EARLY-RETURN is half of the "an attached turn never
+        # triggers the live network fetch" guarantee — run_live would overwrite extra_context and drop the
+        # attachment block. The other half is the kind demotion in the override block below.
+        if it.is_live(query) and asof >= _today() and not _att_present:
             an._emit(on_stage, "planning", intent="live", contracts=[])
             _ctx = [c for c in ((state.contracts if state else None) or []) if c in graph.contracts] or None
             try:
@@ -490,6 +610,32 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             return _session_writeback(res, query, asof, session_id, store, state, graph, call)
         decided = (classify or it.classify_intent)(query, call=call)
         kind = decided["intent"]
+
+    # ── typed context attachments (P2), part 2: RESOLVE (asof is final here — plan.asof already applied)
+    # then override the resolved route. Placed after BOTH route_fn bindings (session coreference + planner)
+    # so the explicit gesture wins — this must stay the LAST route_fn binding before branch dispatch. The
+    # block CONCATENATES onto sblock because run_hybrid multiplexes only extra_context (a competing param
+    # would be silently dropped). Fail-soft: attachments are additive and must never break a turn.
+    att = _EMPTY_ATT
+    if _att_present:
+        try:
+            att = _resolve_attachments(context, graph, asof)
+        except Exception:  # noqa: BLE001
+            att = _EMPTY_ATT
+    _att_active = bool(att["contracts"] or att["block"] or att["focus_driver"] or att["suppressed_note"])
+    if _att_active:
+        if att["contracts"]:
+            def route_fn(q, g, _c=att["contracts"]):
+                return [c for c in _c if c in g.contracts]
+        if att["near"] and not near:
+            near = att["near"]                    # analogue-era retrieval: "has this happened before?"
+        if att["block"]:
+            sblock = "\n\n".join(x for x in (sblock, att["block"]) if x)
+        if kind == "live":
+            kind = "reasoning"                    # a user-attached event NEVER triggers the live fetch
+        decided = (decided or {}) | {"intent": kind,
+                                     "attachments": {"contracts": att["contracts"],
+                                                     "focus_driver": att["focus_driver"]}}
 
     # 5.8: a live turn re-routes off the news event and ignores plan.contracts, so don't display the
     # carried contracts on its planning tick (the misleading soybeans/wheat under an India question).
@@ -526,14 +672,21 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                              client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
                              extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                             on_stage=on_stage)
+                             on_stage=on_stage, focus_driver=att["focus_driver"])
         else:
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
-                                silver_lookup=silver_lookup, on_stage=on_stage)
+                                silver_lookup=silver_lookup, on_stage=on_stage,
+                                focus_driver=att["focus_driver"])
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         an._emit(on_stage, "floor")
         res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)
+    if att["suppressed_note"]:
+        # A future-dated attached event is refused VISIBLY (mirrors the news-agent silence fix). C1: the
+        # note travels as trace.attachment_note — the FE renders it as a banner on ALL turn types (an
+        # answer-append is invisible on structured turns). Server-owned static prose; no client string.
+        res.setdefault("trace", {})["attachment_note"] = att["suppressed_note"]
+        decided = (decided or {}) | {"attachment_suppressed_pit": True}
     if live_pit_suppressed:
         # The root-cause fix (news-agent silence): the user LITERALLY asked for news but the PIT
         # kill-switch vetoed the live route (historical as-of). Say so — mirrors run_live's no-events

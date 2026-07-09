@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { respondStream } from './client';
-import type { RespondResult, StageEvent } from './schema';
+import type { ContextAttachment, RespondResult, StageEvent } from './schema';
 
 export type TurnStatus = 'idle' | 'streaming' | 'done' | 'error';
 
@@ -23,7 +23,7 @@ export function useTurn() {
   const [state, setState] = useState<TurnState>({ status: 'idle', stages: [], draft: '' });
   const abortRef = useRef<AbortController | null>(null);
 
-  const start = useCallback((question: string, opts?: { asof?: string; sessionId?: string }) => {
+  const start = useCallback((question: string, opts?: { asof?: string; sessionId?: string; context?: ContextAttachment[] }) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;

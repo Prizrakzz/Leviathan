@@ -19,7 +19,9 @@ function Banner({ tone, children }: { tone: Tone; children: ReactNode }) {
 /** State banners (design §5): degraded / evidence-only floor / guardrail refusal / no-contract-match. The
  *  refusal + floor + no-match states replace the note; degraded rides above it. */
 export function Banners({ result }: { result: RespondResult }) {
-  const t = (result.trace ?? {}) as { degraded_model?: string; floor?: string; suggestions?: string[] };
+  const t = (result.trace ?? {}) as {
+    degraded_model?: string; floor?: string; suggestions?: string[]; attachment_note?: string;
+  };
 
   if (result.intent === 'refused') {
     return <Banner tone="neutral">This query was flagged by the input safety filter and was not processed.</Banner>;
@@ -50,6 +52,8 @@ export function Banners({ result }: { result: RespondResult }) {
           No tracked contract matched — did you mean {(t.suggestions ?? []).join(', ') || 'one of the 31 tickers'}?
         </Banner>
       )}
+      {/* P2: a future-dated attached event was PIT-withheld — say so on every turn type (C1). */}
+      {t.attachment_note && <Banner tone="neutral">{t.attachment_note}</Banner>}
     </>
   );
 }

@@ -335,7 +335,7 @@ export const MOCK_RESULT = goodResult('KC frost 2021', '2021-07-20');
  *  retrieval progress, per-lookup numbers ticks, synthesizing, then bursty `token` deltas (exercises the
  *  typewriter) and the terminal result. */
 export async function mockRespondStream(
-  params: { question: string; asof?: string },
+  params: { question: string; asof?: string; context?: unknown[] },
   h: StreamHandlers,
   opts: { delay?: number } = {},
 ): Promise<void> {

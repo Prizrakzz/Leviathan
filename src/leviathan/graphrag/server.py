@@ -278,6 +278,20 @@ class Ask(BaseModel):
     question: str
     session_id: Optional[str] = None
     asof: Optional[str] = None                       # explicit as-of always beats session carry (PIT rule)
+    context: list[M.ContextAttachment] = []          # P2 typed graph gestures; resolver caps 4, drops invalid
+
+
+def _decode_context(raw: Optional[str]) -> list:
+    """SSE rides a JSON-encoded `context` query param (the stream endpoint is GET-only). A malformed or
+    oversized param degrades to NO attachments — fail-open, matching the stream's degrade-never-500 posture
+    (a stale share-link should still answer); the POST path validates loudly via pydantic instead."""
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+        return data[:4] if isinstance(data, list) else []
+    except Exception:  # noqa: BLE001 — a bad context param never breaks the turn
+        return []
 
 
 @app.get("/healthz")
@@ -293,14 +307,15 @@ def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> 
     # Auth + per-user daily quota gated (Stage 4/5): a turn is Bedrock spend, so only signed-in users within
     # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
     from leviathan.graphrag import orchestrator as orch
-    result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id)
+    result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id,
+                          context=body.context)
     _save_turn(ident, body.session_id, result, question=body.question)   # durable history (PIT-safe, fail-open)
     return result
 
 
 @app.get("/v1/respond/stream")
 def respond_stream(question: str, session_id: Optional[str] = None, asof: Optional[str] = None,
-                   ident: dict = Depends(_require_identity_quota)):
+                   context: Optional[str] = None, ident: dict = Depends(_require_identity_quota)):
     """SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own
     `stage` event, then the single terminal `result` (or `error`)."""
     from leviathan.graphrag import orchestrator as orch
@@ -314,7 +329,7 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
         def work() -> None:
             try:
                 result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
-                                      on_stage=on_stage)
+                                      on_stage=on_stage, context=_decode_context(context))
                 out.put(("result", result))               # deliver the note FIRST — the user isn't waiting on persistence
                 _save_turn(ident, session_id, result, question=question)  # then durable history (fail-open, off the perceived path)
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces

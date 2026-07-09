@@ -4,6 +4,7 @@ import { parseCommand } from '@/command/parser';
 import { useHotkeys } from '@/hotkeys/useHotkeys';
 import { retryImport } from '@/lib/retryImport';
 import { useAsOf } from '@/store/asof';
+import { toContext } from '@/store/chips';
 import { usePdf } from '@/store/pdf';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
@@ -47,7 +48,15 @@ export function Shell() {
     // auto-titles it on the first saved turn (5.6 W2) — no client-side putThread race anymore.
     const thread = useThread.getState();
     if (!thread.title) thread.setTitleIfEmpty(q);
-    turn.start(q, { asof: p.asofOverride ?? useAsOf.getState().asof, sessionId: thread.threadId });
+    // P2: attached context chips ride the turn, then CLEAR — the turn consumed them (leaving them would
+    // silently re-attach to the next unrelated question).
+    const chips = ui.attachedChips;
+    turn.start(q, {
+      asof: p.asofOverride ?? useAsOf.getState().asof,
+      sessionId: thread.threadId,
+      context: chips.length ? toContext(chips) : undefined,
+    });
+    if (chips.length) ui.clearChips();
   };
 
   /** Plain-question submit for the composer/empty-state (no command parsing — it's a chat box). */

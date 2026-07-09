@@ -223,3 +223,23 @@ class ProfileUpdate(BaseModel):
     counts/lengths); `onboarded` flips the first-run gate. Omitted fields are left unchanged."""
     facts: Optional[dict[str, Any]] = None
     onboarded: Optional[bool] = None
+
+
+# ── P2 typed context attachments (research-UI §II) ────────────────────────────────────────────────────
+class ContextAttachment(BaseModel):
+    """One typed 'point at the graph' gesture attached to a turn (node/edge/event). The SERVER re-derives
+    everything trust-bearing: node/edge ids are validated against the causal graph, the edge mechanism is
+    looked up server-side, and an event's driver_id is CODE-mapped from its enum-locked event_type — the
+    client's driver_id/mechanism strings are ignored by the resolver (injection posture). A future-dated
+    event (date > the final as-of) is fully withheld with a visible note (PIT)."""
+    type: Literal["node", "edge", "event"]
+    contract: Optional[str] = None      # node/edge: the tracked contract the element lives in
+    driver_id: Optional[str] = None     # node: the focus driver (validated vs the graph); IGNORED for event
+    source: Optional[str] = None        # edge: source node id
+    target: Optional[str] = None        # edge: target node id
+    event_type: Optional[str] = None    # event: enum-checked vs the news EVENT_TYPES
+    commodity: Optional[str] = None     # event: validated vs graph.contracts
+    country: Optional[str] = None       # event: free text -> length-capped + sanitized server-side
+    summary: Optional[str] = None       # event: free text -> length-capped + sanitized server-side
+    date: Optional[str] = None          # event: ISO date; > asof -> withheld with a visible note
+    label: Optional[str] = None         # display-only echo (ignored server-side)
