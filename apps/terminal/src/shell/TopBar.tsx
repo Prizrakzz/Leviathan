@@ -1,6 +1,7 @@
 import { Mark } from '@/tokens/Mark';
 import { AsOfMachine } from './AsOfMachine';
 import { CommandBar } from './CommandBar';
+import { NotificationBell } from './NotificationBell';
 import { UserMenu } from './UserMenu';
 
 /** The fixed top bar (design §3.1): mark · command bar · as-of time machine · ⌘K · user menu. */
@@ -32,6 +33,7 @@ export function TopBar({
       >
         ⌘K
       </button>
+      <NotificationBell setCmd={setCmd} />
       <UserMenu />
     </header>
   );

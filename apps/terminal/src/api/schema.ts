@@ -55,6 +55,25 @@ export type ContextAttachment =
   | { type: 'edge'; contract: string; source: string; target: string }
   | { type: 'event'; event_type: string; commodity: string; date?: string; summary?: string; country?: string };
 
+/** P3 Track D — a daily-digest notification item (GET /v1/notifications). The typed `event_type`/
+ *  `commodity`/`date`/`summary`/`country` fields are exactly the projection that becomes a P2 event chip
+ *  on row-click; `label` + `query` drive the display + composer prefill. `driver_id` is carried but
+ *  deliberately DOES NOT flow into the chip (the backend code-maps the driver from event_type, ignoring
+ *  any client value — same injection posture as the P2 event attachment). */
+export type NotificationItem = {
+  notif_id: string;
+  created_at: string;
+  seen: boolean;
+  event_type: string;
+  commodity: string;
+  date?: string;
+  summary?: string;
+  country?: string;
+  label: string;
+  query: string;
+  driver_id?: string;
+};
+
 export interface RespondResult {
   answer: string;
   structured?: {

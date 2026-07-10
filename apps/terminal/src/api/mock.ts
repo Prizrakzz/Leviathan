@@ -2,7 +2,7 @@ import type { PdfPage } from './client';
 import type { components } from './types.gen';
 import graphArabica from './fixtures/graph.arabica.json';
 import graphSugar from './fixtures/graph.raw_sugar.json';
-import type { RespondResult, StageEvent } from './schema';
+import type { NotificationItem, RespondResult, StageEvent } from './schema';
 import type { StreamHandlers } from './sse';
 
 type Schemas = components['schemas'];
@@ -460,6 +460,42 @@ export function mockThreadTurns(threadId: string): Schemas['ThreadTurns'] {
       },
     ],
   };
+}
+
+// ── P3 Track D: notification digest (VITE_MOCK bell + badge) ─────────────────────────────────────────
+/** Two sample items — one unseen (drives the badge), one already seen — dated today-ish so the PIT guard
+ *  passes at a live as-of. */
+const MOCK_NOTIFICATIONS: NotificationItem[] = [
+  {
+    notif_id: 'ntf-mock1',
+    created_at: '2026-07-10T06:00:00Z',
+    seen: false,
+    event_type: 'export_ban',
+    commodity: 'corn',
+    date: '2026-07-10',
+    country: 'Argentina',
+    summary: 'Argentina announced a temporary halt on corn export registrations.',
+    label: 'export ban - corn (Argentina)',
+    query: 'Has export ban hit corn before? What cascaded?',
+    driver_id: 'export_policy',
+  },
+  {
+    notif_id: 'ntf-mock2',
+    created_at: '2026-07-08T05:30:00Z',
+    seen: true,
+    event_type: 'frost',
+    commodity: 'arabica_coffee',
+    date: '2026-07-08',
+    country: 'Brazil',
+    summary: 'A cold front clipped the southern arabica belt overnight.',
+    label: 'frost - arabica coffee (Brazil)',
+    query: 'What did the last comparable Brazil frost do to the KC curve?',
+    driver_id: 'frost_risk',
+  },
+];
+
+export function mockListNotifications(): Promise<NotificationItem[]> {
+  return new Promise((resolve) => setTimeout(() => resolve(MOCK_NOTIFICATIONS.map((n) => ({ ...n }))), 120));
 }
 
 // ── read-endpoint fixtures ───────────────────────────────────────────────────────────────────────────

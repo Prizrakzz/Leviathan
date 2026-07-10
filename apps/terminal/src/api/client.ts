@@ -1,6 +1,6 @@
 import { getIdToken } from '../auth/oidc';
 import { MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
-import type { ContextAttachment } from './schema';
+import type { ContextAttachment, NotificationItem } from './schema';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -123,6 +123,20 @@ export type SuggestPacket = Schemas['SuggestRequest'];
 export function suggest(packet: SuggestPacket): Promise<Schemas['SuggestResponse']> {
   if (MOCK) return import('./mock').then((m) => m.mockSuggest(packet));
   return postJSON(`/v1/suggest`, packet);
+}
+
+// ── P3 Track D: daily-digest notifications (auth-gated + kill-switched server-side) ─────────────────
+/** The signed-in user's notification digest, newest-first. `VITE_MOCK=1` routes to the in-repo mock so the
+ *  bell + badge render without a backend. */
+export function listNotifications(): Promise<NotificationItem[]> {
+  if (MOCK) return import('./mock').then((m) => m.mockListNotifications());
+  return getJSON(`/v1/notifications`);
+}
+
+/** Mark one notification read (drops it from the unseen badge on the next refetch). Mock is a no-op. */
+export function markNotificationSeen(id: string): Promise<{ ok: boolean }> {
+  if (MOCK) return Promise.resolve({ ok: true });
+  return postJSON(`/v1/notifications/${encodeURIComponent(id)}/seen`, {});
 }
 
 // ── durable threads (per-user; requires auth in prod) ──────────────────────────────────────────────
