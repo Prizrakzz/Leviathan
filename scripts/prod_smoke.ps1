@@ -35,9 +35,11 @@ $Cases = @(
     @{ q = "how convex is corn on a yield shock?";                   map = $true  }
 )
 
-# Internal vocabulary that must NEVER reach reader prose (mirror register.py detectors + the P1.1 phrases).
+# Internal vocabulary that must NEVER reach reader prose (mirror register.py detectors + the P1.1 phrases
+# + the P9-A mentor-voice ban on plain mood words).
 $LeakRx = '(?i)(causal graph|mapped graph|live-feature layer|silver numbers layer|dated evidence item|' +
-          'the node fired|\bconf\s*=|\bsign\s*=|any_n_of|silver_ref|\b\w+_\w+_\w+\b|bullish_\w+|bearish_\w+)'
+          'the node fired|\bconf\s*=|\bsign\s*=|any_n_of|silver_ref|\b\w+_\w+_\w+\b|bullish_\w+|bearish_\w+|' +
+          '\b(bullish|bearish)\b)'
 # A rough caveat-sentence counter (the A1 "<=1 caveat" goal).
 $CaveatRx = '(?i)(i can''?t confirm|not in the evidence|isn''?t available|no dated|cannot confirm|not available here|magnitude not)'
 

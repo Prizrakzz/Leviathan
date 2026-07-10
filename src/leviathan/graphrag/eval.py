@@ -97,8 +97,10 @@ def _judge_tool(continuity: bool = False) -> dict:
     n = {"type": "integer"}                                            # 1-5
     arr = {"type": "array", "items": {"type": "string"}}
     props = {"usefulness": n, "convexity": n, "point_in_time": n, "grounding": n, "source_diversity": n,
+             "mechanism_voice": n,
              "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}}
-    required = ["usefulness", "convexity", "point_in_time", "grounding", "source_diversity", "gaps", "verdict"]
+    required = ["usefulness", "convexity", "point_in_time", "grounding", "source_diversity", "mechanism_voice",
+                "gaps", "verdict"]
     if continuity:                                                     # multi-turn: did it read the conversation right?
         props["continuity"] = n
         required = required + ["continuity"]
@@ -128,6 +130,9 @@ _JUDGE_SYS = (
     "AUTHORITATIVE, not hallucination.)\n"
     "- source_diversity (1-5): multiple sources across trust tiers (T1 official WASDE/FAS ... T4 macro), "
     "trust-ordered, disagreements flagged? Only high if multiple sources were actually AVAILABLE.\n"
+    "- mechanism_voice (1-5): does it name WHAT tightens or loosens the balance sheet and WHY (5), or emit "
+    "sign/mood labels and trading-bot verdicts (1)? Penalize 'bullish'/'bearish', price targets, position "
+    "sizing. 5 = names the mechanism and its price direction; 1 = a mood/sign label with no mechanism.\n"
     "- hallucinations: any claim/number/sign/date supported by NEITHER the graph, the evidence, NOR the looked-up "
     "numbers.\n"
     "- gaps: what a researcher would still need — a missing propagation channel, no dated evidence, convexity "
@@ -189,6 +194,9 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
 def _metrics(r: dict) -> dict:
     """Per-row metrics for the grounding-depth + source-diversity aggregation."""
     out, j = r["out"], (r.get("judge") or {})
+    # P9-A deterministic gates: banned mood words counted PRE-sanitize (the trace field — a post-sanitize scan
+    # of out['answer'] would read 0 forever) + the fixed '##' scaffold order check.
+    _mood = (out.get("trace") or {}).get("banned_mood_words", 0)
     cited_srcs = [s.get("source") for s in (out.get("structured") or {}).get("sources") or [] if s.get("source")]
     cited_tiers = [an.source_tier(s) for s in cited_srcs]
     ev_srcs = {e.get("source") for e in (out.get("evidence") or []) if e.get("source")}   # actual corpus sources
@@ -217,11 +225,27 @@ def _metrics(r: dict) -> dict:
             "multi_tier": len(ev_tiers) >= 2,                                  # store offered >=2 trust tiers
             "trust_ordered": len(cited_tiers) > 1 and cited_tiers == sorted(cited_tiers),  # most-trusted first
             "disagreement": any(w in ans_l for w in ("disagree", "conflict", "at odds", "contradict", "diverg")),
-            "src_div": j.get("source_diversity"),
+            "banned_mood_words": _mood, "mechanism_scaffold_ok": _scaffold_ok(out),
+            "src_div": j.get("source_diversity"), "mech_voice": j.get("mechanism_voice"),
             "usefulness": j.get("usefulness"), "convexity": j.get("convexity"),
             "point_in_time": j.get("point_in_time"), "grounding": j.get("grounding"),
             "answer_chars": len(out.get("answer") or ""),              # 6.2 conciseness: deterministic length signal
             "halluc": _n_halluc(j), "gaps": j.get("gaps") or []}
+
+
+_FIXED_SCAFFOLD = ("## Mechanism", "## The record", "## Where the record disagrees", "## What to watch")
+
+
+def _scaffold_ok(out: dict) -> bool:
+    """P9-A deterministic scaffold gate: a non-empty mechanism must OPEN with '## Mechanism' and keep the
+    fixed relative order of whichever sections fire. Numbers-only turns (empty mechanism) pass vacuously.
+    '##' headings are plain text between sentences, so they survive sanitize unchanged."""
+    mech = str((out.get("structured") or {}).get("mechanism") or "")
+    if not mech.strip():
+        return True
+    present = [h for h in _FIXED_SCAFFOLD if h in mech]
+    positions = [mech.index(h) for h in present]
+    return bool(present) and present[0] == "## Mechanism" and positions == sorted(positions)
 
 
 def source_report(rows: list[dict]) -> list[str]:
@@ -240,7 +264,8 @@ def source_report(rows: list[dict]) -> list[str]:
             f"- cited distinct sources avg {avg('cited_sources')} | **trust-ordered citations** (T1 first): "
             f"{sum(x['trust_ordered'] for x in m)}/{n}",
             f"- **cross-tier disagreement flagged**: {sum(x['disagreement'] for x in m)}/{n}",
-            f"- judge **source_diversity** avg: {avg('src_div')}/5"]
+            f"- judge **source_diversity** avg: {avg('src_div')}/5",
+            f"- judge **mechanism_voice** avg: {avg('mech_voice')}/5"]
 
 
 def routing_report(rows: list[dict]) -> list[str]:
@@ -306,6 +331,10 @@ def register_report(rows: list[dict]) -> list[str]:
         L.append(f"- most-leaked tokens: {top}")
     else:
         L.append("- no internal tokens leaked into prose")
+    mood = sum(x.get("banned_mood_words", 0) for x in m)
+    L.append(f"- **banned mood words (pre-sanitize): {mood}** (mentor-voice HARD gate; must be 0)")
+    scaffold_viol = sum(1 for x in m if not x.get("mechanism_scaffold_ok", True))
+    L.append(f"- **scaffold violations: {scaffold_viol}** ('## Mechanism' opens; fixed section order; must be 0)")
     chars = [x["answer_chars"] for x in m if x.get("answer_chars")]
     if chars:                                                          # 6.2 conciseness gate: compare across runs
         import statistics
@@ -436,10 +465,13 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
                     "handles_checked": v.get("checked", 0),
                     "by_rule": v.get("by_rule") or {},
                     "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
+                    "banned_mood_words": (out.get("trace") or {}).get("banned_mood_words", 0),
+                    "mechanism_scaffold_ok": _scaffold_ok(out),
                     "intent": out.get("intent"),
                     "intent_ok": intent_ok,
                     "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
-                                                "source_diversity", "continuity") if k in j} or None})
+                                                "source_diversity", "continuity", "mechanism_voice")
+                              if k in j} or None})
     total_strips = sum(p["strips"] for p in per)
     total_claims = sum(p["claim_count"] for p in per)
     total_handles = sum(p["handles_checked"] for p in per)
@@ -456,6 +488,8 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "strip_rate": round(total_strips / max(1, total_claims), 6),
             "handle_strip_rate": round(total_strips / max(1, total_handles), 6),
             "register_leaks_total": sum(p["register_leaks"] for p in per),
+            "banned_mood_words_total": sum(p.get("banned_mood_words", 0) for p in per),
+            "scaffold_violations": sum(1 for p in per if not p.get("mechanism_scaffold_ok", True)),
             "intent_ok": sum(1 for p in per if p["intent_ok"]),
             "intent_n": sum(1 for p in per if p["intent_ok"] is not None),
             "per_answer": per}
@@ -477,7 +511,8 @@ def _write_baseline(doc: dict) -> None:
         boto3.client("s3").put_object(Bucket=b, Key=k, Body=p.read_bytes())
         print(f"  baseline -> s3://{b}/{k}")
     print(f"  baseline json -> {p} (strip_rate {doc['strip_rate']}, {doc['total_claims']} claims, "
-          f"leaks {doc['register_leaks_total']}, intent {doc['intent_ok']}/{doc['intent_n']})")
+          f"leaks {doc['register_leaks_total']}, mood {doc.get('banned_mood_words_total', 0)}, "
+          f"scaffold_viol {doc.get('scaffold_violations', 0)}, intent {doc['intent_ok']}/{doc['intent_n']})")
 
 
 def grounding_report(rows: list[dict]) -> list[str]:

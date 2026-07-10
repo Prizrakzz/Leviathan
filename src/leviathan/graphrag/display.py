@@ -82,16 +82,16 @@ def table_label(table: str) -> str:
 def _dir_suffix(name: str) -> str:
     n = name.lower()
     if n.startswith("bullish_") or "bull" in n:
-        return " (bullish)"
+        return " (price-supportive)"
     if n.startswith("bearish_") or "bear" in n:
-        return " (bearish)"
+        return " (price-pressuring)"
     return ""
 
 
 def regime_label(name: str) -> str:
-    """Human label for a convergence-regime id (bullish_drought_squeeze -> 'drought squeeze (bullish)');
-    unmapped -> strip a bullish_/bearish_ prefix, de-underscore, append the inferred direction. Always
-    readable — a raw regime id can never reach the reader through this path."""
+    """Human label for a convergence-regime id (bullish_drought_squeeze -> 'drought squeeze
+    (price-supportive)'); unmapped -> strip a bullish_/bearish_ prefix, de-underscore, append the inferred
+    direction. Always readable — a raw regime id can never reach the reader through this path."""
     if not name:
         return name
     m = _regimes()
@@ -206,6 +206,20 @@ def check_display_names() -> list[str]:
     for nid in sorted(_nodes()):                                    # every `nodes:` override is a real driver id
         if drivers and nid not in drivers:
             errs.append(f"node override {nid!r} is not a real driver id in causal/*.yaml")
+    return errs
+
+
+def check_display_vocab() -> list[str]:
+    """Vocab lint (P9-A): no curated regime label and no _dir_suffix output may contain a banned mood word
+    (bullish/bearish) — the ONLY guard on the gitignored display_names.yaml after the P9-A relabel."""
+    banned = re.compile(r"\b(bullish|bearish)\b", re.I)
+    errs: list[str] = []
+    for rid, label in (_regimes() or {}).items():
+        if banned.search(str(label)):
+            errs.append(f"regime label {rid!r} still contains a banned mood word: {label!r}")
+    for probe in ("bullish_x", "bearish_x"):                        # exercise the fallback path
+        if banned.search(_dir_suffix(probe)):
+            errs.append(f"_dir_suffix({probe!r}) still contains a banned mood word: {_dir_suffix(probe)!r}")
     return errs
 
 

@@ -42,8 +42,10 @@ def test_humanize_structured_cleans_ui_fields():
     }
     an._humanize_structured(d)
     assert "bullish_drought_squeeze" not in d["tldr"] and "conf=" not in d["tldr"]
-    assert "drought squeeze (bullish)" in d["tldr"] and "high confidence" in d["tldr"]
-    assert "bearish_glut" not in d["mechanism"] and "supply glut (bearish)" in d["mechanism"]
+    assert "drought squeeze (price-supportive)" in d["tldr"] and "high confidence" in d["tldr"]
+    assert "bearish_glut" not in d["mechanism"] and "supply glut (price-pressuring)" in d["mechanism"]
+    assert "(price-supportive)" in d["mechanism"]                     # bare '(bullish)' -> _MOOD safety net
+    assert "bullish" not in d["mechanism"] and "bearish" not in d["mechanism"]
     assert d["sources"][0]["source"] == "USDA FAS GAIN Report — Corn"
     assert "bullish_drought_squeeze" not in d["sources"][0]["note"]
     # no internal-token leaks survive in the reader-facing fields
@@ -227,10 +229,27 @@ def test_system_prompt_carries_grounding_guardrails():
 
 
 def test_system_prompt_convexity_research_register():
-    s = an._SYSTEM
-    assert "QUANT RESEARCHER" in s and "convex" in s.lower() and "tail risk" in s.lower()   # convexity/tail framing
+    s = an._SYSTEM                                                    # resolves to _SYSTEM_MENTOR (default bind)
+    import re
+    assert "convex" in s.lower() and "tail risk" in s.lower()                   # convexity/tail framing
     assert "position sizing" in s.lower()                                       # explicitly out of scope (research)
-    assert "OUTPUT REGISTER" in s and "bullish/bearish" in s                    # register: words, not +/-
+    assert "physical trader" in s and "fund analyst" in s                       # P9-A mixed-room framing
+    assert "OUTPUT REGISTER" in s                                               # register block present
+    # the ONE sanctioned negative instruction carved out, then NO residual mood word anywhere in the prompt
+    residual = re.sub(r"NEVER write 'bullish' or 'bearish'\.?", "", s)
+    assert not re.search(r"bullish|bearish", residual)
+    assert "mechanism" in s.lower() and "higher prices" in s.lower()            # mentor register present
+
+
+def test_mentor_voice_env_gate(monkeypatch):
+    """P9-A D9: the persona flips PER CALL on GRAPHRAG_MENTOR_VOICE (a memoized read would make the
+    env-off rollback a silent no-op on a long-lived serving process)."""
+    monkeypatch.delenv("GRAPHRAG_MENTOR_VOICE", raising=False)
+    assert an._system() is an._SYSTEM_MENTOR                          # default on
+    monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "off")
+    assert an._system() is an._SYSTEM_LEGACY                          # flips without re-import
+    monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "on")
+    assert an._system() is an._SYSTEM_MENTOR
 
 
 def test_answer_l2_walks_grounds_and_overrides_diagram(monkeypatch):
@@ -267,3 +286,25 @@ def test_source_tier_and_ev_block_tagging():
     block = an._ev_block([{"source": "wb_cmo_outlook", "date": "2016-09-01", "text": "frost damage"},
                           {"source": "usda_wasde", "date": "2016-01-01", "text": "stocks"}])
     assert "[T4] (wb_cmo_outlook" in block and "[T1] (usda_wasde" in block                    # tiers tag the evidence
+
+
+def test_banned_mood_words_counted_pre_sanitize():
+    """P9-A: the count runs on the RAW structured (sanitize would neutralize the words and read 0)."""
+    raw = {"tldr": "Soybeans are bullish.", "mechanism": "A bearish offset; still bullish overall.", "sources": []}
+    assert an._count_banned_mood(raw) == 3
+    assert an._count_banned_mood({"tldr": "", "mechanism": ""}) == 0
+    assert an._count_banned_mood({"tldr": "points to higher prices", "mechanism": "price-pressuring"}) == 0
+    # and the sanitized rendering of the same fields carries none (the safety net rewrites them)
+    from leviathan.graphrag import register as reg
+    assert "bullish" not in reg.sanitize(raw["tldr"]) and "bearish" not in reg.sanitize(raw["mechanism"])
+
+
+def test_ev_block_renders_usable_event_date_only():
+    """P9-A W0: '; event <date>' renders only for a REAL event date — sentinel/None/same-as-report stay silent."""
+    base = {"source": "usda_gain", "date": "2010-09-01", "text": "Russia bans wheat exports."}
+    assert "; event 2010-08-05" in an._ev_block([{**base, "event_date": "2010-08-05"}])
+    assert "; event" not in an._ev_block([{**base, "event_date": "1970-01-01"}])   # sentinel rejected
+    assert "; event" not in an._ev_block([{**base, "event_date": None}])
+    assert "; event" not in an._ev_block([{**base, "event_date": "2010-09-01"}])   # == report date: no dup
+    assert an._usable_date("2010-08-05") == "2010-08-05"
+    assert an._usable_date("1970-01-01") is None and an._usable_date(None) is None

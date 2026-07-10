@@ -103,8 +103,19 @@ def _regime_label(rid: str) -> str:
         return rid.replace("_", " ")
 
 
-def _sign_word(s: str) -> str:
-    return "bullish" if s == "+" else "bearish"
+def _sign_phrase(s: str) -> str:                                         # bare, mid-sentence (from sign=+ / sign +)
+    return "points to higher prices" if s == "+" else "points to lower prices"
+
+
+def _paren_sign(s: str) -> str:                                          # parenthetical (from (+) / (-))
+    return "upward price pressure" if s == "+" else "downward price pressure"
+
+
+_MOOD = re.compile(r"\b(bullish|bearish)\b", re.I)                       # mood labels never belong in reader prose
+
+
+def _mood_word(m) -> str:                                                # safety net (mirror the regime suffix vocab)
+    return "price-supportive" if m.group(1).lower() == "bullish" else "price-pressuring"
 
 
 def _conf_sub(m) -> str:
@@ -136,9 +147,10 @@ def _display_map() -> dict[str, str]:
 
 def sanitize(text: str) -> str:
     """Rewrite internal tokens into a commodity researcher's register: `conf=high`->"high confidence",
-    `sign=+`/`(+)`->"bullish", raw contract slugs->spelled-out names, structural markers stripped. Leaves the
-    ```mermaid block untouched (the diagram may carry signs), and preserves citation markers ([E1]/[N2]),
-    numbers, and dates. Idempotent, and register_leaks(sanitize(x)) == []."""
+    `sign=+`->"points to higher prices", `(+)`->"(upward price pressure)", any residual "bullish"/"bearish"
+    ->"price-supportive"/"price-pressuring", raw contract slugs->spelled-out names, structural markers stripped.
+    Leaves the ```mermaid block untouched (the diagram may carry signs), and preserves citation markers
+    ([E1]/[N2]), numbers, and dates. Idempotent, and register_leaks(sanitize(x)) == []."""
     if not text:
         return text
     disp = _display_map()
@@ -147,8 +159,8 @@ def sanitize(text: str) -> str:
         if seg.startswith("```mermaid"):
             continue
         seg = _CONF.sub(_conf_sub, seg)
-        seg = _SIGNKV.sub(lambda m: _sign_word(m.group(1)), seg)
-        seg = _PARENSIGN.sub(lambda m: "(mixed)" if m.group(1) is None else f"({_sign_word(m.group(1))})", seg)
+        seg = _SIGNKV.sub(lambda m: _sign_phrase(m.group(1)), seg)
+        seg = _PARENSIGN.sub(lambda m: "(mixed)" if m.group(1) is None else f"({_paren_sign(m.group(1))})", seg)
         seg = _STRUCT.sub("", seg)
         seg = _STRUCT_BARE.sub("", seg)
         for rx, repl in _JARGON_SUBS:
@@ -157,5 +169,6 @@ def sanitize(text: str) -> str:
             seg = re.sub(r"\b" + re.escape(slug) + r"\b", disp.get(slug, slug.replace("_", " ")), seg)
         for rid in _regime_ids():                                        # longest-first -> humanize regime ids
             seg = re.sub(r"\b" + re.escape(rid) + r"\b", _regime_label(rid), seg)
-        parts[i] = seg
+        seg = _MOOD.sub(_mood_word, seg)                                 # LAST: neutralize any residual mood word
+        parts[i] = seg                                                   #   (from a stale curated label or model)
     return "".join(parts)

@@ -389,7 +389,11 @@ def _proximity(date_str: str, near: str, *, half_life_days: float = 365.0) -> fl
 
 
 def _out(recs: list[dict]) -> list[dict]:
-    return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"]} for r in recs]
+    # P9-A: event_date rides along (WS-MS6 stored it; the answer layer's "; event <date>" rendering and
+    # Phase-B window derivation both need it). .get() so a prop lacking the field stays None.
+    return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"],
+             "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision")}
+            for r in recs]
 
 
 def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,

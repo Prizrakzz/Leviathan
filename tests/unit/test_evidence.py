@@ -487,3 +487,16 @@ def test_pub_date_release_branch_no_false_match():
     # the two pre-existing branches still win their own formats
     assert ev._pub_date("x/publication_date=20200515/d.json") == date(2020, 5, 15)
     assert ev._pub_date("x/report_05-15-2021/d.json") == date(2021, 5, 15)
+
+
+def test_out_projection_carries_event_date():
+    """P9-A W0: the retrieval projection surfaces event_date (the answer layer's lag narration and the
+    Phase-B window derivation read it); a prop lacking the field stays None, never KeyError."""
+    from leviathan.graphrag import evidence as ev
+    recs = [{"date": "2010-09-01", "source": "usda_gain", "source_key": "k1", "text": "t",
+             "event_date": "2010-08-05", "event_date_precision": "day"},
+            {"date": "2011-01-01", "source": "usda_wasde", "source_key": "k2", "text": "u"}]
+    out = ev._out(recs)
+    assert out[0]["event_date"] == "2010-08-05" and out[0]["event_date_precision"] == "day"
+    assert out[1]["event_date"] is None and out[1]["event_date_precision"] is None
+    assert set(out[0]) == {"date", "source", "source_key", "text", "event_date", "event_date_precision"}

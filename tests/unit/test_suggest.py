@@ -185,7 +185,7 @@ def test_suggest_news_fetch_error_keeps_stale(monkeypatch):
 def test_system_prompt_has_length_discipline_and_eval_tracks_chars():
     from leviathan.graphrag import answer as an
     from leviathan.graphrag import eval as E
-    assert "LENGTH DISCIPLINE" in an._SYSTEM and "120-180 words" in an._SYSTEM
+    assert "LENGTH DISCIPLINE" in an._SYSTEM and "150-220 words" in an._SYSTEM   # P9-A mentor budget
     row = {"q": {"contract": "corn", "id": "q1"}, "rubric": {"routed_right": True},
            "out": {"answer": "x" * 500, "evidence": [], "structured": {}}}
     assert E._metrics(row)["answer_chars"] == 500

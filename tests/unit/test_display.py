@@ -24,10 +24,10 @@ def test_table_label_maps_and_falls_back():
 
 
 def test_regime_label_maps_and_infers_direction():
-    assert dp.regime_label("bullish_drought_squeeze") == "drought squeeze (bullish)"
-    # unmapped id -> strip prefix, de-underscore, infer direction from the prefix
-    assert dp.regime_label("bullish_made_up_regime").endswith("(bullish)")
-    assert dp.regime_label("bearish_made_up_regime").endswith("(bearish)")
+    assert dp.regime_label("bullish_drought_squeeze") == "drought squeeze (price-supportive)"
+    # unmapped id -> strip prefix, de-underscore, infer direction from the prefix (P9-A mentor vocabulary)
+    assert dp.regime_label("bullish_made_up_regime").endswith("(price-supportive)")
+    assert dp.regime_label("bearish_made_up_regime").endswith("(price-pressuring)")
     assert "made" in dp.regime_label("bullish_made_up_regime").lower()
 
 
@@ -90,3 +90,11 @@ def test_all_driver_ids_includes_parent_only_ids(tmp_path, monkeypatch):
         assert "parent_only_driver" in ids                 # the P0.4 fix: parents are folded in
     finally:
         dp.all_driver_ids.cache_clear()                    # never leak the fixture cache to other tests
+
+
+def test_check_display_vocab_clean_and_flags_stale(monkeypatch):
+    """P9-A: the vocab lint passes on the relabeled config and catches a stale '(bullish)' label."""
+    assert dp.check_display_vocab() == []                             # current config is clean
+    monkeypatch.setattr(dp, "_regimes", lambda: {"bullish_stale_x": "stale squeeze (bullish)"})
+    errs = dp.check_display_vocab()
+    assert errs and "bullish_stale_x" in errs[0]

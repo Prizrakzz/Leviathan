@@ -1,3 +1,4 @@
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { FormattedNote, parseInline, renderInline } from './inlineFormat';
@@ -58,5 +59,49 @@ describe('render (no raw markers in the DOM)', () => {
     expect(el.querySelectorAll('ul li')).toHaveLength(2);
     expect(el.querySelector('strong')?.textContent).toBe('point');
     expect(el.textContent).not.toContain('*');
+  });
+});
+
+describe('FormattedNote headings (P9-A mentor scaffold)', () => {
+  it('renders "## " lines as real headings, never literal ##', () => {
+    render(
+      <div data-testid="h">
+        <FormattedNote
+          text={'## Mechanism\nDrought tightens stocks.\n## The record\nUS stocks fell.'}
+          resolved={{}}
+          onOpen={() => {}}
+        />
+      </div>,
+    );
+    const el = screen.getByTestId('h');
+    const heads = el.querySelectorAll('h5');
+    expect(heads).toHaveLength(2);
+    expect(heads[0]?.textContent).toBe('Mechanism');
+    expect(heads[1]?.textContent).toBe('The record');
+    expect(el.textContent).not.toContain('##');
+  });
+
+  it('renders the "## Sources" footer as a heading (the numbers-answer literal-## regression)', () => {
+    render(
+      <div data-testid="s">
+        <FormattedNote text={'Stocks fell 5%.\n\n## Sources\n- WASDE 2022-01'} resolved={{}} onOpen={() => {}} />
+      </div>,
+    );
+    const el = screen.getByTestId('s');
+    expect(el.querySelector('h5')?.textContent).toBe('Sources');
+    expect(el.textContent).not.toContain('##');
+    expect(el.querySelectorAll('ul li')).toHaveLength(1);   // the bullet under the heading still lists
+  });
+
+  it('heading text still resolves inline markup and citations', () => {
+    render(
+      <Tooltip.Provider>
+        <div data-testid="c">
+          <FormattedNote text={'## The **record** [1]\nbody'} resolved={resolved} onOpen={() => {}} />
+        </div>
+      </Tooltip.Provider>,
+    );
+    const el = screen.getByTestId('c');
+    expect(el.querySelector('h5 strong')?.textContent).toBe('record');
   });
 });

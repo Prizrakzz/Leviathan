@@ -30,10 +30,11 @@ def test_graph_jargon_flagged():
 
 
 def test_clean_researcher_prose_has_no_leaks():
-    clean = ("Soybeans read bullish into 2021: the drought driver is active, confirmed by the 2021-07 WASDE "
-             "cut to Brazilian output. The price response turns convex once ending stocks fall below the buffer, "
-             "a classic tail-risk regime. A strong dollar is a bearish offset. Stocks-to-use fell 5-10%. This is "
-             "outside the tracked driver model; a real-time read isn't available and the observed data is silent.")
+    clean = ("Soybeans point to higher prices into 2021: the drought driver is active, confirmed by the 2021-07 "
+             "WASDE cut to Brazilian output. The price response turns convex once ending stocks fall below the "
+             "buffer, a classic tail-risk regime. A strong dollar is a price-pressuring offset. Stocks-to-use "
+             "fell 5-10%. This is outside the tracked driver model; a real-time read isn't available and the "
+             "observed data is silent.")
     assert reg.register_leaks(clean) == []                            # register-approved phrasing trips nothing
 
 
@@ -60,7 +61,7 @@ def test_sanitize_rewrites_architecture_prose(monkeypatch):
 
 
 def test_mermaid_signs_are_not_prose_leaks():
-    md = ('The frost is bullish for arabica.\n\n```mermaid\nflowchart LR\n frost["frost (+)"] --> price\n```\n')
+    md = ('The frost points to higher prices for arabica.\n\n```mermaid\nflowchart LR\n frost["frost (+)"] --> price\n```\n')
     assert reg.register_leaks(md) == []                               # signs live in the diagram, not the prose
 
 
@@ -95,7 +96,10 @@ def test_sanitize_rewrites_tokens_and_leaves_no_leaks(monkeypatch):
                  "bearish (-), net (+/-). silver_ref=silver_psd. The node fired.")
         clean = reg.sanitize(dirty)
         assert reg.register_leaks(clean) == []                            # the load-bearing property
-        assert "high confidence" in clean and "bullish" in clean and "bearish" in clean and "(mixed)" in clean
+        assert "high confidence" in clean and "points to higher prices" in clean and "(mixed)" in clean
+        assert "(upward price pressure)" in clean and "(downward price pressure)" in clean
+        assert "price-supportive" in clean                                # bare 'bullish' -> _MOOD safety net
+        assert "bullish" not in clean and "bearish" not in clean          # mood words never survive sanitize
         assert "CBOT soybeans" in clean and "DCE soybean oil" in clean    # slug -> reader name
         assert "conf=" not in clean and "sign=" not in clean and "silver_ref" not in clean
         assert "soybeans_cbot" not in clean and "the node" not in clean.lower()
@@ -139,7 +143,7 @@ def test_sanitize_humanizes_regime_ids(monkeypatch):
         dirty = "The bullish_drought_squeeze aligns with drought; a bearish_glut is the offset."
         clean = reg.sanitize(dirty)
         assert "bullish_drought_squeeze" not in clean and "bearish_glut" not in clean
-        assert "drought squeeze (bullish)" in clean and "supply glut (bearish)" in clean
+        assert "drought squeeze (price-supportive)" in clean and "supply glut (price-pressuring)" in clean
         assert reg.register_leaks(clean) == []                             # humanized -> no leak remains
     finally:
         reg._slugs.cache_clear()

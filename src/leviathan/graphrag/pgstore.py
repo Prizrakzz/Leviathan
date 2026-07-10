@@ -244,5 +244,6 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
         cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]
     top = (rk.mmr_select(cand, relevance, k, mmr, same_source=same_source, fairness=fairness)
            if (mmr > 0 and len(cand) > k) else cand[:k])
-    return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"]}
+    return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"],
+             "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision")}
             for r in top]

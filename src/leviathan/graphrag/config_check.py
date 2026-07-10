@@ -106,6 +106,13 @@ def check_display_names() -> list[str]:
     return _cd()
 
 
+def check_display_vocab() -> list[str]:
+    """Display-vocab lint (P9-A) — no curated regime label / _dir_suffix output carries a banned mood word
+    (bullish/bearish). The only guard on the gitignored display_names.yaml after the mentor-voice relabel."""
+    from leviathan.graphrag.display import check_display_vocab as _cv
+    return _cv()
+
+
 def check_driver_slices() -> list[str]:
     """Driver-slice darkness lint (7-P2 W2) — every causal DAG driver id resolves to an evidence slice or
     carries a waiver (hard), and no id is double-owned (hard). Topical-token drift is a separate advisory
@@ -145,6 +152,7 @@ def main() -> int:
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
                         ("hierarchy", check_hierarchy()), ("geography", check_geography()),
                         ("display_names", check_display_names()),
+                        ("display_vocab", check_display_vocab()),
                         ("driver_slices", check_driver_slices()),
                         ("edge_blurbs", check_edge_blurbs())):
         if errs:

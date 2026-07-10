@@ -120,6 +120,22 @@ export function FormattedNote({
     }
   };
   for (const raw of lines) {
+    // P9-A: '## ' headings render as real headings (the mentor scaffold + the '## Sources' footer);
+    // checked BEFORE the bullet branch so a '#' line is never mistaken for prose.
+    const heading = raw.match(/^\s*(#{1,3})\s+(.*)$/);
+    if (heading) {
+      flushPara();
+      flushList();
+      const level = (heading[1] ?? '').length; // 1..3
+      const txt = (heading[2] ?? '').trim();
+      const Tag = (level <= 1 ? 'h4' : 'h5') as 'h4' | 'h5';
+      blocks.push(
+        <Tag key={`h${blocks.length}`} className="mt-2 mb-0.5 text-[13px] font-semibold text-text">
+          {renderInline(txt, resolved, onOpen)}
+        </Tag>,
+      );
+      continue;
+    }
     const bullet = raw.match(/^\s*[-*]\s+(.*)$/);
     if (bullet) {
       flushPara();

@@ -269,3 +269,41 @@ def test_corpus_fingerprint_local_deterministic_and_sensitive(tmp_path, monkeypa
     c = gev.corpus_fingerprint()
     drv.write_text("drivers: {new_slice: {category: x, terms: [y]}}\n", encoding="utf-8")
     assert gev.corpus_fingerprint() != c                    # alias/term edit flips it (E1 visibility)
+
+
+# ── P9-A: mentor-voice gates (banned mood words, scaffold, mechanism_voice judge axis) ───────────────
+def test_metrics_reads_banned_mood_words_from_trace():
+    r = {"q": {"contract": "x"}, "rubric": {"routed_right": True},
+         "out": {"trace": {"banned_mood_words": 2}, "answer": "", "evidence": [], "structured": {}}}
+    assert gev._metrics(r)["banned_mood_words"] == 2
+    r["out"]["trace"] = {}
+    assert gev._metrics(r)["banned_mood_words"] == 0                  # no trace field -> 0, never KeyError
+
+
+def test_judge_scores_mechanism_voice():
+    schema = gev._judge_tool()["input_schema"]
+    assert "mechanism_voice" in schema["properties"]
+    assert "mechanism_voice" in schema["required"]
+    assert "mechanism_voice" in gev._JUDGE_SYS                        # the rubric bullet exists
+
+
+def test_scaffold_ok_gate():
+    ok = {"structured": {"mechanism": "## Mechanism\nx\n## The record\ny\n## What to watch\nz"}}
+    assert gev._scaffold_ok(ok) is True
+    assert gev._scaffold_ok({"structured": {"mechanism": ""}}) is True          # numbers-only: vacuous pass
+    assert gev._scaffold_ok({"structured": {"mechanism": "no headings at all"}}) is False
+    out_of_order = {"structured": {"mechanism": "## The record\ny\n## Mechanism\nx"}}
+    assert gev._scaffold_ok(out_of_order) is False                    # must OPEN with '## Mechanism'
+
+
+def test_baseline_json_carries_mood_and_scaffold():
+    rows = [_mk_row("a", 1, 4, 3), _mk_row("b", 0, 6, 2)]
+    rows[0]["out"]["trace"]["banned_mood_words"] = 2                  # one offender
+    rows[0]["out"]["structured"] = {"mechanism": "## The record\nwrong order\n## Mechanism\nx"}
+    doc = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v3",
+                             graph_version="g", corpus_fp="c")
+    assert doc["banned_mood_words_total"] == 2
+    assert doc["scaffold_violations"] == 1
+    assert doc["per_answer"][0]["banned_mood_words"] == 2
+    assert doc["per_answer"][0]["mechanism_scaffold_ok"] is False
+    assert doc["per_answer"][1]["mechanism_scaffold_ok"] is True
