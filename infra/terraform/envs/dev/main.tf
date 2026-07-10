@@ -454,7 +454,7 @@ resource "aws_iam_role_policy" "notifications_scheduler" {
 
 resource "aws_scheduler_schedule" "notifications" {
   name  = "${var.project_name}-${var.environment}-morning-brief"
-  state = "DISABLED" # flip to ENABLED only after the user-reviewed day-0 manual run
+  state = "ENABLED" # day-0 dry-run reviewed 2026-07-10 (pipeline clean, 0 shocks today); cron live 12:00 UTC
 
   flexible_time_window {
     mode = "OFF"
