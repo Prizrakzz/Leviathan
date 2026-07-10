@@ -82,8 +82,13 @@ def main() -> None:
                     help="route queries through the full intent branch (orchestrator.respond) — the "
                          "serving path; required for intent-accuracy baselines (22/30 lives here)")
     ap.add_argument("--workers", type=int, default=None,
-                    help="eval concurrency inside the container (forwarded to eval --workers; "
-                         "use 1 for Bedrock-rerank arms — the Cohere quota is 3 requests/min)")
+                    help="eval concurrency inside the container (forwarded to eval --workers). FAST-EVAL "
+                         "RECIPE: pair --workers 4 with --env GRAPHRAG_PROVIDER=bedrock so LLM calls use the "
+                         "Bedrock quota lane (the Anthropic API throttles a serial eval into 40-50min "
+                         "single-turn stalls, worse now serving also runs on Anthropic). Eval rerank defaults "
+                         "to LOCAL bge (rankers._rerank_backend), so workers is NOT capped by the Cohere "
+                         "3-req/min quota — that cap ONLY bites if you also pass GRAPHRAG_RERANK_BACKEND=bedrock, "
+                         "in which case drop to --workers 1.")
     ap.add_argument("--memory", type=int, default=32768, help="MiB; legal Fargate value for 8 vCPU (16/20/24/28/32 GB)")
     ap.add_argument("--vcpu", type=int, default=8)
     ap.add_argument("--queue", default=None,
