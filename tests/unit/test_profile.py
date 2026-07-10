@@ -4,7 +4,6 @@ auth-gated GET/PUT /v1/profile routes + fact sanitization, and the suggester fac
 from __future__ import annotations
 
 import json
-import time
 
 from fastapi.testclient import TestClient
 from leviathan.graphrag import api_models as M
@@ -148,7 +147,6 @@ def test_put_profile_route_sanitizes_and_persists(monkeypatch):
 
 # ── W5: the suggester folds every fact key into the prompt ────────────────────────────────────────────
 def test_suggest_prompt_folds_all_fact_keys(monkeypatch):
-    monkeypatch.setitem(sv._STATE, "suggest_news", (time.time(), []))  # fresh cache -> no background fetch
     body = M.SuggestRequest(question="coffee?", tldr="stocks thin")
     facts = {"markets": ["coffee"], "regions": ["Brazil"], "seat": "trader", "notes": ["watch frost"]}
     prompt = sv._suggest_prompt(body, facts)

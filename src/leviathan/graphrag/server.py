@@ -521,37 +521,8 @@ def citation_pdf_route(source_key: str = Query(...), snippet: Optional[str] = Qu
 
 
 # ── 6.2 query suggester — decoupled Haiku side-channel (never touches the answer path) ──────────────
-_SUGGEST_NEWS_TTL = 900   # seconds; headlines refresh at most 4x/hour, off the request path
-
-
-def _suggest_news() -> list[str]:
-    """Top headlines for the suggester prompt — cached, STALE-WHILE-REVALIDATE. Serves whatever is
-    cached immediately; on TTL expiry a daemon thread does ONE keyless `nf.gather()` sweep (raw
-    headlines, NO LLM — /v1/events' per-call fetch+extract is exactly what this must not do). A fetch
-    error keeps the stale list; the first-ever call returns [] and warms in the background."""
-    now = time.time()
-    ts, items = _STATE.get("suggest_news") or (0.0, [])
-    if now - ts > _SUGGEST_NEWS_TTL and not _STATE.get("suggest_news_refreshing"):
-        _STATE["suggest_news_refreshing"] = True
-
-        def _refresh(stale=items):
-            try:
-                from leviathan.graphrag import orchestrator as orch
-                from leviathan.graphrag.news import fetch as nf
-                got = nf.gather(orch._live_search_terms("", _graph()))
-                heads = [str(i.get("headline") or "").strip() for i in (got or [])]
-                _STATE["suggest_news"] = (time.time(), [h for h in heads if h][:8])
-            except Exception:  # noqa: BLE001 — keep the stale list; never retry-storm
-                _STATE["suggest_news"] = (time.time(), stale)
-            finally:
-                _STATE.pop("suggest_news_refreshing", None)
-
-        threading.Thread(target=_refresh, daemon=True).start()
-    return items
-
-
 def _suggest_prompt(body: M.SuggestRequest, facts: Optional[dict]) -> str:
-    """The Haiku prompt: role + strict output contract + the turn packet + optional facts/headlines.
+    """The Haiku prompt: role + strict output contract + the turn packet + optional facts.
     ASCII, hard-truncated fields (the packet is client-supplied text)."""
     lines = [
         "You suggest the NEXT question a commodity researcher would ask in a research terminal that",
@@ -559,8 +530,8 @@ def _suggest_prompt(body: M.SuggestRequest, facts: Optional[dict]) -> str:
         "supply/demand balance sheets, with an interest in convexity (buffer exhaustion, regime tips).",
         "Return ONLY a JSON array of 3-4 short questions. Each: under 110 characters, plain English,",
         "ASCII, specific and answerable from fundamentals -- no internal identifiers, no code_like_names,",
-        "no price targets. Mix: one going deeper on the last answer, one on an adjacent contract or",
-        "driver, and one time-aware question when headlines are given.",
+        "no price targets. Mix: one going deeper on the last answer and one on an adjacent contract",
+        "or driver.",
     ]
     if body.question or body.tldr:
         if body.question:
@@ -588,9 +559,6 @@ def _suggest_prompt(body: M.SuggestRequest, facts: Optional[dict]) -> str:
     notes = f.get("notes")
     if isinstance(notes, list) and notes:
         lines.append("User notes: " + "; ".join(str(n).strip() for n in notes if str(n).strip())[:200])
-    heads = _suggest_news()
-    if heads:
-        lines.append("Today's headlines:\n" + "\n".join(f"- {h[:160]}" for h in heads))
     return "\n".join(lines)
 
 
@@ -667,7 +635,7 @@ _SUGGEST_DENY = re.compile(
 
 def _suggest_scope(body: M.SuggestRequest, facts: Optional[dict]) -> list[str]:
     """Lowercased, de-underscored scope terms (the user's markets/regions + the last turn's contracts) used to
-    pick which regimes-near-firing + headlines to surface. Empty -> global (top-N closest to firing)."""
+    pick which regimes-near-firing to surface. Empty -> global (top-N closest to firing)."""
     terms: list[str] = []
     f = facts or {}
     for key in ("markets", "regions"):
@@ -723,47 +691,10 @@ def _suggest_catalog_text(cat: dict) -> str:
     return reg.sanitize("\n".join(lines))
 
 
-def _suggest_news_scoped(scope: str) -> list[str]:
-    """Per-scope headline cache (stale-while-revalidate, OFF the request path) — news scoped to the user's
-    markets. Mirrors `_suggest_news` but keyed by scope, bounded to 16 keys. Empty scope -> the global cache."""
-    if not scope.strip():
-        return _suggest_news()
-    now = time.time()
-    cache = _STATE.setdefault("suggest_news_cache", {})
-    refreshing = _STATE.setdefault("suggest_news_refreshing_keys", set())
-    key = scope.strip().lower()[:80]
-    ts, items = cache.get(key) or (0.0, [])
-    if now - ts > _SUGGEST_NEWS_TTL and key not in refreshing:
-        refreshing.add(key)
-
-        def _refresh(stale=items, k=key, q=scope):
-            try:
-                from leviathan.graphrag import orchestrator as orch
-                from leviathan.graphrag.news import fetch as nf
-                got = nf.gather(orch._live_search_terms(q, _graph()))
-                heads = [str(i.get("headline") or "").strip() for i in (got or [])]
-                cache[k] = (time.time(), [h for h in heads if h][:8])
-                if len(cache) > 16:                                    # bound: evict the oldest non-current key
-                    try:                                               # best-effort; a race must NOT lose the fresh fetch
-                        others = [x for x in list(cache) if x != k]    # snapshot keys (other threads may mutate)
-                        if others:
-                            cache.pop(min(others, key=lambda x: cache.get(x, (0.0,))[0]), None)
-                    except Exception:  # noqa: BLE001 — eviction is best-effort
-                        pass
-            except Exception:  # noqa: BLE001 — keep the stale list; never retry-storm
-                cache[k] = (time.time(), stale)
-            finally:
-                refreshing.discard(k)
-
-        threading.Thread(target=_refresh, daemon=True).start()
-    return items
-
-
-def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_text: str,
-                             heads: list[str]) -> str:
+def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_text: str) -> str:
     """The convexity-house-style, ANSWERABLE-ONLY prompt: short buffer+rate -> named-regime-tip questions
-    scoped to the catalog (our DAGs + silver), news-anchored to the user's markets. Used only when the catalog
-    flag is on and the matrix is warm; otherwise the route uses the byte-identical base `_suggest_prompt`."""
+    scoped to the catalog (our DAGs + silver). Used only when the catalog flag is on and the matrix is
+    warm; otherwise the route uses the byte-identical base `_suggest_prompt`."""
     lines = [
         "You suggest the NEXT question a commodity researcher would ask, in the house style of a convexity",
         "desk: a supply BUFFER + a depletion/flow RATE tipping a NAMED regime. Return ONLY a JSON array of",
@@ -778,7 +709,7 @@ def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_
         "Style (108 chars): 'Cane crush firm -- how fast must sugar ending stocks fall before the ethanol-",
         "diversion regime fires?'",
         "Mix: (1) a regime CLOSEST TO FIRING for the user's markets, (2) a cross-commodity CASCADE, (3) one",
-        "FUSED to a headline event mapped to a driver we track.",
+        "going deeper on the last answer.",
         "",
         cat_text,
     ]
@@ -794,9 +725,6 @@ def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_
             interests += [str(x).strip() for x in v if str(x).strip()]
     if interests:
         lines.append("User markets/interests: " + ", ".join(dict.fromkeys(interests))[:200])
-    if heads:
-        lines.append("Today's headlines (anchor the time-aware question to a market the user follows):\n"
-                     + "\n".join(f"- {h[:160]}" for h in heads))
     return "\n".join(lines)
 
 
@@ -828,8 +756,7 @@ def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identit
         scope = _suggest_scope(body, facts_d)
         catalog = _suggest_catalog(scope)
         if catalog:
-            heads = _suggest_news_scoped(" ".join(scope))
-            prompt = _suggest_prompt_grounded(body, facts_d, _suggest_catalog_text(catalog), heads)
+            prompt = _suggest_prompt_grounded(body, facts_d, _suggest_catalog_text(catalog))
         else:
             prompt = _suggest_prompt(body, facts_d)
         call = _STATE.get("suggest_call")

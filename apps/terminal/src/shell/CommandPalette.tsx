@@ -1,4 +1,5 @@
 import { Command } from 'cmdk';
+import { OVERLAY_SCRIM } from '@/tokens/tokens';
 
 /** ⌘K palette (design §3.3): fuzzy over commands/contracts/metrics/as-of presets. After the 5.6 view-prune
  *  Answer is the only view, so the palette drops the view/deep-dive entries; the full fuzzy universe binds to
@@ -13,7 +14,7 @@ export function CommandPalette({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-bg-0/70 pt-32"
+      className={`fixed inset-0 z-50 flex items-start justify-center pt-32 ${OVERLAY_SCRIM}`}
       onClick={onClose}
       data-testid="palette"
     >

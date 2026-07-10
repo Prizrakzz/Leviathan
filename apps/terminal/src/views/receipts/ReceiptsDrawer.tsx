@@ -3,6 +3,7 @@ import * as ScrollArea from '@radix-ui/react-scroll-area';
 import { useEffect, useRef } from 'react';
 import type { RespondResult } from '@/api/schema';
 import { useUI } from '@/store/ui';
+import { OVERLAY_SCRIM } from '@/tokens/tokens';
 import { partitionReceipts, type ReceiptRow } from './partition';
 
 function Row({ r, highlight, rowRef }: { r: ReceiptRow; highlight?: boolean; rowRef?: (el: HTMLDivElement | null) => void }) {
@@ -65,7 +66,7 @@ export function ReceiptsDrawer({
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-bg-0/50" />
+        <Dialog.Overlay className={`fixed inset-0 z-40 ${OVERLAY_SCRIM}`} />
         <Dialog.Content
           data-testid="receipts"
           aria-describedby={undefined}

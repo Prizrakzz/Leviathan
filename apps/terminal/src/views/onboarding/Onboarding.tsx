@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useProfile, useUpdateProfile } from '@/api/useProfile';
 import { COMMODITIES, SEATS } from '@/lib/commodities';
 import { useSettings } from '@/store/settings';
+import { OVERLAY_SCRIM } from '@/tokens/tokens';
 import { ChipList, ToggleChip } from '@/views/settings/chips';
 
 const STEPS = 3;
@@ -64,7 +65,7 @@ export default function Onboarding() {
   return (
     <Dialog.Root open onOpenChange={(o) => !o && finish()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-bg-0/70" />
+        <Dialog.Overlay className={`fixed inset-0 z-40 ${OVERLAY_SCRIM}`} />
         <Dialog.Content
           data-testid="onboarding"
           aria-describedby={undefined}

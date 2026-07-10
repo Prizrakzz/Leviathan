@@ -3,14 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { getPdfPage, type PdfPage } from '@/api/client';
 
 // The pdf.js worker rides its OWN hashed asset (self-contained, no CDN): vite resolves the bare specifier
-// inside `new URL(..., import.meta.url)` at build. This module is only ever pulled in by lazy() chunks
-// (PdfModal, PdfTab), so pdf.js + its worker stay off the first-paint critical path.
+// inside `new URL(..., import.meta.url)` at build. This module is only ever pulled in by a lazy() chunk
+// (PdfTab), so pdf.js + its worker stay off the first-paint critical path.
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 /**
- * The reusable pdf.js viewer (P1.5-T3, extracted from the 6.5 PdfModal): resolve a cited source to a
- * presigned URL + 1-indexed page (`client.getPdfPage`), raster to a canvas, page nav + download escape.
- * PROP-driven (no store) so the SAME body serves the modal and a workspace tab. Every fallback is
+ * The reusable pdf.js viewer (P1.5-T3, extracted from the since-deleted 6.5 PdfModal): resolve a cited
+ * source to a presigned URL + 1-indexed page (`client.getPdfPage`), raster to a canvas, page nav +
+ * download escape. PROP-driven (no store) so any host surface can mount it. Every fallback is
  * first-class: null page → "page unknown" banner at top; resolve/load error → raw-download link.
  * Same-doc guard: when only the locator-within-the-doc changes (a second citation into an open doc),
  * re-resolve the PAGE but never re-download the document bytes.

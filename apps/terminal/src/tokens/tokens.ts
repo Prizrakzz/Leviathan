@@ -63,6 +63,14 @@ export const MOTION = { hover: 120, panel: 200, chip: 90 } as const;
 export const REGIME_STATE = { dormant: 'text-faint', armed: 'amber', firing: 'amber' } as const;
 
 /**
+ * P9-E2: the ONE scrim treatment behind every full-screen overlay (Radix Dialog.Overlay + hand-rolled
+ * divs) -- each site keeps its own positioning/z/layout classes. Anchored popovers (UserMenu,
+ * NotificationBell) carry NO scrim by design. backdrop-blur recomposites per frame over animating
+ * content, so an overlay floating over a live canvas must be exempted from this constant.
+ */
+export const OVERLAY_SCRIM = 'bg-bg-0/70 backdrop-blur-sm';
+
+/**
  * Write the token variable values onto an element (default :root). Called once at app/Storybook/test start.
  * Idempotent; the single runtime bridge between tokens.ts and the CSS that references `var(--…)`.
  */

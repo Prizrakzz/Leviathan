@@ -16,11 +16,20 @@ function doneTurn(result: TurnState['result']): TurnState {
   return { status: 'done', stages: [], draft: '', result } as TurnState;
 }
 
-function mount(turn: TurnState, question: string) {
+function mount(
+  turn: TurnState,
+  question: string,
+  handlers: { onAsk?: (q: string) => void; onPrefill?: (q: string) => void } = {},
+) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <AnswerView turn={turn} question={question} onAsk={() => {}} />
+      <AnswerView
+        turn={turn}
+        question={question}
+        onAsk={handlers.onAsk ?? (() => {})}
+        onPrefill={handlers.onPrefill}
+      />
     </QueryClientProvider>,
   );
 }
@@ -66,5 +75,25 @@ describe('AnswerView graph chip + numbers rendering (P1.5: graph is TAB-ONLY, ne
     await screen.findByTestId('numbers-answer', undefined, T);
     expect(screen.queryByTestId('sections')).toBeNull();
     expect(screen.queryByTestId('note')).toBeNull();
+  });
+
+  it('P9-E1a: watch chips derive from the watch section; click PREFILLS, no turn started', async () => {
+    const onAsk = vi.fn();
+    const onPrefill = vi.fn();
+    mount(doneTurn(MOCK_RESULT), 'KC frost 2021', { onAsk, onPrefill });
+    const chips = await screen.findAllByTestId('watch-chip', undefined, T);
+    expect(chips.length).toBeGreaterThan(0);
+    // MOCK_RESULT's watch section, first bullet, citation marker stripped
+    expect(chips[0]!.textContent).toBe('Certified/tenderable stocks through the July frost window');
+    await userEvent.click(chips[0]!);
+    expect(onPrefill).toHaveBeenCalledWith('Certified/tenderable stocks through the July frost window');
+    expect(onAsk).not.toHaveBeenCalled(); // prefill only -- a watch chip never submits a turn
+  });
+
+  it('P9-E1a: a structured-null turn renders zero watch chips', async () => {
+    const r = numbersOnlyResult('what were ending stocks', '2024-06-01');
+    mount(doneTurn(r), 'what were ending stocks');
+    await screen.findByTestId('numbers-answer', undefined, T);
+    expect(screen.queryByTestId('watch-chip')).toBeNull();
   });
 });

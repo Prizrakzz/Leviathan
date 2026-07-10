@@ -1,3 +1,5 @@
+import { OVERLAY_SCRIM } from '@/tokens/tokens';
+
 const KEYS: [string, string][] = [
   ['‹ / ›  ( , . )', 'nudge as-of (Shift = larger)'],
   ['1–4', 'focus panels'],
@@ -14,7 +16,7 @@ const KEYS: [string, string][] = [
 export function ShortcutSheet({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-0/70"
+      className={`fixed inset-0 z-50 flex items-center justify-center ${OVERLAY_SCRIM}`}
       onClick={onClose}
       data-testid="shortcuts"
     >

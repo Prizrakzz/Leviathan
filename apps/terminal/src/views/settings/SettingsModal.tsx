@@ -4,7 +4,7 @@ import { useProfile, useUpdateProfile } from '@/api/useProfile';
 import { COMMODITIES, SEATS } from '@/lib/commodities';
 import { useSettings, type SettingsTab } from '@/store/settings';
 import { useUI } from '@/store/ui';
-import { ACCENTS, type AccentName } from '@/tokens/tokens';
+import { ACCENTS, OVERLAY_SCRIM, type AccentName } from '@/tokens/tokens';
 import { ChipList, ToggleChip } from './chips';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -175,7 +175,7 @@ export default function SettingsModal() {
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && closeSettings()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-bg-0/60" />
+        <Dialog.Overlay className={`fixed inset-0 z-40 ${OVERLAY_SCRIM}`} />
         <Dialog.Content
           data-testid="settings"
           aria-describedby={undefined}

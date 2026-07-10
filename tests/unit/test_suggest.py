@@ -1,6 +1,7 @@
 """Phase 6.2 query suggester — POST /v1/suggest (decoupled Haiku side-channel) + the conciseness
-prompt/eval hooks. All hermetic: InMemory store, injected suggest_call, mocked news gather. No AWS,
-no LLM. Every failure mode must degrade to {"suggestions": []} — never an error."""
+prompt/eval hooks. All hermetic: InMemory store, injected suggest_call. No AWS, no LLM, no news
+(E1b dropped the suggester's news surface). Every failure mode must degrade to
+{"suggestions": []} — never an error."""
 from __future__ import annotations
 
 import time
@@ -19,10 +20,9 @@ def _graph() -> g.CausalGraph:
     return g.CausalGraph({"arabica_coffee": coffee}, silver=set())
 
 
-def _client(monkeypatch, *, call=None, news=("Frost warning in Minas Gerais",)):
+def _client(monkeypatch, *, call=None):
     monkeypatch.setitem(sv._STATE, "graph", _graph())
     monkeypatch.setitem(sv._STATE, "store", st.InMemoryStore())
-    monkeypatch.setitem(sv._STATE, "suggest_news", (time.time(), list(news)))   # warm cache, no refresh
     if call is not None:
         monkeypatch.setitem(sv._STATE, "suggest_call", call)
     return TestClient(sv.app)
@@ -45,11 +45,11 @@ def test_suggest_happy_path_returns_clean_chips(monkeypatch):
     assert r.status_code == 200
     assert r.json()["suggestions"] == ["How thin are certified stocks now?",
                                        "What would a July frost do to the KC curve?"]
-    # the packet + headlines reached the prompt; contracts read as words, not slugs
+    # the packet reached the prompt; contracts read as words, not slugs; no news injection (E1b)
     p = seen["prompt"]
     assert "why is arabica tight?" in p and "Stocks are thin" in p
     assert "arabica coffee" in p and "arabica_coffee" not in p
-    assert "Frost warning in Minas Gerais" in p
+    assert "headline" not in p.lower()
 
 
 def test_suggest_empty_packet_is_thread_start(monkeypatch):
@@ -143,42 +143,17 @@ def test_suggest_includes_profile_facts_when_present(monkeypatch):
     assert "User interests: corn, wheat" in seen["prompt"]
 
 
-def test_suggest_news_cache_stale_while_revalidate(monkeypatch):
-    calls = {"n": 0}
-
-    def fake_gather(terms):
-        calls["n"] += 1
-        return [{"headline": "Fresh headline"}]
-
-    from leviathan.graphrag.news import fetch as nf
-    monkeypatch.setattr(nf, "gather", fake_gather)
-    monkeypatch.setitem(sv._STATE, "graph", _graph())
-    monkeypatch.setitem(sv._STATE, "suggest_news", (time.time() - 9999, ["Stale headline"]))
-    out = sv._suggest_news()                                          # expired -> serve STALE, refresh async
-    assert out == ["Stale headline"]
-    t0 = time.time()
-    while calls["n"] == 0 and time.time() - t0 < 3:
-        time.sleep(0.02)
-    t0 = time.time()
-    while sv._STATE["suggest_news"][1] != ["Fresh headline"] and time.time() - t0 < 3:
-        time.sleep(0.02)
-    assert sv._STATE["suggest_news"][1] == ["Fresh headline"]          # daemon refresh landed
-    assert sv._suggest_news() == ["Fresh headline"] and calls["n"] == 1  # fresh cache -> no second sweep
-
-
-def test_suggest_news_fetch_error_keeps_stale(monkeypatch):
+def test_suggest_news_surface_is_gone(monkeypatch):
+    # E1b: the suggester's news half is deleted -- no fetch fires and no news state is written
     def boom(terms):
-        raise RuntimeError("network down")
+        raise AssertionError("news gather must never fire from the suggester")
 
     from leviathan.graphrag.news import fetch as nf
     monkeypatch.setattr(nf, "gather", boom)
-    monkeypatch.setitem(sv._STATE, "graph", _graph())
-    monkeypatch.setitem(sv._STATE, "suggest_news", (time.time() - 9999, ["Old but gold"]))
-    assert sv._suggest_news() == ["Old but gold"]
-    t0 = time.time()
-    while sv._STATE.get("suggest_news_refreshing") and time.time() - t0 < 3:
-        time.sleep(0.02)
-    assert sv._STATE["suggest_news"][1] == ["Old but gold"]            # error -> stale kept, ts bumped
+    assert not hasattr(sv, "_suggest_news") and not hasattr(sv, "_suggest_news_scoped")
+    c = _client(monkeypatch, call=lambda p: '["Q?"]')
+    assert c.post("/v1/suggest", json=_PACKET).json()["suggestions"] == ["Q?"]
+    assert not any(k.startswith("suggest_news") for k in sv._STATE)   # the 4 news keys never appear
 
 
 def test_system_prompt_has_length_discipline_and_eval_tracks_chars():

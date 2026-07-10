@@ -1,6 +1,7 @@
 """6.8 grounded suggester — data-scoped catalog + convexity house-style prompt + answerable-gate.
-Hermetic: seeds the warm convergence matrix in _STATE, injects the Haiku call, no AWS / no LLM / no news
-fetch. Flag-gated: GRAPHRAG_SUGGEST_CATALOG default off -> base prompt is byte-identical."""
+Hermetic: seeds the warm convergence matrix in _STATE, injects the Haiku call, no AWS / no LLM
+(the suggester's news surface was deleted in E1b). Flag-gated: GRAPHRAG_SUGGEST_CATALOG default
+off -> base prompt is byte-identical."""
 from __future__ import annotations
 
 import time
@@ -126,7 +127,6 @@ def test_route_grounded_uses_catalog_and_drops_out_of_domain(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_SUGGEST", "on")
     monkeypatch.setenv("GRAPHRAG_SUGGEST_CATALOG", "on")
     _warm(monkeypatch)
-    monkeypatch.setattr(sv, "_suggest_news_scoped", lambda scope: ["Frost hits Minas Gerais coffee belt"])
     captured: dict = {}
 
     def fake_call(p):
@@ -139,9 +139,34 @@ def test_route_grounded_uses_catalog_and_drops_out_of_domain(monkeypatch):
     assert r.status_code == 200
     out = r.json()["suggestions"]
     assert "answerable-only" in captured["prompt"] and "Regimes closest to tipping" in captured["prompt"]
-    assert "Frost hits Minas Gerais" in captured["prompt"]             # scoped headline fused in
     assert any("arabica" in s.lower() for s in out)                    # kept
     assert not any("diesel" in s.lower() for s in out)                 # answerable-gate dropped it
+
+
+def test_route_grounded_returns_chips_without_news(monkeypatch):
+    # E1b guard: the grounded PROD-default path yields non-empty suggestions with ZERO news/headline
+    # injection -- no "Today's headlines" block, no news fetch, no news _STATE keys
+    monkeypatch.setenv("GRAPHRAG_SUGGEST", "on")
+    monkeypatch.setenv("GRAPHRAG_SUGGEST_CATALOG", "on")
+    _warm(monkeypatch)
+
+    def boom(terms):
+        raise AssertionError("news gather must never fire from the suggester")
+
+    from leviathan.graphrag.news import fetch as nf
+    monkeypatch.setattr(nf, "gather", boom)
+    captured: dict = {}
+
+    def fake_call(p):
+        captured["prompt"] = p
+        return '["Is arabica squeeze arming as certified stocks fall?"]'
+
+    monkeypatch.setitem(sv._STATE, "suggest_call", fake_call)
+    r = _client(monkeypatch).post("/v1/suggest", json={"contracts": ["arabica_coffee"]})
+    assert r.status_code == 200
+    assert r.json()["suggestions"] == ["Is arabica squeeze arming as certified stocks fall?"]
+    assert "Today's headlines" not in captured["prompt"]               # the injection block is gone
+    assert not any(k.startswith("suggest_news") for k in sv._STATE)    # no news state written
 
 
 def test_route_base_prompt_when_flag_off(monkeypatch):
@@ -155,19 +180,7 @@ def test_route_base_prompt_when_flag_off(monkeypatch):
         return '["A base follow-up about corn stocks?"]'
 
     monkeypatch.setitem(sv._STATE, "suggest_call", fake_call)
-    monkeypatch.setitem(sv._STATE, "suggest_news", (time.time(), []))  # keep base news off the fetch path
     r = _client(monkeypatch).post("/v1/suggest", json={"question": "corn?", "tldr": "tight"})
     assert r.status_code == 200
     assert "answerable-only" not in captured["prompt"]                 # base prompt, no catalog
     assert "Regimes closest to tipping" not in captured["prompt"]
-
-
-# ── scoped news cache ────────────────────────────────────────────────────────────────────────────────
-def test_news_scoped_returns_cached_without_fetch(monkeypatch):
-    monkeypatch.setitem(sv._STATE, "suggest_news_cache", {"coffee sugar": (time.time(), ["h1", "h2"])})
-    assert sv._suggest_news_scoped("coffee sugar") == ["h1", "h2"]     # fresh -> no background fetch
-
-
-def test_news_scoped_empty_delegates_to_global(monkeypatch):
-    monkeypatch.setitem(sv._STATE, "suggest_news", (time.time(), ["g1"]))
-    assert sv._suggest_news_scoped("") == ["g1"]                        # empty scope -> global cache

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettings } from '@/store/settings';
 import { useUI } from '@/store/ui';
-import { PALETTE } from '@/tokens/tokens';
+import { OVERLAY_SCRIM, PALETTE } from '@/tokens/tokens';
 
 const { getProfile, putProfile } = vi.hoisted(() => ({ getProfile: vi.fn(), putProfile: vi.fn() }));
 vi.mock('@/api/client', () => ({ getProfile, putProfile }));
@@ -39,6 +39,9 @@ describe('SettingsModal (6.6)', () => {
   it('loads the profile, edits a market fact, and PUTs the merged set', async () => {
     wrap(<SettingsModal />);
     await screen.findByText(/you@x.com/);
+    // P9-E2: the Radix Dialog.Overlay (portaled to body) dims through the shared scrim constant.
+    const overlay = document.querySelector('.backdrop-blur-sm');
+    expect(overlay?.className).toContain(OVERLAY_SCRIM);
     fireEvent.click(screen.getByRole('button', { name: 'coffee' })); // add to the existing ['sugar']
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(putProfile).toHaveBeenCalled());
