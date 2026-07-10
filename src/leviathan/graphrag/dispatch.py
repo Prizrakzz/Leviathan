@@ -200,7 +200,7 @@ def plan_turn(query: str, *, graph, state_block: str | None = None, today: str |
         return _FALLBACK
     model = model or os.environ.get("GRAPHRAG_DISPATCH_MODEL") or SONNET
     if call is None:
-        from leviathan.graphrag import answer as an     # lazy: reuse the cached-sys-block caller
+        from leviathan.graphrag import answer as an  # lazy: reuse the cached-sys-block caller
         call = an._call_opus
     ids = list(graph.contracts)
     if state_contracts:                                 # prior-turn contracts first in the enum

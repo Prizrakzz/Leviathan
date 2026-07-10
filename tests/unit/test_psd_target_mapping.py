@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from leviathan.model_datasets.psd_targets import load_psd_metric_targets
 
 ROOT = Path(__file__).resolve().parents[2]

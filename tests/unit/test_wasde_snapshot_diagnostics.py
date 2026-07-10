@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from leviathan.model_datasets.wasde_snapshot_diagnostics import (
     audit_wasde_snapshot_leakage,
     build_baseline_diagnostics,
@@ -12,7 +11,6 @@ from leviathan.model_datasets.wasde_snapshot_diagnostics import (
     build_target_event_diagnostics,
     diagnose_wasde_snapshot_matrix,
 )
-
 
 FEATURE_COLUMNS = (
     "wasde_production_latest",

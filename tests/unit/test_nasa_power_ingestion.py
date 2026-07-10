@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-
 from leviathan.ingestion.weather.nasa_power import fetch_nasa_power_daily
 
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"

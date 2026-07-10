@@ -117,6 +117,7 @@ def main() -> int:
         print("specify --propose (gated: ~$1-2 Opus)")
         return 0
     import anthropic
+
     from leviathan.common import config
     from leviathan.graphrag import batch_extract as bx
     config.load_env()

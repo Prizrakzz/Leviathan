@@ -255,6 +255,7 @@ def test_covering_sources_includes_allcommodity_and_specialized():
 
 def test_sample_keys_is_source_agnostic(monkeypatch):
     import collections
+
     import leviathan.graphrag.corpus_recon as cr
     # raw_sugar: a FAT dedicated source (usda_gain_sugar) + all-commodity wb_cmo + wasde that discuss sugar.
     # The result must NOT be 100% gain_sugar — the other sources have to get in (the whole point).

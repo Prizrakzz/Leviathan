@@ -6,8 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
-from jobs.batch.feature_catalog_task import build_and_write
 from leviathan.features.semantic_catalog import (
     build_feature_entity_map,
     build_feature_group_map,
@@ -22,6 +20,8 @@ from leviathan.storage.paths import (
     gold_feature_spine_manifest_key,
     gold_feature_spine_version_key,
 )
+
+from jobs.batch.feature_catalog_task import build_and_write
 
 
 def _spine_rows() -> pd.DataFrame:

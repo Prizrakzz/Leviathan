@@ -5,8 +5,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
-from jobs.batch.feature_spine_finalize_task import FinalizeOptions, finalize_dataset
 from leviathan.storage.paths import (
     gold_feature_catalog_version_key,
     gold_feature_matrix_version_key,
@@ -15,6 +13,8 @@ from leviathan.storage.paths import (
     gold_feature_spine_version_key,
     gold_training_windows_version_key,
 )
+
+from jobs.batch.feature_spine_finalize_task import FinalizeOptions, finalize_dataset
 
 
 def _write_parquet(root: Path, key: str, df: pd.DataFrame) -> None:

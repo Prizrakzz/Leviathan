@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
+from leviathan.common.constants import SILVER_WEATHER_ID_COLS
 from leviathan.common.quality import (
     SILVER_NATURAL_KEY,
     SILVER_REQUIRED_COLUMNS,
     SILVER_REQUIRED_NON_NULL,
     check_required_columns,
 )
-from leviathan.common.constants import SILVER_WEATHER_ID_COLS
 from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_weather_df
 
 

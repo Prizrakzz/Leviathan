@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from leviathan.features.calendar import CropCalendar
 from leviathan.features.computations.base import FeatureContext
 from leviathan.features.computations.psd_vintages import compute_psd_monthly_vintage_features
 from leviathan.features.registry import load_registry
 from leviathan.features.semantic_catalog import build_semantic_catalog, load_taxonomy
-
 
 COUNTRY = "united_states"
 

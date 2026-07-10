@@ -119,6 +119,7 @@ def _geo(commodity: str) -> dict:
     Supplies the DEFAULT station-region (first primary-country location) and the region->country mapping for
     partition-projected weather tables. Countries there are snake_case ('united_states')."""
     import yaml
+
     from leviathan.graphrag import extract as ex
     p = ex._CFG.parent / "geographies" / f"{commodity}_regions.yaml"
     if not p.exists():
@@ -405,6 +406,7 @@ def athena_query_fn(db: str = ATHENA_DB):
     """The Athena executor as an injectable query_fn(sql)->rows — lets callers WRAP the real Athena
     path (e.g. the session-scoped SQL result cache) instead of only replacing it in tests."""
     import boto3
+
     from leviathan.common import config
     config.load_env()
     client = boto3.client("athena", region_name="us-east-1")
@@ -417,6 +419,7 @@ _THROTTLE = ("TooManyRequestsException", "ThrottlingException", "SlowDown", "Req
 def _retry(fn, tries: int = 6):
     """Exponential backoff on Athena/S3 throttles (the results bucket 503s under burst)."""
     import time
+
     from botocore.exceptions import ClientError
     for i in range(tries):
         try:

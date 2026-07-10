@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.raw_to_bronze.faostat_qcl import (
     add_bronze_metadata,
     clean_basic_types,

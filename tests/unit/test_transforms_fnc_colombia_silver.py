@@ -5,7 +5,6 @@ from datetime import date
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.fnc_colombia import (
     AREA_OUTPUT_COLUMNS,
     EXPORTS_PORT_TYPE_OUTPUT_COLUMNS,

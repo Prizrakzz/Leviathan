@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from leviathan.model_datasets.wasde_snapshot_targets import (
     WASDE_SNAPSHOT_TARGET_COLUMNS,
     assign_snapshot_stage,

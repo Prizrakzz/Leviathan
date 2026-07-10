@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from leviathan.model_datasets.wasde_snapshot_features import (
     build_wasde_feature_quality_report,
     build_wasde_snapshot_dynamic_features,

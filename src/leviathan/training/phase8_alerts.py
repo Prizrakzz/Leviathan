@@ -8,7 +8,6 @@ import pandas as pd
 from leviathan.model_datasets.baselines import BASELINE_COLUMNS
 from leviathan.training.certification import downside_alert_metrics, regression_metrics
 
-
 FIXED_DOWNSIDE_THRESHOLDS = (-0.05, -0.10)
 
 

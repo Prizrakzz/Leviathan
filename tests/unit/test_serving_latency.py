@@ -12,7 +12,6 @@ from types import SimpleNamespace
 
 import pytest
 import tenacity
-
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import providers as pv
 from leviathan.graphrag import rankers as rk
@@ -234,6 +233,7 @@ def test_serving_call_stream_matches_buffered_shape():
 # ── Stage 1.6 WS-B: the numbers agent's per-batch tool calls run concurrently ───────────────────────
 def test_numbers_agent_batch_parallel_preserves_order_and_errors(monkeypatch):
     import time
+
     from leviathan.graphrag.numbers import agent as ag
 
     class _Blk:
@@ -283,9 +283,10 @@ def test_numbers_agent_batch_parallel_preserves_order_and_errors(monkeypatch):
 # ── Stage 1.6 WS-A: numbers ∥ walk via the lazy resolver ────────────────────────────────────────────
 def test_run_hybrid_overlaps_numbers_and_resolves_at_synthesis(monkeypatch):
     import time
-    from leviathan.graphrag import orchestrator as orch
+
     from leviathan.causal import schema as cs
     from leviathan.graphrag import graph as g
+    from leviathan.graphrag import orchestrator as orch
 
     coffee = cs.CausalContract(contract="arabica_coffee", aliases=["arabica"],
                                drivers=[cs.Driver(id="frost", type="hazard", sign="+", mechanism="m")])
@@ -319,9 +320,9 @@ def test_run_hybrid_overlaps_numbers_and_resolves_at_synthesis(monkeypatch):
 
 
 def test_run_hybrid_numbers_failure_never_blocks_the_note(monkeypatch):
-    from leviathan.graphrag import orchestrator as orch
     from leviathan.causal import schema as cs
     from leviathan.graphrag import graph as g
+    from leviathan.graphrag import orchestrator as orch
 
     coffee = cs.CausalContract(contract="arabica_coffee", aliases=["arabica"],
                                drivers=[cs.Driver(id="frost", type="hazard", sign="+", mechanism="m")])

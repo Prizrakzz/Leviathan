@@ -4,13 +4,13 @@ from __future__ import annotations
 from datetime import date
 
 import pandas as pd
-
-from jobs.batch import fnc_colombia_silver_task as task
 from leviathan.storage.paths import (
     silver_fnc_colombia_area_department_key,
     silver_fnc_colombia_exports_port_type_key,
     silver_fnc_colombia_monthly_key,
 )
+
+from jobs.batch import fnc_colombia_silver_task as task
 
 
 def test_filter_years_keeps_selected_years() -> None:

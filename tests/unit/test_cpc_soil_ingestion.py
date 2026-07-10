@@ -11,14 +11,13 @@ import tarfile
 import numpy as np
 import pytest
 import rasterio
-from rasterio.crs import CRS
-from rasterio.transform import from_bounds
-
 from leviathan.ingestion.weather.cpc_soil_moisture import (
     extract_region_values,
     extract_tifs_from_tarball,
 )
 from leviathan.storage.paths import raw_cpc_tif_key
+from rasterio.crs import CRS
+from rasterio.transform import from_bounds
 
 # ---------------------------------------------------------------------------
 # Helpers

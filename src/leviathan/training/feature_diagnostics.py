@@ -6,8 +6,8 @@ target-tail sample size, high correlations, and candidate recall summaries.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,6 @@ from leviathan.training.certification import (
     target_event_policy_for_key,
 )
 from leviathan.training.certification_summary import flatten_certification_report
-
 
 METADATA_COLUMNS = [
     "feature_family",

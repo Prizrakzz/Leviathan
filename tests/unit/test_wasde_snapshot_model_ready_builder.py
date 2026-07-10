@@ -5,14 +5,14 @@ import subprocess
 import sys
 
 import pandas as pd
+from leviathan.model_datasets.wasde_snapshot_model_ready import (
+    build_wasde_snapshot_model_ready_matrix,
+)
 
 from jobs.utils.build_wasde_snapshot_model_ready_dataset import (
     _selected_dynamic_features,
     _target_matrix_outputs,
     build_model_ready_feature_membership,
-)
-from leviathan.model_datasets.wasde_snapshot_model_ready import (
-    build_wasde_snapshot_model_ready_matrix,
 )
 
 

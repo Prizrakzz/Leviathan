@@ -557,6 +557,7 @@ def measure_orphan_drivers(s3, sources, *, n: int = 60, seed: int = 0) -> dict:
     """Gap-2 sizing (free): of `sources` docs, how many mention a DRIVER term but NO commodity (pure-macro
     chapters the commodity sampler never captures)?"""
     import random
+
     from leviathan.graphrag.corpus_recon import BUCKET
     from leviathan.storage.s3 import list_s3_keys
     node_matcher = hv.build_matcher(sum((ev.match_forms(x) for x in ev.all_nodes()), []))
@@ -613,6 +614,7 @@ def main() -> int:
     else:
         nodes = list(dict.fromkeys(ev.node_for(n) for n in args.nodes.split(",")))   # contract ids -> nodes, deduped
     import boto3
+
     from leviathan.common import config
     config.load_env()
     s3 = boto3.client("s3")
@@ -645,6 +647,7 @@ def main() -> int:
             print(f"FILL dry-run: {len(reqs)} blocks over {ndocs} NEW docs; Haiku batch est ~${lo:.0f}-{hi:.0f}")
             return 0
         import anthropic
+
         from leviathan.graphrag import batch_extract as bx
         submit_docs(s3, anthropic.Anthropic(api_key=bx._api_key()), keys, novelty=args.novelty)
         return 0
@@ -659,6 +662,7 @@ def main() -> int:
         return 0
     # ── billed node paths ─────────────────────────────────────────────────────────
     import anthropic
+
     from leviathan.graphrag import batch_extract as bx
     client = anthropic.Anthropic(api_key=bx._api_key())
     if args.retrieve:

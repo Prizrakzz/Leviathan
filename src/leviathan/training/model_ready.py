@@ -7,11 +7,11 @@ and excludes every target/baseline identity column from the model input.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import io
 import json
 import math
 import re
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -31,8 +31,8 @@ from leviathan.model_datasets.version_status import (
 )
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
-    gold_model_ready_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
+    gold_model_ready_feature_set_version_key,
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
 )

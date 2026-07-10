@@ -13,7 +13,6 @@ import anthropic
 import httpx
 import pytest
 import tenacity
-
 from leviathan.causal import schema as cs
 from leviathan.graphrag import answer as an
 from leviathan.graphrag import graph as g

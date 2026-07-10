@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.conab_coffee import (
     OUTPUT_COLUMNS,
     transform_conab_coffee_bronze_to_silver,

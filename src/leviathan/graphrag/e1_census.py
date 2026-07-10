@@ -57,7 +57,9 @@ from leviathan.graphrag import extract as ex
 # accent-fold registration and this census's fold_recoverable metric MUST share one implementation. The
 # import direction is forced: e1_census already imports evidence, so evidence importing e1_census would
 # cycle; the helper therefore has to live in evidence and be re-imported here.
-from leviathan.graphrag.evidence import fold  # noqa: F401 — re-exported for id_census + the test suite
+from leviathan.graphrag.evidence import (
+    fold,  # noqa: F401 — re-exported for id_census + the test suite
+)
 
 _OUT = ex._CFG / "eval"
 

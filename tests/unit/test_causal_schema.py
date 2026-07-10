@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
 from leviathan.causal import schema as cs
+from pydantic import ValidationError
 
 
 def _contract(**over):

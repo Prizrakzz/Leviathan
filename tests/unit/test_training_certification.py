@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-
 from leviathan.model_datasets.baselines import BASELINE_COLUMNS
 from leviathan.training.certification import (
     CandidateSpec,
@@ -15,6 +13,7 @@ from leviathan.training.certification import (
     target_event_policy_for_key,
     target_stress_event_metrics,
 )
+from sklearn.linear_model import LinearRegression
 
 
 def _matrix() -> pd.DataFrame:

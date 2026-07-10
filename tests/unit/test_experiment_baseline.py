@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from leviathan.audit.experiment_baseline import (
     KNOWN_LIMITATIONS,
     baseline_prefix,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from leviathan.training.phase7_root_cause import (
     baseline_audit_frame,
     certification_comparison_frame,

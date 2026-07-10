@@ -7,7 +7,6 @@ import types
 
 import pytest
 from fastapi.testclient import TestClient
-
 from leviathan.causal import schema as cs
 from leviathan.graphrag import graph as g
 from leviathan.graphrag import server as sv

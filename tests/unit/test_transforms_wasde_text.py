@@ -13,11 +13,9 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from leviathan.storage.paths import text_wasde_key
-from leviathan.transforms.raw_to_text.wasde_txt import extract_wasde_txt, _split_sections
+from leviathan.transforms.raw_to_text.wasde_txt import _split_sections, extract_wasde_txt
 from leviathan.transforms.raw_to_text.writer import document_exists, write_document
-
 
 # ---------------------------------------------------------------------------
 # paths.text_wasde_key

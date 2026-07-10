@@ -9,12 +9,10 @@ All tests use static in-memory data (no S3, no real PDFs).
 from __future__ import annotations
 
 import pytest
-
 from leviathan.transforms.raw_to_text.wap_pdf import (
     _is_archiveorg_era,
     extract_wap_pdf,
 )
-
 
 # ---------------------------------------------------------------------------
 # _is_archiveorg_era

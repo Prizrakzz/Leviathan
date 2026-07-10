@@ -10,10 +10,9 @@ import json
 
 import boto3
 import pytest
-from moto import mock_aws
-
 from leviathan.storage.dead_letter import write_dead_letter
 from leviathan.storage.s3 import s3_object_exists
+from moto import mock_aws
 
 BUCKET = "test-leviathan-dl"
 REGION = "us-east-1"

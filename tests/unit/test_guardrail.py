@@ -9,7 +9,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from leviathan.causal import schema as cs
 from leviathan.graphrag import graph as g
 from leviathan.graphrag import orchestrator as orch

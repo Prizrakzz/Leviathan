@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.usda_psd import (
     _SILVER_COLS,
     transform_psd_bronze_to_silver,

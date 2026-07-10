@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 from botocore.exceptions import ClientError
-
 from leviathan.storage.configs import load_commodity_regions
 
 

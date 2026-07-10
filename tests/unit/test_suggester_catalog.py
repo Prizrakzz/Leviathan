@@ -7,7 +7,6 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
-
 from leviathan.graphrag import api_models as M
 from leviathan.graphrag import register as reg
 from leviathan.graphrag import server as sv

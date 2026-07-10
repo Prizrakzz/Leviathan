@@ -86,7 +86,7 @@ def _custom_id(chunk_id: str) -> str:
 
 
 def _doc_date_from(doc: dict, key: str):
-    from leviathan.graphrag.pilot import _doc_date   # reuse the date parser
+    from leviathan.graphrag.pilot import _doc_date  # reuse the date parser
     return _doc_date(doc, key)
 
 
@@ -276,6 +276,7 @@ def diagnose(s3, anthropic_client, bid: str) -> None:
     Metric enum is too narrow for what Opus actually emits. Read-only; results persist 29 days."""
     from datetime import date
     from typing import get_args
+
     from leviathan.graphrag.contracts import Event, Metric, QuantitativeClaim
     valid = set(get_args(Metric))
 

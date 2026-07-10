@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.faostat_production import (
     transform_faostat_production_silver_df,
 )

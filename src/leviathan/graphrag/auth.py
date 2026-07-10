@@ -22,7 +22,7 @@ def _verified_claims(token: str) -> dict:
     failure to a clean 401 (never a 500). Imports PyJWT lazily so the dependency is import-free when auth
     is off."""
     try:
-        import jwt                                                   # PyJWT
+        import jwt  # PyJWT
         from jwt import PyJWKClient
         region = os.environ["COGNITO_REGION"]
         pool = os.environ["COGNITO_USER_POOL_ID"]

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.model_datasets.wasde_snapshot_static_join import (
     build_static_feature_reuse_manifest,
     classify_static_feature_availability,

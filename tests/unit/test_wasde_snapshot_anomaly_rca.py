@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from leviathan.model_datasets.wasde_snapshot_anomaly_rca import (
     build_annual_alert_cases,
     build_detector_rca_summary,

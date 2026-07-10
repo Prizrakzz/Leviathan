@@ -5,7 +5,6 @@ from datetime import date, timedelta
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.modis_ndvi import modis_ndvi_bronze_to_silver
 
 EXPECTED_SILVER_COLUMNS = {

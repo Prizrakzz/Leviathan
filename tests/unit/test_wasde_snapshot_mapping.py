@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from leviathan.model_datasets.wasde_snapshot_mapping import (
     allowed_snapshot_context,
     load_wasde_snapshot_mappings,

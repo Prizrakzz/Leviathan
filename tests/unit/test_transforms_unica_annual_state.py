@@ -5,12 +5,10 @@ import math
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.unica_annual_state import (
     OUTPUT_COLUMNS,
     transform_unica_annual_state,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures

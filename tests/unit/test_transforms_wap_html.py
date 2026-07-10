@@ -9,12 +9,10 @@ All tests use static HTML strings (no HTTP, no S3).
 from __future__ import annotations
 
 import pytest
-
 from leviathan.transforms.raw_to_text.wap_html import (
     _find_subpage_urls,
     extract_wap_html,
 )
-
 
 # ---------------------------------------------------------------------------
 # _find_subpage_urls — sub-page URL discovery

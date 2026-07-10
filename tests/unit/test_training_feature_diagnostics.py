@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 import pandas as pd
-
+from leviathan.training.certification import TargetEventPolicy
 from leviathan.training.feature_diagnostics import (
     build_correlation_pairs,
     build_feature_diagnostics,
@@ -12,7 +12,6 @@ from leviathan.training.feature_diagnostics import (
     build_target_tail_reports,
     write_feature_diagnostics,
 )
-from leviathan.training.certification import TargetEventPolicy
 
 
 def _frame() -> pd.DataFrame:

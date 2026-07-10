@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from leviathan.training.certification import downside_alert_metrics
 from leviathan.training.phase8_alerts import (
     baseline_alert_metrics_frame,

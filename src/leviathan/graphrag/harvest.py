@@ -26,7 +26,7 @@ import yaml
 
 from leviathan.graphrag import batch_extract as bx
 from leviathan.graphrag import extract as ex
-from leviathan.graphrag.corpus_recon import BUCKET, TEXT_PREFIX, _CAP_PHRASE, _STOP, _source_of
+from leviathan.graphrag.corpus_recon import _CAP_PHRASE, _STOP, BUCKET, TEXT_PREFIX, _source_of
 
 _CFG = ex._CFG
 _OUT = bx._OUT

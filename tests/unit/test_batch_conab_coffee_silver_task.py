@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
+from leviathan.storage.paths import silver_conab_coffee_key
 
 from jobs.batch import conab_coffee_silver_task as task
-from leviathan.storage.paths import silver_conab_coffee_key
 
 
 def _silver_row(

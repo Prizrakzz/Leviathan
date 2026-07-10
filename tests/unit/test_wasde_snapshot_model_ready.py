@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.model_datasets.wasde_snapshot_model_ready import (
     SNAPSHOT_MATRIX_NATURAL_KEY,
     build_wasde_snapshot_model_ready_matrix,

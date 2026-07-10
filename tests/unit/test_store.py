@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from leviathan.graphrag import auth
 from leviathan.graphrag import store as st
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from jobs.batch import feature_catalog_task
 from leviathan.features import spine
 from leviathan.model_datasets import (
     baselines,
@@ -10,6 +9,8 @@ from leviathan.model_datasets import (
     schema_columns,
     wasde_snapshot_targets,
 )
+
+from jobs.batch import feature_catalog_task
 
 
 def test_annual_model_dataset_columns_are_shared() -> None:

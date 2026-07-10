@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from leviathan.common.batch_submit import (
     sanitize_batch_job_name,
     submit_batch_jobs,

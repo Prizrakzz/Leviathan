@@ -8,13 +8,11 @@ import math
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.mpob import (
-    OUTPUT_COLUMNS,
     _VAR_TO_COL,
+    OUTPUT_COLUMNS,
     transform_mpob_bronze_to_silver,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

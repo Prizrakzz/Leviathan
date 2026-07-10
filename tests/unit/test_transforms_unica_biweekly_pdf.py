@@ -38,7 +38,6 @@ from __future__ import annotations
 import pathlib
 
 import pytest
-
 from leviathan.transforms.raw_to_bronze.unica_biweekly_pdf import (
     _extract_fortnight_dates,
     _parse_br_num,
@@ -298,6 +297,7 @@ class TestTransformPdfNewPt:
     def test_corn_ethanol_row_count(self) -> None:
         """Row count of corn_ethanol == number of fortnight dates on the corn page."""
         import io
+
         import pdfplumber
         from leviathan.transforms.raw_to_bronze.unica_biweekly_pdf import _extract_fortnight_dates
         pdf_bytes = _load("biweekly_new_pt")

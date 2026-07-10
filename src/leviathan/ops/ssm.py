@@ -8,7 +8,6 @@ from typing import Any
 
 import boto3
 
-
 TERMINAL_STATUSES = {"Success", "Failed", "Cancelled", "TimedOut", "Cancelling"}
 
 

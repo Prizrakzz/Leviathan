@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.features.calendar import CropCalendar
 from leviathan.features.computations.base import FeatureContext
 from leviathan.features.computations.phase7_fundamentals import (
@@ -11,7 +10,6 @@ from leviathan.features.computations.phase7_fundamentals import (
     compute_unica_sugar_biweekly,
     compute_wasde_direct_revisions,
 )
-
 
 CORN = CropCalendar(
     commodity="corn_cbot",

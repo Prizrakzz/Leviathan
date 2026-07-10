@@ -4,9 +4,8 @@ from __future__ import annotations
 import io
 from datetime import date
 
-from openpyxl import Workbook
-
 from leviathan.transforms.raw_to_bronze.fnc_excel import extract_fnc_excel
+from openpyxl import Workbook
 
 
 def _add_monthly_sheet(wb: Workbook, name: str, header: str, value: float) -> None:

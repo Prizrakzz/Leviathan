@@ -8,14 +8,13 @@ import datetime
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.usda_fgis import (
     _CLASS_TO_SLUG,
     _SLUG_MY_START_MONTH,
-    _my_start_date,
-    _week_of_my,
-    _week_end_date,
     OUTPUT_COLUMNS,
+    _my_start_date,
+    _week_end_date,
+    _week_of_my,
     transform_fgis_bronze_to_silver,
 )
 

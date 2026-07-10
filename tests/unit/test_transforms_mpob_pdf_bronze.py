@@ -9,7 +9,6 @@ import math
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from leviathan.transforms.raw_to_bronze.mpob_pdf import (
     _first_numeric,
     _parse_num,
@@ -17,7 +16,6 @@ from leviathan.transforms.raw_to_bronze.mpob_pdf import (
     _row_label,
     extract_mpob_overview_annual,
 )
-
 
 # ---------------------------------------------------------------------------
 # Minimal realistic table fixture

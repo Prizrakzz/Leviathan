@@ -12,9 +12,9 @@ All readers accept a *root* that is either a local directory (tests) or an
 """
 from __future__ import annotations
 
+import io
 import os
 import re
-import io
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass

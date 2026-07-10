@@ -4,7 +4,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from leviathan.features.calendar import CropCalendar
 from leviathan.features.computations.base import FeatureContext
 from leviathan.features.computations.macro_climate import compute_oni_lag

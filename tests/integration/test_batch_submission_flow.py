@@ -10,7 +10,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from leviathan.common.batch_submit import BatchJobRecord, submit_batch_jobs, write_run_record
 
 

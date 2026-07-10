@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.usda_nass_annual import (
     ACRE_TO_HA,
     LB_PER_ACRE_TO_T_HA,

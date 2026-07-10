@@ -5,9 +5,8 @@ from datetime import date
 
 import pyarrow as pa
 import pytest
-from pydantic import ValidationError
-
 from leviathan.graphrag import contracts as c
+from pydantic import ValidationError
 
 
 def _chunk(**over):

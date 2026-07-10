@@ -7,7 +7,6 @@ import json
 import time
 
 from fastapi.testclient import TestClient
-
 from leviathan.graphrag import api_models as M
 from leviathan.graphrag import server as sv
 from leviathan.graphrag import store as st

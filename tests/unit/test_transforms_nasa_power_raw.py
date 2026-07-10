@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from leviathan.transforms.raw_to_bronze.nasa_power import (
     nasa_power_payload_to_daily_dataframe,
     parse_nasa_power_date,

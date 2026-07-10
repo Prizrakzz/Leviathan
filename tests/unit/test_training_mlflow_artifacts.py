@@ -4,8 +4,6 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-
 from leviathan.training.cv import FoldResult, WalkForwardResult
 from leviathan.training.mlflow_artifacts import (
     build_model_replay_sample,
@@ -17,6 +15,7 @@ from leviathan.training.mlflow_artifacts import (
     selected_features_frame,
 )
 from leviathan.training.mlflow_replay import compare_logged_predictions
+from sklearn.ensemble import RandomForestRegressor
 
 
 def _train_df() -> pd.DataFrame:

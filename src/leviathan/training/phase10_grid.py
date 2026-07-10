@@ -1,10 +1,10 @@
 """Phase 10 candidate-certification grid helpers."""
 from __future__ import annotations
 
-from collections.abc import Iterable
-from pathlib import Path
 import itertools
 import json
+from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 from leviathan.common.config import PROJECT_ROOT, load_yaml

@@ -7,13 +7,13 @@ small replay sample that can prove the logged artifact still predicts.
 """
 from __future__ import annotations
 
-from dataclasses import asdict
 import inspect
 import json
 import math
-from pathlib import Path
 import tempfile
 import time
+from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import numpy as np

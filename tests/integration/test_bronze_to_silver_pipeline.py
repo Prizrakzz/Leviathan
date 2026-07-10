@@ -7,14 +7,12 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.chirps_weather import chirps_bronze_to_silver
 from leviathan.transforms.bronze_to_silver.faostat_production import (
     transform_faostat_production_silver_df,
 )
 from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_weather_df
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe
-
 
 # ---------------------------------------------------------------------------
 # NASA POWER: raw payload → bronze → silver

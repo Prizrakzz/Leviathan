@@ -5,7 +5,6 @@ import io
 import json
 
 import pytest
-
 from leviathan.graphrag import batch_extract as bx
 
 _DOCS = {
@@ -152,6 +151,7 @@ def test_sample_decider_covers_commodities_and_old_era():
 
 def test_relevance_gate():
     from datetime import date
+
     from leviathan.graphrag.contracts import Chunk
 
     def mk(text):
@@ -166,6 +166,7 @@ def test_relevance_gate():
 
 def test_block_chars_changes_chunk_count():
     from datetime import date
+
     from leviathan.graphrag.chunking import chunk_document
     text = "\n\n".join(f"Paragraph {i} on commodity markets, weather, and trade flows in some detail here."
                        for i in range(40))
@@ -199,6 +200,7 @@ def test_two_hop_chains_drops_backward_in_time():
 
 def _mb_chunk(cid, source="x", year="2020"):
     from datetime import date
+
     from leviathan.graphrag.contracts import Chunk
     return Chunk(chunk_id=cid, proposition="p", verbatim_span="p",
                  source_key=f"text/source={source}/year={year}/document.json", page=0, char_start=0,

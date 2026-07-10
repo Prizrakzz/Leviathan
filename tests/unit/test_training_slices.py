@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from leviathan.training.slices import (
     classify_stress_years,
     compute_slice_metrics,

@@ -5,7 +5,6 @@ from datetime import date
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.usda_nass_crop_progress import (
     OUTPUT_COLUMNS,
     transform_nass_crop_progress_bronze_to_silver,

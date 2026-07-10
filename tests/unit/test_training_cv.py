@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-from sklearn.linear_model import LinearRegression
-
 from leviathan.training.cv import (
     available_cv_policies,
     resolve_cv_policy,
     walk_forward_cv,
 )
+from sklearn.linear_model import LinearRegression
 
 
 def _panel(start: int = 1980, end: int = 2010) -> pd.DataFrame:

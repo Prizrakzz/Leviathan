@@ -7,16 +7,15 @@ import sys
 from types import SimpleNamespace
 
 import pandas as pd
-
-from jobs.batch.train_commodity import _prediction_model_family, _write_predictions
 from leviathan.model_datasets.version_status import ModelDatasetVersionStatus
 from leviathan.storage.paths import (
     gold_feature_set_version_key,
-    gold_model_ready_feature_set_version_key,
     gold_model_ready_baseline_metrics_key,
+    gold_model_ready_feature_set_version_key,
     gold_model_ready_manifest_key,
     gold_model_ready_matrix_key,
 )
+from leviathan.training.cv import walk_forward_cv
 from leviathan.training.model_ready import (
     attach_model_ready_baselines_to_predictions,
     load_model_ready_training_dataset,
@@ -25,7 +24,8 @@ from leviathan.training.model_ready import (
     select_model_ready_features,
     training_frame_from_model_ready_matrix,
 )
-from leviathan.training.cv import walk_forward_cv
+
+from jobs.batch.train_commodity import _prediction_model_family, _write_predictions
 
 
 class _FakeS3:

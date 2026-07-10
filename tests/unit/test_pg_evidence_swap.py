@@ -12,9 +12,9 @@ Fixtures are synthetic — no private config or slice content appears here.
 from __future__ import annotations
 
 import pytest
+from leviathan.graphrag import pgstore as pg
 
 from jobs.utils import pg_evidence_swap as swap
-from leviathan.graphrag import pgstore as pg
 
 
 # ── table-name resolver (pgstore.table_name) ─────────────────────────────────────────────────

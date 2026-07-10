@@ -9,13 +9,11 @@ import re
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from leviathan.transforms.raw_to_text.mpob_pdf import (
     _MAX_NARRATIVE_PAGES,
     _clean_page,
     extract_mpob_overview,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests: _clean_page

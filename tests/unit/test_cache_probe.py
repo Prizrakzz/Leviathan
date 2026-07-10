@@ -5,7 +5,6 @@ from __future__ import annotations
 import threading
 
 import pytest
-
 from leviathan.graphrag import cache_probe as cp
 from leviathan.graphrag import extract as ex
 

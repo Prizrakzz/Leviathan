@@ -20,7 +20,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from leviathan.storage.paths import bronze_wasde_key
 from leviathan.transforms.raw_to_bronze.usda_wasde import (
     _colon_inject_data_section,

@@ -11,12 +11,12 @@ import functools
 import re
 
 from leviathan.graphrag import citations as cit
-from leviathan.graphrag import register as reg
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
 from leviathan.graphrag import harvest as hv
 from leviathan.graphrag import params as _prm
+from leviathan.graphrag import register as reg
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
 # rerank sharpened rank; MMR kept the best source-diversity, guarding against narrowing). Serving uses this by

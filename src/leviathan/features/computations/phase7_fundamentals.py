@@ -20,7 +20,6 @@ from leviathan.features.computations.base import (
     trailing_baseline_z,
 )
 
-
 # ---------------------------------------------------------------------------
 # USDA WASDE direct estimate revisions
 # ---------------------------------------------------------------------------

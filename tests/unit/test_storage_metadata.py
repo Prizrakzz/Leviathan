@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-
 from leviathan.storage.metadata import utc_now_iso, write_json_metadata
 
 

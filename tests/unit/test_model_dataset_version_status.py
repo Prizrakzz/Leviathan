@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import pytest
-
 from leviathan.model_datasets.version_status import (
     get_model_dataset_version_status,
     load_model_dataset_version_registry,
 )
-
 
 PSD_SMOKE_VERSION = "20260627T121215Z_phase5_psd_smoke"
 LEGACY_PSD_SNAPSHOT_VERSION = "20260627T190257Z_1a042698_phase9_psd_snapshot_corn"

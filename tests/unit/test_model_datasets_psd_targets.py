@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from leviathan.model_datasets.psd_target_builder import (
     PSD_TARGET_COLUMNS,
     build_psd_target_panel,

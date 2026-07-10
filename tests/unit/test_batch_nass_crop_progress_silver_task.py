@@ -4,9 +4,9 @@ from __future__ import annotations
 from datetime import date
 
 import pandas as pd
+from leviathan.storage.paths import silver_nass_crop_progress_key
 
 from jobs.batch import nass_crop_progress_silver_task as task
-from leviathan.storage.paths import silver_nass_crop_progress_key
 
 
 def _silver_row(slug: str, state: str, year: int, observed_date: date) -> dict[str, object]:

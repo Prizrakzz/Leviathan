@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from leviathan.transforms.raw_to_bronze.modis_ndvi import parse_appeears_csv
 
 # ─── Minimal CSV helpers ───────────────────────────────────────────────────────

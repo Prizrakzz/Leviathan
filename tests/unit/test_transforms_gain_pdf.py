@@ -9,13 +9,11 @@ All tests use static in-memory data (no S3, no real PDFs).
 from __future__ import annotations
 
 import pytest
-
 from leviathan.transforms.raw_to_text.gain_pdf import (
     _BLANK_THRESHOLD,
     _is_boilerplate,
     extract_gain_pdf,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures

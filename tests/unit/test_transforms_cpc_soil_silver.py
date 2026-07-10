@@ -5,7 +5,6 @@ from datetime import date
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.cpc_soil import cpc_soil_bronze_to_silver
 
 # ---------------------------------------------------------------------------

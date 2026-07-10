@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.nasa_power_weather import (
     WEATHER_RENAME_MAP,
     clean_one_weather_df,

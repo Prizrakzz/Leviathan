@@ -17,16 +17,14 @@ Point-in-time discipline:
 """
 from __future__ import annotations
 
-import pandas as pd
-
 import numpy as np
+import pandas as pd
 
 from leviathan.features.computations.base import (
     FeatureContext,
     empty_result,
     make_result,
 )
-
 
 # ---------------------------------------------------------------------------
 # SAGIS: SA maize progressive deliveries

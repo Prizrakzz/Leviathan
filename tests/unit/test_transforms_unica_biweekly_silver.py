@@ -9,7 +9,6 @@ from typing import Any
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.unica_biweekly import (
     CORN_ETHANOL_COLUMNS,
     MONTHLY_ETHANOL_SALES_COLUMNS,
@@ -22,7 +21,6 @@ from leviathan.transforms.bronze_to_silver.unica_biweekly import (
     transform_release_series,
     transform_season_history,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

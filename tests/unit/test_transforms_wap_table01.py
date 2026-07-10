@@ -16,7 +16,6 @@ import unittest.mock as mock
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.raw_to_bronze.wap_table01 import (
     COUNTRY_COLUMNS,
     _parse_table01_rows,
@@ -27,7 +26,6 @@ from leviathan.transforms.raw_to_bronze.wap_table01 import (
     table01_exists,
     write_table01,
 )
-
 
 # ---------------------------------------------------------------------------
 # _unreverse_table_text

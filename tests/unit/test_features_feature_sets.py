@@ -6,8 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
-from jobs.batch.feature_set_task import build_and_write
 from leviathan.features.feature_sets import (
     build_feature_set_membership,
     load_feature_set_config,
@@ -20,6 +18,8 @@ from leviathan.storage.paths import (
     gold_feature_set_version_key,
     gold_feature_spine_manifest_key,
 )
+
+from jobs.batch.feature_set_task import build_and_write
 
 
 def _catalog() -> pd.DataFrame:

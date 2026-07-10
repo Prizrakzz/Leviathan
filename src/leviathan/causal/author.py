@@ -377,6 +377,7 @@ def main() -> int:
         return 0
     if args.gap:
         import boto3
+
         from leviathan.common import config
         config.load_env()
         s3 = boto3.client("s3")
@@ -391,6 +392,7 @@ def main() -> int:
         client = None
         if not args.from_raw:                                  # --from-raw re-assembles offline, no client/spend
             import anthropic
+
             from leviathan.graphrag import batch_extract as bx
             client = anthropic.Anthropic(api_key=bx._api_key())
         c = draft(client, args.draft, seed(args.draft), reuse_raw=args.from_raw,
@@ -416,6 +418,7 @@ def main() -> int:
             print(f"  order (new first): {todo}")
             return 0
         import anthropic
+
         from leviathan.common import config
         from leviathan.graphrag import batch_extract as bx
         config.load_env()

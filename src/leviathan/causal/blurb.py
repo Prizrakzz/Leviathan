@@ -90,6 +90,7 @@ def dry_run() -> int:
 
 def submit() -> int:
     import anthropic
+
     from leviathan.graphrag import batch_extract as bx
     bx._load_env()                                                  # .env -> ANTHROPIC_API (bx reads repo root)
     ts = _targets()
@@ -109,6 +110,7 @@ def submit() -> int:
 
 def retrieve(bid: str, poll_s: int = 20) -> int:
     import anthropic
+
     from leviathan.graphrag import batch_extract as bx
     bx._load_env()
     saved = json.loads(_BATCH_FILE.read_text(encoding="utf-8"))

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from leviathan.features.calendar import CropCalendar
 from leviathan.model_datasets.snapshot_stages import (
     load_snapshot_stage_config,

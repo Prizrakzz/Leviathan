@@ -14,7 +14,6 @@ import math
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.bronze_to_silver.wap_table01 import (
     MODERN_COUNTRY_COLUMNS,
     REVISION_COLUMNS,
@@ -26,7 +25,6 @@ from leviathan.transforms.bronze_to_silver.wap_table01 import (
     normalize_row_label,
     parse_row_label,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

@@ -13,13 +13,11 @@ import io
 
 import pypdf
 import pytest
-
 from leviathan.transforms.raw_to_text.wasde_scanned import (
     _is_scanned_key,
     _truncate_pdf,
     extract_wasde_scanned,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper: build a minimal Textract Blocks list

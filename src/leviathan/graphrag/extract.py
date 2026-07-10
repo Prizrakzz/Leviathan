@@ -24,7 +24,12 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from leviathan.graphrag.contracts import (
-    Entity, Event, Metric, QuantitativeClaim, Relationship, SourceRef,
+    Entity,
+    Event,
+    Metric,
+    QuantitativeClaim,
+    Relationship,
+    SourceRef,
 )
 
 _CFG = Path(__file__).resolve().parents[3] / "configs" / "graphrag"

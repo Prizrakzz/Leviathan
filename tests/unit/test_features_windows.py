@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from leviathan.features.windows import (
     compute_training_windows,
     resolve_tier_families,

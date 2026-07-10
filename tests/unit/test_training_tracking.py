@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from leviathan.training.cv import WalkForwardResult
 from leviathan.training.tracking import (
     data_fingerprint,

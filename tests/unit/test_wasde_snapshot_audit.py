@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from leviathan.model_datasets.wasde_snapshot_audit import (
     build_origin_attribute_coverage,
+    build_parser_artifact_report,
     build_phase0_audit_report,
     build_phase1_source_truth_report,
-    build_parser_artifact_report,
     build_psd_target_compatibility_audit,
     build_release_sequence_coverage,
     build_static_feature_reuse_audit,

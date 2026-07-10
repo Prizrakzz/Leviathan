@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from leviathan.common.quality import (
     SILVER_REQUIRED_COLUMNS,
     check_data_types,

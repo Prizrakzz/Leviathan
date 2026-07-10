@@ -6,10 +6,10 @@ leakage-safe, and materially better than simple baselines.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import math
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np

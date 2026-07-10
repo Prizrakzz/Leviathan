@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from leviathan.graphrag import pgstore as pg
 
 DSN = os.environ.get("EVIDENCE_PG_DSN", "postgresql://postgres:leviathan@localhost:5433/leviathan")

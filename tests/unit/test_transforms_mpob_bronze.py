@@ -9,9 +9,7 @@ import textwrap
 
 import pandas as pd
 import pytest
-
 from leviathan.transforms.raw_to_bronze.mpob_html import extract_mpob_annual
-
 
 # ---------------------------------------------------------------------------
 # Minimal HTML fixture that mimics the real MPOB annual summary structure:

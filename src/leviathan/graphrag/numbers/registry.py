@@ -22,7 +22,7 @@ from typing import Literal, Optional
 import yaml
 from pydantic import BaseModel
 
-from leviathan.graphrag import extract as ex        # ex._CFG -> configs/graphrag
+from leviathan.graphrag import extract as ex  # ex._CFG -> configs/graphrag
 
 
 class Metric(BaseModel):

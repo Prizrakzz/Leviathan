@@ -7,8 +7,6 @@ from unittest.mock import MagicMock
 import boto3
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
-from moto import mock_aws
-
 from leviathan.storage.s3 import (
     _is_retryable,
     download_s3_json,
@@ -18,6 +16,7 @@ from leviathan.storage.s3 import (
     upload_bytes_to_s3,
     upload_file_to_s3,
 )
+from moto import mock_aws
 
 BUCKET = "test-leviathan"
 REGION = "us-east-1"

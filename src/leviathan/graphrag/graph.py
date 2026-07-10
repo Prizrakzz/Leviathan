@@ -180,7 +180,7 @@ class CausalGraph:
         as-of + silver), keeping this method pure of I/O."""
         if contract not in self.contracts:
             raise KeyError(contract)
-        from leviathan.graphrag import display as dp             # human node labels (6.3 one-vocab on the map)
+        from leviathan.graphrag import display as dp  # human node labels (6.3 one-vocab on the map)
         c = self.contracts[contract]
         tgt0 = c.target_metrics[0] if c.target_metrics else "price"
         by_id = self._ix(contract).by_id                          # W1.4: fan-in edges inherit the parent's mechanism

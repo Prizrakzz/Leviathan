@@ -34,9 +34,9 @@ if not _lg_runtime_ok():
                 "branch logic — upgrade langgraph (see the [serve] extra) to enable these.",
                 allow_module_level=True)
 
-from leviathan.causal import schema as cs                 # noqa: E402
-from leviathan.graphrag import graph as g                 # noqa: E402
-from leviathan.graphrag import langgraph_app as lg        # noqa: E402
+from leviathan.causal import schema as cs  # noqa: E402
+from leviathan.graphrag import graph as g  # noqa: E402
+from leviathan.graphrag import langgraph_app as lg  # noqa: E402
 
 
 def _graph():

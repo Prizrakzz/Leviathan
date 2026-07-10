@@ -70,6 +70,7 @@ _POOL_SIZE = int(os.environ.get("EVIDENCE_PG_POOL", "4"))
 def _acquire():
     global _POOL
     import queue as _q
+
     import psycopg
     if _POOL is None:
         with _PG_LOCK:

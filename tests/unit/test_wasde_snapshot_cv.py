@@ -3,8 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.dummy import DummyRegressor
-
 from leviathan.training.wasde_snapshot_cv import (
     collapse_snapshot_predictions,
     ensure_snapshot_cv_columns,
@@ -15,6 +13,7 @@ from leviathan.training.wasde_snapshot_cv import (
     select_snapshot_feature_stack,
 )
 from leviathan.training.wasde_snapshot_smoke import run_wasde_snapshot_training_smoke
+from sklearn.dummy import DummyRegressor
 
 
 def _matrix(

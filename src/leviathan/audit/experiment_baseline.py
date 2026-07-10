@@ -5,7 +5,6 @@ from typing import Any
 
 from leviathan.ops.ml_platform import canonical_sha256, parse_s3_uri
 
-
 KNOWN_LIMITATIONS = [
     "Production-level target rather than an official-revision or anomaly target.",
     "No fitted model artifact was logged.",

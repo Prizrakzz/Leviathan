@@ -115,7 +115,7 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
     evidence/silver/convergence are added by ground(). Deterministic given `embed` (inject a fake in tests)."""
     embed = embed or ev.embed
     if route_fn is None:
-        from leviathan.graphrag import answer as _an       # lazy: answer imports planner for the l2 path
+        from leviathan.graphrag import answer as _an  # lazy: answer imports planner for the l2 path
         route_fn = _an.route_smart
     qv = embed([query])[0]
     mech: dict = {}
@@ -233,7 +233,9 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
         except Exception:  # noqa: BLE001 — a warmup miss must never break the walk
             pass
         try:                                       # managed-rerank quota is ~3 req/MIN: hint the coalescer so
-            from leviathan.graphrag import rankers as rk   # the walk's per-node reranks merge into ONE request
+            from leviathan.graphrag import (
+                rankers as rk,  # the walk's per-node reranks merge into ONE request
+            )
             if rk._rerank_backend() == "bedrock":
                 rk.rerank_expect(expected if expected is not None else len(nodes))
         except Exception:  # noqa: BLE001 — a hint miss only costs latency, never correctness
@@ -304,7 +306,7 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                    if not (n.kind == "driver" and (n.id not in backed or _slice_of(n, slice_path) is None)))
     fill_fn = _fill
     if on_stage is not None:                                       # progress ticks (5.6 W5); the None path runs the
-        import threading as _th                                    # exact same closure as before — byte-identical
+        import threading as _th  # exact same closure as before — byte-identical
         _plock, _pdone = _th.Lock(), [0]
 
         def fill_fn(n):  # noqa: E306

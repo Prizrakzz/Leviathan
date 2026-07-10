@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-
 from leviathan.model_datasets.baselines import build_trailing_anomaly_targets
 from leviathan.model_datasets.builder import build_commodity_model_datasets
 from leviathan.model_datasets.targets import TargetDefinition, load_target_definitions

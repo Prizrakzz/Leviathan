@@ -908,6 +908,7 @@ def main() -> int:
     client = None
     if args.via_orchestrator or args.judge:           # one shared Anthropic client (numbers agent + judge)
         import anthropic
+
         from leviathan.graphrag import batch_extract as bx
         client = anthropic.Anthropic(api_key=bx._api_key())
     rows = run(graph, queries, model=args.model, k=args.k, via_orchestrator=args.via_orchestrator,

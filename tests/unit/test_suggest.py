@@ -6,7 +6,6 @@ from __future__ import annotations
 import time
 
 from fastapi.testclient import TestClient
-
 from leviathan.causal import schema as cs
 from leviathan.graphrag import graph as g
 from leviathan.graphrag import server as sv

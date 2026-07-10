@@ -5,7 +5,6 @@ context boundary; a new thread is a clean session, so there is nothing to detect
 from __future__ import annotations
 
 import pytest
-
 from leviathan.graphrag import orchestrator as orch
 
 

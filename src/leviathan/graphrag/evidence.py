@@ -223,8 +223,8 @@ def sample_keys(s3, *, node: str, year_windows, n: int, seed: int = 0) -> list[s
     """SOURCE-AGNOSTIC doc sampling: ~60% from the dedicated source(s) (depth) + the rest round-robin across the
     OTHER covering sources (breadth), so the index spans wb_cmo/fnc/mpoc/conab/wasde — not 100% GAIN. The chunk-time
     matcher still filters on-topic; retrieval stays source-neutral."""
-    from leviathan.graphrag.corpus_recon import BUCKET, TEXT_PREFIX, _source_of
     from leviathan.graphrag import batch_extract as bx
+    from leviathan.graphrag.corpus_recon import BUCKET, TEXT_PREFIX, _source_of
     keys = [o["Key"] for p in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX)
             for o in p.get("Contents", []) if o["Key"].endswith("document.json")]
 
@@ -307,8 +307,8 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     path (build_evidence_task on Fargate); workers=1 is the sequential laptop path. max_props=None lifts the cap.
     driver_sink (WS-MS6): when given, every chunked prop is ALSO routed to driver slices (driver -> [records])
     in-place — the cross-cutting cascade props (B40, freight, FX, El Nino) harvested FREE from the same pass."""
-    from leviathan.graphrag.corpus_recon import BUCKET, _source_of
     from leviathan.graphrag import chunking as ch
+    from leviathan.graphrag.corpus_recon import BUCKET, _source_of
     backend = backend or DEFAULT_BACKEND
     if provider == "bedrock":
         bedrock = bedrock or _bedrock()              # Haiku chunking via Bedrock (default); 'anthropic' uses the API
@@ -345,6 +345,7 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
     records: list[dict] = []
     if workers > 1:                                       # cloud: fan the per-doc Haiku chunking across threads
         from concurrent.futures import ThreadPoolExecutor
+
         from leviathan.storage.s3 import get_thread_local_s3_client
         with ThreadPoolExecutor(max_workers=workers) as pool:
             for crecs, drecs in pool.map(lambda k: _one(k, get_thread_local_s3_client(aws_region)), keys):
@@ -829,6 +830,7 @@ def main() -> int:
               f"(embed {emb}); Haiku chunking is billed.")
         return 0
     import boto3
+
     from leviathan.common import config
     config.load_env()
     s3 = boto3.client("s3")
