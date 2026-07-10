@@ -133,8 +133,18 @@ def fetch_brave(cfg: dict, queries: list[str]) -> list[dict]:
 
 
 # ── the sweep + audit snapshot ────────────────────────────────────────────────────────────────────
-def gather(queries: list[str], *, cfg: dict | None = None) -> list[dict]:
-    """One query-time sweep across all enabled providers; deduped by normalized headline."""
+def ambient_feed_items(cfg: dict | None = None) -> list[dict]:
+    """The ambient (non-query-scoped) RSS pull, exposed so a multi-sweep caller — the P3 daily digest job
+    loops gather() over ~30 commodities — can fetch the 2 feeds ONCE per run and hand them back in via
+    gather(ambient=...) instead of re-fetching them on every sweep (keyless-source etiquette)."""
+    cfg = cfg if cfg is not None else news_cfg()
+    prov = cfg.get("providers") or {}
+    return fetch_rss(prov["rss"]) if (prov.get("rss") or {}).get("enabled") else []
+
+
+def gather(queries: list[str], *, cfg: dict | None = None, ambient: list[dict] | None = None) -> list[dict]:
+    """One query-time sweep across all enabled providers; deduped by normalized headline. `ambient` (when
+    given) replaces the per-call RSS pull with a caller-cached copy — behavior is otherwise unchanged."""
     cfg = cfg if cfg is not None else news_cfg()
     prov = cfg.get("providers") or {}
     items: list[dict] = []
@@ -144,7 +154,9 @@ def gather(queries: list[str], *, cfg: dict | None = None) -> list[dict]:
         items += fetch_google_news(prov["google_news"], queries)
     if (prov.get("brave_search") or {}).get("enabled"):
         items += fetch_brave(prov["brave_search"], queries)
-    if (prov.get("rss") or {}).get("enabled"):
+    if ambient is not None:
+        items += list(ambient)
+    elif (prov.get("rss") or {}).get("enabled"):
         items += fetch_rss(prov["rss"])
     now = _now_iso()
     seen, uniq = set(), []

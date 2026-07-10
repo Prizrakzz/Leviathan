@@ -909,6 +909,44 @@ def put_profile_route(body: M.ProfileUpdate, ident: dict = Depends(_require_iden
     return _profile_payload(ident, consistent=True)                  # read-after-write must not echo a stale copy
 
 
+# ── P3 morning-brief notifications (auth-gated; read + mark-seen; behind GRAPHRAG_NOTIFICATIONS) ─────
+_NOTIF_WIRE = ("notif_id", "created_at", "seen", "event_type", "commodity", "date",
+               "summary", "country", "label", "query", "driver_id")
+
+
+def _notifications_on() -> bool:
+    return os.environ.get("GRAPHRAG_NOTIFICATIONS", "on").lower() == "on"
+
+
+def _project_notification(n: dict) -> dict:
+    """Server-side projection to the NARROW wire fields ONLY. The stored body also carries `event` (the raw
+    LiveEvent audit blob: adversary-controlled headline/url/source) which must NEVER reach the browser —
+    strip it here; the strict NotificationItem model (extra='ignore') is the belt."""
+    return {k: n[k] for k in _NOTIF_WIRE if k in n}
+
+
+@app.get("/v1/notifications", response_model=list[M.NotificationItem])
+def list_notifications_route(unseen_only: bool = False, ident: dict = Depends(_require_identity)) -> list:
+    """The signed-in user's daily-digest notifications, newest-first. Empty list when the feature is off or
+    the user has none — the bell degrades to 'no notifications' cleanly, never a 404. Preferences-adjacent
+    (never the answer/evidence path), so the PIT firewall is untouched. No quota (reads are free)."""
+    if not _notifications_on():
+        return []
+    return [_project_notification(n)
+            for n in _store().list_notifications(ident["sub"], unseen_only=unseen_only)]
+
+
+@app.post("/v1/notifications/{notif_id}/seen")
+def mark_notification_seen_route(notif_id: str, ident: dict = Depends(_require_identity)) -> dict:
+    """Mark one notification read (idempotent). 404-free AND upsert-free: the store's conditional UpdateItem
+    (attribute_exists(sk)) makes an unknown/garbage id a swallowed no-op, so a POST can never CREATE a
+    body-less notif# item that escapes TTL. Always 200."""
+    if not _notifications_on():
+        return {"ok": False, "disabled": True}
+    _store().mark_notification_seen(ident["sub"], notif_id)
+    return {"ok": True}
+
+
 # ── 1.7 share snapshots + per-user persistence (auth default-off) ───────────────────────────────────
 class ShareIn(BaseModel):
     question: str

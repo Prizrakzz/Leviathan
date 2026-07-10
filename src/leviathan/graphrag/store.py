@@ -79,6 +79,10 @@ class Store(Protocol):
     def get_profile(self, user_id: str, *, consistent: bool = False) -> Optional[dict]: ...
     def update_profile(self, user_id: str, *, facts: Optional[dict] = None,
                        onboarded: Optional[bool] = None) -> None: ...
+    def append_notification(self, user_id: str, notif_id: str, body: dict, *,
+                            ttl_seconds: int = 5184000) -> bool: ...
+    def list_notifications(self, user_id: str, *, unseen_only: bool = False) -> list[dict]: ...
+    def mark_notification_seen(self, user_id: str, notif_id: str) -> None: ...
 
 
 # ── in-memory (tests / local) ──────────────────────────────────────────────────────────────────────
@@ -89,6 +93,7 @@ class InMemoryStore:
         self._quota: dict[tuple, int] = {}                           # (user, day) -> count
         self._turns: dict[tuple, list[dict]] = {}                    # (user, thread) -> [turn records]
         self._profiles: dict[str, dict] = {}                         # user -> profile record
+        self._notifs: dict[str, dict] = {}                           # user -> {notif_id -> record} (P3)
 
     def incr_turn_quota(self, user_id: str, day: str, cap: int) -> None:
         n = self._quota.get((user_id, day), 0)
@@ -148,6 +153,24 @@ class InMemoryStore:
             p["onboarded"] = bool(onboarded)
             if onboarded:
                 p.setdefault("onboarded_at", _now())
+
+    def append_notification(self, user_id: str, notif_id: str, body: dict, *,
+                            ttl_seconds: int = 5184000) -> bool:
+        d = self._notifs.setdefault(user_id, {})
+        if notif_id in d:
+            return False                                             # idempotent same-day no-op
+        d[notif_id] = {**body, "notif_id": notif_id, "seen": False}
+        return True
+
+    def list_notifications(self, user_id: str, *, unseen_only: bool = False) -> list[dict]:
+        vals = sorted(self._notifs.get(user_id, {}).values(),
+                      key=lambda n: n.get("notif_id", ""), reverse=True)   # date-prefixed id -> newest first
+        return [n for n in vals if not n["seen"]] if unseen_only else list(vals)
+
+    def mark_notification_seen(self, user_id: str, notif_id: str) -> None:
+        n = self._notifs.get(user_id, {}).get(notif_id)
+        if n:
+            n["seen"] = True                                         # unknown id -> no-op (Dynamo parity)
 
 
 # ── DynamoDB (serving) — PK pk, SK sk, NO TTL (durable) ─────────────────────────────────────────────
@@ -334,6 +357,57 @@ class DynamoStore:
             except (ValueError, TypeError):
                 out["facts"] = {}
         return out
+
+    def append_notification(self, user_id: str, notif_id: str, body: dict, *,
+                            ttl_seconds: int = 5184000) -> bool:
+        """Idempotent per-user daily-digest notification (pk=user#uid, sk=notif#<id>). Conditional PutItem:
+        a same-day re-run of the digest job is a no-op (ConditionalCheckFailed swallowed). `seen` is a
+        NATIVE attribute (not inside body) so mark-seen is one UpdateItem with no body rewrite; `expires_at`
+        (the table's TTL attr) is written ONLY here — a durable share/thread/turn never carries it."""
+        from botocore.exceptions import ClientError
+        item = {"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"notif#{notif_id}"},
+                "body": self._s({**body, "notif_id": notif_id}),
+                "seen": {"BOOL": False},                             # native attr (NOT in body)
+                "expires_at": {"N": str(int(time.time()) + int(ttl_seconds))}}
+        try:
+            self.db.put_item(TableName=self.table, Item=item,
+                             ConditionExpression="attribute_not_exists(sk)")
+            return True
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return False                                         # already delivered today -> no-op
+            raise
+
+    def list_notifications(self, user_id: str, *, unseen_only: bool = False) -> list[dict]:
+        q = self.db.query(TableName=self.table, ScanIndexForward=False,   # newest sk first (date-prefixed)
+                          KeyConditionExpression="pk = :p AND begins_with(sk, :k)",
+                          ExpressionAttributeValues={":p": {"S": f"user#{user_id}"},
+                                                     ":k": {"S": "notif#"}})
+        out = []
+        for i in q.get("Items", []):
+            try:
+                n = json.loads(i["body"]["S"])
+            except (KeyError, ValueError):
+                continue                                             # one junk item never 500s the feed
+            n["seen"] = bool(i.get("seen", {}).get("BOOL", False))   # native attr overlays body
+            out.append(n)
+        return [n for n in out if not n.get("seen")] if unseen_only else out
+
+    def mark_notification_seen(self, user_id: str, notif_id: str) -> None:
+        """Flip the native `seen` attr. Conditional on attribute_exists(sk): an UpdateItem UPSERTS, so a
+        POST with a garbage notif_id would otherwise CREATE a body-less notif# item that escapes TTL. An
+        unknown id is a swallowed no-op instead."""
+        from botocore.exceptions import ClientError
+        try:
+            self.db.update_item(TableName=self.table,
+                                Key={"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"notif#{notif_id}"}},
+                                UpdateExpression="SET seen = :t",
+                                ConditionExpression="attribute_exists(sk)",
+                                ExpressionAttributeValues={":t": {"BOOL": True}})
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return                                               # unknown id -> no-op, never upsert
+            raise
 
 
 def default_store() -> Store:

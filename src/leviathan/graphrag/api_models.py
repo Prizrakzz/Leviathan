@@ -243,3 +243,24 @@ class ContextAttachment(BaseModel):
     summary: Optional[str] = None       # event: free text -> length-capped + sanitized server-side
     date: Optional[str] = None          # event: ISO date; > asof -> withheld with a visible note
     label: Optional[str] = None         # display-only echo (ignored server-side)
+
+
+# ── P3 morning-brief notifications (research-UI §III) ─────────────────────────────────────────────────
+class NotificationItem(BaseModel):
+    """One fanned-out daily-digest notification (auth-gated GET /v1/notifications). Carries the NARROW P2
+    event-attachment projection (event_type/commodity/date/summary/country) PLUS server-built display
+    artifacts (label + templated analogue query) the FE cannot synthesize, since an event chip never
+    receives driver_id on the wire. The stored body also carries an `event` LiveEvent audit blob — kept
+    OFF this model on purpose: pydantic's default extra='ignore' (NO model_config; do NOT use _RICH,
+    which is extra='allow') silently drops it, the belt to the route's server-side projection."""
+    notif_id: str
+    created_at: str
+    seen: bool = False
+    event_type: str                      # one of news.contracts.EVENT_TYPES
+    commodity: str                       # RESOLVED canonical graph.contracts id
+    date: Optional[str] = None           # ISO; drives PIT + the analogue near-era
+    summary: str = ""
+    country: Optional[str] = None
+    label: str                           # chip label, server-built
+    query: str                           # templated analogue query (NEVER raw headline)
+    driver_id: Optional[str] = None      # reference-only; the resolver re-derives it
