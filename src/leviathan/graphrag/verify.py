@@ -96,6 +96,31 @@ def _check_evidence_handle(sent: str, matched: list[dict]) -> str | None:
     return None
 
 
+def _all_row_vals(number_calls: list[dict]) -> list[float]:
+    out = []
+    for c in number_calls or []:
+        for r in (c.get("rows") or []):
+            try:
+                out.append(float(str(r.get("value")).replace(",", "")))
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
+def _num_backed(v: float, allv: list[float], tol: float = 0.01) -> bool:
+    """P9-B (R4): SCALE-1 exact-ish match only. Injected cascade rows are PRE-SCALED to narrate_unit, so a
+    hallucinated ~40% must NOT be back-filled by a raw 0.4 ratio or a 4e7 tonnage that _num_matches'
+    multi-scale set would bridge -- that bridging is the exact mis-attribution hole the pre-scale normalizer
+    closes. Compare at scale 1 within a tight tolerance; 0 matches only 0."""
+    for r in allv:
+        if r == 0:
+            if v == 0:
+                return True
+        elif abs(v - r) <= tol * abs(r):
+            return True
+    return False
+
+
 def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str | None:
     if not (1 <= idx <= len(number_calls)):
         return "index_out_of_range"
@@ -108,6 +133,20 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
     sent_nums = _numbers_in(sent)
     if sent_nums and row_vals and not _num_matches(sent_nums, row_vals):
         return "number_mismatch"
+    # P9-B all-numbers guard: EVERY numeric token in a handled sentence (bare years exempt) must match SOME
+    # injected row across the merged calls -- else "rose to 5900 [N3], up 18%" lets 18 ride UNVERIFIED.
+    # Reads ONLY GRAPHRAG_CASCADE_QUANT (the single feature flag): =off fully reverts the stricter verifier.
+    if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
+        allv = _all_row_vals(number_calls)
+        guard_nums = _numbers_in(_HANDLE.sub("", sent))           # citation-handle digits are NOT magnitudes
+        nonyear = [v for v in guard_nums if not (1900 <= v <= 2100 and float(v).is_integer())]
+        # backed = scale-1 match vs ANY row (pre-scaled cascade rows), OR the legacy scale-bridge vs the
+        # sentence's OWN cited row (a '31.4 million MT' narration of its own raw-MT hybrid row is legitimate;
+        # CROSS-row multi-scale backfill stays forbidden -- that is the R4 mis-attribution hole).
+        if nonyear and allv and any(
+                not (_num_backed(v, allv) or (row_vals and _num_matches([v], row_vals)))
+                for v in nonyear):
+            return "number_unbacked"
     return None
 
 

@@ -1,0 +1,133 @@
+# GraphRAG tunable params — PRIVATE IP (git-ignored). Phase 1 W4 seed.
+# The §9.1 experiment surface: every knob is read from here, never hardcoded. Tuned via Langfuse
+# experiments against the §9 gold sets; the winner is promoted. Each entry notes its watched metric.
+
+version: "0.1.0-seed"
+
+traversal:
+  traversal_mode: both          # templated | exploratory | both (tenet 8)   [novel-path recall vs latency]
+  on_template_boost: 1.10       # ranking boost for on-template paths (boost, never penalty)
+  surprise_threshold: 0.55      # evidence bar an off-template chain clears to be surfaced
+  cascade_max_depth: 5
+  cascade_branch: 3
+  cascade_beam: 12
+  min_support_count: 2          # min distinct (canonical) events for a confirmed cascade hop
+
+retrieval:
+  rerank_top_k: 20
+  rrf_k: 60                     # Reciprocal Rank Fusion constant
+  candidate_pool: 200          # chunks fused before rerank
+  stratified_quota: {shock: 2, sd_balance: 2, trade_flow: 2, substitute: 2, price_policy: 1}
+
+confidence:
+  evidence_class_weight: {fact: 1.0, reported_claim: 0.6, model_inference: 0.0}  # 0 = walled out
+  grounding_threshold: 0.80
+
+abstain_if:
+  min_retrieval_conf: 0.35
+  min_grounding: 0.80
+
+entity_linking:
+  candidate_k: 8               # candidate node IDs returned to the planner
+  min_link_score: 0.60        # below → ask/abstain, never silently retrieve on a wrong entity
+
+# Concept expansion: how a resolved concept (commodity_hierarchy.yaml) becomes the cascade member set.
+# A complex/group ("all wheat", "the oilseed complex") MUST run a cascade per member and surface where
+# members diverge — averaging the HRW-vs-SRW spread away is the failure this prevents.
+concept_expansion:
+  default: enumerate_divergent  # multi-node concept → per-member cascade, divergences surfaced
+  single_node: benchmark        # one causal node (incl. a held contract) → one cascade
+  max_members: 8                # above this → ask the user to narrow or name a benchmark (latency guard)
+  policies:
+    enumerate_divergent: "cascade per member node; consolidate by reporting agreement vs sign/magnitude
+                          divergence across members; NEVER average members into one number"
+    benchmark: "one cascade on the resolved node; list its mapped contracts as the tradeable instruments"
+    aggregate: "explicit basket/complex-level roll-up — only when the user asks for the portfolio view"
+    abstain: "unknown concept → abstain; never guess a node"
+
+# SERVING knobs — the values the LIVE code actually reads (graphrag/params.py get()). These mirror the
+# code defaults exactly at introduction (no behavior change); every future tune happens HERE, in review,
+# never as a code constant (the RERANK_POOL lesson: a quality knob shipped as a constant on an assertion).
+serving:
+  # Provider routing (providers.py): SERVING inference only (Sonnet reasoner/planner, Haiku numbers/
+  # summary). BEDROCK is the default as of the 2026-07-04 parity eval — query content stays in-AWS;
+  # offline Opus/Batch paths are hardwired to the Anthropic API and ignore this. Gate result: strips
+  # 43 vs the 60-strip Anthropic timeline-off baseline (fewer = cleaner, not a regression),
+  # hallucinations identical at 40/40, 25/25 judged, zero fallback/floor events (pure Bedrock serving).
+  # GRAPHRAG_PROVIDER=anthropic is the instant per-run rollback.
+  provider: bedrock
+  bedrock_models:               # serving alias -> cross-region inference profile (Phase 0 probe, 2026-07-04)
+    claude-sonnet-4-6: global.anthropic.claude-sonnet-4-6
+    claude-haiku-4-5: global.anthropic.claude-haiku-4-5-20251001-v1:0
+  walk:                         # planner.grounded_subgraph
+    tau: 0.35                   # mechanism-relevance floor (seeds exempt)
+    node_budget: 10
+    depth: 2
+    max_seeds: 2
+  ground:                       # planner.ground
+    recency_days: 548           # probe evidence must be dated within this window before asof to fire
+    probe_cap: 24
+    evidence_cap: 24
+    k_by_depth: [5, 3, 2]
+  retrieval:                    # evidence.retrieve / pgstore.pg_retrieve / rankers
+    fetch_k: 60
+    rerank_pool: 60             # CE pool; 24 was tried + REVERTED (41.7% deep-rescue rate, 2026-07-03 ablation)
+    k: 5
+    mmr: 0.5
+    fairness: 0.30
+  timeline:                     # event timeline (layer 2): prop-store episodes per slice
+    # DEFAULT OFF (GRAPHRAG_TIMELINE=on to enable): measured net-negative as first built (counts w/o
+    # receipts invited confabulation); the receipted+evidence-gated path is what =on now exercises.
+    gap_days: 90                # consecutive props further apart than this start a new episode
+    max_per_node: 4             # episodes shown per grounded node (biggest first)
+  cascade:                      # P9-B quantified-cascade loop (GRAPHRAG_CASCADE_QUANT)
+    cap: 12                     # max windowed lookups per answer (own budget, separate from silver.cap)
+  silver:                       # silverleg (WS-4) — the observed-value leg
+    cap: 8                      # max silver lookups per answer
+    thresholds:                 # per-ref anomaly rule: z = |z-score| floor; abs = absolute band
+      psd_ending_stock_su_ratio: {kind: z, window_years: 10, z: 1.0}
+      fred_fx_macro: {kind: z, window_days: 504, z: 1.5}
+      oni_climate: {kind: abs, band: 0.5}
+      pink_sheet_input_costs: {kind: z, window_years: 5, z: 1.5}
+      psd_sd_level: {kind: z, window_years: 10, z: 1.0}   # export/import/consumption/stock vintage levels
+
+gates:                          # §9 targets (measured, not assumed)
+  extraction_relation_f1: 0.80
+  entity_linking_acc: 0.90
+  novel_path_recall: 0.70
+  citation_faithfulness: 1.00
+  grounding: 0.80
+  abstention_correctness: 0.95
+
+# Stage D — corpus prioritization (size the Sonnet extraction slice to budget). Read-only analysis,
+# no LLM spend. priority = density × liquidity × recency; est_cost = est_props × usd_per_prop.
+prioritize:
+  # Exp-1 (billed): warm sync+cache = $0.0079/call (prefix 4,187 tok read 0.1x; output ~379 tok = 72%).
+  # Caching beats Batch x1.2 but output is the floor (uncached). WS-B may lower this if a compact schema holds recall.
+  usd_per_prop: 0.0079          # Sonnet 4.6, sync + 5-min prompt-cache, warm (Exp-1); was 0.0075 est.
+  chars_per_prop: 121           # calibrated: robust 25-doc/25-source weighted alpha/props=121.5 (median 124.5, range 59-390); was 130 (~7% high). 6-doc gave 99 but was WASDE-skewed (tabular, low cpp)
+  gate_keep_rate: 0.60          # relevance gate skips ~40% boilerplate/table chunks before any LLM call
+  default_budget: 1500
+  density_weights: {alpha: 0.4, sentence: 0.2, marker: 0.3, digit: 0.1}
+  recency:                      # [min_year, weight]; first match scanning down — recent worth more
+    - [2015, 1.0]
+    - [2010, 0.8]
+    - [2000, 0.5]
+    - [0, 0.25]
+  liquidity:                    # per batch_extract._commodity_of label; futures-liquidity tiers (editable)
+    soybeans: 1.0
+    corn_grains: 1.0
+    wheat: 1.0
+    soybean_oil: 1.0
+    soybean_meal: 1.0
+    sugar: 1.0
+    coffee: 1.0
+    cotton: 1.0
+    palm_oil: 0.7
+    cocoa: 0.7
+    rice: 0.7
+    rapeseed: 0.7
+    orange_juice: 0.4
+    multi_sd: 0.6               # WASDE/WAP — cover many liquid commodities
+    macro: 0.5                  # WB CMO — cross-commodity price context
+    _default: 0.5

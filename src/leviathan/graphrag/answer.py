@@ -8,6 +8,7 @@ citations. `retrieve`/`call` are injectable so tests run without S3/Bedrock/Anth
 from __future__ import annotations
 
 import functools
+import os
 import re
 
 from leviathan.graphrag import citations as cit
@@ -271,6 +272,21 @@ _SYSTEM_MENTOR = (
     "Ground strictly in what is shown; if evidence was provided, cite at least one dated source.")
 
 
+# P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
+# the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
+_SYSTEM_CASCADE = (
+    "\nOBSERVED CASCADE NUMBERS. When an 'OBSERVED CASCADE NUMBERS' block is present, narrate the record from "
+    "those rows ONLY: every figure you state MUST appear in an injected row and carry its numbered [N] handle "
+    "(e.g. \"US wheat export commitments rose ~18% over the following quarter [N4]\"). NEVER state a number that "
+    "is not in an injected row -- if you want to note a change with no row, write it as prose without a handle. "
+    "Lay the cascade as a DATED sequence from the [E] evidence handles and attach the [N] number to the "
+    "quantified leg. Put the observed levels and deltas under '## The record'. If the block carries a line "
+    "beginning 'DIVERGENCE', the two eras disagree in the record: render '## Where the record disagrees' and "
+    "show BOTH eras' numbers side by side, never blended; if there is NO DIVERGENCE line, do NOT invent a fork. "
+    "If a leg reads 'not yet in effect as of <asof>' or '(record silent for that era)', narrate that ABSENCE "
+    "honestly; never fabricate a value for it.\n")
+
+
 def _count_banned_mood(structured: dict) -> int:
     """P9-A hard-gate metric: banned mood words on the RAW model output, BEFORE _humanize_structured/
     sanitize (which neutralize them) — measuring after would read 0 forever. Rides the trace to eval."""
@@ -279,10 +295,15 @@ def _count_banned_mood(structured: dict) -> int:
 
 def _system() -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
-    Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would make the
-    env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
-    import os
-    return _SYSTEM_MENTOR if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") != "off" else _SYSTEM_LEGACY
+    GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
+    [N] rows). Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
+    make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
+    if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
+        return _SYSTEM_LEGACY
+    base = _SYSTEM_MENTOR
+    if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
+        base = base + _SYSTEM_CASCADE
+    return base
 
 
 _SYSTEM = _SYSTEM_MENTOR                                              # module-level default (importers/tests)
@@ -369,6 +390,16 @@ def _context_block(graph: gph.CausalGraph, contract: str) -> str:
     for e in c.inter_commodity:
         lines.append(f"- {e.driver_commodity} | {e.relation} | {e.sign} | {e.mechanism}")
     return "\n".join(lines)
+
+
+def _pgnumbers_live() -> bool:
+    """P9-B breaker: the cascade loop only fires when a real pg numbers mirror is present -- an outage or a
+    pg-less env stays qualitative instead of Athena-crawling the partition surface."""
+    try:
+        from leviathan.graphrag.numbers import pgnumbers
+        return bool(pgnumbers.enabled())
+    except Exception:  # noqa: BLE001
+        return False
 
 
 _DATE_SENTINEL = "1970-01-01"
@@ -522,7 +553,7 @@ def _emit(on_stage, stage: str, **info) -> None:
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
                extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
-               silver_lookup=None, on_stage=None) -> dict:
+               silver_lookup=None, on_stage=None, numbers_lookup=None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -555,6 +586,26 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
         volatile_blocks = volatile_blocks + [extra_context]
+    # P9-B quantified cascade (GRAPHRAG_CASCADE_QUANT): derive analogue-era windows from the walk's dated
+    # props, fetch the metric at the era window AND the session asof, inject citable [N] rows into the
+    # VOLATILE tail (cache-safe). BREAKER: if the pg numbers backend is not live, SKIP the cascade rather
+    # than fan 6-12 Athena windows onto the serve path -- pg-down => qualitative mentor answer.
+    if (numbers_lookup is not None and os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off"
+            and _pgnumbers_live()):
+        from leviathan.graphrag.numbers import cascade as cq
+        extra_number_calls = list(extra_number_calls or [])       # rebind ONCE: None -> [], hybrid list -> copy
+        try:                                                      # GRACEFUL (R6): a raise here must NEVER 500
+            _cblock, _quant_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof, near=near,
+                                                extra_number_calls=extra_number_calls)
+            if _cblock:
+                volatile_blocks = volatile_blocks + [_cblock]
+            if _quant_trace:
+                sg.trace["quantify"] = _quant_trace
+        except Exception as e:  # noqa: BLE001 -- degrade to the QUALITATIVE mentor answer, never the floor
+            import logging
+            logging.getLogger(__name__).warning("cascade quantify failed (%s: %s); proceeding qualitative",
+                                                type(e).__name__, str(e)[:160])
+            sg.trace["quantify_error"] = type(e).__name__
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     # Stream the note when the caller wired an SSE progress channel (real serving call only; injected fakes
     # keep the plain signature). The verifier still runs on the FINAL structured output below, so streaming is
@@ -765,7 +816,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
            extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
-           silver_lookup=None, on_stage=None) -> dict:
+           silver_lookup=None, on_stage=None, numbers_lookup=None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -784,7 +835,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=raw_retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
-                          silver_lookup=silver_lookup, on_stage=on_stage)
+                          silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity

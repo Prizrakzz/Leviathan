@@ -243,13 +243,28 @@ def test_system_prompt_convexity_research_register():
 
 def test_mentor_voice_env_gate(monkeypatch):
     """P9-A D9: the persona flips PER CALL on GRAPHRAG_MENTOR_VOICE (a memoized read would make the
-    env-off rollback a silent no-op on a long-lived serving process)."""
+    env-off rollback a silent no-op on a long-lived serving process). P9-B: with the cascade flag OFF the
+    mentor string is pure _SYSTEM_MENTOR (the addendum only rides when GRAPHRAG_CASCADE_QUANT is on)."""
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")              # isolate the mentor-voice flip
     monkeypatch.delenv("GRAPHRAG_MENTOR_VOICE", raising=False)
-    assert an._system() is an._SYSTEM_MENTOR                          # default on
+    assert an._system() is an._SYSTEM_MENTOR                          # default on, cascade off -> pure mentor
     monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "off")
     assert an._system() is an._SYSTEM_LEGACY                          # flips without re-import
     monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "on")
     assert an._system() is an._SYSTEM_MENTOR
+
+
+def test_cascade_addendum_env_gate(monkeypatch):
+    """P9-B: GRAPHRAG_CASCADE_QUANT on -> the OBSERVED CASCADE NUMBERS addendum rides on the mentor string;
+    off -> pure mentor. Read per call (the flip is the instant rollback)."""
+    monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "on")
+    monkeypatch.delenv("GRAPHRAG_CASCADE_QUANT", raising=False)
+    assert "OBSERVED CASCADE NUMBERS" in an._system()                # default on
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")
+    assert an._system() is an._SYSTEM_MENTOR                          # flips off without re-import
+    monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "off")               # legacy wins regardless of cascade flag
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "on")
+    assert an._system() is an._SYSTEM_LEGACY
 
 
 def test_answer_l2_walks_grounds_and_overrides_diagram(monkeypatch):

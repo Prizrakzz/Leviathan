@@ -148,3 +148,37 @@ def test_claim_count_zero_when_verifier_off(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_VERIFY", "off")
     rep = vf.verify_citations({"tldr": "One. Two."}, EV, NUMS)
     assert rep["enabled"] is False and rep.get("claim_count", 0) == 0
+
+
+# ── P9-B: the all-numbers guard (number_unbacked) ────────────────────────────────────────────────────
+def test_number_unbacked_strips_free_riding_figure():
+    """'rose to 5900 [N3], up 18%' with only 5900 injected -> the 18 rides unverified -> strip."""
+    from leviathan.graphrag import verify as vf
+    calls = [{"rows": [{"value": "5900"}]}]
+    assert vf._check_number_handle("exports rose to 5900 [N1], up 18%", 1, calls) == "number_unbacked"
+    calls2 = calls + [{"rows": [{"value": 18.0}]}]                    # the pct-change row injected -> passes
+    assert vf._check_number_handle("exports rose to 5900 [N1], up 18%", 1, calls2) is None
+
+
+def test_number_unbacked_percent_vs_ratio():
+    """The ratio trap: a pre-scaled 36.0/'%' row backs '~36%'; a raw 0.36 ratio does NOT back '~40%'
+    (scale-1 _num_backed, no multi-scale bridging)."""
+    from leviathan.graphrag import verify as vf
+    assert vf._check_number_handle("S/U near 36% [N1]", 1, [{"rows": [{"value": 36.0, "unit": "%"}]}]) is None
+    assert vf._check_number_handle("S/U near 40% [N1]", 1,
+                                   [{"rows": [{"value": 0.36, "unit": "ratio"}]}]) is not None
+
+
+def test_number_unbacked_year_token_exempt():
+    """A bare 4-digit year is a date, not a strippable magnitude; handle digits are stripped too."""
+    from leviathan.graphrag import verify as vf
+    assert vf._check_number_handle("the 2012 drought cut S/U to 8% [N1]", 1,
+                                   [{"rows": [{"value": 8.0}]}]) is None
+
+
+def test_number_unbacked_single_flag_rollback(monkeypatch):
+    """GRAPHRAG_CASCADE_QUANT=off fully reverts the stricter guard (no second env to unset)."""
+    from leviathan.graphrag import verify as vf
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")
+    calls = [{"rows": [{"value": "5900"}]}]
+    assert vf._check_number_handle("exports rose to 5900 [N1], up 18%", 1, calls) is None

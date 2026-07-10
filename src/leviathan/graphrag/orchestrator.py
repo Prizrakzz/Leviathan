@@ -86,10 +86,10 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
                   near: str | None = None, silver_lookup=None, on_stage=None,
-                  focus_driver: str | None = None) -> dict:
+                  focus_driver: str | None = None, qfn=None) -> dict:
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                    on_stage=on_stage, focus_driver=focus_driver)
+                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -139,7 +139,7 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
                         near=near, silver_lookup=silver_lookup, on_stage=on_stage,
-                        focus_driver=focus_driver)
+                        focus_driver=focus_driver, numbers_lookup=query_fn)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -272,7 +272,7 @@ def _resolve_attachments(context, graph, asof: str) -> dict:
 
 def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
              planner: str | None = None, gather=None, extract=None, on_stage=None,
-             context_contracts=None, route_fn=None) -> dict:
+             context_contracts=None, route_fn=None, qfn=None) -> dict:
     """The section-7.1 live branch: fetch trusted headlines -> typed LiveEvents -> event-rooted cascade.
     Returns a full result dict; when NO verified event is found it degrades to normal reasoning with an
     explicit live-check note (never a silently stale answer). `gather`/`extract` injectable for tests.
@@ -289,7 +289,7 @@ def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: s
     events = extract(items, call=call or an._call_opus, graph=graph) if items else []
     if not events:
         res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                            route_fn=route_fn, on_stage=on_stage)
+                            route_fn=route_fn, on_stage=on_stage, qfn=qfn)
         res["answer"] += ("\n\n_Live check: no verified shock headline from trusted sources at answer time; "
                           "the analysis above rests on the dated archive._")
         res["live_events"] = []
@@ -300,7 +300,7 @@ def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: s
     now = items[0].get("fetched_at", "") if items else ""
     block = nx.live_context_block(events, now)
     kw = dict(graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
-              extra_context=block, planner=planner, on_stage=on_stage)
+              extra_context=block, planner=planner, on_stage=on_stage, numbers_lookup=qfn)
     if seeds:
         kw.update(route_fn=lambda q, g: seeds, focus_driver=ev0.driver_id)
     elif route_fn is not None:
@@ -550,6 +550,9 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     if state is not None:
         from leviathan.graphrag.numbers import query as Q
         qfn = ss.cached_query_fn(state, query_fn or Q.default_query_fn())   # routed: pg mirror when flagged
+    elif call is None:                                                       # real serving, no session: still
+        from leviathan.graphrag.numbers import query as Q  # give the cascade loop a pg-routed
+        qfn = query_fn or Q.default_query_fn()                               # qfn (mirrors silver_lookup's guard)
 
     # Silver leg (F4): OBSERVED driver values feed regime firing. Built only on the REAL serving path
     # (call is None) so injected-fake tests stay hermetic; GRAPHRAG_SILVER=off is the rollback.
@@ -602,7 +605,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             _ctx = [c for c in ((state.contracts if state else None) or []) if c in graph.contracts] or None
             try:
                 res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                               on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn)
+                               on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn, qfn=qfn)
             except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
                 an._emit(on_stage, "floor")
                 res = _evidence_only(query, asof, graph=graph, kind="live", exc=e, route_fn=route_fn)
@@ -649,7 +652,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             _ctx = [c for c in ((list(plan.contracts) if plan else None)
                                 or (state.contracts if state else None) or []) if c in graph.contracts] or None
             res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                           on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn)
+                           on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn, qfn=qfn)
         elif kind == "numbers_only":
             hints = list(plan.contracts) if plan else []
             if plan and plan.country:
@@ -677,7 +680,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                 silver_lookup=silver_lookup, on_stage=on_stage,
-                                focus_driver=att["focus_driver"])
+                                focus_driver=att["focus_driver"], qfn=qfn)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         an._emit(on_stage, "floor")
         res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)

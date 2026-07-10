@@ -113,6 +113,35 @@ def check_display_vocab() -> list[str]:
     return _cv()
 
 
+def check_cascade_map() -> list[str]:
+    """P9-B: every ACTIVE cascade_map ref maps to a real table.metric; period_type in the enum; scale numeric
+    and narrate_unit set when scale != 1; and NO active row points at a known-uncertified/empty table.
+    load_map() already drops `deferred: true` rows, so any table seen here is meant to be live — an ESR row
+    that lint-passes on table+metric existence would still return record_silent on an empty source; this
+    empty-set check is the offline half of the guard, the Phase-D live probe is the runtime half."""
+    from leviathan.graphrag.numbers.cascade import load_map
+    from leviathan.graphrag.numbers.registry import load_registry
+    reg = load_registry()
+    _uncertified = {"silver_esr", "silver_nasa_power"}          # 0 rows at the 2026-06-24 certification
+    errs: list[str] = []
+    for ref, row in (load_map() or {}).items():
+        ts = None
+        try:
+            ts = reg.get(row.get("table"))
+        except Exception:  # noqa: BLE001
+            errs.append(f"cascade_map {ref!r}: unknown table {row.get('table')!r}")
+        if row.get("table") in _uncertified:
+            errs.append(f"cascade_map {ref!r}: table {row.get('table')!r} is uncertified/empty "
+                        f"(0 rows in the source certification) — mark `deferred: true` until a live probe passes")
+        if ts and row.get("metric") not in ts.metrics:
+            errs.append(f"cascade_map {ref!r}: metric {row.get('metric')!r} not in {row.get('table')!r}")
+        if row.get("period_type") not in ("date", "marketing_year", "year_month"):
+            errs.append(f"cascade_map {ref!r}: bad period_type {row.get('period_type')!r}")
+        if float(row.get("scale", 1) or 1) != 1 and not row.get("narrate_unit"):
+            errs.append(f"cascade_map {ref!r}: scale != 1 requires narrate_unit")
+    return errs
+
+
 def check_driver_slices() -> list[str]:
     """Driver-slice darkness lint (7-P2 W2) — every causal DAG driver id resolves to an evidence slice or
     carries a waiver (hard), and no id is double-owned (hard). Topical-token drift is a separate advisory
@@ -153,6 +182,7 @@ def main() -> int:
                         ("hierarchy", check_hierarchy()), ("geography", check_geography()),
                         ("display_names", check_display_names()),
                         ("display_vocab", check_display_vocab()),
+                        ("cascade_map", check_cascade_map()),
                         ("driver_slices", check_driver_slices()),
                         ("edge_blurbs", check_edge_blurbs())):
         if errs:

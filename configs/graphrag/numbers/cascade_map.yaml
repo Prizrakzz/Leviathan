@@ -1,0 +1,184 @@
+# Phase 9-B cascade map -- silver_ref (causal-DAG driver attribute) -> (silver table, metric, window rule).
+# Only refs listed here are QUANTIFIED by the reasoning-branch cascade loop; an unmapped ref stays qualitative.
+# native_unit/narrate_unit/scale drive the deterministic ratio pre-scale normalizer: injected [N] rows are
+# emitted PRE-SCALED to narrate_unit so the mentor's narrated figure value-checks at scale 1.
+# period_type drives fetch_window's window binding (marketing_year = period int, NEVER period_start/end;
+# date/year_month = period_start/period_end bounds).
+# TRACKED (D-B7, like its sibling tables.yaml): no secret/private IP beyond what tables.yaml already exposes,
+# and tracking dodges the gitignored-config rollback trap.
+# An UNCERTIFIED/empty table (silver_esr, silver_nasa_power at the 2026-06-24 certification) may appear ONLY
+# with `deferred: true` (loaded-but-inert; the loader skips it, config_check errors on an ACTIVE row).
+# Every table.metric below verified against the live registry (load_registry) on 2026-07-10.
+
+refs:
+  # ── PSD family (silver_psd, vintage, marketing-year) - the D3 core ─────────────────────────────────
+  # ERA legs fan >=2 marketing years (a within-era delta must exist for the fork engine); the CURRENT
+  # rhyme leg queries the CURRENT MY at the SESSION asof. PIT guard column = release_date (vintage).
+  export:
+    table: silver_psd
+    metric: exports_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=driver region primary (Title-Case for PSD)"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001                # 2,462,000 MT -> 2.46 MMT
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      Geography-GENERAL export home (73 driver instances, 26 ids): serves every export-policy driver id
+      incl. non-US (Argentina/Brazil/Russia/India/Thailand/Vietnam/Canada/China) that ESR (US-only)
+      cannot. US weekly export PACE is a DIFFERENT lookup -> see esr_exports (deferred).
+  import:
+    table: silver_psd
+    metric: imports_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=importing region (e.g. China)"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      54 instances, 23 ids. The trade-war reroute fork (US exports DOWN vs China imports UP) is
+      CROSS-NODE and Phase-C; this row supports same-node China-imports era contrasts today.
+  consumption:
+    table: silver_psd
+    metric: consumption_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=consuming region"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: "30 instances, 25 ids (China_food_demand, feed_demand, ethanol_demand, ...). Demand leg."
+  production:
+    table: silver_psd
+    metric: production_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=producing region"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      13 instances, 10 ids. Also the PROXY for the deferred revision refs (conab_production_revision /
+      wap_nonUS_revision / sagis_cec_revision): narrate the PSD production LEVEL for that country/MY.
+  area:
+    table: silver_psd
+    metric: area_harvested_1000ha
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=producing region"
+    native_unit: "1000 ha"
+    narrate_unit: "M ha"
+    scale: 0.001                   # 34,000 (1000 ha) -> 34.0 M ha
+    coverage_start: 1960
+    status: mapped
+    notes: "20 instances, 8 ids (planted_area, acreage_competition, canola_area, ...). 2-4Q lag driver."
+  stock:
+    table: silver_psd
+    metric: ending_stocks_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=holding region"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: "15 instances, 8 ids (China_port_stocks, China_state_reserves, meal_inventory, ...)."
+  beginning_stock:
+    table: silver_psd
+    metric: beginning_stocks_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=holding region"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      6 instances, 5 ids - state-reserve policy drivers (buffer_stock_release, state_reserve_buildup,
+      state_reserve_release, China_state_reserves). Carry-in level is the reserve-policy proxy.
+  psd_ending_stock_su_ratio:
+    table: silver_psd
+    metric: su_ratio
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    keying: "commodity=contract slug; country=_primary_country(contract) Title-Case"
+    native_unit: ratio
+    narrate_unit: "%"
+    scale: 100                     # 0.36 ratio -> 36.0 % -- THE ratio trap; pre-scale is MANDATORY
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      Already served by silverleg._su_ratio for z-score firing; reused here for RAW-VALUE era contrast.
+      29 instances, 4 ids. Never narrate a % against a stored 0.36 ratio -- emit value=36.0 unit='%'.
+
+  # ── Supporting refs (macro/FX + climate; enable the FX leg + the ENSO analogue contrast) ──────────
+  fred_fx_macro:
+    table: silver_fred_fx
+    metric: brl_usd                # currency picked by driver region: Brazil->brl_usd, Argentina->ars_usd
+    agg: latest
+    period_type: date              # date-windowed: period_start/period_end bind here (unlike PSD)
+    window_granularity: daily
+    keying: >
+      NO commodity/country column. Currency metric from the driver's region: Brazil->brl_usd,
+      Argentina->ars_usd, China->cny_usd. 90d change columns (*_pct_change_90d) are ALREADY percent.
+    native_unit: "local currency per USD"
+    narrate_unit: "local currency per USD"
+    scale: 1
+    coverage_start: 2004           # HARD floor: FX silver starts 2004-12-31; earlier episodes are FX-dark
+    status: mapped_supporting
+    notes: >
+      124 instances. Direction is FRED 'local per USD' (higher = weaker local). 1999 BRL float /
+      2002 ARS collapse are silver-dark; narrate those qualitatively.
+  oni_climate:
+    table: silver_noaa_oni
+    metric: oni_anom               # el_nino_flag | la_nina_flag carry the 0/1 regime marker
+    agg: latest
+    period_type: year_month        # windows via (year*100+month) bounds
+    window_granularity: monthly
+    keying: "NO commodity column (global ENSO state); asof compares (year*100+month) <= asof YM"
+    native_unit: degC
+    narrate_unit: degC
+    scale: 1
+    coverage_start: 1950           # deepest silver history
+    status: mapped_supporting
+    notes: >
+      118 instances. Quantifies ENSO analogues to 1950 (1997/98 vs 2015/16 El Nino contrast). Corpus is
+      structurally thin pre-2000 for ENSO evidence -- silver is deep but the anchor may be absent;
+      degrade to qualitative.
+
+  # ── DEFERRED (uncertified/empty at the 2026-06-24 certification; un-defer gate = a live W0 probe) ──
+  esr_exports:
+    table: silver_esr
+    metric: weekly_exports_mt
+    deferred: true
+    period_type: date
+    notes: >
+      US weekly export-pace (the fresh 'rhyme' leg). DEFERRED: 0 rows in pg + uncertified (4 warnings).
+      Un-defer ONLY after Phase-D repairs + certifies ESR and the W0 live probe shows rows.
+  weather_z:
+    table: silver_nasa_power
+    metric: drought_z
+    deferred: true
+    period_type: date
+    notes: >
+      Weather z-scores (drought/heat/precip). DEFERRED to Phase D: nasa_power is not in the pg mirror;
+      the gold z-table (transform-upstream doctrine) lands first, then this row un-defers.
