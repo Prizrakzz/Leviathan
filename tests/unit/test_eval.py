@@ -311,10 +311,10 @@ def test_baseline_json_carries_mood_and_scaffold():
 
 # ── P9-AB: the v4 per-query cascade assertion engine + qfn wiring + judge merge ──────────────────────
 def _num_cit(i, metric="exports_mt", period="MY2010", asof="2010-09-01", value="3.9",
-             commodity="soft_red_winter_wheat_cbot", release="2010-08-15"):
+             commodity="soft_red_winter_wheat_cbot", release="2010-08-15", country="Russia"):
     return {"id": f"N{i}", "kind": "number", "value": value, "unit": "MMT",
             "locator": {"kind": "number", "table": "silver_psd", "metric": metric, "commodity": commodity,
-                        "country": "Russia", "period": period, "asof": asof},
+                        "country": country, "period": period, "asof": asof},
             "payload": {"query": {}, "rows": [{"value": value, "_provenance": {"release_date": release}}]}}
 
 
@@ -369,6 +369,68 @@ def test_pit_clean_my_label_uses_covering_my_not_window_end():
     assert not gev._pit_clean(win_leak, asof)                       # date-window end rule still applies
     prov_leak = _out_with([_num_cit(1, period="MY2011", asof="2011-06-01", release="2011-06-15")])
     assert not gev._pit_clean(prov_leak, asof)                      # published after the leg's own asof
+
+
+def _reroute_pair(**kw):
+    base = {"contract": "soft_red_winter_wheat_cbot", "metric": "exports_mt", "countryA": "Russia",
+            "dA": -14.573, "countryB": "United States", "dB": 11.216, "window": "MY2009-MY2010",
+            "reroute": True}
+    base.update(kw)
+    return base
+
+
+def test_cascade_stats_counts_reroute_pairs():
+    out = _out_with([])
+    assert gev._cascade_stats(out)["reroute_pairs"] == 0             # absent key -> 0, never a KeyError
+    out["trace"]["quantify_reroute"] = [_reroute_pair()]
+    assert gev._cascade_stats(out)["reroute_pairs"] == 1
+
+
+def test_cascade_asserts_reroute_matrix_and_fork_guard_widening():
+    # RF-5: heading rendered + a FIRED reroute pair + divergence_nodes == 0 -- the WIDENED fork guard must
+    # PASS (pre-widening this exact shape scored as a hallucinated fork: rr_r3 3c).
+    q = {"contract": "soft_red_winter_wheat_cbot", "asof": "2026-06-15",
+         "expect": {"reroute_fired": True, "opposite_country_legs": True, "two_countries_cited": 2,
+                    "fork": True}}
+    cits = [_num_cit(1, metric="exports_mt_delta", value="-14.573", country="Russia"),
+            _num_cit(2, metric="exports_mt_delta", value="11.216", country="United States")]
+    mech = "## Mechanism\nx [N1][N2]\n## Where the record disagrees\nRussia fell; the US picked it up"
+    out = _out_with(cits, mech=mech)                                 # quantify trace: divergence stays False
+    out["trace"]["quantify_reroute"] = [_reroute_pair()]
+    res = gev._cascade_asserts(q, out)
+    assert res == {"reroute_fired": True, "opposite_country_legs": True, "two_countries_cited": True,
+                   "fork": True}
+
+
+def test_cascade_asserts_reroute_same_sign_negative_cases():
+    # a same-sign pair records NOTHING -> reroute_fired False passes; both-negative legs are NOT
+    # opposite; a single-country citation set fails the two_countries_cited canary.
+    q = {"contract": "soybeans_cbot", "asof": "2026-06-15",
+         "expect": {"reroute_fired": False, "opposite_country_legs": False, "two_countries_cited": 2,
+                    "fork": False}}
+    cits = [_num_cit(1, metric="exports_mt_delta", value="-10.35", country="United States"),
+            _num_cit(2, metric="exports_mt_delta", value="-1.249", country="United States")]
+    res = gev._cascade_asserts(q, _out_with(cits))
+    assert res == {"reroute_fired": True, "opposite_country_legs": True, "two_countries_cited": False,
+                   "fork": True}
+
+
+def test_opposite_country_legs_requires_two_distinct_countries_on_delta_rows():
+    q = {"contract": "c", "asof": "2026-06-15", "expect": {"opposite_country_legs": True}}
+    cits = [_num_cit(1, metric="exports_mt_delta", value="4.0", country="Russia"),
+            _num_cit(2, metric="exports_mt_delta", value="-2.0", country="Russia")]
+    assert gev._cascade_asserts(q, _out_with(cits)) == {"opposite_country_legs": False}   # one country
+    cits = [_num_cit(1, metric="exports_mt", value="4.0", country="Russia"),
+            _num_cit(2, metric="exports_mt", value="-2.0", country="United States")]
+    assert gev._cascade_asserts(q, _out_with(cits)) == {"opposite_country_legs": False}   # levels, not deltas
+
+
+def test_fork_heading_with_reroute_but_want_false_fails():
+    # the widened guard is still two-sided: a query pinned fork:false FAILS when a reroute fires.
+    q = {"contract": "c", "asof": "2026-06-15", "expect": {"fork": False}}
+    out = _out_with([_num_cit(1)])
+    out["trace"]["quantify_reroute"] = [_reroute_pair()]
+    assert gev._cascade_asserts(q, out) == {"fork": False}
 
 
 def test_su_prescaled_levels_only():

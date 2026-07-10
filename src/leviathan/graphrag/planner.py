@@ -185,8 +185,11 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
 def _prior(graph: gph.CausalGraph, n: GroundedNode) -> dict:
     if n.kind == "driver":
         d = graph.driver(n.contract, n.id)
+        # region rides along (RF-2): cascade._scope resolves country_rule=region legs from it; dropping it
+        # here silently resolved every foreign-region driver to the contract's primary country (F1).
         return {"sign": d.sign, "lag": d.lag, "mechanism": d.mechanism, "confidence": d.confidence,
-                "target_metric": d.target_metric, "silver_ref": d.silver_ref, "silver_status": d.silver_status}
+                "target_metric": d.target_metric, "silver_ref": d.silver_ref, "silver_status": d.silver_status,
+                "region": d.region}
     c = graph.contracts[n.contract]
     return {"target_metrics": list(c.target_metrics), "via_edge": n.via_edge}
 

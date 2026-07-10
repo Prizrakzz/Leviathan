@@ -20,7 +20,9 @@ refs:
     agg: latest
     period_type: marketing_year
     window_granularity: marketing-year
-    keying: "commodity=contract slug; country=driver region primary (Title-Case for PSD)"
+    country_rule: region           # RF-2: the DRIVER's region token via region_map; unresolved token -> the
+    #                                node stays qualitative (never primary-fallback, never country=None)
+    keying: "commodity=contract slug; country=driver region via region_map (Title-Case for PSD)"
     native_unit: MT
     narrate_unit: MMT
     scale: 0.000001                # 2,462,000 MT -> 2.46 MMT
@@ -36,7 +38,8 @@ refs:
     agg: latest
     period_type: marketing_year
     window_granularity: marketing-year
-    keying: "commodity=contract slug; country=importing region (e.g. China)"
+    country_rule: region           # RF-2: implements the row's keying intent (was unimplemented -> primary)
+    keying: "commodity=contract slug; country=importing region via region_map (e.g. China)"
     native_unit: MT
     narrate_unit: MMT
     scale: 0.000001
@@ -133,12 +136,15 @@ refs:
   # ── Supporting refs (macro/FX + climate; enable the FX leg + the ENSO analogue contrast) ──────────
   fred_fx_macro:
     table: silver_fred_fx
-    metric: brl_usd                # currency picked by driver region: Brazil->brl_usd, Argentina->ars_usd
+    metric: brl_usd                # DEFAULT only; country_rule=region swaps it to the region's <currency>_usd
     agg: latest
     period_type: date              # date-windowed: period_start/period_end bind here (unlike PSD)
     window_granularity: daily
+    country_rule: region           # RF-2: region currency picks the metric (was hardcoded brl_usd -- the
+    #                                ars_usd fold-forward); region w/o a currency column -> qualitative.
+    #                                Table has no country column, so country stays null either way.
     keying: >
-      NO commodity/country column. Currency metric from the driver's region: Brazil->brl_usd,
+      NO commodity/country column. Currency metric from the driver's region via region_map: Brazil->brl_usd,
       Argentina->ars_usd, China->cny_usd. 90d change columns (*_pct_change_90d) are ALREADY percent.
     native_unit: "local currency per USD"
     narrate_unit: "local currency per USD"
@@ -182,3 +188,96 @@ refs:
     notes: >
       Weather z-scores (drought/heat/precip). DEFERRED to Phase D: nasa_power is not in the pg mirror;
       the gold z-table (transform-upstream doctrine) lands first, then this row un-defers.
+
+# ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
+# TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).
+# resolve: EXACT region tokens (as written in configs/graphrag/causal/*.yaml) that name ONE country.
+#   country = the silver_psd surface form (Title-Case, W0/RF-0 convention: 'United States', 'South Africa').
+#   currency = silver_fred_fx column prefix (<currency>_usd must be a REAL column -- lint-enforced). Only
+#   brl/ars/cny exist in silver_fred_fx; EU maps to no currency because there is NO eur_usd column, so EU
+#   fx legs stay qualitative rather than narrate the wrong pair.
+# unresolved: compound/prose/vague tokens that CANNOT honestly resolve to one country -- the node skips to
+#   qualitative (rrv1 2c: primary-fallback stamps the wrong country's numbers; country=null on a PSD trade
+#   ref mixes ~150 countries). Splitting compounds (China/US) by metric axis is RF-3 pairing work, not this
+#   map. config_check errors on any region token on a region-ruled driver that appears in NEITHER list.
+region_map:
+  resolve:
+    US:                    {country: "United States"}
+    USA:                   {country: "United States"}
+    "US import":           {country: "United States"}
+    Russia:                {country: "Russia"}
+    Ukraine:               {country: "Ukraine"}
+    China:                 {country: "China", currency: cny}
+    "China (import side)": {country: "China", currency: cny}
+    "China (FX)":          {country: "China", currency: cny}
+    India:                 {country: "India"}
+    "India (import side)": {country: "India"}
+    Brazil:                {country: "Brazil", currency: brl}
+    "Brazil / FX":         {country: "Brazil", currency: brl}
+    Argentina:             {country: "Argentina", currency: ars}
+    EU:                    {country: "European Union"}
+    Eurozone:              {country: "European Union"}
+    Indonesia:             {country: "Indonesia"}
+    Malaysia:              {country: "Malaysia"}
+    "Malaysia (FX)":       {country: "Malaysia"}
+    Vietnam:               {country: "Vietnam"}
+    Thailand:              {country: "Thailand"}
+    Canada:                {country: "Canada"}
+    South_Africa:          {country: "South Africa"}
+    "Cote d'Ivoire":       {country: "Cote d'Ivoire"}
+  unresolved:
+    # export drivers
+    - Russia_Ukraine
+    - Global
+    - Black_Sea_EU
+    - Black_Sea
+    - "Black Sea"
+    - "Cote d'Ivoire, Ghana"
+    - "Ghana, Cote d'Ivoire"
+    - "Argentina;Ukraine"
+    - "Indonesia, Malaysia"
+    - "Malaysia, Indonesia"
+    - "India/Vietnam"
+    - "Brazil (Santos), Colombia, Vietnam"
+    - "Producer countries"
+    - "Brazil (Santos, Vit\xF3ria)"
+    - "Brazil;Santos;Paranagua"
+    - "Brazil;Argentina"
+    - "India / others"
+    - "EU;Ukraine;Black_Sea"
+    - "Vietnam, Brazil"
+    - "South_Africa;SADC;Zimbabwe;Kenya"
+    - "Zimbabwe;Zambia;Mozambique;Malawi"
+    - "South_Africa;SADC"
+    - "Zambia;Tanzania;Zimbabwe"
+    - Southern_Africa_SADC
+    - "Indonesia/Argentina"
+    # import drivers (the China/US compounds are the RF-3 reroute signal, split there -- never here)
+    - "China/US"
+    - "US/China"
+    - "China / US"
+    - "US / China"
+    - "China;Mexico;US"
+    - "US;Global"
+    - "US / Brazil-Colombia"
+    - "US / Brazil"
+    - "China;Brazil"
+    - "EU;Ukraine"
+    - "EU;Spain;Netherlands"
+    - "US/Global"
+    - "US / EU"
+    - "China/Canada"
+    - "Canada/Australia/China"
+    - "Philippines/EU/Indonesia"
+    - "Indonesia/Philippines"
+    - "South_Africa;US;Argentina"
+    - "South_Africa;US"
+    - "China/US/Canada"
+    - "MENA / West Africa / SE Asia"
+    # fred_fx drivers
+    - global
+    - "Global / FX"
+    - "Global;US"
+    - "EU;Global"
+    - "India / Pakistan"
+    - "India/Thailand/Vietnam"

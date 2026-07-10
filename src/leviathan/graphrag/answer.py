@@ -282,7 +282,10 @@ _SYSTEM_CASCADE = (
     "Lay the cascade as a DATED sequence from the [E] evidence handles and attach the [N] number to the "
     "quantified leg. Put the observed levels and deltas under '## The record'. If the block carries a line "
     "beginning 'DIVERGENCE', the two eras disagree in the record: render '## Where the record disagrees' and "
-    "show BOTH eras' numbers side by side, never blended; if there is NO DIVERGENCE line, do NOT invent a fork. "
+    "show BOTH eras' numbers side by side, never blended. If the block carries a line beginning 'REROUTE', the "
+    "flow moved between countries over one shared window: render '## Where the record disagrees' and show BOTH "
+    "legs' numbers side by side labeled BY COUNTRY (never by era); the flow rerouted -- do not blend the two "
+    "countries into one figure. If there is NO DIVERGENCE line and NO REROUTE line, do NOT invent a fork. "
     "If a leg reads 'not yet in effect as of <asof>' or '(record silent for that era)', narrate that ABSENCE "
     "honestly; never fabricate a value for it.\n")
 
@@ -595,12 +598,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         from leviathan.graphrag.numbers import cascade as cq
         extra_number_calls = list(extra_number_calls or [])       # rebind ONCE: None -> [], hybrid list -> copy
         try:                                                      # GRACEFUL (R6): a raise here must NEVER 500
-            _cblock, _quant_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof, near=near,
-                                                extra_number_calls=extra_number_calls)
+            _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
+                                                                near=near,
+                                                                extra_number_calls=extra_number_calls)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]
             if _quant_trace:
                 sg.trace["quantify"] = _quant_trace
+            if _reroute_trace:                                    # RF-4: FIRED cross-country pairs only
+                sg.trace["quantify_reroute"] = _reroute_trace
         except Exception as e:  # noqa: BLE001 -- degrade to the QUALITATIVE mentor answer, never the floor
             import logging
             logging.getLogger(__name__).warning("cascade quantify failed (%s: %s); proceeding qualitative",

@@ -479,12 +479,26 @@ def respond(*args, **kwargs) -> dict:
               f"ms_fill={gm.get('fill')} ms_rest={gm.get('rest')} stripped={stripped}", flush=True)
         # Stage 5.3 R3: emit the same numbers as CloudWatch EMF -> auto-extracted metrics (Leviathan/Serving)
         # feeding the serving dashboard. StripCount ties the primary quality signal (verifier strips) into ops.
+        # RF-6 NOW batch: cascade firing-rate counters off the per-node quantify trace (count metrics only —
+        # no values, no PIT exposure); they price whether reroute polish (Option B visual) is ever worth it.
+        qt = [t for t in (tr.get("quantify") or []) if isinstance(t, dict)]
+        # RF-6 batch 2: reroute counters ride the PAIR-level quantify_reroute trace, which carries FIRED
+        # (opposite-sign) pairs ONLY -- so RerouteFired counts turns with a real cross-country fork, and
+        # MultiCountryTurn counts turns whose FIRED pairs span >=2 countries (not candidacy; no candidate
+        # trace exists by design). These price whether the Option-B bespoke visual is ever worth building.
+        rt = [t for t in (tr.get("quantify_reroute") or []) if isinstance(t, dict)]
+        rt_countries = {c for t in rt for c in (t.get("countryA"), t.get("countryB")) if c}
         from leviathan.graphrag import emf
         emf.emit({"TurnLatencyMs": total, "MsFill": gm.get("fill"), "MsRest": gm.get("rest"),
-                  "StripCount": stripped},
+                  "StripCount": stripped, "CascadeFired": 1 if qt else 0, "CascadeNodes": len(qt),
+                  "DivergenceNodes": sum(1 for t in qt if t.get("divergence")),
+                  "RerouteFired": 1 if rt else 0,
+                  "MultiCountryTurn": 1 if len(rt_countries) >= 2 else 0},
                  dimensions={"intent": res.get("intent"), "model": res.get("model")},
                  units={"TurnLatencyMs": "Milliseconds", "MsFill": "Milliseconds",
-                        "MsRest": "Milliseconds", "StripCount": "Count"})
+                        "MsRest": "Milliseconds", "StripCount": "Count", "CascadeFired": "Count",
+                        "CascadeNodes": "Count", "DivergenceNodes": "Count", "RerouteFired": "Count",
+                        "MultiCountryTurn": "Count"})
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res

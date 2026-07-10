@@ -10,7 +10,9 @@ clustered prop/event dates. Kill switch GRAPHRAG_CASCADE_QUANT (checked at the a
 LEG MODEL (verify round R1/R2): a node's legs are ERA legs (one per derived analogue-era window, each fanning
 >=2 marketing years so a WITHIN-ERA delta exists) plus ONE CURRENT "rhyme" leg (the CURRENT period at the
 SESSION as-of -- never the historical window re-run at a new as-of, which would fetch a vintage revision).
-The DIVERGENCE fork is CROSS-ERA within one node; cross-NODE forks are a Phase-C extension.
+The DIVERGENCE fork is CROSS-ERA within one node; the REROUTE fork (RF-3/RF-4) is CROSS-COUNTRY within one
+contract: two trade legs over ONE shared anchor window whose within-era deltas OPPOSE (Russia exports down,
+US exports up -- the flow found a new door).
 """
 from __future__ import annotations
 
@@ -40,6 +42,19 @@ def load_map() -> dict:
 def map_row(silver_ref: str) -> dict | None:
     """The map row for a driver's silver_ref, or None (-> the hop stays qualitative)."""
     return load_map().get(silver_ref or "")
+
+
+@functools.lru_cache(maxsize=1)
+def load_region_map() -> dict:
+    """The cascade_map.yaml TOP-LEVEL `region_map` block: {"resolve": {token: {country, currency}},
+    "unresolved": [token, ...]}. Needs its OWN accessor -- load_map() returns the refs block only (rrv1 2b),
+    so the region resolver and the config lint cannot piggyback it."""
+    import yaml
+
+    from leviathan.graphrag import extract as ex
+    p = ex._CFG / "numbers" / "cascade_map.yaml"
+    doc = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
+    return (doc or {}).get("region_map") or {}
 
 
 # ── marketing-year boundaries (P8: a naive int(date[:4]) picks the WRONG MY for an Aug wheat event) ──
@@ -174,7 +189,11 @@ def _select_nodes(sg, graph) -> list:
         return []
     seen, out = set(), []
     for n in nodes:
-        key = (getattr(n, "contract", None), getattr(n, "node", None) or getattr(n, "driver", None))
+        # id FIRST: the production GroundedNode has .id and NEITHER .node nor .driver (F0/RF-1 -- keying on
+        # the absent attrs collapsed every prod node to (contract, None); the depth-0 contract seed claimed
+        # the slot and evicted every driver, so the cascade was entirely dark on real topology).
+        key = (getattr(n, "contract", None),
+               getattr(n, "id", None) or getattr(n, "node", None) or getattr(n, "driver", None))
         if key in seen:
             continue
         seen.add(key)
@@ -227,21 +246,68 @@ def _plus_days(iso: str, days: int) -> str:
 PSD_SLUG_ALIAS = {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}
 
 
+# _scope's country slot for a region-ruled leg that CANNOT honestly resolve to one table country
+# (compound/prose/missing region token): quantify must SKIP the node whole -- country=None on a PSD trade
+# ref is mixed-country garbage, and falling back to the contract primary stamps the WRONG country's numbers
+# on a foreign-region leg with country=<primary> in the [N] citation (rrv1 2c).
+SKIP_NODE = object()
+
+
+def _region_entry(n) -> dict | None:
+    """region_map resolve entry for the node's driver region token; None = unresolvable (compound/prose/
+    missing). Exact-token match only -- splitting compounds is RF-3 pairing work, never a resolver guess."""
+    try:
+        tok = ((getattr(n, "prior", None) or {}).get("region") or "").strip()
+    except Exception:  # noqa: BLE001
+        return None
+    if not tok:
+        return None
+    return (load_region_map().get("resolve") or {}).get(tok)
+
+
+def _primary_title(commodity) -> str | None:
+    """The contract's primary balance-sheet country in the TABLE surface form ('united_states' ->
+    'United States'); None when no geography primary exists (callers degrade, never guess)."""
+    try:
+        from leviathan.graphrag import silverleg as slv
+        country = slv._primary_country(commodity)
+        return country.replace("_", " ").title() if country else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _region_row(n, row) -> dict:
+    """fred_fx currency pick (RF-2): a country_rule=region row on silver_fred_fx swaps its metric to the
+    resolved region's '<currency>_usd' (the ars_usd/brl_usd fold-forward fix). Every other row passes
+    through unchanged. A resolved region WITHOUT a currency never reaches here (SKIP_NODE in _scope)."""
+    if (row or {}).get("country_rule") != "region" or (row or {}).get("table") != "silver_fred_fx":
+        return row
+    cur = (_region_entry(n) or {}).get("currency")
+    return {**row, "metric": f"{cur}_usd"} if cur else row
+
+
 def _scope(n, row) -> tuple:
     """commodity = the node's contract (aliased to the silver slug where they differ); country per the
     map row's country_rule, in the TABLE's surface form — silver_psd stores 'United States' while geo
-    gives 'united_states' (the silverleg precedent; both mismatches W0-caught: every PSD leg died)."""
+    gives 'united_states' (the silverleg precedent; both mismatches W0-caught: every PSD leg died).
+    country_rule: none -> no country; primary -> the contract's primary country (default); region -> the
+    DRIVER's own region token via region_map (F1/RF-2 -- primary quantified the US series under a
+    Russia/China leg), with SKIP_NODE when the token does not resolve. silver_fred_fx has no country
+    column: a resolved region needs a currency (metric pick, _region_row) or the leg is not honest."""
     commodity = getattr(n, "contract", None)
     commodity = PSD_SLUG_ALIAS.get(commodity, commodity)
     rule = (row or {}).get("country_rule", "primary")
     if rule == "none":
         return commodity, None
-    try:
-        from leviathan.graphrag import silverleg as slv
-        country = slv._primary_country(commodity)
-        return commodity, (country.replace("_", " ").title() if country else None)
-    except Exception:  # noqa: BLE001
-        return commodity, None
+    if rule == "region":
+        entry = _region_entry(n)
+        if not entry:
+            return commodity, SKIP_NODE
+        if (row or {}).get("table") == "silver_fred_fx":
+            return commodity, (None if entry.get("currency") else SKIP_NODE)
+        country = entry.get("country")
+        return commodity, (country if country else SKIP_NODE)
+    return commodity, _primary_title(commodity)
 
 
 def _node_specs(n, row, commodity, country, eras, asof) -> list[dict]:
@@ -249,7 +315,10 @@ def _node_specs(n, row, commodity, country, eras, asof) -> list[dict]:
     plus ONE CURRENT rhyme spec (R1: the CURRENT period at the SESSION asof, never the era window re-run)."""
     if not commodity:
         return []
-    base = {"node_key": (commodity, getattr(n, "node", None) or getattr(n, "driver", None)),
+    # id FIRST (RF-1, same re-key as _select_nodes): the group/spec key must be distinct per driver or
+    # _group_by_node interleaves drivers' MYs and _era_delta computes cross-driver garbage.
+    base = {"node_key": (commodity,
+                         getattr(n, "id", None) or getattr(n, "node", None) or getattr(n, "driver", None)),
             "table": row["table"], "metric": row["metric"], "commodity": commodity, "country": country,
             "period_type": row.get("period_type", "date")}
     specs: list[dict] = []
@@ -289,13 +358,110 @@ def _run_one(qfn, spec: dict) -> dict:
     return rec
 
 
+# ── RF-3: cross-country pairing + the synthesized beneficiary leg ───────────────────────────────────
+_TRADE_METRICS = {"exports_mt", "imports_mt"}
+
+
+def _pairable(g: dict) -> bool:
+    """A group can seed a reroute pair only on a PSD trade metric with ONE resolved country string
+    (fx/oni legs carry country=None -- nothing to diverge on)."""
+    return (g["row"].get("metric") in _TRADE_METRICS
+            and isinstance(g.get("country"), str) and bool(g["country"]))
+
+
+def _family_pair(ma, mb) -> bool:
+    """export-vs-export (one flow, two doors) or the export+import complement (supply leaving one door,
+    arriving at another); import-vs-import is not a reroute shape."""
+    return (ma == mb == "exports_mt") or ({ma, mb} == {"exports_mt", "imports_mt"})
+
+
+def _shared_eras(ga: dict, gb: dict) -> list:
+    """(era_idx_a, era_idx_b, my_span) matches where both groups' era windows cover the IDENTICAL MY span:
+    the sign compare is only honest over ONE shared anchor window (never two independently derived eras)."""
+    out = []
+    for ia, wa in enumerate(ga.get("eras") or []):
+        sa = _my_span(wa, ga["commodity"])
+        if not sa:
+            continue
+        for ib, wb in enumerate(gb.get("eras") or []):
+            if sa == _my_span(wb, gb["commodity"]):
+                out.append((ia, ib, sa))
+                break
+    return out
+
+
+def _beneficiary(g: dict) -> dict | None:
+    """The synthesized BENEFICIARY leg for a foreign-country SHOCK: the contract PRIMARY country fetched
+    over the SHOCK node's own era windows (the (country, anchor-window) fetch -- 2-3 era specs, never a
+    full node with its own current leg). node_key = (commodity, n.id, country) MUST differ from the
+    shock's 2-tuple key (rrv1 3c): a shared key would interleave the two countries' rows in
+    _group_by_node and _era_delta would compute mixed-country garbage. None when the shock already
+    resolves to the primary, or no primary exists."""
+    primary = _primary_title(g["commodity"])
+    if not primary or primary == g["country"]:
+        return None
+    n = g["node"]
+    nid = getattr(n, "id", None) or getattr(n, "node", None) or getattr(n, "driver", None)
+    bkey = (g["commodity"], nid, primary)
+    specs = [{**s, "node_key": bkey}
+             for s in _node_specs(n, g["row"], g["commodity"], primary, g["eras"], None)]
+    if not specs:
+        return None
+    return {"node": n, "row": g["row"], "specs": specs, "key": bkey, "commodity": g["commodity"],
+            "contract": g["contract"], "country": primary, "eras": g["eras"]}
+
+
+def _pair_entry(ga: dict, gb: dict, eras: list) -> dict:
+    return {"a_key": ga["key"], "b_key": gb["key"], "contract": ga["contract"],
+            "countryA": ga["country"], "countryB": gb["country"],
+            "metricA": ga["row"].get("metric"), "metricB": gb["row"].get("metric"),
+            "row": ga["row"], "eras": eras}
+
+
+def _pair_units(groups: list) -> tuple:
+    """(cap_units, candidate_pairs). NATURAL pairs: two grounded trade groups on one contract slug with
+    DIFFERENT resolved countries, a reroute metric family, and >=1 shared-MY-span era -- paired as-is, no
+    synthesis. A lone foreign-country shock synthesizes the primary-country beneficiary (_beneficiary),
+    which travels INSIDE the shock's cap unit so the cap keeps both or drops both (pair-atomic: a shock
+    kept without its beneficiary could never fire and its specs would be spent for nothing)."""
+    pairs, paired = [], set()
+    for i, ga in enumerate(groups):
+        if not _pairable(ga):
+            continue
+        for gb in groups[i + 1:]:
+            if (not _pairable(gb) or gb["commodity"] != ga["commodity"]
+                    or gb["country"] == ga["country"]
+                    or not _family_pair(ga["row"].get("metric"), gb["row"].get("metric"))):
+                continue
+            eras = _shared_eras(ga, gb)
+            if not eras:
+                continue
+            pairs.append(_pair_entry(ga, gb, eras))
+            paired.update((id(ga), id(gb)))
+    units = []
+    for g in groups:
+        unit = [g]
+        if _pairable(g) and id(g) not in paired:
+            ben = _beneficiary(g)
+            if ben is not None:
+                unit.append(ben)
+                # beneficiary eras ARE the shock's eras: idx aligns 1:1 by construction
+                ben_eras = [(i, i, sp) for i, w in enumerate(g["eras"])
+                            for sp in [_my_span(w, g["commodity"])] if sp]
+                pairs.append(_pair_entry(g, ben, ben_eras))
+        units.append(unit)
+    return units, pairs
+
+
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
 def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
-    per-node leg GROUPS (era legs + a current rhyme leg), cap on WHOLE NODES, fan the specs concurrently
-    over the pg pool, PRE-SCALE + inject citable [N] rows (continuing the N-count), compute CROSS-ERA
-    deltas + the divergence flag, and return (prompt_block, trace_list). extra_number_calls is appended
-    IN PLACE. Never raises (R6 -- the seam also belts it)."""
+    per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
+    natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
+    UNITS, fan the specs concurrently over the pg pool, PRE-SCALE + inject citable [N] rows (continuing
+    the N-count), compute CROSS-ERA deltas + the divergence flag + the cross-country REROUTE (RF-4), and
+    return (prompt_block, trace_list, reroute_trace). extra_number_calls is appended IN PLACE.
+    Never raises (R6 -- the seam also belts it)."""
     groups = []
     for n in _select_nodes(sg, graph):
         row = map_row(_silver_ref(n))
@@ -305,18 +471,29 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list) -> tuple:
         if not eras:
             continue
         commodity, country = _scope(n, row)
+        if country is SKIP_NODE:
+            continue                                              # unresolved region leg -> stays qualitative
+        row = _region_row(n, row)                                 # fred_fx: region currency picks the metric
         specs = _node_specs(n, row, commodity, country, eras, asof)
         if specs:
-            groups.append({"node": n, "row": row, "specs": specs})
+            groups.append({"node": n, "row": row, "specs": specs, "key": specs[0]["node_key"],
+                           "commodity": commodity, "contract": getattr(n, "contract", None),
+                           "country": country, "eras": eras})
     if not groups:
-        return None, []
+        return None, [], []
+    units, pairs = _pair_units(groups)
     # CAP ON WHOLE NODES (P7/F5): a node never loses a leg to truncation; drop trailing nodes whole.
+    # A unit = one node OR a shock+beneficiary pair (RF-3, ATOMIC): keep both or drop both -- a shock kept
+    # without its beneficiary can never fire the reroute.
     kept, used = [], 0
-    for g in groups:
-        if used + len(g["specs"]) > CASCADE_CAP and kept:
+    for unit in units:
+        cost = sum(len(g["specs"]) for g in unit)
+        if used + cost > CASCADE_CAP and kept:
             break
-        kept.append(g)
-        used += len(g["specs"])
+        kept.extend(unit)
+        used += cost
+    kept_keys = {g["key"] for g in kept}
+    pairs = [p for p in pairs if p["a_key"] in kept_keys and p["b_key"] in kept_keys]
     flat = [s for g in kept for s in g["specs"]]
     # ONE wave, executor width = the pg CONNECTION POOL (R5): 12 workers over a 4-conn pool would be
     # ceil(N/4) serial rounds anyway -- width=pool is the honest (and equally fast) shape.
@@ -327,10 +504,12 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list) -> tuple:
     with ThreadPoolExecutor(max_workers=width) as pool:
         records = list(pool.map(lambda s: _run_one(qfn, s), flat))   # order preserved; _run_one never raises
     base = len(extra_number_calls)
-    block_lines, trace = _assemble(records, kept, base, extra_number_calls)
+    block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls)
+    r_lines, r_trace = _reroute(pairs, era_deltas)
+    block_lines = block_lines + r_lines
     block = ("OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
              + "\n".join(block_lines)) if block_lines else None
-    return block, trace
+    return block, trace, r_trace
 
 
 # ── fork engine + ratio normalizer (B-S4) ────────────────────────────────────────────────────────────
@@ -484,8 +663,11 @@ def _fmt_absence(rec: dict) -> str:
 def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
     """Pre-scale + inject endpoint/delta/%-change [N] rows (continue-count), compute per-node CROSS-ERA
     deltas, set the divergence flag on opposite signs, render block lines + trace. Appends to `calls`
-    IN PLACE; synthetic delta rows are free (they do not count against CASCADE_CAP)."""
+    IN PLACE; synthetic delta rows are free (they do not count against CASCADE_CAP). Returns
+    (lines, trace, era_deltas_by_key) -- deltas keyed {node_key: {era_idx: delta}} feed the RF-4 reroute
+    pass (one caller: quantify)."""
     lines, trace = [], []
+    deltas_by_key: dict = {}
     by_node = _group_by_node(records, kept)
     n = base
     for key, grp in by_node.items():
@@ -526,4 +708,34 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
         trace.append({"node_key": list(key) if isinstance(key, tuple) else key, "metric": row.get("metric"),
                       "era_statuses": {i: [r.get("status") for r in recs] for i, recs in eras.items()},
                       "current_status": (cur or {}).get("status"), "divergence": div})
+        deltas_by_key[key] = era_deltas
+    return lines, trace, deltas_by_key
+
+
+def _reroute(pairs: list, deltas_by_key: dict) -> tuple:
+    """RF-4: the cross-country fork. For each candidate pair, compare the two legs' within-era deltas
+    over each SHARED anchor window; fire IFF both deltas exist and their signs OPPOSE. A leg whose era
+    rows did not resolve (the probe-pinned foreign vintage lag: not_known until the next PSD release;
+    record_silent; <2 ok rows) has NO delta -> the pair DECLINES -- honest absence, never a guessed fork.
+    FIRED pairs only reach the trace: a same-sign pair records NOTHING (a recorded candidate would
+    legitimize a hallucinated heading at the eval fork gate). Both legs' delta rows are already injected
+    via _delta_call by _assemble (the beneficiary is a full kept group), so both narrated magnitudes
+    value-check against the all-numbers guard."""
+    lines, trace = [], []
+    for p in pairs:
+        da_by = deltas_by_key.get(p["a_key"]) or {}
+        db_by = deltas_by_key.get(p["b_key"]) or {}
+        metric = p["metricA"] if p["metricA"] == p["metricB"] else f"{p['metricA']}/{p['metricB']}"
+        unit = p["row"].get("narrate_unit") or ""
+        for ia, ib, span in p["eras"]:
+            da, db = da_by.get(ia), db_by.get(ib)
+            if da is None or db is None or _sign(da) == 0 or _sign(db) == 0 or _sign(da) == _sign(db):
+                continue
+            window = f"MY{span[0]}-MY{span[-1]}"
+            lines.append(f"REROUTE on {metric}: {p['countryA']} {da:+g} vs {p['countryB']} {db:+g} "
+                         f"({unit}) over {window} -- render '## Where the record disagrees' and show "
+                         f"BOTH legs BY COUNTRY; the flow rerouted, do not blend.")
+            trace.append({"contract": p["contract"], "metric": metric, "countryA": p["countryA"],
+                          "dA": da, "countryB": p["countryB"], "dB": db, "window": window,
+                          "reroute": True})
     return lines, trace

@@ -2,7 +2,8 @@
 Covers: per-leg PIT pinning (era asof=window_end, current=session asof), the R3 forward-guidance clamp,
 graceful degradation (error status, never raises), the marketing-year boundary helper (P8), the ratio
 pre-scale normalizer + string-value float-cast (R9), the cross-era fork engine (R2), whole-node capping
-(P7/F5), in-place [N] injection with continued count, the deferred-row loader, and the map lint."""
+(P7/F5), in-place [N] injection with continued count, the deferred-row loader, the map lint, and the
+cross-country reroute (RF-3 pairing/beneficiary + pair-atomic cap, RF-4 firing/decline, probe-shaped)."""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -10,13 +11,15 @@ from types import SimpleNamespace
 from leviathan.graphrag.numbers import cascade as cq
 
 
-def _node(contract="wheat", ref="export", dates=None, event_dates=None):
+def _node(contract="wheat", ref="export", dates=None, event_dates=None, region="US", nid=None):
     ev = []
     for i, d in enumerate(dates or []):
         ev.append({"date": d, "source": "usda_gain", "source_key": f"k{i}", "text": "t",
                    "event_date": (event_dates or {}).get(i)})
-    return SimpleNamespace(contract=contract, node=f"drivers/{ref}", driver=ref,
-                          prior={"silver_ref": ref}, evidence=ev)
+    # id-based, like the REAL planner.GroundedNode (RF-1). The old stub fabricated node=/driver= attrs the
+    # production object never had -- the masking class that let F0 ship (every prod node keyed (contract,None)).
+    return SimpleNamespace(contract=contract, id=nid or ref, prior={"silver_ref": ref, "region": region},
+                           evidence=ev)
 
 
 def _sg(nodes):
@@ -162,8 +165,8 @@ def test_quantify_caps_whole_nodes_and_injects_in_place(monkeypatch):
     nodes = [_node(contract=c, ref="export", dates=["2010-08-05", "2010-11-20"])
              for c in ("wheat", "corn", "soybeans")]
     extra = [{"query": {"metric": "pre"}, "rows": [{"value": "1"}]}]  # pre-existing hybrid call
-    block, trace = cq.quantify(_sg(nodes), None, qfn=qfn, asof="2011-06-01", near="2010",
-                               extra_number_calls=extra)
+    block, trace, _rt = cq.quantify(_sg(nodes), None, qfn=qfn, asof="2011-06-01", near="2010",
+                                    extra_number_calls=extra)
     assert block and block.startswith("OBSERVED CASCADE NUMBERS")
     assert len(extra) > 1                                            # appended IN PLACE
     assert "[N2]" in block and "[N1]" not in block                   # N-count CONTINUES past the base call
@@ -173,16 +176,205 @@ def test_quantify_caps_whole_nodes_and_injects_in_place(monkeypatch):
 
 def test_quantify_unmapped_ref_stays_qualitative():
     n = _node(ref="no_such_ref", dates=["2010-08-05"])
-    block, trace = cq.quantify(_sg([n]), None, qfn=lambda s: [], asof="2011-06-01", near=None,
-                               extra_number_calls=[])
-    assert block is None and trace == []
+    block, trace, rtrace = cq.quantify(_sg([n]), None, qfn=lambda s: [], asof="2011-06-01", near=None,
+                                       extra_number_calls=[])
+    assert block is None and trace == [] and rtrace == []
 
 
 def test_quantify_never_raises_on_hostile_inputs():
-    bad = SimpleNamespace(contract=None, node=None, driver=None, prior=None, evidence=None)
-    block, trace = cq.quantify(_sg([bad]), None, qfn=lambda s: [], asof="2020-01-01", near=None,
-                               extra_number_calls=[])
+    bad = SimpleNamespace(contract=None, id=None, prior=None, evidence=None)
+    block, trace, _rt = cq.quantify(_sg([bad]), None, qfn=lambda s: [], asof="2020-01-01", near=None,
+                                    extra_number_calls=[])
     assert block is None
+
+
+# ── RF-1: node identity on the REAL production object (the F0 regression) ───────────────────────────
+def test_production_topology_seed_plus_two_drivers_all_survive(monkeypatch):
+    """rrv1 1d MANDATORY shape: REAL planner.GroundedNode objects -- one unmapped depth-0 contract SEED plus
+    TWO mapped export drivers on ONE contract. Pre-RF-1 every prod node keyed (contract, None): the seed
+    claimed the slot first and evicted EVERY driver, so quantify returned (None, []) on every real serving
+    turn (the cascade was entirely dark, not under-covering)."""
+    from leviathan.graphrag import planner as pl
+
+    def _driver(did, region):
+        n = pl.GroundedNode(kind="driver", id=did, contract="wheat", depth=1, relevance=0.9,
+                            prior={"silver_ref": "export", "region": region})
+        n.evidence = [{"date": d, "source": "usda_gain", "source_key": f"{did}{i}", "text": "t"}
+                      for i, d in enumerate(["2010-08-05", "2010-09-10"])]
+        return n
+
+    seed = pl.GroundedNode(kind="contract", id="wheat", contract="wheat", depth=0, relevance=1.0,
+                           prior={"target_metrics": ["price"], "via_edge": None})
+    d1, d2 = _driver("russia_export_tax", "Russia"), _driver("export_pace_lag", "US")
+    sg = pl.Subgraph(seeds=["wheat"], nodes=[seed, d1, d2])
+
+    sel = cq._select_nodes(sg, None)
+    assert len(sel) == 3                                             # the seed no longer evicts the drivers
+    assert len({(n.contract, n.id) for n in sel}) == 3               # three DISTINCT node keys
+
+    seen = []
+
+    def qfn(sql):
+        seen.append(sql)
+        return [{"value": "10", "market_year": 2009}]
+
+    block, trace, _rt = cq.quantify(sg, None, qfn=qfn, asof="2011-06-01", near="2010",
+                                    extra_number_calls=[])
+    node_ids = {t["node_key"][1] for t in trace}
+    assert node_ids == {"russia_export_tax", "export_pace_lag"}      # specs for BOTH drivers, none for the seed
+    assert block and block.startswith("OBSERVED CASCADE NUMBERS")
+    # RF-2 rides the same topology: each driver leg queries ITS OWN region's country, not the primary
+    assert any("Russia" in s for s in seen) and any("United States" in s for s in seen)
+
+
+# ── RF-2: region -> country resolution matrix ────────────────────────────────────────────────────────
+def test_scope_region_rule_resolves_clean_tokens():
+    row = {"table": "silver_psd", "country_rule": "region"}
+    assert cq._scope(_node(ref="export", region="Russia"), row) == ("wheat", "Russia")
+    assert cq._scope(_node(ref="export", region="US"), row) == ("wheat", "United States")
+
+
+def test_scope_region_rule_compound_and_missing_skip():
+    # compounds/prose NEVER resolve and NEVER fall back to primary (rrv1 2c: primary-fallback stamps the
+    # wrong country's numbers with country=<primary> in the [N] citation); missing region = the same skip.
+    row = {"table": "silver_psd", "country_rule": "region"}
+    for region in ("Russia_Ukraine", "Global", None):
+        _c, country = cq._scope(_node(ref="export", region=region), row)
+        assert country is cq.SKIP_NODE
+
+
+def test_quantify_skips_unresolved_region_node_entirely():
+    n = _node(ref="export", dates=["2010-08-05", "2010-09-10"], region="Russia_Ukraine")
+
+    def qfn(sql):  # noqa: ARG001
+        raise AssertionError("no SQL may fire for an unresolved region leg")
+
+    block, trace, rtrace = cq.quantify(_sg([n]), None, qfn=qfn, asof="2011-06-01", near=None,
+                                       extra_number_calls=[])
+    assert block is None and trace == [] and rtrace == []            # qualitative, never mixed/mislabeled
+
+
+def test_scope_primary_and_none_rules_unchanged(monkeypatch):
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
+    n = _node(ref="production", region="Australia")                  # region present but the rule is primary
+    assert cq._scope(n, {"table": "silver_psd"}) == ("wheat", "United States")
+    assert cq._scope(n, {"table": "silver_psd", "country_rule": "none"}) == ("wheat", None)
+
+
+def test_region_row_fx_currency_pick():
+    # the ars_usd/brl_usd fold-forward fix: the region's currency picks the metric; country stays None
+    # (silver_fred_fx has no country column); a resolved region with NO fx column (Canada) skips honestly.
+    row = cq.load_map()["fred_fx_macro"]
+    ars = _node(contract="soybeans", ref="fred_fx_macro", region="Argentina")
+    assert cq._region_row(ars, row)["metric"] == "ars_usd"
+    assert cq._scope(ars, row) == ("soybeans_cbot", None)
+    brl = _node(contract="soybeans", ref="fred_fx_macro", region="Brazil")
+    assert cq._region_row(brl, row)["metric"] == "brl_usd"
+    _c, country = cq._scope(_node(contract="soybeans", ref="fred_fx_macro", region="Canada"), row)
+    assert country is cq.SKIP_NODE
+
+
+# ── RF-3/RF-4: the cross-country reroute (probe-shaped fixtures; RF-0 verdicts pinned 2026-07-11) ────
+def _psd_qfn(values):
+    """silver_psd stub keyed on the generated SQL's own predicates (country = '<c>', market_year = <my>).
+    An unmatched (metric, country, MY) returns [] -> vintage not_known: the honest-absence path the
+    reroute must respect (the probe-pinned foreign vintage lag)."""
+    def qfn(sql):
+        for (metric, country, my), v in values.items():
+            if metric in sql and f"country = '{country}'" in sql and f"market_year = {my}" in sql:
+                return [{"value": str(v), "market_year": my}]
+        return []
+    return qfn
+
+
+_WHEAT_2010 = {  # RF-0 P2 pinned: Russia collapse vs US pick-up over [MY2009, MY2010] -- OPPOSITE signs
+    ("exports_mt", "Russia", 2009): 18556000, ("exports_mt", "Russia", 2010): 3983000,
+    ("exports_mt", "United States", 2009): 23931000, ("exports_mt", "United States", 2010): 35147000,
+}
+
+_SOY_2018 = {  # RF-0 P2 pinned: US/Brazil exports AND China imports all FELL over [MY2017, MY2018]
+    ("exports_mt", "United States", 2017): 57950000, ("exports_mt", "United States", 2018): 47600000,
+    ("exports_mt", "Brazil", 2017): 76200000, ("exports_mt", "Brazil", 2018): 74951000,
+    ("imports_mt", "China", 2017): 94100000, ("imports_mt", "China", 2018): 82544000,
+}
+
+
+def _primary_us(monkeypatch):
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
+
+
+def test_reroute_wheat_shaped_pair_fires(monkeypatch):
+    """Foreign shock (Russia export collapse) + the SYNTHESIZED US beneficiary leg: opposite signs over
+    the shared MY2009-MY2010 anchor window -> the exact REROUTE line, a pair-level trace entry, and BOTH
+    countries' delta rows injected (value-checkable). The beneficiary node_key encodes the country (rrv1
+    3c) so the two legs' deltas stay pure per-country, never interleaved."""
+    _primary_us(monkeypatch)
+    n = _node(contract="wheat", ref="export", region="Russia", dates=["2010-08-05", "2010-09-10"])
+    extra = []
+    block, trace, rtrace = cq.quantify(_sg([n]), None, qfn=_psd_qfn(_WHEAT_2010), asof="2011-06-01",
+                                       near="2010", extra_number_calls=extra)
+    assert ("REROUTE on exports_mt: Russia -14.573 vs United States +11.216 (MMT) over MY2009-MY2010 "
+            "-- render '## Where the record disagrees' and show BOTH legs BY COUNTRY; "
+            "the flow rerouted, do not blend.") in block
+    assert len(rtrace) == 1
+    t = rtrace[0]
+    assert set(t) == {"contract", "metric", "countryA", "dA", "countryB", "dB", "window", "reroute"}
+    assert t["contract"] == "wheat" and t["metric"] == "exports_mt" and t["reroute"] is True
+    assert t["countryA"] == "Russia" and t["countryB"] == "United States"
+    assert t["window"] == "MY2009-MY2010"
+    assert abs(t["dA"] - (-14.573)) < 1e-9 and abs(t["dB"] - 11.216) < 1e-9   # pure per-country deltas
+    keys = {tuple(t["node_key"]) for t in trace}                     # shock 2-tuple + country-encoded 3-tuple
+    assert keys == {("wheat", "export"), ("wheat", "export", "United States")}
+    deltas = {((c.get("query") or {}).get("country"), c["rows"][0]["value"]) for c in extra
+              if (c.get("query") or {}).get("metric") == "exports_mt_delta"}
+    assert {("Russia", -14.573), ("United States", 11.216)} <= deltas   # both magnitudes value-check
+
+
+def test_reroute_soy_shaped_same_sign_does_not_fire(monkeypatch):
+    """The ENGINE-HONESTY case (probe-pinned): US exports, Brazil exports AND China imports all fell over
+    the shared window -- every candidate pair (export/export + export/import) declines, and same-sign
+    pairs record NOTHING (a recorded candidate would legitimize a hallucinated fork heading)."""
+    _primary_us(monkeypatch)
+    dates = ["2018-07-06", "2018-09-10"]
+    us = _node(contract="soybeans", ref="export", region="US", dates=dates, nid="export_pace_lag")
+    br = _node(contract="soybeans", ref="export", region="Brazil", dates=dates, nid="brazil_export")
+    cn = _node(contract="soybeans", ref="import", region="China", dates=dates, nid="china_soybean_import")
+    block, trace, rtrace = cq.quantify(_sg([us, br, cn]), None, qfn=_psd_qfn(_SOY_2018),
+                                       asof="2019-06-01", near="2018", extra_number_calls=[])
+    assert rtrace == [] and "REROUTE" not in block
+    assert all(len(t["node_key"]) == 2 for t in trace)               # natural pairs: NO synthesized leg
+    assert "-10.35" in block and "-1.249" in block and "-11.556" in block   # probe magnitudes still narrate
+
+
+def test_reroute_not_known_foreign_leg_declines(monkeypatch):
+    """The probe-pinned FOREIGN VINTAGE LAG: at a tight asof the Russia event-MY row is not yet published
+    (not_known) -> one ok row -> no within-era delta on the shock leg -> the reroute DECLINES and records
+    NOTHING, even though the US beneficiary leg resolved a signed delta."""
+    _primary_us(monkeypatch)
+    vals = dict(_WHEAT_2010)
+    del vals[("exports_mt", "Russia", 2010)]                         # unknown until the ~2011-06 release
+    n = _node(contract="wheat", ref="export", region="Russia", dates=["2010-08-05", "2010-09-10"])
+    block, trace, rtrace = cq.quantify(_sg([n]), None, qfn=_psd_qfn(vals), asof="2011-06-01",
+                                       near="2010", extra_number_calls=[])
+    assert rtrace == [] and "REROUTE" not in (block or "")
+    shock = next(t for t in trace if tuple(t["node_key"]) == ("wheat", "export"))
+    assert "not_known" in shock["era_statuses"][0]                   # the absence is carried, not papered over
+
+
+def test_reroute_pair_atomic_cap_drops_shock_and_beneficiary_together(monkeypatch):
+    """Pair-atomic cap: a budget that fits the shock (3 specs) but not shock+beneficiary (5) drops BOTH --
+    a shock kept without its beneficiary can never fire and would spend its lookups for nothing."""
+    _primary_us(monkeypatch)
+    monkeypatch.setattr(cq, "CASCADE_CAP", 6)                        # corn 3 + shock 3 fits; +ben 2 does not
+    corn = _node(contract="corn", ref="export", region="US", dates=["2010-08-05", "2010-09-10"])
+    shock = _node(contract="wheat", ref="export", region="Russia", dates=["2010-08-05", "2010-09-10"])
+    block, trace, rtrace = cq.quantify(_sg([corn, shock]), None, qfn=_psd_qfn(_WHEAT_2010),
+                                       asof="2011-06-01", near="2010", extra_number_calls=[])
+    keys = {tuple(t["node_key"]) for t in trace}
+    assert keys == {("corn_cbot", "export")}                         # wheat pair dropped WHOLE, corn kept
+    assert rtrace == [] and "REROUTE" not in (block or "")
 
 
 # ── map loader + deferred rows ───────────────────────────────────────────────────────────────────────
@@ -206,6 +398,37 @@ def test_cascade_map_lint_catches_uncertified_active(monkeypatch):
     from leviathan.graphrag.config_check import check_cascade_map
     errs = check_cascade_map()
     assert errs and any("uncertified" in e for e in errs)
+
+
+def test_cascade_map_lint_flags_unknown_region_token(tmp_path, monkeypatch):
+    # RF-2 census: a region-ruled driver whose token is in NEITHER resolve nor unresolved fails the build
+    # (the E4 alias/waiver precedent -- an unmapped token must never silently mislabel a country at serve time)
+    from leviathan.causal import blurb as bl
+    causal = tmp_path / "causal"
+    causal.mkdir()
+    (causal / "fixture.yaml").write_text(
+        "contract: test_contract\n"
+        "drivers:\n"
+        "- {id: atlantis_export_ban, type: policy_event, sign: '+', mechanism: m, "
+        "silver_ref: export, region: Atlantis}\n", encoding="utf-8")
+    monkeypatch.setattr(bl, "_CAUSAL_DIR", causal)
+    from leviathan.graphrag.config_check import check_cascade_map
+    errs = check_cascade_map()
+    assert any("region_map census" in e and "Atlantis" in e for e in errs)
+
+
+def test_cascade_map_lint_flags_phantom_fx_currency(tmp_path, monkeypatch):
+    # a resolve currency must be a REAL silver_fred_fx column: 'eur' -> eur_usd does not exist
+    from leviathan.causal import blurb as bl
+    causal = tmp_path / "causal"
+    causal.mkdir()                                                   # empty causal dir: census part inert
+    monkeypatch.setattr(bl, "_CAUSAL_DIR", causal)
+    monkeypatch.setattr(cq, "load_region_map",
+                        lambda: {"resolve": {"EU": {"country": "European Union", "currency": "eur"}},
+                                 "unresolved": []})
+    from leviathan.graphrag.config_check import check_cascade_map
+    errs = check_cascade_map()
+    assert any("eur_usd" in e for e in errs)
 
 
 # ── the answer.py seam (flag + breaker + wiring; quantify itself is covered above) ───────────────────
@@ -237,13 +460,25 @@ def _seam_harness(monkeypatch, quantify_stub):
 
 
 def test_seam_injects_block_and_trace(monkeypatch):
+    rpair = {"contract": "wheat", "metric": "exports_mt", "countryA": "Russia", "dA": -14.573,
+             "countryB": "United States", "dB": 11.216, "window": "MY2009-MY2010", "reroute": True}
+
     def stub(sg, graph, *, qfn, asof, near, extra_number_calls):
         extra_number_calls.append({"query": {"metric": "exports_mt"}, "rows": [{"value": 2.46}], "status": "ok"})
-        return "OBSERVED CASCADE NUMBERS (test):\n- [N1] wheat exports 2.46 MMT", [{"divergence": False}]
+        return "OBSERVED CASCADE NUMBERS (test):\n- [N1] wheat exports 2.46 MMT", [{"divergence": False}], [rpair]
 
     out, captured = _seam_harness(monkeypatch, stub)
     assert "OBSERVED CASCADE NUMBERS" in captured["user"]            # the block reached the volatile tail
     assert out["trace"].get("quantify") == [{"divergence": False}]
+    assert out["trace"].get("quantify_reroute") == [rpair]           # RF-4: stashed exactly like quantify
+
+
+def test_seam_empty_reroute_trace_not_stashed(monkeypatch):
+    def stub(sg, graph, *, qfn, asof, near, extra_number_calls):
+        return "OBSERVED CASCADE NUMBERS (test):\n- x", [{"divergence": False}], []
+
+    out, _captured = _seam_harness(monkeypatch, stub)
+    assert "quantify_reroute" not in out["trace"]                    # mirror of the quantify merge: falsy skips
 
 
 def test_seam_flag_off_skips_quantify(monkeypatch):

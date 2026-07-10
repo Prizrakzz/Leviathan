@@ -186,3 +186,32 @@ def test_on_stage_callback_never_breaks_the_turn():
     out = orch.respond("why is arabica bullish on a frost", graph=_graph(), asof="2024-06-01",
                        classify=_force("reasoning"), call=_reason_call, retrieve=_retrieve, on_stage=boom)
     assert out["intent"] == "reasoning"                                # turn still completes normally
+
+
+# ── RF-6 NOW batch: cascade firing-rate EMF counters (computed from trace.quantify at the timing site) ──
+def _capture_emf(monkeypatch):
+    from leviathan.graphrag import emf
+    captured = {}
+    monkeypatch.setattr(emf, "emit",
+                        lambda metrics, *, dimensions=None, units=None: captured.update(metrics))
+    return captured
+
+
+def test_respond_emits_cascade_counters(monkeypatch):
+    captured = _capture_emf(monkeypatch)
+    canned = {"intent": "reasoning", "model": "m", "answer": "a",
+              "trace": {"quantify": [{"divergence": True}, {"divergence": False}]}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    assert captured["CascadeFired"] == 1 and captured["CascadeNodes"] == 2
+    assert captured["DivergenceNodes"] == 1
+
+
+def test_respond_emits_cascade_zeroes_when_dark(monkeypatch):
+    # a turn with NO quantify trace still emits explicit zeroes -- the firing RATE needs a denominator
+    captured = _capture_emf(monkeypatch)
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: {"intent": "numbers_only", "model": "m",
+                                                           "answer": "a", "trace": {}})
+    orch.respond("q", graph=None)
+    assert captured["CascadeFired"] == 0 and captured["CascadeNodes"] == 0
+    assert captured["DivergenceNodes"] == 0

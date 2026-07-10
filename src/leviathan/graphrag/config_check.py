@@ -139,6 +139,51 @@ def check_cascade_map() -> list[str]:
             errs.append(f"cascade_map {ref!r}: bad period_type {row.get('period_type')!r}")
         if float(row.get("scale", 1) or 1) != 1 and not row.get("narrate_unit"):
             errs.append(f"cascade_map {ref!r}: scale != 1 requires narrate_unit")
+        if row.get("country_rule") not in (None, "primary", "none", "region"):
+            errs.append(f"cascade_map {ref!r}: bad country_rule {row.get('country_rule')!r}")
+    errs += _check_region_map(reg)
+    return errs
+
+
+def _check_region_map(reg) -> list[str]:
+    """RF-2 region_map lint: (a) every resolve entry carries a non-empty country and any currency points at
+    a REAL silver_fred_fx column (<currency>_usd); (b) no token sits in BOTH resolve and unresolved; (c) the
+    census — every region token on a driver whose ACTIVE map row is country_rule=region either resolves or
+    is explicitly unresolved (the E4 alias/waiver census precedent: unmapped tokens fail the build, they
+    never silently mislabel a country at serve time)."""
+    from leviathan.graphrag.numbers.cascade import load_map, load_region_map
+    errs: list[str] = []
+    rmap = load_region_map() or {}
+    resolve = rmap.get("resolve") or {}
+    unresolved = set(rmap.get("unresolved") or [])
+    fx_metrics: set = set()
+    try:
+        fx_metrics = set(reg.get("silver_fred_fx").metrics)
+    except Exception:  # noqa: BLE001 — surfaced below only if a currency is actually declared
+        pass
+    for tok, entry in resolve.items():
+        country = (entry or {}).get("country")
+        if not country or not isinstance(country, str):
+            errs.append(f"region_map resolve[{tok!r}]: missing/empty country")
+        cur = (entry or {}).get("currency")
+        if cur and f"{cur}_usd" not in fx_metrics:
+            errs.append(f"region_map resolve[{tok!r}]: currency {cur!r} -> {cur}_usd is not a "
+                        f"silver_fred_fx column")
+        if tok in unresolved:
+            errs.append(f"region_map: token {tok!r} is in BOTH resolve and unresolved")
+    region_ruled = {ref for ref, row in (load_map() or {}).items()
+                    if (row or {}).get("country_rule") == "region"}
+    if not region_ruled:
+        return errs
+    from leviathan.causal import blurb as bl
+    from leviathan.causal import schema as cs
+    for p in sorted(bl._CAUSAL_DIR.glob("*.yaml")):
+        c = cs.load(p)
+        for d in c.drivers:
+            if d.silver_ref in region_ruled and d.region and d.region not in resolve \
+                    and d.region not in unresolved:
+                errs.append(f"region_map census: {c.contract}/{d.id} region {d.region!r} "
+                            f"(ref {d.silver_ref!r}) neither resolves nor is listed unresolved")
     return errs
 
 

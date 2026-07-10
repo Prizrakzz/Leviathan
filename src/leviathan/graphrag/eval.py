@@ -59,6 +59,9 @@ def _cascade_stats(out: dict) -> dict:
     return {"fired": bool(tr), "n_rows": len(cits), "n_cited": len(cited),
             "cited_ids": [c.get("id") for c in cited],
             "divergence_nodes": sum(1 for t in tr if t.get("divergence")),
+            # RF-5: quantify_reroute carries FIRED (opposite-sign) pairs ONLY -- same-sign candidates
+            # record nothing, so this count never legitimizes a hallucinated fork heading.
+            "reroute_pairs": len((out.get("trace") or {}).get("quantify_reroute") or []),
             "statuses": sorted(statuses)}
 
 
@@ -94,7 +97,8 @@ def _pit_clean(out: dict, asof) -> bool:
 
 
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
-                   "pit_clean", "su_prescaled", "ok_era_leg")
+                   "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
+                   "opposite_country_legs", "two_countries_cited")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -119,11 +123,34 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             got = any(str((c.get("locator") or {}).get("metric") or "").endswith("_delta") for c in cits)
             res[k] = got == bool(want)
         elif k == "fork":
-            fired = cs["divergence_nodes"] > 0
+            # RF-5 guard widening: a REROUTE render is a legitimate fork (pair-level -- neither node
+            # carries divergence=True), so a fired reroute must not score as a hallucinated heading.
+            fired = cs["divergence_nodes"] > 0 or cs["reroute_pairs"] > 0
             heading = "## Where the record disagrees" in mech
             # ONE-DIRECTIONAL text rule: a rendered fork heading without a trace fork is always a FAIL;
             # the converse (trace fork, no heading) is LLM-mediated and judged, not gated here.
             res[k] = (fired == bool(want)) and not (heading and not fired)
+        elif k == "reroute_fired":
+            res[k] = (cs["reroute_pairs"] > 0) == bool(want)
+        elif k == "opposite_country_legs":                            # the STRONG reroute assert: >=2
+            pos, neg = set(), set()                                   # distinct countries whose injected
+            for c in cits:                                            # *_delta rows carry OPPOSITE signs
+                loc = c.get("locator") or {}
+                if not (str(loc.get("metric") or "").endswith("_delta") and loc.get("country")):
+                    continue
+                try:
+                    v = float(str(c.get("value")).replace(",", ""))
+                except (TypeError, ValueError):
+                    continue
+                if v > 0:
+                    pos.add(loc["country"])
+                elif v < 0:
+                    neg.add(loc["country"])
+            got = bool(pos and neg and len(pos | neg) >= 2)
+            res[k] = got == bool(want)
+        elif k == "two_countries_cited":                              # cheap wiring canary (locator count)
+            n_c = len({(c.get("locator") or {}).get("country") for c in cits} - {None, ""})
+            res[k] = n_c >= int(want)
         elif k == "absence":
             res[k] = any(s in _DARK_STATUSES for s in cs["statuses"]) == bool(want)
         elif k == "pit_clean":
