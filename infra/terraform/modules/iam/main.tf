@@ -330,6 +330,73 @@ resource "aws_iam_role_policy_attachment" "batch_job_role_dynamodb" {
 }
 
 # ---------------------------------------------------------------------------
+# P3 notifications job role — DEDICATED (Phase 8 SECTION III). The daily
+# morning-brief job must enumerate user profiles (dynamodb:Scan), but the
+# internet-facing serving ECS task REUSES batch_job_role — so Scan must NEVER
+# land on the shared terminal_dynamodb policy (a serving-side compromise would
+# gain cross-user reads of every profile/thread/notification). This role holds
+# Scan scoped to the ONE store table; serving keeps batch_job_role without it.
+# Reuses the shared non-dynamo grants (S3 for the live_events snapshot, Bedrock
+# for the Haiku extraction) via the same managed policies.
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "notifications_job" {
+  count = var.notifications_store_table_arn != "" ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-notifications-job-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+data "aws_iam_policy_document" "notifications_dynamo" {
+  count = var.notifications_store_table_arn != "" ? 1 : 0
+  statement {
+    sid = "NotificationsStoreScanRW"
+    actions = [
+      "dynamodb:Scan", # profile enumeration — the ONE grant serving must never hold
+      "dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
+    ]
+    resources = [var.notifications_store_table_arn] # the store table ONLY (not sessions)
+  }
+}
+
+resource "aws_iam_policy" "notifications_dynamo" {
+  count       = var.notifications_store_table_arn != "" ? 1 : 0
+  name        = "${var.project_name}-${var.environment}-notifications-dynamo"
+  description = "P3 daily-digest job: Scan-scoped RW on the terminal-store table only."
+  policy      = data.aws_iam_policy_document.notifications_dynamo[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "notifications_job_dynamo" {
+  count      = var.notifications_store_table_arn != "" ? 1 : 0
+  role       = aws_iam_role.notifications_job[0].name
+  policy_arn = aws_iam_policy.notifications_dynamo[0].arn
+}
+
+resource "aws_iam_role_policy_attachment" "notifications_job_s3" {
+  count      = var.notifications_store_table_arn != "" ? 1 : 0
+  role       = aws_iam_role.notifications_job[0].name
+  policy_arn = aws_iam_policy.s3_data_lake_rw.arn # nf.snapshot -> graphrag_evidence/live_events/
+}
+
+resource "aws_iam_role_policy_attachment" "notifications_job_bedrock" {
+  count      = var.notifications_store_table_arn != "" ? 1 : 0
+  role       = aws_iam_role.notifications_job[0].name
+  policy_arn = aws_iam_policy.batch_job_bedrock.arn # enum-locked Haiku extraction (bedrock lane)
+}
+
+# ---------------------------------------------------------------------------
 # SageMaker Training role — assumed by SageMaker Training Jobs to read the
 # feature matrix, write MLflow artifacts, pull the trainer ECR image, and
 # ship logs to CloudWatch.

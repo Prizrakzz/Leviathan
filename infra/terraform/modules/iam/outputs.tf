@@ -25,3 +25,8 @@ output "batch_job_role_name" {
   value       = aws_iam_role.batch_job_role.name
   description = "Role NAME (for policy attachments in sibling modules, e.g. the Bedrock guardrail)."
 }
+
+output "notifications_job_role_arn" {
+  value       = length(aws_iam_role.notifications_job) > 0 ? aws_iam_role.notifications_job[0].arn : ""
+  description = "P3 notifications job role (dedicated, Scan-scoped; the dedicated jobdef's jobRoleArn)."
+}

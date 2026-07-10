@@ -30,6 +30,8 @@ module "iam" {
   ecr_trainer_repository_arn = module.ecr_trainer.repository_arn
   # Stage 4: serving task RW on the durable terminal-store + the existing sessions table.
   dynamodb_table_arns = [module.dynamodb.table_arn, data.aws_dynamodb_table.sessions.arn]
+  # P3: the daily-digest job's dedicated Scan-scoped role (Scan must NEVER land on the serving-shared role).
+  notifications_store_table_arn = module.dynamodb.table_arn
 }
 
 # Cost tripwires (Jul-2026 S3 LIST storm): daily S3 budget alert + CE anomaly detection -> email.
@@ -247,6 +249,8 @@ data "aws_dynamodb_table" "sessions" {
   name = "leviathan-dev-graphrag-sessions"
 }
 
+data "aws_caller_identity" "current" {}
+
 module "cognito" {
   source       = "../../modules/cognito"
   project_name = var.project_name
@@ -406,5 +410,73 @@ resource "aws_budgets_budget" "monthly_cost" {
       notification_type          = "FORECASTED"
       subscriber_email_addresses = [var.budget_alert_email]
     }
+  }
+}
+
+
+# ---------------------------------------------------------------------------
+# P3 morning-brief daily schedule (Phase 8 SECTION III). Ships DISABLED: the
+# day-0 digest is a MANUAL submit the user reviews first; flip to ENABLED
+# afterwards, then INSPECT the first cron fire (describe-jobs: the submitted
+# job must be the ...-notifications jobdef at 1 vCPU/2 GiB — the universal-
+# target Input key casing is only verifiable live). The jobdef is CLI-
+# registered (jobs/utils/register_notifications_jobdef.py), referenced BY
+# NAME; its baked default command/resources/retry make a dropped or miscased
+# ContainerOverrides key harmless (the override below is redundant safety).
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "notifications_scheduler" {
+  name = "${var.project_name}-${var.environment}-notifications-scheduler"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "notifications_scheduler" {
+  name = "${var.project_name}-${var.environment}-notifications-scheduler-submit"
+  role = aws_iam_role.notifications_scheduler.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "batch:SubmitJob"
+      Resource = [
+        module.batch.job_queue_arn,
+        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-notifications:*",
+      ]
+    }]
+  })
+}
+
+resource "aws_scheduler_schedule" "notifications" {
+  name  = "${var.project_name}-${var.environment}-morning-brief"
+  state = "DISABLED" # flip to ENABLED only after the user-reviewed day-0 manual run
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(0 12 * * ? *)" # 12:00 UTC daily
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:batch:submitJob"
+    role_arn = aws_iam_role.notifications_scheduler.arn
+    input = jsonencode({
+      JobName       = "build-notifications"
+      JobQueue      = module.batch.job_queue_arn
+      JobDefinition = "${var.project_name}-${var.environment}-notifications"
+      # Redundant safety — the dedicated jobdef already bakes these as its defaults:
+      ContainerOverrides = {
+        Command = ["jobs/batch/build_notifications_task.py"]
+        ResourceRequirements = [
+          { Type = "VCPU", Value = "1" },
+          { Type = "MEMORY", Value = "2048" },
+        ]
+      }
+      RetryStrategy = { Attempts = 2 }
+    })
   }
 }

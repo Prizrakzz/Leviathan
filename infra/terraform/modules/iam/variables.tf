@@ -23,3 +23,8 @@ variable "dynamodb_table_arns" {
   description = "DynamoDB table ARNs the serving task role may read/write (terminal-store + graphrag-sessions). Empty = no grant (Stage-4 opt-in)."
   default     = []
 }
+variable "notifications_store_table_arn" {
+  type        = string
+  description = "Terminal-store table ARN for the P3 notifications job's dedicated Scan-scoped role. Empty = role not created."
+  default     = ""
+}
