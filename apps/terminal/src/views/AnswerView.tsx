@@ -2,6 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { getThreadTurns, suggest } from '@/api/client';
+import type { Section } from '@/api/schema';
 import type { components } from '@/api/types.gen';
 import type { TurnState } from '@/api/useTurn';
 import { Composer } from '@/shell/Composer';
@@ -18,6 +19,7 @@ import { resolvedFor } from './note/citations';
 import { FormattedNote, renderInline } from './note/inlineFormat';
 import { IntegrityStrip } from './note/IntegrityStrip';
 import { Note } from './note/Note';
+import { Sections } from './note/Sections';
 import { StreamingNote } from './note/StreamingNote';
 import { useTypewriter } from './note/useTypewriter';
 import { Numbers } from './numbers/Numbers';
@@ -51,10 +53,11 @@ const SHOW_INTEGRITY = typeof localStorage !== 'undefined' && localStorage.getIt
  *  6.4: chips HOVER their official name + durable snippet via the durable resolved map (structured.sources
  *  + citation locator snippet); click is a noop on past turns (the receipts drawer is a live-turn surface). */
 export function PastTurn({ t }: { t: TurnRecord }) {
-  const s = (t.structured ?? null) as { tldr?: string; mechanism?: string } | null;
+  const s = (t.structured ?? null) as { tldr?: string; mechanism?: string; sections?: Section[] } | null;
   const tldr = s?.tldr ?? '';
   const mechanism = s?.mechanism ?? '';
-  const legacy = !tldr && !mechanism ? (t.answer ?? '') : '';
+  const sections = s?.sections ?? [];
+  const legacy = !tldr && !mechanism && !sections.length ? (t.answer ?? '') : '';
   const resolved = resolvedFor(t as Parameters<typeof resolvedFor>[0]);
   return (
     // A durable turn's tldr/mechanism can contain resolved [n] chips, and CitationChip renders a Radix
@@ -69,10 +72,19 @@ export function PastTurn({ t }: { t: TurnRecord }) {
             {renderInline(tldr, resolved, noop)}
           </p>
         )}
-        {mechanism && (
+        {/* P9-C: sections win over the flat mechanism, same branch as the live Note — a durable turn
+            persisted with sections must not reopen in the legacy render. The view stays REDUCED
+            (no sources row, no numbers). */}
+        {sections.length > 0 ? (
           <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-            <FormattedNote text={mechanism} resolved={resolved} onOpen={noop} />
+            <Sections sections={sections} resolved={resolved} onOpen={noop} />
           </div>
+        ) : (
+          mechanism && (
+            <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
+              <FormattedNote text={mechanism} resolved={resolved} onOpen={noop} />
+            </div>
+          )
         )}
         {legacy && (
           <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">

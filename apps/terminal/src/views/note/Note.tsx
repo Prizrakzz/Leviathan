@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { RespondResult } from '@/api/schema';
 import { resolvedFor } from './citations';
 import { FormattedNote, renderInline } from './inlineFormat';
+import { Sections } from './Sections';
 
 /** The research note (design §4.1) — `structured.{tldr, mechanism, sources}` as a forwardable analyst
  *  note, with resolved citations as interactive chips. The floor/refusal/no-match states have no
@@ -31,11 +32,17 @@ export function Note({
 
         {afterTldr && <div className="mt-3">{afterTldr}</div>}
 
-        {s.mechanism && (
+        {/* P9-C: typed sections (derived from mechanism) win when present; else the flat mechanism —
+            old turns and flag-off answers carry no sections and keep today's render. */}
+        {(s.sections?.length || s.mechanism) && (
           <>
             <div className={`mt-4 ${label}`}>Why</div>
             <div className="mt-1 font-sans text-14 leading-relaxed text-text">
-              <FormattedNote text={s.mechanism} resolved={resolved} onOpen={onOpenReceipts} />
+              {s.sections?.length ? (
+                <Sections sections={s.sections} resolved={resolved} onOpen={onOpenReceipts} />
+              ) : (
+                <FormattedNote text={s.mechanism ?? ''} resolved={resolved} onOpen={onOpenReceipts} />
+              )}
             </div>
           </>
         )}

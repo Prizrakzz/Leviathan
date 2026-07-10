@@ -74,6 +74,17 @@ export type NotificationItem = {
   driver_id?: string;
 };
 
+/** P9-C typed sections — a DERIVED view of `mechanism` (backend `_sectionize`, flag GRAPHRAG_ANSWER_V2).
+ *  The kind union stays open (`string & {}`) so a newer backend's kind renders as prose in an older
+ *  bundle instead of crashing it — the StageName posture. `heading` is clean display text (no `## `). */
+export type SectionKind = 'mechanism' | 'record' | 'disagreement' | 'watch' | 'other' | (string & {});
+
+export interface Section {
+  kind: SectionKind;
+  heading: string;
+  body: string;
+}
+
 export interface RespondResult {
   answer: string;
   structured?: {
@@ -81,6 +92,7 @@ export interface RespondResult {
     mechanism?: string;
     diagram_mermaid?: string;
     sources?: unknown[];
+    sections?: Section[];
   } | null;
   contract?: string | null;
   contracts?: string[];

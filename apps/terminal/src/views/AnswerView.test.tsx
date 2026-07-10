@@ -52,4 +52,19 @@ describe('AnswerView graph chip + numbers rendering (P1.5: graph is TAB-ONLY, ne
     expect(await screen.findByTestId('open-full-graph', undefined, T)).toBeTruthy();
     expect(screen.queryByText(/No tracked contract matched/i)).toBeNull();
   });
+
+  it('P9-C: a sections-bearing result renders the per-kind view, disagreement as the amber callout', async () => {
+    mount(doneTurn(MOCK_RESULT), 'KC frost 2021');
+    expect(await screen.findByTestId('sections', undefined, T)).toBeTruthy();
+    expect(screen.getByTestId('section-disagreement').className).toContain('border-amber');
+    expect(screen.queryByTestId('dag')).toBeNull(); // sections never re-open an inline graph
+  });
+
+  it('P9-C fallback: a structured-null result keeps the banners path (no sections, no note)', async () => {
+    const r = numbersOnlyResult('what were ending stocks', '2024-06-01');
+    mount(doneTurn(r), 'what were ending stocks');
+    await screen.findByTestId('numbers-answer', undefined, T);
+    expect(screen.queryByTestId('sections')).toBeNull();
+    expect(screen.queryByTestId('note')).toBeNull();
+  });
 });

@@ -2,7 +2,7 @@ import type { PdfPage } from './client';
 import type { components } from './types.gen';
 import graphArabica from './fixtures/graph.arabica.json';
 import graphSugar from './fixtures/graph.raw_sugar.json';
-import type { NotificationItem, RespondResult, StageEvent } from './schema';
+import type { NotificationItem, RespondResult, Section, StageEvent } from './schema';
 import type { StreamHandlers } from './sse';
 
 type Schemas = components['schemas'];
@@ -67,6 +67,43 @@ const NUMBER_CALLS = [
   },
 ];
 
+// P9-C typed sections -- the DERIVED per-kind view of `mechanism` (backend `_sectionize`). The mock keeps
+// the round-trip by construction: GOOD_MECHANISM is REJOINED from these sections, so the sections path and
+// the mechanism fallback show the same prose. rawSugarResult stays mechanism-only to demo the fallback.
+const GOOD_SECTIONS: Section[] = [
+  {
+    kind: 'mechanism',
+    heading: 'Mechanism',
+    body:
+      "- Radiative frost in Brazil's southern arabica belt kills buds, cutting the next crop (bullish) [1]\n" +
+      '- In a biennial off-year the loss compounds — the two effects amplify each other (bullish) [2]\n' +
+      '- With tenderable stocks already low [N1], the price response steepens past the buffer kink',
+  },
+  {
+    kind: 'record',
+    heading: 'The record',
+    body:
+      '- 1994 (double frost, off-year): the nearby roughly doubled inside two months [2]\n' +
+      '- 2021 setup: stocks-to-use 0.36, z=-1.4 going into the frost window [N1]',
+  },
+  {
+    kind: 'disagreement',
+    heading: 'Where the record disagrees',
+    body:
+      '1975 spiked hardest off an ON-year crop, so the off-year amplifier is not load-bearing on its own — ' +
+      'the thin buffer is what the episodes share [2]',
+  },
+  {
+    kind: 'watch',
+    heading: 'What to watch',
+    body:
+      '- Certified/tenderable stocks through the July frost window [N1]\n' +
+      '- A second cold front before bud recovery locks in the cut [1]',
+  },
+];
+// All headings are non-empty here, so the plain rejoin reproduces the mechanism (SECTION II invariant).
+const GOOD_MECHANISM = GOOD_SECTIONS.map((s) => '## ' + s.heading + '\n' + s.body).join('\n');
+
 function goodResult(question: string, asof: string): RespondResult {
   return {
     answer: '',
@@ -74,11 +111,8 @@ function goodResult(question: string, asof: string): RespondResult {
       tldr:
         'A July frost landing in an off-year would compound an already-thin buffer, producing a convex ' +
         '(larger-than-linear) ICE arabica spike. **Net read: bullish.** [1][2]',
-      mechanism:
-        'The chain runs in three steps:\n\n' +
-        "- Radiative frost in Brazil's southern arabica belt kills buds, cutting the next crop (bullish) [1]\n" +
-        '- In a biennial off-year the loss compounds — the two effects amplify each other (bullish) [2]\n' +
-        '- With tenderable stocks already low [N1], the price response steepens past the buffer kink',
+      mechanism: GOOD_MECHANISM,
+      sections: GOOD_SECTIONS,
       diagram_mermaid: 'graph LR; frost-->stocks; stocks-->price',
       sources: [
         { ref: 1, source: 'USDA FAS GAIN Report — Coffee', date: '2021-07-20', source_key: 's3://gain/kc-2021-07-20' },
@@ -449,7 +483,13 @@ export function mockThreadTurns(threadId: string): Schemas['ThreadTurns'] {
         // Carry structured.sources + the citation pointers so the durable turn RESOLVES its [n] chips —
         // a real durable turn does. With empty sources the chips never rendered, which is exactly why the
         // PastTurn "Tooltip must be used within TooltipProvider" throw stayed latent through every test (S2.2).
-        structured: { tldr: r.structured?.tldr, mechanism: r.structured?.mechanism, sources: r.structured?.sources },
+        // P9-C: sections persist on durable turns too, so PastTurn's per-kind branch is exercised here.
+        structured: {
+          tldr: r.structured?.tldr,
+          mechanism: r.structured?.mechanism,
+          sources: r.structured?.sources,
+          sections: r.structured?.sections,
+        },
         asof: '2021-07-20',
         sources: (r.citations ?? []) as { [key: string]: unknown }[],
         graph_version: '3a69acfb87c5',

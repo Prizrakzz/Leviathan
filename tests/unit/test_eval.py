@@ -394,6 +394,22 @@ def test_baseline_json_carries_cascade_fields_and_arm_flags(monkeypatch):
     assert pa["cascade_asserts"] == {"cascade_fired": True}
 
 
+def test_baseline_json_carries_n_sections_and_answer_v2_arm(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_ANSWER_V2", "on")                  # P9-C arm identity + derived-view count
+    rows = [_mk_row("a", 0, 4, 2), _mk_row("b", 0, 6, 2)]
+    rows[0]["out"]["structured"] = {"mechanism": "## Mechanism\nx",
+                                    "sections": [{"kind": "mechanism", "heading": "Mechanism", "body": "x"}]}
+    doc = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v4",
+                             graph_version="g", corpus_fp="c")
+    assert doc["answer_v2"] == "on"
+    assert doc["per_answer"][0]["n_sections"] == 1
+    assert doc["per_answer"][1]["n_sections"] == 0                  # no structured/sections -> 0, never KeyError
+    monkeypatch.delenv("GRAPHRAG_ANSWER_V2")
+    doc2 = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v4",
+                              graph_version="g", corpus_fp="c")
+    assert doc2["answer_v2"] == "off"                               # the default self-describes the control arm
+
+
 def test_judge_numtext_merges_cascade_citations():
     captured = {}
 

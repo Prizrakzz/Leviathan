@@ -633,6 +633,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
           stripped=int(verifier.get("stripped", 0) or 0))
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
+    if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections: a DERIVED view of the
+        secs = _sectionize(structured.get("mechanism") or "")     # FINAL prose (post-verify+humanize); read per
+        if secs:                                                  # call so the env-flip rollback stays live
+            structured["sections"] = secs
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))
@@ -740,6 +744,42 @@ def _humanize_structured(d: dict) -> None:
                 s["source"] = dp.source_name(str(s["source"]))
             if isinstance(s.get("note"), str) and s["note"]:
                 s["note"] = reg.sanitize(s["note"])
+
+
+# P9-C kind map: pins to eval._FIXED_SCAFFOLD's headings stripped of the '## ' marker. answer cannot
+# import eval (circular), so a cross-check unit test imports both and asserts the keys stay equal --
+# label drift fails CI, not prod.
+_SECTION_KINDS = {"Mechanism": "mechanism", "The record": "record",
+                  "Where the record disagrees": "disagreement", "What to watch": "watch"}
+
+
+def _sectionize(mech: str) -> list[dict]:
+    r"""The final mechanism prose -> typed sections [{kind, heading, body}] (P9-C, GRAPHRAG_ANSWER_V2).
+    A DERIVED VIEW, never the write surface: runs AFTER verify + _humanize_structured so every body
+    inherits the strip/sanitize passes; mechanism stays canonical. PURE -- reads `mech`, returns a new
+    list, mutates nothing (the byte-identical flag-on/off answer hangs on this). Line-based split on
+    '## ' heading lines OUTSIDE ``` fences (sanitize preserves mermaid fences; a fenced '## ' line is
+    content). `heading` stores the CLEAN text with no '## ' marker; the kind lookup strips first
+    (verify's whitespace collapse can leave one trailing space). Prose before the first heading ->
+    one kind-"other" section with heading "". Round-trip invariant (unit-gated):
+    "\n".join(("## " + s["heading"] + "\n" if s["heading"] else "") + s["body"] for s in sections)
+    reproduces `mech` modulo trailing whitespace -- the empty-heading section emits NO leading newline."""
+    if not (mech or "").strip():
+        return []
+    segs: list[tuple[str, list[str]]] = []                        # (clean heading, body lines); "" = pre-heading
+    in_fence = False
+    for line in mech.split("\n"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+        m = None if in_fence else re.match(r"^\s*##\s+(.*)$", line)
+        if m:
+            segs.append((m.group(1), []))
+        elif segs:
+            segs[-1][1].append(line)
+        else:
+            segs.append(("", [line]))                             # prose before the first heading
+    return [{"kind": _SECTION_KINDS.get(h.strip(), "other"), "heading": h, "body": "\n".join(lines)}
+            for h, lines in segs]
 
 
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
@@ -887,6 +927,10 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
           stripped=int(verifier.get("stripped", 0) or 0))
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
+    if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of
+        secs = _sectionize(structured.get("mechanism") or "")     # the L2 seam: same post-verify+humanize
+        if secs:                                                  # ordering, same per-call flag read
+            structured["sections"] = secs
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
                             + _cited_sources_block(structured, verifier, extra_number_calls))

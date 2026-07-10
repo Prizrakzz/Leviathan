@@ -323,3 +323,156 @@ def test_ev_block_renders_usable_event_date_only():
     assert "; event" not in an._ev_block([{**base, "event_date": "2010-09-01"}])   # == report date: no dup
     assert an._usable_date("2010-08-05") == "2010-08-05"
     assert an._usable_date("1970-01-01") is None and an._usable_date(None) is None
+
+
+# -- P9-C: typed sections derive (_sectionize + the GRAPHRAG_ANSWER_V2 seam) --------------------------
+
+def _rejoin(sections):
+    """The plan's exact round-trip formula: the empty-heading section emits NO leading newline."""
+    return "\n".join(("## " + s["heading"] + "\n" if s["heading"] else "") + s["body"] for s in sections)
+
+
+def test_sectionize_four_headings_map_to_kinds():
+    mech = ("## Mechanism\nFrost cuts supply.\n## The record\nExports fell 12 pct.\n"
+            "## Where the record disagrees\nThe eras split.\n## What to watch\nWeekly pace.")
+    secs = an._sectionize(mech)
+    assert [s["kind"] for s in secs] == ["mechanism", "record", "disagreement", "watch"]
+    assert [s["heading"] for s in secs] == ["Mechanism", "The record", "Where the record disagrees",
+                                            "What to watch"]
+    assert secs[0]["body"] == "Frost cuts supply." and secs[3]["body"] == "Weekly pace."
+    assert _rejoin(secs) == mech
+
+
+def test_sectionize_unknown_heading_is_other():
+    # forward-compat: a newer heading renders as prose, never blanks -- the open-union posture
+    secs = an._sectionize("## Mechanism\nx\n## Brand new heading\ny")
+    assert secs[1] == {"kind": "other", "heading": "Brand new heading", "body": "y"}
+
+
+def test_sectionize_pre_heading_prose_round_trips_without_leading_newline():
+    # the legacy-answer case: prose before any heading -> one kind-"other" section with heading ""
+    mech = "Legacy prose before any heading.\n## Mechanism\nx"
+    secs = an._sectionize(mech)
+    assert secs[0] == {"kind": "other", "heading": "", "body": "Legacy prose before any heading."}
+    assert _rejoin(secs) == mech
+
+
+def test_sectionize_trailing_space_heading_still_resolves_kind():
+    # verify's whitespace collapse keeps ONE trailing space on a heading line; an exact lookup
+    # would silently demote the section to kind "other"
+    secs = an._sectionize("## Mechanism \nx")
+    assert secs[0]["kind"] == "mechanism" and secs[0]["heading"] == "Mechanism "
+    assert _rejoin(secs) == "## Mechanism \nx"
+
+
+def test_sectionize_fenced_heading_line_not_split():
+    # sanitize deliberately preserves ``` fences inside mechanism; a fenced '## ' line is content
+    mech = "## Mechanism\nx\n```mermaid\n## not a heading\n```\ny"
+    secs = an._sectionize(mech)
+    assert len(secs) == 1 and secs[0]["kind"] == "mechanism"
+    assert "## not a heading" in secs[0]["body"]
+    assert _rejoin(secs) == mech
+
+
+def test_sectionize_empty_and_whitespace_mechanism():
+    assert an._sectionize("") == []
+    assert an._sectionize("   \n  ") == []
+
+
+def test_section_kind_map_pins_to_eval_fixed_scaffold():
+    # answer cannot import eval (circular), so the kind map is a local constant -- this cross-check
+    # is the only guard against label drift between the two; the round-trip test cannot see it
+    from leviathan.graphrag import eval as gev
+    assert set(an._SECTION_KINDS) == {h.removeprefix("## ") for h in gev._FIXED_SCAFFOLD}
+
+
+def test_sectionize_round_trip_rich_fixture():
+    mech = ("Lead-in before any heading.\n"
+            "## Mechanism\nFrost cuts supply.\n\nSecond paragraph after a blank line.\n"
+            "## The record\n- exports fell 12 pct\n- stocks tightened\n\n"
+            "## Where the record disagrees\n1994 says X; 2021 says Y.\n"
+            "## What to watch\n- weekly pace\n- the next report")
+    secs = an._sectionize(mech)
+    assert [s["kind"] for s in secs] == ["other", "mechanism", "record", "disagreement", "watch"]
+    assert _rejoin(secs) == mech
+
+
+def test_sectionize_purity_never_mutates_structured():
+    # the byte-identical flag-on/off answer hangs on this: _sectionize reads the mechanism string
+    # and returns a NEW list; editing its output must never reach structured
+    mech = "## Mechanism\nx.\n## The record\ny."
+    structured = {"tldr": "t.", "mechanism": mech, "sources": [{"ref": 1, "source": "GAIN"}]}
+    before_sources = [dict(s) for s in structured["sources"]]
+    secs = an._sectionize(structured["mechanism"])
+    secs[0]["body"] = "MUTATED"
+    secs[0]["heading"] = "MUTATED"
+    assert structured["mechanism"] == mech and structured["tldr"] == "t."
+    assert structured["sources"] == before_sources
+
+
+def test_sectionize_after_verify_carries_no_stripped_handle():
+    # sections derive from the POST-verify mechanism: a handle the verifier stripped as fabricated
+    # must not resurrect inside any section body -- the exact class the derive-after seam exists for
+    from leviathan.graphrag import verify as vf
+    structured = {"tldr": "x.", "mechanism": "## Mechanism\nThe moon is cheese [E9].", "sources": []}
+    report = vf.verify_citations(structured, [])
+    assert report["stripped"] >= 1
+    secs = an._sectionize(structured["mechanism"])
+    assert secs and all("[E9]" not in s["body"] for s in secs)
+
+
+def test_answer_v2_flag_off_no_sections_key(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_ANSWER_V2", raising=False)          # default off
+    gr = _graph()
+
+    def fake_call(system, user, *, model, tool):
+        return {"tldr": "x", "mechanism": "## Mechanism\ny", "diagram_mermaid": "", "sources": []}
+
+    out = an.answer("arabica coffee outlook", graph=gr, retrieve=_retrieve, call=fake_call)
+    assert "sections" not in out["structured"]
+
+
+def test_answer_v2_flag_on_derives_sections_one_hop(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_ANSWER_V2", "on")
+    gr = _graph()
+
+    def fake_call(system, user, *, model, tool):
+        return {"tldr": "Frost squeezed arabica [1].",
+                "mechanism": "## Mechanism\nA July frost cut supply [1].\n## What to watch\nThe next front.",
+                "diagram_mermaid": "",
+                "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
+
+    out = an.answer("trace how a coffee frost spikes price", graph=gr, retrieve=_retrieve, call=fake_call)
+    secs = out["structured"]["sections"]
+    assert [s["kind"] for s in secs] == ["mechanism", "watch"]
+    assert _rejoin(secs) == out["structured"]["mechanism"]           # a faithful view of the FINAL prose
+
+
+def test_answer_v2_flag_on_empty_mechanism_no_sections_key(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_ANSWER_V2", "on")                   # numbers-only shape: no key, not []
+    gr = _graph()
+
+    def fake_call(system, user, *, model, tool):
+        return {"tldr": "x", "mechanism": "", "diagram_mermaid": "", "sources": []}
+
+    out = an.answer("arabica coffee outlook", graph=gr, retrieve=_retrieve, call=fake_call)
+    assert "sections" not in out["structured"]
+
+
+def test_answer_v2_flag_on_l2_seam(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_ANSWER_V2", "on")
+    gr = _graph()
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0 if "frost" in t.lower() else 0.0] for t in texts])
+
+    def fake_call(system, user, *, model, tool):
+        return {"tldr": "frost squeeze [1]", "mechanism": "## Mechanism\nfrost raises price [1].",
+                "diagram_mermaid": "",
+                "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
+
+    def fake_retrieve(q, node, *, k, asof=None, near=None):
+        return [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{node}", "text": "July frost hit"}]
+
+    out = an.answer("trace how a coffee frost spikes price", graph=gr, planner="l2", asof="2021-08-01",
+                    retrieve=fake_retrieve, call=fake_call, route_fn=lambda q, g: ["arabica_coffee"])
+    assert out["trace"]["planner"] == "l2"
+    assert [s["kind"] for s in out["structured"]["sections"]] == ["mechanism"]

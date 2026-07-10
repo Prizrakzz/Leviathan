@@ -20,3 +20,26 @@ describe('PastTurn (S2.2 — citation chips need a Tooltip.Provider)', () => {
     expect(screen.getByTestId('past-turn')).toBeTruthy();
   });
 });
+
+describe('PastTurn sections branch (P9-C: durable turns render per-kind IN LOCKSTEP with the live Note)', () => {
+  it('a durable turn persisted WITH sections renders the per-kind view (still the reduced turn shape)', () => {
+    const turn = mockThreadTurns('t-mock1').turns[0] as unknown as TurnRecord;
+    render(<PastTurn t={turn} />);
+    expect(screen.getByTestId('sections')).toBeTruthy();
+    expect(screen.getByTestId('section-disagreement').className).toContain('border-amber');
+    // Reduced view stays reduced: no sources row, no numbers panel on past turns.
+    expect(screen.queryByTestId('numbers')).toBeNull();
+  });
+
+  it('a mechanism-only durable turn (old Dynamo shape) keeps the flat fallback render', () => {
+    const turn = {
+      question: 'old turn',
+      answer: '',
+      structured: { tldr: 'Old headline.', mechanism: 'old flat mechanism body' },
+      asof: '2021-07-20',
+    } as unknown as TurnRecord;
+    render(<PastTurn t={turn} />);
+    expect(screen.queryByTestId('sections')).toBeNull();
+    expect(screen.getByTestId('past-turn').textContent).toContain('old flat mechanism body');
+  });
+});
