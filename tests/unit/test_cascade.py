@@ -263,3 +263,17 @@ def test_seam_quantify_crash_degrades_qualitative(monkeypatch):
     out, captured = _seam_harness(monkeypatch, stub)
     assert out["answer"]                                             # the turn survived (no floor, no raise)
     assert out["trace"].get("quantify_error") == "RuntimeError"
+
+
+def test_scope_aliases_reference_contracts_and_titles_country(monkeypatch):
+    # W0-caught: silver_psd keys by EXCHANGE slug and stores 'United States' — the un-aliased contract
+    # slug + snake country made EVERY PSD leg read not_known (silently, by the degrade design).
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
+    commodity, country = cq._scope(SimpleNamespace(contract="corn"), {"table": "silver_psd"})
+    assert commodity == "corn_cbot" and country == "United States"
+    commodity, country = cq._scope(SimpleNamespace(contract="soft_red_winter_wheat_cbot"),
+                                     {"table": "silver_psd"})
+    assert commodity == "soft_red_winter_wheat_cbot" and country == "United States"
+    commodity, country = cq._scope(SimpleNamespace(contract="soybeans"), {"country_rule": "none"})
+    assert commodity == "soybeans_cbot" and country is None

@@ -60,8 +60,13 @@ def from_number(call: dict, i: int) -> Citation:
     value = r0.get("value")
     unit = r0.get("unit") or _metric_unit(table, metric)
     kd = r0.get("knowledge_date") or r0.get("data_date")
-    scope = " ".join(x for x in (q.get("commodity"), q.get("country"),
-                                 (f"MY{q['period']}" if q.get("period") else None)) if x)
+    # period label: agent calls carry a BARE MY year ("2011" -> render "MY2011"); cascade calls arrive
+    # PRE-labeled ("MY2011" / "2010-06-01..2010-09-01") — re-prefixing those minted "MYMY2011" in the
+    # Sources footer and fed the judge malformed provenance (P9-AB P0-6).
+    per = str(q["period"]) if q.get("period") is not None else None
+    if per and not (per.startswith("MY") or ".." in per):
+        per = f"MY{per}"
+    scope = " ".join(x for x in (q.get("commodity"), q.get("country"), per) if x)
     if rows:
         label = f"{src} {metric} {scope} = {_fmt(value)} {unit}".strip()
     else:

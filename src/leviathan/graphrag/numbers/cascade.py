@@ -220,15 +220,26 @@ def _plus_days(iso: str, days: int) -> str:
         return iso
 
 
+# silver_psd keys balance sheets by EXCHANGE slug (verified via DISTINCT leviathan_slug, the W0 probe):
+# the graph's reference contracts have no PSD row under their own slug and every leg read not_known —
+# silently, by design of the degrade path. The numbers AGENT dodges this because its prompt mandates
+# exchange slugs; the cascade bypasses the agent, so it aliases here.
+PSD_SLUG_ALIAS = {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}
+
+
 def _scope(n, row) -> tuple:
-    """commodity = the node's contract; country per the map row's country_rule."""
+    """commodity = the node's contract (aliased to the silver slug where they differ); country per the
+    map row's country_rule, in the TABLE's surface form — silver_psd stores 'United States' while geo
+    gives 'united_states' (the silverleg precedent; both mismatches W0-caught: every PSD leg died)."""
     commodity = getattr(n, "contract", None)
+    commodity = PSD_SLUG_ALIAS.get(commodity, commodity)
     rule = (row or {}).get("country_rule", "primary")
     if rule == "none":
         return commodity, None
     try:
         from leviathan.graphrag import silverleg as slv
-        return commodity, slv._primary_country(commodity)
+        country = slv._primary_country(commodity)
+        return commodity, (country.replace("_", " ").title() if country else None)
     except Exception:  # noqa: BLE001
         return commodity, None
 

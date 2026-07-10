@@ -32,6 +32,114 @@ def load_queries(path=_QUERIES) -> list[dict]:
 _NOT_KNOWN = ("not known", "not yet known", "not yet been", "no data", "not available", "wasn't published",
               "was not published", "not published", "not been published", "unavailable")
 
+# ── P9-AB per-query cascade assertions (the v4 PRIMARY gate) ──────────────────────────────────────────
+_DARK_STATUSES = ("not_known", "record_silent", "future_unpublished")
+
+
+def _num_citations(out: dict) -> list[dict]:
+    return [c for c in (out.get("citations") or []) if c.get("kind") == "number"]
+
+
+def _cascade_stats(out: dict) -> dict:
+    """Deterministic cascade signals: the quantify trace + kind=number citations + POST-verify STRUCTURED
+    prose. NEVER scan out['answer'] for handles — the '## Sources' footer re-renders every ledgered [N]
+    line INCLUDING ones the verifier just stripped from prose, so the naive scan false-passes on
+    fabrications (the primary-gate trap)."""
+    tr = (out.get("trace") or {}).get("quantify") or []
+    cits = _num_citations(out)
+    st = out.get("structured") or {}
+    prose = f"{st.get('tldr') or ''} {st.get('mechanism') or ''}"
+    cited = [c for c in cits if f"[{c.get('id')}]" in prose]
+    statuses: set = set()
+    for t in tr:
+        for ss in (t.get("era_statuses") or {}).values():
+            statuses.update(ss)
+        if t.get("current_status"):
+            statuses.add(t["current_status"])
+    return {"fired": bool(tr), "n_rows": len(cits), "n_cited": len(cited),
+            "cited_ids": [c.get("id") for c in cited],
+            "divergence_nodes": sum(1 for t in tr if t.get("divergence")),
+            "statuses": sorted(statuses)}
+
+
+def _pit_clean(out: dict, asof) -> bool:
+    """PIT invariants over every injected number row: leg asof <= session asof; date windows ('t1..t2'
+    period labels) end <= asof; MY labels bounded by the COVERING MY of asof (an MY window legitimately
+    extends past asof — the window-end rule must NOT apply to 'MY<yyyy>' labels); provenance release_date
+    <= the leg's own asof."""
+    if not asof:
+        return True
+    import re as _re
+
+    from leviathan.graphrag.numbers import cascade as _casc
+    for c in _num_citations(out):
+        loc = c.get("locator") or {}
+        leg_asof = str(loc.get("asof") or "")
+        if leg_asof and leg_asof > str(asof):
+            return False
+        per = str(loc.get("period") or "")
+        if ".." in per and per.split("..")[-1] > str(asof):
+            return False
+        m = _re.fullmatch(r"MY(\d{4})", per)
+        if m:
+            cover = _casc._covering_my(str(asof), str(loc.get("commodity") or ""))
+            if cover is not None and int(m.group(1)) > cover:
+                return False
+        rows = (c.get("payload") or {}).get("rows") or []
+        prov = (rows[0] or {}).get("_provenance") if rows else None
+        rd = str((prov or {}).get("release_date") or "")
+        if rd and leg_asof and rd > leg_asof:
+            return False
+    return True
+
+
+_CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
+                   "pit_clean", "su_prescaled", "ok_era_leg")
+
+
+def _cascade_asserts(q: dict, out: dict) -> dict | None:
+    """The v4 per-query deterministic checks, keyed by expect.* (None when the query asserts none —
+    every v3 query). Each value is the PASS boolean for that key."""
+    exp = q.get("expect") or {}
+    keys = [k for k in _CASCADE_EXPECT if k in exp]
+    if not keys:
+        return None
+    cs = _cascade_stats(out)
+    cits = _num_citations(out)
+    mech = str((out.get("structured") or {}).get("mechanism") or "")
+    tr = (out.get("trace") or {}).get("quantify") or []
+    res: dict = {}
+    for k in keys:
+        want = exp[k]
+        if k == "cascade_fired":
+            res[k] = cs["fired"] == bool(want)
+        elif k == "min_cascade_cited":
+            res[k] = cs["n_cited"] >= int(want)
+        elif k == "delta_row":
+            got = any(str((c.get("locator") or {}).get("metric") or "").endswith("_delta") for c in cits)
+            res[k] = got == bool(want)
+        elif k == "fork":
+            fired = cs["divergence_nodes"] > 0
+            heading = "## Where the record disagrees" in mech
+            # ONE-DIRECTIONAL text rule: a rendered fork heading without a trace fork is always a FAIL;
+            # the converse (trace fork, no heading) is LLM-mediated and judged, not gated here.
+            res[k] = (fired == bool(want)) and not (heading and not fired)
+        elif k == "absence":
+            res[k] = any(s in _DARK_STATUSES for s in cs["statuses"]) == bool(want)
+        elif k == "pit_clean":
+            res[k] = _pit_clean(out, q.get("asof")) == bool(want)
+        elif k == "su_prescaled":
+            lv = [c for c in cits if (c.get("locator") or {}).get("metric") == "su_ratio"]  # LEVELS only:
+            try:                                                      # _delta/_pct rows are signed changes
+                res[k] = bool(lv) and all(float(c["value"]) > 1 for c in lv if c.get("value") is not None)
+            except (TypeError, ValueError):
+                res[k] = False
+        elif k == "ok_era_leg":                                       # anti-vacuity (pit backtest): >=1 era
+            got = any(s == "ok" for t in tr                           # leg actually resolved a value
+                      for ss in (t.get("era_statuses") or {}).values() for s in ss)
+            res[k] = got == bool(want)
+    return res
+
 
 def score(q: dict, out: dict) -> dict:
     """Approximate auto-rubric + v3 routing/point-in-time checks (expected_intent, leakage-trap)."""
@@ -48,7 +156,8 @@ def score(q: dict, out: dict) -> dict:
             "routed_intent": routed_intent, "expected_intent": exp_intent, "leakage_ok": leakage_ok,
             "drivers_hit": f"{len(hit)}/{len(drivers)}", "drivers_missed": [d for d in drivers if d not in hit],
             "regime_named": (ex._normalize(exp["regime"]) in ans) if exp.get("regime") else None,
-            "evidence_cited": (len(out.get("evidence") or []) > 0) if exp.get("needs_evidence") else None}
+            "evidence_cited": (len(out.get("evidence") or []) > 0) if exp.get("needs_evidence") else None,
+            "cascade_asserts": _cascade_asserts(q, out)}
 
 
 def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, k: int = 5, answer_fn=None,
@@ -62,13 +171,18 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
     torch inference and the Anthropic client are all thread-safe). Row order always matches `queries`."""
     answer_fn = answer_fn or an.answer
     import time as _time
-
+    qfn = None
+    if via_orchestrator:                                              # P9-AB G1: eval passes call=_call_opus, so the
+        from leviathan.graphrag.numbers import query as Qn            # orchestrator NEVER builds a default qfn
+        qfn = Qn.default_query_fn()                                   # (state None + call not None) and the cascade
+                                                                      # seam is silently dead without this thread
     def _one(q: dict) -> dict:
         t0 = _time.monotonic()
         try:                                                          # one bad answer must NOT abort a billed run
             if via_orchestrator:
                 from leviathan.graphrag import orchestrator as orch
-                okw = dict(graph=graph, asof=q.get("asof"), model=model, numbers_client=numbers_client, call=call)
+                okw = dict(graph=graph, asof=q.get("asof"), model=model, numbers_client=numbers_client, call=call,
+                           query_fn=qfn)
                 if planner:                                           # keep the call identical for injected fake respond()
                     okw["planner"] = planner
                 out = orch.respond(q["question"], **okw)
@@ -83,7 +197,7 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
                    "evidence": [], "intent": None, "number_calls": [], "citations": [], "model": model,
                    "trace": {"error": str(e)[:300]}}
             print(f"  WARN {q.get('id')}: answer failed -- {str(e)[:120]}", flush=True)
-        return {"q": q, "out": out, "rubric": score(q, out)}
+        return {"q": q, "out": out, "rubric": score(q, out), "secs": round(_time.monotonic() - t0, 1)}
 
     if workers <= 1:
         return [_one(q) for q in queries]
@@ -159,6 +273,21 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
         val = rws[0].get("value") if rws else "(NOT KNOWN at asof)"
         num_text += (f"- {qy.get('table')}.{qy.get('metric')} {qy.get('commodity','')} {qy.get('period','')} "
                      f"asof {qy.get('asof','')} = {val}\n")
+    # P9-AB G3: cascade-injected rows never reach number_calls (the seam appends to a COPY) — they live only
+    # in citations kind=number. Without this merge the judge's OBSERVED-NUMBERS panel reads '(none)' on a
+    # cascade turn and flags every narrated [N] figure as a hallucination. Dedup vs agent rows by locator.
+    seen_num = {((c.get("query") or {}).get("table"), (c.get("query") or {}).get("metric"),
+                 (c.get("query") or {}).get("period"), (c.get("query") or {}).get("asof"))
+                for c in out.get("number_calls") or []}
+    for c in out.get("citations") or []:
+        if c.get("kind") != "number":
+            continue
+        loc = c.get("locator") or {}
+        if (loc.get("table"), loc.get("metric"), loc.get("period"), loc.get("asof")) in seen_num:
+            continue
+        num_text += (f"- [{c.get('id')}] {loc.get('table', '')}.{loc.get('metric', '')} "
+                     f"{loc.get('commodity', '')} {loc.get('period', '')} asof {loc.get('asof', '')} "
+                     f"= {c.get('value')} {c.get('unit') or ''}\n")
     convo = ""
     if convo_history is not None:
         convo = (f"=== CONVERSATION SO FAR (prior turns; the current question may be vague/pronoun-based and "
@@ -459,6 +588,7 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             rid = str((r.get("q") or {}).get("id"))
             intent_ok = (r.get("rubric") or {}).get("intent_ok")
         j = r.get("judge") or {}
+        cs = _cascade_stats(out)                                     # P9-AB: post-run-readable cascade record
         per.append({"id": rid,
                     "strips": v.get("stripped", 0),
                     "claim_count": v.get("claim_count", 0),
@@ -469,6 +599,12 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
                     "mechanism_scaffold_ok": _scaffold_ok(out),
                     "intent": out.get("intent"),
                     "intent_ok": intent_ok,
+                    "secs": r.get("secs"),
+                    "cascade_fired": cs["fired"],
+                    "n_cascade_rows": cs["n_rows"],
+                    "n_cascade_cited": cs["n_cited"],
+                    "divergence_nodes": cs["divergence_nodes"],
+                    "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
                     "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
                                                 "source_diversity", "continuity", "mechanism_voice")
                               if k in j} or None})
@@ -483,6 +619,10 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             # which path the arm measured: True = the intent-branch serving path (intent 22/30 lives
             # there); False = plain one-hop answer() (intent is never set — do not compare intents)
             "via_orchestrator": via_orchestrator,
+            # P9-AB arm identity: without these a flags-off control and a flags-on treatment are
+            # byte-identical in every reproducibility key except ts
+            "mentor_voice": _os.environ.get("GRAPHRAG_MENTOR_VOICE", "on"),
+            "cascade_quant": _os.environ.get("GRAPHRAG_CASCADE_QUANT", "on"),
             "n_answers": len(per),
             "total_strips": total_strips, "total_claims": total_claims, "total_handles": total_handles,
             "strip_rate": round(total_strips / max(1, total_claims), 6),
@@ -593,6 +733,12 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None) ->
                   f"- evidence: {[(e['source'], e['date']) for e in out.get('evidence') or []][:6]}"]
         if nums:
             lines.append(f"- numbers looked up: {nums}")
+        ca = rb.get("cascade_asserts")
+        if ca is not None:                                             # v4 cascade query: the per-query gate line
+            cs = _cascade_stats(out)
+            lines.append(f"- cascade: fired={cs['fired']} cited={cs['n_cited']}/{cs['n_rows']} "
+                         f"fork_nodes={cs['divergence_nodes']} statuses={cs['statuses']} "
+                         f"asserts={'PASS' if all(ca.values()) else 'FAIL'} {ca}")
         leaks = reg.register_leaks(out.get("answer") or "")
         if leaks:                                                      # surface the exact leaked tokens + context
             lines.append(f"- **register leaks ({len(leaks)}):** "
@@ -900,6 +1046,15 @@ def main() -> int:
         return 0
     from leviathan.common import config
     config.load_env()                                 # load ANTHROPIC_API for the serving (+ judge) model
+    import os as _os
+    hf_uri = _os.environ.get("GRAPHRAG_HF_S3_CACHE")
+    if hf_uri:                                        # P9-AB G5: the eval lane cold-downloads bge from HF (the
+        try:                                          # cold-Spot hang) — warm from S3 exactly like serving does.
+            from leviathan.graphrag import hf_cache   # An S3 hiccup must degrade to the HF download, never kill
+            hf_cache.ensure(hf_uri)                   # a billed run (same try-guard as server.py).
+            print(f"  hf cache warmed from {hf_uri}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"  WARN hf cache warm failed -- {str(e)[:120]}", flush=True)
     # No torch thread cap here: rankers.rerank_scores serializes the heavy cross-encoder behind a global
     # lock, so each rerank gets ALL cores instead of N workers thrashing at cores/N threads. The old
     # cpu//workers cap under the lock would have crippled every rerank to 2 threads.
@@ -934,8 +1089,12 @@ def main() -> int:
     s3uri = ev._evid_s3()
     if s3uri:                                                     # persist so a Fargate run's report survives the container
         import boto3
+        import datetime as _dt
         stem = Path(args.queries).stem if args.queries else "default"
-        b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/report_{args.model}_{stem}.md")
+        # ts-keyed (P9-AB): the old arm-invariant key meant a control arm's report was OVERWRITTEN by the
+        # treatment arm's upload — and the athena/verifier panels exist only in the report md.
+        rts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/report_{args.model}_{stem}_{rts}.md")
         boto3.client("s3").put_object(Bucket=b, Key=k, Body=out_path.read_bytes())
         print(f"  report -> s3://{b}/{k}")
     _write_baseline(_baseline_json(rows, run_kind="single", model=args.model, judged=args.judge,

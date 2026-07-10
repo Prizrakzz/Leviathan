@@ -107,7 +107,7 @@ def test_estimate_cost_includes_judge():
 def test_v3_orchestrator_intent_routing_and_leakage(monkeypatch):
     from leviathan.graphrag import orchestrator as orch
 
-    def fake_respond(question, *, graph, asof=None, model=None, numbers_client=None, call=None):
+    def fake_respond(question, *, graph, asof=None, model=None, numbers_client=None, call=None, query_fn=None):
         if "argentina" in question.lower():                       # the leakage trap: the lookup returned nothing
             return {"answer": "That figure was not known at the as-of date.", "intent": "numbers_only",
                     "contract": None, "evidence": [], "citations": [],
@@ -307,3 +307,147 @@ def test_baseline_json_carries_mood_and_scaffold():
     assert doc["per_answer"][0]["banned_mood_words"] == 2
     assert doc["per_answer"][0]["mechanism_scaffold_ok"] is False
     assert doc["per_answer"][1]["mechanism_scaffold_ok"] is True
+
+
+# ── P9-AB: the v4 per-query cascade assertion engine + qfn wiring + judge merge ──────────────────────
+def _num_cit(i, metric="exports_mt", period="MY2010", asof="2010-09-01", value="3.9",
+             commodity="soft_red_winter_wheat_cbot", release="2010-08-15"):
+    return {"id": f"N{i}", "kind": "number", "value": value, "unit": "MMT",
+            "locator": {"kind": "number", "table": "silver_psd", "metric": metric, "commodity": commodity,
+                        "country": "Russia", "period": period, "asof": asof},
+            "payload": {"query": {}, "rows": [{"value": value, "_provenance": {"release_date": release}}]}}
+
+
+def _out_with(cits, mech="## Mechanism\nExports fell [N1] with the era delta [N2]."):
+    return {"answer": mech + "\n\n## Sources\n[N1] x\n[N2] y\n[N3] z",  # the footer re-lists EVERYTHING
+            "intent": "reasoning", "structured": {"tldr": "", "mechanism": mech},
+            "citations": cits, "evidence": [],
+            "trace": {"quantify": [{"node_key": ["wheat", "export_ban"], "metric": "exports_mt",
+                                    "era_statuses": {0: ["ok", "ok"]}, "current_status": "ok",
+                                    "divergence": False}]}}
+
+
+def test_cascade_stats_scans_structured_prose_not_the_sources_footer():
+    # the primary-gate trap: strips REMOVE the handle from structured prose but the Sources footer keeps
+    # re-rendering every ledgered [N] line -- a naive out['answer'] scan would false-pass on fabrications.
+    out = _out_with([_num_cit(1), _num_cit(2, metric="exports_mt_delta", value="-2.1")],
+                    mech="## Mechanism\nOnly one handle survives in prose [N1].")
+    cs = gev._cascade_stats(out)
+    assert cs["fired"] and cs["n_rows"] == 2
+    assert cs["n_cited"] == 1 and cs["cited_ids"] == ["N1"]         # N2 lives only in the footer
+
+
+def test_cascade_asserts_matrix_pass():
+    q = {"contract": "soft_red_winter_wheat_cbot", "asof": "2026-06-15",
+         "expect": {"cascade_fired": True, "min_cascade_cited": 2, "delta_row": True, "fork": False,
+                    "pit_clean": True, "ok_era_leg": True}}
+    res = gev._cascade_asserts(q, _out_with([_num_cit(1), _num_cit(2, metric="exports_mt_delta")]))
+    assert res == {"cascade_fired": True, "min_cascade_cited": True, "delta_row": True, "fork": True,
+                   "pit_clean": True, "ok_era_leg": True}
+
+
+def test_cascade_fork_heading_without_trace_fork_fails():
+    # one-directional text rule: a rendered fork heading with NO trace divergence is always a FAIL.
+    q = {"contract": "c", "asof": "2026-06-15", "expect": {"fork": False}}
+    out = _out_with([_num_cit(1)], mech="## Mechanism\nx [N1]\n## Where the record disagrees\ninvented")
+    assert gev._cascade_asserts(q, out) == {"fork": False}
+
+
+def test_cascade_asserts_absent_for_v3_queries():
+    assert gev.score({"contract": "corn"}, {"answer": "x"})["cascade_asserts"] is None
+
+
+def test_pit_clean_my_label_uses_covering_my_not_window_end():
+    asof = "2011-06-01"                                             # wheat MY starts Jun: covering MY = 2011
+    ok = _out_with([_num_cit(1, period="MY2011", asof="2011-06-01", release="2011-05-10")])
+    assert gev._pit_clean(ok, asof)                                 # MY window past asof is LEGAL for MY labels
+    my_leak = _out_with([_num_cit(1, period="MY2012", asof="2011-06-01")])
+    assert not gev._pit_clean(my_leak, asof)                        # beyond the covering MY = leak
+    leg_leak = _out_with([_num_cit(1, period="MY2011", asof="2011-07-01")])
+    assert not gev._pit_clean(leg_leak, asof)                       # leg asof past session asof
+    win_leak = _out_with([_num_cit(1, period="2011-01-01..2011-08-01", asof="2011-06-01")])
+    assert not gev._pit_clean(win_leak, asof)                       # date-window end rule still applies
+    prov_leak = _out_with([_num_cit(1, period="MY2011", asof="2011-06-01", release="2011-06-15")])
+    assert not gev._pit_clean(prov_leak, asof)                      # published after the leg's own asof
+
+
+def test_su_prescaled_levels_only():
+    q = {"contract": "corn", "asof": "2026-06-15", "expect": {"su_prescaled": True}}
+    cits = [_num_cit(1, metric="su_ratio", value="36.0"),
+            _num_cit(2, metric="su_ratio_delta", value="-8.0")]     # signed delta must NOT fail the assert
+    assert gev._cascade_asserts(q, _out_with(cits))["su_prescaled"] is True
+    bad = [_num_cit(1, metric="su_ratio", value="0.36")]            # unscaled ratio leaked through
+    assert gev._cascade_asserts(q, _out_with(bad))["su_prescaled"] is False
+
+
+def test_baseline_json_carries_cascade_fields_and_arm_flags(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "off")              # C2: arm identity must be in the artifact
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")
+    rows = [_mk_row("a", 0, 4, 2)]
+    rows[0]["secs"] = 12.5
+    rows[0]["rubric"]["cascade_asserts"] = {"cascade_fired": True}
+    doc = gev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="v4",
+                             graph_version="g", corpus_fp="c")
+    assert doc["mentor_voice"] == "off" and doc["cascade_quant"] == "off"
+    pa = doc["per_answer"][0]
+    assert pa["secs"] == 12.5 and pa["cascade_fired"] is False and pa["n_cascade_rows"] == 0
+    assert pa["cascade_asserts"] == {"cascade_fired": True}
+
+
+def test_judge_numtext_merges_cascade_citations():
+    captured = {}
+
+    def fake_call(client, sys_blocks, user, model=None, max_tokens=None, tool=None):
+        captured["user"] = user
+        return ({"usefulness": 5, "convexity": 5, "point_in_time": 5, "grounding": 5,
+                 "source_diversity": 5, "mechanism_voice": 5, "gaps": [], "verdict": "ok"}, None)
+
+    agent_call = {"query": {"table": "silver_psd", "metric": "su_ratio", "period": "2024", "asof": "2024-01-15"},
+                  "rows": [{"value": "0.09"}]}
+    out = {"answer": "x", "intent": "reasoning", "evidence": [],
+           "number_calls": [agent_call],
+           "citations": [{"id": "N1", "kind": "number", "value": "0.09", "unit": "",
+                          "locator": {"table": "silver_psd", "metric": "su_ratio",
+                                      "period": "2024", "asof": "2024-01-15"}},
+                         _num_cit(2, metric="exports_mt", period="MY2010", asof="2010-09-01")]}
+    gev.judge({"question": "q", "asof": "2024-01-15"}, out, call=fake_call)
+    user = captured["user"]
+    assert "[N2] silver_psd.exports_mt" in user                     # G3: cascade row surfaced to the judge
+    assert user.count("silver_psd.su_ratio") == 1                   # agent row NOT duplicated
+
+
+def test_qfn_threads_to_respond_when_via_orchestrator(monkeypatch):
+    from leviathan.graphrag import orchestrator as orch
+    from leviathan.graphrag.numbers import query as Q
+
+    def sentinel(sql):
+        return []
+
+    monkeypatch.setattr(Q, "default_query_fn", lambda db=None: sentinel)
+    seen = {}
+
+    def fake_respond(question, *, graph, asof=None, model=None, numbers_client=None, call=None, query_fn=None):
+        seen["query_fn"] = query_fn
+        return {"answer": "x", "intent": "reasoning", "contract": None, "evidence": [], "citations": [],
+                "number_calls": [], "structured": None, "trace": {}}
+
+    monkeypatch.setattr(orch, "respond", fake_respond)
+    gev.run(None, [{"id": "q", "contract": "corn", "question": "?"}], via_orchestrator=True)
+    assert seen["query_fn"] is sentinel                             # the G1 fix: the seam can fire in eval
+
+
+def test_from_number_period_label_no_double_prefix():
+    from leviathan.graphrag import citations as cit
+    base = {"rows": [{"value": 3.9}]}
+    agent = cit.from_number({**base, "query": {"table": "silver_psd", "metric": "exports_mt",
+                                               "commodity": "wheat", "period": "2011",
+                                               "asof": "2011-06-01"}}, 1)
+    assert "MY2011" in agent.label and "MYMY" not in agent.label    # bare agent year still gets the prefix
+    casc = cit.from_number({**base, "query": {"table": "silver_psd", "metric": "exports_mt",
+                                              "commodity": "wheat", "period": "MY2011",
+                                              "asof": "2011-06-01"}}, 2)
+    assert "MY2011" in casc.label and "MYMY" not in casc.label      # pre-labeled cascade period untouched
+    win = cit.from_number({**base, "query": {"table": "silver_fred_fx", "metric": "brl_usd",
+                                             "commodity": None, "period": "2010-01-01..2010-03-01",
+                                             "asof": "2010-03-01"}}, 3)
+    assert "2010-01-01..2010-03-01" in win.label and "MY2010-01-01" not in win.label
