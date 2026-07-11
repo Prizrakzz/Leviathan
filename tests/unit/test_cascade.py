@@ -248,6 +248,31 @@ def test_assemble_no_era_diff_row_when_no_divergence():
     assert not any("cross-era change" in ln for ln in lines)
 
 
+# ── Clause B' (thin-turn honesty fix): human era label, no bare era0/era1 integer in any rendered line ─
+def test_era_label_maps_index_to_human_words():
+    assert cq._era_label(0) == "earlier era"
+    assert cq._era_label(1) == "later era"
+    assert cq._era_label("current") == "current"
+    assert cq._era_label(0, {"period": "MY2016->MY2017"}) == "MY2016->MY2017"   # MY span when the row carries one
+    assert cq._era_label(2) == "later era"                                       # higher indices collapse (no bare 2)
+
+
+def test_three_formatters_never_emit_bare_era_index():
+    # the Row-3 false-strip: 'era0'/'within-era0' is mirrored into prose and stripped as an uncited magnitude;
+    # all THREE render sites (_fmt_line :717, _fmt_delta :723, _fmt_pct :727) must emit human labels instead.
+    row = {"metric": "exports_mt", "narrate_unit": "MMT", "scale": 1}
+    rec = {"query": {"commodity": "wheat", "period": "MY2010", "metric": "exports_mt", "asof": "2010-06-01"},
+           "rows": [{"value": "3.9"}]}
+    line = cq._fmt_line(rec, row, 4, era=0)
+    dline = cq._fmt_delta(row, -5.058, 5, era=0)
+    pline = cq._fmt_pct(row, -3.36, 6, era=1)
+    cur = cq._fmt_line({**rec, "query": {**rec["query"], "period": "MY2025"}}, row, 7, era="current")
+    for s in (line, dline, pline, cur):
+        assert "era0" not in s and "era1" not in s and "within-era" not in s
+    assert "earlier era" in line and "earlier era" in dline and "later era" in pline
+    assert "(current," in cur                                                    # the current leg keeps its label
+
+
 # ── quantify: cap on whole nodes + in-place injection + N continuation ───────────────────────────────
 def test_quantify_caps_whole_nodes_and_injects_in_place(monkeypatch):
     # 3 mapped nodes x 5 specs each (2 eras x 2 MYs + current); cap 10 -> 2 WHOLE nodes kept, never split

@@ -98,7 +98,7 @@ def _pit_clean(out: dict, asof) -> bool:
 
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
-                   "opposite_country_legs", "two_countries_cited")
+                   "opposite_country_legs", "two_countries_cited", "no_unbacked_fork")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -130,6 +130,16 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # ONE-DIRECTIONAL text rule: a rendered fork heading without a trace fork is always a FAIL;
             # the converse (trace fork, no heading) is LLM-mediated and judged, not gated here.
             res[k] = (fired == bool(want)) and not (heading and not fired)
+        elif k == "no_unbacked_fork":
+            # PREMISE-CORRECTION alignment guard (retrieval-ROBUST half of the `fork` rule): a rendered
+            # '## Where the record disagrees' heading with NO trace fork is a MODEL-manufactured
+            # contradiction and always FAILS. Firing-direction is NOT pinned (doctrine: boolean pins on
+            # retrieval-derived selection are brittle) -- a genuine data-true fork legitimately renders
+            # the heading and PASSES. This is the deterministic teeth behind "never manufacture a
+            # contradiction"; the premise being addressed correctly is judged + observational, not gated.
+            fired = cs["divergence_nodes"] > 0 or cs["reroute_pairs"] > 0
+            heading = "## Where the record disagrees" in mech
+            res[k] = (not (heading and not fired)) if bool(want) else True
         elif k == "reroute_fired":
             res[k] = (cs["reroute_pairs"] > 0) == bool(want)
         elif k == "opposite_country_legs":                            # the STRONG reroute assert: >=2

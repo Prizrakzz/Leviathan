@@ -433,6 +433,38 @@ def test_fork_heading_with_reroute_but_want_false_fails():
     assert gev._cascade_asserts(q, out) == {"fork": False}
 
 
+# ── F-W2: no_unbacked_fork -- the PREMISE-CORRECTION alignment guard (deterministic teeth) ────────────
+def test_no_unbacked_fork_three_cases():
+    # the retrieval-ROBUST half of the `fork` rule as a standalone premise-correction key: a rendered
+    # '## Where the record disagrees' heading with NO trace fork is a MODEL-manufactured contradiction (FAIL);
+    # heading absent -> PASS; heading WITH a genuine data-true fork (divergence node OR reroute pair) -> PASS.
+    q = {"contract": "french_wheat_matif", "asof": "2026-02-15", "expect": {"no_unbacked_fork": True}}
+    # (a) heading ABSENT -> True (the confirm-plainly path renders no disagreement heading)
+    absent = _out_with([_num_cit(1)], mech="## Mechanism\nThe record confirms it: exports fell [N1].")
+    assert gev._cascade_asserts(q, absent) == {"no_unbacked_fork": True}
+    # (b) heading present WITH a fired reroute pair -> True (a genuine data-true fork legitimately renders)
+    reroute = _out_with([_num_cit(1)],
+                        mech="## Mechanism\nx [N1]\n## Where the record disagrees\nRussia fell; EU rose")
+    reroute["trace"]["quantify_reroute"] = [_reroute_pair()]
+    assert gev._cascade_asserts(q, reroute) == {"no_unbacked_fork": True}
+    # (b') heading present WITH a divergence node -> True
+    diverg = _out_with([_num_cit(1)],
+                       mech="## Mechanism\nx [N1]\n## Where the record disagrees\nthe eras split")
+    diverg["trace"]["quantify"][0]["divergence"] = True
+    assert gev._cascade_asserts(q, diverg) == {"no_unbacked_fork": True}
+    # (c) heading present WITHOUT any trace fork -> False (manufactured contradiction)
+    invented = _out_with([_num_cit(1)],
+                         mech="## Mechanism\nx [N1]\n## Where the record disagrees\ninvented gotcha")
+    assert gev._cascade_asserts(q, invented) == {"no_unbacked_fork": False}
+
+
+def test_no_unbacked_fork_one_directional_safe_when_not_wanted():
+    # one-directional-SAFE: a query that does NOT want the guard is never failed by it, even a bare heading.
+    q = {"contract": "c", "asof": "2026-02-15", "expect": {"no_unbacked_fork": False}}
+    out = _out_with([_num_cit(1)], mech="## Mechanism\nx [N1]\n## Where the record disagrees\ninvented")
+    assert gev._cascade_asserts(q, out) == {"no_unbacked_fork": True}
+
+
 def test_su_prescaled_levels_only():
     q = {"contract": "corn", "asof": "2026-06-15", "expect": {"su_prescaled": True}}
     cits = [_num_cit(1, metric="su_ratio", value="36.0"),

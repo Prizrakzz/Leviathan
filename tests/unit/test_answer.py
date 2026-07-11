@@ -386,6 +386,71 @@ def test_section_kind_map_pins_to_eval_fixed_scaffold():
     assert set(an._SECTION_KINDS) == {h.removeprefix("## ") for h in gev._FIXED_SCAFFOLD}
 
 
+# -- F-W1: the thin-turn-honesty prompt clauses (A/A'/B/C/D) live in the CACHED prefix -----------------
+def test_thin_turn_honesty_prompt_clauses_present():
+    mentor, casc = an._SYSTEM_MENTOR, an._SYSTEM_CASCADE
+    # Clause A -- thin-turn / dark-cascade fabrication ban (in GROUNDING DISCIPLINE)
+    assert "WHEN THE RECORD RUNS THIN, STAY QUALITATIVE" in mentor
+    assert "NEVER invent an evidence item, a source, a date, a report, or a handle" in mentor
+    # Clause D -- premise-correction (in BE-HONEST-ONCE)
+    assert "CHECK THE USER'S PREMISE AGAINST THE RECORD" in mentor
+    assert "NEVER manufacture a contradiction" in mentor
+    # Clause C -- mood ban elevated + co-located with the tldr directional-verdict instruction
+    assert 'BANNED WORDS -- NEVER write "bullish" or "bearish"' in mentor
+    assert "NEVER the words bullish or bearish" in mentor
+    # Clause B -- verbatim-figure discipline in the cascade addendum (WITHOUT A NUMERAL, no rounding, era label)
+    assert "COPY EACH ROW FIGURE" in casc and "WITHOUT ANY NUMERAL" in casc
+    assert '"3.36%" stays "3.36%"' in casc
+    assert 'NEVER as "era 0"/"era 1"' in casc
+    # Clause B stale-example fix: the rounded handle-carrying figure is gone, replaced by a verbatim level
+    assert "rose ~18%" not in casc and "were 12.549 MMT" in casc
+
+
+def _fake_answer_call(captured):
+    def fake_call(system, user, *, model, tool):
+        captured["user"] = user
+        return {"tldr": "Frost squeezed arabica [1].",
+                "mechanism": "## Mechanism\nFrost cuts supply [1].\n## What to watch\nWeekly pace.",
+                "diagram_mermaid": "",
+                "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
+    return fake_call
+
+
+def test_grounding_ledger_line_present_with_counts(monkeypatch):
+    # Clause A' dry-render (LOAD-BEARING): the per-turn GROUNDING LEDGER volatile line reports the real
+    # ledger sizes and enumerates the valid handle ranges. Evidence retrieved + one number row supplied.
+    gr = _graph()
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0 if "frost" in t.lower() else 0.0] for t in texts])
+    captured = {}
+    ncall = {"query": {"table": "silver_psd", "metric": "exports_mt", "commodity": "arabica_coffee",
+                       "period": "MY2010", "asof": "2021-08-01"}, "rows": [{"value": "3.9", "unit": "MMT"}]}
+    an.answer("trace how a coffee frost spikes price", graph=gr, planner="l2", asof="2021-08-01",
+              retrieve=_retrieve, call=_fake_answer_call(captured), route_fn=lambda q, g: ["arabica_coffee"],
+              extra_number_calls=[ncall])
+    user = captured["user"]
+    assert "GROUNDING LEDGER:" in user and "Cite AT MOST" in user
+    assert "[N] handles run [N1]..[N1]." in user                     # exactly one number row -> [N1]
+    import re
+    m = re.search(r"GROUNDING LEDGER: (\d+) dated evidence item\(s\) and (\d+) observed number row\(s\)", user)
+    assert m and int(m.group(1)) >= 1 and int(m.group(2)) == 1       # >=1 [E] item, exactly 1 [N] row
+
+
+def test_grounding_ledger_line_dark_says_no_handles(monkeypatch):
+    # a DARK chain (empty retrieval, no number rows): the line reports 0/0 and structurally removes the
+    # invent-a-handle move -- 'Cite AT MOST 0 distinct [E] handles' + 'emit NO [N] handles'. Unit-test
+    # equivalent of the q6 dry-render (a real q6 run may yield nonzero [E]; this proves the 0/0 wording).
+    gr = _graph()
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[0.0] for _ in texts])
+    captured = {}
+    an.answer("trace the biodiesel chain into soyoil demand", graph=gr, planner="l2", asof="2026-02-15",
+              retrieve=lambda q, c, *, k, asof=None, near=None: [],
+              call=_fake_answer_call(captured), route_fn=lambda q, g: ["arabica_coffee"])
+    user = captured["user"]
+    assert "GROUNDING LEDGER: 0 dated evidence item(s) and 0 observed number row(s)" in user
+    assert "Cite AT MOST 0 distinct [E] handles" in user
+    assert "emit NO [N] handles (there are no number rows)." in user
+
+
 def test_sectionize_round_trip_rich_fixture():
     mech = ("Lead-in before any heading.\n"
             "## Mechanism\nFrost cuts supply.\n\nSecond paragraph after a blank line.\n"

@@ -176,17 +176,34 @@ _SYSTEM_MENTOR = (
     "ONLY when a cited dated item says so. If the evidence is sparse or doesn't cover the period the question "
     "implies, say so in ONE sentence and give the framework + what to watch; a real-time current-state read isn't "
     "available here. Do not stack caveats.\n"
+    "- CHECK THE USER'S PREMISE AGAINST THE RECORD. You are handed the actual observed rows, so when the "
+    "question assumes a fact, test it: if the record CONTRADICTS the premise, say so plainly in the TL;DR "
+    "and cite the contradicting row ('the record actually shows exports ROSE that year [N3], not fell'); "
+    "if the record CONFIRMS it, confirm it and move on. NEVER manufacture a contradiction, hunt for a "
+    "gotcha, or 'correct' a premise the rows do not actually contradict -- a premise the record supports "
+    "is simply confirmed, once.\n"
     "- NEVER invent a number, threshold, percentage, or price level. Every figure you state MUST come from a cited "
     "evidence item; if you have no cited number, say 'magnitude not in the evidence' rather than fabricate one (e.g. "
     "do NOT write 'a >15% export lag tightens supply' unless a source gives that figure).\n"
+    "- WHEN THE RECORD RUNS THIN, STAY QUALITATIVE -- DO NOT MANUFACTURE GROUNDING. If the cascade is dark "
+    "(no observed rows) or the evidence is sparse for the chain the question asks, SAY the record is thin "
+    "for this link and narrate the mechanism qualitatively. Every [E] handle you write MUST correspond to "
+    "an actual dated item shown in the evidence blocks above and be declared truthfully in the sources "
+    "ledger with that item's real source and date; every [N] handle MUST be an injected number row. NEVER "
+    "invent an evidence item, a source, a date, a report, or a handle to look grounded, and NEVER attach a "
+    "handle to a general mechanism statement the cited item does not itself make -- an uncited qualitative "
+    "sentence is correct here, a fabricated citation is a hard failure.\n"
     "CONVEXITY & RESEARCH SUBSTANCE: where the question warrants, LOCATE where the response is convex vs roughly "
     "linear and the buffer/threshold that makes it TIP (e.g. a tight stocks-to-use buffer => a supply shock is "
     "convex and right-tailed; a bumper crop is capped by the same low stocks => the skew is asymmetric); name the "
     "WATCH-LIST drivers that confirm it; cite the magnitudes/dates the evidence gives. Frame in the researcher's "
     "lexicon USED CORRECTLY AND ONLY WHEN THE MECHANISM EARNS IT -- convex/linear, tail risk (right/left tail), "
     "skew/asymmetry, regime, base rate; a misused 'tail risk' is worse than plain language.\n"
-    "OUTPUT REGISTER: reason internally with the model's signs and ids, but WRITE for the reader. NEVER write "
-    "'bullish' or 'bearish'. Name the MECHANISM and its price direction in plain words a physical trader and a fund "
+    "OUTPUT REGISTER: reason internally with the model's signs and ids, but WRITE for the reader. "
+    "BANNED WORDS -- NEVER write \"bullish\" or \"bearish\" anywhere, not even in a summary verdict. Say "
+    "direction as the MECHANISM: \"price-supportive\" / \"points toward higher prices\" (never \"bullish\"); "
+    "\"price-pressuring\" / \"points toward lower prices\" (never \"bearish\"). "
+    "Name the MECHANISM and its price direction in plain words a physical trader and a fund "
     "analyst both read the same way: 'points toward higher prices', 'upward price pressure', 'tightens the balance "
     "sheet', 'draws old-crop stocks', 'loosens supply', 'pressures the nearby'. Say WHAT tightens or loosens and "
     "WHY, not a mood label; say 'the driver is active, confirmed by [E1]', and say the effects 'compound' or "
@@ -254,7 +271,9 @@ _SYSTEM_MENTOR = (
     "documents frost in 2021, consistent with [E1]') or to note the corpus is silent for a period. Do not "
     "manufacture severity, outcomes, or magnitudes from a bare count or date.\n"
     "Emit via emit_answer, reader-first for a busy reader to skim:\n"
-    "- tldr: 1-3 sentences, bottom line FIRST (which way the balance sheet tilts + the key driver). Inline numbered "
+    "- tldr: 1-3 sentences, bottom line FIRST (which way the balance sheet tilts + the key driver); state which "
+    "way the balance sheet tilts in mechanism words (\"points toward higher prices\"), NEVER the words bullish or "
+    "bearish. Inline numbered "
     "handles [E1], [E2] for evidence-backed claims, each declared in the sources ledger.\n"
     "- mechanism: the causal chain / key drivers, structured under the four '## ' headings above. Under "
     "'## Mechanism' explain the physical chain and sign each driver in plain mechanism words ('tightens the balance "
@@ -277,7 +296,7 @@ _SYSTEM_MENTOR = (
 _SYSTEM_CASCADE = (
     "\nOBSERVED CASCADE NUMBERS. When an 'OBSERVED CASCADE NUMBERS' block is present, narrate the record from "
     "those rows ONLY: every figure you state MUST appear in an injected row and carry its numbered [N] handle "
-    "(e.g. \"US wheat export commitments rose ~18% over the following quarter [N4]\"). NEVER state a number that "
+    "(e.g. \"US wheat export commitments were 12.549 MMT [N4]\"). NEVER state a number that "
     "is not in an injected row -- if you want to note a change with no row, write it as prose without a handle. "
     "Lay the cascade as a DATED sequence from the [E] evidence handles and attach the [N] number to the "
     "quantified leg. Put the observed levels and deltas under '## The record'. If the block carries a line "
@@ -288,11 +307,18 @@ _SYSTEM_CASCADE = (
     "countries into one figure. If there is NO DIVERGENCE line and NO REROUTE line, do NOT invent a fork. "
     "If a leg reads 'not yet in effect as of <asof>' or '(record silent for that era)', narrate that ABSENCE "
     "honestly; never fabricate a value for it. "
-    "HANDLE DISCIPLINE (the verifier strips violations): an OBSERVED number takes ONLY its [N] handle -- never "
-    "an [E] handle, never a bare number, never an invented handle variant; a magnitude you computed yourself "
-    "(a sum, a share, a shortfall across rows) has NO row -- state it qualitatively without a handle. Name each "
-    "leg by the COUNTRY shown in its row, exactly. And in the record as everywhere else: never 'bullish' or "
-    "'bearish' -- direction is prose ('fell', 'rose to fill the gap'), magnitude is the [N] row.\n")
+    "HANDLE DISCIPLINE (the verifier strips violations): an OBSERVED number takes ONLY its [N] handle -- "
+    "never an [E] handle, never a bare number, never an invented handle variant. COPY EACH ROW FIGURE "
+    "EXACTLY AS PRINTED -- never round or re-scale it (\"3.36%\" stays \"3.36%\", never \"roughly 3 percent\"; a "
+    "stripped-down figure matches no row and is discarded). A magnitude you DERIVE yourself -- a ratio, "
+    "share, sum, or shortfall computed across rows (e.g. a stocks-to-use ratio from a stocks level and a "
+    "use level) -- has NO row: state it WITHOUT ANY NUMERAL (\"a razor-thin buffer\", \"a far larger "
+    "cushion\"), and NEVER place a derived or rounded number in the same sentence as a row citation, or it "
+    "strips the good handle with it. NAME EACH ERA BY ITS MARKETING YEAR OR PERIOD (\"the 2016/17 season\", "
+    "\"the 2018/19 drought\"), NEVER as \"era 0\"/\"era 1\" -- the bare index reads as an uncited magnitude and "
+    "a reader must never see an internal label. Name each leg by the COUNTRY shown in its row, exactly. "
+    "And in the record as everywhere else: never 'bullish' or 'bearish' -- direction is prose ('fell', "
+    "'rose to fill the gap'), magnitude is the [N] row.\n")
 
 
 def _count_banned_mood(structured: dict) -> int:
@@ -617,6 +643,19 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             logging.getLogger(__name__).warning("cascade quantify failed (%s: %s); proceeding qualitative",
                                                 type(e).__name__, str(e)[:160])
             sg.trace["quantify_error"] = type(e).__name__
+    # Clause A' (thin-turn honesty fix): a per-turn GROUNDING LEDGER line enumerating the EXACT valid handle
+    # ranges for this turn, so the model cannot mint an [E]/[N] handle beyond what the engine actually holds.
+    # Stays in the VOLATILE tail (never the cached constant) so the cache prefix is unchanged. n_ev is a
+    # PRE-dedup overcount of graph-node evidence (answer.py dedups below) -- a loose cap that can never
+    # SUPPRESS a legit [E], only forbid an invented one; it binds HARD only when n_ev == 0 (a dark chain).
+    n_ev = sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes)
+    n_num = len(extra_number_calls or [])
+    _ledger_line = (
+        f"GROUNDING LEDGER: {n_ev} dated evidence item(s) and {n_num} observed number row(s) are "
+        f"available for this question. Cite AT MOST {n_ev} distinct [E] handles, each mapping to one "
+        f"item above; " + ("emit NO [N] handles (there are no number rows)."
+                           if n_num == 0 else f"[N] handles run [N1]..[N{n_num}]."))
+    volatile_blocks = volatile_blocks + [_ledger_line]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     # Stream the note when the caller wired an SSE progress channel (real serving call only; injected fakes
     # keep the plain signature). The verifier still runs on the FINAL structured output below, so streaming is

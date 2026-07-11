@@ -708,23 +708,42 @@ def _group_by_node(records: list, kept: list) -> dict:
     return out
 
 
+def _era_label(era, row: dict | None = None) -> str:
+    """Clause B' (thin-turn honesty fix): a HUMAN era label so the render never emits a bare 'era0'/'era1'
+    integer. The bare index reads to the model as an uncited claim magnitude, gets mirrored verbatim into
+    prose ('(era 0)', 'within-era0 change'), and the verifier then strips the sentence's otherwise-verbatim
+    [N] handles with it (the Row-3 false-strip). Emit a marketing-year span when the row carries one, else
+    the ordinal words 'earlier era'/'later era' -- never a bare 'era{int}'."""
+    if era == "current":
+        return "current"
+    my = (row or {}).get("my_span") or (row or {}).get("period")
+    if my:
+        return str(my)
+    try:
+        idx = int(era)
+    except (TypeError, ValueError):
+        return "earlier era"
+    return "earlier era" if idx == 0 else "later era"
+
+
 def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
     v = _float_val(rec)
     scale = float(row.get("scale", 1) or 1)
     val = f"{v * scale:g}" if v is not None else "?"
     unit = row.get("narrate_unit") or ""
     q = rec.get("query") or {}
-    tag = "current" if era == "current" else f"era{era}"
+    tag = _era_label(era, row)
     return (f"- [N{n}] {q.get('commodity')} {row.get('metric')} {q.get('period') or ''} ({tag}, "
             f"as-of {q.get('asof')}): {val} {unit}".rstrip())
 
 
 def _fmt_delta(row: dict, d: float, n: int, *, era) -> str:
-    return f"- [N{n}] within-era{era} change in {row.get('metric')}: {d:+g} {row.get('narrate_unit') or ''}".rstrip()
+    return (f"- [N{n}] change within the {_era_label(era, row)} in {row.get('metric')}: "
+            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip())
 
 
 def _fmt_pct(row: dict, pct: float, n: int, *, era) -> str:
-    return f"- [N{n}] within-era{era} change in {row.get('metric')}: {pct:+g} %"
+    return f"- [N{n}] change within the {_era_label(era, row)} in {row.get('metric')}: {pct:+g} %"
 
 
 def _fmt_absence(rec: dict) -> str:
