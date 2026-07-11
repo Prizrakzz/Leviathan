@@ -632,6 +632,7 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
                     "n_cascade_rows": cs["n_rows"],
                     "n_cascade_cited": cs["n_cited"],
                     "divergence_nodes": cs["divergence_nodes"],
+                    "reroute_pairs": cs["reroute_pairs"],
                     "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
                     "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
                                                 "source_diversity", "continuity", "mechanism_voice")

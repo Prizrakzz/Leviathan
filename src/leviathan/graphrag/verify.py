@@ -21,7 +21,9 @@ from __future__ import annotations
 import os
 import re
 
-_HANDLE = re.compile(r"\[(?P<kind>[NE]?)(?P<idx>\d+)\]")
+# The optional trailing letter consumes model-minted variants like [E1b]: unmatched they LEAK to the
+# reader as literal text (Stage-1 RCA q7); matched they resolve by idx and strip like any other handle.
+_HANDLE = re.compile(r"\[(?P<kind>[NE]?)(?P<idx>\d+)(?:[a-z])?\]")
 _QUOTE = re.compile(r"[\"“”]([^\"“”]{15,})[\"“”]")
 _NUM = re.compile(r"\d[\d,]*\.?\d*")
 _SENT_SPLIT = re.compile(r"(?<=[.!?;])\s+")
@@ -72,13 +74,18 @@ def _numbers_in(s: str) -> list[float]:
 
 
 def _num_matches(sent_nums: list[float], row_vals: list[float]) -> bool:
-    """'31.4 million' vs 31400000, '36.4%' vs 0.3636: equal within 1% at any common reporting scale."""
-    for a in sent_nums:
-        for b in row_vals:
+    """'31.4 million' vs 31400000, '36.4%' vs 0.3636: equal within 1% at any common reporting scale.
+    MAGNITUDE-insensitive to sign: _NUM cannot extract a minus from prose ('fell 5.058 MMT' reads 5.058)
+    while injected delta/pct rows are SIGNED (-5.058) -- direction lives in the prose verb, magnitude
+    backing is this check's job (Stage-1 RCA: every narrated DECLINE stripped deterministically)."""
+    for a0 in sent_nums:
+        a = abs(a0)
+        for b0 in row_vals:
+            b = abs(b0)
             for scale in (1.0, 1e2, 1e3, 1e6, 1e9):
-                if b and abs(a * scale - b) <= 0.01 * abs(b):
+                if b and abs(a * scale - b) <= 0.01 * b:
                     return True
-                if a and abs(b * scale - a) <= 0.01 * abs(a):
+                if a and abs(b * scale - a) <= 0.01 * a:
                     return True
     return False
 
@@ -111,12 +118,16 @@ def _num_backed(v: float, allv: list[float], tol: float = 0.01) -> bool:
     """P9-B (R4): SCALE-1 exact-ish match only. Injected cascade rows are PRE-SCALED to narrate_unit, so a
     hallucinated ~40% must NOT be back-filled by a raw 0.4 ratio or a 4e7 tonnage that _num_matches'
     multi-scale set would bridge -- that bridging is the exact mis-attribution hole the pre-scale normalizer
-    closes. Compare at scale 1 within a tight tolerance; 0 matches only 0."""
+    closes. Compare at scale 1 within a tight tolerance; 0 matches only 0. MAGNITUDE-insensitive to sign:
+    prose numbers arrive unsigned (_NUM has no minus) while delta/pct rows are signed -- the Stage-1 RCA
+    showed every narrated decline stripping while identical gains passed."""
+    va = abs(v)
     for r in allv:
-        if r == 0:
-            if v == 0:
+        ra = abs(r)
+        if ra == 0:
+            if va == 0:
                 return True
-        elif abs(v - r) <= tol * abs(r):
+        elif abs(va - ra) <= tol * ra:
             return True
     return False
 

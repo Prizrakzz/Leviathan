@@ -182,3 +182,34 @@ def test_number_unbacked_single_flag_rollback(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")
     calls = [{"rows": [{"value": "5900"}]}]
     assert vf._check_number_handle("exports rose to 5900 [N1], up 18%", 1, calls) is None
+
+
+# -- Stage-1 RCA fixes (2026-07-11): sign-blind prose vs signed delta rows; suffixed-handle leak --
+def test_number_backing_is_sign_insensitive():
+    """The Stage-1 signature: prose narrates unsigned magnitudes ('fell 14.573 MMT') while injected
+    decline delta/pct rows are SIGNED (-14.573) -- every narrated DECLINE stripped while identical
+    gains passed. Magnitude backs magnitude; direction lives in the prose verb."""
+    from leviathan.graphrag import verify as vf
+    decline = [{"query": {"metric": "exports_mt_delta"}, "rows": [{"value": "-14.573"}]}]
+    assert vf._check_number_handle("Russian exports fell 14.573 MMT [N1]", 1, decline) is None
+    gain = [{"query": {"metric": "exports_mt_delta"}, "rows": [{"value": "11.216"}]}]
+    assert vf._check_number_handle("US exports rose 11.216 MMT [N1]", 1, gain) is None
+    # a number matching NO row magnitude still strips -- abs() must not widen into backfill
+    assert vf._check_number_handle("exports fell 9.9 MMT [N1]", 1, decline) == "number_mismatch"
+
+
+def test_num_matches_own_row_sign_insensitive():
+    """The legacy own-row bridge is also magnitude-based: 'down 5.058 million' vs its own -5058000 row."""
+    from leviathan.graphrag import verify as vf
+    assert vf._num_matches([5.058], [-5058000.0])
+    assert not vf._num_matches([9.9], [-5058000.0])
+
+
+def test_suffixed_handle_variants_strip_not_leak():
+    """Model-minted variants like [E1b] must be CONSUMED by the handle regex (checked + strippable),
+    never left as literal reader-facing text (Stage-1 q7: fabricated variants leaked)."""
+    from leviathan.graphrag import verify as vf
+    structured = {"tldr": "x.", "mechanism": "The ratio fell sharply [E1b].", "sources": []}
+    rep = vf.verify_citations(structured, [], [])
+    assert "[E1b]" not in structured["mechanism"]                   # consumed (stripped), not leaked
+    assert rep["checked"] >= 1

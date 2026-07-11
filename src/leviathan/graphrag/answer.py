@@ -287,7 +287,12 @@ _SYSTEM_CASCADE = (
     "legs' numbers side by side labeled BY COUNTRY (never by era); the flow rerouted -- do not blend the two "
     "countries into one figure. If there is NO DIVERGENCE line and NO REROUTE line, do NOT invent a fork. "
     "If a leg reads 'not yet in effect as of <asof>' or '(record silent for that era)', narrate that ABSENCE "
-    "honestly; never fabricate a value for it.\n")
+    "honestly; never fabricate a value for it. "
+    "HANDLE DISCIPLINE (the verifier strips violations): an OBSERVED number takes ONLY its [N] handle -- never "
+    "an [E] handle, never a bare number, never an invented handle variant; a magnitude you computed yourself "
+    "(a sum, a share, a shortfall across rows) has NO row -- state it qualitatively without a handle. Name each "
+    "leg by the COUNTRY shown in its row, exactly. And in the record as everywhere else: never 'bullish' or "
+    "'bearish' -- direction is prose ('fell', 'rose to fill the gap'), magnitude is the [N] row.\n")
 
 
 def _count_banned_mood(structured: dict) -> int:

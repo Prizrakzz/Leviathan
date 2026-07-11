@@ -512,3 +512,14 @@ def test_scope_aliases_reference_contracts_and_titles_country(monkeypatch):
     assert commodity == "soft_red_winter_wheat_cbot" and country == "United States"
     commodity, country = cq._scope(SimpleNamespace(contract="soybeans"), {"country_rule": "none"})
     assert commodity == "soybeans_cbot" and country is None
+
+
+def test_primary_title_folds_eu_members(monkeypatch):
+    # Stage-1 RCA q11: PSD aggregates EU members under 'European Union'; the matif contracts' geo
+    # primary is France -> 0 PSD rows -> the reroute beneficiary leg died not_known and the pair
+    # silently declined.
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "france")
+    assert cq._primary_title("french_wheat_matif") == "European Union"
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
+    assert cq._primary_title("corn_cbot") == "United States"

@@ -265,13 +265,23 @@ def _region_entry(n) -> dict | None:
     return (load_region_map().get("resolve") or {}).get(tok)
 
 
+# PSD aggregates EU members under 'European Union' -- a member-state primary (the matif contracts' geo
+# primary is France) reads 0 PSD rows and the leg dies not_known (Stage-1 RCA q11: the reroute
+# beneficiary declined on exactly this, with the pair silently un-fireable).
+_PSD_COUNTRY_FOLD = {"France": "European Union"}
+
+
 def _primary_title(commodity) -> str | None:
     """The contract's primary balance-sheet country in the TABLE surface form ('united_states' ->
-    'United States'); None when no geography primary exists (callers degrade, never guess)."""
+    'United States'), EU members folded to 'European Union' (PSD's aggregation level); None when no
+    geography primary exists (callers degrade, never guess)."""
     try:
         from leviathan.graphrag import silverleg as slv
         country = slv._primary_country(commodity)
-        return country.replace("_", " ").title() if country else None
+        if not country:
+            return None
+        titled = country.replace("_", " ").title()
+        return _PSD_COUNTRY_FOLD.get(titled, titled)
     except Exception:  # noqa: BLE001
         return None
 
