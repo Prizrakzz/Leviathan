@@ -31,6 +31,50 @@ def test_vector_literal_round_trip():
     assert pg._vec_parse(pg._vec_lit(v)) == v
 
 
+# ── pool checkout semantics (no DB — psycopg.connect monkeypatched) ──────────────────────
+@pytest.fixture()
+def tiny_pool(monkeypatch):
+    """A fresh 1-slot pool with a short wait, restored after the test."""
+    monkeypatch.setattr(pg, "_POOL", None)
+    monkeypatch.setattr(pg, "_POOL_SIZE", 1)
+    monkeypatch.setattr(pg, "_POOL_WAIT_S", 1)
+    yield
+    pg._POOL = None  # never leak the tiny pool into other tests
+
+
+def test_failed_connect_returns_slot_not_shrinks_pool(tiny_pool, monkeypatch):
+    """The Jul-11 stall landmine: a connect exception after Queue.get() must put the SLOT back —
+    otherwise each transient RDS failure permanently shrinks the pool until every caller blocks."""
+    import psycopg
+
+    calls = {"n": 0}
+
+    def flaky_connect(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("connection refused (transient)")
+        return type("C", (), {"closed": False})()
+
+    monkeypatch.setattr(psycopg, "connect", flaky_connect)
+    with pytest.raises(OSError):
+        pg._acquire()
+    conn = pg._acquire()          # would raise RuntimeError(pool exhausted) if the slot leaked
+    assert not conn.closed
+    pg._release(conn)
+
+
+def test_pool_exhaustion_raises_loudly_not_blocks(tiny_pool, monkeypatch):
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: type("C", (), {"closed": False})())
+    held = pg._acquire()          # drain the single slot
+    with pytest.raises(RuntimeError, match="pg pool exhausted"):
+        pg._acquire()             # returns within ~_POOL_WAIT_S instead of blocking forever
+    pg._release(held)
+    again = pg._acquire()         # released slot is usable again
+    pg._release(again)
+
+
 # ── integration (local pgvector container; skip if unreachable) ──────────────────────────
 def _conn():
     import psycopg

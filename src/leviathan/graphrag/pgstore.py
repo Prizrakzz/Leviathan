@@ -65,6 +65,10 @@ _PG_LOCK = threading.Lock()
 # old single-connection + lock path.
 _POOL = None
 _POOL_SIZE = int(os.environ.get("EVIDENCE_PG_POOL", "4"))
+# Checkout wait ceiling: holders keep a conn for milliseconds (one execute+fetch), so a multi-minute wait
+# means slots leaked or a holder wedged — fail the ONE caller loudly (pg_query degrades to its Athena
+# fallback; a walk fetch errors its turn) instead of blocking every worker forever (Jul-11 stall autopsy).
+_POOL_WAIT_S = int(os.environ.get("EVIDENCE_PG_POOL_WAIT_S", "120"))
 
 
 def _acquire():
@@ -79,9 +83,17 @@ def _acquire():
                 for _ in range(max(1, _POOL_SIZE)):
                     p.put(None)                          # lazy slots — connect on first checkout
                 _POOL = p
-    conn = _POOL.get()
+    try:
+        conn = _POOL.get(timeout=max(1, _POOL_WAIT_S))
+    except _q.Empty:
+        raise RuntimeError(f"pg pool exhausted: no connection freed in {_POOL_WAIT_S}s "
+                           f"(size={_POOL_SIZE}) — leaked slot or wedged holder") from None
     if conn is None or conn.closed:
-        conn = psycopg.connect(dsn(), autocommit=True)
+        try:
+            conn = psycopg.connect(dsn(), autocommit=True)
+        except BaseException:
+            _POOL.put(None)      # a failed connect returns the SLOT (lazy) — it must never shrink the pool
+            raise
     return conn
 
 
