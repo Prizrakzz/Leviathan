@@ -621,6 +621,9 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
                     "claim_count": v.get("claim_count", 0),
                     "handles_checked": v.get("checked", 0),
                     "by_rule": v.get("by_rule") or {},
+                    # W3 RCA: stripped-sentence audit rides the baseline ONLY when GRAPHRAG_STRIP_AUDIT is on
+                    # (verify omits the key when off) -- the per-turn text the by_rule counts can't give.
+                    "strip_audit": v.get("strip_audit") or None,
                     "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
                     "banned_mood_words": (out.get("trace") or {}).get("banned_mood_words", 0),
                     "mechanism_scaffold_ok": _scaffold_ok(out),
