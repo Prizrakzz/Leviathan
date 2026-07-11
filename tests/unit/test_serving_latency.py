@@ -230,6 +230,62 @@ def test_serving_call_stream_matches_buffered_shape():
     assert degraded is None and out["tldr"] == "t"
 
 
+# ── W4: fine-grained-tool-streaming beta ────────────────────────────────────────────────────────────
+def test_call_opus_stream_sends_fgt_beta_on_anthropic_lane(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_FGT_STREAM", raising=False)      # default-on lane; fake client != Bedrock
+    client = _FakeStreamClient(['{}'], _final_msg({"tldr": "t", "mechanism": "m", "sources": []}))
+    ex.call_opus_stream(client, "sys", "user", model="m", tool=_TOOL, on_token=None)
+    assert ex._FGT_BETA in client.stream_calls[0]["extra_headers"]["anthropic-beta"]
+
+
+def test_call_opus_stream_ragged_escape_boundary_relays_and_parses_whole(monkeypatch):
+    # deltas split mid-escape (\\ | n) and mid-key ("mech" | "anism"). The fake DERIVES the final message
+    # from json.loads(''.join(deltas)) (review fold) so the parses-whole assertion has teeth — the ragged
+    # chunks genuinely reassemble to the payload, not a canned duplicate.
+    import json as _json
+
+    monkeypatch.delenv("GRAPHRAG_FGT_STREAM", raising=False)
+    deltas = ['{"tldr":"a\\', 'nb","mech', 'anism":"m","sources":[]}']
+    payload = {"tldr": "a\nb", "mechanism": "m", "sources": []}
+    client = _FakeStreamClient(deltas, _final_msg(_json.loads("".join(deltas))))
+    got: list[str] = []
+    out, _usage = ex.call_opus_stream(client, "sys", "user", model="m", tool=_TOOL, on_token=got.append)
+    assert got == deltas                                          # every ragged chunk relayed, in order
+    assert out == payload                                         # deltas reassemble to the exact payload
+
+
+def test_call_opus_stream_gate_off_omits_extra_headers(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_FGT_STREAM", "off")
+    client = _FakeStreamClient(['{}'], _final_msg({"tldr": "t", "mechanism": "m", "sources": []}))
+    ex.call_opus_stream(client, "sys", "user", model="m", tool=_TOOL, on_token=None)
+    assert "extra_headers" not in client.stream_calls[0]         # gate off -> no beta header
+
+
+class AnthropicBedrock(_FakeStreamClient):
+    """Class NAME is load-bearing: _fgt_stream_headers reads the lane from type(client).__name__."""
+
+
+def test_call_opus_stream_bedrock_lane_defaults_off(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_FGT_STREAM", raising=False)      # unset -> Bedrock default is OFF (probe-gated)
+    client = AnthropicBedrock(['{}'], _final_msg({"tldr": "t", "mechanism": "m", "sources": []}))
+    ex.call_opus_stream(client, "sys", "user", model="m", tool=_TOOL, on_token=None)
+    assert "extra_headers" not in client.stream_calls[0]
+
+
+def test_call_opus_stream_bedrock_explicit_on_wins(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_FGT_STREAM", "on")               # explicit env wins for either lane
+    client = AnthropicBedrock(['{}'], _final_msg({"tldr": "t", "mechanism": "m", "sources": []}))
+    ex.call_opus_stream(client, "sys", "user", model="m", tool=_TOOL, on_token=None)
+    assert ex._FGT_BETA in client.stream_calls[0]["extra_headers"]["anthropic-beta"]
+
+
+def test_call_opus_stream_empty_env_keeps_anthropic_default_on(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_FGT_STREAM", "")                 # declared-but-empty (CI/.env) == unset
+    client = _FakeStreamClient(['{}'], _final_msg({"tldr": "t", "mechanism": "m", "sources": []}))
+    ex.call_opus_stream(client, "sys", "user", model="m", tool=_TOOL, on_token=None)
+    assert ex._FGT_BETA in client.stream_calls[0]["extra_headers"]["anthropic-beta"]
+
+
 # ── Stage 1.6 WS-B: the numbers agent's per-batch tool calls run concurrently ───────────────────────
 def test_numbers_agent_batch_parallel_preserves_order_and_errors(monkeypatch):
     import time

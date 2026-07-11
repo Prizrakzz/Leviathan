@@ -184,6 +184,13 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         _orig_prose = (structured.get("tldr") or "") + " " + (structured.get("mechanism") or "")
         report["claim_count"] = len([s for s in _SENT_SPLIT.split(_orig_prose) if s.strip()])
 
+        # W3 RCA: flag-gated capture of the stripped SENTENCE TEXT (counts already live in by_rule, but the
+        # fix can't be chosen without seeing WHICH sentences each rule kills). GRAPHRAG_STRIP_AUDIT=off (the
+        # default) -> no key, no appends, no cost. Capture ONLY -- no strip decision reads this list.
+        _audit_on = os.environ.get("GRAPHRAG_STRIP_AUDIT", "off") != "off"
+        if _audit_on:
+            report["strip_audit"] = []
+
         evidence = evidence or []
         number_calls = number_calls or []
 
@@ -231,7 +238,15 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         foreign = re.compile(r"\b(" + "|".join(re.escape(n) for n in sorted(foreign_names)) + r")\b") \
             if foreign_names else None
 
-        def _verify_field(text: str) -> str:
+        def _audit(rule: str, field: str, sent: str) -> None:
+            # offending magnitudes = sentence numbers minus the citation-handle digits (same normalization
+            # the number guard uses), so an RCA dump keys stripped text by rule without re-parsing prose.
+            if _audit_on:
+                report["strip_audit"].append(
+                    {"rule": rule, "field": field, "text": sent.strip(),
+                     "numbers": _numbers_in(_HANDLE.sub("", sent))})
+
+        def _verify_field(text: str, field: str = "") -> str:
             drops: list[tuple[int, int]] = []
             for m in _HANDLE.finditer(text):
                 report["checked"] += 1
@@ -249,18 +264,20 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     drops.append((m.start(), m.end()))
                     report["stripped"] += 1
                     report["by_rule"][rule] = report["by_rule"].get(rule, 0) + 1
+                    _audit(rule, field, sent)
             if foreign:                                   # a regime name from ANOTHER contract's DAG is a
                 for m in foreign.finditer(text):          # cross-contract fabrication, never a citation issue
                     drops.append((m.start(), m.end()))
                     report["stripped"] += 1
                     report["by_rule"]["foreign_regime_name"] = report["by_rule"].get("foreign_regime_name", 0) + 1
+                    _audit("foreign_regime_name", field, _sentence_at(text, m.start()))
             for a, b in sorted(set(drops), reverse=True):
                 text = text[:a] + text[b:]
             return re.sub(r" +([.,;])", r"\1", re.sub(r"  +", " ", text))
 
         for fld in ("tldr", "mechanism"):
             if structured.get(fld):
-                structured[fld] = _verify_field(structured[fld])
+                structured[fld] = _verify_field(structured[fld], fld)
     except Exception:  # noqa: BLE001 — a verifier bug must never eat an answer
         report["error"] = True
     return report

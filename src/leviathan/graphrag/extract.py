@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -446,6 +447,7 @@ def build_minibatch_message(props: list[str], *, prev: str = "", next: str = "")
 _CACHE_WRITE_MULT = {None: 1.25, "5m": 1.25, "1h": 2.0}
 _CACHE_READ_MULT = 0.1
 _EXT_CACHE_BETA = "extended-cache-ttl-2025-04-11"   # required for ttl="1h"
+_FGT_BETA = "fine-grained-tool-streaming-2025-05-14"   # streams input_json_delta token-fine (no slabbing)
 
 
 @dataclass
@@ -508,19 +510,41 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
     return tool_input, _usage_from(getattr(resp, "usage", None))
 
 
+def _fgt_stream_headers(client) -> dict | None:
+    """extra_headers for the fine-grained-tool-streaming beta on call_opus_stream, or None to omit it.
+
+    Per-provider gate GRAPHRAG_FGT_STREAM: the Anthropic lane defaults ON (beta is GA/documented); the
+    Bedrock lane defaults OFF because support on the global.anthropic.* serving profiles is UNVERIFIED —
+    AnthropicBedrock forwards the header, but it may be silently ignored (still slabs, no harm) or rejected
+    as InvalidRequest. serving_call_stream falls back to buffered serving_call on any stream-path error
+    (providers.py:123-125), so a rejection is non-fatal — this gate is a cost/latency guard, not a
+    correctness one. Flip the Bedrock default on only after a model_probe confirms token-fine deltas + no
+    InvalidRequest. An explicit env value (on/off) wins for either lane. Lane is read from the client type
+    (not a providers import — that would be circular), matching the single-client idiom."""
+    is_bedrock = type(client).__name__ == "AnthropicBedrock"
+    # empty/whitespace counts as UNSET (review fold): a declared-but-empty env var in CI/.env must not
+    # silently disable the Anthropic default-on lane.
+    env = (os.environ.get("GRAPHRAG_FGT_STREAM") or "").strip()
+    on = (env.lower() in ("1", "true", "on", "yes")) if env else (not is_bedrock)
+    return {"anthropic-beta": _FGT_BETA} if on else None
+
+
 def call_opus_stream(client, system: str, user, *, model: str = MODEL, max_tokens: int = 4096,
                      tool: dict | None = None, on_token=None) -> tuple[dict, Usage]:
     """Streaming forced-tool call — same contract as call_opus (returns (tool_input_dict, usage)), but relays
     the tool's `input_json_delta` text to `on_token` as it generates so the UI can render the note live
     instead of blocking on the full completion. The SDK assembles the final message. A progress callback must
-    NEVER break the turn, so its errors are swallowed."""
+    NEVER break the turn, so its errors are swallowed. The fine-grained-tool-streaming beta header (gated by
+    GRAPHRAG_FGT_STREAM, see _fgt_stream_headers) removes the upstream slabbing; it's mirrored on the
+    _EXT_CACHE_BETA extra_headers idiom (single code path, both provider lanes)."""
     tool = tool or extraction_tool()
-    with client.messages.stream(
-        model=model, max_tokens=max_tokens, system=system,
-        messages=[{"role": "user", "content": user}],
-        tools=[tool],
-        tool_choice={"type": "tool", "name": tool["name"]},
-    ) as stream:
+    kw: dict = dict(model=model, max_tokens=max_tokens, system=system,
+                    messages=[{"role": "user", "content": user}],
+                    tools=[tool], tool_choice={"type": "tool", "name": tool["name"]})
+    hdr = _fgt_stream_headers(client)
+    if hdr is not None:
+        kw["extra_headers"] = hdr
+    with client.messages.stream(**kw) as stream:
         if on_token is not None:
             for event in stream:
                 if getattr(event, "type", None) == "content_block_delta":

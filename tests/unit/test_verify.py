@@ -213,3 +213,46 @@ def test_suffixed_handle_variants_strip_not_leak():
     rep = vf.verify_citations(structured, [], [])
     assert "[E1b]" not in structured["mechanism"]                   # consumed (stripped), not leaked
     assert rep["checked"] >= 1
+
+
+# -- W3 RCA: GRAPHRAG_STRIP_AUDIT captures stripped SENTENCE TEXT (flag-gated, capture-only) -----------
+def test_strip_audit_on_records_rule_field_and_text(monkeypatch):
+    """Flag ON: a field with one backed [N] sentence + one unbacked computed-magnitude sentence yields a
+    strip_audit entry naming the rule (number_unbacked), the field, and the stripped sentence text."""
+    monkeypatch.setenv("GRAPHRAG_STRIP_AUDIT", "on")
+    # sentence A: fully backed (keeps its handle). sentence B: 31.4M backs N1 but the '18%' free-rides.
+    s = _structured("Ending stocks were 31.4 million MT [N1]. Exports climbed 31.4 million MT [N1], up 18%.",
+                    [])
+    rep = vf.verify_citations(s, EV, NUMS)
+    assert s["tldr"].count("[N1]") == 1                            # only the free-riding sentence strips
+    audit = rep["strip_audit"]
+    assert len(audit) == 1
+    entry = audit[0]
+    assert entry["rule"] == "number_unbacked" and entry["field"] == "tldr"
+    assert "up 18%" in entry["text"]                               # the stripped sentence text is captured
+    assert 18.0 in entry["numbers"]                                # offending free-riding magnitude captured
+    assert 1.0 not in entry["numbers"]                            # the [N1] handle digit is NOT a magnitude
+
+
+def test_strip_audit_off_absent_and_behavior_byte_identical():
+    """Flag OFF (default): no strip_audit key, and the report/prose are exactly what the existing
+    fabricated-attribution test pins -- capture is completely inert when unset."""
+    s = _structured(
+        "Tariff escalation concentrates Chinese buying on Brazilian beans, documented near the as-of [1].",
+        [{"ref": "1", "source": "usda_gain_soybean_oil", "date": "2026-03-31", "note": ""}])
+    rep = vf.verify_citations(s, EV, [])
+    assert "strip_audit" not in rep                                 # no key when the flag is unset
+    assert "[1]" not in s["tldr"]                                   # identical strip decision as before
+    assert rep["stripped"] == 1 and rep["by_rule"].get("no_lexical_overlap") == 1
+
+
+def test_strip_audit_on_captures_field_and_foreign_regime(monkeypatch):
+    """The audit spans both prose fields and the foreign-regime strip path, tagging each with its field."""
+    monkeypatch.setenv("GRAPHRAG_STRIP_AUDIT", "on")
+    s = _structured("The bullish_protein_squeeze regime also looms on the drought [2].",
+                    [{"ref": "2", "source": "usda_wasde", "date": "2012-08-10", "note": ""}],
+                    mechanism="Freight rates spiked on Panama canal restrictions [9].")
+    rep = vf.verify_citations(s, EV, [], foreign_names={"bullish_protein_squeeze"})
+    rules = {(e["field"], e["rule"]) for e in rep["strip_audit"]}
+    assert ("tldr", "foreign_regime_name") in rules                 # cross-contract name, tldr field
+    assert ("mechanism", "undeclared_unsupported") in rules        # unsupported handle, mechanism field

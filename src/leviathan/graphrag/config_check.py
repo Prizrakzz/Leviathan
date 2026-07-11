@@ -120,9 +120,9 @@ def check_cascade_map() -> list[str]:
     that lint-passes on table+metric existence would still return record_silent on an empty source; this
     empty-set check is the offline half of the guard, the Phase-D live probe is the runtime half."""
     from leviathan.graphrag.numbers.cascade import load_map
+    from leviathan.graphrag.numbers.cascade_census import UNCERTIFIED_TABLES as _uncertified
     from leviathan.graphrag.numbers.registry import load_registry
     reg = load_registry()
-    _uncertified = {"silver_esr", "silver_nasa_power"}          # 0 rows at the 2026-06-24 certification
     errs: list[str] = []
     for ref, row in (load_map() or {}).items():
         ts = None
@@ -187,6 +187,47 @@ def _check_region_map(reg) -> list[str]:
     return errs
 
 
+def check_pin_realizability() -> list[str]:
+    """P9-W2.3: PER-QUERY (never per-contract) cascade-pin lint. Every v4 eval query pinning
+    `cascade_fired` asserts an OUTCOME; this proves the pin matches the query's own realizability BEFORE an
+    eval run can waste itself on it. Per-query is load-bearing: a contract rollup would compute
+    `can_any_leg_fire(soybean_oil_cbot)=TRUE` and FAIL to flag q6 -- the biodiesel QUESTION grounds only
+    unmapped flag/z refs + a driverless consumption leg, so its per-query realizability is FALSE even though
+    the contract CAN fire on export/stock/oni/fx. Reuses cascade_census.query_realizable (the census's own
+    topology, so lint and census agree by construction; NO pg -- this is the pure map/DAG half):
+
+      * `cascade_fired:true` while per-query realizability is FALSE -> ERROR (the q6 false-positive class),
+      * `cascade_fired:false` while the query's OWN legs structurally CAN fire -> ERROR (a stale-negative pin;
+        pins follow census truth in BOTH directions).
+
+    Every cascade_fired-pinned query MUST declare `cascade_drivers: [...]` (the driver ids the question
+    grounds). FAIL-CLOSED (review fold, major): with no declaration query_realizable returns None and the
+    lint ERRORS -- the contract-rollup fallback it replaced was exactly the granularity hole that would
+    have greenlit q6's original undeclared pin (soybean_oil_cbot rolls up TRUE via export/stock/oni/fx)."""
+    from leviathan.graphrag.numbers import cascade_census as cc
+    doc = _load("eval_queries_v4_cascade.yaml") or {}
+    errs: list[str] = []
+    for q in (doc.get("queries") or []):
+        exp = q.get("expect") or {}
+        if "cascade_fired" not in exp:
+            continue
+        pin = bool(exp["cascade_fired"])
+        realizable = cc.query_realizable(q)
+        if realizable is None:
+            errs.append(f"pin_realizability {q.get('id')!r} ({q.get('contract')}): pins cascade_fired but "
+                        f"declares no `cascade_drivers` -- the per-query grounded set is unknown and the "
+                        f"contract rollup is not a substitute (fail-closed); declare the driver ids the "
+                        f"question grounds")
+        elif pin and not realizable:
+            errs.append(f"pin_realizability {q.get('id')!r} ({q.get('contract')}): pins cascade_fired:true "
+                        f"but no grounded leg is realizable per-query (unmapped refs / unresolved regions) "
+                        f"-- re-pin to false + a qualitative-mechanism assertion")
+        elif (not pin) and realizable:
+            errs.append(f"pin_realizability {q.get('id')!r} ({q.get('contract')}): pins cascade_fired:false "
+                        f"but the query's own legs structurally CAN fire (stale-negative pin) -- re-pin to true")
+    return errs
+
+
 def check_driver_slices() -> list[str]:
     """Driver-slice darkness lint (7-P2 W2) — every causal DAG driver id resolves to an evidence slice or
     carries a waiver (hard), and no id is double-owned (hard). Topical-token drift is a separate advisory
@@ -228,6 +269,7 @@ def main() -> int:
                         ("display_names", check_display_names()),
                         ("display_vocab", check_display_vocab()),
                         ("cascade_map", check_cascade_map()),
+                        ("pin_realizability", check_pin_realizability()),
                         ("driver_slices", check_driver_slices()),
                         ("edge_blurbs", check_edge_blurbs())):
         if errs:
