@@ -523,3 +523,7 @@ def test_primary_title_folds_eu_members(monkeypatch):
     assert cq._primary_title("french_wheat_matif") == "European Union"
     monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
     assert cq._primary_title("corn_cbot") == "United States"
+    # census-caught sibling (2026-07-11): the geo primary loses the apostrophe in title-casing while
+    # PSD spells it "Cote d'Ivoire" (live DISTINCT-title probe) -- same class as France->EU.
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "cote_divoire")
+    assert cq._primary_title("cocoa") == "Cote d'Ivoire"

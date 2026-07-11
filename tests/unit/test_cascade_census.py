@@ -105,6 +105,19 @@ def test_census_non_zero_exit_on_unwaived_dark(_synth_index):
     assert [leg["node_id"] for leg in dark] == ["dark_leg"]               # the exit-gate forcing function
 
 
+def test_waived_leg_declines_and_skips_probe(_synth_index, monkeypatch):
+    """A waivered leg (W2.1: the source genuinely has no data) reports DECLINES-HONESTLY without ever
+    probing pg, and does not trip the un-waived-dark exit gate."""
+    monkeypatch.setitem(cc._WAIVERS, ("test_soy", "dark_leg"), "no data for this (country, metric)")
+    mock = _MockPg()
+    art = cc.census(asof="2026-02-15", query_fn=mock)
+    leg = next(x for x in art["legs"] if x["node_id"] == "dark_leg")
+    assert leg["verdict"] == cc.DECLINES and leg["reason"].startswith("waived:")
+    assert leg["pg_rows"] is None                                         # waiver short-circuits the probe
+    assert cc._unwaived_dark(art) == []                                   # a green census with the waiver
+    assert all("'Ukraine'" not in s for s in mock.calls)                  # the dark leg's SQL never ran
+
+
 def test_census_uses_pg_query_never_athena(_synth_index, monkeypatch):
     """Source tripwire: the census must execute EVERY query through the injected pg_query and NEVER touch
     Q.athena_query_fn -- the plan's positive, observable ZERO-Athena guarantee."""

@@ -60,8 +60,24 @@ _UNCERTIFIED = UNCERTIFIED_TABLES
 
 # Explicit dark-leg waivers: (contract, node_id) -> one-line justification. A waived leg is reported as
 # DECLINES-HONESTLY (the source genuinely has no data for that (country, metric); the engine stays
-# qualitative rather than believing it will fire) and does NOT trip the non-zero exit. Empty today.
-_WAIVERS: dict[tuple[str, str], str] = {}
+# qualitative rather than believing it will fire) and does NOT trip the non-zero exit.
+# The 2026-07-11 census found exactly 9 dark legs, all on cocoa + frozen_orange_juice; the live probe
+# (SELECT DISTINCT leviathan_slug FROM silver_psd WHERE ... cocoa|orange|juice|citrus) returned ZERO
+# rows -- USDA PSD tracks neither commodity, so every leg below is honest data absence, not a bug.
+# DELETE the relevant waivers if either commodity is ever ingested into silver_psd.
+_NO_COCOA = "silver_psd has no cocoa balance sheet (DISTINCT slug probe 2026-07-11)"
+_NO_FCOJ = "silver_psd has no orange-juice balance sheet (DISTINCT slug probe 2026-07-11)"
+_WAIVERS: dict[tuple[str, str], str] = {
+    ("cocoa", "US_section301_tariffs"): _NO_COCOA,
+    ("cocoa", "export_pace_lag"): _NO_COCOA,
+    ("cocoa", "tenderable_collapse"): _NO_COCOA,
+    ("cocoa", "grind_demand"): _NO_COCOA,
+    ("cocoa", "demand_destruction"): _NO_COCOA,
+    ("frozen_orange_juice", "ending_stocks"): _NO_FCOJ,
+    ("frozen_orange_juice", "consumption_demand"): _NO_FCOJ,
+    ("frozen_orange_juice", "US_section301_tariffs"): _NO_FCOJ,
+    ("frozen_orange_juice", "tenderable_collapse"): _NO_FCOJ,
+}
 
 # The v4 cascade fixture (config_check._CFG mirror -- both resolve configs/graphrag/).
 _FIXTURE = "eval_queries_v4_cascade.yaml"

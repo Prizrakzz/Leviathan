@@ -268,7 +268,10 @@ def _region_entry(n) -> dict | None:
 # PSD aggregates EU members under 'European Union' -- a member-state primary (the matif contracts' geo
 # primary is France) reads 0 PSD rows and the leg dies not_known (Stage-1 RCA q11: the reroute
 # beneficiary declined on exactly this, with the pair silently un-fireable).
-_PSD_COUNTRY_FOLD = {"France": "European Union"}
+# 'Cote Divoire' (cocoa's geo primary, apostrophe lost in title-casing) vs PSD's "Cote d'Ivoire" is
+# the same class -- census-caught 2026-07-11 (country-not-a-psd-title x3), fold validated against the
+# live DISTINCT-title probe.
+_PSD_COUNTRY_FOLD = {"France": "European Union", "Cote Divoire": "Cote d'Ivoire"}
 
 
 def _primary_title(commodity) -> str | None:
