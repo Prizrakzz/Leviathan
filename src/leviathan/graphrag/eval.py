@@ -187,50 +187,274 @@ def score(q: dict, out: dict) -> dict:
             "cascade_asserts": _cascade_asserts(q, out)}
 
 
+# ── E-W2: unfreezable + unlosable harness (per-turn watchdog, incremental JSONL, heartbeat) ───────────
+def _turn_deadline(deadline: float | None = None) -> float:
+    """Per-turn wall-clock ceiling. env GRAPHRAG_EVAL_TURN_DEADLINE (default 4200s = 70min) MUST exceed the
+    ~3932s two-serial-call legal worst case so it never false-fires a healthy heavy turn (plan S2.4/AV3)."""
+    import os as _os
+    if deadline is not None:
+        return float(deadline)
+    return float(_os.environ.get("GRAPHRAG_EVAL_TURN_DEADLINE", "4200") or 4200)
+
+
+def _timeout_row(q: dict, deadline: float) -> dict:
+    """The row a watchdog fire records for a stalled turn -- SAME shape as run()'s except-branch row so
+    _metrics / _baseline_json / report all treat it as a normal answered-with-error row. AV2:
+    trace['degraded_model'] MUST be set so §4.4's transient policy counts a mid-transient watchdog kill as
+    RETRY-TRANSIENT, not a code/quality failure; trace['error'] keeps the two causes distinguishable."""
+    out = {"answer": f"(turn watchdog timeout at {deadline:.0f}s)", "contract": None, "structured": None,
+           "evidence": [], "intent": None, "number_calls": [], "citations": [], "model": None,
+           "trace": {"error": "watchdog_timeout", "degraded_model": "(watchdog_timeout)"}}
+    return {"q": q, "out": out, "rubric": score(q, out), "secs": deadline}
+
+
+def _per_answer_record(r: dict, run_kind: str) -> dict:
+    """The per-answer baseline/JSONL record for ONE row -- the SINGLE source of truth so the incremental
+    partial JSONL (_persist_partial) is byte-identical to the final _baseline_json per_answer entries
+    (zero drift). run_kind 'single'|'convos' selects the id + intent_ok source."""
+    out = r.get("out") or {}
+    v = ((out.get("trace") or {}).get("citation_verifier")) or {}
+    if run_kind == "convos":
+        rid = f"{r.get('convo')}/{r.get('turn')}"                # convo rows have no single query id
+        intent_ok = (r.get("mech") or {}).get("intent_ok")
+    else:
+        rid = str((r.get("q") or {}).get("id"))
+        intent_ok = (r.get("rubric") or {}).get("intent_ok")
+    j = r.get("judge") or {}
+    cs = _cascade_stats(out)                                     # P9-AB: post-run-readable cascade record
+    return {"id": rid,
+            "strips": v.get("stripped", 0),
+            "claim_count": v.get("claim_count", 0),
+            "handles_checked": v.get("checked", 0),
+            "by_rule": v.get("by_rule") or {},
+            # W3 RCA: stripped-sentence audit rides the baseline ONLY when GRAPHRAG_STRIP_AUDIT is on
+            # (verify omits the key when off) -- the per-turn text the by_rule counts can't give.
+            "strip_audit": v.get("strip_audit") or None,
+            "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
+            "banned_mood_words": (out.get("trace") or {}).get("banned_mood_words", 0),
+            "mechanism_scaffold_ok": _scaffold_ok(out),
+            "n_sections": len((out.get("structured") or {}).get("sections") or []),   # P9-C derived view
+            "intent": out.get("intent"),
+            "intent_ok": intent_ok,
+            "secs": r.get("secs"),
+            "cascade_fired": cs["fired"],
+            "n_cascade_rows": cs["n_rows"],
+            "n_cascade_cited": cs["n_cited"],
+            "divergence_nodes": cs["divergence_nodes"],
+            "reroute_pairs": cs["reroute_pairs"],
+            "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
+            # R3 F12: without degraded_model in the record a degraded turn is byte-indistinguishable from a
+            # clean one and the transient-error policy is un-enforceable (set at answer.py:663,960; a
+            # watchdog fire sets '(watchdog_timeout)'). Single highest-leverage gate-ENABLING line.
+            "degraded_model": (out.get("trace") or {}).get("degraded_model"),
+            "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
+                                        "source_diversity", "continuity", "mechanism_voice")
+                      if k in j} or None}
+
+
+def _partial_path(eval_set: str, provider: str, *, judge: bool = False):
+    """Stable (non-ts) partial-JSONL path so a KILLED run is findable + reconstructable; overwritten once at
+    run start: partial_{eval_set}_{provider}.jsonl (judge=True -> partial_judge_{eval_set}_{provider}.jsonl,
+    the AV5 sidecar that keeps every judge score across a kill during judging)."""
+    stem = f"partial_judge_{eval_set}_{provider}.jsonl" if judge else f"partial_{eval_set}_{provider}.jsonl"
+    return _OUT / stem
+
+
+def _partial_s3_key(eval_set: str, provider: str, *, judge: bool = False) -> str | None:
+    """s3://<EVIDENCE_S3>/eval/partial_... for the optional every-N durable mirror; None when EVIDENCE_S3 unset."""
+    s3uri = ev._evid_s3()
+    if not s3uri:
+        return None
+    return s3uri.rstrip("/") + "/eval/" + _partial_path(eval_set, provider, judge=judge).name
+
+
+def _persist_partial(row: dict, handle, run_kind: str) -> None:
+    """Append ONE per-answer record to the OPEN partial handle and flush immediately. Main-thread only (no
+    lock). AV1: flush() pushes Python->OS and the OS page cache survives process death, so a kill -9 (exit
+    137 -- the actual incident signal) leaves a readable partial; the handle is opened buffering=1 too (belt
+    and braces). os.fsync is NOT needed (a process kill, not a host/kernel crash, is the threat model)."""
+    import json as _json
+    handle.write(_json.dumps(_per_answer_record(row, run_kind)) + "\n")
+    handle.flush()
+
+
+class _PartialWriter:
+    """Owns the stable partial-JSONL handle for one run. main() opens it once, passes __call__ as the
+    `persist` hook into run()/the judge drain, and flush+closes it immediately before os._exit(0) -- os._exit
+    does NOT run TextIOWrapper.close(), so the buffered tail would truncate even on the clean path (AV1)."""
+
+    def __init__(self, path, run_kind: str, *, s3_key: str | None = None, s3_every: int = 4):
+        self.path = path
+        self.run_kind = run_kind
+        self._s3_key = s3_key
+        self._s3_every = s3_every
+        self._n = 0
+        _OUT.mkdir(parents=True, exist_ok=True)
+        self._h = open(path, "w", buffering=1, encoding="utf-8")    # line-buffered text mode (belt to flush's braces)
+
+    def __call__(self, row: dict) -> None:
+        _persist_partial(row, self._h, self.run_kind)
+        self._n += 1
+        if self._s3_key and self._n % self._s3_every == 0:          # optional durable mirror of the WHOLE jsonl
+            try:
+                import boto3
+                b, k = ev._parse_s3(self._s3_key)
+                boto3.client("s3").put_object(Bucket=b, Key=k, Body=self.path.read_bytes())
+            except Exception as e:  # noqa: BLE001 -- a mirror failure must NEVER break the run
+                print(f"  WARN partial S3 mirror failed -- {str(e)[:120]}", flush=True)
+
+    def close(self) -> None:
+        try:
+            self._h.flush()
+            self._h.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _drain(futs: dict, started: dict, *, ids: list, n: int, deadline: float, heartbeat_period: float,
+           workers: int, on_complete, on_timeout, label: str = "turn") -> None:
+    """Explicit-futures MAIN-THREAD drain shared by the answer phase (run) and the judge phase (AV5). Wakes
+    on each completion OR every heartbeat_period; hands completed units to on_complete(idx, fut) and
+    watchdog-orphans any in-flight unit whose turn (measured from `started[idx]` -- turn START, not
+    submission) has run past `deadline`, handing it to on_timeout(idx). Python threads can't be force-killed,
+    so an orphaned worker keeps grinding its read-timeout-bounded ladder and holds a slot; the
+    LIVE-WORKER-FLOOR guard prints WATCHDOG-STALL when every slot is orphaned (the VOID signal). A daemon
+    heartbeat (lock-free reads of started + the answered counter) makes silence diagnosable in real time."""
+    import threading
+    import time as _t
+    from concurrent.futures import FIRST_COMPLETED
+    from concurrent.futures import wait as _wait
+    pending = set(futs)
+    answered = [0]
+    stop = threading.Event()
+
+    def _heartbeat():                                              # daemon=True -> never blocks exit
+        while not stop.wait(heartbeat_period):
+            snap = dict(started)                                   # snapshot: lock-free, GIL-atomic
+            now = _t.monotonic()
+            qids = [ids[i] for i in sorted(snap)]
+            oldest = max((now - s for s in snap.values()), default=0.0)
+            print(f"heartbeat: n_answered={answered[0]}/{n} in_flight={qids} "
+                  f"oldest_in_flight_secs={oldest:.0f}", flush=True)
+    threading.Thread(target=_heartbeat, daemon=True).start()
+    orphaned = 0
+    stall_since = None
+    try:
+        while pending:
+            done, pending = _wait(pending, timeout=heartbeat_period, return_when=FIRST_COMPLETED)
+            for f in done:
+                idx = futs[f]
+                try:
+                    on_complete(idx, f)
+                except Exception as e:  # noqa: BLE001 -- one bad drain callback must not abort the run
+                    print(f"  WARN drain {label} {ids[idx]}: {str(e)[:120]}", flush=True)
+                answered[0] += 1
+            now = _t.monotonic()
+            for f in list(pending):
+                idx = futs[f]
+                st = started.get(idx)
+                if st is not None and now - st > deadline:        # measured from turn START (plan S3.1)
+                    on_timeout(idx)
+                    answered[0] += 1
+                    pending.discard(f)                            # orphan the thread; do NOT join
+                    orphaned += 1
+                    print(f"  WATCHDOG {ids[idx]}: {label} exceeded {deadline:.0f}s -- orphaning worker, "
+                          f"recording timeout row", flush=True)
+            live = sum(1 for f in pending if futs[f] in started)  # non-orphaned units actually running
+            if pending and live == 0 and orphaned >= workers:     # every slot held by an orphan
+                if stall_since is None:
+                    stall_since = now
+                elif now - stall_since > heartbeat_period:        # sustained > one heartbeat -> the VOID signal
+                    print("WATCHDOG-STALL: all workers orphaned", flush=True)
+                    stall_since = now                             # re-arm: repeat each heartbeat, don't spam within one
+            else:
+                stall_since = None
+    finally:
+        stop.set()
+
+
 def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, k: int = 5, answer_fn=None,
         via_orchestrator: bool = False, numbers_client=None, call=None, planner: str | None = None,
-        workers: int = 1) -> list[dict]:
+        workers: int = 1, persist=None, deadline: float | None = None,
+        heartbeat_period: float = 90.0) -> list[dict]:
     """Run each query through answer() (default) or — with via_orchestrator — the full intent branch
     orchestrator.respond() (numbers_only / reasoning / hybrid), passing each question's point-in-time asof.
     `planner='l2'` routes reasoning/hybrid through the deterministic grounded-subgraph walk (A/B vs one-hop).
     `workers>1` answers independent questions concurrently — the per-question chain is dominated by LLM
     network waits, so threads cut wall-clock ~workers-fold at identical API cost (psycopg3 connections,
-    torch inference and the Anthropic client are all thread-safe). Row order always matches `queries`."""
+    torch inference and the Anthropic client are all thread-safe). Row order always matches `queries`.
+
+    E-W2: the concurrent path drains explicit futures on the MAIN thread (not pool.map) so a per-turn
+    wall-clock watchdog (`deadline`, env GRAPHRAG_EVAL_TURN_DEADLINE) can record a `_timeout_row` for a
+    stalled turn and continue, `persist(row)` can write an incremental partial JSONL as each turn lands, and
+    a heartbeat makes silence diagnosable. `persist` is called on the MAIN thread only (no lock)."""
     answer_fn = answer_fn or an.answer
     import time as _time
+    deadline = _turn_deadline(deadline)
+    started: dict[int, float] = {}                                     # idx -> turn-START monotonic; watchdog reads it
     qfn = None
     if via_orchestrator:                                              # P9-AB G1: eval passes call=_call_opus, so the
         from leviathan.graphrag.numbers import query as Qn            # orchestrator NEVER builds a default qfn
         qfn = Qn.default_query_fn()                                   # (state None + call not None) and the cascade
                                                                       # seam is silently dead without this thread
-    def _one(q: dict) -> dict:
+    def _one(idx: int, q: dict) -> dict:
         t0 = _time.monotonic()
+        started[idx] = t0                                             # publish turn START for the watchdog/heartbeat
         try:                                                          # one bad answer must NOT abort a billed run
-            if via_orchestrator:
-                from leviathan.graphrag import orchestrator as orch
-                okw = dict(graph=graph, asof=q.get("asof"), model=model, numbers_client=numbers_client, call=call,
-                           query_fn=qfn)
-                if planner:                                           # keep the call identical for injected fake respond()
-                    okw["planner"] = planner
-                out = orch.respond(q["question"], **okw)
-            else:
-                kw = dict(graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
-                if planner:                                           # keep the call identical for injected fake answer_fns
-                    kw["planner"] = planner
-                out = answer_fn(q["question"], **kw)
-            print(f"  answered {q.get('id')} in {_time.monotonic() - t0:.0f}s", flush=True)
-        except Exception as e:  # noqa: BLE001
-            out = {"answer": f"(answer failed: {str(e)[:200]})", "contract": None, "structured": None,
-                   "evidence": [], "intent": None, "number_calls": [], "citations": [], "model": model,
-                   "trace": {"error": str(e)[:300]}}
-            print(f"  WARN {q.get('id')}: answer failed -- {str(e)[:120]}", flush=True)
-        return {"q": q, "out": out, "rubric": score(q, out), "secs": round(_time.monotonic() - t0, 1)}
+            try:
+                if via_orchestrator:
+                    from leviathan.graphrag import orchestrator as orch
+                    okw = dict(graph=graph, asof=q.get("asof"), model=model, numbers_client=numbers_client,
+                               call=call, query_fn=qfn)
+                    if planner:                                       # keep the call identical for injected fake respond()
+                        okw["planner"] = planner
+                    out = orch.respond(q["question"], **okw)
+                else:
+                    kw = dict(graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
+                    if planner:                                       # keep the call identical for injected fake answer_fns
+                        kw["planner"] = planner
+                    out = answer_fn(q["question"], **kw)
+                print(f"  answered {q.get('id')} in {_time.monotonic() - t0:.0f}s", flush=True)
+            except Exception as e:  # noqa: BLE001
+                out = {"answer": f"(answer failed: {str(e)[:200]})", "contract": None, "structured": None,
+                       "evidence": [], "intent": None, "number_calls": [], "citations": [], "model": model,
+                       "trace": {"error": str(e)[:300]}}
+                print(f"  WARN {q.get('id')}: answer failed -- {str(e)[:120]}", flush=True)
+            return {"q": q, "out": out, "rubric": score(q, out), "secs": round(_time.monotonic() - t0, 1)}
+        finally:
+            started.pop(idx, None)                                    # pop on return so the watchdog stops tracking it
 
-    if workers <= 1:
-        return [_one(q) for q in queries]
+    if workers <= 1:                                                  # sequential: persist per turn, no watchdog needed
+        rows = []
+        for idx, q in enumerate(queries):
+            row = _one(idx, q)
+            rows.append(row)
+            if persist is not None:
+                persist(row)
+        return rows
+
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=workers) as pool:              # map preserves input order
-        return list(pool.map(_one, queries))
+    results: list = [None] * len(queries)                            # index-keyed so row order matches `queries`
+    ids = [str(q.get("id")) for q in queries]
+    pool = ThreadPoolExecutor(max_workers=workers)
+    futs = {pool.submit(_one, idx, q): idx for idx, q in enumerate(queries)}
+
+    def _complete(idx: int, fut) -> None:                            # MAIN thread
+        row = fut.result()                                           # _one swallows its own exceptions -> never raises
+        results[idx] = row
+        if persist is not None:
+            persist(row)
+
+    def _timeout(idx: int) -> None:                                  # MAIN thread: a watchdog fire
+        row = _timeout_row(queries[idx], deadline)
+        results[idx] = row
+        if persist is not None:
+            persist(row)
+
+    _drain(futs, started, ids=ids, n=len(queries), deadline=deadline, heartbeat_period=heartbeat_period,
+           workers=workers, on_complete=_complete, on_timeout=_timeout, label="turn")
+    pool.shutdown(wait=False)                                        # do NOT block on orphaned worker threads
+    return results
 
 
 # ── LLM-judge: a quant/hedge-fund analyst rates usefulness + exposes gaps ──────────────
@@ -604,42 +828,9 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
     body was already sanitized at synthesis; do not read it as raw pre-sanitize leakage."""
     import datetime as _dt
     import os as _os
-    per = []
-    for r in rows:
-        out = r.get("out") or {}
-        v = ((out.get("trace") or {}).get("citation_verifier")) or {}
-        if run_kind == "convos":
-            rid = f"{r.get('convo')}/{r.get('turn')}"                # convo rows have no single query id
-            intent_ok = (r.get("mech") or {}).get("intent_ok")
-        else:
-            rid = str((r.get("q") or {}).get("id"))
-            intent_ok = (r.get("rubric") or {}).get("intent_ok")
-        j = r.get("judge") or {}
-        cs = _cascade_stats(out)                                     # P9-AB: post-run-readable cascade record
-        per.append({"id": rid,
-                    "strips": v.get("stripped", 0),
-                    "claim_count": v.get("claim_count", 0),
-                    "handles_checked": v.get("checked", 0),
-                    "by_rule": v.get("by_rule") or {},
-                    # W3 RCA: stripped-sentence audit rides the baseline ONLY when GRAPHRAG_STRIP_AUDIT is on
-                    # (verify omits the key when off) -- the per-turn text the by_rule counts can't give.
-                    "strip_audit": v.get("strip_audit") or None,
-                    "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
-                    "banned_mood_words": (out.get("trace") or {}).get("banned_mood_words", 0),
-                    "mechanism_scaffold_ok": _scaffold_ok(out),
-                    "n_sections": len((out.get("structured") or {}).get("sections") or []),   # P9-C derived view
-                    "intent": out.get("intent"),
-                    "intent_ok": intent_ok,
-                    "secs": r.get("secs"),
-                    "cascade_fired": cs["fired"],
-                    "n_cascade_rows": cs["n_rows"],
-                    "n_cascade_cited": cs["n_cited"],
-                    "divergence_nodes": cs["divergence_nodes"],
-                    "reroute_pairs": cs["reroute_pairs"],
-                    "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
-                    "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
-                                                "source_diversity", "continuity", "mechanism_voice")
-                              if k in j} or None})
+    # ZERO-DRIFT: build every per-answer record through _per_answer_record, the SAME builder the incremental
+    # partial JSONL (_persist_partial) uses -- so a killed run's partial equals this baseline's per_answer rows.
+    per = [_per_answer_record(r, run_kind) for r in rows]
     total_strips = sum(p["strips"] for p in per)
     total_claims = sum(p["claim_count"] for p in per)
     total_handles = sum(p["handles_checked"] for p in per)
@@ -879,10 +1070,15 @@ def _convo_mechanics(spec: dict, out: dict, prev_out: dict | None) -> dict:
 
 
 def run_conversations(graph, convos: list[dict], *, model: str = an.SONNET, workers: int = 5,
-                      numbers_client=None, call=None, respond_fn=None, store=None) -> list[dict]:
+                      numbers_client=None, call=None, respond_fn=None, store=None, persist=None,
+                      deadline: float | None = None, heartbeat_period: float = 90.0) -> list[dict]:
     """Turns are SEQUENTIAL within a conversation (state dependency); CONVERSATIONS parallelize — the speed
     structure that makes 25 turns ~ one conversation's wall-clock. Each convo gets its own session_id; the
-    session store is the real serving one (Dynamo in-container via rev-7 env, in-memory locally)."""
+    session store is the real serving one (Dynamo in-container via rev-7 env, in-memory locally).
+
+    E-W2: same explicit-futures MAIN-thread drain as run() — a per-CONVO watchdog + heartbeat + incremental
+    persistence (`persist(row)` per completed convo's rows, MAIN thread only) so a killed convos run leaves a
+    readable partial and a stalled convo costs only `deadline`."""
     import time as _time
     import uuid
 
@@ -890,39 +1086,80 @@ def run_conversations(graph, convos: list[dict], *, model: str = an.SONNET, work
     from leviathan.graphrag import session as ssn
     respond_fn = respond_fn or orch.respond
     store = store or ssn.default_store()
+    deadline = _turn_deadline(deadline)
+    started: dict[int, float] = {}                                     # convo-idx -> START monotonic
     tap = _UsageTap()
     tap.start()
     run_tag = uuid.uuid4().hex[:6]
 
-    def _one_convo(cv: dict) -> list[dict]:
-        rows, prev = [], None
-        sid = f"eval-{cv['id']}-{run_tag}"
-        for i, spec in enumerate(cv["turns"]):
-            rec = tap.begin_turn()
-            t0 = _time.monotonic()
-            try:
-                out = respond_fn(spec["q"], graph=graph, asof=spec.get("asof"), model=model,
-                                 numbers_client=numbers_client, call=call,
-                                 session_id=sid, session_store=store)
-            except Exception as e:  # noqa: BLE001 — one bad turn must not abort a billed run
-                out = {"answer": f"(turn failed: {str(e)[:200]})", "intent": None, "contract": None,
-                       "contracts": [], "asof": spec.get("asof"), "evidence": [], "number_calls": [],
-                       "structured": None, "trace": {"error": str(e)[:300]}}
-                print(f"  WARN {cv['id']} turn {i}: {str(e)[:120]}", flush=True)
-            dt = _time.monotonic() - t0
-            usage = {k: sum(r[k] for r in rec) for k in ("read", "write", "input", "output")} if rec else \
-                {"read": 0, "write": 0, "input": 0, "output": 0}
-            print(f"  {cv['id']} turn {i} in {dt:.0f}s (cache_read {usage['read']})", flush=True)
-            rows.append({"convo": cv["id"], "turn": i, "spec": spec, "out": out,
-                         "mech": _convo_mechanics(spec, out, prev), "secs": round(dt, 1), "usage": usage})
-            prev = out
-        return rows
+    def _one_convo(idx: int, cv: dict) -> list[dict]:
+        started[idx] = _time.monotonic()
+        try:
+            rows, prev = [], None
+            sid = f"eval-{cv['id']}-{run_tag}"
+            for i, spec in enumerate(cv["turns"]):
+                rec = tap.begin_turn()
+                t0 = _time.monotonic()
+                try:
+                    out = respond_fn(spec["q"], graph=graph, asof=spec.get("asof"), model=model,
+                                     numbers_client=numbers_client, call=call,
+                                     session_id=sid, session_store=store)
+                except Exception as e:  # noqa: BLE001 — one bad turn must not abort a billed run
+                    out = {"answer": f"(turn failed: {str(e)[:200]})", "intent": None, "contract": None,
+                           "contracts": [], "asof": spec.get("asof"), "evidence": [], "number_calls": [],
+                           "structured": None, "trace": {"error": str(e)[:300]}}
+                    print(f"  WARN {cv['id']} turn {i}: {str(e)[:120]}", flush=True)
+                dt = _time.monotonic() - t0
+                usage = {k: sum(r[k] for r in rec) for k in ("read", "write", "input", "output")} if rec else \
+                    {"read": 0, "write": 0, "input": 0, "output": 0}
+                print(f"  {cv['id']} turn {i} in {dt:.0f}s (cache_read {usage['read']})", flush=True)
+                rows.append({"convo": cv["id"], "turn": i, "spec": spec, "out": out,
+                             "mech": _convo_mechanics(spec, out, prev), "secs": round(dt, 1), "usage": usage})
+                prev = out
+            return rows
+        finally:
+            started.pop(idx, None)
+
+    width = max(1, min(workers, len(convos)))
+    if width <= 1:                                                    # sequential: persist per convo, no watchdog
+        all_rows = []
+        for idx, cv in enumerate(convos):
+            rows = _one_convo(idx, cv)
+            all_rows.extend(rows)
+            if persist is not None:
+                for row in rows:
+                    persist(row)
+        tap.stop()
+        return all_rows
 
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(convos)))) as pool:
-        all_rows = [r for rows in pool.map(_one_convo, convos) for r in rows]
+    results: list = [None] * len(convos)                             # convo-idx keyed so order is preserved
+    ids = [str(cv.get("id")) for cv in convos]
+    pool = ThreadPoolExecutor(max_workers=width)
+    futs = {pool.submit(_one_convo, idx, cv): idx for idx, cv in enumerate(convos)}
+
+    def _complete(idx: int, fut) -> None:                            # MAIN thread
+        rows = fut.result()
+        results[idx] = rows
+        if persist is not None:
+            for row in rows:
+                persist(row)
+
+    def _timeout(idx: int) -> None:                                  # MAIN thread: a stalled convo
+        row = {"convo": ids[idx], "turn": 0, "spec": {"q": ""}, "mech": {}, "secs": deadline,
+               "out": {"answer": f"(convo watchdog timeout at {deadline:.0f}s)", "intent": None,
+                       "contract": None, "contracts": [], "evidence": [], "number_calls": [],
+                       "structured": None, "trace": {"error": "watchdog_timeout",
+                                                     "degraded_model": "(watchdog_timeout)"}}}
+        results[idx] = [row]
+        if persist is not None:
+            persist(row)
+
+    _drain(futs, started, ids=ids, n=len(convos), deadline=deadline, heartbeat_period=heartbeat_period,
+           workers=width, on_complete=_complete, on_timeout=_timeout, label="convo")
+    pool.shutdown(wait=False)
     tap.stop()
-    return all_rows
+    return [r for rows in results if rows for r in rows]
 
 
 def _convo_history(rows: list[dict], row: dict) -> str:
@@ -1006,12 +1243,21 @@ def _convos_main(args, path) -> int:
     config.load_env()
     ev.CACHE_INDEX = True
     graph = gph.CausalGraph.load()
+    import os as _os
+    from pathlib import Path
+
     import anthropic
 
     from leviathan.graphrag import batch_extract as bx
-    client = anthropic.Anthropic(api_key=bx._api_key())
+    from leviathan.graphrag import providers as pv
+    client = anthropic.Anthropic(api_key=bx._api_key(), timeout=pv._client_timeout(), max_retries=0)  # E-W1 2.3
+    provider = _os.environ.get("GRAPHRAG_PROVIDER", "anthropic")
+    eval_set = Path(str(path)).stem
+    pw = _PartialWriter(_partial_path(eval_set, provider), "convos", s3_key=_partial_s3_key(eval_set, provider))
     rows = run_conversations(graph, convos, model=args.model, workers=args.workers,
-                             numbers_client=client, call=an._call_opus)
+                             numbers_client=client, call=an._call_opus, persist=pw,
+                             deadline=_turn_deadline(), heartbeat_period=90.0)
+    deadline = _turn_deadline()
     if args.judge:
         def _judge_row(r: dict) -> None:
             try:
@@ -1021,11 +1267,42 @@ def _convos_main(args, path) -> int:
                 print(f"  judged {r['convo']} turn {r['turn']}", flush=True)
             except Exception as e:  # noqa: BLE001
                 print(f"  WARN judge {r['convo']} t{r['turn']} failed -- {str(e)[:120]}", flush=True)
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
-            list(pool.map(_judge_row, rows))
+        if args.workers > 1:                                          # AV5: same explicit-futures watchdog+persist
+            pj = _PartialWriter(_partial_path(eval_set, provider, judge=True), "convos",
+                                s3_key=_partial_s3_key(eval_set, provider, judge=True))
+            import time as _jtime
+            jstarted: dict[int, float] = {}
+
+            def _judge_one(idx: int, r: dict) -> dict:
+                jstarted[idx] = _jtime.monotonic()
+                try:
+                    _judge_row(r)
+                    return r
+                finally:
+                    jstarted.pop(idx, None)
+
+            from concurrent.futures import ThreadPoolExecutor
+            jids = [f"{r.get('convo')}/{r.get('turn')}" for r in rows]
+            jpool = ThreadPoolExecutor(max_workers=args.workers)
+            jfuts = {jpool.submit(_judge_one, idx, r): idx for idx, r in enumerate(rows)}
+
+            def _jc(idx: int, fut) -> None:
+                fut.result()
+                pj(rows[idx])
+
+            def _jt(idx: int) -> None:
+                rows[idx].setdefault("judge", None)
+                pj(rows[idx])
+                print(f"  WATCHDOG-JUDGE {jids[idx]}: judge exceeded {deadline:.0f}s -- skipping score", flush=True)
+
+            _drain(jfuts, jstarted, ids=jids, n=len(rows), deadline=deadline, heartbeat_period=90.0,
+                   workers=args.workers, on_complete=_jc, on_timeout=_jt, label="judge")
+            jpool.shutdown(wait=False)
+            pj.close()
+        else:
+            for r in rows:
+                _judge_row(r)
     _OUT.mkdir(parents=True, exist_ok=True)
-    from pathlib import Path
     out_path = _OUT / f"report_convos_{Path(str(path)).stem}.md"
     out_path.write_text(convo_report(rows, model=args.model, graph_version=graph.version), encoding="utf-8")
     s3uri = ev._evid_s3()
@@ -1041,7 +1318,9 @@ def _convos_main(args, path) -> int:
     mech_ok = sum(sum(bool(v) for v in r["mech"].values()) for r in rows)
     mech_n = sum(len(r["mech"]) for r in rows)
     print(f"convo eval: {len(convos)} convos / {len(rows)} turns; mechanics {mech_ok}/{mech_n} -> {out_path}")
-    return 0
+    pw.close()                                                    # AV1 EXIT: flush the partial, then bypass the
+    _os._exit(0)                                                  # atexit worker-join that an orphan would block
+    return 0                                                      # unreachable; kept for readability
 
 
 def main() -> int:
@@ -1094,14 +1373,26 @@ def main() -> int:
     ev.CACHE_INDEX = True                             # the now-large slices load from S3 once, reused across queries
     graph = gph.CausalGraph.load()
     client = None
-    if args.via_orchestrator or args.judge:           # one shared Anthropic client (numbers agent + judge)
+    if args.via_orchestrator or args.judge:           # one shared Anthropic client (numbers agent + judge + convos)
         import anthropic
 
         from leviathan.graphrag import batch_extract as bx
-        client = anthropic.Anthropic(api_key=bx._api_key())
+        from leviathan.graphrag import providers as pv
+        # E-W1 2.3: the eval builds its OWN client (numbers-agent eval branch runs with NO tenacity, agent.py
+        # pv=None -> resp=_one(); the judge is call_opus on this same client) so the make_client policy never
+        # reaches it -- carry the read timeout + max_retries=0 here or these call sites stay un-timed/un-retried.
+        client = anthropic.Anthropic(api_key=bx._api_key(), timeout=pv._client_timeout(), max_retries=0)
+    # E-W2 §3.2: open the STABLE partial JSONL ONCE, before run(), and hold it open across the answer + judge
+    # phases; flush+close it IMMEDIATELY before os._exit(0) below (os._exit truncates a buffered tail).
+    provider = _os.environ.get("GRAPHRAG_PROVIDER", "anthropic")
+    eval_set = (Path(args.queries).stem if args.queries else "default")
+    pw = _PartialWriter(_partial_path(eval_set, provider), "single",
+                        s3_key=_partial_s3_key(eval_set, provider))
+    deadline = _turn_deadline()
     rows = run(graph, queries, model=args.model, k=args.k, via_orchestrator=args.via_orchestrator,
                numbers_client=client if args.via_orchestrator else None,
-               call=an._call_opus if args.via_orchestrator else None, planner=args.planner, workers=args.workers)
+               call=an._call_opus if args.via_orchestrator else None, planner=args.planner,
+               workers=args.workers, persist=pw, deadline=deadline)
     if args.judge:
         def _judge_row(r: dict) -> None:
             try:                                                      # a judge failure must not lose the whole run
@@ -1109,10 +1400,40 @@ def main() -> int:
                 print(f"  judged {r['q'].get('id')}", flush=True)
             except Exception as e:  # noqa: BLE001
                 print(f"  WARN judge {r['q'].get('id')} failed -- {str(e)[:120]}", flush=True)
-        if args.workers > 1:                                          # judges are independent too — same pool width
+        if args.workers > 1:                                          # AV5: same explicit-futures watchdog+persist
+            # a SIGKILL mid-judging must keep every score computed so far -> drain judge futures on the MAIN
+            # thread + re-persist each row (now carrying its judge scores) to a partial_judge sidecar.
+            pj = _PartialWriter(_partial_path(eval_set, provider, judge=True), "single",
+                                s3_key=_partial_s3_key(eval_set, provider, judge=True))
+            import time as _jtime
+            jstarted: dict[int, float] = {}
+
+            def _judge_one(idx: int, r: dict) -> dict:
+                jstarted[idx] = _jtime.monotonic()
+                try:
+                    _judge_row(r)                                     # mutates r in place, swallows exceptions
+                    return r
+                finally:
+                    jstarted.pop(idx, None)
+
             from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=args.workers) as pool:
-                list(pool.map(_judge_row, rows))
+            jids = [str((r.get("q") or {}).get("id")) for r in rows]
+            jpool = ThreadPoolExecutor(max_workers=args.workers)
+            jfuts = {jpool.submit(_judge_one, idx, r): idx for idx, r in enumerate(rows)}
+
+            def _jc(idx: int, fut) -> None:                           # MAIN thread
+                fut.result()
+                pj(rows[idx])
+
+            def _jt(idx: int) -> None:                                # MAIN thread: a stalled judge call
+                rows[idx].setdefault("judge", None)                  # keep the (already-persisted) answer, skip the score
+                pj(rows[idx])
+                print(f"  WATCHDOG-JUDGE {jids[idx]}: judge exceeded {deadline:.0f}s -- skipping score", flush=True)
+
+            _drain(jfuts, jstarted, ids=jids, n=len(rows), deadline=deadline, heartbeat_period=90.0,
+                   workers=args.workers, on_complete=_jc, on_timeout=_jt, label="judge")
+            jpool.shutdown(wait=False)
+            pj.close()
         else:
             for r in rows:
                 _judge_row(r)
@@ -1142,7 +1463,14 @@ def main() -> int:
         halluc = sum(len((r.get("judge") or {}).get("hallucinations") or []) for r in rows)
         extra = f", judge usefulness {use:.1f}/5 grounding {gnd:.1f}/5 ({halluc} halluc)"
     print(f"eval {args.model}: {len(rows)} queries, routed {routed}/{len(rows)}{extra} -> {out_path}")
-    return 0
+    # AV1 EXIT: every report/baseline is already written (write_text is atomic open+write+close). Flush+close
+    # the crash-survival partial handle, THEN os._exit(0) to bypass the concurrent.futures atexit hook that
+    # would JOIN a watchdog-orphaned worker and block container teardown. os._exit skips TextIOWrapper.close,
+    # so the flush above is what keeps the partial's tail (§3.1 Mitigation B / §6 F-V3 F1).
+    pw.close()
+    import os as _osx
+    _osx._exit(0)
+    return 0                                                      # unreachable; kept for type/readability
 
 
 if __name__ == "__main__":

@@ -58,13 +58,36 @@ def resolve_model(model: str) -> str:
     return (mapped.get(model) if isinstance(mapped, dict) else None) or BEDROCK_MODELS.get(model, model)
 
 
+# A per-request WALL-CLOCK read timeout so a hung/half-open connection can never freeze a turn. The
+# 2026-07-11 authoritative-run autopsy pinned the eval freeze to the BUFFERED serving_call path
+# (`client.messages.create`, non-streaming -- the eval never passes on_token, so answer.py:857-860 takes
+# the buffered branch, NOT serving_call_stream): on the deployed image make_client set no explicit client
+# timeout, so the SDK's 600s nonstreaming default applied AND was retried by both the SDK's own
+# max_retries and tenacity, amplifying a post-transient stalled read into a 29-31min silence with no
+# exception for the degrade chain (which only catches RAISES) to see. An explicit httpx READ timeout
+# converts "no bytes for 300s" into a raise -> the serving fallback chain / evidence floor
+# degrades-and-completes the turn (the path the model=(unavailable) turn already proved works). Streaming
+# keeps a SEPARATE serving/SSE half-open-socket hazard; read=300 bounds it there too, but the streaming
+# path is NOT what froze the eval. 300s is far above any healthy call (heavy synthesis streams tokens
+# continuously, sub-second gaps; TTFT < ~60s) and far below the multi-minute hang. Overridable via
+# GRAPHRAG_LLM_READ_TIMEOUT for a slow-network fallback.
+def _client_timeout():
+    import httpx
+    read = float(os.environ.get("GRAPHRAG_LLM_READ_TIMEOUT", "300") or 300)
+    return httpx.Timeout(connect=15.0, read=read, write=60.0, pool=15.0)
+
+
 def make_client():
     """The serving client for the active provider. Bedrock auth is the boto3 credential chain
-    (task role in-cloud), Anthropic is the .env/env API key — same resolution the offline path uses."""
+    (task role in-cloud), Anthropic is the .env/env API key — same resolution the offline path uses.
+    Both carry a per-request read timeout so a stalled stream raises instead of hanging (see _client_timeout),
+    and pin the SDK's own retry to 0 so the code's tenacity ladder is the SINGLE retry authority — the
+    un-pinned SDK max_retries=2 nested under tenacity(4) was pure amplification (12 HTTP attempts per call)."""
     if provider() == "bedrock":
-        return anthropic.AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-east-1"))
+        return anthropic.AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-east-1"),
+                                          timeout=_client_timeout(), max_retries=0)
     from leviathan.graphrag import batch_extract as bx
-    return anthropic.Anthropic(api_key=bx._api_key())
+    return anthropic.Anthropic(api_key=bx._api_key(), timeout=_client_timeout(), max_retries=0)
 
 
 def with_retry(fn):
