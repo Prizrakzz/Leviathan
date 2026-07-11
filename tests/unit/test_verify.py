@@ -256,3 +256,105 @@ def test_strip_audit_on_captures_field_and_foreign_regime(monkeypatch):
     rules = {(e["field"], e["rule"]) for e in rep["strip_audit"]}
     assert ("tldr", "foreign_regime_name") in rules                 # cross-contract name, tldr field
     assert ("mechanism", "undeclared_unsupported") in rules        # unsupported handle, mechanism field
+
+
+# -- W3 F1: verifier time/name-token exemptions (years, year-range tails, letter-glued codes) ----------
+# These pin the RCA's DOMINANT false-positive class: legit citations stripped because a bare year, a
+# range tail, or an alphanumeric code was mistaken for an unbacked magnitude. The extractor exempts them
+# so the strip DECISION and the strip_audit numbers list agree; fabricated magnitudes still strip.
+def test_claim_extractor_exempts_years_ranges_codes_keeps_magnitudes():
+    from leviathan.graphrag import verify as vf
+    # standalone calendar years exempt; comma/decimal-punctuated look-alikes stay magnitudes
+    assert vf._claim_numbers_in("in 2007 and 2023 exports climbed") == []
+    assert vf._claim_numbers_in("the MY2021 baseline held") == []           # MY2021: letter-glued -> exempt
+    assert 2021.0 in vf._claim_numbers_in("held 2,021 MT")                  # comma -> a magnitude, not a year
+    assert 2010.5 in vf._claim_numbers_in("index at 2010.5 points")        # decimal -> a magnitude
+    # year RANGE: the leading year AND the trailing short token both exempt; the magnitude survives
+    assert vf._claim_numbers_in("the 1998-99 devaluation cut exports 3.2 MMT") == [3.2]
+    assert vf._claim_numbers_in("the 1998/99 season") == []
+    assert vf._claim_numbers_in("the 1998–99 season") == []           # en-dash variant
+    # letter-glued codes never yield their digits, even multi-char ones
+    assert vf._claim_numbers_in("a formal B40 push and a T2 GAIN report on CO2") == []
+    # a genuine magnitude with a unit is always a claim
+    assert vf._claim_numbers_in("exports hit 23.5 MMT") == [23.5]
+    # a bare '99' NOT in a range is still a magnitude (e.g. a percent)
+    assert vf._claim_numbers_in("up 99% on the year") == [99.0]
+
+
+def test_year_valued_magnitude_with_unit_is_a_claim():
+    """Review fold (major #2): a 4-digit token IMMEDIATELY followed by a unit is a MAGNITUDE, not a year --
+    'exports hit 1950 MMT' was the named refutation case. A bare year without a unit stays exempt."""
+    from leviathan.graphrag import verify as vf
+    assert vf._claim_numbers_in("exports were 2010 MT") == [2010.0]
+    assert vf._claim_numbers_in("exports hit 1950 MMT") == [1950.0]
+    assert vf._claim_numbers_in("the drought of 1950 cut area") == []
+
+
+def test_range_tail_exemption_is_year_scoped_and_short():
+    """Review fold (BLOCKER): the range-tail exemption applies ONLY to a 1-2 digit tail after a YEAR
+    prefix -- a fabricated 4-digit upper bound of an ordinary range must stay a claim."""
+    from leviathan.graphrag import verify as vf
+    assert vf._claim_numbers_in("band 5900-6100 MT") == [5900.0, 6100.0]   # non-year range: BOTH claims
+    assert vf._claim_numbers_in("code 12345-99 seen") == [12345.0, 99.0]   # non-year prefix: tail counts
+    assert vf._claim_numbers_in("the 1998-99 devaluation") == []           # true year range stays exempt
+    decline = [{"query": {"metric": "exports_mt"}, "rows": [{"value": "5900"}]}]
+    sent = "exports ranged 5900-9999 MT [N1]"
+    assert vf._check_number_handle(sent, 1, decline) is not None           # fabricated 9999 still strips
+
+
+def test_sentence_with_only_year_and_backed_magnitude_survives_with_handle():
+    """The RCA signature: '...2010 wheat ban collapsed shipments by roughly 14.6 MMT [N3]' -- 14.6 backs
+    its row (-14.573, sign-insensitive, within 1pct) and '2010' is a year -> the whole sentence + its
+    legit handle survive."""
+    from leviathan.graphrag import verify as vf
+    decline = [{"query": {"metric": "exports_mt_delta"}, "rows": [{"value": "-14.573"}]}]
+    sent = "Russia's 2010 wheat export ban collapsed Russian shipments by roughly 14.6 MMT [N1]"
+    assert vf._check_number_handle(sent, 1, decline) is None
+
+
+def test_sentence_with_only_years_and_codes_no_magnitude_survives():
+    """A handled sentence whose ONLY numerals are years + a letter-code and a backed figure keeps its
+    handle -- no free-riding magnitude remains to strip."""
+    from leviathan.graphrag import verify as vf
+    calls = [{"rows": [{"value": "5900"}]}]
+    assert vf._check_number_handle("in 2007 and 2023 a B40 push lifted exports to 5900 [N1]", 1, calls) is None
+
+
+def test_year_range_tail_does_not_trigger_unbacked():
+    """'the 1998-99 devaluation ... 3.2 MMT [N1]' with 3.2 injected: the '99' tail must not free-ride,
+    and the real 3.2 magnitude must NOT be swallowed by the exemptions."""
+    from leviathan.graphrag import verify as vf
+    calls = [{"rows": [{"value": "3.2"}]}]
+    assert vf._check_number_handle("the 1998-99 devaluation cut exports 3.2 MMT [N1]", 1, calls) is None
+    # 3.2 is still extracted as a claim: with only a '99' row it fails its cited-row check -> strips
+    assert vf._check_number_handle("the 1998-99 devaluation cut exports 3.2 MMT [N1]", 1,
+                                   [{"rows": [{"value": "99"}]}]) == "number_mismatch"
+
+
+def test_fabricated_magnitude_with_valid_handle_still_strips():
+    """The anti-fabrication contract holds: a fabricated magnitude strips even when years/codes share the
+    sentence and the handle index is valid -- exemptions never shield a real magnitude."""
+    from leviathan.graphrag import verify as vf
+    calls = [{"rows": [{"value": "5900"}]}]
+    # 23.5 != the cited row 5900 -> mismatch; the 2010 year and B40 code do not shield it
+    assert vf._check_number_handle("in 2010 a B40 push sent exports to 23.5 MMT [N1]", 1,
+                                   calls) == "number_mismatch"
+    # a free-riding fabricated 23.5 ALONGSIDE the backed 5900 -> the all-rows guard fires (number_unbacked)
+    assert vf._check_number_handle("in 2010 a B40 push lifted exports to 5900 [N1], up 23.5%", 1,
+                                   calls) == "number_unbacked"
+
+
+def test_strip_audit_numbers_agree_with_strip_decision_on_exemptions(monkeypatch):
+    """Extractor-level exemption means the strip_audit `numbers` list carries the SAME magnitudes the
+    strip decision saw: the year and the letter-code are absent; the backed 5900 and free-riding 23.5
+    (the reason for the strip) are present."""
+    monkeypatch.setenv("GRAPHRAG_STRIP_AUDIT", "on")
+    s = _structured("In 2010 a B40 push lifted exports to 5900 [N1], up 23.5%.", [])
+    calls = [{"rows": [{"value": "5900"}]}]
+    rep = vf.verify_citations(s, EV, calls)
+    assert "[N1]" not in s["tldr"]                                  # stripped: 23.5 free-rides
+    audit = rep["strip_audit"]
+    assert len(audit) == 1 and audit[0]["rule"] == "number_unbacked"
+    nums = audit[0]["numbers"]
+    assert 23.5 in nums and 5900.0 in nums                          # the real magnitudes captured
+    assert 2010.0 not in nums and 40.0 not in nums                 # year + B40's '40' exempted, not listed

@@ -562,13 +562,18 @@ def _prescaled(rec: dict, row: dict, n: int) -> dict:
     return out
 
 
-def _delta_call(rec: dict, row: dict, delta: float, n: int, *, kind: str) -> dict:
+def _delta_call(rec: dict, row: dict, delta: float, n: int, *, kind: str, period=None) -> dict:
     """A synthetic call-record so a narrated delta IS a row value (citable + value-checkable). Stamps the
-    LATER endpoint's guard-column provenance (R10) -- the delta is as-known at the later leg's asof."""
+    LATER endpoint's guard-column provenance (R10) -- the delta is as-known at the later leg's asof.
+    `period` overrides the inherited leg period label (F2: an era_diff row spans TWO eras, so it carries a
+    'MY<a>->MY<b>' span label, not the single later-leg period)."""
     src = (rec.get("rows") or [{}])[0]
     prov = {k: src.get(k) for k in _GUARD_COLS if src.get(k) is not None}
     unit = "%" if kind == "pct" else (row.get("narrate_unit") or "")
-    return {"query": {**(rec.get("query") or {}), "metric": f"{row.get('metric')}_{kind}"},
+    q = {**(rec.get("query") or {}), "metric": f"{row.get('metric')}_{kind}"}
+    if period is not None:
+        q["period"] = period
+    return {"query": q,
             "rows": [{"value": round(delta, 4), "unit": unit, **({"_provenance": prov} if prov else {})}],
             "status": "ok"}
 
@@ -614,6 +619,68 @@ def _divergence(era_deltas: dict, eras: dict, cur: dict | None, row: dict) -> tu
             a = ds[0]
             return (_sign(a) != _sign(b) and _sign(a) != 0 and _sign(b) != 0), a, b
     return False, 0.0, 0.0
+
+
+def _endpoint_ok(recs: list) -> dict | None:
+    """The LAST (latest-MY / latest-window) ok endpoint record of an era's leg rows, or None."""
+    oks = [r for r in (recs or []) if r.get("status") == "ok" and (r.get("rows") or [])]
+    return oks[-1] if oks else None
+
+
+def _endpoint_sortkey(rec: dict) -> str:
+    """A chronological sort key for an endpoint record -- the MY int (zero-padded) or the leg's window/asof."""
+    my = rec.get("my")
+    if my is not None:
+        return f"{int(my):04d}"
+    q = rec.get("query") or {}
+    return str(q.get("asof") or q.get("period") or "")
+
+
+def _endpoint_label(rec: dict) -> str:
+    """The clean human period token for an endpoint ('MY2021' / a date window / 'current')."""
+    my = rec.get("my")
+    if my is not None:
+        return f"MY{my}"
+    q = rec.get("query") or {}
+    return str(q.get("period") or q.get("asof") or "?")
+
+
+def _cross_era_diff(era_deltas: dict, eras: dict, cur: dict | None, row: dict) -> tuple | None:
+    """(diff_prescaled, period_label, later_rec) -- the CROSS-ERA endpoint LEVEL difference the narration
+    cites as a 'gain above the <MY> baseline' (F2 class-1 fix). Two-era -> later era endpoint minus earlier
+    era endpoint (an ENDPOINT-LEVEL fact, distinct from the within-era deltas a/b the DIVERGENCE line shows);
+    one-era+current -> current level minus the era-end level, sign-identical to _divergence's b BY
+    CONSTRUCTION (semantic order, no sortkey swap -- review fold #4). The label reads earlier->later and the
+    sign is later-minus-baseline. None when either endpoint is missing (the divergence line still renders;
+    only the citable row is skipped)."""
+    keys = sorted(era_deltas)
+    if len(keys) >= 2:
+        ea, eb = _endpoint_ok(eras.get(keys[0])), _endpoint_ok(eras.get(keys[1]))
+        if ea is None or eb is None:
+            return None
+        if _endpoint_sortkey(eb) < _endpoint_sortkey(ea):   # two same-key-type era endpoints: order by time
+            ea, eb = eb, ea
+    elif len(keys) == 1 and cur and cur.get("status") == "ok" and (cur.get("rows") or []):
+        last_era = max(eras, key=lambda i: i)
+        ea, eb = _endpoint_ok(eras.get(last_era)), cur
+        if ea is None:
+            return None
+        # SEMANTIC order is fixed here -- era endpoint = baseline, current = later -- so the sign is
+        # identical to _divergence's b (cur - era_end) BY CONSTRUCTION. No sortkey swap: mixed MY-vs-asof
+        # key types could compare current below the era key and silently NEGATE the injected diff
+        # (review fold, minor #4).
+    else:
+        return None
+    va, vb = _float_val(ea), _float_val(eb)
+    if va is None or vb is None:
+        return None
+    scale = float(row.get("scale", 1) or 1)
+    return (vb - va) * scale, f"{_endpoint_label(ea)}->{_endpoint_label(eb)}", eb
+
+
+def _fmt_era_diff(row: dict, d: float, n: int, *, period: str) -> str:
+    return (f"- [N{n}] cross-era change in {row.get('metric')} ({period}): "
+            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip())
 
 
 def _group_by_node(records: list, kept: list) -> dict:
@@ -716,7 +783,21 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
             lines.append(_fmt_absence(cur))
         div, a, b = _divergence(era_deltas, eras, cur, row)
         if div:
-            lines.append(f"DIVERGENCE on {row.get('metric')}: {a:+g} vs {b:+g} ({row.get('narrate_unit') or ''}) "
+            # F2: inject the CROSS-ERA endpoint difference as a citable [N] row (the 'gain above the MY<yy>
+            # baseline' magnitude the engine computes across eras but never injected -- the narration read
+            # uncitable). Post-cap like every other delta row (no CASCADE_CAP effect); only when div fired
+            # (no row bloat on same-sign nodes). The handle rides ONLY the cross-era line whose value the
+            # row actually backs -- NOT the DIVERGENCE line, whose visible numbers are the within-era
+            # deltas a/b: a model echoing '+4 vs -4 [Nx]' against an endpoint-diff row of +2 would strip
+            # as number_mismatch, reintroducing the exact strip F2 exists to prevent (review fold, major #3).
+            ced = _cross_era_diff(era_deltas, eras, cur, row)
+            if ced is not None:
+                diff, period_lbl, later_rec = ced
+                n += 1
+                calls.append(_delta_call(later_rec, row, diff, n, kind="era_diff", period=period_lbl))
+                lines.append(_fmt_era_diff(row, diff, n, period=period_lbl))
+            lines.append(f"DIVERGENCE on {row.get('metric')}: {a:+g} vs {b:+g} "
+                         f"({row.get('narrate_unit') or ''}) "
                          f"-- render '## Where the record disagrees' and show BOTH eras; do not blend.")
         trace.append({"node_key": list(key) if isinstance(key, tuple) else key, "metric": row.get("metric"),
                       "era_statuses": {i: [r.get("status") for r in recs] for i, recs in eras.items()},

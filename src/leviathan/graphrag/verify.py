@@ -73,6 +73,48 @@ def _numbers_in(s: str) -> list[float]:
     return out
 
 
+# The CLAIM extractor: digit runs a data row could plausibly back. It drops time/name tokens that the
+# raw _NUM sweeps up but that are NOT magnitudes, so the strip DECISION and the strip_audit numbers list
+# agree (W3 F1 RCA: legit citations stripped for a bare year, a range tail, or a letter-glued code).
+# The leading lookbehind rejects a digit glued to a letter OR to another already-rejected digit -- so a
+# code like B40/T2/MY2021/CO2 is skipped whole, never re-entered one digit in. Citation-handle digits
+# ([N3], [E1b]) are still removed UPSTREAM by the caller's _HANDLE.sub -- this is additional, not a
+# replacement for that exclusion.
+_CLAIM_NUM = re.compile(r"(?<![A-Za-z0-9])\d[\d,]*\.?\d*")
+# A YEAR-range separator immediately before a SHORT token: 1998-99, 1998/99, en-dash, em-dash -> the
+# tail '99'. Prefix is year-scoped (19xx/20xx) and the tail capped at 1-2 digits by the caller (review
+# fold, BLOCKER: the unscoped \d{4} form exempted the upper bound of ANY hyphenated range -- 'ranged
+# 5900-9999 MT' let a fabricated 9999 ride uncited). Dashes as \u escapes to keep this source ASCII.
+_RANGE_TAIL = re.compile(r"(?:19|20)\d{2}[-/" + "\u2013\u2014" + r"]\Z")
+# A magnitude unit immediately after a 4-digit token flips it from year to CLAIM (review fold, major:
+# 'exports hit 1950 MMT' is a tonnage wearing a year costume -- the unit is the tell).
+_UNIT_AFTER = re.compile(r"\s*(?:MMT|MT|KT|kt|MMbu|bu|%|percent|ha|bales|cwt|tonnes|tons)\b")
+
+
+def _claim_numbers_in(s: str) -> list[float]:
+    """Magnitudes only. EXEMPT (never a claim): (a) a bare 4-digit calendar year 1900-2099 with no
+    decimal/comma ('2,021' and '2010.5' keep their punctuation and stay magnitudes) -- UNLESS a unit
+    token follows ('exports hit 1950 MMT' IS a claim; review fold); (b) the 1-2 digit tail of a YEAR
+    range ('1998-99' -> the '99'); (c) any digit run immediately preceded by a letter (B40, T2, MY2021,
+    CO2), handled by _CLAIM_NUM's lookbehind. A fabricated magnitude ('23.5 MMT' with no such row) is
+    untouched by all three rules and still strips."""
+    s = s or ""
+    out = []
+    for m in _CLAIM_NUM.finditer(s):
+        tok = m.group()
+        try:
+            v = float(tok.replace(",", ""))
+        except ValueError:
+            continue
+        if (re.fullmatch(r"\d{4}", tok) and 1900 <= v <= 2099
+                and not _UNIT_AFTER.match(s[m.end():])):        # (a) year -- unless unit-suffixed
+            continue
+        if re.fullmatch(r"\d{1,2}", tok) and _RANGE_TAIL.search(s[:m.start()]):
+            continue                                            # (b) year-range SHORT tail only
+        out.append(v)
+    return out
+
+
 def _num_matches(sent_nums: list[float], row_vals: list[float]) -> bool:
     """'31.4 million' vs 31400000, '36.4%' vs 0.3636: equal within 1% at any common reporting scale.
     MAGNITUDE-insensitive to sign: _NUM cannot extract a minus from prose ('fell 5.058 MMT' reads 5.058)
@@ -141,22 +183,22 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
             row_vals.append(float(str(r.get("value")).replace(",", "")))
         except (TypeError, ValueError):
             continue
-    sent_nums = _numbers_in(sent)
+    sent_nums = _claim_numbers_in(_HANDLE.sub("", sent))         # time/name tokens are NOT claims
     if sent_nums and row_vals and not _num_matches(sent_nums, row_vals):
         return "number_mismatch"
-    # P9-B all-numbers guard: EVERY numeric token in a handled sentence (bare years exempt) must match SOME
-    # injected row across the merged calls -- else "rose to 5900 [N3], up 18%" lets 18 ride UNVERIFIED.
-    # Reads ONLY GRAPHRAG_CASCADE_QUANT (the single feature flag): =off fully reverts the stricter verifier.
+    # P9-B all-numbers guard: EVERY magnitude in a handled sentence (years/range-tails/letter-codes exempt
+    # at the extractor) must match SOME injected row across the merged calls -- else "rose to 5900 [N3],
+    # up 18%" lets 18 ride UNVERIFIED. Reads ONLY GRAPHRAG_CASCADE_QUANT (the single feature flag): =off
+    # fully reverts the stricter verifier.
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         allv = _all_row_vals(number_calls)
-        guard_nums = _numbers_in(_HANDLE.sub("", sent))           # citation-handle digits are NOT magnitudes
-        nonyear = [v for v in guard_nums if not (1900 <= v <= 2100 and float(v).is_integer())]
+        guard_nums = _claim_numbers_in(_HANDLE.sub("", sent))     # exemptions live in the extractor now
         # backed = scale-1 match vs ANY row (pre-scaled cascade rows), OR the legacy scale-bridge vs the
         # sentence's OWN cited row (a '31.4 million MT' narration of its own raw-MT hybrid row is legitimate;
         # CROSS-row multi-scale backfill stays forbidden -- that is the R4 mis-attribution hole).
-        if nonyear and allv and any(
+        if guard_nums and allv and any(
                 not (_num_backed(v, allv) or (row_vals and _num_matches([v], row_vals)))
-                for v in nonyear):
+                for v in guard_nums):
             return "number_unbacked"
     return None
 
@@ -239,12 +281,14 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             if foreign_names else None
 
         def _audit(rule: str, field: str, sent: str) -> None:
-            # offending magnitudes = sentence numbers minus the citation-handle digits (same normalization
-            # the number guard uses), so an RCA dump keys stripped text by rule without re-parsing prose.
+            # offending magnitudes = the sentence's CLAIM numbers (citation-handle digits AND the
+            # exempted time/name tokens removed -- the SAME extractor the number guard uses), so the
+            # audit list agrees with the strip decision and an RCA dump keys stripped text by rule
+            # without re-parsing prose.
             if _audit_on:
                 report["strip_audit"].append(
                     {"rule": rule, "field": field, "text": sent.strip(),
-                     "numbers": _numbers_in(_HANDLE.sub("", sent))})
+                     "numbers": _claim_numbers_in(_HANDLE.sub("", sent))})
 
         def _verify_field(text: str, field: str = "") -> str:
             drops: list[tuple[int, int]] = []

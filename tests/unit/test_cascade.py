@@ -152,6 +152,102 @@ def test_divergence_never_without_two_signals():
     assert cq._divergence({}, {}, None, row) == (False, 0.0, 0.0)
 
 
+# ── F2: cross-era endpoint difference (the citable 'gain above the MY<yy> baseline') ─────────────────
+def test_cross_era_diff_two_eras_endpoint_difference():
+    row = {"scale": 1, "narrate_unit": "MMT", "metric": "exports_mt"}
+    eras = {0: [_ok(10, 2020), _ok(14, 2021)],                       # era0 endpoint = MY2021 level 14
+            1: [_ok(20, 2024), _ok(16, 2025)]}                        # era1 endpoint = MY2025 level 16
+    diff, label, later = cq._cross_era_diff({0: +4.0, 1: -4.0}, eras, None, row)
+    assert abs(diff - 2.0) < 1e-9                                     # 16 - 14 (later minus baseline)
+    assert label == "MY2021->MY2025"                                 # chronological, earlier -> later
+    assert later["my"] == 2025                                       # the later endpoint stamps provenance/asof
+
+
+def test_cross_era_diff_scales_to_narrate_unit():
+    row = {"scale": 0.000001, "narrate_unit": "MMT", "metric": "exports_mt"}
+    eras = {0: [_ok(14000000, 2021)], 1: [_ok(16758000, 2025)]}      # 1 endpoint each is enough for the diff
+    diff, label, _ = cq._cross_era_diff({0: +1.0, 1: -1.0}, eras, None, row)
+    assert abs(diff - 2.758) < 1e-9 and label == "MY2021->MY2025"    # pre-scaled MMT, the RCA magnitude
+
+
+def test_cross_era_diff_era_vs_current_equals_divergence_b():
+    row = {"scale": 1, "narrate_unit": "MMT", "metric": "exports_mt"}
+    eras = {0: [_ok(10, 2020), _ok(14, 2021)]}                       # era rose to MY2021 level 14
+    cur = _ok(9, 2022)                                               # current below the era end (-5)
+    diff, label, later = cq._cross_era_diff({0: +4.0}, eras, cur, row)
+    assert abs(diff - (-5.0)) < 1e-9                                 # == _divergence's b (cur - era end)
+    assert label == "MY2021->MY2022" and later is cur
+
+
+def test_cross_era_diff_none_when_endpoint_missing():
+    row = {"scale": 1, "narrate_unit": "MMT", "metric": "exports_mt"}
+    eras = {0: [], 1: [_ok(20, 2024), _ok(16, 2025)]}                # era0 has no ok endpoint
+    assert cq._cross_era_diff({0: +4.0, 1: -4.0}, eras, None, row) is None
+
+
+def test_delta_call_period_override_stamps_era_diff_row():
+    rec = {"query": {"commodity": "wheat", "country": "Russia", "period": "MY2025",
+                     "metric": "exports_mt", "asof": "2025-06-01"},
+           "rows": [{"value": "16", "release_date": "2025-05-01"}]}
+    row = {"metric": "exports_mt", "narrate_unit": "MMT", "scale": 1}
+    call = cq._delta_call(rec, row, 2.758, 9, kind="era_diff", period="MY2021->MY2025")
+    assert call["query"]["metric"] == "exports_mt_era_diff"          # not the plain _delta suffix
+    assert call["query"]["period"] == "MY2021->MY2025"               # span label overrides the leg period
+    assert call["rows"][0]["value"] == 2.758 and call["rows"][0]["unit"] == "MMT"
+    assert call["rows"][0]["_provenance"]["release_date"] == "2025-05-01"   # later endpoint provenance (R10)
+    # no override -> the inherited leg period is untouched (existing delta/pct rows unchanged)
+    plain = cq._delta_call(rec, row, 2.0, 3, kind="delta")
+    assert plain["query"]["period"] == "MY2025" and plain["query"]["metric"] == "exports_mt_delta"
+
+
+def _erec(value, my, era_idx, key=("wheat", "export")):
+    return {"query": {"commodity": "wheat", "country": "Russia", "period": f"MY{my}",
+                      "metric": "exports_mt", "asof": f"{my}-06-01"},
+            "rows": [{"value": str(value)}], "status": "ok",
+            "node_key": key, "leg": ("era", era_idx), "era_idx": era_idx, "my": my}
+
+
+def _kept_wheat(key=("wheat", "export")):
+    row = {"table": "silver_psd", "metric": "exports_mt", "scale": 1, "narrate_unit": "MMT",
+           "period_type": "marketing_year"}
+    return [{"specs": [{"node_key": key}], "row": row}]
+
+
+def _divergence_line(lines):
+    return next((ln for ln in lines if ln.startswith("DIVERGENCE on")), None)
+
+
+def test_assemble_injects_era_diff_row_with_handle_on_cross_era_line_only():
+    # era0 rose (+4), era1 fell (-4): opposite signs -> divergence fires cross-era; the endpoint diff
+    # (MY2021 level 14 -> MY2025 level 16 = +2) must be injected as a citable [N] row whose handle rides
+    # ONLY the cross-era line stating that value. Review fold (major #3): the DIVERGENCE line's visible
+    # numbers are the within-era deltas a/b -- a handle there would prime 'a vs b [Nx]' narrations that
+    # mismatch the endpoint-diff row and strip, reintroducing the exact strip F2 prevents.
+    records = [_erec(10, 2020, 0), _erec(14, 2021, 0), _erec(20, 2024, 1), _erec(16, 2025, 1)]
+    calls: list = []
+    lines, trace, _dk = cq._assemble(records, _kept_wheat(), 0, calls)
+    injected = [c for c in calls if (c.get("query") or {}).get("metric") == "exports_mt_era_diff"]
+    assert len(injected) == 1                                        # exactly ONE cross-era row
+    ic = injected[0]
+    assert ic["query"]["period"] == "MY2021->MY2025" and ic["rows"][0]["value"] == 2.0
+    n = calls.index(ic) + 1                                          # base=0 -> [N] is 1-indexed position
+    xline = next(ln for ln in lines if "cross-era change in exports_mt (MY2021->MY2025)" in ln)
+    assert f"[N{n}]" in xline and "+2 MMT" in xline
+    dline = _divergence_line(lines)
+    assert dline is not None and f"[N{n}]" not in dline              # NO handle on the a/b prose line
+    assert any(t.get("divergence") for t in trace)
+
+
+def test_assemble_no_era_diff_row_when_no_divergence():
+    # both eras rose (same sign): NO divergence -> NO cross-era row injected (no row bloat) and no line.
+    records = [_erec(10, 2020, 0), _erec(14, 2021, 0), _erec(20, 2024, 1), _erec(26, 2025, 1)]
+    calls: list = []
+    lines, _trace, _dk = cq._assemble(records, _kept_wheat(), 0, calls)
+    assert not any((c.get("query") or {}).get("metric") == "exports_mt_era_diff" for c in calls)
+    assert _divergence_line(lines) is None
+    assert not any("cross-era change" in ln for ln in lines)
+
+
 # ── quantify: cap on whole nodes + in-place injection + N continuation ───────────────────────────────
 def test_quantify_caps_whole_nodes_and_injects_in_place(monkeypatch):
     # 3 mapped nodes x 5 specs each (2 eras x 2 MYs + current); cap 10 -> 2 WHOLE nodes kept, never split
