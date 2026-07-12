@@ -113,11 +113,14 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         # final completion event below. on_call stays None on non-streamed callers -> byte-identical.
         on_call = ((lambda k, t: an._emit(on_stage, "numbers", calls=k, running=True, table=t))
                    if on_stage is not None else None)
+        import time as _time
+        _tn = _time.perf_counter()                                # W6.1-0: numbers-agent duration (MsNumbers)
         try:
             nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn,
                                      on_call=on_call)
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
+        nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
         an._emit(on_stage, "numbers", calls=len(nums.get("calls", [])))   # emitted on COMPLETION
         return nums
 
@@ -129,10 +132,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         """The synthesis-time join: bounded wait for the numbers thread; failure -> no-numbers, same as a
         numbers error today."""
         try:
-            calls = fut.result(timeout=300).get("calls", [])
+            nums = fut.result(timeout=300)
         except Exception:  # noqa: BLE001
-            calls = []
+            nums = {}
+        calls = nums.get("calls", [])
         holder["calls"], holder["resolved"] = calls, True
+        holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
 
     try:
@@ -146,6 +151,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         _resolve()                      # still surface the numbers the agent found, as before
     out["intent"] = "hybrid"
     out["number_calls"] = holder["calls"]
+    if holder.get("ms_numbers") is not None:
+        out.setdefault("trace", {})["ms_numbers"] = holder["ms_numbers"]   # W6.1-0: surface for the EMF block
     out["asof"] = asof
     return out
 
@@ -471,7 +478,12 @@ def respond(*args, **kwargs) -> dict:
         tr = res.setdefault("trace", {})
         gm = tr.get("ground_ms") or {}
         total = int((time.perf_counter() - _t0) * 1000)
-        tr["timing_ms"] = {"total": total, "fill": gm.get("fill"), "rest": gm.get("rest")}
+        # W6.1-0 stage attribution: mirror every per-stage timer the branches stamped into trace (a stage
+        # that did NOT run leaves its key absent -> None here, no zero-fill) so the eval sees the breakdown.
+        tr["timing_ms"] = {"total": total, "fill": gm.get("fill"), "rest": gm.get("rest"),
+                           "dispatch": tr.get("ms_dispatch"), "numbers": tr.get("ms_numbers"),
+                           "synth_llm": tr.get("ms_synth_llm"), "quantify": tr.get("ms_quantify"),
+                           "rollup": tr.get("ms_rollup")}
         stripped = int((tr.get("citation_verifier") or {}).get("stripped", 0) or 0)
         # print() (not logging) so the line reaches CloudWatch even though the app root logger sits at WARNING
         # under uvicorn — ASCII-only, flushed. Human-readable companion to the EMF metric line below.
@@ -488,17 +500,33 @@ def respond(*args, **kwargs) -> dict:
         # trace exists by design). These price whether the Option-B bespoke visual is ever worth building.
         rt = [t for t in (tr.get("quantify_reroute") or []) if isinstance(t, dict)]
         rt_countries = {c for t in rt for c in (t.get("countryA"), t.get("countryB")) if c}
+        # W6.1-0 cited-vs-injected [N]: distinct handles in the FINAL answer vs rows injected into the
+        # prompt. If CitedN << InjectedN most cascade rows are injected-but-uncited, so CASCADE_CAP can
+        # drop with near-zero loss. Both carry 0-semantics (always present, like CascadeFired).
+        # OutputTokens is NOT available: providers.serving_call DISCARDS usage (`out, _ = ...`), so the
+        # synthesis result exposes no token count without new plumbing -> AnswerChars is the honest proxy.
+        _ans = res.get("answer") or ""
+        injected_n = int(tr.get("injected_n") or 0)
+        cited_n = len(set(re.findall(r"\[N\d+\]", _ans)))
         from leviathan.graphrag import emf
+        # Stage timers (Ms*) pass None when the stage did not run; emf.emit drops None -> NO zero-fill.
         emf.emit({"TurnLatencyMs": total, "MsFill": gm.get("fill"), "MsRest": gm.get("rest"),
+                  "MsDispatch": tr.get("ms_dispatch"), "MsNumbers": tr.get("ms_numbers"),
+                  "MsSynthLLM": tr.get("ms_synth_llm"), "MsQuantify": tr.get("ms_quantify"),
+                  "MsRollup": tr.get("ms_rollup"),
                   "StripCount": stripped, "CascadeFired": 1 if qt else 0, "CascadeNodes": len(qt),
                   "DivergenceNodes": sum(1 for t in qt if t.get("divergence")),
                   "RerouteFired": 1 if rt else 0,
-                  "MultiCountryTurn": 1 if len(rt_countries) >= 2 else 0},
+                  "MultiCountryTurn": 1 if len(rt_countries) >= 2 else 0,
+                  "CitedN": cited_n, "InjectedN": injected_n, "AnswerChars": len(_ans)},
                  dimensions={"intent": res.get("intent"), "model": res.get("model")},
                  units={"TurnLatencyMs": "Milliseconds", "MsFill": "Milliseconds",
-                        "MsRest": "Milliseconds", "StripCount": "Count", "CascadeFired": "Count",
+                        "MsRest": "Milliseconds", "MsDispatch": "Milliseconds", "MsNumbers": "Milliseconds",
+                        "MsSynthLLM": "Milliseconds", "MsQuantify": "Milliseconds", "MsRollup": "Milliseconds",
+                        "StripCount": "Count", "CascadeFired": "Count",
                         "CascadeNodes": "Count", "DivergenceNodes": "Count", "RerouteFired": "Count",
-                        "MultiCountryTurn": "Count"})
+                        "MultiCountryTurn": "Count", "CitedN": "Count", "InjectedN": "Count",
+                        "AnswerChars": "Count"})
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res
@@ -582,10 +610,14 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     # legacy path below byte-for-byte. The plan NEVER overrides the caller's explicit as-of, and a
     # live step still runs behind the as-of kill-switch — the plan is advice, the guards are law.
     plan, decided, near = None, None, None
+    _ms_dispatch = None
     if classify is None:
+        import time as _time
         from leviathan.graphrag import dispatch as dp
+        _t_disp = _time.perf_counter()                             # W6.1-0 stage timer (MsDispatch)
         p = dp.plan_turn(query, graph=graph, state_block=sblock, today=_today(),
                          state_contracts=(state.contracts if state else None), call=call)
+        _ms_dispatch = int((_time.perf_counter() - _t_disp) * 1000)
         plan = None if p.fallback else p
     if plan is not None:
         if plan.asof and not asof_explicit:
@@ -624,7 +656,8 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                 an._emit(on_stage, "floor")
                 res = _evidence_only(query, asof, graph=graph, kind="live", exc=e, route_fn=route_fn)
             res["intent_decision"] = {"intent": res["intent"], "live_checked": True}
-            return _session_writeback(res, query, asof, session_id, store, state, graph, call)
+            return _session_writeback(res, query, asof, session_id, store, state, graph, call,
+                                      ms_dispatch=_ms_dispatch)
         decided = (classify or it.classify_intent)(query, call=call)
         kind = decided["intent"]
 
@@ -714,22 +747,76 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             f"analysis above draws on the dated archive only._")
         decided = (decided or {}) | {"live_suppressed_pit": True}
     res["intent_decision"] = decided
-    return _session_writeback(res, query, asof, session_id, store, state, graph, call)
+    return _session_writeback(res, query, asof, session_id, store, state, graph, call,
+                              ms_dispatch=_ms_dispatch)
 
 
-def _session_writeback(res: dict, query: str, asof: str, session_id, store, state, graph, call) -> dict:
-    """Append the TurnRecord + roll the Phase-2 summary. Ids and short strings only — the PIT firewall."""
+# Test/observability hook (W6.1-1): when set to a callable, it receives the daemon Thread that each async
+# roll_summary spawns, so a test can join it deterministically. None in production -> strict no-op.
+_rollup_observer = None
+
+
+def _spawn_rollup(base_state, turn, graph, call, store, session_id, tr, *, intent=None):
+    """Fire-and-forget the Phase-2 summary roll onto a daemon thread so its Haiku forced-tool round-trip
+    leaves the turn's critical path (W6.1-1). FAIL-OPEN: every error is swallowed (parity with the
+    synchronous path's try/except). THREAD-SAFETY: `call` (an._call_opus) builds its OWN provider client
+    per invocation, so no client instance is shared with the main thread; the store client (boto3 or the
+    in-memory dict store) is touched ONLY here, post-handoff; and `base_state`/`turn` are no longer read
+    by the main thread once the HTTP response has been returned. The rollup's own duration is timed INSIDE
+    the thread and emitted as a STANDALONE EMF line -- it is necessarily absent from this turn's EMF block
+    (already emitted by the time the thread finishes), the accepted W6.1-1 tradeoff."""
+    import threading
+    import time as _time
+
+    from leviathan.graphrag import session as ss
+
+    def _run():
+        try:
+            _t = _time.perf_counter()
+            new_state = ss.roll_summary(base_state, turn, graph=graph, call=call)
+            store.put_state(session_id, new_state)
+            ms = int((_time.perf_counter() - _t) * 1000)
+            tr["ms_rollup"] = ms                                  # recorded for holders/tests (post-EMF; benign)
+            try:
+                from leviathan.graphrag import emf
+                emf.emit({"MsRollup": ms}, dimensions={"intent": intent},
+                         units={"MsRollup": "Milliseconds"})      # keeps async-rollup latency observable
+            except Exception:  # noqa: BLE001 — telemetry must never surface
+                pass
+        except Exception:  # noqa: BLE001 — async rollup must never surface an error
+            pass
+
+    th = threading.Thread(target=_run, name="graphrag-rollup", daemon=True)
+    th.start()
+    if _rollup_observer is not None:
+        try:
+            _rollup_observer(th)
+        except Exception:  # noqa: BLE001 — the observer is a test hook; it can never fail a turn
+            pass
+    return th
+
+
+def _session_writeback(res: dict, query: str, asof: str, session_id, store, state, graph, call,
+                       *, ms_dispatch: Optional[int] = None) -> dict:
+    """Append the TurnRecord + roll the Phase-2 summary. Ids and short strings only — the PIT firewall.
+    W6.1-0: stamp MsDispatch here (the single choke point). W6.1-1: by default the summary roll fires onto
+    a daemon thread (GRAPHRAG_ROLLUP_ASYNC, default on) so its Haiku round-trip leaves the critical path;
+    'off' restores the exact synchronous pre-W6.1-1 behavior."""
+    import os
+
+    tr = res.setdefault("trace", {})
     # Graph identity stamp (audit/reproducibility): every real answer records WHICH causal graph produced
     # it. Done here — the single choke point both the main branch and the live early-return pass through —
     # and BEFORE the no-session early return, so it lands whether or not a session is active.
-    res.setdefault("trace", {})["graph_version"] = getattr(graph, "version", None)
+    tr["graph_version"] = getattr(graph, "version", None)
+    if ms_dispatch is not None:
+        tr["ms_dispatch"] = ms_dispatch                          # W6.1-0 stage timer (dispatch.plan_turn)
     if not (store and session_id):
         return res
     import time as _time
 
     from leviathan.graphrag import session as ss
     try:
-        tr = (res.get("trace") or {})
         turn = ss.TurnRecord(
             turn=(state.turn_count if state else 0), query=query[:300],
             answer_tldr=str((res.get("structured") or {}).get("tldr") or res.get("answer") or "")[:200],
@@ -738,8 +825,16 @@ def _session_writeback(res: dict, query: str, asof: str, session_id, store, stat
             fired_regime_names=[r.get("name") for r in tr.get("fired_regimes") or []],
             intent=res.get("intent", ""), ts=_time.time())
         store.append_turn(session_id, turn)
-        new_state = ss.roll_summary(state or ss.SessionState(), turn, graph=graph, call=call or an._call_opus)
-        store.put_state(session_id, new_state)
+        base_state = state or ss.SessionState()
+        rcall = call or an._call_opus
+        if os.environ.get("GRAPHRAG_ROLLUP_ASYNC", "on").lower() == "off":
+            _t_roll = _time.perf_counter()                       # SYNC: exact pre-W6.1-1 behavior, timed inline
+            new_state = ss.roll_summary(base_state, turn, graph=graph, call=rcall)
+            store.put_state(session_id, new_state)
+            tr["ms_rollup"] = int((_time.perf_counter() - _t_roll) * 1000)   # in-block (respond reads it)
+        else:
+            _spawn_rollup(base_state, turn, graph, rcall, store, session_id, tr,
+                          intent=res.get("intent"))              # ASYNC: off the critical path (default)
         res["session"] = {"id": session_id, "turn": turn.turn}
     except Exception:  # noqa: BLE001 — the answer is already computed; never lose it to a store error
         res["session"] = {"id": session_id, "error": "store_unavailable"}

@@ -1,4 +1,4 @@
-import { getIdToken } from '../auth/oidc';
+import { fetchWithAuth } from '../auth/oidc';
 import type { ContextAttachment, RespondResult, StageEvent } from './schema';
 import { MAX_ATTACH } from '@/store/chips';
 
@@ -73,13 +73,10 @@ export async function openRespondStream(
   if (params.sessionId) qs.set('session_id', params.sessionId);
   // P2: attachments ride a JSON-encoded param (the stream is GET-only); cap mirrors the store's MAX_ATTACH
   if (params.context?.length) qs.set('context', JSON.stringify(params.context.slice(0, MAX_ATTACH)));
-  // fetch-based SSE (not EventSource) -> we can set the Authorization header directly.
-  const token = await getIdToken();
-  const res = await fetch(`${base}/v1/respond/stream?${qs.toString()}`, {
-    headers: {
-      Accept: 'text/event-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+  // fetch-based SSE (not EventSource) -> fetchWithAuth attaches the bearer AND does the shared
+  // 401-retry-after-forced-refresh (D-W6.2); a still-401 replay falls through to onError below.
+  const res = await fetchWithAuth(`${base}/v1/respond/stream?${qs.toString()}`, {
+    headers: { Accept: 'text/event-stream' },
     signal,
   });
   if (!res.ok || !res.body) {

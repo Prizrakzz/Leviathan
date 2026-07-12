@@ -10,6 +10,7 @@ from __future__ import annotations
 import functools
 import os
 import re
+import time
 
 from leviathan.graphrag import citations as cit
 from leviathan.graphrag import evidence as ev
@@ -634,9 +635,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         from leviathan.graphrag.numbers import cascade as cq
         extra_number_calls = list(extra_number_calls or [])       # rebind ONCE: None -> [], hybrid list -> copy
         try:                                                      # GRACEFUL (R6): a raise here must NEVER 500
+            _t_quant = time.perf_counter()                        # W6.1-0 stage timer (MsQuantify)
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls)
+            sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]
             if _quant_trace:
@@ -655,6 +658,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # SUPPRESS a legit [E], only forbid an invented one; it binds HARD only when n_ev == 0 (a dark chain).
     n_ev = sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes)
     n_num = len(extra_number_calls or [])
+    sg.trace["injected_n"] = n_num                               # W6.1-0: [N] rows injected (cited-vs-injected denom)
     _ledger_line = (
         f"GROUNDING LEDGER: {n_ev} dated evidence item(s) and {n_num} observed number row(s) are "
         f"available for this question. Cite AT MOST {n_ev} distinct [E] handles, each mapping to one "
@@ -668,7 +672,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     on_token = (lambda t: _emit(on_stage, "token", text=t)) if on_stage is not None else None
     call_kw = {"on_token": on_token} if (on_token is not None and call is _call_opus) else {}
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
+    _t_synth = time.perf_counter()                                # W6.1-0 stage timer (MsSynthLLM)
     structured = call(_system(), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
+    sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
     degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):

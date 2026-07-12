@@ -1,4 +1,4 @@
-import { getIdToken } from '../auth/oidc';
+import { fetchWithAuth } from '../auth/oidc';
 import { MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
 import type { ContextAttachment, NotificationItem } from './schema';
 import { openRespondStream, type StreamHandlers } from './sse';
@@ -9,12 +9,6 @@ type Schemas = components['schemas'];
 const BASE = import.meta.env.VITE_API_BASE ?? '';
 const MOCK = import.meta.env.VITE_MOCK === '1';
 
-/** Bearer header when signed in (Cognito ID token); empty when auth is off/unauthenticated. */
-async function authHeaders(): Promise<Record<string, string>> {
-  const token = await getIdToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 /** Stream a turn. `VITE_MOCK=1` routes to the in-repo mock so the whole UI runs without the backend. */
 export function respondStream(
   params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[] },
@@ -24,16 +18,18 @@ export function respondStream(
   return MOCK ? mockRespondStream(params, h) : openRespondStream(BASE, params, h, signal);
 }
 
+// All four helpers below route through fetchWithAuth (oidc.ts) so the bearer header AND the shared
+// 401-retry-after-forced-refresh (D-W6.2) live in ONE place — never re-implemented per verb.
 async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers: await authHeaders() });
+  const res = await fetchWithAuth(`${BASE}${path}`);
   if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
   return (await res.json()) as T;
 }
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithAuth(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
@@ -41,9 +37,9 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function putJSON<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithAuth(`${BASE}${path}`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
@@ -88,7 +84,7 @@ export function putProfile(update: ProfileUpdate): Promise<Profile> {
   return putJSON(`/v1/profile`, update);
 }
 
-// ── 6.5 PDF click-to-page (auth rides authHeaders via getJSON; gated server-side by GRAPHRAG_PDF_LINKS) ──
+// ── 6.5 PDF click-to-page (auth rides fetchWithAuth via getJSON; gated server-side by GRAPHRAG_PDF_LINKS) ──
 /** The resolved source-PDF pointer: a presigned URL (~900s), the 1-indexed `page` the cited passage was
  *  found on (`null` when it couldn't be localized — the modal opens at the top), the raw `kind`
  *  (pdf/html/txt), and the presign TTL. Mirrors the backend `CitationPdf` model. */
@@ -176,6 +172,6 @@ export function renameThread(item: ThreadItem, title: string): Promise<void> {
 export async function deleteThread(id: string): Promise<void> {
   if (MOCK) return;
   const path = `/v1/threads/${encodeURIComponent(id)}`;
-  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: await authHeaders() });
+  const res = await fetchWithAuth(`${BASE}${path}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`HTTP ${res.status} on DELETE ${path}`);
 }

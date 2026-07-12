@@ -61,3 +61,45 @@ describe('getIdToken silent renewal (5.6 W3)', () => {
     expect(await getIdToken()).toBeNull();
   });
 });
+
+describe('getIdToken({force}) — the 401-retry forced refresh (D-W6.2)', () => {
+  beforeEach(() => {
+    getUser.mockReset();
+    signinSilent.mockReset();
+    vi.unstubAllEnvs();
+  });
+
+  it('force bypasses the not-expired short-circuit and renews anyway', async () => {
+    // The server rejected a token the CLIENT still believes valid (not expired) -> force must renew.
+    getUser.mockResolvedValue({ expired: false, refresh_token: 'rt', id_token: 'client-valid' });
+    signinSilent.mockResolvedValue({ expired: false, id_token: 'forced-fresh' });
+    const { getIdToken } = await freshOidc();
+    expect(await getIdToken({ force: true })).toBe('forced-fresh');
+    expect(signinSilent).toHaveBeenCalledTimes(1); // short-circuit skipped -> renewal actually ran
+    // and a NON-forced call on the same not-expired user still short-circuits (no renew)
+    signinSilent.mockClear();
+    expect(await getIdToken()).toBe('client-valid');
+    expect(signinSilent).not.toHaveBeenCalled();
+  });
+
+  it('force still returns null when there is no refresh token to mint from', async () => {
+    getUser.mockResolvedValue({ expired: false, id_token: 'client-valid' }); // no refresh_token
+    const { getIdToken } = await freshOidc();
+    expect(await getIdToken({ force: true })).toBeNull();
+    expect(signinSilent).not.toHaveBeenCalled();
+  });
+
+  it('single-flight holds under force — concurrent forced renewals share ONE grant', async () => {
+    getUser.mockResolvedValue({ expired: false, refresh_token: 'rt', id_token: 'client-valid' });
+    let release!: (u: unknown) => void;
+    signinSilent.mockImplementation(() => new Promise((r) => (release = r)));
+    const { getIdToken } = await freshOidc();
+    const p1 = getIdToken({ force: true });
+    const p2 = getIdToken({ force: true });
+    await new Promise((r) => setTimeout(r, 0)); // both reach the renew branch
+    release({ expired: false, id_token: 'forced-fresh' });
+    expect(await p1).toBe('forced-fresh');
+    expect(await p2).toBe('forced-fresh');
+    expect(signinSilent).toHaveBeenCalledTimes(1);
+  });
+});
