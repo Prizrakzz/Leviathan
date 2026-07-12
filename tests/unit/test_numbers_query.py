@@ -405,3 +405,113 @@ def test_registry_projection_lint_flags_unguarded_axes():
         assert any("silver_wasde" in p and "release_date" in p for p in problems)
     finally:
         monkey_reg.tables["silver_wasde"].vintage_partition_col = "release_date"
+
+
+# ── D-W0.1: the query.py country-clobber fix (a caller-resolved country on a country-PARTITION table used to
+#    be discarded for geo's snake_case default for the DEFAULTED primary region — DARK legs) ────────────────
+def _country_part() -> TableSpec:
+    """A country-PARTITION table (the D-W0.1 clobber class): country is an injected-projection partition, so
+    its value goes through _partition_filters — where a caller-resolved country used to be clobbered by the
+    geo default. commodity=corn_cbot has a geographies config (primary us_corn_iowa -> united_states), so the
+    geo default (united_states) is DISTINCT from an explicit non-US country and the clobber is observable."""
+    return TableSpec(id="silver_nasa_power", description="", shape="wide", commodity_col="commodity",
+                     country_col="country", period_type="date", date_col="date",
+                     knowledge_semantics="data_date", partition_cols=["commodity", "country"])
+
+
+def test_partition_country_explicit_country_wins_over_geo_default():
+    # (a) explicit country + NO region: the caller's country must survive, canonicalised to the snake
+    # partition form — the clobber emitted geo's default (corn_cbot -> 'united_states') instead.
+    sql = build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2024-06-01",
+                                commodity="corn_cbot", country="Brazil"), _country_part())
+    assert "country = 'brazil'" in sql                          # honored (snake), not clobbered
+    assert "country = 'united_states'" not in sql               # the geo default no longer wins unconditionally
+
+
+def test_partition_country_explicit_region_wins_over_country():
+    # (b) explicit region is the finer key: its geography country wins over a model country string (the July
+    # 'us' numbers-agent fix must NOT regress).
+    sql = build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2024-06-01",
+                                commodity="corn_cbot", region="us_corn_iowa", country="Brazil"), _country_part())
+    assert "country = 'united_states'" in sql                   # region-derived; model's 'Brazil' ignored
+    assert "country = 'brazil'" not in sql
+
+
+def test_partition_country_geo_default_when_neither_pinned():
+    # (c) neither region nor country -> geo's country for the primary region (unchanged behavior).
+    sql = build_sql(NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2024-06-01",
+                                commodity="corn_cbot"), _country_part())
+    assert "country = 'united_states'" in sql
+
+
+def test_partition_country_build_sql_pit_filter_parity():
+    # (d) build_sql's emitted country predicate and apply_pit_filter must select the SAME row for all three
+    # preference cases — the anti-leakage oracle stays in lockstep with the fix (shared _resolved_country).
+    ts = _country_part()
+    rows = [{"commodity": "corn_cbot", "country": "brazil", "date": "2024-05-01", "precipitation_mm": 5.0},
+            {"commodity": "corn_cbot", "country": "united_states", "date": "2024-05-01", "precipitation_mm": 9.0}]
+    base = dict(table="silver_nasa_power", metric="precipitation_mm", asof="2024-06-01", commodity="corn_cbot")
+    cases = ((NumberQuery(country="Brazil", **base), "brazil"),                            # (a)
+             (NumberQuery(region="us_corn_iowa", country="Brazil", **base), "united_states"),  # (b)
+             (NumberQuery(**base), "united_states"))                                        # (c)
+    for spec, want in cases:
+        sql = build_sql(spec, ts)
+        assert f"country = '{want}'" in sql                     # build_sql selects it ...
+        kept = apply_pit_filter(rows, spec, ts)
+        assert [r["country"] for r in kept] == [want]           # ... and the oracle keeps exactly that row
+
+
+# ── D-W0.3: ESR publication-lag PIT offset (a week is citable only once week_ending_date + 7d <= asof —
+#    USDA publishes ~7 days after the reporting week; C3/adversarial finding) ────────────────────────────────
+def _esr_compact_lag() -> TableSpec:
+    """The compact serving shape WITH the D-W0.3 publication-lag guard (publication_lag_days=7)."""
+    return TableSpec(id="silver_esr", description="", athena_table="silver_esr_compact", shape="wide",
+                     commodity_col="commodity_name", period_col="market_year", period_type="marketing_year",
+                     period_sql_type="int", period_offset=1, date_col="week_ending_date",
+                     knowledge_date_col="as_of_date", knowledge_semantics="data_date",
+                     partition_cols=["commodity"], publication_lag_days=7,
+                     grain_cols=["commodity_name", "country_code", "week_ending_date"])
+
+
+def test_esr_publication_lag_shifts_guard_and_stays_sargable():
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2024-03-25",
+                                commodity="corn_cbot", agg="latest"), _esr_compact_lag())
+    # the cutoff is shifted back 7 days (2024-03-25 -> 2024-03-18): a week is citable only once it was
+    # PUBLISHED (week_ending_date + 7d <= asof), bound as the equivalent week_ending_date <= asof-7d.
+    assert "CAST(week_ending_date AS varchar) <= '2024-03-18'" in sql
+    assert "'2024-03-25'" not in sql                            # the raw (pre-publication) cutoff never appears
+    assert "commodity = 'corn_cbot'" in sql                     # partition equality intact ...
+    assert "CAST(commodity " not in sql and "INTERVAL" not in sql   # ... never wrapped: sargable, no date-math on
+    #                                                                 the column, so no LIST-storm surface
+
+
+def test_esr_publication_lag_boundary_excludes_unpublished_week():
+    """D-W0.3 / D-W3.5.6: a week whose data date passed but which USDA has NOT yet published
+    (week_ending_date <= asof < week_ending_date + 7d) is EXCLUDED; it becomes citable exactly at
+    week_ending_date + 7d; a plainly-future week stays excluded."""
+    ts = _esr_compact_lag()
+    q = dict(table="silver_esr", metric="weekly_exports_1000mt", commodity="corn_cbot")
+    row = [{"commodity_name": "corn_cbot", "country_code": 9, "week_ending_date": "2024-03-16",
+            "as_of_date": "20240323", "weekly_exports_1000mt": 800.0}]           # published ~2024-03-23
+    assert apply_pit_filter(row, NumberQuery(asof="2024-03-20", **q), ts) == []  # data date passed, NOT yet public
+    assert apply_pit_filter(row, NumberQuery(asof="2024-03-22", **q), ts) == []  # still one day before publication
+    kept = apply_pit_filter(row, NumberQuery(asof="2024-03-23", **q), ts)        # publication date reached
+    assert len(kept) == 1 and kept[0]["week_ending_date"] == "2024-03-16"
+    future = [{"commodity_name": "corn_cbot", "country_code": 9, "week_ending_date": "2024-04-06",
+               "as_of_date": "20240413", "weekly_exports_1000mt": 810.0}]
+    assert apply_pit_filter(future, NumberQuery(asof="2024-03-23", **q), ts) == []   # plain future week excluded
+
+
+def test_esr_registry_declares_publication_lag_and_shifts_the_live_guard():
+    # the live registry silver_esr entry carries the +7 lag, so build_sql off the real spec shifts the cutoff.
+    ts = load_registry().get("silver_esr")
+    assert ts.publication_lag_days == 7
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2024-03-25",
+                                commodity="corn_cbot", agg="latest"), ts)
+    assert "CAST(week_ending_date AS varchar) <= '2024-03-18'" in sql and "'2024-03-25'" not in sql
+
+
+def test_publication_lag_zero_is_identity_for_other_tables():
+    # every non-ESR table defaults publication_lag_days=0 -> the guard cutoff is the raw asof (no regression).
+    sql = build_sql(NumberQuery(table="silver_fred_fx", metric="brl_usd", asof="2024-06-01", agg="latest"), _fx())
+    assert "CAST(date AS varchar) <= '2024-06-01'" in sql       # unshifted; _fx() has no publication_lag_days

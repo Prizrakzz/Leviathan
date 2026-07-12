@@ -51,6 +51,11 @@ class TableSpec(BaseModel):
     month_col: Optional[str] = None                          # year_month semantics: the month column
     knowledge_date_col: Optional[str] = None                 # the vintage/publication/ingest date
     knowledge_semantics: Literal["vintage", "ingest", "data_date", "year_month"] = "data_date"
+    publication_lag_days: int = 0                            # PUBLICATION LAG (ESR): rows are stamped by a DATA
+    #                                                          date (week_ending_date) but not PUBLIC until this
+    #                                                          many days later; the as-of guard shifts its cutoff
+    #                                                          back by it (data_date + lag <= asof) so a not-yet-
+    #                                                          published week is never citable. 0 = same-day default
     partition_cols: list[str] = []                           # injected-projection partitions: every query MUST carry
     #                                                          a static equality on EACH (silver_nasa_power:
     #                                                          commodity/country/region, mirroring the S3 layout)

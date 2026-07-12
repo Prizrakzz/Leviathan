@@ -158,12 +158,26 @@ def _canon_country(country: Optional[str]) -> Optional[str]:
     return _COUNTRY_ALIASES.get(s, s)
 
 
+def _resolved_country(spec: NumberQuery, ts: TableSpec) -> Optional[str]:
+    """The country-PARTITION value, resolved in ONE place so build_sql (_partition_filters) and
+    apply_pit_filter agree — the D-W0.1 clobber fix plus its lockstep oracle. Preference (do NOT collapse to a
+    bare geo default — that discards a caller-resolved country: the July 'us' class AND the cascade's
+    Title-Case _scope country): an EXPLICIT region's geography country wins (the finer key — the numbers-agent
+    fix), else an EXPLICIT country canonicalised to the snake_case partition surface form (the cascade passes a
+    deterministic resolved country), else geo's country for the DEFAULTED primary region when neither is
+    pinned. `ts` is unused today (country is always the same physical column) but kept for signature parity
+    with the other resolvers."""
+    geo = _geo(spec.commodity) if spec.commodity else {}
+    region = spec.region or (geo.get("_primary") or (None, None))[1]
+    return (geo.get(spec.region) if spec.region else None) or _canon_country(spec.country) or geo.get(region)
+
+
 def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     """Static equalities for EVERY injected-projection partition (Athena CONSTRAINT_VIOLATION otherwise).
-    region defaults to the commodity's primary station; country derives from the region's geography block
-    (values are snake_case there — 'united_states'); commodity must be given. When the region IS in the
-    geographies map, the map's country is AUTHORITATIVE over the model-supplied one (the region is the
-    finer key, and the model's surface form may not be a real partition value)."""
+    region defaults to the commodity's primary station; the country partition value comes from
+    _resolved_country (explicit-region country wins, else explicit country in the snake_case partition form,
+    else the geo default — the D-W0.1 fix, replacing the old geo-default-clobbers-caller behavior); commodity
+    must be given."""
     geo = _geo(spec.commodity) if spec.commodity else {}
     w: list[str] = []
     region = spec.region or (geo.get("_primary") or (None, None))[1]
@@ -173,7 +187,7 @@ def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
                 raise ValueError(f"table {ts.id} requires commodity (partition column)")
             continue                                          # emitted by the regular commodity filter
         if col == ts.country_col:
-            val = geo.get(region) or _canon_country(spec.country)
+            val = _resolved_country(spec, ts)
         elif col == "region":
             val = region
         else:
@@ -229,6 +243,18 @@ def _asof_ym(asof: str) -> int:
     return int(asof[:4]) * 100 + int(asof[5:7])              # 'YYYY-MM-DD' -> YYYYMM integer
 
 
+def _pub_lagged_asof(asof: str, lag_days: int) -> str:
+    """Shift the as-of cutoff BACK by a table's publication lag: a row stamped by its DATA date (ESR
+    week_ending_date) is not PUBLIC until lag_days later, so the intended `data_date + lag <= asof` is bound
+    as the equivalent `data_date <= asof - lag`. Shifting the RHS LITERAL (not the column) keeps the guard
+    sargable and backend-agnostic — no SQL date arithmetic touches week_ending_date, so its text-compare form
+    AND the commodity partition pruning stay exactly as before (D-W0.3). lag_days 0 (default) is identity."""
+    if not lag_days:
+        return asof
+    from datetime import date, timedelta
+    return (date(int(asof[:4]), int(asof[5:7]), int(asof[8:10])) - timedelta(days=lag_days)).isoformat()
+
+
 def _guard(spec: NumberQuery, ts: TableSpec) -> str:
     """The as-of predicate that is ALWAYS present — the leakage guard."""
     if ts.knowledge_semantics == "year_month":
@@ -241,13 +267,14 @@ def _guard(spec: NumberQuery, ts: TableSpec) -> str:
     col = ts.knowledge_col()
     if not col:
         raise ValueError(f"table {ts.id} has no knowledge/date column to anchor the as-of guard")
+    asof = _pub_lagged_asof(spec.asof, ts.publication_lag_days)   # ESR: a week is citable only once PUBLISHED
     if col == ts.vintage_partition_col:
         # the knowledge col IS a projected partition: compare NATIVELY in the partition's own value
         # format — a CAST here is semantically a no-op on a string column but makes the predicate
         # non-sargable, so Athena enumerates the whole projected grid (silver_wasde: 19.5K daily
         # candidates over 461 real monthly partitions — the WASDE arm of the Jul-2026 LIST storm).
-        return f"{col} <= {_q(_fmt_pdate(spec.asof, ts.vintage_partition_format))}"
-    return f"{_dcol(col)} <= {_q(spec.asof)}"
+        return f"{col} <= {_q(_fmt_pdate(asof, ts.vintage_partition_format))}"
+    return f"{_dcol(col)} <= {_q(asof)}"
 
 
 def _order_col(ts: TableSpec) -> Optional[str]:
@@ -338,6 +365,9 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     latest vintage per identity group."""
     kcol = ts.knowledge_col()
     ym = _asof_ym(spec.asof) if ts.knowledge_semantics == "year_month" else None
+    guard_asof = _pub_lagged_asof(spec.asof, ts.publication_lag_days)   # publication-lag shift (ESR); mirrors _guard
+    part_country = (_resolved_country(spec, ts)                          # country-PARTITION identity resolved the
+                    if ts.country_col and ts.country_col in ts.partition_cols else None)  # SAME way as build_sql
 
     def keep(r: dict) -> bool:
         if "region" in ts.partition_cols:
@@ -346,7 +376,10 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
                 return False
         if spec.commodity and ts.commodity_col and str(r.get(ts.commodity_col)) != str(spec.commodity):
             return False
-        if spec.country and ts.country_col and str(r.get(ts.country_col)) != str(spec.country):
+        if ts.country_col and ts.country_col in ts.partition_cols:       # country is a partition: compare the
+            if part_country and str(r.get(ts.country_col)) != str(part_country):   # RESOLVED value (D-W0.1 lockstep)
+                return False
+        elif spec.country and ts.country_col and str(r.get(ts.country_col)) != str(spec.country):
             return False
         if ts.shape == "tall" and ts.metric_col and str(r.get(ts.metric_col)) != str(spec.metric):
             return False
@@ -368,7 +401,7 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
             if spec.period_end and rym > _asof_ym(spec.period_end):
                 return False
             return rym <= ym                                             # the leakage guard (year_month)
-        return str(r.get(kcol) or "") <= spec.asof                       # the leakage guard (date)
+        return str(r.get(kcol) or "") <= guard_asof                      # the leakage guard (date + pub lag)
     kept = [r for r in rows if keep(r)]
 
     if ts.knowledge_semantics == "vintage" and kept:
