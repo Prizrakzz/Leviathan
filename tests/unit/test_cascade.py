@@ -499,11 +499,40 @@ def test_reroute_pair_atomic_cap_drops_shock_and_beneficiary_together(monkeypatc
 
 
 # ── map loader + deferred rows ───────────────────────────────────────────────────────────────────────
-def test_load_map_drops_deferred_rows():
+def test_load_map_drops_deferred_rows(tmp_path, monkeypatch):
+    """Drop semantics via a synthetic yaml (no live deferred rows remain post-D-W5), then the flipped
+    live state: esr_exports + drought_z ACTIVE, the vacuous weather_z join key GONE."""
+    y = tmp_path / "numbers"
+    y.mkdir()
+    (y / "cascade_map.yaml").write_text(
+        "refs:\n"
+        "  live_row: {table: silver_psd, metric: exports_mt, period_type: marketing_year, scale: 1}\n"
+        "  dead_row: {table: silver_psd, metric: exports_mt, period_type: marketing_year, scale: 1,\n"
+        "             deferred: true}\n", encoding="utf-8")
+    from leviathan.graphrag import extract as ex
+    monkeypatch.setattr(ex, "_CFG", tmp_path)
+
+    def _clear_cfg_caches():
+        # EVERY lru_cached loader that reads ex._CFG must be cleared, or the fixture path poisons
+        # sibling tests (the GRAPHRAG_SUGGEST_CATALOG lru-poisoning lesson).
+        for fn_name in ("load_map", "load_region_map"):
+            fn = getattr(cq, fn_name, None)
+            if fn is not None and hasattr(fn, "cache_clear"):
+                fn.cache_clear()
+
+    _clear_cfg_caches()
+    try:
+        m = cq.load_map()
+        assert "live_row" in m and "dead_row" not in m               # deferred -> inert
+        assert cq.map_row("dead_row") is None and cq.map_row(None) is None
+    finally:
+        monkeypatch.undo()                                           # restore ex._CFG BEFORE re-clearing
+        _clear_cfg_caches()                                          # never leak the fixture to siblings
     m = cq.load_map()
     assert "export" in m and m["export"]["table"] == "silver_psd"
-    assert "esr_exports" not in m and "weather_z" not in m           # deferred -> inert
-    assert cq.map_row("esr_exports") is None and cq.map_row(None) is None
+    assert "esr_exports" in m and m["esr_exports"]["table"] == "silver_esr"      # D-W5 ESR flip
+    assert "drought_z" in m and m["drought_z"]["table"] == "gold_weather_z"      # D-W5 weather flip
+    assert "weather_z" not in m                                      # the vacuous join key is gone
 
 
 def test_cascade_map_lint_clean():
@@ -513,7 +542,7 @@ def test_cascade_map_lint_clean():
 
 def test_cascade_map_lint_catches_uncertified_active(monkeypatch):
     monkeypatch.setattr(cq, "load_map",
-                        lambda: {"bad": {"table": "silver_esr", "metric": "weekly_exports_mt",
+                        lambda: {"bad": {"table": "silver_nasa_power", "metric": "temperature_2m_max_c",
                                          "period_type": "date", "scale": 1}})
     cq.load_map.cache_clear if hasattr(cq.load_map, "cache_clear") else None
     from leviathan.graphrag.config_check import check_cascade_map

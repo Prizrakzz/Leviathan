@@ -201,13 +201,17 @@ refs:
       US weekly export PACE (fresh rhyme leg): the single freshest week's shipments on/before the session
       as-of, narrated as "week ending <week_ending_date>". Complements -- never replaces -- the PSD export
       LEVEL backbone (see the `export` row). Flow in 1000 MT/week; NEVER deltaed against a PSD MMT level.
-  weather_z:
-    # UN-DEFERRED (D-W5 weather flip, 2026-07-12): repointed OFF the projected silver_nasa_power (the
-    # LIST-storm class; stays deferred/uncertified) onto the NEW non-projected gold_weather_z (D-W4
-    # transform: tall, monthly, PIT-safe same-month z, PSD Title-Case countries). Gate: gold parquet
-    # written + pg-mirrored + candidate census green. Rollback: re-add `deferred: true`.
+  # ── D-W5 WEATHER FLIP (2026-07-12, corrected shape) ──────────────────────────────────────────────────
+  # The map row ID is the JOIN KEY to the drivers' silver_ref -- a single `weather_z` row joined to
+  # NOTHING (zero drivers carry silver_ref: weather_z; the first candidate census was a vacuous 0-delta).
+  # The real refs the DAGs bind are drought_z(64), heat_stress_z(53), frost_event_flag(22), gdd_z(2),
+  # stage_tmax_anomaly(1) -- one row each below, all serving from the NON-projected gold_weather_z
+  # (D-W4: tall, monthly, PIT-safe same-month z, PSD Title-Case countries). stage_precip_z (38 drivers)
+  # has NO gold metric yet -- stays unmapped/qualitative pending a precip-z gold family.
+  # Rollback: re-add `deferred: true` per row. Gate: candidate census diff + config_check green.
+  drought_z: &gold_weather_row
     table: gold_weather_z
-    metric: drought_z                  # v1 binds ONE metric; heat/gdd/tmax/frost are candidate later rows
+    metric: drought_z
     period_type: year_month            # reuses the ONI (year*100+month) windowing + as-of guard wholesale
     country_rule: region               # the driver's own region token -> region_map -> Title-Case country
     native_unit: z
@@ -219,6 +223,30 @@ refs:
       Monthly drought z (CHIRPS dry-run length vs prior-year same-month baseline, two PIT layers,
       z-scored across years within the calendar month). Narrate as "z = <v> vs the same-month norm";
       NEVER a level, NEVER deltaed against any MT/MMT row.
+  heat_stress_z:
+    <<: *gold_weather_row
+    metric: heat_stress_z
+    notes: >
+      Monthly count of days over the heat threshold, z-scored vs the same-month prior-year baseline.
+      Narrate as heat-stress anomaly; never a level.
+  frost_event_flag:
+    <<: *gold_weather_row
+    metric: frost_event_flag
+    native_unit: flag
+    narrate_unit: flag
+    notes: >
+      Monthly frost flag: 1.0 if the monthly-min temperature dropped below freezing, else 0.0 (a real
+      observation, kept). Narrate as presence/absence of a frost month; never averaged or z-labeled.
+  gdd_z:
+    <<: *gold_weather_row
+    metric: gdd_z
+    notes: >
+      Monthly growing-degree-day sum, z-scored vs the same-month prior-year baseline.
+  stage_tmax_anomaly:
+    <<: *gold_weather_row
+    metric: tmax_anomaly               # driver ref keeps its historical name; the gold column is tmax_anomaly
+    notes: >
+      Monthly mean-tmax anomaly z vs the same-month prior-year baseline.
 
 # ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).
@@ -256,6 +284,39 @@ region_map:
     Canada:                {country: "Canada"}
     South_Africa:          {country: "South Africa"}
     "Cote d'Ivoire":       {country: "Cote d'Ivoire"}
+    # -- D-W5 weather-flip region curation (2026-07-12): gold_weather_z country_rule=region tokens --
+    # RESOLVE = the token names ONE country that exists in that commodity's gold_weather_z coverage;
+    # growing-region detail in parens / ';' / '_' collapses to the single country. Ground truth =
+    # distinct gold_weather_z.country probed per affected commodity (2026-07-12).
+    "US_Midwest": {country: "United States"}
+    "US_Southern_Plains": {country: "United States"}
+    "US_Eastern_Cornbelt": {country: "United States"}
+    "US_North": {country: "United States"}
+    "Brazil (Sul de Minas, Paraná, São Paulo)": {country: "Brazil"}
+    "Brazil (Minas Gerais, São Paulo)": {country: "Brazil"}
+    "Brazil (Cerrado Mineiro, São Paulo)": {country: "Brazil"}
+    "Brazil (main flowering Sep-Nov)": {country: "Brazil"}
+    "Brazil (Sul de Minas, Paraná, Mogiana, São Paulo)": {country: "Brazil"}
+    "Brazil (Minas Gerais, Cerrado Mineiro, São Paulo)": {country: "Brazil"}
+    "Brazil arabica belt": {country: "Brazil"}
+    "Brazil_CentralWest;Mato_Grosso;Parana": {country: "Brazil"}
+    "Brazil_CentralWest;Parana": {country: "Brazil"}
+    "Brazil_CentralWest;Brazil_South": {country: "Brazil"}
+    "Parana;Mato_Grosso_do_Sul;Sao_Paulo;Brazil_South": {country: "Brazil"}
+    "Brazil_CentralWest": {country: "Brazil"}
+    "Brazil CS": {country: "Brazil"}
+    "Brazil (Espirito Santo, Bahia, Rondonia)": {country: "Brazil"}
+    "Canadian Prairies": {country: "Canada"}
+    "China (Yangtze/Sichuan)": {country: "China"}
+    "Northeast_China": {country: "China"}
+    "Heilongjiang": {country: "China"}
+    "Vietnam Central Highlands (Dak Lak, Lam Dong, Gia Lai)": {country: "Vietnam"}
+    "South_Africa_Highveld;Free_State;North_West;Mpumalanga": {country: "South Africa"}
+    "South_Africa_Highveld;Free_State": {country: "South Africa"}
+    "South_Africa_Highveld;North_West;Free_State": {country: "South Africa"}
+    "South_Africa_Free_State;North_West;Mpumalanga": {country: "South Africa"}
+    "South_Africa_Highveld": {country: "South Africa"}
+    "South_Africa_North_West;Free_State": {country: "South Africa"}
   unresolved:
     # export drivers
     - Russia_Ukraine
@@ -312,3 +373,50 @@ region_map:
     - "EU;Global"
     - "India / Pakistan"
     - "India/Thailand/Vietnam"
+    # -- D-W5 weather-flip region curation (2026-07-12): tokens spanning >1 country (or a
+    #    multi-country belt/region) -- no single honest country, so the weather leg declines-honestly --
+    - "Brazil and Colombia highlands"
+    - "West Africa"
+    - "US_Midwest;Argentina;Brazil;EU;Black_Sea"
+    - "US_Midwest;Argentina;Brazil_safrinha"
+    - "US_Midwest;Brazil_safrinha"
+    - "US_Northern_Plains;Argentina"
+    - "US_Midwest;Argentina;Brazil"
+    - "US_Northern_Plains;Argentina;Brazil_safrinha"
+    - "US Texas / India"
+    - "US / India / China Xinjiang"
+    - "France;Danube_Basin;Black_Sea;Ukraine"
+    - "France;Romania;Hungary;Ukraine"
+    - "France;Danube_Basin"
+    - "Poland;Germany;Ukraine"
+    - "EU (France/Germany/Poland)"
+    - "EU rapeseed belt"
+    - "EU/Ukraine"
+    - "France_EU"
+    - "India_BlackSea"
+    - "Florida_US / Sao_Paulo_Brazil"
+    - "Sao_Paulo_Brazil / Florida_US"
+    - "US_Northern_Plains_Canadian_Prairies"
+    - "India_BlackSea_EU"
+    - "Sumatra, Kalimantan, Peninsular Malaysia, Sabah/Sarawak"
+    - "SE Asia palm belt"
+    - "EU/Australia/Black Sea"
+    - "EU/Black Sea"
+    - "EU/Canada"
+    - "Brazil CS / India"
+    - "Vietnam, Brazil Espirito Santo, Indonesia"
+    - "Vietnam, Brazil Espirito Santo"
+    - "Vietnam, Brazil, Indonesia"
+    - "India/Thailand/US Mid-South"
+    - "India/Asia/US"
+    - "Asia/US"
+    - "Zimbabwe;Zambia;Malawi;Mozambique"
+    - "Argentina/Brazil/US_Midwest"
+    - "Argentina/US_Midwest"
+    - "US_Midwest/Argentina"
+    - "Argentina/US_North"
+    - "US_Midwest/Brazil/Argentina"
+    - "US_Midwest/Brazil"
+    - "US_North/Argentina"
+    - "US_Midwest/South_America"
+    - "Brazil/Argentina/US_Midwest"

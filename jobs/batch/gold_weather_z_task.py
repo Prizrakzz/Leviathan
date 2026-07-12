@@ -55,15 +55,26 @@ _MELT_VARS = (_TMAX, _TMIN, _PRECIP)
 _MELT_IDS = ["country", "region", "year", "month", "day"]
 
 
-def _to_long(wide: pd.DataFrame) -> pd.DataFrame | None:
-    """Melt the wide silver frame to the core's long shape; None when nothing meltable."""
-    value_vars = [c for c in _MELT_VARS if c in wide.columns]
-    ids = [c for c in _MELT_IDS if c in wide.columns]
-    if not value_vars or len(ids) != len(_MELT_IDS):
-        logger.error("unexpected silver schema: ids=%s value_vars=%s cols=%s",
-                     ids, value_vars, sorted(wide.columns)[:20])
+def _to_long(frame: pd.DataFrame) -> pd.DataFrame | None:
+    """Normalize a silver frame to the core's long shape [ids.., variable, value]; None when impossible.
+
+    The two silver weather sources ship DIFFERENT shapes (probed 2026-07-12): nasa_power is WIDE (one
+    column per variable, e.g. temperature_2m_max_c) and MUST be melted; chirps is ALREADY LONG
+    (variable='precipitation_mm' + value). Run 2's drought blackout (34 DARK census legs, zero drought_z
+    gold rows) was this function refusing the long chirps frame because it demanded wide value_vars."""
+    ids = [c for c in _MELT_IDS if c in frame.columns]
+    if len(ids) != len(_MELT_IDS):
+        logger.error("unexpected silver schema: ids=%s cols=%s", ids, sorted(frame.columns)[:20])
         return None
-    out = wide.melt(id_vars=ids, value_vars=value_vars, var_name="variable", value_name="value")
+    if "variable" in frame.columns and "value" in frame.columns:     # already long (chirps)
+        out = frame[ids + ["variable", "value"]]
+        return out if not out.empty else None
+    value_vars = [c for c in _MELT_VARS if c in frame.columns]       # wide (nasa_power) -> melt
+    if not value_vars:
+        logger.error("unexpected silver schema: no long columns and no known wide vars; cols=%s",
+                     sorted(frame.columns)[:20])
+        return None
+    out = frame.melt(id_vars=ids, value_vars=value_vars, var_name="variable", value_name="value")
     return out if not out.empty else None
 
 

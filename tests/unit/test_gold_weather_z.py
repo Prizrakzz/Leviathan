@@ -290,3 +290,33 @@ def test_task_melt_rejects_unknown_schema() -> None:
     from jobs.batch.gold_weather_z_task import _to_long
     bad = pd.DataFrame({"foo": [1], "bar": [2]})
     assert _to_long(bad) is None
+
+
+def test_task_passthrough_long_chirps_schema() -> None:
+    """CHIRPS silver is ALREADY LONG (variable='precipitation_mm' + value, probed 2026-07-12) -- _to_long
+    must pass it through, not demand wide columns (run 2's drought blackout: 34 DARK legs, 0 drought rows)."""
+    from jobs.batch.gold_weather_z_task import _to_long
+
+    frames = []
+    for year in range(2000, 2012):
+        n = 28
+        frames.append(pd.DataFrame({
+            "date": [f"{year}-01-{d:02d}" for d in range(1, n + 1)],
+            "year": year, "month": 1, "day": list(range(1, n + 1)),
+            "country": "argentina", "region": "ar_corn_buenos_aires",
+            "commodity": "corn_cbot", "source": "chirps", "ingest_date": "2026-05-13",
+            "variable": "precipitation_mm",
+            # a WET month with one leading dry spell whose LENGTH varies by year: continuous values so
+            # the pct-20 threshold sits above the dry days, and year-varying runs so the z has variance
+            "value": [0.1 if d <= (3 + year % 5) else 5.0 for d in range(1, n + 1)],
+        }))
+    chirps_long = pd.concat(frames, ignore_index=True)
+
+    out = _to_long(chirps_long)
+    assert out is not None and not out.empty
+    assert set(out.columns) == {"country", "region", "year", "month", "day", "variable", "value"}
+    assert set(out["variable"].unique()) == {_PRECIP}
+
+    gold = compute_weather_z("corn_cbot", nasa_power=None, chirps=out,
+                             window_years=WIN, min_years=MIN)
+    assert not gold.empty and (gold["metric"] == METRIC_DROUGHT_Z).all()
