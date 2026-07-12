@@ -34,7 +34,8 @@ from leviathan.common.logging import get_logger
 logger = get_logger("load_pg_numbers")
 
 P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "silver_fred_fx",
-             "silver_noaa_oni"]
+             "silver_noaa_oni", "gold_weather_z"]        # gold_weather_z: small tall z-table (D-W4);
+#                                                          silver_nasa_power stays EXCLUDED (size, above)
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 
