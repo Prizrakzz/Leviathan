@@ -335,14 +335,18 @@ def _node_specs(n, row, commodity, country, eras, asof) -> list[dict]:
             "table": row["table"], "metric": row["metric"], "commodity": commodity, "country": country,
             "period_type": row.get("period_type", "date")}
     specs: list[dict] = []
-    for i, (t1, t2) in enumerate(eras):
-        if base["period_type"] == "marketing_year":
-            for my in _my_span((t1, t2), commodity):
-                specs.append({**base, "leg": ("era", i), "era_idx": i, "my": my, "t1": None, "t2": None,
-                              "asof": t2, "agg": row.get("agg", "latest"), "period": my})
-        else:
-            specs.append({**base, "leg": ("era", i), "era_idx": i, "my": None, "t1": t1, "t2": t2,
-                          "asof": t2, "agg": "series", "period": None})
+    # ESR is shallow/US-only/weekly -- a terrible analogue backbone; `leg_mode: current` emits the fresh
+    # rhyme leg ONLY, never an era leg (D-W3.2, the "era-legs-stay-PSD" guard). The default (no leg_mode)
+    # preserves PSD's era+current behavior exactly.
+    if row.get("leg_mode") != "current":
+        for i, (t1, t2) in enumerate(eras):
+            if base["period_type"] == "marketing_year":
+                for my in _my_span((t1, t2), commodity):
+                    specs.append({**base, "leg": ("era", i), "era_idx": i, "my": my, "t1": None, "t2": None,
+                                  "asof": t2, "agg": row.get("agg", "latest"), "period": my})
+            else:
+                specs.append({**base, "leg": ("era", i), "era_idx": i, "my": None, "t1": t1, "t2": t2,
+                              "asof": t2, "agg": "series", "period": None})
     if asof:                                                      # the CURRENT rhyme leg (R1)
         if base["period_type"] == "marketing_year":
             cur_my = _covering_my(asof, commodity)
@@ -351,7 +355,10 @@ def _node_specs(n, row, commodity, country, eras, asof) -> list[dict]:
                               "t1": None, "t2": None, "asof": asof, "agg": "latest", "period": cur_my})
         else:
             specs.append({**base, "leg": ("current", None), "era_idx": None, "my": None,
-                          "t1": _plus_days(asof, -365), "t2": asof, "asof": asof, "agg": "series",
+                          "t1": _plus_days(asof, -365), "t2": asof, "asof": asof,
+                          "agg": row.get("agg", "series"),      # D-W3.2/C2: ESR pace -> 'latest' (the freshest
+                          #                                       week <= asof); default 'series' keeps PSD
+                          #                                       date legs (fred_fx) unchanged
                           "period": None})
     return specs
 

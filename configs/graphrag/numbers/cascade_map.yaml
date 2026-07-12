@@ -174,12 +174,31 @@ refs:
   # ── DEFERRED (uncertified/empty at the 2026-06-24 certification; un-defer gate = a live W0 probe) ──
   esr_exports:
     table: silver_esr
-    metric: weekly_exports_mt
-    deferred: true
-    period_type: date
+    metric: weekly_exports_1000mt      # FIX (D-W3.1): was weekly_exports_mt -- NOT a real registry column
+    #                                    (ESR metrics are *_1000mt). Un-deferring as-written ERRORed
+    #                                    check_cascade_map (metric-not-in-registry, fail-closed).
+    deferred: true                     # STILL DEFERRED: the flip is D-W5 (user-gated) -- data cert-reconcile
+    #                                    + pg mirror + the census FIRES gate must land first. load_map drops
+    #                                    this row, so config_check never lints an active-uncertified ESR row.
+    agg: latest                        # v1 (C2): the single FRESHEST week on/before asof. was `sum` -- DEAD
+    #                                    CONFIG (cascade.py hardcoded agg="series" on the date branch;
+    #                                    row.get("agg") was only read on the marketing_year branch). D-W3.2
+    #                                    now threads row.get("agg") into the date-branch CURRENT leg so this
+    #                                    is honored. `latest` also fixes the stale-week defect: a `series` leg
+    #                                    over [asof-365,asof] is ORDER BY ASC, so rows[0] was the ~1-year-OLD
+    #                                    week mislabeled "current".
+    period_type: date                  # weekly pace: period_start/period_end bind week_ending_date
+    leg_mode: current                  # NEW FLAG (D-W3.2): the current rhyme leg ONLY -- never an era leg
+    country_rule: none                 # US-only source; no country column, v1 sums destinations
+    native_unit: "1000 MT"
+    narrate_unit: "1000 MT"            # kt/week flow -- NOT MMT, NOT a level; scale 1 (no ratio trap)
+    scale: 1
+    coverage_start: 1990
+    status: mapped
     notes: >
-      US weekly export-pace (the fresh 'rhyme' leg). DEFERRED: 0 rows in pg + uncertified (4 warnings).
-      Un-defer ONLY after Phase-D repairs + certifies ESR and the W0 live probe shows rows.
+      US weekly export PACE (fresh rhyme leg): the single freshest week's shipments on/before the session
+      as-of, narrated as "week ending <week_ending_date>". Complements -- never replaces -- the PSD export
+      LEVEL backbone (see the `export` row). Flow in 1000 MT/week; NEVER deltaed against a PSD MMT level.
   weather_z:
     table: silver_nasa_power
     metric: drought_z
