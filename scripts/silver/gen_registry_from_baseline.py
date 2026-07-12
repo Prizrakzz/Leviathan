@@ -586,7 +586,23 @@ def build_contract(name: str, ctx: dict) -> dict:
 # byte-identically. Additive columns are hidden-schema (glue/arrow/parquet null): the F034 producer
 # emits them; the gated B-wave catalog migration registers them (reports/silver_readiness/R2_wasde/).
 CURATION_OVERRIDES: dict = {
+    # ── R4 cadence calibration: _cadence(grain) infers RELEASE cadence from DATA grain, which is
+    # wrong wherever the two differ (a daily-grain table from a weekly/monthly release). These
+    # cadences feed only the interim F082 freshness-alarm ceilings (dag_catalog); max_lag_days
+    # calibration proper stays OP-8 / AV-11. publication_lag_days is deliberately NOT set here:
+    # it is reconciled 1:1 against the numbers TableSpec (F010), so a COT Tue-positions/Fri-release
+    # lag (3d) or MPOB ~10th-of-month lag belongs in a numbers-stack change with its own eval gate.
+    "silver_cot": {"freshness_sla": {"cadence": "weekly"}},          # CFTC COT is a weekly release
+    "silver_psd": {"freshness_sla": {"cadence": "monthly"}},         # PSD refreshes on the WASDE cycle
+    "silver_mpob": {"freshness_sla": {"cadence": "monthly"}},        # MPOB monthly palm statistics
+    "silver_modis_ndvi": {"freshness_sla": {"cadence": "monthly"}},  # 16-day composite; monthly interim
+    "silver_nass_crop_progress": {
+        # Weekly in-season (Apr-Nov) but dark all winter: the 170d interim ceiling spans the
+        # off-season gap so the alarm never cries wolf; OP-8 replaces it with a seasonal window.
+        "freshness_sla": {"cadence": "weekly", "max_lag_days": 170},
+    },
     "silver_wasde": {
+        "freshness_sla": {"cadence": "monthly"},  # WASDE releases monthly; the MY grain is not the cadence
         "deprecated_columns": ["months_to_marketing_year_end", "is_final_or_latest"],
         "additive_columns": [
             ("source_table_id", "string"), ("estimate_role", "string"), ("projection_month", "string"),
@@ -652,6 +668,8 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
     for key in ("natural_key", "required_nonnull", "coverage_axis"):
         if key in ov:
             contract[key] = ov[key]
+    if "freshness_sla" in ov:
+        contract["freshness_sla"] = {**(contract.get("freshness_sla") or {}), **ov["freshness_sla"]}
     if "producer" in ov:
         contract["producer"].update(ov["producer"])
     if "notes_append" in ov:

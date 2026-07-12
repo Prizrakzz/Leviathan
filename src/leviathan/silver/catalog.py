@@ -132,6 +132,22 @@ def diff_storage_descriptor(existing: dict, desired: dict) -> list[str]:
     return out
 
 
+def diff_partition_managed(existing: dict, desired: dict) -> list[str]:
+    """Managed-field differences between two Glue partitions (empty == no managed change).
+
+    ``existing``/``desired`` are raw Glue ``Partition`` dicts. Compares the partition ``Values`` and
+    the managed StorageDescriptor subset (the SILVER-F081 recovery-verification set). Used to explain
+    a byte-for-byte partition mismatch during a recovery rehearsal."""
+    a, b = normalize_partition(existing), normalize_partition(desired)
+    out: list[str] = []
+    if a["values"] != b["values"]:
+        out.append(f"values: {a['values']} != {b['values']}")
+    out.extend(diff_storage_descriptor(
+        existing.get("StorageDescriptor") or {}, desired.get("StorageDescriptor") or {}
+    ))
+    return out
+
+
 def diff_table(existing: dict, desired: dict) -> list[str]:
     """Managed-field differences between two Glue tables (empty == no managed change)."""
     a, b = normalize_table(existing), normalize_table(desired)

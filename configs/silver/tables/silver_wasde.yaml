@@ -244,7 +244,7 @@ knowledge_date_col: release_date
 knowledge_semantics: vintage
 publication_lag_days: null
 freshness_sla:
-  cadence: annual
+  cadence: monthly
   max_lag_days: null
 consumers: both
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_wasde

@@ -113,3 +113,33 @@ variable "cognito_domain_prefix" {
   default     = "leviathan-terminal"
 }
 
+
+# ---------------------------------------------------------------------------
+# SILVER-F082 observability (apply-gated). These three are populated from
+# silver_observability.auto.tfvars.json, emitted by:
+#     python jobs/observability/silver_alarms.py --emit-tfvars infra/terraform/envs/dev
+# Regenerate whenever a silver table is added so the alarm set stays complete.
+# ---------------------------------------------------------------------------
+variable "silver_metric_namespace" {
+  type        = string
+  description = "CloudWatch namespace for app-emitted silver pipeline metrics."
+  default     = "Leviathan/Silver"
+}
+
+variable "silver_batch_families" {
+  type        = list(string)
+  description = "DAG-catalog family keys with a source Batch DAG (per-family Batch-failed alarms)."
+  default     = []
+}
+
+variable "silver_freshness_slas" {
+  type        = map(number)
+  description = "family_key -> interim freshness ceiling (days) for freshness-SLA-breach alarms."
+  default     = {}
+}
+
+variable "silver_alert_email" {
+  type        = string
+  description = "Email for the silver-pipeline SNS subscription placeholder ('' = no subscription)."
+  default     = ""
+}

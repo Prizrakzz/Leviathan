@@ -102,7 +102,7 @@ knowledge_date_col: null
 knowledge_semantics: null
 publication_lag_days: null
 freshness_sla:
-  cadence: daily
+  cadence: weekly
   max_lag_days: null
 consumers: feature_layer
 numbers_ref: null
