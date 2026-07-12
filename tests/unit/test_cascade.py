@@ -531,7 +531,8 @@ def test_load_map_drops_deferred_rows(tmp_path, monkeypatch):
     m = cq.load_map()
     assert "export" in m and m["export"]["table"] == "silver_psd"
     assert "esr_exports" in m and m["esr_exports"]["table"] == "silver_esr"      # D-W5 ESR flip
-    assert "drought_z" in m and m["drought_z"]["table"] == "gold_weather_z"      # D-W5 weather flip
+    assert "heat_stress_z" in m and m["heat_stress_z"]["table"] == "gold_weather_z"  # D-W5 weather flip
+    assert "drought_z" not in m                                      # deferred: CHIRPS silver all-NaN (977465f9)
     assert "weather_z" not in m                                      # the vacuous join key is gone
 
 

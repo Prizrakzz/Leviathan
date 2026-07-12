@@ -331,7 +331,16 @@ def test_prediction_model_family_routes_psd_legacy_and_snapshot_outputs() -> Non
     ) == "legacy_faostat_annual_anomaly"
 
 
-def test_prediction_writer_keys_include_cv_policy_to_preserve_sweep_variants() -> None:
+def test_prediction_writer_keys_include_cv_policy_to_preserve_sweep_variants(monkeypatch) -> None:
+    # F004 root cause (R0): this test stubbed S3 but let the inner ensure_partition hit LIVE Glue --
+    # every local suite run minted a placeholder partition (silver_model_predictions,
+    # prediction_date=<today>, location s3://bucket/...). The F002 conftest guard now blocks the wire
+    # structurally; this monkeypatch is the correct in-test fix so the test never depends on
+    # registration side effects at all.
+    import leviathan.storage.glue_partitions as gp
+    registered: list[tuple] = []
+    monkeypatch.setattr(gp, "ensure_partition",
+                        lambda *a, **k: registered.append((a, k)) or True)
     s3 = _FakeS3({})
     args = SimpleNamespace(
         commodity="corn_cbot",
