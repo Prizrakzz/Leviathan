@@ -50,6 +50,25 @@ TARGETS = {
         "prefix": "silver/model_predictions/",
         "cols": [("model_family", "model_family"), ("prediction_date", "prediction_date")],
     },
+    # WEATHER TRIO (SILVER-F047): the deprojection FLIP for the storm-class weather tables. These are
+    # dense at MONTH grain (~590k tiny files) so they were previously left projected; F047 first
+    # COMPACTS them to the coarse [commodity, year] registered grain (jobs/batch/
+    # compact_weather_silver_task.py). --register here walks the POST-COMPACTION commodity=/year= dirs;
+    # --flip removes the projection.* params. Run --register/--flip ONLY after the compaction job has
+    # written + validated the coarse year-grain objects (else --register would enumerate the projected
+    # grid). year lives in the S3 path as year=YYYY (preserved for the feature extractor).
+    "silver_chirps": {
+        "prefix": "silver/weather/source=chirps/",
+        "cols": [("commodity", "commodity"), ("year", "year")],
+    },
+    "silver_nasa_power": {
+        "prefix": "silver/weather/source=nasa_power/",
+        "cols": [("commodity", "commodity"), ("year", "year")],
+    },
+    "silver_cpc_soil": {
+        "prefix": "silver/weather/source=cpc_soil/",
+        "cols": [("commodity", "commodity"), ("year", "year")],
+    },
 }
 
 

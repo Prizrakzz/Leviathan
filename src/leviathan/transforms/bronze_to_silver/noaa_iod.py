@@ -39,10 +39,32 @@ iod_dmi_ethiopia_lag4
 from __future__ import annotations
 
 import pandas as pd
+import pyarrow as pa
 
 from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
+
+# INV-2: the explicit writer schema pinned at the write step, matching the
+# silver_noaa_iod registry contract's target_arrow_type for every column (measures
+# float64, not float32; integers int64; date timestamp[us]; text string). A test
+# (test_transforms_noaa_iod.py) reconciles this literal against the registry so the
+# two can never drift.
+SILVER_ARROW_SCHEMA = pa.schema([
+    ("year", pa.int64()),
+    ("month", pa.int64()),
+    ("date", pa.timestamp("us")),
+    ("dmi_value", pa.float64()),
+    ("iod_dmi_3month_avg", pa.float64()),
+    ("iod_phase", pa.string()),
+    ("iod_dmi_ethiopia_lag4", pa.float64()),
+    ("source", pa.string()),
+])
+
+
+def silver_arrow_schema() -> pa.Schema:
+    """Return the explicit INV-2 writer schema for ``silver_noaa_iod``."""
+    return SILVER_ARROW_SCHEMA
 
 _POSITIVE_IOD_THRESHOLD =  0.4
 _NEGATIVE_IOD_THRESHOLD = -0.4
@@ -95,6 +117,21 @@ def build_iod_silver(df_bronze: pd.DataFrame) -> pd.DataFrame:
     if df_bronze.empty:
         raise ValueError("IOD bronze DataFrame is empty")
 
+    # SILVER-F041: assert (year, month) uniqueness BEFORE any rolling/lag feature.
+    # A duplicated key (the 1870,1 header/observation collision) would silently
+    # corrupt the ordered rolling mean and the 4-month shift. Fail closed.
+    dup_mask = df_bronze.duplicated(subset=["year", "month"], keep=False)
+    if bool(dup_mask.any()):
+        dup_keys = sorted(
+            df_bronze.loc[dup_mask, ["year", "month"]]
+            .drop_duplicates()
+            .itertuples(index=False, name=None)
+        )
+        raise ValueError(
+            f"IOD silver: duplicate (year, month) keys in bronze {dup_keys} "
+            "-- refusing to compute rolling/lag features on a corrupt series"
+        )
+
     df = (
         df_bronze
         .sort_values(["year", "month"])
@@ -102,13 +139,15 @@ def build_iod_silver(df_bronze: pd.DataFrame) -> pd.DataFrame:
         .copy()
     )
 
-    # 3-month rolling mean — universal feature
+    # 3-month rolling mean -- universal feature. INV-2: measures write as float64
+    # (the registry drift_summary widen_float target, owner SILVER-F041); no float32
+    # fragment across write eras.
     df["iod_dmi_3month_avg"] = (
         df["dmi_value"]
         .rolling(_ROLLING_WINDOW, min_periods=_MIN_PERIODS)
         .mean()
         .round(4)
-        .astype("float32")
+        .astype("float64")
     )
 
     # Phase classification on raw dmi_value
@@ -119,7 +158,7 @@ def build_iod_silver(df_bronze: pd.DataFrame) -> pd.DataFrame:
         df["iod_dmi_3month_avg"]
         .shift(_ETHIOPIA_LAG)
         .round(4)
-        .astype("float32")
+        .astype("float64")
     )
 
     df["source"] = "noaa_iod"

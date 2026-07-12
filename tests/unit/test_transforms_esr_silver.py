@@ -213,3 +213,55 @@ class TestNullHandling:
         bronze = _make_bronze_df().drop(columns=["unit_id"])
         with pytest.raises(ValueError, match="missing required columns"):
             transform_esr_bronze_to_silver(bronze, MARKET_YEAR)
+
+
+# ---------------------------------------------------------------------------
+# SILVER-F030 ADR: changes_1000mt is deprecated + never synthesized (INV-4)
+# ---------------------------------------------------------------------------
+
+class TestChangesNeverSynthesized:
+    def test_null_bronze_changes_stays_null_in_silver(self) -> None:
+        """A null bronze 'changes' propagates to a null 'changes_1000mt' -- never 0.0 (INV-4)."""
+        import numpy as np
+        bronze = _make_bronze_df(
+            changes=pd.array([np.nan, 500.0], dtype="float32"),
+        )
+        silver = transform_esr_bronze_to_silver(bronze, MARKET_YEAR)
+        assert silver["changes_1000mt"].isna().sum() == 1
+        # the present revision survives its unit conversion (500 MT -> 0.5 kMT).
+        assert abs(float(silver["changes_1000mt"].dropna().iloc[0]) - 0.5) < 1e-6
+
+    def test_all_null_changes_stays_all_null(self) -> None:
+        import numpy as np
+        bronze = _make_bronze_df(
+            changes=pd.array([np.nan, np.nan], dtype="float32"),
+        )
+        silver = transform_esr_bronze_to_silver(bronze, MARKET_YEAR)
+        assert silver["changes_1000mt"].isna().all()
+        assert (silver["changes_1000mt"] == 0.0).sum() == 0
+
+
+# ---------------------------------------------------------------------------
+# SILVER-F030 ADR: ending-year market-year convention (stored = FAS start year)
+# ---------------------------------------------------------------------------
+
+class TestMarketYearConvention:
+    def test_stored_market_year_is_the_start_year_param(self) -> None:
+        """The stored market_year is the FAS START year passed in; the numbers layer derives the
+        ending-year label as market_year+1 (period_offset:+1). The transform never fabricates a
+        next marketing year."""
+        silver = transform_esr_bronze_to_silver(_make_bronze_df(), 2023)
+        assert (silver["market_year"] == 2023).all()
+        # no next-MY (2024) row is synthesized from the 2023 bronze frame.
+        assert set(silver["market_year"].unique()) == {2023}
+
+    def test_usda_grouping_codes_stay_source_faithful(self) -> None:
+        """USDA grouping codes (all_wheat=107, grain_sorghum=701, white_wheat=104) are NOT contract
+        slugs but the canonical transform still maps them (source-faithful); the esr_exports slug
+        boundary is enforced downstream, not by dropping rows here."""
+        for code, name in ((107, "all_wheat"), (701, "grain_sorghum"), (104, "white_wheat")):
+            bronze = _make_bronze_df(
+                commodity_code=pd.array([code, code], dtype="Int16"),
+            )
+            silver = transform_esr_bronze_to_silver(bronze, MARKET_YEAR)
+            assert (silver["commodity_name"] == name).all()

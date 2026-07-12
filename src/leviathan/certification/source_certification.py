@@ -558,8 +558,8 @@ EXPECTED_PRODUCER_GAPS: dict[str, str] = {
     "icco_cocoa": "SILVER-F051",            # half orphan (restore b2s)
     "nass_citrus": "SILVER-F056",           # half orphan (restore b2s)
     "sagis_deliveries": "SILVER-F042",      # half orphan (restore b2s)
-    "sagis_cec": "SILVER-F058",             # half orphan (restore b2s)
-    "sagis_weekly_exports": "SILVER-F059",  # half orphan (restore b2s)
+    # sagis_cec (SILVER-F058) + sagis_weekly_exports (SILVER-F059): REMOVED -- the R2/R3 OB lane
+    # registered both producers, so they left the live gap (the row-removal contract this set encodes).
 }
 
 

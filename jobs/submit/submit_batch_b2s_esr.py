@@ -69,6 +69,10 @@ def _ensure_job_definition(batch: object, bucket: str) -> str:
                 "Ref::bucket",
                 "--aws-region",
                 "Ref::aws_region",
+                "--vintage-mode",
+                "Ref::vintage_mode",
+                "--publish-mode",
+                "Ref::publish_mode",
                 "--force-overwrite",
                 "Ref::force_overwrite",
             ],
@@ -96,8 +100,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Submit ESR bronze→silver Batch job")
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--aws-region", default=_REGION, dest="aws_region")
+    parser.add_argument("--vintage-mode", default="latest", choices=["latest", "all"],
+                        dest="vintage_mode",
+                        help="latest (default) | all (option-b per-week vintages, BF-W2)")
+    parser.add_argument("--publish-mode", default="dry-run", dest="publish_mode",
+                        help="dry-run (default; kill switch) | shadow | canonical (signed approval)")
     parser.add_argument("--force-overwrite", action="store_true")
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="do not submit the Batch job; print the plan only")
     args = parser.parse_args()
 
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
@@ -108,6 +118,8 @@ def main() -> None:
     params = {
         "bucket": bucket,
         "aws_region": args.aws_region,
+        "vintage_mode": args.vintage_mode,
+        "publish_mode": args.publish_mode,
         "force_overwrite": "true" if args.force_overwrite else "false",
     }
 

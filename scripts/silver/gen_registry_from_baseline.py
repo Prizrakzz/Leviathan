@@ -122,8 +122,11 @@ PRODUCER = {
     "silver_conab_coffee": (_T + "conab_coffee.py", _J + "conab_coffee_silver_task.py", "producer"),
     "silver_cot": (_T + "cftc_cot.py", _J + "cftc_cot_silver_task.py", "producer"),
     "silver_cpc_soil": (_T + "cpc_soil.py", _J + "cpc_bronze_to_silver_task.py", "producer"),
-    "silver_esr": (_T + "usda_esr.py", _J + "bronze_to_silver_esr_task.py", "producer"),
-    "silver_esr_compact": (_T + "usda_esr.py", _J + "esr_task.py", "producer"),
+    # SILVER-F031/F032: bronze_to_silver_esr_task.py is the COMPACT (silver/esr) producer;
+    # backfill_silver_usda_esr.py writes the CANONICAL per-partition silver_esr
+    # (silver/production/source=usda_esr); esr_task.py is raw->bronze (not a silver producer).
+    "silver_esr": (_T + "usda_esr.py", "jobs/ingest/backfill_silver_usda_esr.py", "producer"),
+    "silver_esr_compact": (_T + "usda_esr.py", _J + "bronze_to_silver_esr_task.py", "producer"),
     "silver_fgis": (_T + "usda_fgis.py", _J + "fgis_silver_task.py", "producer"),
     "silver_fnc_colombia_area_department": (_T + "fnc_colombia.py", _J + "fnc_colombia_silver_task.py", "producer"),
     "silver_fnc_colombia_exports_port_type": (_T + "fnc_colombia.py", _J + "fnc_colombia_silver_task.py", "producer"),
@@ -136,9 +139,9 @@ PRODUCER = {
     "silver_modis_ndvi": (_T + "modis_ndvi.py", _J + "modis_ndvi_bronze_to_silver_task.py", "producer"),
     "silver_mpob": (_T + "mpob.py", _J + "mpob_silver_task.py", "producer"),
     "silver_mpob_annual": (_T + "mpob_annual.py", _J + "mpob_annual_silver_task.py", "producer"),
-    "silver_mpoc_exports_by_country": (None, None, "half-orphan"),
-    "silver_mpoc_stock_comparison": (None, None, "half-orphan"),
-    "silver_mpoc_trade_stats_monthly": (None, None, "half-orphan"),
+    "silver_mpoc_exports_by_country": (_T + "mpoc_exports_by_country.py", _J + "mpoc_exports_by_country_silver_task.py", "producer"),
+    "silver_mpoc_stock_comparison": (_T + "mpoc_stock_comparison.py", _J + "mpoc_stock_comparison_silver_task.py", "producer"),
+    "silver_mpoc_trade_stats_monthly": (_T + "mpoc_trade_stats_monthly.py", _J + "mpoc_trade_stats_monthly_silver_task.py", "producer"),
     "silver_nasa_power": (_T + "nasa_power_weather.py", None, "producer"),
     "silver_nass_annual": (_T + "usda_nass_annual.py", _J + "nass_annual_silver_task.py", "producer"),
     "silver_nass_citrus": (None, None, "half-orphan"),
@@ -148,9 +151,9 @@ PRODUCER = {
     "silver_pink_sheet": (_T + "pink_sheet.py", _J + "pink_sheet_silver_task.py", "producer"),
     "silver_production": (_T + "faostat_production.py", None, "producer"),
     "silver_psd": (_T + "usda_psd.py", _J + "psd_silver_task.py", "producer"),
-    "silver_sagis_cec": (None, None, "half-orphan"),
+    "silver_sagis_cec": (_T + "sagis_cec.py", _J + "sagis_cec_silver_task.py", "producer"),
     "silver_sagis_weekly_deliveries": (None, None, "half-orphan"),
-    "silver_sagis_weekly_exports": (None, None, "half-orphan"),
+    "silver_sagis_weekly_exports": (_T + "sagis_weekly_exports.py", _J + "sagis_weekly_exports_silver_task.py", "producer"),
     "silver_unica_annual_state": (_T + "unica_annual_state.py", _J + "unica_annual_state_task.py", "producer"),
     "silver_unica_biweekly_release_series": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
     "silver_unica_biweekly_season_history": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
@@ -162,10 +165,44 @@ PRODUCER = {
     "gold_weather_z": ("src/leviathan/transforms/gold/weather_z.py", _J + "gold_weather_z_task.py", "producer"),
 }
 
+# Tables whose producer emits an EXPLICIT pa.schema (INV-2) through the SILVER-F015 common publisher
+# (leviathan.silver.flat_producer) -> writer_schema_pinned=True. Each R2/R3 producer lane appends
+# ITS OWN restored/adopted tables here (keys are disjoint across lanes). LANE OB
+# (SILVER-F052/F053/F054/F055/F058/F059 + the F062 MPOB adoption):
+WRITER_SCHEMA_PINNED = {
+    "silver_mpoc_exports_by_country", "silver_mpoc_trade_stats_monthly",
+    "silver_mpoc_stock_comparison", "silver_sagis_cec", "silver_sagis_weekly_exports",
+    "silver_mpob", "silver_mpob_annual",
+}
+# LANE SA (SILVER-F022/F023/F024): these producers now pin the INV-2 arrow writer schema from the
+# registry contract before every write (leviathan.silver.arrow_schema.cast_to_contract). Appended as
+# a disjoint update so the set literal above stays owned by LANE OB.
+WRITER_SCHEMA_PINNED |= {"silver_production", "silver_pink_sheet", "silver_conab_coffee"}
+# LANE W (SILVER-F021/F045/F046/F047 -- the weather family): the three weather producers now write
+# THROUGH the pinned pyarrow schemas in leviathan.transforms.bronze_to_silver._weather_schema
+# (NASA_POWER_WIDE_SCHEMA / CHIRPS_LONG_SCHEMA / CPC_SOIL_LONG_SCHEMA). Disjoint |= update so the
+# literals above stay owned by LANE OB / LANE SA.
+WRITER_SCHEMA_PINNED |= {"silver_nasa_power", "silver_chirps", "silver_cpc_soil"}
+
+# LANE W: the weather serving surface is the tall, non-projected gold_weather_z (Phase D-W4); the three
+# silver weather tables are DERIVATION INPUTS only. The generator derives serving_table from the numbers
+# athena_table (None for weather), so this override records the F046 decision reproducibly. Keys disjoint
+# from every other lane's curation.
+SERVING_TABLE_OVERRIDE = {
+    "silver_nasa_power": "gold_weather_z",
+    "silver_chirps": "gold_weather_z",
+    "silver_cpc_soil": "gold_weather_z",
+}
+
 # Natural-key fallback for tables absent from source_contracts (numbers-only / consumer-none).
+# silver_esr (SILVER-F030 re-baseline): the TRUE physical natural key is the partition tuple plus
+# the weekly grain -- the same (country_code, week_ending_date) recurs across market_years and as_of
+# vintages, so market_year + as_of_date belong in the key (mirrors silver_esr_compact + the ESR
+# source_contract). The numbers grain_cols [commodity_name, country_code, week_ending_date] is the
+# WITHIN-partition grain, not a table-wide key.
 NATURAL_KEY_FALLBACK = {
     "gold_weather_z": ["commodity", "country", "region", "year", "month", "metric"],
-    "silver_esr": ["commodity_name", "country_code", "week_ending_date"],
+    "silver_esr": ["commodity_code", "market_year", "as_of_date", "country_code", "week_ending_date"],
     "silver_model_predictions": [],
     "silver_mpob_annual": [],
     "silver_unica_biweekly_release_series": [],
@@ -176,7 +213,124 @@ NATURAL_KEY_FALLBACK = {
 # Tall numbers value column (the actual measure lives in ONE column; metric NAMES are row values).
 TALL_VALUE_COL = {"silver_wasde": "estimate", "silver_production": "value", "gold_weather_z": "value"}
 
+# Deprecated physical columns (SILVER-F030 ESR semantic ADR): retained as nullable compatibility
+# columns, never repurposed and never synthesized. ``changes``/``changes_1000mt`` (weekly revision
+# to outstanding sales) is absent in many historical FAS records; INV-4 keeps it NULL rather than
+# filling 0.0, so it is DEPRECATED at both ESR contracts. Per {table: {column, ...}}.
+DEPRECATED_COLUMNS = {
+    "silver_esr": {"changes_1000mt"},
+    "silver_esr_compact": {"changes_1000mt"},
+}
+
+# Per-table appended provenance/ADR note (SILVER-F030+). ESR: the frozen semantic decision record.
+EXTRA_NOTES = {
+    "silver_esr": (
+        " SILVER-F030 ESR ADR (frozen): changes_1000mt is DEPRECATED + nullable -- an absent source "
+        "revision stays NULL, never 0.0 (INV-4). market_year is stored as the FAS START year; the "
+        "ending-year label = market_year+1 (numbers period_offset:+1). The ESR partition set carries "
+        "USDA GROUPINGS (all_wheat=107, grain_sorghum=701, white_wheat=104) that are NOT contract "
+        "slugs -> the esr_exports cascade leg fires only for the 7 slug commodities (corn_cbot, "
+        "soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, hard_red_winter_wheat_kcbt, "
+        "soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). Target additive net-commitment "
+        "columns (accumulated_exports_1000mt, current_my_net_sales_1000mt, "
+        "current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt, "
+        "next_my_net_sales_1000mt) are specified for BF-W2 (see reports/silver_readiness/R2_esr/)."
+    ),
+    "silver_esr_compact": (
+        " SILVER-F030/F031 ESR ADR (frozen): changes_1000mt DEPRECATED + nullable (INV-4, never 0.0). "
+        "vintage_retention=latest-only TODAY; the SILVER-F031 option-b path adds an as_of_date "
+        "REGISTERED partition dimension for per-week vintages (execution gated BF-W2 -- never "
+        "re-projection). See reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity "
+        "proof under the same prefix."
+    ),
+    "silver_mpoc_stock_comparison": (
+        " SILVER-F055: producer restored on the shared F052 adapter. The source-as-of provenance is "
+        "MANDATORY but lives in the RUN/INPUT MANIFEST (not a row column); adding it as a physical "
+        "column is a separate additive registry/DDL/Glue migration + compatibility test (deferred "
+        "to BF-W3). Conflicting snapshot cells fail closed."
+    ),
+}
+
 _NUMERIC_GLUE = {"double", "float", "real", "int", "integer", "bigint", "smallint", "tinyint", "decimal"}
+
+# --- LANE SA curation (SILVER-F020 / F024): registry pins that deliberately diverge from the
+# DEFECTIVE live catalog captured in the R0 baseline. Reproducible (re-run the generator) rather
+# than hand-edited. Keys are disjoint from the other lanes' curation.
+
+# SILVER-F020: silver_nass_annual has 36 physical commodity=canola_ice parquets (1991-2026) HIDDEN by
+# a short projection enum. Per the cross-lane R2 convention (checked-in registry/DDL stay == live
+# Glue; the gated migration carries the target), the TARGET enum lives in the F020 migration artifact
+# (reports/silver_readiness/R2_SA/F020_canola_migration.json), NOT the checked-in registry. Left empty
+# so the projection stays == live Glue until the gated SET TBLPROPERTIES apply.
+PROJECTION_ENUM_ADDITIONS: dict = {}
+
+# SILVER-F024: silver_conab_coffee's 12 revision/provenance columns are physical-parquet-only
+# (glue_type=None -> recorded as R2-adds, invisible to Athena until the additive migration). Per the
+# same convention the checked-in DDL stays == live Glue (10 catalog cols); the F024 ADD COLUMNS target
+# lives in the migration artifact (F024_conab_additive_migration.json). Left empty (no catalog promote).
+CATALOG_PROMOTE_HIDDEN: set = set()
+
+_ARROW_TO_GLUE = {
+    "int64": "bigint", "float64": "double", "string": "string", "bool": "boolean",
+    "date32[day]": "date", "timestamp[us]": "timestamp", "timestamp[ms]": "timestamp",
+}
+
+
+def _arrow_to_glue(target: str) -> str:
+    """Map an INV-2 target arrow type to the equivalent Glue/Athena catalog type (F024 promotion)."""
+    t = (target or "").strip().lower()
+    if t in _ARROW_TO_GLUE:
+        return _ARROW_TO_GLUE[t]
+    if t.startswith("timestamp"):
+        return "timestamp"
+    if t.startswith("date"):
+        return "date"
+    return "string"
+
+
+# LANE SA provenance notes (disjoint dict-assignment so the EXTRA_NOTES literal stays LANE E/OB-owned).
+EXTRA_NOTES["silver_nass_annual"] = (
+    " SILVER-F020: 36 physical commodity=canola_ice parquets (1991-2026) are HIDDEN because the "
+    "projection enum omits canola_ice. The producer already writes canola_ice; the checked-in "
+    "projection stays == live Glue and the gated SET TBLPROPERTIES migration "
+    "(reports/silver_readiness/R2_SA/F020_canola_migration.json) adds canola_ice. Recovery reads S3 "
+    "footers, NEVER Athena (INV-3)."
+)
+EXTRA_NOTES["silver_conab_coffee"] = (
+    " SILVER-F024 (OP-4): the 12 revision/provenance columns (region_raw, *_revision_*, "
+    "production_revision_streak, is_repeated_survey, repeated_from_survey_number, "
+    "survey_content_fingerprint, source_raw_key, source_file_etag, worksheet, parser_version) are "
+    "physical-parquet-only (glue_type=None -> R2-adds); the widened producer reproduces all 22 and the "
+    "gated F024 ADD COLUMNS migration (reports/silver_readiness/R2_SA/F024_conab_additive_migration.json) "
+    "exposes them in live Glue. The orphan EAV silver/production/source=conab/ is classified in place "
+    "(F060), not deleted here."
+)
+
+# LANE W provenance notes (SILVER-F021/F044/F045/F046/F047; disjoint assignment).
+EXTRA_NOTES["silver_nasa_power"] = (
+    " SILVER-F021: WIDE producer (nasa_power_bronze_to_silver) restored to the live wide catalog + "
+    "source_file_name; NASA -999 sentinels scrubbed; unknown params fail closed; solar excluded. "
+    "SILVER-F046: DERIVATION-INPUT ONLY -- the weather serving surface is gold_weather_z (tall monthly "
+    "z). SILVER-F047 freshness gap: nasa_power silver ends at 2024 (no 2025/2026) -- a B1 backfill line "
+    "item. SILVER-F047: numbers-serving is quarantined to gold_weather_z (tables.yaml quarantined:true); "
+    "the projected month-grain layout is the deproject+compact target (BF-W1, commodity+year registered "
+    "grain, year= path segment preserved for the feature extractor)."
+)
+EXTRA_NOTES["silver_chirps"] = (
+    " SILVER-F045: on-S3 silver value is NaN where silver (2026-05-16) predates the re-ingested bronze "
+    "(2026-06-16); the BF-W1 rebuild reads real precip and writes THROUGH the F047 registered-compaction "
+    "writer (jobs/batch/compact_weather_silver_task.py), never the plain --force-overwrite projected "
+    "path. SILVER-F044: a partition is written iff >=1 valid obs exists (classify_availability); a "
+    "404/empty date is a typed availability result, never a null-filled map. SILVER-F046: "
+    "DERIVATION-INPUT ONLY (drought_z serves from gold_weather_z). SILVER-V002 freshness "
+    "(base_jobs.select_partitions_to_write) refreshes any partition whose bronze is newer than silver."
+)
+EXTRA_NOTES["silver_cpc_soil"] = (
+    " SILVER-F046: DERIVATION-INPUT ONLY (weather serves from gold_weather_z); producer pins the LONG "
+    "arrow schema. SILVER-F047: projected month-grain is the deproject+compact target (BF-W1, "
+    "commodity+year registered grain, year= path segment preserved). OP-5: cpc_soil silver "
+    "value-populatedness is an open probe -- the value census (SILVER-V001) is the gate."
+)
 
 
 def _load(path: Path) -> dict:
@@ -243,18 +397,27 @@ def build_contract(name: str, ctx: dict) -> dict:
     physical_columns = []
     drift_summary = []
     owner = R2_OWNER.get(name, "SILVER-F062")
+    deprecated_cols = DEPRECATED_COLUMNS.get(name, set())
+    promote_hidden = name in CATALOG_PROMOTE_HIDDEN
     for cn in ordered_names:
         arrow = arrow_cols.get(cn)
         gtype = glue_cols.get(cn)
         target = target_arrow_type(arrow, gtype)
-        physical_columns.append({
+        # SILVER-F024: promote a physical-parquet-only (glue_type=None) column into a catalog column
+        # by deriving its Glue type from the INV-2 target -- the additive-migration TARGET schema.
+        if gtype is None and promote_hidden:
+            gtype = _arrow_to_glue(target)
+        col: dict = {
             "name": cn,
             "glue_type": gtype,
             "arrow_type": arrow,
             "parquet_physical_type": parquet_cols.get(cn),
             "target_arrow_type": target,
             "nullable": cn not in natural_key,
-        })
+        }
+        if cn in deprecated_cols:
+            col["deprecated"] = True
+        physical_columns.append(col)
         for kind in classify_drift(arrow, gtype):
             drift_summary.append({
                 "column": cn,
@@ -347,7 +510,7 @@ def build_contract(name: str, ctx: dict) -> dict:
         "partition_keys": partition_keys,
         "recovery_strategy": recovery,
         "physical_columns": physical_columns,
-        "writer_schema_pinned": False,
+        "writer_schema_pinned": name in WRITER_SCHEMA_PINNED,
         "drift_summary": drift_summary,
         "natural_key": list(natural_key),
         "required_nonnull": list(natural_key),
@@ -368,7 +531,7 @@ def build_contract(name: str, ctx: dict) -> dict:
         "numbers_ref": numbers_ref,
         "cascade_ref": cascade_ref,
         "source_contract_ref": source_contract_ref,
-        "serving_table": serving_table,
+        "serving_table": SERVING_TABLE_OVERRIDE.get(name, serving_table),
         "producer": {
             "status": prod[2],
             "transform": prod[0],
@@ -395,14 +558,104 @@ def build_contract(name: str, ctx: dict) -> dict:
             "(OP-8 / AV-11, SILVER-V001). This registry is the SINGLE authority for value_columns "
             "and min_nonnull_frac (Attack 3 finding #6). Types are the INV-2 TARGET writer schema; "
             "arrow_type is the current-physical type from the R0 baseline."
+            + EXTRA_NOTES.get(name, "")
         ),
     }
     # projection domains only for a legacy-quarantined projected table.
     if projection_enabled:
         contract["projection_domains"] = dict(sorted(glue.get("projection_properties", {}).items()))
+        # SILVER-F020: append registry-pinned enum values the DEFECTIVE live catalog omits (canola).
+        for pkey, extra_vals in PROJECTION_ENUM_ADDITIONS.get(name, {}).items():
+            cur = contract["projection_domains"].get(pkey, "")
+            vals = [v for v in cur.split(",") if v]
+            for ev in extra_vals:
+                if ev not in vals:
+                    vals.append(ev)
+            contract["projection_domains"][pkey] = ",".join(vals)
     if prod[2] != "producer":
         contract["producer"]["note"] = "C-WRONG-8 orphan class; producer rebuilt in " + owner
+    _apply_curation_overrides(name, contract)
     return contract
+
+
+# ── LANE M curation overrides (R2 verify fix): hand-curation gets a REPRODUCIBLE home here, never in
+# the generated YAMLs. The F036 WASDE additive governed columns + natural-key/coverage revisions were
+# hand-edited into configs/silver/tables/silver_wasde.yaml and broke the generated-never-hand-written
+# invariant (test_checked_in_tree_matches_fresh_render + --check exit 3). Encoding them as generator
+# curation (the WRITER_SCHEMA_PINNED / EXTRA_NOTES precedent) makes the contract regenerate
+# byte-identically. Additive columns are hidden-schema (glue/arrow/parquet null): the F034 producer
+# emits them; the gated B-wave catalog migration registers them (reports/silver_readiness/R2_wasde/).
+CURATION_OVERRIDES: dict = {
+    "silver_wasde": {
+        "deprecated_columns": ["months_to_marketing_year_end", "is_final_or_latest"],
+        "additive_columns": [
+            ("source_table_id", "string"), ("estimate_role", "string"), ("projection_month", "string"),
+            ("is_current_release_estimate", "bool"), ("release_sequence", "int64"),
+            ("revision_gap_days", "int64"), ("is_projection", "bool"), ("is_source_final", "bool"),
+            ("marketing_year_end_date", "string"),
+        ],
+        "drift_notes": {
+            "months_to_marketing_year_end": (
+                "C-WRONG-6 int64 fix. glue_type stays int here to match the LIVE catalog (registry == "
+                "live-Glue invariant); the int32->int64 correction is a REVIEWED catalog migration cut as a "
+                "plan-only artifact by scripts/silver/wasde_f036_migration_plan.py (reports/silver_readiness/ "
+                "R2_wasde/) and applied in the gated B-wave WITH the F013 registered-partition SD repair. The "
+                "INV-2 target is already int64 and physical parquet is already int64, so this is a widening the "
+                "migrate tool conservatively routes through review, never a silent apply."
+            ),
+        },
+        "natural_key": ["release_date", "source_table_id", "commodity", "region", "marketing_year",
+                        "attribute", "unit", "estimate_role", "projection_month"],
+        "required_nonnull": ["release_date", "source_table_id", "commodity", "region", "marketing_year",
+                             "attribute", "estimate_role"],
+        "coverage_axis": ("release_date x source_table_id x commodity x region x marketing_year x "
+                          "attribute x estimate_role/projection_month"),
+        "producer": {
+            "transform": "src/leviathan/transforms/bronze_to_silver/usda_wasde_silver.py",
+            "batch_task": "jobs/batch/wasde_silver_task.py",
+            "note": ("F034 restored bronze->silver producer (pure transform + controlled ShadowPublisher "
+                     "registered-partition publish, dry-run default). Raw->bronze stays jobs/batch/ "
+                     "wasde_bronze_modern_task.py + wasde_bronze_scanned_task.py."),
+        },
+        "notes_append": (
+            " LANE M (F033-F036): the 9 additive governed columns above are the F036 target schema, declared "
+            "here as hidden-schema (glue_type null) so the F034 producer emits them and the gated B-wave "
+            "catalog migration registers them; the int64 months_to_marketing_year_end correction + the "
+            "additive catalog add are both cut as a plan-only migration artifact under "
+            "reports/silver_readiness/R2_wasde/. The 19 canonical snake_case attribute terms + the "
+            "estimate_role vocabulary live in src/leviathan/transforms/bronze_to_silver/usda_wasde_silver.py "
+            "(INV-1). Numbers registry period_sql_type=string (marketing_year \"2023/24\") is unchanged and "
+            "consistent with the string marketing_year column here."
+        ),
+    },
+}
+
+
+def _apply_curation_overrides(name: str, contract: dict) -> None:
+    """Merge the per-table CURATION_OVERRIDES into a freshly-built contract (deterministic)."""
+    ov = CURATION_OVERRIDES.get(name)
+    if not ov:
+        return
+    cols = contract.get("physical_columns") or []
+    by_name = {c.get("name"): c for c in cols}
+    for cn in ov.get("deprecated_columns", []):
+        if cn in by_name:
+            by_name[cn]["deprecated"] = True
+    for cn, target in ov.get("additive_columns", []):
+        if cn not in by_name:
+            cols.append({"name": cn, "glue_type": None, "arrow_type": None,
+                         "parquet_physical_type": None, "target_arrow_type": target, "nullable": True})
+    for row in contract.get("drift_summary") or []:
+        note = ov.get("drift_notes", {}).get(row.get("column") or row.get("name") or "")
+        if note:
+            row["note"] = note
+    for key in ("natural_key", "required_nonnull", "coverage_axis"):
+        if key in ov:
+            contract[key] = ov[key]
+    if "producer" in ov:
+        contract["producer"].update(ov["producer"])
+    if "notes_append" in ov:
+        contract["notes"] = contract["notes"] + ov["notes_append"]
 
 
 def _build_context() -> dict:

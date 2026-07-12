@@ -43,6 +43,7 @@ from leviathan.storage.s3 import (
 )
 from leviathan.transforms.bronze_to_silver.noaa_iod import build_iod_silver
 from leviathan.transforms.raw_to_bronze.noaa_iod import extract_iod_bronze
+from jobs.batch._sb_producer_publish import publish_flat_silver
 
 import pandas as pd
 
@@ -164,7 +165,7 @@ def main() -> None:
 
     if args.dry_run:
         logger.info(
-            "dry-run — would write %s  rows=%d  3mo_non_null=%d",
+            "dry-run - would write %s  rows=%d  3mo_non_null=%d",
             s_key, rows, non_null_3mo,
         )
         # Show sample around 1997 strong positive IOD
@@ -173,10 +174,21 @@ def main() -> None:
             (df_silver["date"] <= "1998-03-01")
         ][["date", "dmi_value", "iod_dmi_3month_avg", "iod_phase", "iod_dmi_ethiopia_lag4"]]
         print(sample.to_string(index=False))
-        return
 
-    _write(s3, bucket, s_key, df_silver)
-    logger.info("Silver written → %s  rows=%d", s_key, rows)
+    # SILVER-F041 / INV-6: the silver write is routed through the shadow-first
+    # controlled publisher with an EXPLICIT registry-derived arrow schema (INV-2).
+    # Default --publish-mode is dry-run (nothing written); canonical requires a
+    # verified signed approval. year/month are physical columns in the registry.
+    manifest = publish_flat_silver(
+        table_name="silver_noaa_iod",
+        df=df_silver,
+        job="noaa_iod_task",
+        canonical_key=s_key,
+        bucket=bucket,
+        s3_client=s3,
+        argv=sys.argv,
+    )
+    logger.info("Silver publish %s  state=%s  rows=%d", s_key, manifest.state.value, rows)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,21 @@ Design notes
 * **Immutable snapshots** — ``as_of_date`` is preserved from the bronze row so
   the silver layer retains full point-in-time history for backtesting.
 
+SILVER-F030 semantic ADR (frozen)
+---------------------------------
+* ``changes_1000mt`` is a DEPRECATED, nullable column. A null bronze ``changes``
+  (revision absent in a historical FAS record) propagates to a null
+  ``changes_1000mt`` — it is NEVER synthesized as 0.0 (INV-4).
+* **Ending-year convention** — ``market_year`` is the FAS *start* year (e.g. 2024
+  = the 2024/25 season). It is stored verbatim; the ending-year label used by the
+  numbers layer is ``market_year + 1`` (``tables.yaml`` ``period_offset: +1``). A
+  not-yet-started next marketing year is never fabricated from an empty endpoint.
+* **Slug-coverage boundary** — the ESR commodity set includes USDA groupings
+  (``all_wheat`` 107, ``grain_sorghum`` 701, ``white_wheat`` 104) that are NOT
+  Leviathan contract slugs; the ``esr_exports`` cascade leg fires only for the 7
+  slug commodities. The transform maps every observed code (groupings included) so
+  the canonical table stays source-faithful; consumer routing enforces the boundary.
+
 No S3 or AWS dependencies — pure data transformation.
 """
 from __future__ import annotations

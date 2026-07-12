@@ -1,99 +1,80 @@
-"""Data quality tests for silver weather schema invariants.
+"""Data quality tests for the WIDE silver weather schema (SILVER-F021 / F046).
 
-Validates that silver DataFrames produced by the bronze→silver transforms
-always satisfy the structural contracts defined in leviathan.common.quality.
+The canonical silver_nasa_power is WIDE; validated by the wide-schema quality gate
+(``run_wide_weather_quality_checks``). The long-melt invariants were retired with the long producer.
+The LONG chirps/cpc silver stays validated by the shared long quality runner and is covered by the
+chirps/cpc transform tests.
 """
 from __future__ import annotations
 
 import pandas as pd
 import pytest
-from leviathan.common.constants import SILVER_WEATHER_ID_COLS
-from leviathan.common.quality import (
-    SILVER_NATURAL_KEY,
-    SILVER_REQUIRED_COLUMNS,
-    SILVER_REQUIRED_NON_NULL,
-    check_required_columns,
+
+from leviathan.transforms.bronze_to_silver._weather_quality import (
+    WIDE_NATURAL_KEY,
+    WIDE_REQUIRED_COLUMNS,
+    run_wide_weather_quality_checks,
 )
-from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_weather_df
+from leviathan.transforms.bronze_to_silver.nasa_power_weather import nasa_power_bronze_to_silver
 
 
 @pytest.fixture()
-def silver_weather_df(weather_bronze_wide_df: pd.DataFrame) -> pd.DataFrame:
-    """Silver DataFrame derived from the shared weather_bronze_wide_df fixture."""
-    return clean_one_weather_df(weather_bronze_wide_df)
+def silver_weather_wide_df(weather_bronze_wide_df: pd.DataFrame) -> pd.DataFrame:
+    return nasa_power_bronze_to_silver(weather_bronze_wide_df)
 
 
-class TestSilverRequiredColumns:
-    def test_all_required_columns_present(self, silver_weather_df):
-        missing = check_required_columns(silver_weather_df)
-        assert missing == [], f"Missing required silver columns: {missing}"
+class TestWideRequiredColumns:
+    def test_all_required_columns_present(self, silver_weather_wide_df):
+        missing = [c for c in WIDE_REQUIRED_COLUMNS if c not in silver_weather_wide_df.columns]
+        assert missing == [], f"Missing wide silver columns: {missing}"
 
-    def test_silver_weather_id_cols_subset_of_silver_columns(self, silver_weather_df):
-        for col in SILVER_WEATHER_ID_COLS:
-            assert col in silver_weather_df.columns, f"ID column missing: {col}"
-
-    def test_variable_column_present(self, silver_weather_df):
-        assert "variable" in silver_weather_df.columns
-
-    def test_value_column_present(self, silver_weather_df):
-        assert "value" in silver_weather_df.columns
+    def test_quality_gate_passes(self, silver_weather_wide_df):
+        report = run_wide_weather_quality_checks(silver_weather_wide_df, "cocoa", "nasa_power")
+        assert report["passed"], report["hard_failures"]
 
 
-class TestSilverRequiredNonNull:
-    def test_no_nulls_in_required_non_null_columns(self, silver_weather_df):
-        for col in SILVER_REQUIRED_NON_NULL:
-            if col in silver_weather_df.columns:
-                null_count = silver_weather_df[col].isna().sum()
-                assert null_count == 0, f"Column {col!r} has {null_count} nulls"
-
-    def test_date_column_has_no_nulls(self, silver_weather_df):
-        assert silver_weather_df["date"].notna().all()
-
-    def test_commodity_column_has_no_nulls(self, silver_weather_df):
-        assert silver_weather_df["commodity"].notna().all()
+class TestWideRequiredNonNull:
+    def test_key_id_columns_have_no_nulls(self, silver_weather_wide_df):
+        for col in ("date", "year", "month", "day", "country", "region", "source"):
+            assert silver_weather_wide_df[col].notna().all(), col
 
 
-class TestSilverDtypes:
-    def test_year_is_numeric(self, silver_weather_df):
-        assert pd.api.types.is_integer_dtype(silver_weather_df["year"]) or \
-               pd.api.types.is_float_dtype(silver_weather_df["year"])
+class TestWideDtypes:
+    def test_year_month_day_integer(self, silver_weather_wide_df):
+        for col in ("year", "month", "day"):
+            assert pd.api.types.is_integer_dtype(silver_weather_wide_df[col]), col
 
-    def test_month_is_numeric(self, silver_weather_df):
-        assert pd.api.types.is_integer_dtype(silver_weather_df["month"]) or \
-               pd.api.types.is_float_dtype(silver_weather_df["month"])
-
-    def test_value_is_numeric(self, silver_weather_df):
-        assert pd.api.types.is_numeric_dtype(silver_weather_df["value"])
+    def test_measures_numeric(self, silver_weather_wide_df):
+        assert pd.api.types.is_numeric_dtype(silver_weather_wide_df["temperature_2m_mean_c"])
 
 
-class TestSilverNaturalKeyUniqueness:
-    def test_no_duplicate_natural_keys(self, silver_weather_df):
-        key_cols = [c for c in SILVER_NATURAL_KEY if c in silver_weather_df.columns]
-        if len(key_cols) == len(SILVER_NATURAL_KEY):
-            dupes = silver_weather_df.duplicated(subset=key_cols).sum()
-            assert dupes == 0, f"Found {dupes} duplicate rows on natural key"
-
-    def test_silver_has_multiple_variables(self, silver_weather_df):
-        # After melt, there should be more than one distinct variable
-        assert silver_weather_df["variable"].nunique() > 1
+class TestWideNaturalKeyUniqueness:
+    def test_no_duplicate_natural_keys(self, silver_weather_wide_df):
+        dupes = silver_weather_wide_df.duplicated(subset=WIDE_NATURAL_KEY).sum()
+        assert dupes == 0
 
 
-class TestSilverIdColValues:
-    def test_year_in_valid_range(self, silver_weather_df):
-        assert (silver_weather_df["year"] >= 1980).all()
-        assert (silver_weather_df["year"] <= 2100).all()
+class TestWideIdColValues:
+    def test_year_in_range(self, silver_weather_wide_df):
+        assert (silver_weather_wide_df["year"] >= 1980).all()
+        assert (silver_weather_wide_df["year"] <= 2100).all()
 
-    def test_month_in_valid_range(self, silver_weather_df):
-        assert (silver_weather_df["month"] >= 1).all()
-        assert (silver_weather_df["month"] <= 12).all()
+    def test_month_in_range(self, silver_weather_wide_df):
+        assert silver_weather_wide_df["month"].between(1, 12).all()
 
-    def test_day_in_valid_range(self, silver_weather_df):
-        assert (silver_weather_df["day"] >= 1).all()
-        assert (silver_weather_df["day"] <= 31).all()
+    def test_source_is_nasa_power(self, silver_weather_wide_df):
+        assert (silver_weather_wide_df["source"] == "nasa_power").all()
 
-    def test_source_is_nasa_power(self, silver_weather_df):
-        assert (silver_weather_df["source"] == "nasa_power").all()
 
-    def test_commodity_consistent(self, silver_weather_df):
-        # All rows should share the same commodity (fixture uses "cocoa")
-        assert silver_weather_df["commodity"].nunique() == 1
+class TestWideQualityGateCatchesRegressions:
+    def test_missing_measure_column_hard_fails(self, silver_weather_wide_df):
+        broken = silver_weather_wide_df.drop(columns=["precipitation_mm"])
+        report = run_wide_weather_quality_checks(broken, "cocoa", "nasa_power")
+        assert not report["passed"]
+        assert "precipitation_mm" in report["hard_failures"]["missing_columns"]
+
+    def test_duplicate_key_hard_fails(self, silver_weather_wide_df):
+        dup = pd.concat([silver_weather_wide_df, silver_weather_wide_df.iloc[[0]]], ignore_index=True)
+        report = run_wide_weather_quality_checks(dup, "cocoa", "nasa_power")
+        assert not report["passed"]
+        assert "duplicate_natural_keys" in report["hard_failures"]

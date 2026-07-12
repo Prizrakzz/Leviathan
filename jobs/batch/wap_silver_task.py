@@ -44,9 +44,11 @@ from leviathan.storage.paths import (
 )
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.bronze_to_silver.wap_table01 import (
-    build_long_table,
+    assert_identical_business_keys,
+    build_long_table_with_quarantine,
     build_revision_table,
 )
+from jobs.batch._sb_producer_publish import publish_flat_silver
 
 logger = get_logger("wap_silver_task")
 
@@ -156,18 +158,22 @@ def main() -> None:
     )
 
     # ------------------------------------------------------------------
-    # Step 2 — build long table
+    # Step 2 — build long table (SILVER-F043: null-key rows are quarantined,
+    # never published with a null natural-key component)
     # ------------------------------------------------------------------
-    df_long = build_long_table(dfs)
+    df_long, df_quarantine = build_long_table_with_quarantine(dfs)
     long_rows = len(df_long)
-    logger.info("build_long_table → %d rows", long_rows)
+    quarantined_rows = len(df_quarantine)
+    logger.info("build_long_table -> %d rows  quarantined=%d", long_rows, quarantined_rows)
 
     # ------------------------------------------------------------------
-    # Step 3 — build revision table
+    # Step 3 — build revision table (grouped chronological shift at the
+    # complete business key), then assert base/revisions key parity (F043)
     # ------------------------------------------------------------------
     df_revisions = build_revision_table(df_long)
     revisions_rows = len(df_revisions)
-    logger.info("build_revision_table → %d rows", revisions_rows)
+    logger.info("build_revision_table -> %d rows", revisions_rows)
+    assert_identical_business_keys(df_long, df_revisions)
 
     # Count missing months (release months in bronze that produced 0 long rows
     # after exclusions — i.e. they were excluded or produced no data)
@@ -180,31 +186,43 @@ def main() -> None:
 
     if args.dry_run:
         logger.info(
-            "[DRY-RUN]  long_table_rows=%d  revisions_rows=%d"
+            "[DRY-RUN]  long_table_rows=%d  revisions_rows=%d  quarantined=%d"
             "  missing_months=%d",
-            long_rows, revisions_rows, missing_months_count,
+            long_rows, revisions_rows, quarantined_rows, missing_months_count,
         )
-        sys.exit(0)
 
     # ------------------------------------------------------------------
-    # Step 4 — write silver Parquets
+    # Step 4 — publish both silver tables through the shadow-first controlled
+    # publisher with EXPLICIT registry-derived arrow schemas (INV-2/INV-6).
+    # Default --publish-mode is dry-run (nothing written); canonical requires a
+    # verified signed approval.
     # ------------------------------------------------------------------
     long_key = silver_wap_table01_key()
     revisions_key = silver_wap_table01_revisions_key()
 
-    # Long table
-    if force_overwrite_check(args.force_overwrite, s3, bucket, long_key):
-        _upload_parquet(s3, bucket, long_key, df_long)
-        logger.info("silver written  key=%s  rows=%d", long_key, long_rows)
-    else:
-        logger.info("silver exists — skipping  key=%s", long_key)
+    long_manifest = publish_flat_silver(
+        table_name="silver_wap_table01",
+        df=df_long,
+        job="wap_silver_task",
+        canonical_key=long_key,
+        bucket=bucket,
+        s3_client=s3,
+        argv=sys.argv,
+    )
+    logger.info("silver publish %s  state=%s  rows=%d",
+                long_key, long_manifest.state.value, long_rows)
 
-    # Revisions table
-    if force_overwrite_check(args.force_overwrite, s3, bucket, revisions_key):
-        _upload_parquet(s3, bucket, revisions_key, df_revisions)
-        logger.info("silver written  key=%s  rows=%d", revisions_key, revisions_rows)
-    else:
-        logger.info("silver exists — skipping  key=%s", revisions_key)
+    rev_manifest = publish_flat_silver(
+        table_name="silver_wap_table01_revisions",
+        df=df_revisions,
+        job="wap_silver_task",
+        canonical_key=revisions_key,
+        bucket=bucket,
+        s3_client=s3,
+        argv=sys.argv,
+    )
+    logger.info("silver publish %s  state=%s  rows=%d",
+                revisions_key, rev_manifest.state.value, revisions_rows)
 
     # ------------------------------------------------------------------
     # Step 5 — write run log
@@ -220,6 +238,7 @@ def main() -> None:
             "excluded_count": excluded_count,
             "long_table_rows": long_rows,
             "revisions_rows": revisions_rows,
+            "quarantined_rows": quarantined_rows,
             "missing_months_count": missing_months_count,
         }
         s3.put_object(

@@ -52,7 +52,7 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
-writer_schema_pinned: false
+writer_schema_pinned: true
 drift_summary: []
 natural_key:
 - country
@@ -82,10 +82,9 @@ cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#mpoc_stock_comparison
 serving_table: null
 producer:
-  status: half-orphan
-  transform: null
-  batch_task: null
-  note: C-WRONG-8 orphan class; producer rebuilt in SILVER-F055
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/mpoc_stock_comparison.py
+  batch_task: jobs/batch/mpoc_stock_comparison_silver_task.py
 location_mode: static
 write_mode: overwrite
 fingerprint:
@@ -102,4 +101,8 @@ provenance:
   generated_from: reports/silver_readiness/20260712_p65impl/tables/silver_mpoc_stock_comparison.json
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
-  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.'
+  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.
+  SILVER-F055: producer restored on the shared F052 adapter. The source-as-of provenance is MANDATORY
+  but lives in the RUN/INPUT MANIFEST (not a row column); adding it as a physical column is a separate
+  additive registry/DDL/Glue migration + compatibility test (deferred to BF-W3). Conflicting snapshot
+  cells fail closed.'

@@ -1,0 +1,113 @@
+# SILVER-F060 + F061 prefix classification authority (LANE OB).
+#
+# The single machine-readable classification for every governed silver prefix that is NOT a live
+# registered table root. scripts/silver/prefix_guard.py enforces it: it fails on any new write or
+# unclassified object beneath a governed prefix, and hard-blocks writes under a `legacy_orphan` /
+# `forbidden` prefix. Registered-table roots (configs/silver/tables/*.yaml s3_prefix) are the
+# implicit `table` class and are NOT re-listed here.
+#
+# DOES-NOT-DO FENCE (plan L725-726): existing live objects are classified/allowlisted IN PLACE;
+# moving or physically deleting them is OUTSIDE this plan. No second canonical table is invented.
+version: 1
+package: LANE-OB (SILVER-F060 + SILVER-F061)
+classes: [table, staging, metadata, archive, forbidden, legacy_orphan]
+
+prefixes:
+  # ---------------------------------------------------------------------------
+  # SILVER-F060 -- govern the legacy CONAB orphan EAV surface in place.
+  # ---------------------------------------------------------------------------
+  - prefix: silver/production/source=conab/
+    classification: legacy_orphan
+    package: SILVER-F060
+    write_block: true
+    canonical_discovery: excluded          # never enter Glue/Athena canonical discovery paths
+    evidence: reports/silver_readiness/20260712_p65impl/OP-4.md
+    frozen_inventory:
+      object_count: 26                      # bounded `s3 ls`, not truncated (OP-4)
+      row_count: 3434
+      physical_columns: 9                   # a DIFFERENT 9-col EAV schema, NOT silver_conab_coffee
+      commodity_subdirs: [commodity=arabica_coffee, commodity=robusta_coffee]
+    canonical_representation: silver_conab_coffee   # the ONE authoritative CONAB table
+    mapping: >-
+      Every EAV observation beneath this prefix maps to the canonical wide silver_conab_coffee
+      table (F024 22-field target) OR an approved legacy-only exception. This prefix is a legacy
+      EAV vintage retained as evidence; it is NOT a second canonical table. Exactly one
+      authoritative CONAB representation exists (silver_conab_coffee). No physical deletion.
+    ci_rule: >-
+      prefix_guard fails on ANY new object beneath this prefix (write-block) and on any object not
+      in the frozen inventory allowlist.
+
+  # ---------------------------------------------------------------------------
+  # SILVER-F061 -- eliminate phantom / conflicting paths (documented outcome each).
+  # ---------------------------------------------------------------------------
+  - prefix: silver/calendar_spreads/
+    classification: forbidden
+    package: SILVER-F061
+    write_block: true
+    state: empty                            # empty candidate, no producer, no registry contract
+    outcome: do_not_onboard
+    note: >-
+      Empty candidate prefix with no producer and no F010 contract. Outcome: do NOT onboard a
+      table here; reserved/forbidden. Any future calendar-spread table must be minted through the
+      registry, not by a stray writer landing objects under this bare prefix.
+
+  - prefix: silver/unica_supply_demand/
+    classification: forbidden
+    package: SILVER-F061
+    write_block: true
+    state: dead_code_target
+    outcome: remove_dead_code
+    note: >-
+      Dead helper output target -- no live consumer, no registry contract. Outcome: remove the
+      dead code path (code-only); classify the prefix forbidden. Existing objects (if any) are
+      allowlisted in place; not moved/deleted by this plan.
+
+  - prefix: silver/production/source=faostat/
+    classification: forbidden
+    package: SILVER-F061
+    write_block: true
+    state: incorrect_empty_target
+    outcome: redirect_writer
+    correct_target: silver/production/          # silver_production (faostat_production.py)
+    note: >-
+      Incorrect empty target: the FAOStat production writer must land under the silver_production
+      table root, not a `source=faostat/` subprefix. Outcome: redirect the writer to the correct
+      silver_production prefix; forbid writes here.
+
+  - prefix: silver/unica_biweekly/_run_log.json
+    classification: metadata
+    package: SILVER-F061
+    match: exact
+    outcome: redirect_to_metadata_prefix
+    hive_ignored: true                       # `_`-prefixed -> Hadoop/Hive skip it
+    note: >-
+      A run-log JSON, not a table object. Hive/Hadoop ignore `_*` files, so a standard crawl skips
+      it, but a mis-configured crawler could add it. Outcome: classify as metadata; the writer
+      should emit run logs under a dedicated non-table control prefix (e.g. .../_manifests/).
+
+  - prefix: silver/pink_sheet/_run_log.json
+    classification: metadata
+    package: SILVER-F061
+    match: exact
+    outcome: crawler_exclude
+    hive_ignored: true
+    evidence: reports/silver_readiness/20260712_p65impl/stray_json_objects.json
+    note: Stray `_run_log.json` inside the silver_pink_sheet table prefix; metadata, not a table row.
+
+  - prefix: silver/psd/_run_log.json
+    classification: metadata
+    package: SILVER-F061
+    match: exact
+    outcome: crawler_exclude
+    hive_ignored: true
+    evidence: reports/silver_readiness/20260712_p65impl/stray_json_objects.json
+    note: Stray `_run_log.json` inside the silver_psd table prefix; metadata, not a table row.
+
+  - prefix: silver/wap_table01/_run_log.json
+    classification: metadata
+    package: SILVER-F061
+    match: exact
+    outcome: crawler_exclude
+    hive_ignored: true
+    evidence: reports/silver_readiness/20260712_p65impl/stray_json_objects.json
+    note: Stray `_run_log.json` inside the silver_wap_table01 table prefix; metadata, not a table row.

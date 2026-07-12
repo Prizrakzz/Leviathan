@@ -1,28 +1,19 @@
-"""AWS Batch task: World Bank Pink Sheet bronze/ → silver/ layer.
+"""AWS Batch task: World Bank Pink Sheet bronze/ -> silver/ layer (SILVER-F023).
 
-Downloads all Pink Sheet bronze Parquets, applies the silver transform,
-and writes one silver Parquet to S3:
+Downloads all Pink Sheet bronze Parquets, applies the 36-column silver transform, and publishes the
+single silver object through the SILVER-F015 shadow-first publisher with the INV-2 arrow writer
+schema from the F010 registry contract.
 
-Output S3 key
--------------
-    silver/pink_sheet/part-000.parquet
+Output S3 key: ``silver/pink_sheet/part-000.parquet``.
 
-A JSON run log is written to:
-    silver/pink_sheet/_run_log.json
+``--publish-mode`` defaults to ``dry-run`` (nothing written; the run manifest is a plan) -- a bare
+run can never touch the canonical surface (the F004 kill-switch contract). ``shadow`` stages to the
+shadow prefix; ``canonical`` requires the full guard + signed approval.
 
 Usage
 -----
-    # Idempotent run (skip if silver already exists)
-    python jobs/batch/pink_sheet_silver_task.py \\
-        --bucket leviathan-dev-shahem-001 --aws-region us-east-1
-
-    # Force overwrite
-    python jobs/batch/pink_sheet_silver_task.py \\
-        --bucket leviathan-dev-shahem-001 --aws-region us-east-1 --force-overwrite
-
-    # Dry-run (no writes)
-    python jobs/batch/pink_sheet_silver_task.py \\
-        --bucket leviathan-dev-shahem-001 --aws-region us-east-1 --dry-run
+    python jobs/batch/pink_sheet_silver_task.py --bucket B --aws-region R   # dry-run (default)
+    python jobs/batch/pink_sheet_silver_task.py --bucket B --aws-region R --publish-mode canonical
 """
 from __future__ import annotations
 
@@ -37,6 +28,9 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.flat_producer import authorize_for_contract, build_flat_publish
+from leviathan.silver.publisher import ManifestState
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import silver_pink_sheet_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.bronze_to_silver.pink_sheet import build_silver
@@ -45,41 +39,21 @@ logger = get_logger("pink_sheet_silver_task")
 
 _BRONZE_PREFIX = "bronze/production/source=world_bank_pink_sheet/"
 _SILVER_LOG_KEY = "silver/pink_sheet/_run_log.json"
+_TABLE = "silver_pink_sheet"
+_JOB = "pink_sheet_silver"
 
-
-# ---------------------------------------------------------------------------
-# Argument parsing
-# ---------------------------------------------------------------------------
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Pink Sheet bronze → silver")
+    parser = argparse.ArgumentParser(description="Pink Sheet bronze -> silver")
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--aws-region", default=None, dest="aws_region")
-    parser.add_argument(
-        "--force-overwrite",
-        action="store_true",
-        default=False,
-        help="Overwrite existing silver Parquet (default: skip if already exists).",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Log what would be written without writing to S3.",
-    )
+    parser.add_argument("--force-overwrite", action="store_true", default=False,
+                        help="Overwrite existing silver Parquet (canonical mode only).")
+    parser.add_argument("--publish-mode", default="dry-run",
+                        choices=["dry-run", "shadow", "canonical"], dest="publish_mode")
+    parser.add_argument("--role-arn", default="", dest="role_arn")
+    parser.add_argument("--account-id", default="", dest="account_id")
     return parser.parse_args()
-
-
-# ---------------------------------------------------------------------------
-# S3 helpers
-# ---------------------------------------------------------------------------
-
-def _key_exists(s3_client, bucket: str, key: str) -> bool:
-    try:
-        s3_client.head_object(Bucket=bucket, Key=key)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
 
 
 def _download_parquet(s3_client, bucket: str, key: str) -> pd.DataFrame:
@@ -87,32 +61,10 @@ def _download_parquet(s3_client, bucket: str, key: str) -> pd.DataFrame:
     return pd.read_parquet(io.BytesIO(resp["Body"].read()))
 
 
-def _upload_parquet(s3_client, bucket: str, key: str, df: pd.DataFrame) -> None:
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=buf.getvalue(),
-        ContentType="application/octet-stream",
-    )
-
-
-def _should_write(force_overwrite: bool, s3_client, bucket: str, key: str) -> bool:
-    """Return True if the key should be (over)written."""
-    if force_overwrite:
-        return True
-    return not _key_exists(s3_client, bucket, key)
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         stream=sys.stderr,
     )
 
@@ -121,77 +73,70 @@ def main() -> None:
 
     bucket: str = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region: str = args.aws_region or get_required_env("AWS_REGION")
-
-    logger.info(
-        "pink_sheet_silver_task  bucket=%s  force=%s  dry_run=%s",
-        bucket, args.force_overwrite, args.dry_run,
+    contract = load_registry().table(_TABLE)
+    auth = authorize_for_contract(
+        contract, publish_mode=args.publish_mode,
+        role_arn=args.role_arn, account_id=args.account_id,
     )
+
+    logger.info("pink_sheet_silver_task bucket=%s mode=%s", bucket, args.publish_mode)
 
     start = datetime.now(timezone.utc)
     s3 = get_thread_local_s3_client(aws_region)
 
     # ------------------------------------------------------------------
-    # Step 1 — discover and download all Pink Sheet bronze Parquets
+    # Step 1 -- discover and download all Pink Sheet bronze Parquets
     # ------------------------------------------------------------------
     bronze_keys = sorted(
         list_s3_keys(bucket, _BRONZE_PREFIX, suffix=".parquet", aws_region=aws_region)
     )
     logger.info("Found %d Pink Sheet bronze Parquets", len(bronze_keys))
-
     if not bronze_keys:
-        logger.error("No bronze Parquets found under %s — aborting.", _BRONZE_PREFIX)
+        logger.error("No bronze Parquets found under %s -- aborting.", _BRONZE_PREFIX)
         sys.exit(1)
 
     dfs: list[pd.DataFrame] = []
     for key in bronze_keys:
-        try:
-            df = _download_parquet(s3, bucket, key)
-            dfs.append(df)
-            logger.info("downloaded  %s  rows=%d", key, len(df))
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Download failed  key=%s: %s", key, exc)
-            raise
+        df = _download_parquet(s3, bucket, key)
+        dfs.append(df)
+        logger.info("downloaded %s rows=%d", key, len(df))
 
     release_count = len(dfs)
-    release_yms = sorted({df["release_ym"].iloc[0] for df in dfs if "release_ym" in df.columns and len(df) > 0})
-    logger.info("release_count=%d  releases=%s", release_count, release_yms)
+    release_yms = sorted(
+        {df["release_ym"].iloc[0] for df in dfs if "release_ym" in df.columns and len(df) > 0}
+    )
+    logger.info("release_count=%d releases=%s", release_count, release_yms)
 
     # ------------------------------------------------------------------
-    # Step 2 — build silver table
+    # Step 2 -- build 36-column silver table
     # ------------------------------------------------------------------
     df_silver = build_silver(dfs)
     silver_rows = len(df_silver)
     date_min = str(df_silver["date"].min().date()) if silver_rows else "n/a"
     date_max = str(df_silver["date"].max().date()) if silver_rows else "n/a"
-    logger.info(
-        "build_silver → %d rows  date_range=%s→%s", silver_rows, date_min, date_max
-    )
-
-    if args.dry_run:
-        logger.info(
-            "[DRY-RUN]  silver_rows=%d  date_range=%s→%s",
-            silver_rows, date_min, date_max,
-        )
-        sys.exit(0)
+    logger.info("build_silver -> %d rows date_range=%s..%s", silver_rows, date_min, date_max)
 
     # ------------------------------------------------------------------
-    # Step 3 — write silver Parquet
+    # Step 3 -- publish through the shadow-first publisher (INV-2 schema)
     # ------------------------------------------------------------------
     silver_key = silver_pink_sheet_key()
-
-    if _should_write(args.force_overwrite, s3, bucket, silver_key):
-        _upload_parquet(s3, bucket, silver_key, df_silver)
-        logger.info("silver written  key=%s  rows=%d", silver_key, silver_rows)
-    else:
-        logger.info("silver exists — skipping  key=%s", silver_key)
+    # dry-run stages nothing (no client); shadow + canonical both write to S3.
+    publish_s3 = None if args.publish_mode == "dry-run" else s3
+    plan = build_flat_publish(
+        df=df_silver, contract=contract, canonical_key=silver_key, auth=auth,
+        s3_client=publish_s3, job=_JOB,
+    )
+    manifest = plan.run()
+    logger.info("publish %s mode=%s state=%s", silver_key, args.publish_mode, manifest.state.value)
+    if manifest.state not in (ManifestState.VALIDATED, ManifestState.CERTIFIED):
+        raise RuntimeError(f"pink_sheet publish failed: state={manifest.state.value} "
+                           f"reason={manifest.failure_reason}")
 
     # ------------------------------------------------------------------
-    # Step 4 — write run log
+    # Step 4 -- run log (canonical only; control-plane artifact)
     # ------------------------------------------------------------------
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
-    logger.info("Done  elapsed=%.1fs", elapsed)
-
-    try:
+    if auth.may_mutate_canonical:
         run_log = {
             "run_date": datetime.now(timezone.utc).date().isoformat(),
             "elapsed_s": round(elapsed, 1),
@@ -201,15 +146,9 @@ def main() -> None:
             "date_min": date_min,
             "date_max": date_max,
         }
-        s3.put_object(
-            Bucket=bucket,
-            Key=_SILVER_LOG_KEY,
-            Body=json.dumps(run_log, indent=2).encode(),
-            ContentType="application/json",
-        )
-        logger.info("Run log written  key=%s", _SILVER_LOG_KEY)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to write run log: %s", exc)
+        s3.put_object(Bucket=bucket, Key=_SILVER_LOG_KEY,
+                      Body=json.dumps(run_log, indent=2).encode(), ContentType="application/json")
+    logger.info("Done mode=%s rows=%d elapsed=%.1fs", args.publish_mode, silver_rows, elapsed)
 
 
 if __name__ == "__main__":

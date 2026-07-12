@@ -35,15 +35,35 @@ from leviathan.common.logging import get_logger
 logger = get_logger(__name__)
 
 # Substring patterns → canonical bronze series names.
-# Each pattern must match exactly one column; logged at WARNING if ambiguous.
+# Each pattern must match exactly one column. For a REQUIRED series (see ``_REQUIRED_SERIES``) a
+# missing or ambiguous header FAILS the extract (SILVER-F023: a disappeared/ambiguous required
+# header must never publish a silently narrowed table); a non-required series only WARNs.
+#
+# SILVER-F023 restores the 9 commodity-price series the narrowed producer had dropped. The patterns
+# are chosen to be unambiguous against the World Bank "Monthly Prices" nominal sheet headers
+# (e.g. "Crude oil, Brent" vs "Crude oil, average/Dubai/WTI"; "Soybeans" vs "Soybean oil/meal").
 _SERIES_PATTERNS: dict[str, str] = {
+    # fertilizer + energy
     "urea":                "urea_e_europe_bulk_spot_usd_mt",
     "dap":                 "dap_spot_usd_mt",
     "potassium chloride":  "potassium_chloride_std_usd_mt",
     "natural gas, us":     "natural_gas_us_usd_mmbtu",
     "natural gas, europe": "natural_gas_europe_usd_mmbtu",
     "phosphate rock":      "phosphate_rock_usd_mt",
+    # commodity prices (SILVER-F023)
+    "crude oil, brent":    "crude_oil_brent_usd_bbl",
+    "soybeans":            "soybeans_usd_mt",
+    "soybean oil":         "soybean_oil_usd_mt",
+    "soybean meal":        "soybean_meal_usd_mt",
+    "palm oil":            "palm_oil_usd_mt",
+    "sugar, world":        "sugar_world_usd_kg",
+    "wheat, us hrw":       "wheat_us_hrw_usd_mt",
+    "wheat, us srw":       "wheat_us_srw_usd_mt",
+    "rapeseed oil":        "rapeseed_oil_usd_mt",
 }
+
+# The governed series whose absence/ambiguity is FATAL to the extract (the full 15-series contract).
+_REQUIRED_SERIES: frozenset[str] = frozenset(_SERIES_PATTERNS.values())
 
 _SHEET_NAME = "Monthly Prices"
 _HEADER_ROW = 4   # 0-indexed; row 5 in the workbook (1-indexed)
@@ -52,22 +72,41 @@ _HEADER_ROW = 4   # 0-indexed; row 5 in the workbook (1-indexed)
 def _match_columns(
     columns: Sequence[str],
     patterns: dict[str, str],
+    required: "frozenset[str]" = frozenset(),
 ) -> dict[str, str]:
-    """Return a rename map {original_header: canonical_name} for matched series."""
+    """Return a rename map {original_header: canonical_name} for matched series.
+
+    A canonical name in ``required`` that has NO match or an AMBIGUOUS (>1) match raises
+    ``ValueError`` -- SILVER-F023 fail-closed: a disappeared/ambiguous required header must never
+    publish a silently narrowed table. A non-required series only WARNs (legacy behaviour)."""
     col_lower = {c: c.lower() for c in columns}
     result: dict[str, str] = {}
+    missing: list[str] = []
+    ambiguous: list[str] = []
     for pattern, canonical in patterns.items():
         matches = [orig for orig, low in col_lower.items() if pattern.lower() in low]
         if not matches:
-            logger.warning("Pink Sheet: no column matched pattern '%s'", pattern)
+            if canonical in required:
+                missing.append(canonical)
+            else:
+                logger.warning("Pink Sheet: no column matched pattern '%s'", pattern)
         elif len(matches) > 1:
-            logger.warning(
-                "Pink Sheet: pattern '%s' matched %d columns %s — using first",
-                pattern, len(matches), matches,
-            )
-            result[matches[0]] = canonical
+            if canonical in required:
+                ambiguous.append(f"{canonical} <- {matches}")
+            else:
+                logger.warning(
+                    "Pink Sheet: pattern '%s' matched %d columns %s — using first",
+                    pattern, len(matches), matches,
+                )
+                result[matches[0]] = canonical
         else:
             result[matches[0]] = canonical
+    if missing or ambiguous:
+        raise ValueError(
+            "Pink Sheet: required governed series unresolved -- "
+            f"missing={sorted(missing)} ambiguous={sorted(ambiguous)}. "
+            "Refusing to publish a narrowed table (SILVER-F023)."
+        )
     return result
 
 
@@ -120,7 +159,7 @@ def extract_pink_sheet(
 
     # Match target series columns
     other_cols = list(df_raw.columns[1:])
-    rename_map = _match_columns(other_cols, _SERIES_PATTERNS)
+    rename_map = _match_columns(other_cols, _SERIES_PATTERNS, required=_REQUIRED_SERIES)
     if not rename_map:
         raise ValueError(
             f"Pink Sheet: no target series columns found. Available: {other_cols[:10]}"

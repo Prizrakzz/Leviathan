@@ -33,6 +33,8 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.flat_producer import authorize_for_contract, build_flat_publish
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import (
     bronze_mpob_overview_key,
     parse_hive_key,
@@ -49,6 +51,8 @@ from leviathan.transforms.bronze_to_silver.mpob_annual import (
 
 logger = get_logger("mpob_annual_silver_task")
 
+TABLE = "silver_mpob_annual"
+
 _BRONZE_PREFIX = "bronze/production/source=mpob/release_type=overview_pdf/"
 
 
@@ -64,21 +68,33 @@ def _parse_bool(value: str | bool) -> bool:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="MPOB overview_pdf bronze → annual silver")
+    parser = argparse.ArgumentParser(description="MPOB overview_pdf bronze -> annual silver (F062)")
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--aws-region", default=None, dest="aws_region")
+    parser.add_argument("--run-id", default=None, dest="run_id")
     parser.add_argument(
         "--force-overwrite",
         default="false",
-        help="Re-write the silver file even if it already exists.",
+        help="(legacy) retained for compatibility; the publisher governs idempotency.",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Log what would be written without writing to S3.",
+        help="(legacy alias) equivalent to --publish-mode dry-run.",
+    )
+    parser.add_argument(
+        "--publish-mode",
+        default=None,
+        choices=["dry-run", "shadow", "canonical"],
+        dest="publish_mode",
+        help="SILVER-F015 publish mode (default dry-run; --dry-run forces dry-run).",
     )
     args = parser.parse_args()
     args.force_overwrite = _parse_bool(args.force_overwrite)
+    if args.publish_mode is None:
+        args.publish_mode = "dry-run"
+    if args.dry_run:
+        args.publish_mode = "dry-run"
     return args
 
 
@@ -125,44 +141,20 @@ def _load_all_bronze(bucket: str, years: list[int], aws_region: str) -> pd.DataF
 # ---------------------------------------------------------------------------
 
 
-def _target_exists(s3_client, bucket: str, key: str) -> bool:
-    try:
-        s3_client.head_object(Bucket=bucket, Key=key)
-        return True
-    except s3_client.exceptions.ClientError as exc:
-        if exc.response["Error"]["Code"] == "404":
-            return False
-        raise
-
-
-def _write_silver(
-    bucket: str,
-    aws_region: str,
-    df: pd.DataFrame,
-    force_overwrite: bool,
-    dry_run: bool,
-) -> str:
-    key = silver_mpob_annual_key()
-
-    if dry_run:
-        logger.info("[DRY RUN] Would write: %s  rows=%d", key, len(df))
-        return "dry_run"
-
-    s3_client = get_thread_local_s3_client(aws_region)
-    if not force_overwrite and _target_exists(s3_client, bucket, key):
-        logger.info("skipping existing silver file: %s", key)
-        return "skipped"
-
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=buf.getvalue(),
-        ContentType="application/octet-stream",
+def _publish(df: pd.DataFrame, publish_mode: str, run_id, aws_region: str) -> str:
+    """F062 adoption: write through the SILVER-F015 shadow-first publisher under the INV-2 schema
+    pinned from the registry contract (retires the bespoke df.to_parquet + put_object)."""
+    contract = load_registry().table(TABLE)
+    s3_client = None if publish_mode == "dry-run" else get_thread_local_s3_client(aws_region)
+    auth = authorize_for_contract(contract, publish_mode=publish_mode)
+    plan = build_flat_publish(
+        df=df, contract=contract, canonical_key=silver_mpob_annual_key(),
+        auth=auth, s3_client=s3_client, job="mpob_annual_silver", run_id=run_id,
     )
-    logger.info("wrote silver file: %s  rows=%d", key, len(df))
-    return "written"
+    manifest = plan.run()
+    logger.info("publish %s state=%s mode=%s rows=%d", TABLE, manifest.state.value,
+                publish_mode, len(df))
+    return manifest.state.value
 
 
 # ---------------------------------------------------------------------------
@@ -183,12 +175,7 @@ def main() -> int:
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
 
-    logger.info(
-        "MPOB annual silver task  bucket=%s  force=%s  dry_run=%s",
-        bucket,
-        args.force_overwrite,
-        args.dry_run,
-    )
+    logger.info("MPOB annual silver task  bucket=%s  publish_mode=%s", bucket, args.publish_mode)
 
     years = _available_years(bucket, aws_region)
     if not years:
@@ -207,7 +194,7 @@ def main() -> int:
         logger.error("Silver transform returned empty DataFrame — aborting write")
         return 1
 
-    result = _write_silver(bucket, aws_region, silver, args.force_overwrite, args.dry_run)
+    result = _publish(silver, args.publish_mode, args.run_id, aws_region)
     logger.info("result=%s", result)
 
     elapsed = (datetime.now(tz=timezone.utc) - t0).total_seconds()

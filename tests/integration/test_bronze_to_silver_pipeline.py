@@ -11,7 +11,7 @@ from leviathan.transforms.bronze_to_silver.chirps_weather import chirps_bronze_t
 from leviathan.transforms.bronze_to_silver.faostat_production import (
     transform_faostat_production_silver_df,
 )
-from leviathan.transforms.bronze_to_silver.nasa_power_weather import clean_one_weather_df
+from leviathan.transforms.bronze_to_silver.nasa_power_weather import nasa_power_bronze_to_silver
 from leviathan.transforms.raw_to_bronze.nasa_power import nasa_power_payload_to_daily_dataframe
 
 # ---------------------------------------------------------------------------
@@ -43,27 +43,28 @@ class TestNasaPowerRawToBronzeToSilver:
         for col in ("date", "year", "month", "day", "source", "commodity", "country", "region"):
             assert col in df.columns, f"Missing bronze column: {col}"
 
-    def test_bronze_to_silver_produces_long_format(self, weather_bronze_wide_df):
-        silver = clean_one_weather_df(weather_bronze_wide_df)
-        assert "variable" in silver.columns
-        assert "value" in silver.columns
-        # Wide df has 3 rows × 7 weather vars → silver should have more rows
-        assert len(silver) > len(weather_bronze_wide_df)
+    def test_bronze_to_silver_produces_wide_format(self, weather_bronze_wide_df):
+        # SILVER-F021: nasa_power silver is WIDE (measurement columns, no variable/value melt).
+        silver = nasa_power_bronze_to_silver(weather_bronze_wide_df)
+        assert "variable" not in silver.columns
+        assert "value" not in silver.columns
+        assert "temperature_2m_max_c" in silver.columns
+        # One wide row per date, not one per (date x variable).
+        assert len(silver) == weather_bronze_wide_df["date"].nunique()
 
-    def test_silver_required_columns_present(self, weather_bronze_wide_df):
-        from leviathan.common.quality import SILVER_REQUIRED_COLUMNS
+    def test_silver_wide_required_columns_present(self, weather_bronze_wide_df):
+        from leviathan.transforms.bronze_to_silver._weather_quality import WIDE_REQUIRED_COLUMNS
 
-        silver = clean_one_weather_df(weather_bronze_wide_df)
-        missing = [c for c in SILVER_REQUIRED_COLUMNS if c not in silver.columns]
-        assert missing == [], f"Missing silver columns: {missing}"
+        silver = nasa_power_bronze_to_silver(weather_bronze_wide_df)
+        missing = [c for c in WIDE_REQUIRED_COLUMNS if c not in silver.columns]
+        assert missing == [], f"Missing wide silver columns: {missing}"
 
     def test_silver_date_column_is_date_type(self, weather_bronze_wide_df):
-        silver = clean_one_weather_df(weather_bronze_wide_df)
-        # date column should be date objects or datetime-compatible
+        silver = nasa_power_bronze_to_silver(weather_bronze_wide_df)
         assert silver["date"].notna().all()
 
     def test_full_pipeline_payload_to_silver(self, nasa_power_payload):
-        """End-to-end: raw payload → bronze → silver."""
+        """End-to-end: raw payload -> bronze -> WIDE silver."""
         bronze = nasa_power_payload_to_daily_dataframe(
             payload=nasa_power_payload,
             source_file_name="sample.json",
@@ -72,10 +73,10 @@ class TestNasaPowerRawToBronzeToSilver:
             region="gh_main",
             ingest_date="2024-01-01",
         )
-        silver = clean_one_weather_df(bronze)
+        silver = nasa_power_bronze_to_silver(bronze)
         assert not silver.empty
-        assert "variable" in silver.columns
-        assert "value" in silver.columns
+        assert "temperature_2m_max_c" in silver.columns
+        assert "source_file_name" in silver.columns
 
 
 # ---------------------------------------------------------------------------
@@ -131,29 +132,32 @@ class TestFaostatBronzeToSilver:
         assert isinstance(year, int)
         assert isinstance(df, pd.DataFrame)
 
-    def test_silver_has_commodity_column(self, faostat_bronze_df):
+    # F022 reshaped the silver contract to source-faithful long/tidy (faostat_production.py
+    # CANONICAL_PHYSICAL_COLUMNS): `metric` replaced `variable`; `country` is now the DISPLAY name
+    # with the governed lowercase key in `country_key`; commodity is the partition axis, not a
+    # physical column (matching the partitioned silver_production layout).
+    def test_silver_commodity_is_partition_only(self, faostat_bronze_df):
         result = transform_faostat_production_silver_df(faostat_bronze_df, commodity="cocoa")
         _, df = result[0]
-        assert "commodity" in df.columns
-        assert (df["commodity"] == "cocoa").all()
+        assert "commodity" not in df.columns
 
-    def test_silver_has_variable_column(self, faostat_bronze_df):
+    def test_silver_has_metric_column(self, faostat_bronze_df):
         result = transform_faostat_production_silver_df(faostat_bronze_df, commodity="cocoa")
         _, df = result[0]
-        assert "variable" in df.columns
+        assert "metric" in df.columns
 
-    def test_silver_variables_are_standardized(self, faostat_bronze_df):
+    def test_silver_metrics_are_standardized(self, faostat_bronze_df):
         result = transform_faostat_production_silver_df(faostat_bronze_df, commodity="cocoa")
         _, df = result[0]
-        valid_vars = {"production_quantity", "area_harvested", "yield"}
-        assert set(df["variable"].unique()).issubset(valid_vars)
+        valid = {"production_quantity", "area_harvested", "yield"}
+        assert set(df["metric"].unique()).issubset(valid)
 
-    def test_country_name_standardized(self, faostat_bronze_df):
+    def test_country_display_and_governed_key(self, faostat_bronze_df):
         result = transform_faostat_production_silver_df(faostat_bronze_df, commodity="cocoa")
         _, df = result[0]
-        assert "country" in df.columns
-        # "Ghana" should be normalized to lowercase snake_case
-        assert (df["country"] == "ghana").all()
+        assert "country" in df.columns and "country_key" in df.columns
+        assert (df["country"] == "Ghana").all()          # display form preserved
+        assert (df["country_key"] == "ghana").all()      # governed lowercase key
 
     def test_raises_if_required_columns_missing(self):
         bad_df = pd.DataFrame({"area": ["Ghana"], "item": ["Cocoa"]})

@@ -92,6 +92,7 @@ physical_columns:
   parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: true
+  deprecated: true
 - name: is_first_estimate
   glue_type: boolean
   arrow_type: bool
@@ -104,6 +105,7 @@ physical_columns:
   parquet_physical_type: BOOLEAN
   target_arrow_type: bool
   nullable: true
+  deprecated: true
 - name: raw_table_name
   glue_type: string
   arrow_type: string
@@ -140,6 +142,60 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: source_table_id
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
+- name: estimate_role
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
+- name: projection_month
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
+- name: is_current_release_estimate
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: bool
+  nullable: true
+- name: release_sequence
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: int64
+  nullable: true
+- name: revision_gap_days
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: int64
+  nullable: true
+- name: is_projection
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: bool
+  nullable: true
+- name: is_source_final
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: bool
+  nullable: true
+- name: marketing_year_end_date
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
 writer_schema_pinned: false
 drift_summary:
 - column: prior_release_date
@@ -154,25 +210,35 @@ drift_summary:
   glue_type: int
   target: int64
   owner_package: SILVER-F033
+  note: C-WRONG-6 int64 fix. glue_type stays int here to match the LIVE catalog (registry == live-Glue
+    invariant); the int32->int64 correction is a REVIEWED catalog migration cut as a plan-only artifact
+    by scripts/silver/wasde_f036_migration_plan.py (reports/silver_readiness/ R2_wasde/) and applied in
+    the gated B-wave WITH the F013 registered-partition SD repair. The INV-2 target is already int64 and
+    physical parquet is already int64, so this is a widening the migrate tool conservatively routes through
+    review, never a silent apply.
 natural_key:
 - release_date
+- source_table_id
 - commodity
-- table_type
 - region
 - marketing_year
 - attribute
+- unit
+- estimate_role
+- projection_month
 required_nonnull:
 - release_date
+- source_table_id
 - commodity
-- table_type
 - region
 - marketing_year
 - attribute
+- estimate_role
 value_columns:
 - estimate
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
-coverage_axis: release_date x commodity x table_type x region x marketing_year x attribute
+coverage_axis: release_date x source_table_id x commodity x region x marketing_year x attribute x estimate_role/projection_month
 vintage_retention: per-vintage
 knowledge_date_col: release_date
 knowledge_semantics: vintage
@@ -187,8 +253,10 @@ source_contract_ref: configs/datasets/source_contracts.yaml#wasde
 serving_table: null
 producer:
   status: producer
-  transform: null
-  batch_task: jobs/batch/wasde_bronze_modern_task.py
+  transform: src/leviathan/transforms/bronze_to_silver/usda_wasde_silver.py
+  batch_task: jobs/batch/wasde_silver_task.py
+  note: F034 restored bronze->silver producer (pure transform + controlled ShadowPublisher registered-partition
+    publish, dry-run default). Raw->bronze stays jobs/batch/ wasde_bronze_modern_task.py + wasde_bronze_scanned_task.py.
 location_mode: static
 write_mode: registered-partition
 fingerprint:
@@ -205,4 +273,11 @@ provenance:
   generated_from: reports/silver_readiness/20260712_p65impl/tables/silver_wasde.json
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
-  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.'
+  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.
+  LANE M (F033-F036): the 9 additive governed columns above are the F036 target schema, declared here
+  as hidden-schema (glue_type null) so the F034 producer emits them and the gated B-wave catalog migration
+  registers them; the int64 months_to_marketing_year_end correction + the additive catalog add are both
+  cut as a plan-only migration artifact under reports/silver_readiness/R2_wasde/. The 19 canonical snake_case
+  attribute terms + the estimate_role vocabulary live in src/leviathan/transforms/bronze_to_silver/usda_wasde_silver.py
+  (INV-1). Numbers registry period_sql_type=string (marketing_year "2023/24") is unchanged and consistent
+  with the string marketing_year column here.'

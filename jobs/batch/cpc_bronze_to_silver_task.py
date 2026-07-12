@@ -18,6 +18,11 @@ from typing import Iterable
 import pandas as pd
 
 from leviathan.storage.base_jobs import BaseBronzeToSilverJob
+from leviathan.storage.s3 import get_thread_local_s3_client
+from leviathan.transforms.bronze_to_silver._weather_schema import (
+    CPC_SOIL_LONG_SCHEMA,
+    to_parquet_bytes,
+)
 from leviathan.transforms.bronze_to_silver.cpc_soil import cpc_soil_bronze_to_silver
 
 
@@ -42,6 +47,15 @@ class CpcSoilBronzeToSilver(BaseBronzeToSilverJob):
             f"/country={key_dict['country']}/region={key_dict['region']}"
             f"/year={key_dict['year']}/month={key_dict['month']:02d}/part-000.parquet"
         )
+
+    def _write_partition(self, key_dict: dict, part_df: pd.DataFrame) -> str:
+        """INV-2 override: serialise through the pinned LONG arrow schema, not pandas inference."""
+        silver_key = self._silver_key(key_dict)
+        body = to_parquet_bytes(part_df, CPC_SOIL_LONG_SCHEMA)
+        get_thread_local_s3_client(self.aws_region).put_object(
+            Body=body, Bucket=self.bucket, Key=silver_key
+        )
+        return silver_key
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

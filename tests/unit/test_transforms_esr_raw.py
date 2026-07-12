@@ -135,19 +135,23 @@ class TestHappyPath:
 
 
 # ---------------------------------------------------------------------------
-# Missing 'changes' field → filled with 0.0
+# Missing 'changes' field -> stays NULL (SILVER-F030 / INV-4: never synthesize 0.0)
 # ---------------------------------------------------------------------------
 
-class TestMissingChangesField:
-    def test_changes_absent_in_one_record_fills_zero(self, valid_raw_bytes: bytes) -> None:
-        """Second record in _VALID_RECORDS has no 'changes' key."""
+class TestMissingChangesFieldStaysNull:
+    def test_changes_absent_in_one_record_stays_null(self, valid_raw_bytes: bytes) -> None:
+        """Second record in _VALID_RECORDS has no 'changes' key -> that row's changes is NaN,
+        not 0.0 (INV-4). The present row keeps its real value."""
         df = transform_esr_json_to_bronze(
             valid_raw_bytes, COMMODITY_CODE, MARKET_YEAR, AS_OF_DATE, INGEST_DATE
         )
-        # Both rows should have a valid (non-NaN) float changes value.
-        assert df["changes"].notna().all()
+        assert df["changes"].isna().sum() == 1
+        assert float(df["changes"].dropna().iloc[0]) == 500.0
 
-    def test_changes_absent_in_all_records(self) -> None:
+    def test_changes_absent_in_all_records_is_all_null(self) -> None:
+        """When NO record carries 'changes', the column exists but is all-NULL -- NEVER 0.0.
+
+        A synthesized 0.0 is indistinguishable from a real zero revision (INV-4)."""
         records = [
             {k: v for k, v in r.items() if k != "changes"}
             for r in _VALID_RECORDS
@@ -156,14 +160,61 @@ class TestMissingChangesField:
         df = transform_esr_json_to_bronze(
             raw, COMMODITY_CODE, MARKET_YEAR, AS_OF_DATE, INGEST_DATE
         )
-        assert (df["changes"] == 0.0).all()
+        assert "changes" in df.columns
+        assert df["changes"].isna().all()
+        assert (df["changes"] == 0.0).sum() == 0
 
-    def test_changes_null_in_fixture(self, sample_fixture_bytes: bytes) -> None:
-        """esr_sample.json contains one row with "changes": null → should be 0.0."""
+    def test_changes_null_in_fixture_stays_null(self, sample_fixture_bytes: bytes) -> None:
+        """esr_sample.json: rows 0-1 have real changes, rows 2-3 omit it, row 4 is explicit null
+        -> exactly 3 NaN 'changes' values survive (INV-4), never coerced to 0.0."""
         df = transform_esr_json_to_bronze(
             sample_fixture_bytes, COMMODITY_CODE, MARKET_YEAR, AS_OF_DATE, INGEST_DATE
         )
-        assert df["changes"].notna().all()
+        assert df["changes"].isna().sum() == 3
+        assert (df["changes"] == 0.0).sum() == 0
+
+    def test_changes_column_is_still_float32(self, valid_raw_bytes: bytes) -> None:
+        """The nullable 'changes' column keeps the bronze float32 dtype (NaN is a valid float32)."""
+        df = transform_esr_json_to_bronze(
+            valid_raw_bytes, COMMODITY_CODE, MARKET_YEAR, AS_OF_DATE, INGEST_DATE
+        )
+        assert df["changes"].dtype == "float32"
+
+
+# ---------------------------------------------------------------------------
+# Unknown API fields -> schema-drift WARN, never a silent drop (SILVER-F030 / INV-1)
+# ---------------------------------------------------------------------------
+
+class TestUnknownApiFieldDriftAlert:
+    def test_unknown_field_warns(self, caplog) -> None:
+        """A camelCase field _FIELD_MAP does not know is surfaced as a WARN (schema drift),
+        not silently dropped -- Raw retains it, but the operator is alerted."""
+        import logging
+        records = [
+            {**_VALID_RECORDS[0], "newFangledMetric": 42.0, "anotherNewField": "x"},
+        ]
+        raw = json.dumps(records).encode()
+        with caplog.at_level(logging.WARNING):
+            df = transform_esr_json_to_bronze(
+                raw, COMMODITY_CODE, MARKET_YEAR, AS_OF_DATE, INGEST_DATE
+            )
+        # the typed bronze schema stays clean (unknowns not promoted)...
+        assert "newFangledMetric" not in df.columns
+        assert "anotherNewField" not in df.columns
+        # ...but a schema-drift alert names both unknown fields.
+        drift = "\n".join(r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING)
+        assert "schema drift" in drift.lower()
+        assert "anotherNewField" in drift and "newFangledMetric" in drift
+
+    def test_no_warn_when_all_fields_known(self, valid_raw_bytes: bytes, caplog) -> None:
+        import logging
+        with caplog.at_level(logging.WARNING):
+            transform_esr_json_to_bronze(
+                valid_raw_bytes, COMMODITY_CODE, MARKET_YEAR, AS_OF_DATE, INGEST_DATE
+            )
+        drift = [r for r in caplog.records
+                 if r.levelno >= logging.WARNING and "schema drift" in r.getMessage().lower()]
+        assert drift == []
 
 
 # ---------------------------------------------------------------------------

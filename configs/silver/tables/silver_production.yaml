@@ -94,7 +94,7 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
-writer_schema_pinned: false
+writer_schema_pinned: true
 drift_summary: []
 natural_key:
 - commodity

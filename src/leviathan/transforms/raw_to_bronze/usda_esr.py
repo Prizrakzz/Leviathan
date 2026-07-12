@@ -12,11 +12,21 @@ Bronze stores the API's native units (identified by ``unit_id``).  No unit
 conversion is performed here.  Silver is responsible for normalising all
 values to metric tonnes (MT) using the ESR unit-of-measure lookup table.
 
-Missing fields
---------------
+Missing fields (SILVER-F030 semantic ADR, INV-4)
+------------------------------------------------
 The ``changes`` field (revisions to previously reported sales) is absent in
-some historical records returned by the API.  It is filled with 0.0 when
-missing so downstream schemas remain consistent.
+some historical records returned by the API.  It is kept **NULL** when absent
+or null -- it is NEVER synthesized as 0.0 (INV-4: an absent source measure
+stays null; a real zero revision is otherwise indistinguishable from "not
+reported").  ``changes`` / ``changes_1000mt`` is a DEPRECATED, nullable column.
+
+Unknown API fields (SILVER-F030 schema-drift reporting, INV-1)
+--------------------------------------------------------------
+Raw JSON is immutable in S3, so every field the FAS API returns is already
+preserved there.  A camelCase key the current ``_FIELD_MAP`` does not know is
+NOT silently dropped: it is surfaced as a WARN (schema-drift alert) before the
+typed bronze projection, so a future API addition is caught and can be promoted
+to ``_FIELD_MAP`` deliberately rather than lost unnoticed.
 """
 from __future__ import annotations
 
@@ -88,30 +98,44 @@ def transform_esr_json_to_bronze(
 
     df = pd.DataFrame(records)
 
-    # Rename API camelCase → snake_case.  Only rename columns that are present;
-    # unknown extra columns from future API versions are dropped silently.
+    # --- Schema-drift alert (SILVER-F030 / INV-1): DO NOT silently drop unknown API fields. ---
+    # Raw JSON is immutable in S3 (every field is already preserved there); surface any camelCase
+    # key the current _FIELD_MAP does not know as a WARN so a future FAS API addition is caught and
+    # promoted deliberately, never lost unnoticed.
+    unknown_api_fields = sorted(set(df.columns) - set(_FIELD_MAP))
+    if unknown_api_fields:
+        logger.warning(
+            "ESR schema drift commodity_code=%d market_year=%d: %d unrecognised API field(s) %s "
+            "— retained in immutable Raw, dropped from the typed bronze schema (add to _FIELD_MAP "
+            "to promote them).",
+            commodity_code, market_year, len(unknown_api_fields), unknown_api_fields,
+        )
+
+    # Rename API camelCase → snake_case.  Only rename columns that are present.
     rename = {k: v for k, v in _FIELD_MAP.items() if k in df.columns}
     df = df.rename(columns=rename)
 
-    # Keep only the expected columns (drop any unrecognised API additions).
+    # Keep only the expected (known) columns for the typed bronze schema.
     expected = list(_FIELD_MAP.values())
     df = df[[col for col in expected if col in df.columns]]
 
-    # --- "changes" may be absent in historical records or null in individual rows ---
+    # --- "changes" (revisions) may be absent in historical records or null in individual rows. ---
+    # INV-4: an absent source measure stays NULL -- it is NEVER synthesized as 0.0 (a real zero
+    # revision would be indistinguishable from "not reported" if we filled). ``changes`` is a
+    # DEPRECATED nullable column (SILVER-F030 ADR); NaN stays NaN.
     if "changes" not in df.columns:
         logger.debug(
-            "commodity_code=%d market_year=%d: 'changes' column absent — filling 0.0",
+            "commodity_code=%d market_year=%d: 'changes' column absent — left NULL (INV-4)",
             commodity_code, market_year,
         )
-        df["changes"] = 0.0
+        df["changes"] = float("nan")
     else:
-        null_count = df["changes"].isna().sum()
+        null_count = int(df["changes"].isna().sum())
         if null_count:
             logger.debug(
-                "commodity_code=%d market_year=%d: %d null 'changes' value(s) — filling 0.0",
+                "commodity_code=%d market_year=%d: %d null 'changes' value(s) — left NULL (INV-4)",
                 commodity_code, market_year, null_count,
             )
-        df["changes"] = df["changes"].fillna(0.0)
 
     # --- Type casts ---
     df["week_ending_date"] = pd.to_datetime(

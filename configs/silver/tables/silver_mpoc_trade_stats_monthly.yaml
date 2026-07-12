@@ -46,7 +46,7 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
-writer_schema_pinned: false
+writer_schema_pinned: true
 drift_summary: []
 natural_key:
 - year
@@ -73,10 +73,9 @@ cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#mpoc_trade_stats_monthly
 serving_table: null
 producer:
-  status: half-orphan
-  transform: null
-  batch_task: null
-  note: C-WRONG-8 orphan class; producer rebuilt in SILVER-F054
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/mpoc_trade_stats_monthly.py
+  batch_task: jobs/batch/mpoc_trade_stats_monthly_silver_task.py
 location_mode: static
 write_mode: overwrite
 fingerprint:

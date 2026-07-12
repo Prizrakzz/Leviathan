@@ -1,4 +1,10 @@
-"""AWS Batch task: CONAB coffee XLS bronze Parquet to silver Parquet."""
+"""AWS Batch task: CONAB coffee XLS bronze Parquet -> silver Parquet (SILVER-F024).
+
+Every silver object is published through the SILVER-F015 shadow-first publisher with the INV-2 arrow
+writer schema from the F010 registry contract (22-column ``silver_conab_coffee``). ``--publish-mode``
+defaults to ``dry-run`` (nothing written; the run manifest is a plan) -- a bare run can never touch
+the canonical surface (the F004 kill-switch contract).
+"""
 from __future__ import annotations
 
 import argparse
@@ -11,6 +17,9 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.flat_producer import authorize_for_contract, build_flat_publish
+from leviathan.silver.publisher import ManifestState
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import parse_hive_key, silver_conab_coffee_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys, s3_download_with_retry
 from leviathan.transforms.bronze_to_silver.conab_coffee import (
@@ -21,6 +30,8 @@ from leviathan.transforms.bronze_to_silver.conab_coffee import (
 logger = get_logger("conab_coffee_silver_task")
 
 _BRONZE_PREFIX = "bronze/production/source=conab_xls/"
+_TABLE = "silver_conab_coffee"
+_JOB = "conab_coffee_silver"
 
 
 def _parse_bool(value: str | bool) -> bool:
@@ -41,9 +52,17 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--aws-region", default=None, dest="aws_region")
     parser.add_argument("--force-overwrite", default="false")
     parser.add_argument("--years", default="all", help="Comma-separated safra years or 'all'.")
+    parser.add_argument("--publish-mode", default="dry-run",
+                        choices=["dry-run", "shadow", "canonical"], dest="publish_mode")
+    parser.add_argument("--role-arn", default="", dest="role_arn")
+    parser.add_argument("--account-id", default="", dest="account_id")
     args = parser.parse_args()
     args.force_overwrite = _parse_bool(args.force_overwrite)
     return args
+
+
+def _contract() -> dict:
+    return load_registry().table(_TABLE)
 
 
 def _target_exists(s3_client, bucket: str, key: str) -> bool:
@@ -86,30 +105,6 @@ def _read_bronze(bucket: str, aws_region: str, years: set[int] | None) -> pd.Dat
     return pd.concat(frames, ignore_index=True)
 
 
-def _write_parquet(
-    bucket: str,
-    aws_region: str,
-    key: str,
-    df: pd.DataFrame,
-    force_overwrite: bool,
-) -> str:
-    s3 = get_thread_local_s3_client(aws_region)
-    if not force_overwrite and _target_exists(s3, bucket, key):
-        logger.info("skipping existing silver partition: %s", key)
-        return "skipped"
-
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=buf.getvalue(),
-        ContentType="application/octet-stream",
-    )
-    logger.info("wrote silver partition: %s rows=%d", key, len(df))
-    return "written"
-
-
 def _validate_uniqueness(df: pd.DataFrame) -> None:
     if df.empty:
         return
@@ -120,30 +115,47 @@ def _validate_uniqueness(df: pd.DataFrame) -> None:
         raise ValueError(f"CONAB coffee silver has duplicate output rows: {preview}")
 
 
-def _write_grouped(
+def _publish_grouped(
     df: pd.DataFrame,
+    contract: dict,
+    auth,
+    s3_client,
     bucket: str,
-    aws_region: str,
     force_overwrite: bool,
 ) -> tuple[int, int]:
-    written = skipped = 0
+    """Publish one shadow-first object per (commodity, safra_year) group. Returns (published, skipped).
+
+    dry-run: the manifest reaches VALIDATED and NOTHING is written (published counts the planned
+    objects); shadow/canonical: the publisher stages/promotes per its guard verdict."""
+    published = skipped = 0
     if df.empty:
-        return written, skipped
+        return published, skipped
 
     for (commodity, safra_year), group in df.groupby(["commodity", "safra_year"], sort=True):
         key = silver_conab_coffee_key(int(safra_year), str(commodity))
-        status = _write_parquet(
-            bucket,
-            aws_region,
-            key,
-            group[OUTPUT_COLUMNS].reset_index(drop=True),
-            force_overwrite,
-        )
-        if status == "written":
-            written += 1
-        else:
+        if (
+            not force_overwrite
+            and auth.may_mutate_canonical
+            and s3_client is not None
+            and _target_exists(s3_client, bucket, key)
+        ):
+            logger.info("skipping existing silver partition: %s", key)
             skipped += 1
-    return written, skipped
+            continue
+        plan = build_flat_publish(
+            df=group[OUTPUT_COLUMNS].reset_index(drop=True),
+            contract=contract,
+            canonical_key=key,
+            auth=auth,
+            s3_client=s3_client,
+            job=_JOB,
+        )
+        manifest = plan.run()
+        if manifest.state in (ManifestState.VALIDATED, ManifestState.CERTIFIED):
+            published += 1
+        else:
+            logger.error("publish did not validate for %s: state=%s", key, manifest.state.value)
+    return published, skipped
 
 
 def main() -> None:
@@ -158,20 +170,26 @@ def main() -> None:
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
     years = _selected_years(args.years)
+    contract = _contract()
+    auth = authorize_for_contract(
+        contract, publish_mode=args.publish_mode,
+        role_arn=args.role_arn, account_id=args.account_id,
+    )
+    # dry-run stages nothing (no client needed); shadow + canonical both write to S3.
+    s3_client = None if args.publish_mode == "dry-run" else get_thread_local_s3_client(aws_region)
 
     start = datetime.now(timezone.utc)
     bronze = _read_bronze(bucket, aws_region, years)
     silver = transform_conab_coffee_bronze_to_silver(bronze)
     _validate_uniqueness(silver)
-    written, skipped = _write_grouped(silver, bucket, aws_region, args.force_overwrite)
+    published, skipped = _publish_grouped(
+        silver, contract, auth, s3_client, bucket, args.force_overwrite
+    )
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     logger.info(
-        "Done CONAB coffee silver written=%d skipped=%d rows=%d elapsed=%.1fs",
-        written,
-        skipped,
-        len(silver),
-        elapsed,
+        "Done CONAB coffee silver mode=%s published=%d skipped=%d rows=%d elapsed=%.1fs",
+        args.publish_mode, published, skipped, len(silver), elapsed,
     )
 
 

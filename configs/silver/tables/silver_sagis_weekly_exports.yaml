@@ -64,7 +64,7 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
-writer_schema_pinned: false
+writer_schema_pinned: true
 drift_summary: []
 natural_key:
 - season
@@ -94,10 +94,9 @@ cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#sagis_weekly_exports
 serving_table: null
 producer:
-  status: half-orphan
-  transform: null
-  batch_task: null
-  note: C-WRONG-8 orphan class; producer rebuilt in SILVER-F059
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/sagis_weekly_exports.py
+  batch_task: jobs/batch/sagis_weekly_exports_silver_task.py
 location_mode: static
 write_mode: overwrite
 fingerprint:

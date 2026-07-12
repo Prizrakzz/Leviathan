@@ -31,7 +31,7 @@ physical_columns:
   arrow_type: large_string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
-  nullable: false
+  nullable: true
 - name: country_code
   glue_type: smallint
   arrow_type: int16
@@ -68,6 +68,7 @@ physical_columns:
   parquet_physical_type: FLOAT
   target_arrow_type: float64
   nullable: true
+  deprecated: true
 - name: source_unit_id
   glue_type: smallint
   arrow_type: int16
@@ -125,11 +126,15 @@ drift_summary:
   target: int64
   owner_package: SILVER-F031
 natural_key:
-- commodity_name
+- commodity_code
+- market_year
+- as_of_date
 - country_code
 - week_ending_date
 required_nonnull:
-- commodity_name
+- commodity_code
+- market_year
+- as_of_date
 - country_code
 - week_ending_date
 value_columns:
@@ -155,7 +160,7 @@ serving_table: silver_esr_compact
 producer:
   status: producer
   transform: src/leviathan/transforms/bronze_to_silver/usda_esr.py
-  batch_task: jobs/batch/bronze_to_silver_esr_task.py
+  batch_task: jobs/ingest/backfill_silver_usda_esr.py
 location_mode: static
 write_mode: registered-partition
 fingerprint:
@@ -172,4 +177,12 @@ provenance:
   generated_from: reports/silver_readiness/20260712_p65impl/tables/silver_esr.json
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
-  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.'
+  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.
+  SILVER-F030 ESR ADR (frozen): changes_1000mt is DEPRECATED + nullable -- an absent source revision stays
+  NULL, never 0.0 (INV-4). market_year is stored as the FAS START year; the ending-year label = market_year+1
+  (numbers period_offset:+1). The ESR partition set carries USDA GROUPINGS (all_wheat=107, grain_sorghum=701,
+  white_wheat=104) that are NOT contract slugs -> the esr_exports cascade leg fires only for the 7 slug
+  commodities (corn_cbot, soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, hard_red_winter_wheat_kcbt,
+  soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). Target additive net-commitment columns (accumulated_exports_1000mt,
+  current_my_net_sales_1000mt, current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt, next_my_net_sales_1000mt)
+  are specified for BF-W2 (see reports/silver_readiness/R2_esr/).'
