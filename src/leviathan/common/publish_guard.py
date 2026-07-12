@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -86,6 +87,7 @@ ENV_PUBLISH_MODE = "LEVIATHAN_PUBLISH_MODE"
 ENV_READINESS = "LEVIATHAN_READINESS"
 ENV_ROLE_ARN = "LEVIATHAN_ROLE_ARN"
 ENV_APPROVAL_SECRET = "LEVIATHAN_APPROVAL_SECRET"
+ENV_APPROVAL_JSON = "LEVIATHAN_APPROVAL_JSON"
 
 # A role ARN (the caller's, or one declared in the environment) is a *readiness* identity when it
 # matches this pattern. Readiness identities can never select canonical (deny-first, INV acceptance).
@@ -429,6 +431,30 @@ def verify_approval(
         raise ApprovalError(f"approval expired at {approval.expiry} (now {now.isoformat()})")
 
 
+def load_approval_from_env(env: Optional[Mapping[str, str]] = None) -> Optional[PublishApproval]:
+    """Deserialize a :class:`PublishApproval` from ``LEVIATHAN_APPROVAL_JSON``.
+
+    This is the containerOverrides seam (BF-W1): a Batch task has no filesystem or argv channel
+    for the approval artifact, so the orchestrator threads the signed approval as a JSON env var
+    and the verifying process still holds ``LEVIATHAN_APPROVAL_SECRET`` separately. Absent/blank
+    returns ``None`` (canonical then fails closed exactly as before); a PRESENT but malformed
+    value raises :class:`ApprovalError` -- a garbled approval must never silently degrade into
+    "no approval was provided"."""
+    env = os.environ if env is None else env
+    raw = (env.get(ENV_APPROVAL_JSON) or "").strip()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise TypeError(f"expected a JSON object, got {type(data).__name__}")
+        return PublishApproval(**data)
+    except (ValueError, TypeError) as exc:
+        raise ApprovalError(
+            f"{ENV_APPROVAL_JSON} is present but not a valid approval artifact: {exc}"
+        ) from exc
+
+
 # ---------------------------------------------------------------------------
 # The one entry point writers call.
 # ---------------------------------------------------------------------------
@@ -476,6 +502,8 @@ def authorize_publish(
 
     # mode is CANONICAL and caller is not a readiness identity.
     check_environment(target, environment)  # raises EnvironmentMismatch before any mutation
+    if approval is None:
+        approval = load_approval_from_env(env)
     if approval is None:
         raise ApprovalError(
             "canonical publish requires a signed approval artifact "

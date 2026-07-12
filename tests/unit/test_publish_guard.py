@@ -27,6 +27,7 @@ from leviathan.common.publish_guard import (
     is_readiness_context,
     resolve_publish_mode,
     sign_approval,
+    load_approval_from_env,
     verify_approval,
 )
 
@@ -279,3 +280,69 @@ def test_prod_environment_matches_live_catalog_identity() -> None:
     assert PROD_ENVIRONMENT.account_id == "668891723125"
     assert PROD_ENVIRONMENT.bucket == "leviathan-dev-shahem-001"
     assert PROD_ENVIRONMENT.database == "leviathan_dev"
+
+
+# ---------------------------------------------------------------------------
+# (5) the LEVIATHAN_APPROVAL_JSON containerOverrides seam (BF-W1 loader).
+# ---------------------------------------------------------------------------
+def _approval_json(**over: object) -> str:
+    import dataclasses
+    import json as _json
+
+    return _json.dumps(dataclasses.asdict(_valid_approval(**over)))
+
+
+def test_load_approval_from_env_absent_is_none() -> None:
+    assert load_approval_from_env({}) is None
+    assert load_approval_from_env({"LEVIATHAN_APPROVAL_JSON": "   "}) is None
+
+
+def test_load_approval_from_env_malformed_raises_not_none() -> None:
+    # a garbled approval must never degrade into "no approval was provided"
+    for bad in ('{"table": ', '"just-a-string"', '["a","list"]', '{"unknown_field": 1}'):
+        with pytest.raises(ApprovalError):
+            load_approval_from_env({"LEVIATHAN_APPROVAL_JSON": bad})
+
+
+def test_canonical_via_env_json_is_authorized_end_to_end() -> None:
+    auth = authorize_publish(
+        _good_target(),
+        argv=["compact_weather_silver_task.py", "--publish-mode", "canonical"],
+        env={"LEVIATHAN_APPROVAL_JSON": _approval_json()},
+        secret=_SECRET,
+    )
+    assert auth.may_mutate_canonical is True
+    assert auth.mode is PublishMode.CANONICAL
+
+
+def test_canonical_via_env_json_wrong_table_is_rejected() -> None:
+    with pytest.raises(ApprovalError):
+        authorize_publish(
+            _good_target(),  # table=silver_model_predictions
+            argv=["task.py", "--publish-mode", "canonical"],
+            env={"LEVIATHAN_APPROVAL_JSON": _approval_json(table="silver_chirps")},
+            secret=_SECRET,
+        )
+
+
+def test_canonical_via_env_json_expired_is_rejected() -> None:
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    with pytest.raises(ApprovalError):
+        authorize_publish(
+            _good_target(),
+            argv=["task.py", "--publish-mode", "canonical"],
+            env={"LEVIATHAN_APPROVAL_JSON": _approval_json(expiry=stale)},
+            secret=_SECRET,
+        )
+
+
+def test_dry_run_never_parses_the_env_approval() -> None:
+    # non-canonical modes return before the loader runs, so garbage is harmless there
+    auth = authorize_publish(
+        _good_target(),
+        argv=["task.py"],
+        env={"LEVIATHAN_APPROVAL_JSON": "{definitely-not-json"},
+        secret=_SECRET,
+    )
+    assert auth.mode is PublishMode.DRY_RUN
+    assert auth.may_mutate_canonical is False
