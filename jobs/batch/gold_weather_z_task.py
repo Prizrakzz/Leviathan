@@ -39,12 +39,32 @@ from leviathan.storage.s3 import (
     list_s3_keys,
     s3_download_with_retry,
 )
-from leviathan.transforms.gold.weather_z import compute_weather_z
+from leviathan.transforms.gold.weather_z import _PRECIP, _TMAX, _TMIN, compute_weather_z
 
 logger = get_logger("gold_weather_z")
 
 _SILVER_WEATHER = "silver/weather"
 _WORKERS = 32
+
+# The silver weather parquet is WIDE (one row per day; temperature_2m_max_c etc. as columns), but the
+# compute core consumes the melted LONG shape [country, region, year, month, day, variable, value]
+# (weather_z._slice keys on the `variable` column). Melt exactly the variables the core reads -- imported
+# from the core so the two can never drift. This seam caused the 2026-07-12 run-1 silent no-op (31/31
+# commodities "0 gold rows": every wide frame failed the variable-column guard, misread as thin history).
+_MELT_VARS = (_TMAX, _TMIN, _PRECIP)
+_MELT_IDS = ["country", "region", "year", "month", "day"]
+
+
+def _to_long(wide: pd.DataFrame) -> pd.DataFrame | None:
+    """Melt the wide silver frame to the core's long shape; None when nothing meltable."""
+    value_vars = [c for c in _MELT_VARS if c in wide.columns]
+    ids = [c for c in _MELT_IDS if c in wide.columns]
+    if not value_vars or len(ids) != len(_MELT_IDS):
+        logger.error("unexpected silver schema: ids=%s value_vars=%s cols=%s",
+                     ids, value_vars, sorted(wide.columns)[:20])
+        return None
+    out = wide.melt(id_vars=ids, value_vars=value_vars, var_name="variable", value_name="value")
+    return out if not out.empty else None
 
 
 def _source_prefix(source: str, commodity: str) -> str:
@@ -88,7 +108,7 @@ def _read_long(bucket: str, source: str, commodity: str, aws_region: str) -> pd.
                 frames.append(df)
     if not frames:
         return None
-    return pd.concat(frames, ignore_index=True)
+    return _to_long(pd.concat(frames, ignore_index=True))
 
 
 def _process_commodity(bucket: str, commodity: str, aws_region: str, force_overwrite: bool) -> int:

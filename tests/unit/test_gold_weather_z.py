@@ -246,3 +246,47 @@ def test_apply_pit_filter_excludes_future_month() -> None:
     ]
     kept = apply_pit_filter(rows, spec, ts)
     assert [r["month"] for r in kept] == [5]
+
+
+# ── the wide->long task seam (locks the 2026-07-12 run-1 silent no-op) ──────────────────────────────────
+
+def test_task_melt_real_wide_schema_produces_gold_rows() -> None:
+    """The Batch task's _to_long melts the REAL silver wide schema (one row per day; the exact column
+    names probed from silver/weather on 2026-07-12) into the core's long shape, and compute_weather_z
+    then emits rows -- the integration seam whose absence made run 1 a 31/31-commodity silent no-op."""
+    from jobs.batch.gold_weather_z_task import _to_long
+
+    frames = []
+    for year in range(2000, 2012):
+        for month in (1, 7):
+            n = 28
+            frames.append(pd.DataFrame({
+                "date": [f"{year}-{month:02d}-{d:02d}" for d in range(1, n + 1)],
+                "year": year, "month": month, "day": list(range(1, n + 1)),
+                "country": "argentina", "region": "ar_corn_buenos_aires",
+                "source": "nasa_power", "ingest_date": "2026-05-13",
+                "source_file_name": "syn.json",
+                "temperature_2m_mean_c": 22.0,
+                "temperature_2m_max_c": [30.0 + (d % 5) + year % 3 for d in range(1, n + 1)],
+                "temperature_2m_min_c": [12.0 + (d % 4) for d in range(1, n + 1)],
+                "precipitation_mm": [0.0 if d % 6 else 4.0 for d in range(1, n + 1)],
+                "relative_humidity_2m_pct": 50.0, "wind_speed_2m_m_s": 2.0,
+            }))
+    wide = pd.concat(frames, ignore_index=True)
+
+    long_df = _to_long(wide)
+    assert long_df is not None and not long_df.empty
+    assert set(long_df.columns) == {"country", "region", "year", "month", "day", "variable", "value"}
+    assert set(long_df["variable"].unique()) == {_TMAX, _TMIN, _PRECIP}
+
+    gold = compute_weather_z("corn_cbot", nasa_power=long_df, chirps=long_df,
+                             window_years=WIN, min_years=MIN)
+    assert not gold.empty, "real-schema melt must yield gold rows (the run-1 failure mode)"
+    assert (gold["country"] == "Argentina").all()          # PSD Title-Case surface form
+    assert set(gold["metric"]).issubset(set(ALL_METRICS))
+
+
+def test_task_melt_rejects_unknown_schema() -> None:
+    from jobs.batch.gold_weather_z_task import _to_long
+    bad = pd.DataFrame({"foo": [1], "bar": [2]})
+    assert _to_long(bad) is None
