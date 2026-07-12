@@ -33,10 +33,52 @@ from leviathan.storage.dead_letter import write_dead_letter
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
     list_s3_keys,
+    list_s3_keys_with_mtime,
     s3_download_with_retry,
 )
 
 logger = get_logger(__name__)
+
+
+def select_partitions_to_write(
+    partitions: list[tuple[dict, "pd.DataFrame"]],
+    existing_silver_mtimes: dict,
+    bronze_max_mtime,
+    silver_key_fn,
+) -> tuple[list[tuple[dict, "pd.DataFrame"]], int, list[str]]:
+    """SILVER-V002 freshness-aware skip-existing selection.
+
+    Returns ``(to_write, skipped_fresh, stale_refreshed_keys)``.
+
+    A silver partition is written when EITHER its object does not exist yet, OR the
+    newest bronze object is newer than the existing silver object (``silver_mtime <
+    bronze_max_mtime``). This closes the CHIRPS stale-silver hazard: the previous
+    ``base_jobs.py:338-356`` skip-existing declined to refresh a partition whose bronze
+    had since been re-ingested (silver 2026-05-16 vs bronze 2026-06-16), silently
+    shipping stale silver. An existing silver object at or newer than every bronze
+    object is still skipped, so a benign no-op rerun stays a no-op (AV-12).
+
+    This helper is pure (no AWS) so the freshness logic is unit-tested directly.
+    """
+    to_write: list[tuple[dict, "pd.DataFrame"]] = []
+    skipped_fresh = 0
+    stale_refreshed: list[str] = []
+    for key_dict, part_df in partitions:
+        silver_key = silver_key_fn(key_dict)
+        if silver_key not in existing_silver_mtimes:
+            to_write.append((key_dict, part_df))
+            continue
+        silver_mtime = existing_silver_mtimes.get(silver_key)
+        if (
+            bronze_max_mtime is not None
+            and silver_mtime is not None
+            and silver_mtime < bronze_max_mtime
+        ):
+            to_write.append((key_dict, part_df))
+            stale_refreshed.append(silver_key)
+        else:
+            skipped_fresh += 1
+    return to_write, skipped_fresh, stale_refreshed
 
 # awsglue is only available inside AWS Glue Python Shell; guard the import so
 # the wheel remains importable locally (tests, notebooks, etc.).
@@ -263,10 +305,12 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        # 1. List bronze files
-        bronze_keys = list_s3_keys(
+        # 1. List bronze files (with mtimes for the SILVER-V002 freshness contract).
+        bronze_objects = list_s3_keys_with_mtime(
             self.bucket, self.bronze_prefix(), suffix=".parquet", aws_region=self.aws_region
         )
+        bronze_keys = sorted(bronze_objects)
+        self._bronze_max_mtime = max(bronze_objects.values()) if bronze_objects else None
         logger.info(
             "Found %d bronze files for commodity=%s source=%s",
             len(bronze_keys), self.commodity, self.source,
@@ -336,20 +380,32 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
         logger.info("Total silver partitions: %d", len(partitions))
 
         if not self.force_overwrite:
-            existing = set(
-                list_s3_keys(
-                    self.bucket, self.silver_prefix(), suffix=".parquet", aws_region=self.aws_region
-                )
+            existing_mtimes = list_s3_keys_with_mtime(
+                self.bucket, self.silver_prefix(), suffix=".parquet", aws_region=self.aws_region
             )
             before = len(partitions)
-            partitions = [
-                (kd, pdf) for kd, pdf in partitions
-                if self._silver_key(kd) not in existing
-            ]
-            logger.info(
-                "Skipping %d existing silver partitions. Writing %d new.",
-                before - len(partitions), len(partitions),
+            partitions, skipped_fresh, stale_refreshed = select_partitions_to_write(
+                partitions,
+                existing_mtimes,
+                getattr(self, "_bronze_max_mtime", None),
+                self._silver_key,
             )
+            logger.info(
+                "Skipping %d fresh silver partitions. Writing %d (%d new + %d stale-refresh; "
+                "SILVER-V002 freshness).",
+                skipped_fresh,
+                len(partitions),
+                len(partitions) - len(stale_refreshed),
+                len(stale_refreshed),
+            )
+            if stale_refreshed:
+                logger.warning(
+                    "Refreshing %d silver partitions whose bronze is newer (was silently declined "
+                    "pre-V002): %s%s",
+                    len(stale_refreshed),
+                    ", ".join(stale_refreshed[:5]),
+                    " ..." if len(stale_refreshed) > 5 else "",
+                )
 
         if not partitions:
             logger.info("All silver partitions already exist — nothing to write.")

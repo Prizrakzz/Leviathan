@@ -73,6 +73,10 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Mapping, Optional, Sequence
 
+from leviathan.common.constants import (
+    SILVER_PUBLISHER_ROLE_NAME,
+    SILVER_VALIDATOR_ROLE_NAME,
+)
 from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
@@ -134,20 +138,40 @@ class PublishEnvironment:
     role_arn_pattern: str  # regex a canonical publisher's role ARN must fully match
 
 
+# The one canonical production account (used to build the role-ARN pattern below).
+PROD_ACCOUNT_ID = "668891723125"
+
+
+def _prod_role_arn_pattern(account_id: str) -> str:
+    """Build the canonical-publisher role-ARN regex.
+
+    The dedicated silver **publisher** role (SILVER-F014) is sourced from
+    :data:`leviathan.common.constants.SILVER_PUBLISHER_ROLE_NAME` -- the single
+    source of truth the Terraform ``modules/iam`` role name is built from -- so
+    the name is never duplicated as a bare string literal here. The legacy
+    ``sagemaker-training`` / ``batch-*`` / ``glue-*`` families stay recognised for
+    backward compatibility (their canonical writes still require a signed
+    approval); the read-only **validator** role is deliberately EXCLUDED and is
+    additionally denied deny-first via :func:`_is_readiness_role`.
+    """
+    publisher = re.escape(SILVER_PUBLISHER_ROLE_NAME)  # leviathan-dev-silver-publisher
+    return (
+        rf"^arn:aws:iam::{account_id}:"
+        rf"(role/(leviathan-dev-(sagemaker-training|batch-[a-z0-9-]+|glue-[a-z0-9-]+)|{publisher})"
+        rf"|assumed-role/leviathan-dev-[a-z0-9-]+/.+)$"
+    )
+
+
 # The one canonical production environment (account/bucket/database from the live catalog + DDL).
 # A canonical publisher must run in this account, against this bucket + Glue database, write under an
 # allow-listed prefix, and assume a role whose ARN matches the pattern. Anything else fails closed.
 PROD_ENVIRONMENT = PublishEnvironment(
     name="leviathan_dev",
-    account_id="668891723125",
+    account_id=PROD_ACCOUNT_ID,
     bucket="leviathan-dev-shahem-001",
     database="leviathan_dev",
     prefix_allowlist=("silver/", "gold/"),
-    role_arn_pattern=(
-        r"^arn:aws:iam::668891723125:"
-        r"(role/leviathan-dev-(sagemaker-training|batch-[a-z0-9-]+|glue-[a-z0-9-]+)"
-        r"|assumed-role/leviathan-dev-[a-z0-9-]+/.+)$"
-    ),
+    role_arn_pattern=_prod_role_arn_pattern(PROD_ACCOUNT_ID),
 )
 
 
@@ -243,7 +267,14 @@ def _truthy(value: Optional[str]) -> bool:
 
 
 def _is_readiness_role(role_arn: Optional[str]) -> bool:
-    return bool(role_arn) and READINESS_ROLE_PATTERN.search(role_arn or "") is not None
+    if not role_arn:
+        return False
+    if READINESS_ROLE_PATTERN.search(role_arn) is not None:
+        return True
+    # The read-only silver validator (SILVER-F014) can never publish canonical: treat it
+    # deny-first like a readiness identity so even an assumed-role session of it is refused
+    # BEFORE the environment check (the broad assumed-role/ branch would otherwise admit it).
+    return SILVER_VALIDATOR_ROLE_NAME in role_arn
 
 
 def is_readiness_context(

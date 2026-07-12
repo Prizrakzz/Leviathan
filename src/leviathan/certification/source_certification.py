@@ -54,7 +54,15 @@ class SourceContract:
 
 @dataclass(frozen=True)
 class SourceObservation:
-    """Observed state for a source, normally collected from S3, Glue, and Athena."""
+    """Observed state for a source, normally collected from S3, Glue, and Athena.
+
+    SILVER-V002 adds the value/freshness fields (C-ADD-1/2). ``value_nonnull_fractions``
+    and ``min_nonnull_frac`` are resolved FROM the F010 silver registry (the single
+    ``value_columns`` / ``min_nonnull_frac`` authority, Attack 3 finding #6) by the
+    collector and populated here; the certification logic only consumes them.
+    ``silver_ingest_date`` / ``bronze_ingest_date`` are the max ingest_date observed
+    in each layer (ISO ``YYYY-MM-DD``), for the freshness contract.
+    """
 
     s3_prefix_exists: bool | None = None
     glue_table_exists: bool | None = None
@@ -68,6 +76,11 @@ class SourceObservation:
     athena_query_ids: tuple[str, ...] = ()
     athena_error: str | None = None
     notes: tuple[str, ...] = ()
+    # SILVER-V002: value-nonnull (from the registry) + freshness fields.
+    value_nonnull_fractions: dict[str, float] | None = None
+    min_nonnull_frac: float | None = None
+    silver_ingest_date: str | None = None
+    bronze_ingest_date: str | None = None
 
     @property
     def available_columns(self) -> set[str]:
@@ -396,6 +409,56 @@ def certify_contract(
     else:
         checks["duplicate_keys"] = "pass"
 
+    # SILVER-V002: value-nonnull check (registry value_columns + min_nonnull_frac).
+    # Runs on EVERY source. When the collector supplies no fractions the check is
+    # "not_checked" (a warning), never a silent pass -- an all-NaN column (CHIRPS)
+    # populates a fraction of 0.0 and fails hard.
+    if observation.value_nonnull_fractions is None:
+        checks["value_nonnull"] = "not_checked"
+        warnings.append(
+            _issue("value_nonnull_not_checked", "value non-null fractions were not observed")
+        )
+    else:
+        floor = observation.min_nonnull_frac
+        if floor is None:
+            checks["value_nonnull"] = "not_declared"
+            warnings.append(
+                _issue("min_nonnull_frac_not_declared", "no min_nonnull_frac in the silver registry")
+            )
+        else:
+            below = {
+                col: round(frac, 4)
+                for col, frac in observation.value_nonnull_fractions.items()
+                if frac < floor
+            }
+            if below:
+                checks["value_nonnull"] = "fail"
+                add_issue(
+                    "value_nonnull_below_floor",
+                    f"value columns below min_nonnull_frac {floor}: {below}",
+                )
+            else:
+                checks["value_nonnull"] = "pass"
+
+    # SILVER-V002: freshness contract -- silver ingest_date >= bronze ingest_date.
+    # A benign bronze re-ingest that keeps silver >= bronze does NOT misfire (AV-12);
+    # the CHIRPS stale-silver (silver 2026-05-16 < bronze 2026-06-16) fails hard.
+    if observation.silver_ingest_date is not None and observation.bronze_ingest_date is not None:
+        if observation.silver_ingest_date < observation.bronze_ingest_date:
+            checks["freshness"] = "fail"
+            add_issue(
+                "stale_silver",
+                f"silver ingest_date {observation.silver_ingest_date} < bronze ingest_date "
+                f"{observation.bronze_ingest_date} (skip-existing declined a newer bronze)",
+            )
+        else:
+            checks["freshness"] = "pass"
+    elif observation.silver_ingest_date is not None or observation.bronze_ingest_date is not None:
+        checks["freshness"] = "not_checked"
+        warnings.append(
+            _issue("freshness_not_checked", "only one of silver/bronze ingest_date was observed")
+        )
+
     if contract.limitation:
         warnings.append(_issue("known_limitation", contract.limitation))
 
@@ -470,6 +533,75 @@ def feature_source_coverage(
         "unused_contract_sources": sorted(contract_set - feature_set),
         "families_by_missing_source": families_by_missing_source,
     }
+
+
+# ---------------------------------------------------------------------------
+# SILVER-V002: producer-coverage contract (C-WRONG-8).
+# ---------------------------------------------------------------------------
+# Every source_contracts entry with status in {core, certified_driver} must have a
+# discoverable producer chain (fetcher + transform + jobdef). The F010 silver
+# registry's ``producer.status`` is the authority for that discoverability:
+#   * "producer"     -> full chain present (fetcher + transform + batch task)
+#   * "half-orphan"  -> fetcher exists but no tracked bronze->silver transform/jobdef
+#   * "orphan"       -> nothing in the tracked estate
+# Anything other than "producer" is a coverage GAP. The set below is the CURRENT,
+# expected gap -- each entry pinned to the R3 package that builds it. The
+# producer-coverage test asserts the live gap equals this set exactly (xfail-style):
+# it stays "red" until R3 lands, and turns green ONLY when a package removes its row.
+PRODUCER_STATUS_COVERED = "producer"
+
+EXPECTED_PRODUCER_GAPS: dict[str, str] = {
+    # source_key : owning R3 package that builds the producer
+    "fred_fx": "SILVER-F040",               # full orphan (build from scratch)
+    "oni": "SILVER-F057",                   # full orphan (build from scratch)
+    "ams_cotton_quality": "SILVER-F050",    # half orphan (restore b2s)
+    "icco_cocoa": "SILVER-F051",            # half orphan (restore b2s)
+    "nass_citrus": "SILVER-F056",           # half orphan (restore b2s)
+    "sagis_deliveries": "SILVER-F042",      # half orphan (restore b2s)
+    "sagis_cec": "SILVER-F058",             # half orphan (restore b2s)
+    "sagis_weekly_exports": "SILVER-F059",  # half orphan (restore b2s)
+}
+
+
+def producer_coverage_gaps(
+    contracts: tuple[SourceContract, ...],
+    producer_status_by_table: dict[str, str | None],
+) -> list[dict[str, str | None]]:
+    """Return the ordered coverage gaps: every core/certified_driver contract whose
+    resolved silver table lacks a fully-discoverable producer chain.
+
+    ``producer_status_by_table`` maps ``glue_table -> registry producer.status`` and
+    is supplied by the caller (resolved from the F010 registry) so this function stays
+    pure and testable without loading the registry.
+    """
+    gaps: list[dict[str, str | None]] = []
+    for contract in contracts:
+        if not contract.is_core_like:
+            continue
+        status = producer_status_by_table.get(contract.glue_table or "")
+        if status != PRODUCER_STATUS_COVERED:
+            gaps.append(
+                {
+                    "source_key": contract.source_key,
+                    "glue_table": contract.glue_table,
+                    "producer_status": status,
+                    "r3_package": EXPECTED_PRODUCER_GAPS.get(contract.source_key),
+                }
+            )
+    return gaps
+
+
+def producer_status_from_registry(registry: Any) -> dict[str, str | None]:
+    """Map ``glue_table -> producer.status`` from a loaded F010 :class:`SilverRegistry`.
+
+    Kept out of :func:`producer_coverage_gaps` so the gap logic has no registry-loader
+    dependency (the registry is AWS-free but importing it into every certification run
+    is unnecessary coupling)."""
+    out: dict[str, str | None] = {}
+    for name in registry.names():
+        producer = (registry.table(name).get("producer") or {})
+        out[name] = producer.get("status")
+    return out
 
 
 def build_report(

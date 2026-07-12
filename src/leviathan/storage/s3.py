@@ -16,6 +16,8 @@ from botocore.exceptions import BotoCoreError, ClientError
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
 
 if TYPE_CHECKING:
+    from datetime import datetime  # noqa: F401 -- forward ref for list_s3_keys_with_mtime
+
     from mypy_boto3_s3 import S3Client
 
 # ---------------------------------------------------------------------------
@@ -94,6 +96,29 @@ def list_s3_keys(
                 keys.append(key)
 
     return keys
+
+
+def list_s3_keys_with_mtime(
+    bucket: str,
+    prefix: str,
+    suffix: str = "",
+    aws_region: str = "us-east-1",
+) -> dict[str, "datetime"]:
+    """Return ``{key: LastModified}`` for objects under *prefix* ending in *suffix*.
+
+    Used by the SILVER-V002 freshness-aware skip-existing check so the bronze->silver
+    runner never silently declines to refresh a silver partition whose bronze source
+    is newer (the CHIRPS stale-silver hazard, base_jobs.py:338-356)."""
+    s3 = boto3.client("s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG)
+    paginator = s3.get_paginator("list_objects_v2")
+
+    out: dict[str, "datetime"] = {}
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if not suffix or key.endswith(suffix):
+                out[key] = obj["LastModified"]
+    return out
 
 
 def download_s3_json(

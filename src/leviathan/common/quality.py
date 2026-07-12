@@ -58,6 +58,30 @@ SILVER_VARIABLE_RANGES: dict[str, tuple[float | None, float | None]] = {
     "yield":                     (0.0,     None),
 }
 
+# SILVER-V002: value-range checks extended to the FLAT (non-weather-long) sources.
+# Keyed by physical column name (these tables are wide, not the weather long format).
+# ``None`` on a bound means "unbounded on that side". Conservative economic ranges;
+# a violation is a soft WARNING (a range check never hard-blocks -- the value_nonnull
+# floor is the hard gate), mirroring SILVER_VARIABLE_RANGES semantics.
+FLAT_SOURCE_VALUE_RANGES: dict[str, tuple[float | None, float | None]] = {
+    # PSD balance-sheet measures (physical units)
+    "production_mt":         (0.0, None),
+    "exports_mt":            (0.0, None),
+    "imports_mt":            (0.0, None),
+    "beginning_stocks_mt":   (0.0, None),
+    "ending_stocks_mt":      (0.0, None),
+    "consumption_mt":        (0.0, None),
+    "area_harvested_1000ha": (0.0, None),
+    "yield_mt_ha":           (0.0, None),
+    "su_ratio":              (0.0, None),
+    # FX (spot rates; strictly positive, generous ceiling for weak currencies)
+    "brl_usd":               (0.0, 100000.0),
+    "ars_usd":               (0.0, 100000.0),
+    "cny_usd":               (0.0, 100000.0),
+    # WASDE modern measure
+    "estimate":              (None, None),
+}
+
 # Columns that must have zero null values in any silver partition.
 SILVER_REQUIRED_NON_NULL: list[str] = [
     "date", "country", "commodity", "source", "variable", "value",
@@ -169,6 +193,77 @@ def check_expected_entities(
         return []
     present = set(df["country"].dropna().unique())
     return [c for c in expected_countries if c not in present]
+
+
+# ---------------------------------------------------------------------------
+# SILVER-V002 helpers: value-nonnull floor + flat-source range checks + freshness
+# ---------------------------------------------------------------------------
+
+def check_value_nonnull(
+    df: pd.DataFrame,
+    value_columns: list[str],
+    min_nonnull_frac: float,
+) -> dict[str, float]:
+    """Return ``{column: nonnull_fraction}`` for value columns below the floor.
+
+    A float NaN counts as missing (``pandas`` treats it as NA). An all-NaN column
+    yields fraction 0.0 and is always returned. Columns absent from *df* are ignored
+    (a schema check catches those). This is the DataFrame-side companion to the
+    footer-based SILVER-V001 census -- both key off the F010 registry
+    ``value_columns`` / ``min_nonnull_frac`` (the single authority)."""
+    below: dict[str, float] = {}
+    n = len(df)
+    if n == 0:
+        return below
+    for col in value_columns:
+        if col not in df.columns:
+            continue
+        frac = float(df[col].notna().sum()) / n
+        if frac < min_nonnull_frac:
+            below[col] = frac
+    return below
+
+
+def check_flat_value_ranges(df: pd.DataFrame) -> dict[str, RangeViolation]:
+    """Range check for the FLAT (wide) silver sources, keyed by physical column name.
+
+    Mirrors :func:`check_value_ranges` (the weather-long variant) for the flat sources
+    using :data:`FLAT_SOURCE_VALUE_RANGES`. Only columns present in *df* with at least
+    one out-of-range value are returned. A range violation is a soft WARNING."""
+    violations: dict[str, RangeViolation] = {}
+    for col, (low, high) in FLAT_SOURCE_VALUE_RANGES.items():
+        if col not in df.columns:
+            continue
+        subset = df[col].dropna()
+        if subset.empty:
+            continue
+        mask = pd.Series(True, index=subset.index)
+        if low is not None:
+            mask &= subset >= low
+        if high is not None:
+            mask &= subset <= high
+        out_of_range = int((~mask).sum())
+        if out_of_range > 0:
+            violations[col] = {
+                "out_of_range_count": out_of_range,
+                "observed_min": float(subset.min()),
+                "observed_max": float(subset.max()),
+                "expected_min": low,
+                "expected_max": high,
+            }
+    return violations
+
+
+def check_freshness(silver_ingest_date: str | None, bronze_ingest_date: str | None) -> bool:
+    """SILVER-V002 freshness contract: True when silver is at least as fresh as bronze.
+
+    ISO ``YYYY-MM-DD`` strings compare lexically. Returns True when either side is
+    unknown (the freshness contract is not evaluable, not a failure) OR when
+    ``silver_ingest_date >= bronze_ingest_date``. Returns False only for a provable
+    stale-silver (silver strictly older than bronze) -- the CHIRPS class."""
+    if not silver_ingest_date or not bronze_ingest_date:
+        return True
+    return silver_ingest_date >= bronze_ingest_date
 
 
 # ---------------------------------------------------------------------------

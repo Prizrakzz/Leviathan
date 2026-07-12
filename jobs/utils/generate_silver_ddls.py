@@ -1,26 +1,39 @@
-"""Generate Athena DDLs for silver/gold S3 layers from their actual parquet schema.
+"""DEPRECATED (SILVER-F011): legacy first-parquet Athena DDL generator -- constrained, not the
+authority.
 
-Emits one ``CREATE EXTERNAL TABLE`` per source into ``sql/athena/ddl/``.  Tables
-are flat (no PARTITIONED BY): every source's hive partition keys are also stored
-in-file (or are redundant with ``leviathan_slug``), so Athena reads the prefix
-recursively and the partition columns appear as regular columns.  This trades
-partition pruning for zero projection boilerplate — fine for reference /
-inspection tables (the ML path reads the parquet directly, not via Athena).
+The registry-driven generator ``scripts/silver/generate_ddls_from_registry.py`` (rendering via
+``leviathan.silver.ddl`` from the SILVER-F010 registry) is now the sole DDL authority. This script
+inferred a table's schema from the FIRST parquet object under a prefix and emitted a FLAT
+(no ``PARTITIONED BY``) DDL. That first-file inference is exactly the hazard F011 retires: a flat
+first-file-derived DDL applied over a PROJECTED or REGISTERED table (e.g. ``silver_nass_crop_progress``
+is projected; ``silver_esr``/``silver_wasde`` are registered) would strip the partition projection /
+registered partitions and re-open the Jul-2026 S3 LIST-storm surface.
 
-    python jobs/utils/generate_silver_ddls.py            # write all
-    python jobs/utils/generate_silver_ddls.py --create   # also CREATE in Athena
+This module is kept only for the handful of legacy gold ML inspection tables the F010 registry does
+NOT cover. It is now HARD-CONSTRAINED:
+
+* it REFUSES to emit a DDL for any table the SILVER-F010 registry marks ``projected`` or
+  ``registered`` -- it can never flatten one (:func:`_protected_tables`);
+* writing requires an explicit ``--write`` (a bare run no longer clobbers ``sql/athena/ddl/``);
+* prefer the registry generator for everything it covers.
+
+    python jobs/utils/generate_silver_ddls.py            # dry-run: report what it WOULD do
+    python jobs/utils/generate_silver_ddls.py --write    # write the (flat-only) legacy DDLs
+    python jobs/utils/generate_silver_ddls.py --write --create   # also CREATE in Athena
 """
 from __future__ import annotations
 
 import argparse
 import io
+import sys
 from pathlib import Path
 
 import boto3
 import pyarrow.parquet as pq
 
 _BUCKET = "leviathan-dev-shahem-001"
-_DDL_DIR = Path(__file__).resolve().parents[2] / "sql" / "athena" / "ddl"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DDL_DIR = _REPO_ROOT / "sql" / "athena" / "ddl"
 
 # table_name -> s3 prefix.  Only sources without a hand-written DDL.
 _SOURCES = {
@@ -100,32 +113,70 @@ def _ddl_for(s3, table: str, prefix: str) -> str | None:
     )
 
 
+def _protected_tables() -> dict[str, str]:
+    """``{table: partition_mode}`` for every SILVER-F010 table that is NOT flat.
+
+    A first-file-derived flat DDL must never be written for one of these (F011 step 4). AWS-free.
+    Returns ``{}`` if the registry cannot be imported, so the legacy path still refuses nothing it
+    used to serve -- but the in-list guard below is belt-and-suspenders on top.
+    """
+    try:
+        sys.path.insert(0, str(_REPO_ROOT / "src"))
+        from leviathan.silver.registry import load_registry
+    except Exception:
+        return {}
+    reg = load_registry()
+    return {
+        name: reg.table(name)["partition_mode"]
+        for name in reg.names()
+        if reg.table(name)["partition_mode"] != "flat"
+    }
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="DEPRECATED legacy DDL generator; see module docstring.")
+    ap.add_argument("--write", action="store_true", help="actually write the DDL files (else dry-run)")
     ap.add_argument("--create", action="store_true", help="also CREATE the tables in Athena")
     args = ap.parse_args()
 
+    print("DEPRECATED: prefer scripts/silver/generate_ddls_from_registry.py (SILVER-F011).")
+    protected = _protected_tables()
+
+    # HARD GUARD (F011 step 4): a projected/registered table can never be flattened here.
+    refused = sorted(t for t in _SOURCES if t in protected)
+    for t in refused:
+        print(f"  REFUSED {t}: registry marks it '{protected[t]}'; use the registry generator "
+              f"(never a flat first-file DDL).")
+    allowed = [t for t in _SOURCES if t not in protected]
+
+    if not args.write:
+        # Dry-run is plan-only -- no S3 read, no prod access.
+        for table in allowed:
+            print(f"  would write {table}.sql (dry-run; pass --write)")
+        print(f"\n{len(allowed)} legacy DDL(s) would be written (dry-run); "
+              f"{len(refused)} refused (non-flat).")
+        return
+
     s3 = boto3.client("s3", region_name="us-east-1")
     written = []
-    for table, prefix in _SOURCES.items():
-        ddl = _ddl_for(s3, table, prefix)
+    for table in allowed:
+        ddl = _ddl_for(s3, table, _SOURCES[table])
         if ddl is None:
-            print(f"  {table}: no parquet at {prefix} — skipped")
+            print(f"  {table}: no parquet at {_SOURCES[table]} — skipped")
             continue
         (_DDL_DIR / f"{table}.sql").write_text(ddl, encoding="utf-8")
-        written.append((table, ddl))
         print(f"  wrote {table}.sql")
+        written.append((table, ddl))
 
     if args.create:
-        import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        sys.path.insert(0, str(_REPO_ROOT))
         from jobs.run_athena_ddl import _DATABASE, _run_query
         athena = boto3.client("athena", region_name="us-east-1")
         for table, ddl in written:
             ok, msg = _run_query(athena, ddl, database=_DATABASE)
             print(f"  CREATE {table}: {'OK' if ok else msg}")
 
-    print(f"\n{len(written)} DDLs written to {_DDL_DIR}")
+    print(f"\n{len(written)} legacy DDL(s) written; {len(refused)} refused (non-flat).")
 
 
 if __name__ == "__main__":

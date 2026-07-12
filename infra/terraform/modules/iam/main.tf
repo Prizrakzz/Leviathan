@@ -502,3 +502,303 @@ resource "aws_iam_role_policy_attachment" "sagemaker_training_role_ecr_logs" {
   role       = aws_iam_role.sagemaker_training_role.name
   policy_arn = aws_iam_policy.sagemaker_training_ecr_logs.arn
 }
+
+# ===========================================================================
+# SILVER-F014 (Milestone R1) — two-role validator / publisher separation.
+#
+# Replaces the original's five overweight roles (C-BETTER-3) with exactly two
+# silver-readiness identities, and keeps table-mutation OFF the serving/general
+# Batch roles by design (a follow-up hardening item — see R1_F014_iam_gate.md —
+# strips glue:CreateTable/UpdateTable from the shared athena-validation policy;
+# not done here because serving reuses that policy for GetTable/GetPartitions).
+#
+#   * validator  — READ-ONLY. Glue catalog reads, S3 object/version + Inventory
+#                  reads, Athena RESULTS inspection (NO StartQueryExecution — the
+#                  validator uses parquet footers, never Athena, so it can never
+#                  trip the projection-table LIST storm / INV-3).
+#   * publisher  — the single gated deployer. Base grant: GetTable/GetPartition(s)
+#                  + Create/BatchCreatePartition on the approved dev DB, and
+#                  S3 Get/Put/List on silver/ + gold/. TWO fail-closed flags gate
+#                  the rest, both DEFAULT-DENY:
+#                    - var.silver_canonical_publish_approved (default false):
+#                      while false an EXPLICIT DENY on canonical silver/ writes
+#                      (S3 + Glue partition/table mutation on silver_* tables) is
+#                      attached; a signed approval flips the flag to drop it.
+#                    - var.publisher_repair_enabled (default false): the
+#                      UpdatePartition / Delete / prune "repair" capability is a
+#                      FLAG (not a separate role) — attached only when true.
+#
+# Role NAMES are the single source of truth shared with the code-side publish
+# guard: leviathan.common.constants.SILVER_{VALIDATOR,PUBLISHER}_ROLE_NAME are
+# built as "leviathan-dev-silver-{validator,publisher}" == the names below.
+# ===========================================================================
+
+data "aws_region" "current" {}
+
+locals {
+  # Approved Glue database ("leviathan_dev") + the canonical catalog/table ARNs.
+  glue_database_name = "${var.project_name}_${var.environment}"
+  glue_catalog_arn   = "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:catalog"
+  glue_database_arn  = "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/${local.glue_database_name}"
+  glue_tables_arn    = "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${local.glue_database_name}/*"
+  # The canonical silver_* tables whose mutation is denied until the approval flips.
+  glue_silver_tables_arn = "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${local.glue_database_name}/silver_*"
+}
+
+# ---------------------------------------------------------------------------
+# Validator role — READ-ONLY (assumed by the F016 validation Batch/Fargate job;
+# CI-OIDC trust is layered on in F016, not here).
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "silver_validator" {
+  name = "${var.project_name}-${var.environment}-silver-validator"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Role        = "silver-validator"
+  }
+}
+
+data "aws_iam_policy_document" "silver_validator" {
+  # Glue catalog — read every shape the validator reconciles (columns/types/
+  # locations/table-properties/partitions/versions), never mutate.
+  statement {
+    sid = "GlueCatalogReadOnly"
+    actions = [
+      "glue:GetDatabase",
+      "glue:GetDatabases",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetTableVersion",
+      "glue:GetTableVersions",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:BatchGetPartition",
+      "glue:GetCatalogImportStatus",
+    ]
+    resources = ["*"]
+  }
+
+  # S3 — read objects + parquet footers + object VERSIONS + S3 Inventory config
+  # and its report objects. No Put/Delete anywhere.
+  statement {
+    sid = "S3ReadObjectsAndVersions"
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+    ]
+    resources = ["${var.bucket_arn}/*"]
+  }
+
+  statement {
+    sid = "S3ListAndInspectBucket"
+    actions = [
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+      "s3:GetBucketVersioning",
+      "s3:GetBucketLocation",
+      "s3:GetInventoryConfiguration",
+    ]
+    resources = [var.bucket_arn]
+  }
+
+  # Athena — RESULTS inspection ONLY. No StartQueryExecution: the validator
+  # fingerprints parquet footers and MUST NOT enumerate projection tables (INV-3).
+  statement {
+    sid = "AthenaResultsInspectOnly"
+    actions = [
+      "athena:GetQueryExecution",
+      "athena:GetQueryResults",
+      "athena:ListQueryExecutions",
+      "athena:GetWorkGroup",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "silver_validator" {
+  name        = "${var.project_name}-${var.environment}-silver-validator"
+  description = "SILVER-F014 read-only validator: Glue catalog + S3 object/version/inventory + Athena-results inspection. No mutation, no StartQueryExecution."
+  policy      = data.aws_iam_policy_document.silver_validator.json
+}
+
+resource "aws_iam_role_policy_attachment" "silver_validator" {
+  role       = aws_iam_role.silver_validator.name
+  policy_arn = aws_iam_policy.silver_validator.arn
+}
+
+# ---------------------------------------------------------------------------
+# Publisher / deployer role — the single GATED writer.
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "silver_publisher" {
+  name = "${var.project_name}-${var.environment}-silver-publisher"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Role        = "silver-publisher"
+  }
+}
+
+# Base grant — Glue GetTable/GetPartition(s) + CreatePartition/BatchCreatePartition
+# on the approved dev database, and S3 Get/Put/List on silver/ + gold/. This does
+# NOT include UpdatePartition/Delete (that is the repair flag) and is neutralised
+# for silver/ by the default-attached deny below until the approval flag flips.
+data "aws_iam_policy_document" "silver_publisher_base" {
+  statement {
+    sid = "GlueGetAndCreatePartitions"
+    actions = [
+      "glue:GetDatabase",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:BatchGetPartition",
+      "glue:CreatePartition",
+      "glue:BatchCreatePartition",
+    ]
+    resources = [
+      local.glue_catalog_arn,
+      local.glue_database_arn,
+      local.glue_tables_arn,
+    ]
+  }
+
+  statement {
+    sid = "S3ReadWriteApprovedPrefixes"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+    ]
+    resources = [
+      "${var.bucket_arn}/silver/*",
+      "${var.bucket_arn}/gold/*",
+    ]
+  }
+
+  statement {
+    sid       = "S3ListApprovedPrefixes"
+    actions   = ["s3:ListBucket"]
+    resources = [var.bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["silver/*", "gold/*"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "silver_publisher_base" {
+  name        = "${var.project_name}-${var.environment}-silver-publisher-base"
+  description = "SILVER-F014 publisher base grant: Glue Get + Create/BatchCreatePartition on the approved dev DB + S3 Get/Put/List on silver/ + gold/."
+  policy      = data.aws_iam_policy_document.silver_publisher_base.json
+}
+
+resource "aws_iam_role_policy_attachment" "silver_publisher_base" {
+  role       = aws_iam_role.silver_publisher.name
+  policy_arn = aws_iam_policy.silver_publisher_base.arn
+}
+
+# EXPLICIT DENY on canonical silver/ roots — attached by DEFAULT (approval flag
+# false) and dropped only when a signed approval flips
+# var.silver_canonical_publish_approved to true. An explicit Deny overrides the
+# base Allow, so the publisher can create partitions on gold/ + non-silver tables
+# but is refused every silver/ mutation until approved.
+data "aws_iam_policy_document" "silver_publisher_canonical_deny" {
+  count = var.silver_canonical_publish_approved ? 0 : 1
+
+  statement {
+    sid       = "DenySilverS3WritesUntilApproved"
+    effect    = "Deny"
+    actions   = ["s3:PutObject", "s3:DeleteObject"]
+    resources = ["${var.bucket_arn}/silver/*"]
+  }
+
+  statement {
+    sid    = "DenySilverGlueMutationUntilApproved"
+    effect = "Deny"
+    actions = [
+      "glue:CreatePartition",
+      "glue:BatchCreatePartition",
+      "glue:UpdatePartition",
+      "glue:DeletePartition",
+      "glue:BatchDeletePartition",
+      "glue:UpdateTable",
+      "glue:DeleteTable",
+    ]
+    resources = [local.glue_silver_tables_arn]
+  }
+}
+
+resource "aws_iam_policy" "silver_publisher_canonical_deny" {
+  count       = var.silver_canonical_publish_approved ? 0 : 1
+  name        = "${var.project_name}-${var.environment}-silver-publisher-canonical-deny"
+  description = "SILVER-F014 explicit deny on canonical silver/ writes until a signed approval flips silver_canonical_publish_approved."
+  policy      = data.aws_iam_policy_document.silver_publisher_canonical_deny[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "silver_publisher_canonical_deny" {
+  count      = var.silver_canonical_publish_approved ? 0 : 1
+  role       = aws_iam_role.silver_publisher.name
+  policy_arn = aws_iam_policy.silver_publisher_canonical_deny[0].arn
+}
+
+# REPAIR flag — UpdatePartition / Delete / prune collapsed into a flag (NOT a
+# separate role, C-BETTER-3). Attached only when var.publisher_repair_enabled.
+# Even when enabled, the canonical-deny above still fences silver/ until approved.
+data "aws_iam_policy_document" "silver_publisher_repair" {
+  count = var.publisher_repair_enabled ? 1 : 0
+
+  statement {
+    sid = "GlueRepairPartitions"
+    actions = [
+      "glue:UpdatePartition",
+      "glue:DeletePartition",
+      "glue:BatchDeletePartition",
+    ]
+    resources = [
+      local.glue_catalog_arn,
+      local.glue_database_arn,
+      local.glue_tables_arn,
+    ]
+  }
+
+  statement {
+    sid       = "S3PruneApprovedPrefixes"
+    actions   = ["s3:DeleteObject"]
+    resources = ["${var.bucket_arn}/gold/*", "${var.bucket_arn}/silver/*"]
+  }
+}
+
+resource "aws_iam_policy" "silver_publisher_repair" {
+  count       = var.publisher_repair_enabled ? 1 : 0
+  name        = "${var.project_name}-${var.environment}-silver-publisher-repair"
+  description = "SILVER-F014 gated repair capability: Glue UpdatePartition/Delete + S3 prune. Attached only when publisher_repair_enabled."
+  policy      = data.aws_iam_policy_document.silver_publisher_repair[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "silver_publisher_repair" {
+  count      = var.publisher_repair_enabled ? 1 : 0
+  role       = aws_iam_role.silver_publisher.name
+  policy_arn = aws_iam_policy.silver_publisher_repair[0].arn
+}

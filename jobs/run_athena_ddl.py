@@ -1,8 +1,13 @@
 """
-Run the graphrag Athena DDL statements via boto3.
+Run a fixed subset of Athena DDL statements via boto3.
 
-Creates the leviathan_dev database (if absent) then runs all 4
-CREATE EXTERNAL TABLE IF NOT EXISTS statements for the graphrag tables.
+Creates the ``leviathan_dev`` database (if absent) then runs the CREATE EXTERNAL TABLE IF NOT
+EXISTS statements listed in ``_GRAPHRAG_DDLS`` -- as of this writing 9 tables: the 4 graphrag
+tables (entities, causal_edges, forecasts, sentiment) PLUS 4 silver tables (nass_annual, fgis,
+mpob, mpob_annual) and gold_feature_spine. It is NOT a full-catalog applier and it is NOT the DDL
+authority: the registry-driven generator ``scripts/silver/generate_ddls_from_registry.py``
+(SILVER-F011) renders every silver/gold DDL from the SILVER-F010 registry, and the governed
+plan/apply/rollback tool (SILVER-F012) is the sanctioned path for catalog migration.
 
 Usage:
     python jobs/run_athena_ddl.py

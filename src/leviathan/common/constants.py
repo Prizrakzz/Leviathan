@@ -44,6 +44,26 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
 
 ALL_COMMODITIES: tuple[CommodityName, ...] = get_args(CommodityName)
 
+# ---------------------------------------------------------------------------
+# Silver-readiness IAM role identities (SILVER-F014, Milestone R1)
+# ---------------------------------------------------------------------------
+# SINGLE SOURCE OF TRUTH for the two-role validator/publisher separation. The
+# Terraform module ``infra/terraform/modules/iam`` builds the SAME names as
+# ``${var.project_name}-${var.environment}-silver-{validator,publisher}`` and
+# ``leviathan.common.publish_guard`` imports these so the canonical role-ARN
+# match pattern is NOT a duplicated string literal (a drift between the two
+# would silently change which identity may mint canonical partitions).
+#
+#   * validator -- READ-ONLY (Glue/S3-Inventory/parquet/Athena-results inspect).
+#     Recognised by publish_guard as a deny-first identity: it can never select
+#     ``--publish-mode canonical`` even with a valid approval.
+#   * publisher -- the single gated deployer/publisher. Recognised by
+#     publish_guard as a canonical-capable role ARN; canonical writes still
+#     require a signed approval AND (in IAM) the explicit silver/ deny flipped.
+IAM_ROLE_NAME_PREFIX: str = "leviathan-dev"  # == "${project_name}-${environment}"
+SILVER_VALIDATOR_ROLE_NAME: str = f"{IAM_ROLE_NAME_PREFIX}-silver-validator"
+SILVER_PUBLISHER_ROLE_NAME: str = f"{IAM_ROLE_NAME_PREFIX}-silver-publisher"
+
 SILVER_WEATHER_ID_COLS: list[str] = [
     "date",
     "year",

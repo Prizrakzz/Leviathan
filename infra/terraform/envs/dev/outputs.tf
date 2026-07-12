@@ -107,6 +107,17 @@ output "sagemaker_training_role_arn" {
   description = "IAM role ARN to pass as RoleArn when submitting SageMaker Training Jobs."
 }
 
+# SILVER-F014 (R1) two-role separation — validator (read-only) + gated publisher.
+output "silver_validator_role_arn" {
+  value       = module.iam.silver_validator_role_arn
+  description = "SILVER-F014 read-only validator role ARN."
+}
+
+output "silver_publisher_role_arn" {
+  value       = module.iam.silver_publisher_role_arn
+  description = "SILVER-F014 gated deployer/publisher role ARN (canonical silver/ writes fenced by the approval flag)."
+}
+
 # --- Phase 4: GraphRAG serving ----------------------------------------------
 
 output "serving_alb_dns_name" {

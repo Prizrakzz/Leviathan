@@ -72,12 +72,25 @@ sources:
 
 
 def test_certify_contract_passes_when_all_checks_are_clean() -> None:
-    result = certify_contract(contract(), observation())
+    # SILVER-V002: a fully-clean certification also observes value non-null fractions
+    # and (matching) ingest freshness, else the value_nonnull check is not_checked
+    # (a warning), consistent with row_count/duplicate not_checked behaviour.
+    result = certify_contract(
+        contract(),
+        observation(
+            value_nonnull_fractions={"value": 0.99},
+            min_nonnull_frac=0.5,
+            silver_ingest_date="2026-06-16",
+            bronze_ingest_date="2026-06-16",
+        ),
+    )
 
     assert result.status == "pass"
     assert result.checks["s3_prefix"] == "pass"
     assert result.checks["glue_table"] == "pass"
     assert result.checks["duplicate_keys"] == "pass"
+    assert result.checks["value_nonnull"] == "pass"
+    assert result.checks["freshness"] == "pass"
     assert result.issues == ()
 
 

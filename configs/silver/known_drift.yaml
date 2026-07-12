@@ -1,0 +1,6 @@
+_generated_by: scripts/silver/gen_registry_from_baseline.py
+_note: Reconciliation known-drift allowlist (SILVER-F010). Each entry is a registry<->consumer
+  disagreement that R1 cannot fix in code (a producer/data gap) and is deferred to
+  its owning R2 package. The reconciliation test asserts reconcile_all() minus this
+  list is EMPTY. numbers/PIT divergences are NOT permitted here (acceptance criterion).
+reconciliation_drift: []

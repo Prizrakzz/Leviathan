@@ -24,7 +24,11 @@ logger = get_logger("numbers_parity")
 # store CONTRACT slugs (corn_cbot); wasde stores BASE names (corn). A wrong value makes that table's panel
 # VACUOUS — 0 rows == 0 rows passes without proving anything.
 SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_production": "corn_cbot",
-                    "silver_esr": "corn_cbot", "silver_fred_fx": None, "silver_noaa_oni": None}
+                    "silver_esr": "corn_cbot", "silver_fred_fx": None, "silver_noaa_oni": None,
+                    # gold_weather_z (D-W4) is a TALL z-table keyed by base commodity (like silver_wasde);
+                    # without this entry BF-W1's rebuild target got NO sample commodity and its panel passed
+                    # vacuously (0==0). 'corn' is a real gold_weather_z commodity (Attack 3 #4).
+                    "gold_weather_z": "corn"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]
@@ -72,7 +76,12 @@ def main() -> int:
     for tid in tables:
         ts = reg.get(tid)
         commodity = SAMPLE_COMMODITY.get(tid)
-        for metric in list(ts.metrics)[:4]:
+        # Lift the [:4] sampling cap for TALL tables (Attack 3 #4): a tall table's metrics are ROW values
+        # (gold_weather_z has 5, silver_wasde 6) and the cap would skip metrics past the 4th, letting a
+        # broken/missing tail metric slip through parity. Wide tables (metrics == columns, cheap) keep the
+        # cap -- their panel is representative at 4.
+        metric_list = list(ts.metrics) if ts.shape == "tall" else list(ts.metrics)[:4]
+        for metric in metric_list:
             for asof in ASOFS:
                 for agg in AGGS:
                     spec = Q.NumberQuery(table=tid, metric=metric, asof=asof, commodity=commodity,
