@@ -53,9 +53,12 @@ DECLINES = "DECLINES-HONESTLY"
 DARK = "DARK-WITH-REASON"
 PROBE_ERROR = "probe-error"
 
-# 0 rows at the 2026-06-24 source certification. CANONICAL single source (review fold, DRY):
-# config_check.check_cascade_map imports this set so census and lint cannot drift.
-UNCERTIFIED_TABLES = frozenset({"silver_esr", "silver_nasa_power"})
+# CANONICAL single source (review fold, DRY): config_check.check_cascade_map imports this set so census
+# and lint cannot drift. silver_esr REMOVED 2026-07-12 (the D-W5 ESR flip): re-certified against the
+# compact serving table (753,062 rows, all 8 checks pass; the sole WARN is the disclosed single-as_of
+# snapshot limitation -- per-week vintage is the option-b follow-up). silver_nasa_power stays uncertified
+# AND deferred; the weather lane serves from gold_weather_z instead (D-W4).
+UNCERTIFIED_TABLES = frozenset({"silver_nasa_power"})
 _UNCERTIFIED = UNCERTIFIED_TABLES
 
 # Explicit dark-leg waivers: (contract, node_id) -> one-line justification. A waived leg is reported as

@@ -177,9 +177,11 @@ refs:
     metric: weekly_exports_1000mt      # FIX (D-W3.1): was weekly_exports_mt -- NOT a real registry column
     #                                    (ESR metrics are *_1000mt). Un-deferring as-written ERRORed
     #                                    check_cascade_map (metric-not-in-registry, fail-closed).
-    deferred: true                     # STILL DEFERRED: the flip is D-W5 (user-gated) -- data cert-reconcile
-    #                                    + pg mirror + the census FIRES gate must land first. load_map drops
-    #                                    this row, so config_check never lints an active-uncertified ESR row.
+    # UN-DEFERRED (D-W5 ESR flip, 2026-07-12, user-ratified): cert reconcile GREEN on silver_esr_compact
+    # (753,062 rows, all 8 checks pass), b2s freshness top-up from bronze as_of=20260528 SUCCEEDED, pg
+    # mirror reloaded. Lands together with silver_esr's removal from UNCERTIFIED_TABLES (cascade_census.py)
+    # or check_cascade_map fails closed. Gate: candidate census FIRES + --diff vs cascade_census_20260711b.
+    # Rollback: re-add `deferred: true` here + re-add silver_esr to UNCERTIFIED_TABLES.
     agg: latest                        # v1 (C2): the single FRESHEST week on/before asof. was `sum` -- DEAD
     #                                    CONFIG (cascade.py hardcoded agg="series" on the date branch;
     #                                    row.get("agg") was only read on the marketing_year branch). D-W3.2
