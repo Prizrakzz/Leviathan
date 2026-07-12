@@ -23,6 +23,17 @@ describe('citation tokenizer', () => {
     expect(m['1']?.source).toBe('usda_gain_coffee');
     expect(resolvedMap({ trace: {} })).toEqual({});
   });
+
+  it('resolves a TYPED handle [E3] against a BARE-integer ledger key (P9 prose contract)', () => {
+    // served prose is "[E3]" but the ledger is keyed by the bare digit "3"; pre-fix the tokenizer looked
+    // up resolved["E3"], missed, and left "[E3]" as plain text (chip suppressed).
+    const intLedger = { '3': { source: 'USDA WASDE', date: '2022-01-01' } };
+    const segs = tokenizeCitations('drought tightened [E3] hard', intLedger);
+    expect(segs.map((s) => s.kind)).toEqual(['text', 'cite', 'text']);
+    const cite = segs.find((s) => s.kind === 'cite') as { ref: string; resolved: { source?: string } };
+    expect(cite.ref).toBe('E3'); // display ref stays TYPED
+    expect(cite.resolved.source).toBe('USDA WASDE'); // resolved by the bare digit "3"
+  });
 });
 
 describe('resolvedFor (6.4 unified live + durable)', () => {
@@ -46,6 +57,18 @@ describe('resolvedFor (6.4 unified live + durable)', () => {
     expect(m['1']?.source).toBe('USDA FAS GAIN Report — Corn'); // official, not raw
     expect(m['1']?.text).toBe('corn note'); // live verifier text
     expect(m['N1']?.locator?.table).toBe('silver_psd'); // number provenance for the popover
+  });
+
+  it('number provenance resolves by the BARE ledger digit so a rendered [N] chip keeps its query (H1)', () => {
+    // The post-P9 prod shape: the ledger ref is the BARE INTEGER "4" while the machine citation id is "N4".
+    // Pre-fix numLocByRef was keyed by "N4" but the ref iterated is the bare "4" ⇒ the locator was dropped
+    // and the [N4] chip's provenance line went blank. resolvedInline resolves [N4] by digit ⇒ key "4".
+    const r = {
+      structured: { sources: [{ ref: 4, source: 'USDA PSD' }] },
+      citations: [{ id: 'N4', kind: 'number', locator: { kind: 'number', table: 'silver_psd', commodity: 'corn' } }],
+    };
+    const m = resolvedFor(r);
+    expect(m['4']?.locator?.table).toBe('silver_psd'); // provenance found under the bare digit
   });
 });
 

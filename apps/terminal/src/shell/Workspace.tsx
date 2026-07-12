@@ -45,15 +45,26 @@ export function Workspace({
       data-testid="view"
       data-view={view}
     >
-      {hasTabs && (
+      {/* S2: the drag-dock is present in EVERY state so a zero-tab workspace is not a dead end. With tabs
+          it's the strip + active document (usePanelDrag owns the chat height, enabled=hasTabs). With none,
+          the document area shrinks to a one-line hint pointing at the fill affordances (open causal graph /
+          a source) and the handle stays draggable — the panelPx commit persists for when the first tab opens. */}
+      {hasTabs ? (
         <>
           <TabStrip />
           <div className="min-h-0 flex-1" data-testid="document-area">
             {active && <TabDocument tab={active} />}
           </div>
-          <DragHandle {...drag} />
         </>
+      ) : (
+        <div
+          className="shrink-0 px-4 py-2 font-mono text-11 text-text-faint"
+          data-testid="document-area"
+        >
+          open a causal graph or a source to fill the workspace
+        </div>
       )}
+      <DragHandle {...drag} />
       {/* zero tabs: no inline style -> flex-1 wins and the chat owns the full height (today's look).
           with tabs: usePanelDrag owns this element's height via ref (never JSX -- the stomp rule). */}
       <div

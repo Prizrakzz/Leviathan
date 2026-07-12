@@ -14,7 +14,7 @@ type Tok =
   | { k: 'em'; v: Tok[] }
   | { k: 'cite'; ref: string; resolved: ResolvedCite };
 
-const CITE = /^\[([A-Za-z]?\d+)\]/; // [1] [E2] [N1] at the cursor
+const CITE = /^\[([A-Za-z]?)(\d+)\]/; // [1] [E2] [N1] at the cursor — g1 = type prefix (E/N/''), g2 = the ledger integer
 
 /** Tokenize inline markup. A `**bold**`/`*em*` with no closing marker (common mid-stream) has its
  *  marker DROPPED, never shown; an unresolved `[n]` stays literal text. */
@@ -31,9 +31,16 @@ export function parseInline(text: string, resolved: ResolvedMap): Tok[] {
   while (i < text.length) {
     const rest = text.slice(i);
     const cm = rest.match(CITE);
-    if (cm && resolved[cm[1] as string]) {
+    // Resolve by the BARE DIGIT (the backend's ledger `ref` is the integer; P9 prose carries a TYPED [E3]/[N4]
+    // handle over the SAME integer key). Keep the full typed handle as the display ref so CitationChip's
+    // color (amber/cyan) + tooltip stay unchanged, and the resolved entry's doc locator flows through.
+    if (cm && resolved[cm[2] as string]) {
       flush();
-      out.push({ k: 'cite', ref: cm[1] as string, resolved: resolved[cm[1] as string] as ResolvedCite });
+      out.push({
+        k: 'cite',
+        ref: (cm[1] ?? '') + (cm[2] as string),
+        resolved: resolved[cm[2] as string] as ResolvedCite,
+      });
       i += cm[0].length;
       continue;
     }

@@ -40,4 +40,23 @@ describe('SuggestionChips (6.2)', () => {
     render(<SuggestionChips items={[]} onAsk={() => {}} watchItems={['a']} onPrefill={() => {}} />);
     expect(screen.getByTestId('suggestion-chips')).toBeTruthy();
   });
+
+  it('S3: clamps to EXACTLY 3 suggester chips even when the merged source over-produces', () => {
+    render(
+      <SuggestionChips
+        items={['q1?', 'q2?', 'q3?', 'q4?', 'q5?']} // server over-produces (>3)
+        onAsk={() => {}}
+        watchItems={['w1', 'w2']} // a separate class, merged into the same "follow up" row
+        onPrefill={() => {}}
+      />,
+    );
+    const row = screen.getByTestId('suggestion-chips');
+    // suggester follow-ups = every chip except the watch chips; clamp holds at 3 (was 5 before the fix)
+    const suggesters = [...row.querySelectorAll('button')].filter(
+      (b) => b.getAttribute('data-testid') !== 'watch-chip',
+    );
+    expect(suggesters).toHaveLength(3);
+    // watch chips stay their own visually-distinct class, unclamped by the suggester clamp
+    expect(row.querySelectorAll('[data-testid="watch-chip"]')).toHaveLength(2);
+  });
 });

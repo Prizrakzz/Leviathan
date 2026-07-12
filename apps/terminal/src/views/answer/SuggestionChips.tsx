@@ -16,7 +16,12 @@ export function SuggestionChips({
   watchItems?: string[];
   onPrefill?: (q: string) => void;
 }) {
-  if (!items.length && !watchItems.length) return null;
+  // S3: the suggester row is where the server suggestions and FE watch chips MERGE into one "follow up"
+  // row. The server clamps to <=4 (and a stale bundle can over-produce); clamp the suggester follow-ups
+  // to EXACTLY 3 here so the user never sees a 4th cyan chip. Watch chips are a SEPARATE class (amber
+  // hover, prefill) and keep their own count — they are not suggester follow-ups.
+  const suggesters = items.slice(0, 3);
+  if (!suggesters.length && !watchItems.length) return null;
   return (
     <div data-testid="suggestion-chips">
       <div className="font-mono text-11 uppercase tracking-wider text-text-faint">follow up</div>
@@ -31,7 +36,7 @@ export function SuggestionChips({
             {q}
           </button>
         ))}
-        {items.map((q) => (
+        {suggesters.map((q) => (
           <button
             key={q}
             onClick={() => onAsk(q)}

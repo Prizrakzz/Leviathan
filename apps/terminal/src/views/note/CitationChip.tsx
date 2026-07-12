@@ -23,7 +23,8 @@ export function CitationChip({
   resolved: ResolvedCite;
   onOpen: (ref: string) => void;
 }) {
-  const isNumber = /^[A-Za-z]/.test(refId); // N1 / E2 …
+  const isNumber = /^N/i.test(refId); // N4 = number (cyan); E3 / bare 3 = evidence (amber) -- the P9
+  //                                     typed-handle contract: any-letter matching turned [E] chips cyan
   const loc = resolved.locator;
   const isNumberLoc = loc?.kind === 'number';
   const isDocLoc = loc?.kind === 'doc' && typeof loc.source_key === 'string';

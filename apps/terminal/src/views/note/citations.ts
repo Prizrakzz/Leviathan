@@ -42,11 +42,20 @@ export function resolvedFor(r: {
   const live = (r.trace as { citation_verifier?: { resolved?: Record<string, ResolvedCite> } } | undefined)
     ?.citation_verifier?.resolved;
   const snippetByKey = new Map<string, string>();
-  const numLocByRef = new Map<string, Record<string, unknown>>();
+  const numLocByRef = new Map<string, Record<string, unknown>>();   // exact machine id, e.g. 'N4'
+  // H1: the ledger `ref` a [N4] prose handle resolves through is the BARE DIGIT '4' (answer.py forces an
+  // integer ref; the machine id stays typed 'N4'). Keyed by the digit here so a rendered [N] chip finds its
+  // query-provenance. Kept in a SEPARATE map (not merged into numLocByRef) so the digit alias can never
+  // shadow an evidence doc locator that shares that digit (E4 and N4 are independent sequences).
+  const numLocByDigit = new Map<string, Record<string, unknown>>();
   for (const c of cits) {
     const key = c.locator?.source_key;
     if (typeof key === 'string' && typeof c.locator?.snippet === 'string') snippetByKey.set(key, c.locator.snippet);
-    if (c.locator?.kind === 'number' && typeof c.id === 'string') numLocByRef.set(c.id, c.locator as Record<string, unknown>);
+    if (c.locator?.kind === 'number' && typeof c.id === 'string') {
+      const nloc = c.locator as Record<string, unknown>;
+      numLocByRef.set(c.id, nloc);
+      numLocByDigit.set(c.id.replace(/^[A-Za-z]+/, ''), nloc);
+    }
   }
   const refs = new Set<string>([...Object.keys(live ?? {}), ...structuredSources.map((s) => String(s.ref))]);
   for (const ref of refs) {
@@ -56,10 +65,13 @@ export function resolvedFor(r: {
     const sk = ss?.source_key;
     const text = lr?.text ?? (typeof sk === 'string' ? snippetByKey.get(sk) : undefined);
     const source = (ss?.source as string | undefined) ?? lr?.source;
-    if (source == null && text == null && !numLocByRef.has(ref)) continue; // nothing to show → no chip
-    // Number locators keep precedence (a number ref keeps its query locator); otherwise a structured source
-    // WITH a source_key gets a doc locator so the chip can open its source PDF at the cited page (6.5).
-    const locator = numLocByRef.get(ref) ?? (typeof sk === 'string' ? docLocator(sk, text, ss) : undefined);
+    if (source == null && text == null && !numLocByRef.has(ref) && !numLocByDigit.has(ref)) continue; // nothing to show → no chip
+    // Number locators keep precedence (a number ref keeps its query locator): the exact machine id first, then
+    // the bare-digit alias ONLY when this ref has no doc source_key of its own (so an evidence [E4] never picks
+    // up N4's number locator). Otherwise a structured source WITH a source_key gets a doc locator so the chip
+    // can open its source PDF at the cited page (6.5).
+    const numLoc = numLocByRef.get(ref) ?? (typeof sk === 'string' ? undefined : numLocByDigit.get(ref));
+    const locator = numLoc ?? (typeof sk === 'string' ? docLocator(sk, text, ss) : undefined);
     out[ref] = { source, date: (ss?.date as string | undefined) ?? lr?.date, text, locator };
   }
   return out;
@@ -67,7 +79,7 @@ export function resolvedFor(r: {
 
 export type NoteSegment = { kind: 'text'; text: string } | { kind: 'cite'; ref: string; resolved: ResolvedCite };
 
-const CITE = /\[([A-Za-z]?\d+)\]/g; // [1] [E2] [N1]
+const CITE = /\[([A-Za-z]?)(\d+)\]/g; // [1] [E2] [N1] — g1 = type prefix (E/N/''), g2 = the bare ledger integer
 
 /** The verifier's resolved-citation map — a chip renders ONLY for refs in here (fabricated refs are
  *  stripped server-side, so an unresolved `[n]` stays plain text). */
@@ -81,11 +93,12 @@ export function tokenizeCitations(text: string, resolved: ResolvedMap): NoteSegm
   const out: NoteSegment[] = [];
   let last = 0;
   for (const m of text.matchAll(CITE)) {
-    const ref = m[1] as string;
+    const key = m[2] as string;                 // the bare ledger integer used to look the chip up
+    const ref = (m[1] ?? '') + key;             // the full TYPED handle kept as the display ref
     const at = m.index ?? 0;
-    if (resolved[ref]) {
+    if (resolved[key]) {
       if (at > last) out.push({ kind: 'text', text: text.slice(last, at) });
-      out.push({ kind: 'cite', ref, resolved: resolved[ref] });
+      out.push({ kind: 'cite', ref, resolved: resolved[key] });
       last = at + m[0].length;
     }
     // unresolved [n]: leave in place as text (handled by the trailing slice)

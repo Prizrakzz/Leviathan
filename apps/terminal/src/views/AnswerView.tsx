@@ -60,6 +60,11 @@ export function PastTurn({ t }: { t: TurnRecord }) {
   const sections = s?.sections ?? [];
   const legacy = !tldr && !mechanism && !sections.length ? (t.answer ?? '') : '';
   const resolved = resolvedFor(t as Parameters<typeof resolvedFor>[0]);
+  // S5: a durable cascade/mechanism turn must keep the open-full-graph affordance the LIVE mapSlot has
+  // (AnswerView.tsx:195-210) — without it, a reopened thread renders every answer through this reduced
+  // PastTurn with no way to open the graph tab (the sole first-tab bootstrap). Contract guard KEPT:
+  // GraphTab requires a contract; a structured-null/contract-null floor/no-match turn offers NO chip.
+  const gContract = t.contract ?? t.contracts?.[0] ?? null;
   return (
     // A durable turn's tldr/mechanism can contain resolved [n] chips, and CitationChip renders a Radix
     // Tooltip — which THROWS ("must be used within TooltipProvider") without a provider ancestor. The live
@@ -72,6 +77,23 @@ export function PastTurn({ t }: { t: TurnRecord }) {
           <p className="mt-2 font-sans text-14 font-semibold leading-snug text-text">
             {renderInline(tldr, resolved, noop)}
           </p>
+        )}
+        {/* S5: reuse the LIVE mapSlot's exact openTab call + data-testid so a durable turn can open the
+            graph tab. Gated on contract AND any content — floor/no-match (structured-null) offers none. */}
+        {gContract && (tldr || sections.length || mechanism) && (
+          <button
+            data-testid="open-full-graph"
+            onClick={() =>
+              useUI.getState().openTab({
+                kind: 'graph',
+                title: gContract.replace(/_/g, ' '),
+                params: { contract: gContract, asof: t.asof ?? '' },
+              })
+            }
+            className="mt-2 block rounded-chip border border-line px-2 py-1 font-mono text-11 text-text-dim hover:border-cyan hover:text-cyan"
+          >
+            open causal graph ↗
+          </button>
         )}
         {/* P9-C: sections win over the flat mechanism, same branch as the live Note — a durable turn
             persisted with sections must not reopen in the legacy render. The view stays REDUCED
