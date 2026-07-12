@@ -70,6 +70,13 @@ _UNCERTIFIED = UNCERTIFIED_TABLES
 # DELETE the relevant waivers if either commodity is ever ingested into silver_psd.
 _NO_COCOA = "silver_psd has no cocoa balance sheet (DISTINCT slug probe 2026-07-11)"
 _NO_FCOJ = "silver_psd has no orange-juice balance sheet (DISTINCT slug probe 2026-07-11)"
+# D-W5 weather flip (2026-07-12): white_sugar's `frost` driver is a Brazil-cane-belt hazard (region
+# `Brazil CS` -> Brazil, mechanism "frost in southern Brazil cane areas"), but white_sugar's
+# gold_weather_z covers only the refined-sugar regions (China/EU/India/Thailand/US) -- Brazil cane
+# weather belongs to RAW_SUGAR (whose frost leg FIRES). Honest per-contract coverage gap, not a bug.
+_NO_WHITE_SUGAR_BRAZIL_WX = ("white_sugar gold_weather_z has no Brazil coverage (raw_sugar owns the "
+                             "Brazil cane belt); the Brazil-frost hazard fires on raw_sugar, not the "
+                             "refined-sugar contract -- gold coverage probe 2026-07-12")
 _WAIVERS: dict[tuple[str, str], str] = {
     ("cocoa", "US_section301_tariffs"): _NO_COCOA,
     ("cocoa", "export_pace_lag"): _NO_COCOA,
@@ -80,6 +87,7 @@ _WAIVERS: dict[tuple[str, str], str] = {
     ("frozen_orange_juice", "consumption_demand"): _NO_FCOJ,
     ("frozen_orange_juice", "US_section301_tariffs"): _NO_FCOJ,
     ("frozen_orange_juice", "tenderable_collapse"): _NO_FCOJ,
+    ("white_sugar", "frost"): _NO_WHITE_SUGAR_BRAZIL_WX,
 }
 
 # The v4 cascade fixture (config_check._CFG mirror -- both resolve configs/graphrag/).
