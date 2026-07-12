@@ -209,9 +209,29 @@ refs:
   # (D-W4: tall, monthly, PIT-safe same-month z, PSD Title-Case countries). stage_precip_z (38 drivers)
   # has NO gold metric yet -- stays unmapped/qualitative pending a precip-z gold family.
   # Rollback: re-add `deferred: true` per row. Gate: candidate census diff + config_check green.
-  drought_z: &gold_weather_row
+  #
+  # DROUGHT_Z DEFERRED (DATA BLOCKER, 2026-07-12): the gold transform produces ZERO drought_z rows for
+  # all 31 commodities because the CHIRPS silver `value` column is ENTIRELY NaN (0 non-NaN across a
+  # 12-file 1981-2018 sample -- a broken CHIRPS bronze->silver ingest, NOT a transform bug; the four
+  # NASA-POWER metrics below all produce real rows). Un-deferring would strand 34 DARK census legs, so
+  # drought stays qualitative until CHIRPS silver is re-ingested with real precip values. drought_z is
+  # a STANDALONE deferred row here (NOT merged off the anchor, or it would inherit nothing useful and
+  # the merge would need the anchor's fields; deferred rows are dropped by load_map anyway).
+  drought_z:
     table: gold_weather_z
     metric: drought_z
+    deferred: true                     # CHIRPS silver all-NaN -> no gold rows -> would DARK; re-ingest first
+    period_type: year_month
+    country_rule: region
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    notes: >
+      DEFERRED: CHIRPS silver value column is all-NaN (broken ingest) so the gold drought_z family is
+      empty. Un-defer only after a CHIRPS re-ingest lands real precip and the gold transform reruns.
+  heat_stress_z: &gold_weather_row
+    table: gold_weather_z
+    metric: heat_stress_z
     period_type: year_month            # reuses the ONI (year*100+month) windowing + as-of guard wholesale
     country_rule: region               # the driver's own region token -> region_map -> Title-Case country
     native_unit: z
@@ -219,13 +239,6 @@ refs:
     scale: 1
     coverage_start: 1981
     status: mapped
-    notes: >
-      Monthly drought z (CHIRPS dry-run length vs prior-year same-month baseline, two PIT layers,
-      z-scored across years within the calendar month). Narrate as "z = <v> vs the same-month norm";
-      NEVER a level, NEVER deltaed against any MT/MMT row.
-  heat_stress_z:
-    <<: *gold_weather_row
-    metric: heat_stress_z
     notes: >
       Monthly count of days over the heat threshold, z-scored vs the same-month prior-year baseline.
       Narrate as heat-stress anomaly; never a level.
