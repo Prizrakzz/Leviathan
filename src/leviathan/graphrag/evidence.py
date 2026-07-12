@@ -11,6 +11,7 @@ import json
 import math
 import os
 import random
+import threading
 from datetime import date
 from typing import Optional
 
@@ -83,11 +84,20 @@ def _bedrock():
     return boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
 
+_bge_load_lock = threading.Lock()
+
+
 def _bge_local(texts: list[str]) -> list[list[float]]:
+    """Double-checked locking on the lazy model load: N eval workers racing the FIRST
+    SentenceTransformer(...) construction half-materialize it off meta tensors ("Cannot copy out of
+    meta tensor") and wedge EVERY subsequent embed -- the 2026-07-12 all-rows eval crash. Serving
+    never hit this only because server.py pre-warms single-threaded before traffic."""
     global _bge
     if _bge is None:
-        from sentence_transformers import SentenceTransformer
-        _bge = SentenceTransformer(BGE_MODEL)
+        with _bge_load_lock:
+            if _bge is None:
+                from sentence_transformers import SentenceTransformer
+                _bge = SentenceTransformer(BGE_MODEL)
     return [v.tolist() for v in _bge.encode(texts, normalize_embeddings=True)]
 
 

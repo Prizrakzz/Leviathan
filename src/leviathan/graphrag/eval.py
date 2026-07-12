@@ -1377,6 +1377,11 @@ def main() -> int:
             print(f"  hf cache warmed from {hf_uri}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"  WARN hf cache warm failed -- {str(e)[:120]}", flush=True)
+    try:                                              # warm the MODEL OBJECT single-threaded too: the file-cache
+        ev.embed(["eval warm"])                       # warm above never constructs the model, and N workers racing
+        print("  bge model warmed", flush=True)       # the first load = the meta-tensor all-rows crash (2026-07-12);
+    except Exception as e:  # noqa: BLE001            # the load is also lock-guarded in evidence._bge_local now.
+        print(f"  WARN bge model warm failed -- {str(e)[:120]}", flush=True)
     # No torch thread cap here: rankers.rerank_scores serializes the heavy cross-encoder behind a global
     # lock, so each rerank gets ALL cores instead of N workers thrashing at cores/N threads. The old
     # cpu//workers cap under the lock would have crippled every rerank to 2 threads.
