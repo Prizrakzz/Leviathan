@@ -107,3 +107,8 @@ output "conab_coffee_silver_job_definition_arn" {
   value       = aws_batch_job_definition.conab_coffee_silver.arn
   description = "ARN of the CONAB coffee bronze Parquet -> silver Parquet job definition."
 }
+
+output "usda_esr_fetch_job_definition_arn" {
+  value       = one(aws_batch_job_definition.usda_esr_fetch[*].arn)
+  description = "ARN of the USDA FAS ESR weekly fetch job definition (Phase D D-W1). null until fas_api_key_secret_arn is wired."
+}

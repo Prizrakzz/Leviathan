@@ -13,6 +13,15 @@ provider "aws" {
   region = var.aws_region
 }
 
+locals {
+  # Phase D D-W1: name-based ARN for the FAS/api.data.gov key mounted as FAS_API_KEY on the weekly
+  # ESR fetch job. The secret leviathan/dev/fas-api-key does NOT exist yet (USER-GATED creation; the
+  # value lives in the local .env), so this is CONSTRUCTED, not looked up -- a data source on an
+  # absent secret would fail at plan time. ECS/Batch valueFrom resolves the name-based ARN for a
+  # same-region secret; the iam GetSecretValue grant widens it with a trailing -* for the random suffix.
+  fas_api_key_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:leviathan/dev/fas-api-key"
+}
+
 module "s3" {
   source = "../../modules/s3"
 
@@ -32,6 +41,8 @@ module "iam" {
   dynamodb_table_arns = [module.dynamodb.table_arn, data.aws_dynamodb_table.sessions.arn]
   # P3: the daily-digest job's dedicated Scan-scoped role (Scan must NEVER land on the serving-shared role).
   notifications_store_table_arn = module.dynamodb.table_arn
+  # D-W1: execution-role GetSecretValue for the weekly ESR fetch's FAS_API_KEY (user-gated secret).
+  fas_api_key_secret_arn = local.fas_api_key_secret_arn
 }
 
 # Cost tripwires (Jul-2026 S3 LIST storm): daily S3 budget alert + CE anomaly detection -> email.
@@ -83,6 +94,8 @@ module "batch" {
   batch_execution_role_arn = module.iam.batch_execution_role_arn
   batch_job_role_arn       = module.iam.batch_job_role_arn
   leviathan_bucket         = var.bucket_name
+  # D-W1: enables the weekly ESR fetch jobdef (usda_esr_fetch) that mounts FAS_API_KEY.
+  fas_api_key_secret_arn = local.fas_api_key_secret_arn
 }
 
 module "glue" {
@@ -474,6 +487,75 @@ resource "aws_scheduler_schedule" "notifications" {
         ResourceRequirements = [
           { Type = "VCPU", Value = "1" },
           { Type = "MEMORY", Value = "2048" },
+        ]
+      }
+      RetryStrategy = { Attempts = 2 }
+    })
+  }
+}
+
+
+# ---------------------------------------------------------------------------
+# Phase D D-W1: weekly USDA ESR ingest schedule. Ships DISABLED -- enabling is a
+# USER-GATED flip (the same P3 morning-brief discipline above): the recurring fetch
+# must not start firing until (a) the leviathan/dev/fas-api-key secret is created,
+# (b) the usda_esr_fetch jobdef + the execution-role GetSecretValue grant are applied
+# (tf -target), and (c) a manual weekly dry-probe is reviewed. Fires the fetch jobdef
+# every Thursday 14:00 UTC -- ESR publishes ~08:00 ET / 13:00 UTC (fetch_usda_esr.py:45-46).
+# The jobdef is terraform-managed (batch module usda_esr_fetch) and referenced BY NAME so
+# the schedule tracks the latest active revision; its baked command/sizing make the
+# ContainerOverrides below redundant safety (mirrors the morning-brief rationale).
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "esr_ingest_scheduler" {
+  name = "${var.project_name}-${var.environment}-esr-ingest-scheduler"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "esr_ingest_scheduler" {
+  name = "${var.project_name}-${var.environment}-esr-ingest-scheduler-submit"
+  role = aws_iam_role.esr_ingest_scheduler.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "batch:SubmitJob"
+      Resource = [
+        module.batch.job_queue_arn,
+        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-usda-esr-fetch:*",
+      ]
+    }]
+  })
+}
+
+resource "aws_scheduler_schedule" "esr_weekly_ingest" {
+  name  = "${var.project_name}-${var.environment}-esr-weekly-ingest"
+  state = "DISABLED" # USER-GATED enable flip (see comment); starts DISABLED like the P3 morning-brief did
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(0 14 ? * THU *)" # Thursdays 14:00 UTC, after ESR publishes (~13:00 UTC)
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:batch:submitJob"
+    role_arn = aws_iam_role.esr_ingest_scheduler.arn
+    input = jsonencode({
+      JobName       = "usda-esr-fetch"
+      JobQueue      = module.batch.job_queue_arn
+      JobDefinition = "${var.project_name}-${var.environment}-usda-esr-fetch"
+      # Redundant safety -- the usda_esr_fetch jobdef already bakes this command + sizing:
+      ContainerOverrides = {
+        Command = ["jobs/ingest/fetch_usda_esr.py", "--mode", "weekly", "--skip-existing-s3"]
+        ResourceRequirements = [
+          { Type = "VCPU", Value = "0.25" },
+          { Type = "MEMORY", Value = "512" },
         ]
       }
       RetryStrategy = { Attempts = 2 }

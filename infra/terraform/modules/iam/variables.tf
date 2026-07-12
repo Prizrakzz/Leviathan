@@ -28,3 +28,9 @@ variable "notifications_store_table_arn" {
   description = "Terminal-store table ARN for the P3 notifications job's dedicated Scan-scoped role. Empty = role not created."
   default     = ""
 }
+
+variable "fas_api_key_secret_arn" {
+  type        = string
+  description = "Secrets Manager ARN (name-based) for the USDA FAS key mounted as FAS_API_KEY on the weekly ESR fetch job. Grants the batch EXECUTION role GetSecretValue so the ECS agent can inject the secret. The secret is user-gated (created later, D-W1); empty = no grant."
+  default     = ""
+}

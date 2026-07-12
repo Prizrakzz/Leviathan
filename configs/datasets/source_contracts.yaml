@@ -165,18 +165,29 @@ sources:
 
   - source_key: esr
     title: USDA ESR export sales silver
-    glue_table: silver_esr
-    s3_prefix: s3://leviathan-dev-shahem-001/silver/production/source=usda_esr/
+    # D-W1 cert reconcile (Phase D): repointed from the projected/legacy silver_esr to the
+    # registered-partition compact SERVING table so cert names the SAME physical table serving
+    # reads (the WASDE cert<->serve lesson) AND the COUNT/duplicate probes are LIST-storm-safe
+    # (they prune to the [commodity] partitions -> ~2-3 LISTs, never the retired projection surface).
+    glue_table: silver_esr_compact
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/esr/
     status: core
-    grain: commodity_code x market_year x as_of_date x country_code
+    grain: commodity(slug partition) x commodity_code x market_year x country_code x week_ending_date (latest as_of snapshot per MY)
     required_columns: [commodity_name, country_code, week_ending_date, outstanding_sales_1000mt, weekly_exports_1000mt, source]
-    natural_key: [commodity_code, market_year, as_of_date, country_code]
+    # week_ending_date ADDED to the key vs the legacy [commodity_code, market_year, as_of_date,
+    # country_code]: the compact table is WEEKLY-grained (one row per country_code x week_ending_date
+    # per commodity x MY -- transforms/bronze_to_silver/usda_esr.py:7-8), so the old key omitted the
+    # week and a real (athena_mode=full) duplicate probe would false-positive one "dup" per week and
+    # BLOCK. as_of_date is a single snapshot per MY here, so the true unique key is the tuple below.
+    natural_key: [commodity_code, market_year, as_of_date, country_code, week_ending_date]
     date_columns: [as_of_date, week_ending_date, market_year]
     availability_columns: [as_of_date, week_ending_date]
     expected_min_rows: 1000
     duplicate_check: full
-    athena_mode: metadata_only
-    limitation: partition-projected ESR table requires static as_of_date filters for efficient Athena scans; Phase 2 uses Glue/S3/schema certification and defers exact row/duplicate checks to source-specific validation
+    # athena_mode flipped OFF metadata_only (was a deliberate LIST-storm-avoidance SKIP on the
+    # projected table): the compact table's registered partitions make COUNT(*)/duplicate probes
+    # storm-safe, so certify now produces a REAL row count instead of row_count=null.
+    limitation: compact serving table retains only the latest as_of snapshot per marketing year (no per-week publication vintage); PIT backtests use week_ending_date as the availability proxy pending a per-week as_of ingest change (Phase D D-W0.3 option b)
 
   - source_key: fgis
     title: USDA FGIS export inspections silver

@@ -68,6 +68,39 @@ resource "aws_iam_role_policy_attachment" "batch_execution_role_ecs" {
 }
 
 # ---------------------------------------------------------------------------
+# Secrets Manager read for the execution role (Phase D D-W1). The weekly ESR
+# fetch job (batch module usda_esr_fetch) mounts FAS_API_KEY via secrets/valueFrom;
+# the ECS agent that injects it runs under the EXECUTION role, so the grant lands
+# here, NOT on the job role. Scoped to the FAS secret ARN (trailing -* matches the
+# Secrets Manager random 6-char suffix). count-gated: no grant until the ARN is
+# wired. USER-GATED: the secret leviathan/dev/fas-api-key does not exist yet; this
+# codifies the grant the way the batch_job_role Athena grant at :297 codified an
+# earlier out-of-band CLI grant. (The existing EVIDENCE_PG_DSN serving mount still
+# relies on an out-of-band GetSecretValue grant -- not reconciled here.)
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "batch_execution_fas_secret" {
+  count = var.fas_api_key_secret_arn != "" ? 1 : 0
+  statement {
+    sid       = "ReadFasApiKeySecret"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["${var.fas_api_key_secret_arn}-*"]
+  }
+}
+
+resource "aws_iam_policy" "batch_execution_fas_secret" {
+  count       = var.fas_api_key_secret_arn != "" ? 1 : 0
+  name        = "${var.project_name}-${var.environment}-batch-execution-fas-secret"
+  description = "Lets the Batch/ECS execution role inject the FAS_API_KEY secret into the weekly ESR fetch task."
+  policy      = data.aws_iam_policy_document.batch_execution_fas_secret[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_execution_role_fas_secret" {
+  count      = var.fas_api_key_secret_arn != "" ? 1 : 0
+  role       = aws_iam_role.batch_execution_role.name
+  policy_arn = aws_iam_policy.batch_execution_fas_secret[0].arn
+}
+
+# ---------------------------------------------------------------------------
 # Batch job role — assumed by the container code to write to S3
 # ---------------------------------------------------------------------------
 

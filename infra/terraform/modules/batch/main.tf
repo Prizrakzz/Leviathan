@@ -1792,6 +1792,94 @@ resource "aws_batch_job_definition" "usda_esr_bronze" {
 }
 
 # ---------------------------------------------------------------------------
+# Job definition: USDA FAS ESR weekly FETCH (api.data.gov -> raw S3)
+# Phase D D-W1: the recurring-ingest fix. Runs the existing sequential fetch
+# (jobs/ingest/fetch_usda_esr.py --mode weekly) that snapshots the current +
+# new-crop marketing year for all 10 ESR commodity codes as an immutable
+# as_of={today} object -- so post-backfill weeks actually land instead of the
+# data freezing at the 2026-05-24 backfill. Fired weekly by the DISABLED
+# EventBridge Scheduler rule ...-esr-weekly-ingest (see envs/dev/main.tf); the
+# schedule ENABLE flip is user-gated.
+#
+# SEQUENTIAL BY CONTRACT: api.data.gov allows 1,000 req/hr per key and this is a
+# government server, NOT a CDN -- the fetch NEVER threads (fetch_usda_esr.py:16-17).
+# A weekly run is ~20 requests (10 codes x current+new-crop MY) at 1.0s sleep.
+# Sizing: 0.25 vCPU / 512 MB -- pure network I/O, no in-memory parsing (matches
+# the other fetch-family jobdefs: sagis_cec, usda_wasde, usda_wap).
+#
+# The FAS_API_KEY is mounted from Secrets Manager via `secrets`/valueFrom. The
+# secret leviathan/dev/fas-api-key does NOT exist yet -- its creation is
+# USER-GATED (the value lives in the local .env; list-secrets today shows only
+# anthropic-api-key + the two evidence-pg secrets). This block REFERENCES it by
+# ARN pattern only; the execution role's GetSecretValue grant is in the iam
+# module (also user-gated on the secret's creation). count-gated on the ARN so
+# this jobdef is a no-op until the ARN is wired.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "usda_esr_fetch" {
+  count = var.fas_api_key_secret_arn != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-usda-esr-fetch"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = "${var.ecr_repository_url}:latest"
+
+    # Weekly snapshot: --as-of defaults to today at runtime (the as_of partition
+    # key). --skip-existing-s3 makes a re-fire idempotent. Sequential by design.
+    command = [
+      "jobs/ingest/fetch_usda_esr.py",
+      "--mode", "weekly",
+      "--skip-existing-s3"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "LEVIATHAN_ENV", value = var.environment }
+    ]
+
+    # FAS_API_KEY injected by the ECS agent from Secrets Manager (never in env/URL/code).
+    # USER-GATED: fails at job launch until leviathan/dev/fas-api-key is created.
+    secrets = [
+      { name = "FAS_API_KEY", valueFrom = var.fas_api_key_secret_arn }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU", value = "0.25" },
+      { type = "MEMORY", value = "512" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "usda-esr-fetch"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 3600 # 1 h ceiling; a weekly run is ~20 sequential requests (~1 min)
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Job definition: text/ layer → GraphRAG Parquet extraction
 # Reads document.json files from text/source={source}/ and calls Claude Haiku
 # via Bedrock to extract entities, causal edges, forecasts, and sentiment into
