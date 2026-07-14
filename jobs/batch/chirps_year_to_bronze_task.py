@@ -39,6 +39,13 @@ logger = get_logger("chirps_year_to_bronze_task")
 # Location index
 # ---------------------------------------------------------------------------
 
+# CHIRPS is a quasi-global product: coverage hard-stops at 50S-50N. Regions beyond the
+# band (Canadian canola/HRS, northern France/Germany/Poland wheat + rapeseed, ...) can NEVER
+# carry CHIRPS precipitation -- the first ingest minted 15,142 all-NaN month partitions for
+# 27 such regions (BF-W1 census). Their precipitation lives in nasa_power (global coverage).
+CHIRPS_LAT_LIMIT = 50.0
+
+
 def _build_location_index(
     commodity_regions: dict[str, list[Region]],
 ) -> tuple[
@@ -47,6 +54,9 @@ def _build_location_index(
 ]:
     """Deduplicate locations by coordinate; build commodity reverse mapping.
 
+    Regions outside the CHIRPS 50S-50N coverage band are dropped here (structural
+    absence, logged once) so no downstream stage can mint fabricated NaN rows for them.
+
     Returns:
         flat_locations: unique Region list passed to fetch_chirps_daily_values.
         region_to_entries: canonical_region -> [{commodity, country, region, lat, lon}]
@@ -54,9 +64,13 @@ def _build_location_index(
     seen: dict[tuple[float, float], str] = {}  # (lat, lon) -> canonical region name
     flat_locations: list[Region] = []
     region_to_entries: dict[str, list[dict]] = defaultdict(list)
+    out_of_band: set[tuple[str, str]] = set()
 
     for commodity, regions in commodity_regions.items():
         for loc in regions:
+            if abs(loc["latitude"]) > CHIRPS_LAT_LIMIT:
+                out_of_band.add((loc["country"], loc["region"]))
+                continue
             coord = (round(loc["latitude"], 6), round(loc["longitude"], 6))
             if coord not in seen:
                 seen[coord] = loc["region"]
@@ -70,6 +84,12 @@ def _build_location_index(
                 "longitude": loc["longitude"],
             })
 
+    if out_of_band:
+        logger.info(
+            "CHIRPS coverage skip (|lat| > %s): %d regions structurally out of band: %s",
+            CHIRPS_LAT_LIMIT, len(out_of_band),
+            ", ".join(f"{c}/{r}" for c, r in sorted(out_of_band)),
+        )
     return flat_locations, dict(region_to_entries)
 
 
@@ -156,10 +176,16 @@ def _process_month(
 
             null_count = sum(1 for r in rows if r["precipitation_mm"] is None)
             if null_count == len(rows):
+                # WRITE-GATE (BF-W1): an all-null region-month is structural absence (out of
+                # coverage, or the source file is not published yet). Minting a NaN partition
+                # fabricates presence -- the exact defect the 2026-05-16 vintage carpeted the
+                # lake with. Skip; the honest representation of no data is NO partition.
                 logger.warning(
-                    "All-null precipitation for commodity=%s country=%s region=%s %d-%02d",
+                    "SKIP all-null precipitation (no partition written): commodity=%s "
+                    "country=%s region=%s %d-%02d",
                     commodity, country, region, year, month,
                 )
+                continue
 
             df = pd.DataFrame(rows)
             buf = io.BytesIO()
