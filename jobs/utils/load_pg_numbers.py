@@ -53,6 +53,31 @@ def _glue_table(name: str) -> dict:
     return {"location": sd["Location"], "columns": cols, "partitions": parts}
 
 
+def _probe_body_columns(location: str) -> set[str]:
+    """Physical column names of ONE parquet fragment under `location` (a single-footer schema probe).
+
+    Why: a Glue PARTITION key that ALSO exists inside file bodies (silver_esr_compact post-BF-W2:
+    as_of_date is both the vintage partition axis and a per-row column) makes pyarrow's dataset-schema
+    unification fail — the declared partition field (string) clashes with the body column
+    (large_string), live-proven on the vintage layout. The body value is authoritative (byte-identical
+    to the directory value by construction), so such keys are dropped from the partitioning schema.
+    Hidden prefixes ('_'/'.') are skipped, mirroring pyarrow's own discovery rule."""
+    import boto3
+    import pyarrow.dataset as pads
+    path = location.removeprefix("s3://").rstrip("/")
+    bucket, _, prefix = path.partition("/")
+    s3 = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix + "/"):
+        for obj in page.get("Contents", []):
+            rel = obj["Key"][len(prefix):].lstrip("/")
+            if any(seg.startswith(("_", ".")) for seg in rel.split("/")):
+                continue                                     # hidden staging/manifest prefixes
+            if obj["Key"].endswith(".parquet"):
+                one = pads.dataset([f"s3://{bucket}/{obj['Key']}"], format="parquet")
+                return set(one.schema.names)
+    return set()
+
+
 def _numeric_cols(ts) -> set[str]:
     """Columns SQL does arithmetic/aggregation on — everything else mirrors as TEXT."""
     cols: set[str] = set()
@@ -105,6 +130,12 @@ def load_table(ts, conn, *, dry_run: bool = False, batch_rows: int = 20000) -> i
     import pyarrow as pa
     import pyarrow.dataset as pads
 
+    # Partition keys that also live INSIDE file bodies are excluded from the partitioning schema
+    # (unification clash — see _probe_body_columns); their values load from the body columns, and
+    # pyarrow tolerates the unparsed directory segment.
+    body_cols = _probe_body_columns(meta["location"])
+    part_keys = [(n, t) for n, t in meta["partitions"] if n not in body_cols]
+
     def _open(unified: bool):
         if not unified:
             # EXPLICIT partition schema from Glue's declared types — pyarrow's hive inference types integer
@@ -113,8 +144,8 @@ def load_table(ts, conn, *, dry_run: bool = False, batch_rows: int = 20000) -> i
             _ARROW = {"int": pa.int32(), "integer": pa.int32(), "bigint": pa.int64(),
                       "smallint": pa.int16()}
             part_schema = pa.schema(
-                [(n, _ARROW.get(t.split("(")[0], pa.string())) for n, t in meta["partitions"]])
-            partitioning = pads.partitioning(part_schema, flavor="hive") if meta["partitions"] else None
+                [(n, _ARROW.get(t.split("(")[0], pa.string())) for n, t in part_keys])
+            partitioning = pads.partitioning(part_schema, flavor="hive") if part_keys else None
             return pads.dataset(meta["location"], format="parquet", partitioning=partitioning)
         # Glue-derived UNIFIED read schema for fragments whose schemas diverge across write eras
         # (silver_production: year int32 in some files, int64 in others) or that carry all-null columns
@@ -127,8 +158,8 @@ def load_table(ts, conn, *, dry_run: bool = False, batch_rows: int = 20000) -> i
         read_schema = pa.schema(
             [(n, _WIDE.get(t.split("(")[0], pa.string())) for n, t in meta["columns"]]
             + [(n, _WIDE.get(t.split("(")[0], pa.string())) for n, t in meta["partitions"]])
-        wide_parts = pa.schema([(n, _WIDE.get(t.split("(")[0], pa.string())) for n, t in meta["partitions"]])
-        partitioning = pads.partitioning(wide_parts, flavor="hive") if meta["partitions"] else None
+        wide_parts = pa.schema([(n, _WIDE.get(t.split("(")[0], pa.string())) for n, t in part_keys])
+        partitioning = pads.partitioning(wide_parts, flavor="hive") if part_keys else None
         return pads.dataset(meta["location"], format="parquet", partitioning=partitioning,
                             schema=read_schema)
 
