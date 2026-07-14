@@ -13,6 +13,7 @@
 
 
 
+
 reports:
 
   - release_date: "1973-09-17"
@@ -4389,4 +4390,18 @@ reports:
     fmt: pdf
     url: "https://esmis.nal.usda.gov/sites/default/release-files/795903/wasde0526v2.pdf"
     filename: "wasde0526.pdf"
+
+  - release_date: "2026-06-11"
+    calendar_month: "2026-06"
+    mmyy: "0626"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795937/wasde0626v2.pdf"
+    filename: "wasde0626.pdf"
+
+  - release_date: "2026-07-10"
+    calendar_month: "2026-07"
+    mmyy: "0726"
+    fmt: pdf
+    url: "https://esmis.nal.usda.gov/sites/default/release-files/795974/wasde0726.pdf"
+    filename: "wasde0726.pdf"
 
