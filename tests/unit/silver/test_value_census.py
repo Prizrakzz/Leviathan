@@ -116,6 +116,40 @@ def test_single_vintage_fails(tmp_path):
     assert [r.kind for r in rows] == [KIND_SINGLE_VINTAGE]
 
 
+def test_single_vintage_waiver_demotes_to_warn(tmp_path):
+    """BF-W2 rider 6: a declared vintage_waiver DEMOTES the single_vintage hard row to a WARN that
+    names the approval; every other kind stays hard; no waiver -> unchanged (evaluate_gate itself
+    never consults the waiver, so the gate cannot be quietly disarmed)."""
+    from leviathan.silver.value_census import apply_vintage_waiver
+
+    a = pa.table({"ingest_date": pa.array(["2026-01-20"] * 100)})
+    md = _write(tmp_path, "a.parquet", a)
+    census = census_column([_stat(md, "ingest_date")], "ingest_date")
+    rows = evaluate_gate(
+        "silver_production", {"ingest_date": census}, [], 0.5,
+        knowledge_date_col="ingest_date", knowledge_census=census,
+    )
+    assert [r.kind for r in rows] == [KIND_SINGLE_VINTAGE]      # the gate itself stays strict
+
+    waiver = {"reason": "annual latest-only source; second vintage structurally impossible",
+              "approved": "2026-07-15 BF-W2 rider 6 (user gate)"}
+    kept, waived = apply_vintage_waiver(rows, waiver)
+    assert kept == []                                            # hard-fail cleared...
+    assert len(waived) == 1 and waived[0].kind == KIND_SINGLE_VINTAGE
+    assert "WAIVED (2026-07-15 BF-W2 rider 6 (user gate))" in waived[0].detail  # ...but never silent
+
+    kept_no, waived_no = apply_vintage_waiver(rows, None)        # no waiver -> nothing changes
+    assert kept_no == rows and waived_no == []
+
+
+def test_live_registry_carries_the_faostat_waiver():
+    # the tracked contract (rider 6) validates against the strict schema and reaches consumers.
+    from leviathan.silver.registry import load_registry as load_silver
+    reg = load_silver()
+    w = reg.tables["silver_production"].get("vintage_waiver")
+    assert w and "FAOSTAT" in w["reason"] and "rider 6" in w["approved"]
+
+
 def test_multi_vintage_passes(tmp_path):
     a = pa.table({"as_of_date": pa.array(["20260521"] * 50)})
     b = pa.table({"as_of_date": pa.array(["20260528"] * 50)})

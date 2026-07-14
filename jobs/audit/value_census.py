@@ -39,6 +39,7 @@ if str(_REPO_ROOT / "src") not in sys.path:
 
 from leviathan.silver.registry import load_registry  # noqa: E402
 from leviathan.silver.value_census import (  # noqa: E402
+    apply_vintage_waiver,
     census_column,
     evaluate_gate,
     evaluate_warnings,
@@ -221,12 +222,17 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
                                            f"[{label}] {r.detail}"))
         group_summaries[label] = {col: g_census[col].to_dict() for col in value_columns}
 
-    # Vintage-adequacy from the table-wide knowledge census.
+    # Vintage-adequacy from the table-wide knowledge census. A declared, user-gated
+    # vintage_waiver (BF-W2 rider 6: annual latest-only sources where a second vintage is
+    # structurally impossible) demotes the single_vintage HARD row to a WARN that carries the
+    # waiver -- reported, never silently green; evaluate_gate itself stays strict.
     vintage_rows = evaluate_gate(
         table, census_by_column, [], min_frac,
         knowledge_date_col=knowledge_col,
         knowledge_census=census_by_column.get(knowledge_col) if knowledge_col else None,
     )
+    waiver = contract.get("vintage_waiver")
+    vintage_rows, waived_rows = apply_vintage_waiver(vintage_rows, waiver)
 
     result = build_table_result(
         table,
@@ -245,11 +251,14 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
             f"min_nonnull_frac is provisional ({min_frac}); per-source calibration pending (OP-8/AV-11).",
         ],
     )
-    # Fold per-group value rows + vintage rows into the result's gate/warn lists.
+    # Fold per-group value rows + vintage rows into the result's gate/warn lists (waived vintage
+    # rows land in WARN, and the artifact carries the waiver object itself).
     object.__setattr__(result, "gate_rows", tuple(list(per_group_rows) + list(vintage_rows)))
-    object.__setattr__(result, "warn_rows", tuple(per_group_warns))
+    object.__setattr__(result, "warn_rows", tuple(list(per_group_warns) + waived_rows))
     d = result.to_dict()
     d["per_group_value_census"] = group_summaries
+    if waiver:
+        d["vintage_waiver"] = dict(waiver)
     return result, d
 
 

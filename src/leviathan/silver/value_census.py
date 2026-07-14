@@ -357,6 +357,29 @@ def evaluate_gate(
     return rows
 
 
+def apply_vintage_waiver(
+    gate_rows: Sequence[GateRow], waiver: Optional[dict]
+) -> tuple[list[GateRow], list[GateRow]]:
+    """Split gate rows under a declared, user-gated ``vintage_waiver`` (BF-W2 rider 6).
+
+    Returns ``(kept_hard, waived_warn)``: with a waiver present, KIND_SINGLE_VINTAGE rows are
+    DEMOTED to warn rows whose detail names the approval -- reported, never silently green. Every
+    other kind stays hard, and without a waiver nothing changes. ``evaluate_gate`` itself remains
+    strict by design (the waiver is a REGISTRY declaration consumed at the census runner, so the
+    gate function cannot be quietly disarmed by a caller omitting an argument)."""
+    if not waiver:
+        return list(gate_rows), []
+    kept: list[GateRow] = []
+    waived: list[GateRow] = []
+    for r in gate_rows:
+        if r.kind == KIND_SINGLE_VINTAGE:
+            waived.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
+                                  f"WAIVED ({waiver.get('approved', '?')}): {r.detail}"))
+        else:
+            kept.append(r)
+    return kept, waived
+
+
 def evaluate_warnings(
     table: str,
     census_by_column: dict[str, ColumnCensus],

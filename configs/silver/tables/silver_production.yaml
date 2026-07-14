@@ -151,3 +151,8 @@ projection_domains:
   projection.year.range: 1961,2035
   projection.year.type: integer
   storage.location.template: s3://leviathan-dev-shahem-001/silver/production/commodity=${commodity}/year=${year}
+vintage_waiver:
+  reason: 'FAOSTAT QCL is an annual latest-only source: one global release per year, no in-year revisions.
+    A re-pull cannot create a second ingest_date vintage and would overwrite the sole raw ZIP (versioning
+    Suspended). Next real vintage = the ~Dec 2026 QCL release.'
+  approved: 2026-07-15 BF-W2 rider 6 (user gate)

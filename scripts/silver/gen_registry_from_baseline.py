@@ -605,6 +605,18 @@ CURATION_OVERRIDES: dict = {
     # it is reconciled 1:1 against the numbers TableSpec (F010), so a COT Tue-positions/Fri-release
     # lag (3d) or MPOB ~10th-of-month lag belongs in a numbers-stack change with its own eval gate.
     "silver_cot": {"freshness_sla": {"cadence": "weekly"}},          # CFTC COT is a weekly release
+    # ── BF-W2 rider 6 (user-gated 2026-07-15): FAOSTAT QCL single_vintage waiver. A re-pull CANNOT
+    # flip the V001 gate (one global annual release; distinct(ingest_date) stays 1) and would DESTROY
+    # the prior raw ZIP (bucket versioning Suspended at that key). PIT adequacy for an annual
+    # latest-only source is the release cycle itself; the census demotes the hard gate to a WARN that
+    # carries this waiver, and the R4 certificate reports it -- never silently green.
+    "silver_production": {"vintage_waiver": {
+        "reason": ("FAOSTAT QCL is an annual latest-only source: one global release per year, no "
+                   "in-year revisions. A re-pull cannot create a second ingest_date vintage and "
+                   "would overwrite the sole raw ZIP (versioning Suspended). Next real vintage = "
+                   "the ~Dec 2026 QCL release."),
+        "approved": "2026-07-15 BF-W2 rider 6 (user gate)",
+    }},
     "silver_psd": {"freshness_sla": {"cadence": "monthly"}},         # PSD refreshes on the WASDE cycle
     "silver_mpob": {"freshness_sla": {"cadence": "monthly"}},        # MPOB monthly palm statistics
     "silver_modis_ndvi": {"freshness_sla": {"cadence": "monthly"}},  # 16-day composite; monthly interim
@@ -677,7 +689,7 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
         note = ov.get("drift_notes", {}).get(row.get("column") or row.get("name") or "")
         if note:
             row["note"] = note
-    for key in ("natural_key", "required_nonnull", "coverage_axis"):
+    for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver"):
         if key in ov:
             contract[key] = ov[key]
     if "freshness_sla" in ov:

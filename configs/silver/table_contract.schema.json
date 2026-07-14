@@ -29,29 +29,97 @@
     "provenance"
   ],
   "properties": {
-    "table_name": {"type": "string", "minLength": 1},
-    "layer": {"type": "string", "enum": ["silver", "gold"]},
-    "domain": {"type": "string", "minLength": 1},
-    "lifecycle_class": {"type": "string", "enum": ["source", "derived", "serving_copy", "generated"]},
-    "owner": {"type": "string", "minLength": 1},
-    "schema_version": {"type": "integer", "minimum": 1},
-    "glue_database": {"type": "string", "enum": ["leviathan_dev"]},
-    "s3_root": {"type": "string", "minLength": 1},
-    "s3_bucket": {"type": "string"},
-    "s3_prefix": {"type": "string"},
-    "layout": {"type": "string", "enum": ["flat", "partitioned"]},
-    "partition_mode": {"type": "string", "enum": ["flat", "projected", "registered"]},
-    "projection": {"type": "string", "enum": ["forbidden", "legacy-quarantined"]},
+    "table_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layer": {
+      "type": "string",
+      "enum": [
+        "silver",
+        "gold"
+      ]
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lifecycle_class": {
+      "type": "string",
+      "enum": [
+        "source",
+        "derived",
+        "serving_copy",
+        "generated"
+      ]
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "glue_database": {
+      "type": "string",
+      "enum": [
+        "leviathan_dev"
+      ]
+    },
+    "s3_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "s3_bucket": {
+      "type": "string"
+    },
+    "s3_prefix": {
+      "type": "string"
+    },
+    "layout": {
+      "type": "string",
+      "enum": [
+        "flat",
+        "partitioned"
+      ]
+    },
+    "partition_mode": {
+      "type": "string",
+      "enum": [
+        "flat",
+        "projected",
+        "registered"
+      ]
+    },
+    "projection": {
+      "type": "string",
+      "enum": [
+        "forbidden",
+        "legacy-quarantined"
+      ]
+    },
     "partition_keys": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "glue_type"],
+        "required": [
+          "name",
+          "glue_type"
+        ],
         "properties": {
-          "name": {"type": "string", "minLength": 1},
-          "glue_type": {"type": "string", "minLength": 1},
-          "projected": {"type": "boolean"}
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "glue_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "projected": {
+            "type": "boolean"
+          }
         }
       }
     },
@@ -59,105 +127,366 @@
       "type": "object",
       "description": "The projection.* Glue table properties for a legacy-quarantined projected table (storage template, enum values, integer ranges). INV-3: these ranges are NEVER evidence of physical data coverage."
     },
-    "recovery_strategy": {"type": "string"},
+    "recovery_strategy": {
+      "type": "string"
+    },
     "physical_columns": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "target_arrow_type", "nullable"],
+        "required": [
+          "name",
+          "target_arrow_type",
+          "nullable"
+        ],
         "properties": {
-          "name": {"type": "string", "minLength": 1},
-          "glue_type": {"type": ["string", "null"]},
-          "arrow_type": {"type": ["string", "null"], "description": "current-physical arrow type observed in the R0 baseline (null when the column is absent from the physical sample or arrow-null-typed)"},
-          "parquet_physical_type": {"type": ["string", "null"]},
-          "target_arrow_type": {"type": "string", "minLength": 1, "description": "INV-2 target writer arrow type the widen-migration must write"},
-          "nullable": {"type": "boolean"},
-          "deprecated": {"type": "boolean"}
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "glue_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "arrow_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "current-physical arrow type observed in the R0 baseline (null when the column is absent from the physical sample or arrow-null-typed)"
+          },
+          "parquet_physical_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_arrow_type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "INV-2 target writer arrow type the widen-migration must write"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
+          "deprecated": {
+            "type": "boolean"
+          }
         }
       }
     },
-    "writer_schema_pinned": {"type": "boolean", "description": "false until an explicit pa.schema(...) writer emits this table (INV-2 transition shim retires per-table when true)"},
+    "writer_schema_pinned": {
+      "type": "boolean",
+      "description": "false until an explicit pa.schema(...) writer emits this table (INV-2 transition shim retires per-table when true)"
+    },
     "drift_summary": {
       "type": "array",
       "description": "Columns whose current-physical type is a genuine read/write hazard vs the INV-2 target or the Glue catalog, each tied to its owning R2 package.",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["column", "kind", "current_physical", "target", "owner_package"],
+        "required": [
+          "column",
+          "kind",
+          "current_physical",
+          "target",
+          "owner_package"
+        ],
         "properties": {
-          "column": {"type": "string"},
-          "kind": {"type": "string", "enum": ["widen_int", "widen_float", "null_typed", "glue_catalog_mismatch"]},
-          "current_physical": {"type": ["string", "null"]},
-          "glue_type": {"type": ["string", "null"]},
-          "target": {"type": "string"},
-          "owner_package": {"type": "string"},
-          "note": {"type": "string"}
+          "column": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "widen_int",
+              "widen_float",
+              "null_typed",
+              "glue_catalog_mismatch"
+            ]
+          },
+          "current_physical": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "glue_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "owner_package": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
         }
       }
     },
-    "natural_key": {"type": "array", "items": {"type": "string"}},
-    "required_nonnull": {"type": "array", "items": {"type": "string"}},
-    "value_columns": {"type": "array", "items": {"type": "string"}, "description": "INV-5 measurement columns; the SINGLE authority for the value-census floor (Attack 3 finding #6). source_contracts.yaml must NOT re-declare these."},
-    "min_nonnull_frac": {"type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "INV-5 per-commodity non-null floor feeding SILVER-V001/V002; null iff value_columns is empty."},
-    "min_nonnull_frac_status": {"type": "string", "enum": ["provisional", "calibrated"], "description": "provisional until OP-8/AV-11 per-source calibration lands in SILVER-V001."},
-    "range_rules": {"type": "object"},
-    "coverage_axis": {"type": ["string", "null"]},
-    "vintage_retention": {"type": "string", "enum": ["latest-only", "per-vintage", "per-week"]},
-    "knowledge_date_col": {"type": ["string", "null"]},
-    "knowledge_semantics": {"type": ["string", "null"], "enum": ["vintage", "ingest", "data_date", "year_month", null]},
-    "publication_lag_days": {"type": ["integer", "null"]},
+    "natural_key": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "required_nonnull": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "value_columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "INV-5 measurement columns; the SINGLE authority for the value-census floor (Attack 3 finding #6). source_contracts.yaml must NOT re-declare these."
+    },
+    "min_nonnull_frac": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "INV-5 per-commodity non-null floor feeding SILVER-V001/V002; null iff value_columns is empty."
+    },
+    "min_nonnull_frac_status": {
+      "type": "string",
+      "enum": [
+        "provisional",
+        "calibrated"
+      ],
+      "description": "provisional until OP-8/AV-11 per-source calibration lands in SILVER-V001."
+    },
+    "range_rules": {
+      "type": "object"
+    },
+    "coverage_axis": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vintage_retention": {
+      "type": "string",
+      "enum": [
+        "latest-only",
+        "per-vintage",
+        "per-week"
+      ]
+    },
+    "knowledge_date_col": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "knowledge_semantics": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "vintage",
+        "ingest",
+        "data_date",
+        "year_month",
+        null
+      ]
+    },
+    "publication_lag_days": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
     "freshness_sla": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "cadence": {"type": ["string", "null"]},
-        "max_lag_days": {"type": ["integer", "null"]}
+        "cadence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_lag_days": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
       }
     },
-    "consumers": {"type": "string", "enum": ["numbers_registry", "feature_layer", "both", "none"]},
-    "numbers_ref": {"type": ["string", "null"]},
-    "cascade_ref": {"type": ["string", "null"]},
-    "source_contract_ref": {"type": ["string", "null"]},
-    "serving_table": {"type": ["string", "null"]},
+    "consumers": {
+      "type": "string",
+      "enum": [
+        "numbers_registry",
+        "feature_layer",
+        "both",
+        "none"
+      ]
+    },
+    "numbers_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cascade_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_contract_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "serving_table": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "producer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "properties": {
-        "status": {"type": "string", "enum": ["producer", "half-orphan", "orphan"]},
-        "transform": {"type": ["string", "null"]},
-        "batch_task": {"type": ["string", "null"]},
-        "note": {"type": "string"}
+        "status": {
+          "type": "string",
+          "enum": [
+            "producer",
+            "half-orphan",
+            "orphan"
+          ]
+        },
+        "transform": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "batch_task": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
-    "location_mode": {"type": "string", "enum": ["static", "active_release"]},
-    "write_mode": {"type": "string", "enum": ["overwrite", "append", "upsert", "registered-partition", "unspecified"]},
-    "publish_policy": {"type": "string"},
+    "location_mode": {
+      "type": "string",
+      "enum": [
+        "static",
+        "active_release"
+      ]
+    },
+    "write_mode": {
+      "type": "string",
+      "enum": [
+        "overwrite",
+        "append",
+        "upsert",
+        "registered-partition",
+        "unspecified"
+      ]
+    },
+    "publish_policy": {
+      "type": "string"
+    },
     "fingerprint": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "schema_fingerprint_sha256": {"type": ["string", "null"]},
-        "catalog_hash_sha256": {"type": ["string", "null"]},
-        "registered_partition_count": {"type": "integer"},
-        "placeholder_partition_count": {"type": "integer"},
-        "glue_nonpartition_cols": {"type": "integer"},
-        "physical_parquet_cols": {"type": "integer"}
+        "schema_fingerprint_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "catalog_hash_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registered_partition_count": {
+          "type": "integer"
+        },
+        "placeholder_partition_count": {
+          "type": "integer"
+        },
+        "glue_nonpartition_cols": {
+          "type": "integer"
+        },
+        "physical_parquet_cols": {
+          "type": "integer"
+        }
       }
     },
     "provenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["baseline_id", "generated_from"],
+      "required": [
+        "baseline_id",
+        "generated_from"
+      ],
       "properties": {
-        "baseline_id": {"type": "string"},
-        "anchor_git_sha": {"type": "string"},
-        "generated_by": {"type": "string"},
-        "generated_from": {"type": "string"}
+        "baseline_id": {
+          "type": "string"
+        },
+        "anchor_git_sha": {
+          "type": "string"
+        },
+        "generated_by": {
+          "type": "string"
+        },
+        "generated_from": {
+          "type": "string"
+        }
       }
     },
-    "notes": {"type": "string"}
+    "notes": {
+      "type": "string"
+    },
+    "vintage_waiver": {
+      "type": "object",
+      "description": "Declared, user-gated waiver of the V001 single_vintage hard gate for annual latest-only sources where a second vintage is structurally impossible without destroying raw history (BF-W2 rider 6, FAOSTAT class). The census demotes the single_vintage GateRow to a WARN and carries this object in the artifact; the readiness certificate then reports the table with the waiver, never silently green.",
+      "required": [
+        "reason",
+        "approved"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 20
+        },
+        "approved": {
+          "type": "string",
+          "minLength": 8
+        }
+      }
+    }
   }
 }
