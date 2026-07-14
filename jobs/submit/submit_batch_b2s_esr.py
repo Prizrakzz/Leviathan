@@ -24,7 +24,11 @@ logger = get_logger("submit_batch_b2s_esr")
 
 _JOB_DEF_NAME = "leviathan-dev-esr-bronze-to-silver"
 _JOB_QUEUE = "leviathan-dev-queue"
-_ECR_IMAGE = "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-worker:latest"
+# pinned by DIGEST (BF-W1 discipline): read from `aws ecr describe-images`, never a build log or :latest
+_ECR_IMAGE = (
+    "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-worker"
+    "@sha256:7a8b32e638c27c8e4d469c44c5f9d495be3303f2e568dce6593c5ad2e2f64f8f"
+)
 _JOB_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-job-role"
 _EXEC_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-execution-role"
 _LOG_GROUP = "/aws/batch/leviathan-dev"
@@ -32,14 +36,28 @@ _REGION = "us-east-1"
 
 
 def _ensure_job_definition(batch: object, bucket: str) -> str:
-    """Register job definition if not already active; return its ARN."""
+    """Register the job definition; return a COMPATIBLE revision's ARN.
+
+    describe_job_definitions returns revisions in UNDEFINED order -- a blind [-1] ran
+    jobdef rev1 (whose command lacks --vintage-mode/--publish-mode), so the shadow
+    all-vintage submit silently no-oped as latest+dry-run (BF-W2 step-10 live find; the
+    gold-weather submit had the same class). Reuse only the highest revision whose
+    command threads THIS script's parameter names AND whose image matches the pin."""
     resp = batch.describe_job_definitions(
         jobDefinitionName=_JOB_DEF_NAME, status="ACTIVE"
     )
-    if resp["jobDefinitions"]:
-        arn = resp["jobDefinitions"][-1]["jobDefinitionArn"]
-        logger.info("Using existing job definition: %s", arn)
-        return arn
+    active = sorted(resp.get("jobDefinitions", []), key=lambda d: d["revision"])
+    if active:
+        latest = active[-1]
+        cp = latest["containerProperties"]
+        cmd = cp.get("command", [])
+        if ("Ref::vintage_mode" in cmd and "Ref::publish_mode" in cmd
+                and cp.get("image") == _ECR_IMAGE):
+            arn = latest["jobDefinitionArn"]
+            logger.info("Using existing job definition rev%s: %s", latest["revision"], arn)
+            return arn
+        logger.info("rev%s incompatible (command or image) -- registering a new revision",
+                    latest["revision"])
 
     logger.info("Registering new job definition: %s", _JOB_DEF_NAME)
     resp = batch.register_job_definition(
