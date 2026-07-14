@@ -63,6 +63,15 @@ def _now() -> str:
 # ---------------------------------------------------------------------------
 # Bounded S3 sampling (LIST only) -- no footer body reads here.
 # ---------------------------------------------------------------------------
+def _is_hidden(key: str) -> bool:
+    """Hive hidden-path convention: any ``_``/``.``-prefixed segment is control-plane.
+
+    The F015 publisher stages under ``<root>/_shadow/`` and persists manifests under
+    ``<root>/_manifests/`` (both table-root children after the BF-W1 placement fix); the
+    census must never sample them as data."""
+    return any(seg.startswith(("_", ".")) for seg in key.split("/") if seg)
+
+
 def _immediate_child_prefixes(s3, prefix: str, cap: int) -> list[str]:
     """Immediate ``key=value/`` child prefixes under ``prefix`` (one Delimiter LIST page walk)."""
     out: list[str] = []
@@ -72,7 +81,8 @@ def _immediate_child_prefixes(s3, prefix: str, cap: int) -> list[str]:
         if token:
             kw["ContinuationToken"] = token
         r = s3.list_objects_v2(**kw)
-        out.extend(cp["Prefix"] for cp in r.get("CommonPrefixes", []))
+        out.extend(cp["Prefix"] for cp in r.get("CommonPrefixes", [])
+                   if not _is_hidden(cp["Prefix"][len(prefix):]))
         token = r.get("NextContinuationToken")
         if not token or len(out) >= cap:
             break
@@ -89,7 +99,8 @@ def _parquets_under(s3, prefix: str, per_group: int, page_cap: int = 6) -> list[
         if token:
             kw["ContinuationToken"] = token
         r = s3.list_objects_v2(**kw)
-        keys.extend(o["Key"] for o in r.get("Contents", []) if o["Key"].endswith(".parquet"))
+        keys.extend(o["Key"] for o in r.get("Contents", [])
+                    if o["Key"].endswith(".parquet") and not _is_hidden(o["Key"]))
         token = r.get("NextContinuationToken")
         pages += 1
         if not token or pages >= page_cap:

@@ -180,3 +180,24 @@ def test_build_table_result_shape(tmp_path):
     assert d["package"] == "SILVER-V001"
     assert d["mechanism"] == "parquet_footer_statistics"
     assert "value" in d["columns"]
+
+
+# ------------------------------------------------------- control-plane exclusion (BF-W1 hygiene)
+def test_census_walker_skips_hidden_control_plane_segments():
+    """The F015 publisher stages under <root>/_shadow/ and writes <root>/_manifests/; the
+    census must never sample those as data groups (Hive hidden-path convention)."""
+    import importlib.util
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "value_census_job", repo / "jobs" / "audit" / "value_census.py")
+    job = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(job)  # type: ignore[union-attr]
+
+    assert job._is_hidden("_shadow/")
+    assert job._is_hidden("silver/weather/source=chirps/_shadow/commodity=cocoa/part-000.parquet")
+    assert job._is_hidden("_manifests/silver_chirps-cocoa.json")
+    assert job._is_hidden(".hidden/part.parquet")
+    assert not job._is_hidden("commodity=cocoa/")
+    assert not job._is_hidden("silver/weather/source=chirps/commodity=cocoa/year=1981/part-000.parquet")
