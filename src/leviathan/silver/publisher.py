@@ -292,18 +292,44 @@ class ShadowPublisher:
     def manifest(self) -> RunManifest:
         return self._manifest
 
+    def _root_key(self) -> str:
+        """The canonical root as a BUCKET KEY (scheme/bucket stripped from an s3:// root).
+
+        ``canonical_root`` arrives either as a plain key prefix or as a full s3:// URL
+        (callers differ); every derived S3 KEY must use the key form -- using the URL form
+        raw once minted literal 's3://<bucket>/...' object keys (BF-W1 shadow-rehearsal find)."""
+        root = self.canonical_root.rstrip("/")
+        if root.startswith("s3://"):
+            rest = root[len("s3://"):]
+            root = rest.split("/", 1)[1] if "/" in rest else ""
+        return root.rstrip("/")
+
     def _shadow_key(self, canonical_key: str) -> str:
-        """Map a canonical object key to its shadow-prefix twin."""
+        """Map a canonical object key to its shadow-prefix twin.
+
+        Shadow objects must live OUTSIDE every data-plane prefix a registered-partition
+        location or the feature extractor lists. The per-directory form
+        (``<partition dir>/_shadow/<name>``) staged objects INSIDE the future partition
+        locations -- Athena ignores underscore-hidden paths, but
+        ``extractors._paths_with_year_partitions`` does a raw LIST with a ``year=`` regex and
+        would double-read every promoted row (BF-W1 shadow-rehearsal find). Root-level staging
+        (``<table root>/_shadow/<relative key>``) sits outside every ``commodity=`` prefix; the
+        per-directory form survives only as the fallback for keys outside the canonical root."""
         if self.shadow_prefix:
             base = self.shadow_prefix.rstrip("/")
             return f"{base}/{canonical_key.lstrip('/')}"
-        # derive from the guard: <prefix>/_shadow/<...>
+        root_key = self._root_key()
+        if root_key and canonical_key.startswith(f"{root_key}/"):
+            relative = canonical_key[len(root_key) + 1:]
+            marker = self.auth.shadow_prefix("").strip("/")
+            return f"{root_key}/{marker}/{relative}"
+        # fallback (key outside the canonical root): <prefix>/_shadow/<...>
         prefix, _, name = canonical_key.rpartition("/")
         shadow_dir = self.auth.shadow_prefix(prefix)
         return f"{shadow_dir}{name}"
 
     def _persist_manifest(self) -> str:
-        key = f"{self.canonical_root.rstrip('/')}/_manifests/{self.run_id}.json"
+        key = f"{self._root_key()}/_manifests/{self.run_id}.json"
         # never write the manifest under a data prefix that a table LISTs: _manifests is control-plane.
         body = self._manifest.to_json()
         store = self.manifest_store or self._default_manifest_store

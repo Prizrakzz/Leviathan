@@ -277,3 +277,58 @@ def test_canonical_publish_without_approval_denied_end_to_end(fake_s3, monkeypat
     with pytest.raises(PG.ReadinessPublishDenied):
         PG.authorize_publish(target, argv=["--publish-mode", "canonical"],
                              env={PG.ENV_READINESS: "1"})
+
+
+# --------------------------------------------------------------- shadow placement (BF-W1 rehearsal find)
+WEATHER_ROOT = "s3://leviathan-test/silver/weather/source=chirps"
+
+
+def test_shadow_key_stays_outside_partition_locations(fake_s3):
+    # Per-directory shadow put staged objects INSIDE the future registered-partition
+    # locations (commodity=<c>/year=<y>/_shadow/...), which the feature extractor's raw
+    # year= LIST would double-read after promote. Shadow must stage at the TABLE root.
+    pub = ShadowPublisher(job="j", table="silver_chirps", database="leviathan_test", bucket=BUCKET,
+                          canonical_root=WEATHER_ROOT, auth=shadow_authorization(), s3_client=fake_s3,
+                          strategy=PublishStrategy.REGISTERED, manifest_store=lambda k, b: None)
+    canonical = "silver/weather/source=chirps/commodity=cocoa/year=1981/part-000.parquet"
+    shadow = pub._shadow_key(canonical)
+    assert shadow == "silver/weather/source=chirps/_shadow/commodity=cocoa/year=1981/part-000.parquet"
+    # the year= segment must come AFTER the _shadow marker, never before it
+    assert shadow.index("/_shadow/") < shadow.index("year=")
+
+
+def test_shadow_run_never_writes_inside_year_dirs(fake_s3):
+    pub = ShadowPublisher(job="j", table="silver_chirps", database="leviathan_test", bucket=BUCKET,
+                          canonical_root=WEATHER_ROOT, auth=shadow_authorization(), s3_client=fake_s3,
+                          strategy=PublishStrategy.REGISTERED, manifest_store=lambda k, b: None)
+    key = "silver/weather/source=chirps/commodity=cocoa/year=1981/part-000.parquet"
+    m = pub.run([StagedObject(canonical_key=key, body=b"PAR1x", partition_values=["cocoa", "1981"],
+                              row_count=3)])
+    assert m.state is ManifestState.VALIDATED
+    for written in fake_s3.keys():
+        if "year=" in written:
+            # anything under a year= dir must not be shadow scrap
+            assert "/_shadow/" not in written.split("year=", 1)[1], written
+
+
+def test_manifest_key_is_a_bucket_key_not_a_url(fake_s3):
+    seen = {}
+    pub = ShadowPublisher(job="j", table="silver_chirps", database="leviathan_test", bucket=BUCKET,
+                          canonical_root=WEATHER_ROOT, auth=dryrun_authorization(), s3_client=fake_s3,
+                          strategy=PublishStrategy.REGISTERED,
+                          manifest_store=lambda k, b: seen.setdefault("key", k))
+    pub.run([_obj(key="silver/weather/source=chirps/commodity=cocoa/year=1981/part-000.parquet",
+                  values=["cocoa", "1981"])])
+    # the URL form once minted literal "s3://<bucket>/..." OBJECT KEYS in the bucket
+    assert seen["key"].startswith("silver/weather/source=chirps/_manifests/")
+    assert not seen["key"].startswith("s3:")
+
+
+def test_plain_key_canonical_root_unchanged(fake_s3):
+    # canonical_root given as a plain key prefix (no scheme) must behave identically
+    pub = ShadowPublisher(job="j", table="silver_chirps", database="leviathan_test", bucket=BUCKET,
+                          canonical_root="silver/weather/source=chirps",
+                          auth=shadow_authorization(), s3_client=fake_s3,
+                          strategy=PublishStrategy.REGISTERED, manifest_store=lambda k, b: None)
+    shadow = pub._shadow_key("silver/weather/source=chirps/commodity=cocoa/year=2020/part-000.parquet")
+    assert shadow == "silver/weather/source=chirps/_shadow/commodity=cocoa/year=2020/part-000.parquet"
