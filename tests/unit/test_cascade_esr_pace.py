@@ -214,15 +214,18 @@ def test_census_esr_probe_fires_covered_darks_mis_assigned(monkeypatch):
     assert verdicts[("cotton", "US_export_pace")] == cc.DARK
 
 
-# ── D-W3.5.5: a silent week narrates as ABSENCE (DECLINES-HONESTLY), never a fabricated pace ──────────
+# ── D-W3.5.5: a silent week narrates as ABSENCE (DECLINES-HONESTLY), never a fabricated pace.
+#    BF-W2 vintage flip: silver_esr is now knowledge_semantics=vintage, so the empty-window status is
+#    the vintage-honest 'not_known' ("vintage not yet published") instead of 'record_silent' -- same
+#    invariant (no fabricated [N] row), vintage-correct phrasing. ─────────────────────────────────────
 def test_esr_silent_week_narrates_absence_no_fabricated_pace():
     cur = cq._node_specs(_node(), _ESR_ROW, "corn_cbot", None, _ERAS, asof="2026-07-01")[0]
     rec = cq._run_one(lambda sql: [], cur)                          # no ESR rows in the current window
-    assert rec["status"] == "record_silent" and rec["rows"] == []
+    assert rec["status"] == "not_known" and rec["rows"] == []
     kept = [{"specs": [{"node_key": cur["node_key"]}], "row": _ESR_ROW}]
     calls: list = []
     lines, trace, _dk = cq._assemble([rec], kept, 0, calls)
     assert calls == []                                              # NOTHING injected -- no fabricated [N] row
-    absence = [ln for ln in lines if "record silent" in ln]
+    absence = [ln for ln in lines if "vintage not yet published" in ln]
     assert len(absence) == 1 and "[N" not in absence[0]            # absence line, no citation handle
-    assert trace and trace[0]["current_status"] == "record_silent"
+    assert trace and trace[0]["current_status"] == "not_known"

@@ -17,7 +17,19 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_conab_coffee (
     yield_bags_per_ha                 double,
     production_thousand_bags          double,
     production_revision_thousand_bags double,
-    source                            string
+    source                            string,
+    region_raw                        string,
+    area_revision_ha                  double,
+    yield_revision_bags_per_ha        double,
+    production_revision_pct           double,
+    production_revision_streak        bigint,
+    is_repeated_survey                boolean,
+    repeated_from_survey_number       bigint,
+    survey_content_fingerprint        string,
+    source_raw_key                    string,
+    source_file_etag                  string,
+    worksheet                         string,
+    parser_version                    string
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/conab_coffee/'

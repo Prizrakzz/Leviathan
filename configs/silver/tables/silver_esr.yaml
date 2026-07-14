@@ -145,10 +145,10 @@ value_columns:
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: one row per commodity x destination x week_ending_date, per weekly as_of_date report
-vintage_retention: latest-only
+vintage_retention: per-week
 knowledge_date_col: as_of_date
-knowledge_semantics: data_date
-publication_lag_days: 7
+knowledge_semantics: vintage
+publication_lag_days: 0
 freshness_sla:
   cadence: weekly
   max_lag_days: null

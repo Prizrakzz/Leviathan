@@ -77,73 +77,73 @@ physical_columns:
   target_arrow_type: string
   nullable: true
 - name: region_raw
-  glue_type: null
+  glue_type: string
   arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 - name: area_revision_ha
-  glue_type: null
+  glue_type: double
   arrow_type: double
   parquet_physical_type: DOUBLE
   target_arrow_type: float64
   nullable: true
 - name: yield_revision_bags_per_ha
-  glue_type: null
+  glue_type: double
   arrow_type: double
   parquet_physical_type: DOUBLE
   target_arrow_type: float64
   nullable: true
 - name: production_revision_pct
-  glue_type: null
+  glue_type: double
   arrow_type: double
   parquet_physical_type: DOUBLE
   target_arrow_type: float64
   nullable: true
 - name: production_revision_streak
-  glue_type: null
+  glue_type: bigint
   arrow_type: int64
   parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: true
 - name: is_repeated_survey
-  glue_type: null
+  glue_type: boolean
   arrow_type: bool
   parquet_physical_type: BOOLEAN
   target_arrow_type: bool
   nullable: true
 - name: repeated_from_survey_number
-  glue_type: null
+  glue_type: bigint
   arrow_type: int64
   parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: true
 - name: survey_content_fingerprint
-  glue_type: null
+  glue_type: string
   arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 - name: source_raw_key
-  glue_type: null
+  glue_type: string
   arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 - name: source_file_etag
-  glue_type: null
+  glue_type: string
   arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 - name: worksheet
-  glue_type: null
+  glue_type: string
   arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 - name: parser_version
-  glue_type: null
+  glue_type: string
   arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
@@ -201,7 +201,8 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.
   SILVER-F024 (OP-4): the 12 revision/provenance columns (region_raw, *_revision_*, production_revision_streak,
   is_repeated_survey, repeated_from_survey_number, survey_content_fingerprint, source_raw_key, source_file_etag,
-  worksheet, parser_version) are physical-parquet-only (glue_type=None -> R2-adds); the widened producer
-  reproduces all 22 and the gated F024 ADD COLUMNS migration (reports/silver_readiness/R2_SA/F024_conab_additive_migration.json)
-  exposes them in live Glue. The orphan EAV silver/production/source=conab/ is classified in place (F060),
-  not deleted here.'
+  worksheet, parser_version) were physical-parquet-only R2-adds; as of BF-W2 step 3 the registry carries
+  their catalog Glue types (the F024 TARGET, 22 cols) so the gated ADD COLUMNS migration (reports/silver_readiness/R2_SA/F024_conab_additive_migration.json)
+  can apply via CatalogMigrator without emitting Type: null (runbook Deviation 9). Live Glue stays 10
+  cols until that apply; the widened producer reproduces all 22. The orphan EAV silver/production/source=conab/
+  is classified in place (F060), not deleted here.'

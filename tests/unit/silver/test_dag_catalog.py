@@ -60,10 +60,14 @@ class TestBackfillFlag:
 
 class TestFreshnessSla:
     def test_esr_folds_publication_lag_grace(self, registry):
-        # ESR: weekly (14) + publication_lag_days 7 = 21.
+        # BF-W2 SILVER-F031: ESR runs per-week vintage semantics with publication_lag_days 0 (the
+        # as_of stamp IS the publication event), so the grace term vanishes and the ceiling is the
+        # bare weekly cadence default (14). Pre-flip: 14 + 7 = 21 -- the freshness alarm TIGHTENS
+        # (mirrored in infra/.../silver_observability.auto.tfvars.json usda_esr).
         esr = registry.table("silver_esr")
+        assert esr["publication_lag_days"] == 0            # the grace input this derivation folds
         lag, basis = effective_sla_lag_days(esr)
-        assert lag == 21
+        assert lag == 14
         assert basis == "cadence_default:weekly"
 
     def test_catalog_family_takes_tightest_member(self, catalog):

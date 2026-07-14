@@ -65,10 +65,12 @@ class TestPublicationLagReconciled:
         assert esr == [], f"ESR publication_lag / PIT divergence vs the numbers TableSpec: {esr}"
 
     def test_lag_fields_are_frozen(self, reg):
+        # BF-W2 SILVER-F031 supersedes the F030 v1 interim (data_date + 7d): per-week as_of vintages,
+        # the as_of stamp IS the publication event -> vintage semantics, lag 0 (runbook ESR-R2/R4).
         c = reg.table("silver_esr")
         assert c["knowledge_date_col"] == "as_of_date"
-        assert c["knowledge_semantics"] == "data_date"
-        assert c["publication_lag_days"] == 7
+        assert c["knowledge_semantics"] == "vintage"
+        assert c["publication_lag_days"] == 0
 
     def test_whole_registry_reconciles_clean(self, reg):
         assert R.unallowed(R.reconcile_all(reg)) == []

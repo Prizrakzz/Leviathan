@@ -82,8 +82,10 @@ PER_VINTAGE = {
     "silver_wasde", "silver_psd", "silver_wap_table01_revisions", "silver_nass_citrus",
     "silver_sagis_cec", "silver_model_predictions",
 }
-# Explicit latest-only overrides (ESR compact retains only the latest as_of snapshot per MY).
-LATEST_ONLY = {"silver_esr", "silver_esr_compact"}
+# BF-W2 SILVER-F031 option-b: ESR retains one weekly as_of vintage per (slug, week) -- the serving
+# compact gains a REGISTERED as_of_date partition dimension (never re-projection). Flipped from the
+# pre-BF-W2 latest-only override in the step-1 serving PR (runbook B2_phase0, ESR-R2/R3/R4).
+PER_WEEK = {"silver_esr", "silver_esr_compact"}
 
 # Primary R2 owning package per table (from the all-42 readiness matrix, plan L737-779).
 R2_OWNER = {
@@ -238,10 +240,11 @@ EXTRA_NOTES = {
     ),
     "silver_esr_compact": (
         " SILVER-F030/F031 ESR ADR (frozen): changes_1000mt DEPRECATED + nullable (INV-4, never 0.0). "
-        "vintage_retention=latest-only TODAY; the SILVER-F031 option-b path adds an as_of_date "
-        "REGISTERED partition dimension for per-week vintages (execution gated BF-W2 -- never "
-        "re-projection). See reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity "
-        "proof under the same prefix."
+        "vintage_retention=per-week (BF-W2 step-1 serving PR): the SILVER-F031 option-b path adds an "
+        "as_of_date REGISTERED partition dimension for per-week vintages (canonical data/catalog "
+        "migration is the gated BF-W2 window -- never re-projection). See "
+        "reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity proof under the same "
+        "prefix."
     ),
     "silver_mpoc_stock_comparison": (
         " SILVER-F055: producer restored on the shared F052 adapter. The source-as-of provenance is "
@@ -264,11 +267,15 @@ _NUMERIC_GLUE = {"double", "float", "real", "int", "integer", "bigint", "smallin
 # so the projection stays == live Glue until the gated SET TBLPROPERTIES apply.
 PROJECTION_ENUM_ADDITIONS: dict = {}
 
-# SILVER-F024: silver_conab_coffee's 12 revision/provenance columns are physical-parquet-only
-# (glue_type=None -> recorded as R2-adds, invisible to Athena until the additive migration). Per the
-# same convention the checked-in DDL stays == live Glue (10 catalog cols); the F024 ADD COLUMNS target
-# lives in the migration artifact (F024_conab_additive_migration.json). Left empty (no catalog promote).
-CATALOG_PROMOTE_HIDDEN: set = set()
+# SILVER-F024 / BF-W2 step 3 (runbook Deviation 9): silver_conab_coffee's 12 revision/provenance
+# columns were physical-parquet-only (glue_type=None -> R2-adds, invisible to Athena). The registry
+# now carries the F024 ADD COLUMNS TARGET (22 catalog cols, Glue types derived from the INV-2
+# target) BECAUSE CatalogMigrator._glue_columns does not drop glue_type-null columns -- an additive
+# apply from a null-typed registry would send Type: null x12 to Glue update_table (fail-closed
+# reject). The gated F024 migration must apply from a SHA that includes this flip; until it does,
+# checked-in registry/DDL deliberately lead live Glue by exactly the F024 additive set
+# (F024_conab_additive_migration.json is the consistency authority, pinned in tests).
+CATALOG_PROMOTE_HIDDEN: set = {"silver_conab_coffee"}
 
 _ARROW_TO_GLUE = {
     "int64": "bigint", "float64": "double", "string": "string", "bool": "boolean",
@@ -299,11 +306,13 @@ EXTRA_NOTES["silver_nass_annual"] = (
 EXTRA_NOTES["silver_conab_coffee"] = (
     " SILVER-F024 (OP-4): the 12 revision/provenance columns (region_raw, *_revision_*, "
     "production_revision_streak, is_repeated_survey, repeated_from_survey_number, "
-    "survey_content_fingerprint, source_raw_key, source_file_etag, worksheet, parser_version) are "
-    "physical-parquet-only (glue_type=None -> R2-adds); the widened producer reproduces all 22 and the "
-    "gated F024 ADD COLUMNS migration (reports/silver_readiness/R2_SA/F024_conab_additive_migration.json) "
-    "exposes them in live Glue. The orphan EAV silver/production/source=conab/ is classified in place "
-    "(F060), not deleted here."
+    "survey_content_fingerprint, source_raw_key, source_file_etag, worksheet, parser_version) were "
+    "physical-parquet-only R2-adds; as of BF-W2 step 3 the registry carries their catalog Glue types "
+    "(the F024 TARGET, 22 cols) so the gated ADD COLUMNS migration "
+    "(reports/silver_readiness/R2_SA/F024_conab_additive_migration.json) can apply via "
+    "CatalogMigrator without emitting Type: null (runbook Deviation 9). Live Glue stays 10 cols "
+    "until that apply; the widened producer reproduces all 22. The orphan EAV "
+    "silver/production/source=conab/ is classified in place (F060), not deleted here."
 )
 
 # LANE W provenance notes (SILVER-F021/F044/F045/F046/F047; disjoint assignment).
@@ -456,7 +465,10 @@ def build_contract(name: str, ctx: dict) -> dict:
         knowledge_semantics = numbers_spec.get("knowledge_semantics")
         publication_lag_days = numbers_spec.get("publication_lag_days")
     elif name == "silver_esr_compact":
-        knowledge_date_col, knowledge_semantics, publication_lag_days = "as_of_date", "data_date", 7
+        # the compact IS the physical table behind the silver_esr numbers spec -- its PIT fields
+        # mirror that spec's BF-W2 vintage flip (per-week as_of vintages; the as_of stamp is the
+        # publication event, so no +7d data_date lag).
+        knowledge_date_col, knowledge_semantics, publication_lag_days = "as_of_date", "vintage", 0
     else:
         knowledge_date_col = knowledge_semantics = publication_lag_days = None
 
@@ -519,7 +531,7 @@ def build_contract(name: str, ctx: dict) -> dict:
         "min_nonnull_frac_status": "provisional",
         "coverage_axis": grain or None,
         "vintage_retention": (
-            "latest-only" if name in LATEST_ONLY
+            "per-week" if name in PER_WEEK
             else "per-vintage" if name in PER_VINTAGE
             else "latest-only"
         ),
@@ -680,14 +692,19 @@ def _build_context() -> dict:
     numbers_doc = _load_yaml(_REPO / "configs" / "graphrag" / "numbers" / "tables.yaml")["tables"]
     metric_keys = {t: list((spec.get("metrics") or {}).keys()) for t, spec in numbers_doc.items()}
     tablespec = _load(CONSUMERS / "tablespec.json")["specs"]
-    # merge shape/knowledge fields from the tablespec snapshot into the numbers dict
+    # merge shape/knowledge fields from the tablespec snapshot into the numbers dict. The LIVE
+    # tables.yaml wins; the frozen R0 snapshot only FILLS keys the live yaml omits. The snapshot
+    # must never override live PIT fields: the F010 reconcile lint compares the registry against
+    # the LIVE consumer config, and a PIT divergence is forbidden in known_drift -- a snapshot-wins
+    # merge silently pinned the registry to R0-era semantics (caught by the BF-W2 ESR vintage flip,
+    # which the old merge re-clobbered to data_date/+7d).
     numbers = {}
     for t, spec in numbers_doc.items():
         merged = dict(spec)
-        merged.update({k: v for k, v in tablespec.get(t, {}).items() if k in (
-            "shape", "knowledge_date_col", "knowledge_semantics", "publication_lag_days",
-            "athena_table", "partition_cols", "grain",
-        )})
+        for k, v in tablespec.get(t, {}).items():
+            if k in ("shape", "knowledge_date_col", "knowledge_semantics", "publication_lag_days",
+                     "athena_table", "partition_cols", "grain") and k not in merged:
+                merged[k] = v
         merged.setdefault("grain_cols", spec.get("grain_cols"))
         numbers[t] = merged
 

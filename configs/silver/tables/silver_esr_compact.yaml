@@ -170,10 +170,10 @@ min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: commodity(slug partition) x commodity_code x market_year x country_code x week_ending_date
   (latest as_of snapshot per MY)
-vintage_retention: latest-only
+vintage_retention: per-week
 knowledge_date_col: as_of_date
-knowledge_semantics: data_date
-publication_lag_days: 7
+knowledge_semantics: vintage
+publication_lag_days: 0
 freshness_sla:
   cadence: weekly
   max_lag_days: null
@@ -203,7 +203,7 @@ provenance:
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
   Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.
-  SILVER-F030/F031 ESR ADR (frozen): changes_1000mt DEPRECATED + nullable (INV-4, never 0.0). vintage_retention=latest-only
-  TODAY; the SILVER-F031 option-b path adds an as_of_date REGISTERED partition dimension for per-week
-  vintages (execution gated BF-W2 -- never re-projection). See reports/silver_readiness/R2_esr/F031_option_b_path.json
-  and the parity proof under the same prefix.'
+  SILVER-F030/F031 ESR ADR (frozen): changes_1000mt DEPRECATED + nullable (INV-4, never 0.0). vintage_retention=per-week
+  (BF-W2 step-1 serving PR): the SILVER-F031 option-b path adds an as_of_date REGISTERED partition dimension
+  for per-week vintages (canonical data/catalog migration is the gated BF-W2 window -- never re-projection).
+  See reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity proof under the same prefix.'

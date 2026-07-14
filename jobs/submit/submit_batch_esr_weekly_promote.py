@@ -5,7 +5,7 @@ as_of=<date>/all_countries.json``).
 
 The weekly fetch lands raw with NO bronze promotion (D-W1 scaffold). This script DEFINES + BUILDS
 the promotion: it lists the raw weekly objects for a target ``--as-of`` (read-only S3 LIST) and
-prints the exact raw->bronze plan the ``leviathan-dev-esr-bronze`` job would run
+prints the exact raw->bronze plan the ``leviathan-dev-usda-esr-bronze`` job would run
 (``jobs/batch/esr_task.py``, weekly keys promote to ``bronze/.../as_of=<date>/part-000.parquet``,
 idempotent via head_object skip-existing).
 
@@ -32,7 +32,9 @@ from leviathan.storage.s3 import list_s3_keys
 logger = get_logger("submit_batch_esr_weekly_promote")
 
 _RAW_PREFIX = "raw/production/source=usda_esr/"
-_JOB_DEF_NAME = "leviathan-dev-esr-bronze"          # raw->bronze Batch job (jobs/batch/esr_task.py)
+# BF-W2 D1: this MUST be the REGISTERED Batch jobdef family name (aws batch describe-job-definitions).
+# The short form "leviathan-dev-esr-bronze" does not exist -- submit_job dies with ClientException.
+_JOB_DEF_NAME = "leviathan-dev-usda-esr-bronze"     # raw->bronze Batch job (jobs/batch/esr_task.py)
 _JOB_QUEUE = "leviathan-dev-queue"
 _REGION = "us-east-1"
 

@@ -345,6 +345,13 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         base = f"SELECT {outcols} FROM ({inner}) AS _v WHERE _rn = 1"   # alias: PG-required, Athena-accepted
         if spec.agg in ("sum", "mean", "max", "min"):
             base = _agg(base)
+        elif spec.agg == "latest" and order:
+            # a vintage table WITH a chronological data axis (ESR week_ending_date under the BF-W2
+            # per-week semantics flip): 'latest' keeps its single-freshest-observation contract AFTER
+            # the vintage dedup -- the ESR pace leg's freshest-week lock (D-W3.1/C2). Without this the
+            # flip silently turns agg=latest into a full-window series. Tables with no order col
+            # (PSD/WASDE: no date_col) keep the plain deduped-set shape below, unchanged.
+            return base + f" ORDER BY {order} DESC, {_total_order(extras)} LIMIT 1"
         else:
             base += f" ORDER BY {_total_order(extras)}"
         return base + f" LIMIT {int(spec.limit)}"
@@ -365,7 +372,12 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     latest vintage per identity group."""
     kcol = ts.knowledge_col()
     ym = _asof_ym(spec.asof) if ts.knowledge_semantics == "year_month" else None
-    guard_asof = _pub_lagged_asof(spec.asof, ts.publication_lag_days)   # publication-lag shift (ESR); mirrors _guard
+    guard_asof = _pub_lagged_asof(spec.asof, ts.publication_lag_days)   # publication-lag shift; mirrors _guard
+    if kcol and kcol == ts.vintage_partition_col:
+        # the knowledge col carries the PARTITION's value format (ESR as_of_date = YYYYMMDD): compare the
+        # cutoff in that format, exactly as _guard does — an ISO-vs-YYYYMMDD lexical compare is silently
+        # FALSE for every row (the R2 trap), so the oracle would diverge from the SQL it verifies.
+        guard_asof = _fmt_pdate(guard_asof, ts.vintage_partition_format)
     part_country = (_resolved_country(spec, ts)                          # country-PARTITION identity resolved the
                     if ts.country_col and ts.country_col in ts.partition_cols else None)  # SAME way as build_sql
 

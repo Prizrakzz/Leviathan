@@ -113,11 +113,13 @@ def test_every_drift_entry_ties_to_an_r2_package(reg):
             assert d["owner_package"].startswith("SILVER-F"), (name, d)
 
 
-def test_vintage_retention_enum_and_esr_latest_only(reg):
+def test_vintage_retention_enum_and_esr_per_week(reg):
     for name in reg.names():
         assert reg.table(name)["vintage_retention"] in ("latest-only", "per-vintage", "per-week")
-    assert reg.table("silver_esr")["vintage_retention"] == "latest-only"
-    assert reg.table("silver_esr_compact")["vintage_retention"] == "latest-only"
+    # BF-W2 SILVER-F031 option-b: both ESR contracts declare per-week as_of vintages (the serving
+    # compact gains a REGISTERED as_of_date partition dimension at the gated migration).
+    assert reg.table("silver_esr")["vintage_retention"] == "per-week"
+    assert reg.table("silver_esr_compact")["vintage_retention"] == "per-week"
     assert reg.table("silver_wasde")["vintage_retention"] == "per-vintage"
 
 

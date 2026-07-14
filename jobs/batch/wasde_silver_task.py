@@ -14,7 +14,10 @@ Restores a coherent WASDE bronze->silver producer and routes EVERY write through
 
 The transform itself (:mod:`leviathan.transforms.bronze_to_silver.usda_wasde_silver`) is pure; this
 module is the thin I/O + orchestration seam. The pure helpers ``stage_silver_objects`` /
-``build_release_objects`` carry the testable logic; ``main`` wires argparse + the guard.
+``build_release_objects`` carry the transform logic; ``run_from_bronze`` is the bronze-read runner
+(bounded release selection, ``prior_series_state`` seeding from bronze HISTORY for the F034
+revision linkage, F033 published-axis region-gate refusal); ``main`` wires argparse + STS + the
+guard around it (BF-W2 step 2).
 
 Read-only AWS is fine here; NO canonical mutation happens without a verified approval (the guard
 raises first). ASCII only.
@@ -22,22 +25,145 @@ raises first). ASCII only.
 from __future__ import annotations
 
 import argparse
+import io
+import json
+import logging
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
 
+from leviathan.common.config import load_env
 from leviathan.common.logging import get_logger
+from leviathan.common.publish_guard import PublishTarget, authorize_publish
 from leviathan.silver.publisher import (
+    ManifestState,
     PublishStrategy,
     ShadowPublisher,
     StagedObject,
     ValidationHooks,
 )
 from leviathan.silver.registry import load_registry
+from leviathan.storage.paths import parse_hive_key
+from leviathan.storage.s3 import (
+    get_thread_local_s3_client,
+    list_s3_keys,
+    s3_download_with_retry,
+)
 from leviathan.transforms.bronze_to_silver import usda_wasde_silver as W
 
 logger = get_logger(__name__)
 
 TABLE = "silver_wasde"
+_BRONZE_PREFIX = "bronze/production/source=usda_wasde/"
+_CANONICAL_PREFIX = "silver/wasde/"
+_READ_WORKERS = 16
+
+
+class WasdeBronzeNotReadyError(RuntimeError):
+    """F032-style ordering guard: silver is never planned/staged from an empty bronze layer, an
+    empty publish selection, or an explicitly requested release that bronze does not carry."""
+
+
+class WasdeRegionGateError(RuntimeError):
+    """The F033 region-cleanliness gate found a polluted PUBLISHED region axis. Staging is refused
+    in EVERY publish mode (shadow included) -- parser/fixture work must precede a retry."""
+
+
+# ---------------------------------------------------------------------------
+# Bronze release selection + read (the runner's I/O seam; clients are injectable).
+# ---------------------------------------------------------------------------
+def select_bronze_keys(
+    all_keys: Sequence[str],
+    *,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    release_dates: Optional[Sequence[str]] = None,
+    seed_from: Optional[str] = None,
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Split bronze keys into ``(publish, history)`` groups keyed by ``release_date``.
+
+    publish = the bounded catch-up window: the inclusive ``[from_date, to_date]`` range (ISO dates
+    compare lexically) or the explicit ``release_dates`` list. history = every EARLIER release --
+    consumed only to seed ``prior_series_state`` for the F034 revision math, optionally bounded
+    below by ``seed_from`` (an unbounded seed yields the true release_sequence; a bounded one
+    counts from the seed window's start). Fails closed on empty bronze, an empty publish
+    selection, or a requested release missing from bronze.
+    """
+    by_release: dict[str, list[str]] = {}
+    for key in all_keys:
+        rd = parse_hive_key(key, "release_date")
+        if rd:
+            by_release.setdefault(rd, []).append(key)
+    if not by_release:
+        raise WasdeBronzeNotReadyError(
+            f"no bronze WASDE release partitions under {_BRONZE_PREFIX} -- refusing to plan "
+            "silver ahead of bronze (F032 ordering guard)")
+    if release_dates:
+        wanted = sorted(set(release_dates))
+        missing = [d for d in wanted if d not in by_release]
+        if missing:
+            raise WasdeBronzeNotReadyError(
+                f"requested release_date(s) missing from bronze: {missing}")
+        publish = {d: sorted(by_release[d]) for d in wanted}
+    else:
+        publish = {
+            d: sorted(ks) for d, ks in by_release.items()
+            if (from_date is None or d >= from_date) and (to_date is None or d <= to_date)
+        }
+    if not publish:
+        raise WasdeBronzeNotReadyError(
+            f"no bronze release inside the publish window (from={from_date!r} to={to_date!r}); "
+            f"bronze spans {min(by_release)}..{max(by_release)}")
+    publish_min = min(publish)
+    history = {
+        d: sorted(ks) for d, ks in by_release.items()
+        if d < publish_min and (seed_from is None or d >= seed_from)
+    }
+    return publish, history
+
+
+def read_bronze_release_rows(
+    keys_by_release: dict[str, list[str]],
+    *,
+    bucket: str,
+    s3_client: Any,
+    workers: int = _READ_WORKERS,
+) -> dict[str, list[dict]]:
+    """Download + decode the bronze long rows per release. ANY read failure raises: a silently
+    absent history release would corrupt the revision series (wrong prior / sequence), so the
+    ESR log-and-continue pattern is deliberately not reused here."""
+    import pyarrow.parquet as pq
+
+    flat = sorted(k for ks in keys_by_release.values() for k in ks)
+    if not flat:
+        return {}
+
+    def _one(key: str) -> tuple[str, list[dict]]:
+        data = s3_download_with_retry(bucket, key, s3_client)
+        return key, pq.read_table(io.BytesIO(data)).to_pylist()
+
+    rows_by_key: dict[str, list[dict]] = {}
+    with ThreadPoolExecutor(max_workers=min(workers, len(flat))) as pool:
+        for fut in as_completed([pool.submit(_one, k) for k in flat]):
+            key, rows = fut.result()
+            rows_by_key[key] = rows
+    # keys stay in select_bronze_keys' sorted order so a multi-part release is deterministic.
+    return {d: [r for k in ks for r in rows_by_key[k]] for d, ks in keys_by_release.items()}
+
+
+def seed_series_state(history_by_release: dict[str, Sequence[dict]]) -> dict:
+    """Thread the F034 revision series over PRIOR releases' bronze rows (chronological) and return
+    the carried state for :func:`build_release_objects`. History rows are transformed but never
+    staged; region-gate findings on history do not block (the gate protects the PUBLISHED axis),
+    but a :class:`~leviathan.transforms.bronze_to_silver.usda_wasde_silver.WasdeKeyConflict` in
+    history still raises -- an unreliable seed must never silently degrade."""
+    state: dict = {}
+    for release_date in sorted(history_by_release):
+        res = W.build_silver_frame(history_by_release[release_date], prior_series_state=state)
+        state = res.series_state
+    return state
 
 
 def build_release_objects(
@@ -53,8 +179,6 @@ def build_release_objects(
     the registered-partition object under ``s3_root/release_date=<d>/part-000.parquet`` and it carries
     the INV-2 arrow bytes + the row/null metrics the publisher's validation hooks consume.
     """
-    import io
-
     import pyarrow.parquet as pq
 
     root = contract["s3_root"].rstrip("/")
@@ -106,11 +230,21 @@ def stage_silver_objects(
     min_nonnull_frac: Optional[float] = None,
     manifest_store=None,
     run_id: Optional[str] = None,
+    prior_series_state: Optional[dict] = None,
 ):
     """Construct a REGISTERED-strategy :class:`ShadowPublisher` for the WASDE silver objects and run
     it under ``auth``. Returns ``(manifest, results)``. Nothing canonical is touched unless
-    ``auth.may_mutate_canonical`` (the guard's canonical verdict)."""
-    objects, results = build_release_objects(bronze_by_release, contract)
+    ``auth.may_mutate_canonical`` (the guard's canonical verdict). ``prior_series_state`` seeds the
+    F034 revision series from bronze HISTORY (:func:`seed_series_state`), so a bounded catch-up
+    links its revisions to the true predecessor releases instead of minting first-estimates."""
+    objects, results = build_release_objects(
+        bronze_by_release, contract, prior_series_state=prior_series_state)
+    # F033 floor: the gate runs over the PUBLISHED region axis of each release; ANY finding refuses
+    # the whole run BEFORE staging (shadow included) -- junk must be quarantined, never published.
+    gate_red = {r.release_date: [g.to_dict() for g in r.region_gate] for r in results if r.region_gate}
+    if gate_red:
+        raise WasdeRegionGateError(
+            f"F033 region-cleanliness gate red on the published axis; staging refused: {gate_red}")
     floor = min_nonnull_frac if min_nonnull_frac is not None else contract.get("min_nonnull_frac", 0.0)
     publisher = ShadowPublisher(
         job="wasde_silver_task",
@@ -132,14 +266,67 @@ def stage_silver_objects(
     return manifest, results
 
 
+def run_from_bronze(
+    *,
+    contract: dict,
+    auth,
+    s3_client: Any,
+    glue_client: Any,
+    bronze_keys: Sequence[str],
+    bucket: str,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    release_dates: Optional[Sequence[str]] = None,
+    seed_history: bool = True,
+    seed_from: Optional[str] = None,
+    shadow_prefix: Optional[str] = None,
+    manifest_store=None,
+    run_id: Optional[str] = None,
+):
+    """The bronze-read runner: bounded release selection -> ``prior_series_state`` seeding from
+    bronze HISTORY -> F034 transform -> F015/F013 controlled publish. Returns
+    ``(manifest, results)``; clients are injectable so the whole path is test-provable offline."""
+    publish_keys, history_keys = select_bronze_keys(
+        bronze_keys, from_date=from_date, to_date=to_date,
+        release_dates=release_dates, seed_from=seed_from)
+    logger.info(
+        "wasde runner: publish releases=%s history releases=%d (seed_history=%s seed_from=%s)",
+        sorted(publish_keys), len(history_keys), seed_history, seed_from)
+    bronze_by_release = read_bronze_release_rows(publish_keys, bucket=bucket, s3_client=s3_client)
+    prior_state = None
+    if seed_history and history_keys:
+        history_rows = read_bronze_release_rows(history_keys, bucket=bucket, s3_client=s3_client)
+        prior_state = seed_series_state(history_rows)
+    return stage_silver_objects(
+        bronze_by_release, contract, auth, s3_client, glue_client,
+        shadow_prefix=shadow_prefix, manifest_store=manifest_store, run_id=run_id,
+        prior_series_state=prior_state)
+
+
+def _publish_target(account_id: str, role_arn: str, bucket: str, database: str) -> PublishTarget:
+    """The publish target the guard authorizes for this task: the canonical silver/wasde surface."""
+    return PublishTarget(account_id=account_id, bucket=bucket, database=database,
+                         prefix=_CANONICAL_PREFIX, role_arn=role_arn, table=TABLE)
+
+
 def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="WASDE bronze->silver controlled publish (F034/F035)")
     p.add_argument("--environment", default="leviathan_dev")
     p.add_argument("--bucket", default=None)
-    p.add_argument("--database", default="leviathan_dev")
+    p.add_argument("--database", default=None)
+    p.add_argument("--aws-region", dest="aws_region", default=None)
     p.add_argument("--run-id", default=None)
-    p.add_argument("--from", dest="from_date", default=None)
-    p.add_argument("--to", dest="to_date", default=None)
+    p.add_argument("--from", dest="from_date", default=None,
+                   help="inclusive lower release_date bound (ISO) of the publish window")
+    p.add_argument("--to", dest="to_date", default=None,
+                   help="inclusive upper release_date bound (ISO) of the publish window")
+    p.add_argument("--release-date", dest="release_dates", action="append", default=None,
+                   help="publish EXACTLY this bronze release (repeatable; overrides --from/--to)")
+    p.add_argument("--seed-from", dest="seed_from", default=None,
+                   help="lower bound for the history seed read (default: thread ALL prior bronze; "
+                        "a bound trades true release_sequence for fewer reads)")
+    p.add_argument("--no-history-seed", dest="no_history_seed", action="store_true",
+                   help="skip prior_series_state seeding (per-release-local revision recompute)")
     p.add_argument("--shadow-prefix", default=None)
     p.add_argument("--publish-mode", default="dry-run",
                    choices=["dry-run", "shadow", "canonical"],
@@ -149,18 +336,54 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stderr,
+    )
+    load_env()
     args = _parse_args(argv)
     reg = load_registry()
     contract = reg.table(TABLE)
-    logger.info(
-        "wasde_silver_task: table=%s mode=%s (canonical is denied without a signed approval; "
-        "this task stages+validates, it does not mutate the catalog in R2/R3)",
-        TABLE, args.publish_mode,
+    if args.contract_version is not None and str(args.contract_version) != str(contract.get("schema_version")):
+        # a stale jobdef pin must fail loudly, never publish under a drifted contract.
+        raise SystemExit(
+            f"--contract-version {args.contract_version!r} != registry schema_version "
+            f"{contract.get('schema_version')!r}")
+    bucket = args.bucket or contract["s3_bucket"]
+    database = args.database or contract["glue_database"]
+    aws_region = args.aws_region or os.environ.get("AWS_REGION", "us-east-1")
+    run_id = args.run_id or datetime.now(timezone.utc).strftime("wasde-silver-%Y%m%dT%H%M%SZ")
+
+    import boto3
+
+    # Guard FIRST (fail-closed, before any read): mode from argv > LEVIATHAN_PUBLISH_MODE > dry-run;
+    # canonical additionally needs the env invariants + the signed LEVIATHAN_APPROVAL_JSON artifact
+    # (loaded inside authorize_publish) verified against LEVIATHAN_APPROVAL_SECRET + STS identity.
+    sts = boto3.client("sts", region_name=aws_region)
+    ident = sts.get_caller_identity()
+    auth = authorize_publish(
+        _publish_target(ident["Account"], ident["Arn"], bucket, database),
+        argv=list(argv) if argv is not None else sys.argv,
     )
-    # Live bronze read + real publish are the gated B-wave; R2/R3 ships the code + tests only.
-    print("wasde_silver_task is a controlled-publish entrypoint; run under the gated backfill wave "
-          "with a signed approval. No bronze read or canonical write is performed here.")
-    return 0
+    glue_client = boto3.client("glue", region_name=aws_region) if auth.may_mutate_canonical else None
+    s3_client = get_thread_local_s3_client(aws_region)
+
+    bronze_keys = list_s3_keys(bucket, _BRONZE_PREFIX, suffix=".parquet", aws_region=aws_region)
+    logger.info("found %d bronze WASDE parquet objects under %s", len(bronze_keys), _BRONZE_PREFIX)
+
+    manifest, results = run_from_bronze(
+        contract=contract, auth=auth, s3_client=s3_client, glue_client=glue_client,
+        bronze_keys=bronze_keys, bucket=bucket,
+        from_date=args.from_date, to_date=args.to_date, release_dates=args.release_dates,
+        seed_history=not args.no_history_seed, seed_from=args.seed_from,
+        shadow_prefix=args.shadow_prefix, run_id=run_id)
+
+    for res in results:
+        print(json.dumps(res.to_summary(), default=str))  # ensure_ascii default: cp1252-safe
+    print(f"wasde_silver_task: mode={auth.mode.value} state={manifest.state.value} "
+          f"releases={len(results)} run_id={run_id}")
+    return 1 if manifest.state is ManifestState.FAILED else 0
 
 
 if __name__ == "__main__":

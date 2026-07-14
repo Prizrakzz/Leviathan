@@ -47,6 +47,20 @@ DISPOSITIONS = frozenset({REGISTRY_WINS, HAND_WINS_FIXED, COSMETIC})
 # R2 packages that own the deferred catalog reconciliation per table (from the readiness matrix).
 _R2_OWNER = {"silver_conab_coffee": "SILVER-F024 / SILVER-F016"}
 
+# BF-W2 step 3 (runbook Deviation 9): tables whose registry deliberately LEADS live Glue by an
+# exact, gated additive column set. CatalogMigrator._glue_columns cannot emit glue_type-null
+# columns, so the registry must carry the migration TARGET types BEFORE the apply; until the gated
+# ADD COLUMNS lands, registry-vs-liveGlue shows precisely these extra columns. Any divergence
+# beyond the sanctioned set still fires the regression row (fail-closed).
+_MIGRATION_PENDING = {
+    "silver_conab_coffee": ("SILVER-F024", [
+        "region_raw", "area_revision_ha", "yield_revision_bags_per_ha", "production_revision_pct",
+        "production_revision_streak", "is_repeated_survey", "repeated_from_survey_number",
+        "survey_content_fingerprint", "source_raw_key", "source_file_etag", "worksheet",
+        "parser_version",
+    ]),
+}
+
 # Registry bugs this wave corrected at the source (the generator + regenerated contract), verified
 # by re-checking that the table's registry now matches live Glue (guarded in build_diff).
 _FIXED = {
@@ -116,7 +130,18 @@ def build_diff() -> list[DriftRow]:
         #    an unfixed registry bug -> hand-DDL-wins. A table in _FIXED whose registry now matches
         #    live Glue is recorded as the resolved fix; if it regressed, the live diff fires instead.
         rg = D.diff_structured(G, R)
-        if rg:
+        pending = _MIGRATION_PENDING.get(name)
+        if rg and pending and rg == ["columns extra: %s" % pending[1]]:
+            # the divergence is EXACTLY the sanctioned gated additive set -> migration-pending,
+            # authoritative registry (not a regression).
+            rows.append(DriftRow(
+                name, "catalog-migration-pending", REGISTRY_WINS,
+                f"registry carries the {pending[0]} additive TARGET (+{len(pending[1])} columns: "
+                f"{', '.join(pending[1])}); live Glue catches up at the gated ADD COLUMNS apply "
+                f"({pending[0]})"))
+            # rg stays non-empty so the cosmetic branch (which requires semantic identity vs the
+            # 10-col hand DDL) cannot also fire for this table.
+        elif rg:
             rows.append(DriftRow(name, "registry-vs-liveGlue", HAND_WINS_FIXED,
                                  "registry STILL diverges from live Glue (fix regressed): "
                                  + "; ".join(rg)))
@@ -152,6 +177,7 @@ def render_markdown(rows: list[DriftRow]) -> str:
     reg_wins = [r for r in rows if r.disposition == REGISTRY_WINS]
     hand_wins = [r for r in rows if r.disposition == HAND_WINS_FIXED]
     cosmetic = [r for r in rows if r.disposition == COSMETIC]
+    pending = [r for r in rows if r.dimension == "catalog-migration-pending"]
     tables = sorted({r.table for r in rows})
     lines = [
         "# SILVER-F011 -- registry-generated DDL vs hand-DDL / live-Glue drift",
@@ -166,8 +192,13 @@ def render_markdown(rows: list[DriftRow]) -> str:
         "",
         "## Headline",
         "",
-        f"- **Registry fidelity: generated == live Glue for all {len(tables)} tables** (0 "
-        "registry-vs-liveGlue drift after this wave's fix).",
+        (f"- **Registry fidelity: generated == live Glue for all {len(tables)} tables** (0 "
+         "registry-vs-liveGlue drift after this wave's fix)."
+         if not pending else
+         f"- **Registry fidelity: generated == live Glue for {len(tables) - len(pending)} of "
+         f"{len(tables)} tables**; {len(pending)} table(s) deliberately LEAD live Glue by a "
+         "sanctioned gated additive set (`catalog-migration-pending`, BF-W2 step 3): "
+         + ", ".join(sorted(r.table for r in pending)) + "."),
         "- **Hand DDL semantic fidelity: 0 tables** have a column/partition-key/mode/projection/"
         "location drift vs live Glue -- the hand DDLs are semantically current.",
         f"- Drift rows: **{len(reg_wins)} registry-wins (R2 fix)**, "

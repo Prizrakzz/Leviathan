@@ -40,8 +40,10 @@ def test_numbers_pit_fields_match_tablespec(reg):
         assert c["knowledge_date_col"] == spec.get("knowledge_date_col"), name
         assert c["knowledge_semantics"] == spec.get("knowledge_semantics"), name
         assert c["publication_lag_days"] == spec.get("publication_lag_days"), name
-    # the ESR +7d publication lag survives the reconcile intact.
-    assert reg.table("silver_esr")["publication_lag_days"] == 7
+    # BF-W2 SILVER-F031: ESR runs per-week vintage semantics with lag 0 (the as_of stamp IS the
+    # publication event) — the pre-flip data_date/+7d pair must NOT resurface via a stale regen.
+    assert reg.table("silver_esr")["knowledge_semantics"] == "vintage"
+    assert reg.table("silver_esr")["publication_lag_days"] == 0
 
 
 def test_cascade_refs_all_resolve(reg):

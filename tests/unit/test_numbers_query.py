@@ -169,7 +169,10 @@ def test_registry_yaml_loads():
             "silver_esr", "silver_fred_fx", "silver_noaa_oni"} <= set(reg.tables)
     assert reg.get("silver_psd").shape == "wide" and reg.get("silver_psd").knowledge_semantics == "vintage"
     assert reg.get("silver_wasde").shape == "tall" and reg.get("silver_wasde").metric_col == "attribute"
-    assert reg.get("silver_esr").grain_cols == ["commodity_name", "country_code", "week_ending_date"]
+    # BF-W2 R3: market_year is IN the grain — the same week rides under BOTH current and next MY in
+    # every weekly vintage; without it the latest-vintage ROW_NUMBER collapse merges the two MYs.
+    assert reg.get("silver_esr").grain_cols == ["commodity_name", "market_year",
+                                                "country_code", "week_ending_date"]
     assert reg.get("silver_noaa_oni").knowledge_semantics == "year_month"
     assert reg.get("silver_psd").metrics["ending_stocks_mt"].unit == "MT"   # unit corrected from '1000 MT'
 
@@ -502,16 +505,111 @@ def test_esr_publication_lag_boundary_excludes_unpublished_week():
     assert apply_pit_filter(future, NumberQuery(asof="2024-03-23", **q), ts) == []   # plain future week excluded
 
 
-def test_esr_registry_declares_publication_lag_and_shifts_the_live_guard():
-    # the live registry silver_esr entry carries the +7 lag, so build_sql off the real spec shifts the cutoff.
-    ts = load_registry().get("silver_esr")
-    assert ts.publication_lag_days == 7
-    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2024-03-25",
-                                commodity="corn_cbot", agg="latest"), ts)
-    assert "CAST(week_ending_date AS varchar) <= '2024-03-18'" in sql and "'2024-03-25'" not in sql
-
-
 def test_publication_lag_zero_is_identity_for_other_tables():
     # every non-ESR table defaults publication_lag_days=0 -> the guard cutoff is the raw asof (no regression).
     sql = build_sql(NumberQuery(table="silver_fred_fx", metric="brl_usd", asof="2024-06-01", agg="latest"), _fx())
     assert "CAST(date AS varchar) <= '2024-06-01'" in sql       # unshifted; _fx() has no publication_lag_days
+
+
+# ── BF-W2 SILVER-F031 option-b: the ESR vintage semantics flip (laneA R2/R3/R4). silver_esr_compact
+#    retains one object per (slug, as_of_date) weekly vintage; as-of truth = latest vintage <= asof. ────────
+def _esr_vintage() -> TableSpec:
+    """The post-flip serving shape (mirrors the live tables.yaml silver_esr entry)."""
+    return TableSpec(id="silver_esr", description="", athena_table="silver_esr_compact", shape="wide",
+                     commodity_col="commodity_name", period_col="market_year", period_type="marketing_year",
+                     period_sql_type="int", period_offset=1, date_col="week_ending_date",
+                     knowledge_date_col="as_of_date", knowledge_semantics="vintage",
+                     vintage_partition_col="as_of_date", vintage_partition_format="yyyyMMdd",
+                     partition_cols=["commodity"],
+                     grain_cols=["commodity_name", "market_year", "country_code", "week_ending_date"])
+
+
+def test_esr_registry_declares_vintage_semantics_lag_zero():
+    # the LIVE registry entry carries the BF-W2 flip: per-week vintage, YYYYMMDD-format guard, no +7d
+    # data_date lag (R4: under vintage semantics the as_of stamp IS the publication event — a retained
+    # lag would DOUBLE-withhold the freshest published week).
+    ts = load_registry().get("silver_esr")
+    assert ts.knowledge_semantics == "vintage"
+    assert ts.publication_lag_days == 0
+    assert ts.vintage_partition_col == "as_of_date" and ts.vintage_partition_format == "yyyyMMdd"
+    assert ts.vintage_dates_real is False        # write-date backfill vintage: date bounds stay canary-banned
+    assert "market_year" in ts.grain_cols        # R3
+
+
+def test_esr_vintage_guard_is_sargable_and_format_correct():
+    """R2 lexical-format trap: as_of_date values are YYYYMMDD but asof is ISO. The guard MUST compile
+    natively in the partition's own value format — the naive `as_of_date <= '2026-07-14'` is lexically
+    FALSE against every '2026xxxx' vintage (zero rows), and a CAST would defeat partition pruning once
+    as_of_date becomes a registered partition key."""
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2026-07-14",
+                                commodity="corn_cbot", period="2025", agg="sum"), _esr_vintage())
+    assert "as_of_date <= '20260714'" in sql                    # native YYYYMMDD compare
+    assert "as_of_date <= '2026-07-14'" not in sql              # the lexically-false ISO form never appears
+    assert "CAST(as_of_date" not in sql                         # never wrapped: sargable on the partition col
+    assert "ROW_NUMBER() OVER" in sql and "as_of_date DESC" in sql   # as-known latest-vintage collapse
+
+
+def test_esr_vintage_rownumber_partitions_on_market_year():
+    # R3 in SQL: the dedup identity group carries market_year, so the same week under two MYs
+    # yields TWO surviving rows, not one arbitrary winner.
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2026-07-14",
+                                commodity="corn_cbot"), _esr_vintage())
+    assert "PARTITION BY commodity_name, market_year, country_code, week_ending_date" in sql
+
+
+def test_esr_same_week_two_marketing_years_survive_dedup():
+    """R3 fixture: a weekly vintage carries the SAME week under the current and the next MY.
+    Both rows must survive the latest-vintage collapse (the pre-fix grain merged them)."""
+    ts = _esr_vintage()
+    rows = [{"commodity_name": "corn_cbot", "market_year": 2026, "country_code": 9,
+             "week_ending_date": "2026-07-03", "as_of_date": "20260712", "weekly_exports_1000mt": 700.0},
+            {"commodity_name": "corn_cbot", "market_year": 2027, "country_code": 9,
+             "week_ending_date": "2026-07-03", "as_of_date": "20260712", "weekly_exports_1000mt": 55.0}]
+    kept = apply_pit_filter(rows, NumberQuery(table="silver_esr", metric="weekly_exports_1000mt",
+                                              asof="2026-07-14", commodity="corn_cbot"), ts)
+    assert sorted(r["market_year"] for r in kept) == [2026, 2027]   # BOTH MYs kept
+    # and the vintage collapse itself still works per (week, MY): a newer vintage supersedes.
+    rows.append({"commodity_name": "corn_cbot", "market_year": 2026, "country_code": 9,
+                 "week_ending_date": "2026-07-03", "as_of_date": "20260719", "weekly_exports_1000mt": 710.0})
+    kept = apply_pit_filter(rows, NumberQuery(table="silver_esr", metric="weekly_exports_1000mt",
+                                              asof="2026-07-20", commodity="corn_cbot"), ts)
+    by_my = {r["market_year"]: r for r in kept}
+    assert by_my[2026]["as_of_date"] == "20260719" and by_my[2027]["as_of_date"] == "20260712"
+
+
+def test_esr_lag_zero_freshest_vintage_citable_at_publication():
+    """R4: with lag=0 under vintage semantics, a week published in the as_of=20260712 vintage is
+    citable the moment asof reaches the vintage date — the old data_date+7d guard would have hidden
+    it until week_ending + 7d (the double-withhold)."""
+    ts = _esr_vintage()
+    row = [{"commodity_name": "corn_cbot", "market_year": 2026, "country_code": 9,
+            "week_ending_date": "2026-07-03", "as_of_date": "20260712", "weekly_exports_1000mt": 742.5}]
+    q = dict(table="silver_esr", metric="weekly_exports_1000mt", commodity="corn_cbot")
+    assert apply_pit_filter(row, NumberQuery(asof="2026-07-11", **q), ts) == []     # vintage not yet out
+    kept = apply_pit_filter(row, NumberQuery(asof="2026-07-12", **q), ts)           # publication day
+    assert len(kept) == 1 and kept[0]["weekly_exports_1000mt"] == 742.5
+    sql = build_sql(NumberQuery(asof="2026-07-13", **q), ts)
+    assert "as_of_date <= '20260713'" in sql                    # unshifted cutoff (no -7d)
+    assert "'20260706'" not in sql and "'2026-07-06'" not in sql   # the double-withheld cutoff never appears
+
+
+def test_esr_vintage_agg_latest_keeps_freshest_week_lock():
+    """agg=latest on the vintage branch keeps the single-freshest-observation contract (the D-W3.1
+    pace leg's C2 stale-week lock): ORDER BY week_ending_date DESC ... LIMIT 1 AFTER the vintage
+    dedup. On single-vintage data this is byte-equivalent row selection to the pre-flip data_date
+    branch (the step-11 backward-compat smoke class)."""
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2026-07-14",
+                                commodity="corn_cbot", period_start="2025-07-14",
+                                period_end="2026-07-14", agg="latest"), _esr_vintage())
+    assert "ORDER BY week_ending_date DESC" in sql and sql.strip().endswith("LIMIT 1")
+    assert "ROW_NUMBER() OVER" in sql                           # dedup still applied first
+    assert "CAST(week_ending_date AS varchar) <= '2026-07-14'" in sql   # window guard on the data axis intact
+
+
+def test_vintage_agg_latest_without_order_col_unchanged():
+    # PSD/WASDE (vintage, no date_col) keep the plain deduped-set shape under agg=latest — the
+    # freshest-week lock applies only where a chronological data axis exists.
+    sql = build_sql(NumberQuery(table="silver_psd", metric="ending_stocks_mt", asof="2024-02-15",
+                                commodity="corn", country="Brazil", period="2023", agg="latest"), _psd())
+    assert not sql.strip().endswith("LIMIT 1")
+    assert "ROW_NUMBER() OVER" in sql and "_rn = 1" in sql
