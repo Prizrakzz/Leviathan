@@ -141,6 +141,25 @@ def cmd_register(tables: list[str], dry: bool) -> None:
                     table, created, existed)
 
 
+def collapsed_partition_keys(table: str, live_keys: list[dict]) -> list[dict] | None:
+    """The post-flip PartitionKeys for *table*, or None when the live keys already match.
+
+    F047 collapses the weather trio from the projected month grain
+    ([commodity, country, region, year, month]) to the registered [commodity, year] grain.
+    BatchCreatePartition validates value-count against the table's PartitionKeys ("The number
+    of partition keys do not match the number of partition values", live-proven), so the flip
+    must shrink the keys BEFORE --register can succeed. Types are preserved from the live
+    declaration (year stays int)."""
+    cfg = TARGETS.get(table)
+    if not cfg:
+        return None
+    target_names = [name for name, _ in cfg["cols"]]
+    if target_names == [k["Name"] for k in live_keys]:
+        return None
+    live_types = {k["Name"]: k["Type"] for k in live_keys}
+    return [{"Name": n, "Type": live_types.get(n, "string")} for n in target_names]
+
+
 def cmd_flip(tables: list[str], dry: bool) -> None:
     import boto3
     glue = boto3.client("glue", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -149,6 +168,11 @@ def cmd_flip(tables: list[str], dry: bool) -> None:
         params = dict(t.get("Parameters") or {})
         doomed = [k for k in params if k.startswith("projection.") or k == "storage.location.template"]
         logger.info("[%s] removing params: %s", table, sorted(doomed))
+        new_keys = collapsed_partition_keys(table, t.get("PartitionKeys") or [])
+        if new_keys is not None:
+            logger.info("[%s] collapsing PartitionKeys %s -> %s", table,
+                        [k["Name"] for k in (t.get("PartitionKeys") or [])],
+                        [k["Name"] for k in new_keys])
         if dry:
             continue
         _snapshot(glue, table)                       # snapshot again at flip time (belt + braces)
@@ -157,6 +181,8 @@ def cmd_flip(tables: list[str], dry: bool) -> None:
         params["deprojected"] = time.strftime("%Y-%m-%d")   # audit breadcrumb
         ti = _table_input(t)
         ti["Parameters"] = params
+        if new_keys is not None:
+            ti["PartitionKeys"] = new_keys
         glue.update_table(DatabaseName=DB, TableInput=ti)
         logger.info("[%s] FLIPPED to registered partitions (rollback: --rollback <snapshot>)", table)
 

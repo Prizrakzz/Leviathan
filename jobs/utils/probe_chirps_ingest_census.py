@@ -37,6 +37,20 @@ _PREFIX = "silver/weather/source=chirps/"
 _FOOTER_BYTES = 1 << 16  # tail range for the parquet footer (bounded read; no full download)
 
 
+def _visible(keys: list[str]) -> list[str]:
+    """Drop control-plane keys (Hive hidden convention): any _/. prefixed DIRECTORY segment.
+
+    The F015 publisher stages under <root>/_shadow/ and persists <root>/_manifests/; the census
+    must sample only data-plane objects (the final filename, e.g. part-000.parquet, is exempt --
+    only directory segments are tested)."""
+    out = []
+    for k in keys:
+        segs = k.split("/")
+        if not any(seg.startswith(("_", ".")) for seg in segs[:-1] if seg):
+            out.append(k)
+    return out
+
+
 def _footer(bucket: str, key: str, region: str):
     """Read the parquet FOOTER only via a bounded tail range-GET (no data pages)."""
     s3 = get_thread_local_s3_client(region)
@@ -81,7 +95,7 @@ def main() -> None:
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     region = args.aws_region or get_required_env("AWS_REGION")
 
-    keys = list_s3_keys(bucket, _PREFIX, suffix=".parquet", aws_region=region)
+    keys = _visible(list_s3_keys(bucket, _PREFIX, suffix=".parquet", aws_region=region))
     by_commodity: dict[str, list[str]] = defaultdict(list)
     for k in keys:
         c = parse_hive_key(k, "commodity")
