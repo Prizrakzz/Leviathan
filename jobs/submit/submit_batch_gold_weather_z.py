@@ -34,7 +34,7 @@ _JOB_QUEUE = "leviathan-dev-queue"
 # never trust :latest, and read the digest from `aws ecr describe-images`, never a build log.
 _ECR_IMAGE = (
     "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-embedder"
-    "@sha256:b3e7b32335706a45deca392b2138d802e61f978ba37716e375a243cb8b41af4e"
+    "@sha256:15422de397c79926a5106ccdf4c2b0a12779b31df7c83c53b9aba3be324b9dab"
 )
 _JOB_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-job-role"
 _EXEC_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-execution-role"

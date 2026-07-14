@@ -19,6 +19,7 @@ import pandas as pd
 from leviathan.features.computations.base import (
     FeatureContext,
     assign_crop_year,
+    dry_day_threshold,
     empty_result,
     make_result,
     max_consecutive_true,
@@ -413,7 +414,9 @@ def compute_drought_z(ctx: FeatureContext, spec) -> pd.DataFrame:
                 baseline = np.concatenate(
                     [by_year[y]["value"].to_numpy() for y in baseline_years]
                 )
-                threshold = float(np.percentile(baseline, pctile))
+                # floored at DRY_DAY_FLOOR_MM (see computations.base): zero-inflated baselines
+                # degenerate the percentile to 0.0 and the strict < makes dry days impossible
+                threshold = dry_day_threshold(baseline, pctile)
                 run = max_consecutive_true(current["value"].to_numpy() < threshold)
                 yearly_runs[crop_year] = float(run)
 

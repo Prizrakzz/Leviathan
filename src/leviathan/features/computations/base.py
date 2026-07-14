@@ -90,3 +90,22 @@ def max_consecutive_true(mask: np.ndarray) -> int:
         if run > best:
             best = run
     return best
+
+
+# The climatological dry-day floor (mm/day). CHIRPS daily precipitation is heavily
+# zero-inflated outside the always-wet tropics (78% zero days on the corn belt): the
+# bottom-percentile threshold of such a baseline is 0.0 and a day can never be STRICTLY
+# below zero rain, so every dry-run degenerates to 0 and the run z-score dies on zero
+# variance (BF-W1 live find: drought_z emitted for only 4/31 commodities). The standard
+# convention treats a day under ~1 mm as dry; the floor binds ONLY where the percentile
+# degenerates below it, so genuinely wet climatologies keep their relative threshold.
+DRY_DAY_FLOOR_MM = 1.0
+
+
+def dry_day_threshold(baseline: np.ndarray, percentile: float) -> float:
+    """The dry-day precipitation threshold for a baseline sample: the requested
+    bottom-``percentile`` value, floored at :data:`DRY_DAY_FLOOR_MM`.
+
+    Shared by the feature-layer ``compute_drought_z`` and the gold ``weather_z``
+    mirror so the two definitions cannot drift."""
+    return max(float(np.percentile(baseline, percentile)), DRY_DAY_FLOOR_MM)

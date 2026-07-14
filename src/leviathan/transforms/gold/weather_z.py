@@ -61,7 +61,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from leviathan.features.computations.base import max_consecutive_true, trailing_baseline_z
+from leviathan.features.computations.base import (
+    dry_day_threshold,
+    max_consecutive_true,
+    trailing_baseline_z,
+)
 
 # ── output contract ────────────────────────────────────────────────────────────────────────────────
 GOLD_COLUMNS = ["commodity", "country", "region", "year", "month", "metric", "value"]
@@ -208,7 +212,9 @@ def _drought_runs(precip: pd.DataFrame, *, window_years, min_years, dry_percenti
             if len(prior) < min_years:
                 continue
             baseline = np.concatenate([by_year[y]["value"].to_numpy() for y in prior])
-            threshold = float(np.percentile(baseline, dry_percentile))
+            # floored at DRY_DAY_FLOOR_MM: a zero-inflated baseline's bottom percentile is 0.0
+            # and no day is ever strictly below zero rain (BF-W1: 27/31 commodities degenerate)
+            threshold = dry_day_threshold(baseline, dry_percentile)
             run = max_consecutive_true(by_year[year]["value"].to_numpy() < threshold)
             rows.append((country, region, year, month, float(run)))
     return pd.DataFrame(rows, columns=["country", "region", "year", "month", "scalar"])

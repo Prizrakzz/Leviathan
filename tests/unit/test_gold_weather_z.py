@@ -204,6 +204,34 @@ def test_drought_z_emitted_end_to_end() -> None:
     assert (got["country"] == "United States").all()        # chirps country is title-cased too
 
 
+def test_drought_threshold_floors_on_zero_inflated_baseline() -> None:
+    # BF-W1 live find: the corn belt's chirps is ~78% zero-precip days, so the p20 of the
+    # baseline is 0.0 and NO day is ever strictly below zero rain -- every run degenerated to 0
+    # and the z died on zero variance (drought_z emitted for only 4/31 commodities). The
+    # DRY_DAY_FLOOR_MM floor makes sub-1mm days count as dry exactly where the percentile
+    # degenerates, without touching wet climatologies (threshold 5.0 test above is unchanged).
+    prior = [_daily(y, 7, _PRECIP, [0.0] * 8 + [6.0, 8.0]) for y in (2000, 2001, 2002)]
+    # 2003: four consecutive trace days (<1mm) then wet -> run must be 4, not 0.
+    y2003 = _daily(2003, 7, _PRECIP, [0.0, 0.2, 0.0, 0.4, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0])
+    precip = pd.concat(prior + [y2003], ignore_index=True)
+
+    runs = _drought_runs(precip, window_years=WIN, min_years=MIN, dry_percentile=20.0)
+    got = runs[(runs["year"] == 2003) & (runs["month"] == 7)]
+    assert len(got) == 1 and float(got["scalar"].iloc[0]) == 4.0
+
+
+def test_drought_z_emitted_for_zero_inflated_climate_end_to_end() -> None:
+    frames = []
+    rng = np.random.default_rng(7)
+    for y in range(2000, 2012):
+        # zero-inflated: ~70% dry zeros, occasional real rain -- the temperate profile
+        vals = [0.0 if rng.random() < 0.7 else float(rng.uniform(2.0, 12.0)) for _ in range(20)]
+        frames.append(_daily(y, 7, _PRECIP, vals))
+    got = compute_weather_z("corn_cbot", chirps=pd.concat(frames, ignore_index=True),
+                            window_years=WIN, min_years=MIN)
+    assert METRIC_DROUGHT_Z in set(got["metric"].unique())
+
+
 # ── registry + build_sql: the year_month wiring is sargable & leakage-safe ──────────────────────────────
 
 def test_registry_parses_gold_weather_z() -> None:
