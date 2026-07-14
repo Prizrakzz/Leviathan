@@ -167,9 +167,15 @@ def validate_bronze_df(
             f"Found: {sorted(df.columns.tolist())}"
         )
 
-    # 3. Schema drift — new columns that are not in the schema
-    required_lower = {c.lower() for c in required}
-    new_cols = [c for c in df.columns if c.lower() not in required_lower]
+    # 3. Schema drift — new columns that are neither required nor a recognized optional.
+    #    ``optional_columns`` are columns the transform KNOWS about but that legitimately vary
+    #    by era: nasa_power ``allsky_sfc_sw_dwn`` (solar) is fetched from 2025 onward and DROPPED
+    #    by the F021 wide transform, so historical bronze lacks it and current bronze carries it
+    #    -- neither state is drift, and neither should FAIL the read (BF-W1 live find: requiring
+    #    solar aborted every b2s run on the 1981-2024 history).
+    known_lower = {c.lower() for c in required}
+    known_lower |= {c.lower() for c in schema.get("optional_columns", [])}
+    new_cols = [c for c in df.columns if c.lower() not in known_lower]
     if new_cols:
         logger.warning(
             "%sBronze schema drift for source '%s': unexpected new columns %s",

@@ -18,9 +18,15 @@ required_columns:
   - prectotcorr
   - rh2m
   - ws2m
-  - allsky_sfc_sw_dwn
   - ingest_date
   - source_file_name
+
+# Recognized-but-optional: fetched from 2025 onward, DROPPED by the F021 wide transform
+# (NASA_EXCLUDED_PARAMS) and used by no feature. Historical bronze (1981-2024) predates it;
+# requiring it aborted every b2s read on the pre-2025 history (BF-W1). Neither presence nor
+# absence is drift.
+optional_columns:
+  - allsky_sfc_sw_dwn
 
 year_col: year
 min_year: 1980

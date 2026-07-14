@@ -179,3 +179,41 @@ class TestValidateBronzeDf:
         result = validate_bronze_df(df, schema, source="chirps")
         assert result["null_counts"].get("latitude") == 1
         assert result["null_counts"].get("precipitation_mm") == 1
+
+
+class TestOptionalColumns:
+    """BF-W1: a schema optional_column is neither required nor drift (nasa solar)."""
+
+    def _base(self):
+        import pandas as pd
+        return pd.DataFrame({
+            "commodity": ["cocoa"], "source": ["nasa_power"], "country": ["ghana"],
+            "region": ["gh"], "date": ["1983-02-01"], "year": [1983], "month": [2],
+            "day": [1], "t2m": [27.0], "t2m_max": [30.0], "t2m_min": [22.0],
+            "prectotcorr": [3.2], "rh2m": [80.0], "ws2m": [1.1],
+            "ingest_date": ["2026-07-14"], "source_file_name": ["f.json"],
+        })
+
+    def test_historical_bronze_without_solar_passes(self):
+        from leviathan.common.validation import load_schema, validate_bronze_df
+        schema = load_schema("nasa_power_bronze")
+        # no allsky_sfc_sw_dwn column (pre-2025 era) -- must not raise
+        validate_bronze_df(self._base(), schema, source="nasa_power", context="1983")
+
+    def test_current_bronze_with_solar_is_not_drift(self, caplog):
+        import logging
+        from leviathan.common.validation import load_schema, validate_bronze_df
+        df = self._base()
+        df["allsky_sfc_sw_dwn"] = [18.5]     # 2025+ era carries solar
+        with caplog.at_level(logging.WARNING):
+            validate_bronze_df(df, load_schema("nasa_power_bronze"), source="nasa_power")
+        assert "schema drift" not in caplog.text.lower()
+
+    def test_genuine_drift_still_warns(self, caplog):
+        import logging
+        from leviathan.common.validation import load_schema, validate_bronze_df
+        df = self._base()
+        df["mystery_param"] = [1.0]
+        with caplog.at_level(logging.WARNING):
+            validate_bronze_df(df, load_schema("nasa_power_bronze"), source="nasa_power")
+        assert "mystery_param" in caplog.text

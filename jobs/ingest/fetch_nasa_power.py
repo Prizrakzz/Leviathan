@@ -95,6 +95,15 @@ def main() -> None:
     logger.info("Starting NASA POWER %s backfill run_id=%s", args.commodity, run_id)
 
     for window in month_windows(args.start_year, args.end_year):
+        # WRITE-GATE (BF-W1): never request a month that has not started -- the API answers
+        # future windows with an EMPTY parameter payload, and writing that to raw fabricates
+        # presence (live-proven: Aug-Dec 2026 raw files with zero daily records failed every
+        # raw->bronze run). The current, partial month is legitimate (real days up to the
+        # source's ~1-week lag); only strictly-future windows are skipped.
+        if window.start_date > datetime.date.today():
+            logger.info("SKIP future window %s-%02d (not started; no raw file written)",
+                        window.year, window.month)
+            continue
         for country_block in geography_config["regions"]:
             country = country_block["country"]
 
