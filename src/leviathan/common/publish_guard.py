@@ -157,10 +157,16 @@ def _prod_role_arn_pattern(account_id: str) -> str:
     additionally denied deny-first via :func:`_is_readiness_role`.
     """
     publisher = re.escape(SILVER_PUBLISHER_ROLE_NAME)  # leviathan-dev-silver-publisher
+    # NOTE the service split: IAM ROLE ARNs live under arn:aws:iam::, but the ARN a RUNNING
+    # task sees from sts get-caller-identity is the ASSUMED-ROLE form under arn:aws:sts:: --
+    # an iam-only prefix rejected every legitimate Batch container (live-proven by the BF-W1
+    # canonical retirement, which failed closed on
+    # arn:aws:sts::...:assumed-role/leviathan-dev-batch-job-role/<session>).
     return (
-        rf"^arn:aws:iam::{account_id}:"
+        rf"^(arn:aws:iam::{account_id}:"
         rf"(role/(leviathan-dev-(sagemaker-training|batch-[a-z0-9-]+|glue-[a-z0-9-]+)|{publisher})"
-        rf"|assumed-role/leviathan-dev-[a-z0-9-]+/.+)$"
+        rf"|assumed-role/leviathan-dev-[a-z0-9-]+/.+)"
+        rf"|arn:aws:sts::{account_id}:assumed-role/leviathan-dev-[a-z0-9-]+/.+)$"
     )
 
 

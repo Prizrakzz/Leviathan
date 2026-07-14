@@ -346,3 +346,37 @@ def test_dry_run_never_parses_the_env_approval() -> None:
     )
     assert auth.mode is PublishMode.DRY_RUN
     assert auth.may_mutate_canonical is False
+
+
+# ---------------------------------------------------------------------------
+# (6) the STS assumed-role identity a RUNNING task actually presents (BF-W1 live find).
+# ---------------------------------------------------------------------------
+def test_sts_assumed_role_batch_identity_is_accepted() -> None:
+    # sts get-caller-identity inside a Batch container returns the arn:aws:sts:: form;
+    # the iam-only pattern rejected every legitimate canonical publisher (retire job 6de055eb).
+    sts_arn = ("arn:aws:sts::668891723125:assumed-role/"
+               "leviathan-dev-batch-job-role/f9c68238ffdd4a598d5eb2233393309e")
+    auth = authorize_publish(
+        _good_target(role_arn=sts_arn),
+        mode=PublishMode.CANONICAL,
+        approval=_valid_approval(),
+        env={},
+        secret=_SECRET,
+    )
+    assert auth.may_mutate_canonical is True
+
+
+def test_sts_assumed_role_foreign_name_still_rejected() -> None:
+    for bad in (
+        "arn:aws:sts::668891723125:assumed-role/other-project-role/session",
+        "arn:aws:sts::000000000000:assumed-role/leviathan-dev-batch-job-role/session",
+        "arn:aws:sts::668891723125:assumed-role/leviathan-dev-readiness-ci/session",
+    ):
+        with pytest.raises((EnvironmentMismatch, ReadinessPublishDenied)):
+            authorize_publish(
+                _good_target(role_arn=bad),
+                mode=PublishMode.CANONICAL,
+                approval=_valid_approval(),
+                env={},
+                secret=_SECRET,
+            )
