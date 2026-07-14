@@ -595,15 +595,49 @@ def test_esr_lag_zero_freshest_vintage_citable_at_publication():
 
 def test_esr_vintage_agg_latest_keeps_freshest_week_lock():
     """agg=latest on the vintage branch keeps the single-freshest-observation contract (the D-W3.1
-    pace leg's C2 stale-week lock): ORDER BY week_ending_date DESC ... LIMIT 1 AFTER the vintage
-    dedup. On single-vintage data this is byte-equivalent row selection to the pre-flip data_date
-    branch (the step-11 backward-compat smoke class)."""
+    pace leg's C2 stale-week lock): ORDER BY the data axis DESC ... LIMIT 1 AFTER the vintage
+    dedup. The outer query exposes ALIASES only, so the ordering MUST use the alias (data_date) --
+    the raw column name is COLUMN_NOT_FOUND on both Athena and Postgres (live-caught at the BF-W2
+    step-11 serving smoke gate; the pre-fix assertion here pinned the buggy raw-column form)."""
     sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2026-07-14",
                                 commodity="corn_cbot", period_start="2025-07-14",
                                 period_end="2026-07-14", agg="latest"), _esr_vintage())
-    assert "ORDER BY week_ending_date DESC" in sql and sql.strip().endswith("LIMIT 1")
+    assert "ORDER BY data_date DESC" in sql and sql.strip().endswith("LIMIT 1")
+    outer = sql.rsplit(") AS _v", 1)[1]                         # everything after the dedup subquery
+    assert "week_ending_date" not in outer                      # raw column never leaks into outer scope
     assert "ROW_NUMBER() OVER" in sql                           # dedup still applied first
     assert "CAST(week_ending_date AS varchar) <= '2026-07-14'" in sql   # window guard on the data axis intact
+
+
+def test_esr_vintage_agg_latest_sql_executes_end_to_end():
+    """EXECUTE the generated vintage+latest SQL on a real engine (stdlib sqlite3: window functions +
+    alias scoping rules match Athena/PG here). A string assertion cannot catch outer-scope alias bugs
+    -- this is the regression net for the step-11 live failure. Two vintages x two weeks: the query
+    must return exactly the freshest week of the LATEST vintage visible at asof."""
+    import sqlite3
+
+    sql = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2026-07-14",
+                                commodity="corn_cbot", agg="latest"), _esr_vintage())
+    con = sqlite3.connect(":memory:")
+    con.execute("ATTACH ':memory:' AS leviathan_dev")
+    con.execute("""CREATE TABLE leviathan_dev.silver_esr_compact (
+        commodity_name TEXT, market_year INT, country_code INT, week_ending_date TEXT,
+        weekly_exports_1000mt REAL, as_of_date TEXT, commodity TEXT)""")
+    rows = [
+        ("corn_cbot", 2026, 9, "2026-05-15", 500.0, "20260524", "corn_cbot"),
+        ("corn_cbot", 2026, 9, "2026-05-22", 510.0, "20260524", "corn_cbot"),
+        ("corn_cbot", 2026, 9, "2026-05-15", 501.0, "20260712", "corn_cbot"),  # revised by the newer vintage
+        ("corn_cbot", 2026, 9, "2026-07-02", 640.0, "20260712", "corn_cbot"),  # the freshest week
+    ]
+    con.executemany("INSERT INTO leviathan_dev.silver_esr_compact VALUES (?,?,?,?,?,?,?)", rows)
+    got = con.execute(sql).fetchall()                           # raises on any outer-scope column bug
+    assert len(got) == 1
+    assert got[0][0] == 640.0                                   # value = freshest week, latest vintage
+    # and at an asof BEFORE the second vintage, the first vintage's freshest week wins
+    sql_pit = build_sql(NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof="2026-06-01",
+                                    commodity="corn_cbot", agg="latest"), _esr_vintage())
+    got = con.execute(sql_pit).fetchall()
+    assert len(got) == 1 and got[0][0] == 510.0
 
 
 def test_vintage_agg_latest_without_order_col_unchanged():

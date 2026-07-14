@@ -351,7 +351,12 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             # the vintage dedup -- the ESR pace leg's freshest-week lock (D-W3.1/C2). Without this the
             # flip silently turns agg=latest into a full-window series. Tables with no order col
             # (PSD/WASDE: no date_col) keep the plain deduped-set shape below, unchanged.
-            return base + f" ORDER BY {order} DESC, {_total_order(extras)} LIMIT 1"
+            # The dedup subquery exposes ALIASES only -- order by the chronological axis's alias,
+            # never the raw column: Athena AND Postgres both reject the raw name in the outer scope
+            # (COLUMN_NOT_FOUND, live-caught at the BF-W2 step-11 serving smoke gate).
+            alias = dict(extras)
+            order_alias = alias[ts.date_col] if ts.date_col else "(year * 100 + month)"
+            return base + f" ORDER BY {order_alias} DESC, {_total_order(extras)} LIMIT 1"
         else:
             base += f" ORDER BY {_total_order(extras)}"
         return base + f" LIMIT {int(spec.limit)}"

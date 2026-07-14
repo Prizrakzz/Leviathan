@@ -106,9 +106,11 @@ def test_current_pace_is_freshest_week_agg_latest():
     rec = cq._run_one(qfn, cur)
     assert rec["status"] == "ok"
     assert cq._float_val(rec) == 742.5                              # the FRESHEST week, NOT the ~1yr-old 410.2
-    # the freshest-week semantics live in query.py's agg=latest branch: ORDER BY <date> DESC ... LIMIT 1,
+    # the freshest-week semantics live in query.py's agg=latest branch: ORDER BY <date-alias> DESC ...
+    # LIMIT 1 -- the vintage dedup subquery exposes ALIASES only, so the outer ordering uses data_date
+    # (the raw column name is COLUMN_NOT_FOUND on Athena/PG; live-caught at the BF-W2 step-11 gate),
     # under the CAST-as-text as-of guard on week_ending_date (a data column, storm-safe -- not projected).
-    assert "ORDER BY week_ending_date DESC" in seen["sql"] and "LIMIT 1" in seen["sql"]
+    assert "ORDER BY data_date DESC" in seen["sql"] and "LIMIT 1" in seen["sql"]
     assert "CAST(week_ending_date AS varchar) <= '2026-07-01'" in seen["sql"]
 
 
