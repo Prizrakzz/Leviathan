@@ -869,12 +869,39 @@ def _parse_colon_page(
 # Format B parser (columnar, bounding-box alignment)
 # ---------------------------------------------------------------------------
 
+def _merge_word_fragments(words: list[dict], *, max_gap: float = 1.0) -> list[dict]:
+    """Glue same-line word FRAGMENTS back into words (the WASDE July-2026 PDFMaker class).
+
+    Acrobat PDFMaker (wasde0726.pdf, creator 'Acrobat PDFMaker 26 for Word') emits header glyphs in
+    text runs that pdfplumber's position-sorted word extractor splits into character clusters
+    ('Beg|in|n|in|g' for 'Beginning') REGARDLESS of x_tolerance -- measured inter-fragment gaps are
+    <= 0.06pt while a real space is ~2.5pt wide and column gaps are >= 13pt. Merging same-line
+    neighbors closer than ``max_gap`` (1pt) is therefore a provable no-op on well-formed PDFs
+    (Distiller-era words are always separated by at least one space width) and exactly reassembles
+    the PDFMaker fragments. Live-caught at the BF-W2 step-21 dry-run: 742/1,718 rows quarantined as
+    unknown_attribute because 'Beginning Stocks'/'Ending Stocks'/'Domestic Total' headers shredded."""
+    out: list[dict] = []
+    for w in sorted(words, key=lambda w: (round(w["top"] / 5) * 5, w["x0"])):
+        prev = out[-1] if out else None
+        if (prev is not None
+                and abs(prev["top"] - w["top"]) < 3
+                and -3.0 <= w["x0"] - prev["x1"] <= max_gap):   # small NEGATIVE gaps are kerning
+            #                                                     overlaps ('Domest'+'ic' at -0.01pt);
+            #                                                     real columns never overlap
+            prev["text"] += w["text"]
+            prev["x1"] = w["x1"]
+            prev["bottom"] = max(prev["bottom"], w["bottom"])
+        else:
+            out.append(dict(w))
+    return out
+
+
 def _parse_columnar_page(page, release_date: str) -> list[dict]:
     """Parse a single pdfplumber Page object using bounding-box word extraction."""
     rows: list[dict] = []
 
-    # Extract words with bounding boxes
-    words = page.extract_words(x_tolerance=5, y_tolerance=5)
+    # Extract words with bounding boxes (fragment-merged: the PDFMaker header-shred class)
+    words = _merge_word_fragments(page.extract_words(x_tolerance=5, y_tolerance=5))
     if not words:
         return rows
 

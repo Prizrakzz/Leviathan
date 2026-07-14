@@ -563,3 +563,36 @@ def test_parse_wasde_pdf_scanned_1989_market_year_set() -> None:
         f"Expected market_year='1989/90', found: {df['market_year'].unique()}"
     )
 
+
+
+# ---------------------------------------------------------------------------
+# BF-W2: PDFMaker word-fragment merge (the wasde0726.pdf header-shred class).
+# ---------------------------------------------------------------------------
+def _w(text: str, x0: float, x1: float, top: float = 90.0) -> dict:
+    return {"text": text, "x0": x0, "x1": x1, "top": top, "bottom": top + 10}
+
+
+def test_merge_word_fragments_glues_pdfmaker_header() -> None:
+    """'Beginning' emitted as Beg|in|n|in|g clusters (gaps <= 0.06pt, some NEGATIVE kerning
+    overlaps) must reassemble; the July-2026 WASDE shredded 43% of rows into unknown_attribute."""
+    from leviathan.transforms.raw_to_bronze.usda_wasde import _merge_word_fragments
+
+    frags = [_w("Beg", 169.80, 185.82), _w("in", 185.88, 193.62), _w("n", 193.68, 198.66),
+             _w("in", 198.72, 206.46), _w("g", 206.52, 211.50),
+             # kerning OVERLAP inside 'Domestic' (gap -0.01): must still merge
+             _w("Domest", 345.96, 377.05), _w("ic", 377.04, 384.22)]
+    got = _merge_word_fragments(frags)
+    assert [w["text"] for w in got] == ["Beginning", "Domestic"]
+    assert got[0]["x0"] == 169.80 and got[0]["x1"] == 211.50
+
+
+def test_merge_word_fragments_never_bridges_real_gaps() -> None:
+    # a real inter-word space is ~2.5pt and a column gap >= 13pt: neither merges; different
+    # lines never merge regardless of x-adjacency.
+    from leviathan.transforms.raw_to_bronze.usda_wasde import _merge_word_fragments
+
+    words = [_w("Stocks", 184.80, 211.47), _w("Production", 225.15, 269.02),   # 13.7pt column gap
+             _w("year", 100.0, 118.0), _w("beginning", 120.5, 160.0),          # 2.5pt space
+             _w("nextline", 160.1, 190.0, top=120.0)]                          # x-adjacent, other line
+    got = _merge_word_fragments(words)
+    assert sorted(w["text"] for w in got) == ["Production", "Stocks", "beginning", "nextline", "year"]
