@@ -210,25 +210,25 @@ refs:
   # has NO gold metric yet -- stays unmapped/qualitative pending a precip-z gold family.
   # Rollback: re-add `deferred: true` per row. Gate: candidate census diff + config_check green.
   #
-  # DROUGHT_Z DEFERRED (DATA BLOCKER, 2026-07-12): the gold transform produces ZERO drought_z rows for
-  # all 31 commodities because the CHIRPS silver `value` column is ENTIRELY NaN (0 non-NaN across a
-  # 12-file 1981-2018 sample -- a broken CHIRPS bronze->silver ingest, NOT a transform bug; the four
-  # NASA-POWER metrics below all produce real rows). Un-deferring would strand 34 DARK census legs, so
-  # drought stays qualitative until CHIRPS silver is re-ingested with real precip values. drought_z is
-  # a STANDALONE deferred row here (NOT merged off the anchor, or it would inherit nothing useful and
-  # the merge would need the anchor's fields; deferred rows are dropped by load_map anyway).
+  # DROUGHT_Z UN-DEFERRED (BF-W1, 2026-07-14): the CHIRPS silver value rebuild landed real precip for
+  # all 31 commodities (post-rebuild census: zero all-NaN month objects; 17,642 fabricated partitions
+  # retired to silver_old/), and the dry-day threshold now floors at 1mm (dry_day_threshold, commit
+  # dc5b2367) so the pct-20 definition no longer degenerates in zero-inflated climates -- the gold
+  # rebuild emits drought_z for 31/31 commodities (774,876 gold rows, embedder image 15422de3).
   drought_z:
     table: gold_weather_z
     metric: drought_z
-    deferred: true                     # CHIRPS silver all-NaN -> no gold rows -> would DARK; re-ingest first
     period_type: year_month
     country_rule: region
     native_unit: z
     narrate_unit: z
     scale: 1
+    coverage_start: 1981
+    status: mapped
     notes: >
-      DEFERRED: CHIRPS silver value column is all-NaN (broken ingest) so the gold drought_z family is
-      empty. Un-defer only after a CHIRPS re-ingest lands real precip and the gold transform reruns.
+      Monthly longest consecutive dry-day run (CHIRPS precip; dry = below max(pct-20 of the trailing
+      same-month baseline, 1mm/day)), z-scored vs the same-month prior-year baseline. Un-deferred in
+      BF-W1 after the CHIRPS value rebuild + the dry-day floor fix.
   heat_stress_z: &gold_weather_row
     table: gold_weather_z
     metric: heat_stress_z

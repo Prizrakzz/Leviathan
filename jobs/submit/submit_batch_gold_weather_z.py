@@ -43,16 +43,23 @@ _REGION = "us-east-1"
 
 
 def _ensure_job_definition(batch: object, bucket: str) -> str:
-    """Register job definition if not already active; return its ARN."""
+    """Register job definition; return its ARN.
+
+    Reuses the active jobdef ONLY when its image matches the pinned ``_ECR_IMAGE`` digest;
+    otherwise registers a NEW revision. Without the image check a re-pinned digest is silently
+    ignored -- the stale revision keeps running old code (BF-W1: the drought-floor fix ran on
+    the OLD embedder digest because the pre-fix jobdef revision was blindly reused)."""
     resp = batch.describe_job_definitions(
         jobDefinitionName=_JOB_DEF_NAME, status="ACTIVE"
     )
-    if resp["jobDefinitions"]:
-        arn = resp["jobDefinitions"][-1]["jobDefinitionArn"]
-        logger.info("Using existing job definition: %s", arn)
+    active = sorted(resp.get("jobDefinitions", []), key=lambda d: d["revision"])
+    if active and active[-1]["containerProperties"].get("image") == _ECR_IMAGE:
+        arn = active[-1]["jobDefinitionArn"]
+        logger.info("Using existing job definition (image matches pin): %s", arn)
         return arn
 
-    logger.info("Registering new job definition: %s", _JOB_DEF_NAME)
+    logger.info("Registering new job definition revision (image changed or absent): %s",
+                _JOB_DEF_NAME)
     resp = batch.register_job_definition(
         jobDefinitionName=_JOB_DEF_NAME,
         type="container",

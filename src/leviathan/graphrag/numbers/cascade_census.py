@@ -56,9 +56,11 @@ PROBE_ERROR = "probe-error"
 # CANONICAL single source (review fold, DRY): config_check.check_cascade_map imports this set so census
 # and lint cannot drift. silver_esr REMOVED 2026-07-12 (the D-W5 ESR flip): re-certified against the
 # compact serving table (753,062 rows, all 8 checks pass; the sole WARN is the disclosed single-as_of
-# snapshot limitation -- per-week vintage is the option-b follow-up). silver_nasa_power stays uncertified
-# AND deferred; the weather lane serves from gold_weather_z instead (D-W4).
-UNCERTIFIED_TABLES = frozenset({"silver_nasa_power"})
+# snapshot limitation -- per-week vintage is the option-b follow-up). silver_nasa_power REMOVED
+# 2026-07-14 (BF-W1): deprojected to registered [commodity, year] partitions (1,426), values census
+# GREEN, INV-3 Athena probe 520ms planning / 0B scanned; the weather lane still SERVES from
+# gold_weather_z (D-W4) -- removal here just stops branding the table uncertified in census output.
+UNCERTIFIED_TABLES = frozenset()
 _UNCERTIFIED = UNCERTIFIED_TABLES
 
 # Explicit dark-leg waivers: (contract, node_id) -> one-line justification. A waived leg is reported as

@@ -532,7 +532,7 @@ def test_load_map_drops_deferred_rows(tmp_path, monkeypatch):
     assert "export" in m and m["export"]["table"] == "silver_psd"
     assert "esr_exports" in m and m["esr_exports"]["table"] == "silver_esr"      # D-W5 ESR flip
     assert "heat_stress_z" in m and m["heat_stress_z"]["table"] == "gold_weather_z"  # D-W5 weather flip
-    assert "drought_z" not in m                                      # deferred: CHIRPS silver all-NaN (977465f9)
+    assert "drought_z" in m and m["drought_z"]["table"] == "gold_weather_z"  # BF-W1 un-defer: real CHIRPS + 1mm dry-day floor
     assert "weather_z" not in m                                      # the vacuous join key is gone
 
 
@@ -542,10 +542,15 @@ def test_cascade_map_lint_clean():
 
 
 def test_cascade_map_lint_catches_uncertified_active(monkeypatch):
+    # the MECHANISM, pinned against a synthetic uncertified set: live UNCERTIFIED_TABLES is
+    # EMPTY post-BF-W1 (the weather trio is deprojected + census-green), so the lint must be
+    # exercised with an injected entry rather than whatever happens to be uncertified today.
+    import leviathan.graphrag.numbers.cascade_census as census_mod
+    monkeypatch.setattr(census_mod, "UNCERTIFIED_TABLES", frozenset({"silver_nasa_power"}))
+    monkeypatch.setattr(census_mod, "_UNCERTIFIED", frozenset({"silver_nasa_power"}))
     monkeypatch.setattr(cq, "load_map",
                         lambda: {"bad": {"table": "silver_nasa_power", "metric": "temperature_2m_max_c",
                                          "period_type": "date", "scale": 1}})
-    cq.load_map.cache_clear if hasattr(cq.load_map, "cache_clear") else None
     from leviathan.graphrag.config_check import check_cascade_map
     errs = check_cascade_map()
     assert errs and any("uncertified" in e for e in errs)
