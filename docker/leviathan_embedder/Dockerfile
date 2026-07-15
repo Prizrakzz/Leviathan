@@ -39,5 +39,8 @@ RUN mkdir -p src/leviathan && touch src/leviathan/__init__.py && \
 COPY src/ ./src/
 COPY jobs/ ./jobs/
 COPY configs/ ./configs/
+# sql/ carries the generated Athena DDLs: the silver_rebuild_gate's config_check stage lints the
+# node_silver_map against them IN-VPC (DDL-not-found false-RED at the first Branch-A fire without it).
+COPY sql/ ./sql/
 
 ENTRYPOINT ["python"]

@@ -157,8 +157,11 @@ def check_country_vocabulary(reg, *, query_fn, caches=None) -> list[str]:
         if key in seen:
             continue
         seen.add(key)
-        titles = caches.setdefault(("distinct", table, ccol),
-                                   cc._distinct_set(table, ccol, query_fn))
+        # probe the PHYSICAL table: the leg carries the agent-facing id (silver_esr), which does not
+        # exist in the pg mirror -- and on Athena would be the PROJECTED table (the LIST-storm class).
+        # Live-caught at the first Branch-A gate fire (BF-W2 step 12.6).
+        titles = caches.setdefault(("distinct", _physical(ts), ccol),
+                                   cc._distinct_set(_physical(ts), ccol, query_fn))
         if country not in titles:
             errs.append(f"{contract}/{did}: region-resolved country {country!r} not in DISTINCT {ccol} "
                         f"of {table} (region_map resolve target absent -- the France->EU class)")
@@ -193,8 +196,9 @@ def check_commodity_slug_vocabulary(reg, *, query_fn, caches=None) -> list[str]:
         if key in seen:
             continue
         seen.add(key)
-        slugs = caches.setdefault(("distinct", table, scol),
-                                  cc._distinct_set(table, scol, query_fn))
+        # PHYSICAL table, same as the country check above (agent id -> served table).
+        slugs = caches.setdefault(("distinct", _physical(ts), scol),
+                                  cc._distinct_set(_physical(ts), scol, query_fn))
         if commodity not in slugs:
             errs.append(f"{contract}/{did}: commodity slug {commodity!r} not in DISTINCT {scol} "
                         f"of {table} (commodity-slug-miss -- the PSD_SLUG_ALIAS class)")

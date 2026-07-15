@@ -73,7 +73,10 @@ def _probe_body_columns(location: str) -> set[str]:
             if any(seg.startswith(("_", ".")) for seg in rel.split("/")):
                 continue                                     # hidden staging/manifest prefixes
             if obj["Key"].endswith(".parquet"):
-                one = pads.dataset([f"s3://{bucket}/{obj['Key']}"], format="parquet")
+                # single URI STRING: the list form skips pyarrow's filesystem-from-URI resolution
+                # and raises ArrowInvalid ("Expected a local filesystem path, got a URI") -- caught
+                # live at the first BF-W2 in-VPC gate run.
+                one = pads.dataset(f"s3://{bucket}/{obj['Key']}", format="parquet")
                 return set(one.schema.names)
     return set()
 

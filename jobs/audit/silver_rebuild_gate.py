@@ -209,8 +209,14 @@ def _census_diff(prior: Optional[dict], current: dict) -> list[str]:
 def stage_cascade_census_diff(table: str, ctx: GateContext) -> StageResult:
     try:
         from leviathan.graphrag.numbers import cascade_census as cc
+        from leviathan.graphrag.numbers import query as Q
         if ctx.query_fn is None:
             return StageResult("cascade_census_diff", SKIPPED, "no pg query_fn (offline/dry)")
+        # The parity stage LEGITIMATELY queries Athena in this same process; the census banner reads
+        # the per-process Q.STATS telemetry, so without a reset those calls masquerade as census
+        # Athena leaks (ATHENA_CALLS=24 at the first Branch-A fire). Reset makes the banner measure
+        # THIS stage only -- the pg-only property the diff asserts.
+        Q.reset_stats()
         art = cc.census(asof=ctx.census_asof, query_fn=ctx.query_fn)
         problems = _census_diff(ctx.prior_census, art)
         if problems:
