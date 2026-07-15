@@ -301,9 +301,10 @@ def test_runner_build_evidence_smoke(tmp_path):
     # the R4 real run censused ALL 43 tables (scratch/R4_census_all.log), so the V001
     # missing-census order is gone; it must REAPPEAR if any table is ever added uncensused.
     assert r.WO_V001 not in wo
-    # every orphan producer is BLOCKED (registry entrypoint still null)
+    # BF-W3 step 0.5: the producer-repoint cleared the producer track for the core orphan
+    # families -- they now evaluate BACKFILL_READY (the wave's whole point; GATE-02).
     for orphan in ("silver_fred_fx", "silver_noaa_oni", "silver_icco_cocoa"):
-        assert cert["tables"][orphan]["readiness_state"] == r.STATE_BLOCKED
+        assert cert["tables"][orphan]["readiness_state"] == r.BACKFILL_READY
     # the generated ML table is NEVER BACKFILL_READY; today it is honestly BLOCKED-BY the F018
     # placeholder-partition cleanup (8 placeholder partitions still on the registry fingerprint),
     # and its value track is NA -- it can only reach GENERATION_READY once F018 executes.

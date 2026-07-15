@@ -302,18 +302,24 @@ def stage_feature_probe(table: str, ctx: GateContext) -> StageResult:
 
 
 def stage_value_census(table: str, ctx: GateContext) -> StageResult:
-    """SILVER-V001 footer-derived value census: per value_column, non-null fraction >= min_nonnull_frac.
-    V001 is a separate R1 package; if its footer census is not yet importable this is a DEFERRED hook
-    (skipped, not red -- fail-closed still blocks on the checks that DID run). Inject `value_census_fn` to
-    run it here."""
+    """SILVER-V001 footer-derived value census: per value_column, non-null fraction >= min_nonnull_frac
+    + vintage adequacy (waiver-aware). Wired to the REAL V001 runner (jobs.audit.value_census.
+    census_one_table) -- the old fallback referenced a `census_table` symbol that never existed, so
+    every Branch-B run silently SKIPPED this stage (B3 phase-0 finding B3-03; the floor was only ever
+    enforced by the standalone runner). Inject `value_census_fn` to override (tests/offline)."""
     fn = ctx.value_census_fn
     if fn is None:
-        try:  # optional: pick up V001 if it has landed, without a hard dependency on it
-            from leviathan.silver import value_census as vc  # type: ignore
-            fn = vc.census_table
-        except Exception:  # noqa: BLE001
+        try:
+            from jobs.audit.value_census import census_one_table  # the real V001 runner (S3 footer reads)
+        except Exception:  # noqa: BLE001 -- only a broken tree lands here; never silently green
             return StageResult("value_census", SKIPPED,
-                               "SILVER-V001 footer census not yet available (inject value_census_fn)")
+                               "SILVER-V001 runner unimportable (inject value_census_fn)")
+
+        def fn(t, silver_reg):  # adapter: gate contract-in, {ok,...} out
+            result, _artifact = census_one_table(silver_reg.table(t))
+            return {"ok": result.passed, "gate_rows": len(result.gate_rows),
+                    "warn_rows": len(result.warn_rows), "files_sampled": result.files_sampled,
+                    "first_gate": result.gate_rows[0].detail if result.gate_rows else None}
     try:
         res = fn(table, ctx.silver_reg)
         ok = bool(res.get("ok")) if isinstance(res, dict) else bool(res)

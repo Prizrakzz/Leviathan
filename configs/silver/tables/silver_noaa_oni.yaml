@@ -156,10 +156,9 @@ cascade_ref: configs/graphrag/numbers/cascade_map.yaml#oni_climate
 source_contract_ref: configs/datasets/source_contracts.yaml#oni
 serving_table: null
 producer:
-  status: orphan
-  transform: null
-  batch_task: null
-  note: C-WRONG-8 orphan class; producer rebuilt in SILVER-F057
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/noaa_oni.py
+  batch_task: jobs/batch/noaa_oni_task.py
 location_mode: static
 write_mode: overwrite
 fingerprint:

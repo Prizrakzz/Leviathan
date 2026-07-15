@@ -93,10 +93,9 @@ cascade_ref: configs/graphrag/numbers/cascade_map.yaml#fred_fx_macro
 source_contract_ref: configs/datasets/source_contracts.yaml#fred_fx
 serving_table: null
 producer:
-  status: orphan
-  transform: null
-  batch_task: null
-  note: C-WRONG-8 orphan class; producer rebuilt in SILVER-F040
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/frankfurter_fx.py
+  batch_task: jobs/batch/frankfurter_fx_task.py
 location_mode: static
 write_mode: overwrite
 fingerprint:

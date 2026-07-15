@@ -119,7 +119,11 @@ R2_OWNER = {
 _T = "src/leviathan/transforms/bronze_to_silver/"
 _J = "jobs/batch/"
 PRODUCER = {
-    "silver_ams_cotton_quality": (None, None, "half-orphan"),
+    # BF-W3 step 0.5 (2026-07-15, user-ratified): the R3 producer-repoint. The six core orphan
+    # families flip to status=producer pointing at the R2/R3-built artifacts (OA-F050/51/56/57,
+    # SB-F040, OB/SB-F042). readiness.evaluate_producer returns BLOCKED on status alone (GATE-02),
+    # so the STATUS flip -- not just the transform path -- is load-bearing for the R4 recert.
+    "silver_ams_cotton_quality": (_T + "ams_cotton_quality.py", _J + "ams_cotton_quality_task.py", "producer"),
     "silver_chirps": (_T + "chirps_weather.py", _J + "bronze_to_silver_chirps_task.py", "producer"),
     "silver_conab_coffee": (_T + "conab_coffee.py", _J + "conab_coffee_silver_task.py", "producer"),
     "silver_cot": (_T + "cftc_cot.py", _J + "cftc_cot_silver_task.py", "producer"),
@@ -134,9 +138,9 @@ PRODUCER = {
     "silver_fnc_colombia_exports_port_type": (_T + "fnc_colombia.py", _J + "fnc_colombia_silver_task.py", "producer"),
     "silver_fnc_colombia_monthly": (_T + "fnc_colombia.py", _J + "fnc_colombia_silver_task.py", "producer"),
     "silver_food_cpi": (_T + "world_bank_food_cpi.py", _J + "food_cpi_task.py", "producer"),
-    "silver_fred_fx": (None, None, "orphan"),
+    "silver_fred_fx": (_T + "frankfurter_fx.py", _J + "frankfurter_fx_task.py", "producer"),
     "silver_futures_prices": (_T + "yfinance_futures.py", _J + "yfinance_futures_task.py", "producer"),
-    "silver_icco_cocoa": (None, None, "half-orphan"),
+    "silver_icco_cocoa": (_T + "icco_cocoa.py", _J + "icco_cocoa_task.py", "producer"),
     "silver_model_predictions": ("jobs/batch/train_commodity.py", None, "producer"),
     "silver_modis_ndvi": (_T + "modis_ndvi.py", _J + "modis_ndvi_bronze_to_silver_task.py", "producer"),
     "silver_mpob": (_T + "mpob.py", _J + "mpob_silver_task.py", "producer"),
@@ -146,19 +150,22 @@ PRODUCER = {
     "silver_mpoc_trade_stats_monthly": (_T + "mpoc_trade_stats_monthly.py", _J + "mpoc_trade_stats_monthly_silver_task.py", "producer"),
     "silver_nasa_power": (_T + "nasa_power_weather.py", None, "producer"),
     "silver_nass_annual": (_T + "usda_nass_annual.py", _J + "nass_annual_silver_task.py", "producer"),
-    "silver_nass_citrus": (None, None, "half-orphan"),
+    "silver_nass_citrus": (_T + "nass_citrus.py", _J + "nass_citrus_task.py", "producer"),
     "silver_nass_crop_progress": (_T + "usda_nass_crop_progress.py", _J + "nass_crop_progress_silver_task.py", "producer"),
     "silver_noaa_iod": (_T + "noaa_iod.py", _J + "noaa_iod_task.py", "producer"),
-    "silver_noaa_oni": (None, None, "orphan"),
+    "silver_noaa_oni": (_T + "noaa_oni.py", _J + "noaa_oni_task.py", "producer"),
     "silver_pink_sheet": (_T + "pink_sheet.py", _J + "pink_sheet_silver_task.py", "producer"),
     "silver_production": (_T + "faostat_production.py", None, "producer"),
     "silver_psd": (_T + "usda_psd.py", _J + "psd_silver_task.py", "producer"),
     "silver_sagis_cec": (_T + "sagis_cec.py", _J + "sagis_cec_silver_task.py", "producer"),
-    "silver_sagis_weekly_deliveries": (None, None, "half-orphan"),
+    "silver_sagis_weekly_deliveries": (_T + "sagis_deliveries.py", _J + "sagis_deliveries_task.py", "producer"),
     "silver_sagis_weekly_exports": (_T + "sagis_weekly_exports.py", _J + "sagis_weekly_exports_silver_task.py", "producer"),
     "silver_unica_annual_state": (_T + "unica_annual_state.py", _J + "unica_annual_state_task.py", "producer"),
     "silver_unica_biweekly_release_series": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
     "silver_unica_biweekly_season_history": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
+    # BF-W3 SCOPE DEFERRAL (step 2, user-ratified): no dedicated producer exists for these two
+    # (the F062 fetcher is frozen at the 2020-21 season -- new fetch development, not backfill
+    # adoption). They stay half-orphan until an F062 sweep builds their lane.
     "silver_unica_corn_ethanol": (None, None, "half-orphan"),
     "silver_unica_monthly_ethanol_sales": (None, None, "half-orphan"),
     "silver_wap_table01": (_T + "wap_table01.py", _J + "wap_silver_task.py", "producer"),

@@ -132,9 +132,14 @@ def test_producer_metadata_complete(reg):
         assert prod["status"] in ("producer", "half-orphan", "orphan")
         if prod["status"] == "producer":
             assert prod.get("transform") or prod.get("batch_task"), name
-    # C-WRONG-8 full orphans.
-    assert reg.table("silver_fred_fx")["producer"]["status"] == "orphan"
-    assert reg.table("silver_noaa_oni")["producer"]["status"] == "orphan"
+    # BF-W3 step 0.5 (2026-07-15): the R3 producer-repoint landed -- the six core orphan families
+    # are producers with discoverable artifacts (asserted non-null by the loop above)...
+    for name in ("silver_fred_fx", "silver_noaa_oni", "silver_icco_cocoa",
+                 "silver_nass_citrus", "silver_ams_cotton_quality", "silver_sagis_weekly_deliveries"):
+        assert reg.table(name)["producer"]["status"] == "producer", name
+    # ...while the UNICA pair stays half-orphan (scope deferral: no producer exists; F062 sweep).
+    assert reg.table("silver_unica_corn_ethanol")["producer"]["status"] == "half-orphan"
+    assert reg.table("silver_unica_monthly_ethanol_sales")["producer"]["status"] == "half-orphan"
 
 
 # ---------------------------------------------------------------------------
