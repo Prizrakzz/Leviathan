@@ -10,10 +10,10 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_noaa_oni (
     oni_lag6               double,
     oni_lag9               double,
     oni_lag12              double,
-    el_nino_flag           tinyint,
-    la_nina_flag           tinyint,
-    la_nina_brazil_flag    tinyint,
-    argentina_la_nina_flag tinyint,
+    el_nino_flag           bigint,
+    la_nina_flag           bigint,
+    la_nina_brazil_flag    bigint,
+    argentina_la_nina_flag bigint,
     source                 string
 )
 STORED AS PARQUET

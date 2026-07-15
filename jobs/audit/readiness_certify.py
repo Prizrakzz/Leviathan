@@ -59,17 +59,14 @@ DEFAULT_OUT = REPORTS / "R4_certificate"
 
 ML_TABLE = "silver_model_predictions"
 
-# Curated known-staleness map -> the B-wave that catches the table up. Traceable to the R2
-# artifacts: CHIRPS silver 2026-05-16 < bronze 2026-06-16 (SILVER-F045, R2_W/OP1_chirps_ingest_census.md);
-# nasa_power silver ends 2024 (SILVER-F021, R2_W/F021_nasa_power_freshness_gap_B1.md); the weather trio
-# deproject+compact rides BF-W1 (F047); ESR weekly catch-up is BF-W2 (R2_esr/F031_option_b_path.json).
-KNOWN_STALENESS = {
-    "silver_chirps": "BF-W1",
-    "silver_nasa_power": "BF-W1",
-    "silver_cpc_soil": "BF-W1",
-    "silver_esr": "BF-W2",
-    "silver_esr_compact": "BF-W2",
-}
+# Curated known-staleness map -> the B-wave that catches the table up. EMPTIED 2026-07-15 at the
+# BF-W3 close: every entry's owning wave has CLOSED with a wave certificate -- BF-W1
+# rebuilt/compacted/deprojected the weather trio (chirps/nasa_power/cpc_soil) to their raw tips
+# (B1 close, 2026-07-14), and BF-W2 published the ESR per-week vintages (20 partitions, weekly
+# EventBridge schedule ENABLED) + the WASDE catch-up (B2_wave/WAVE_CERTIFICATE.md). Freshness
+# going forward is owned by the F082 alarm definitions + the ingest schedules, not this map.
+# Re-add an entry ONLY with a fresh staleness census artifact naming the owning wave.
+KNOWN_STALENESS: dict = {}
 
 
 def _now() -> str:

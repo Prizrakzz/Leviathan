@@ -71,25 +71,25 @@ physical_columns:
   target_arrow_type: float64
   nullable: true
 - name: el_nino_flag
-  glue_type: tinyint
+  glue_type: bigint
   arrow_type: int8
   parquet_physical_type: INT32
   target_arrow_type: int64
   nullable: true
 - name: la_nina_flag
-  glue_type: tinyint
+  glue_type: bigint
   arrow_type: int8
   parquet_physical_type: INT32
   target_arrow_type: int64
   nullable: true
 - name: la_nina_brazil_flag
-  glue_type: tinyint
+  glue_type: bigint
   arrow_type: int8
   parquet_physical_type: INT32
   target_arrow_type: int64
   nullable: true
 - name: argentina_la_nina_flag
-  glue_type: tinyint
+  glue_type: bigint
   arrow_type: int8
   parquet_physical_type: INT32
   target_arrow_type: int64

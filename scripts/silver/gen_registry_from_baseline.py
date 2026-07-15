@@ -620,6 +620,14 @@ CURATION_OVERRIDES: dict = {
     # Calibrated floor 0.25 keeps the gate live: an all-null regression still hard-fails
     # (KIND_ALL_NAN), and a fall below 0.25 (losing the 2018+ populated seasons) still trips.
     "silver_ams_cotton_quality": {"min_nonnull_frac_overrides": {"samples_classed": 0.25}},
+    # ── BF-W3 lane ONI T7 (2026-07-15): the INV-2 target for the four ENSO flag columns is int64
+    # (target_arrow_type), and the B3 canonical publish wrote them as physical INT64 -- the R0
+    # baseline glue_type tinyint described the pre-rebuild int8 object. Catalog + registry follow
+    # the physical truth (a WIDEN; apply refuses narrows).
+    "silver_noaa_oni": {"type_overrides": {
+        "el_nino_flag": "bigint", "la_nina_flag": "bigint",
+        "la_nina_brazil_flag": "bigint", "argentina_la_nina_flag": "bigint",
+    }},
     # ── BF-W2 rider 6 (user-gated 2026-07-15): FAOSTAT QCL single_vintage waiver. A re-pull CANNOT
     # flip the V001 gate (one global annual release; distinct(ingest_date) stays 1) and would DESTROY
     # the prior raw ZIP (bucket versioning Suspended at that key). PIT adequacy for an annual
