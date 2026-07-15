@@ -110,6 +110,17 @@ def publish_flat_silver(
     (nothing written); ``--publish-mode shadow`` writes only to the shadow prefix;
     ``--publish-mode canonical`` requires a verified signed approval. Returns the manifest.
     """
+    # Resolve the caller identity when the task did not: the guard's canonical environment
+    # check fails closed on an empty account/role (live-caught at the BF-W3 FX window -- dry-run
+    # and shadow never reach check_environment, so T1-T5 cannot expose a blank identity).
+    if not account_id and not role_arn:
+        try:
+            import boto3
+            ident = boto3.client("sts").get_caller_identity()
+            account_id, role_arn = ident.get("Account", ""), ident.get("Arn", "")
+        except Exception:  # noqa: BLE001 -- offline dry-run stays authorized without identity
+            pass
+
     reg = load_registry()
     contract = reg.table(table_name)
     schema = arrow_schema_from_contract(contract)
@@ -147,7 +158,8 @@ def publish_flat_silver(
         auth=auth,
         s3_client=s3_client,
         strategy=PublishStrategy.FLAT,
-        validation=ValidationHooks(min_rows=1, min_nonnull_frac=float(floor)),
+        validation=ValidationHooks(min_rows=1, min_nonnull_frac=float(floor),
+                                   floor_overrides=contract.get("min_nonnull_frac_overrides") or None),
         code_sha=code_sha,
         registry_schema_version=contract.get("schema_version"),
     )

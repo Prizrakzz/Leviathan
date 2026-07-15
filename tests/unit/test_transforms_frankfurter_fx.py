@@ -233,3 +233,41 @@ class TestPublish:
             assert m.validation_result["ok"] is True
             assert m.state.value == "VALIDATED"
             assert len(fs.keys()) == expect_keys
+
+
+class TestPublishIdentityResolution:
+    """publish_flat_silver resolves a blank caller identity via STS (BF-W3 FX live-caught:
+    the guard's canonical environment check fails closed on empty account/role, and dry-run/
+    shadow never reach it, so T1-T5 cannot expose the gap)."""
+
+    def test_blank_identity_resolved_via_sts(self, monkeypatch):
+        import boto3
+
+        import jobs.batch._sb_producer_publish as sbp
+
+        class _Sts:
+            def get_caller_identity(self):
+                return {"Account": "668891723125",
+                        "Arn": "arn:aws:sts::668891723125:assumed-role/"
+                               "leviathan-dev-batch-job-role/job"}
+
+        monkeypatch.setattr(boto3, "client", lambda *a, **k: _Sts())
+        captured = {}
+
+        def fake_authorize(target, **kw):
+            captured["target"] = target
+            raise RuntimeError("stop-here")  # surgical: identity plumbing only
+
+        monkeypatch.setattr(sbp, "authorize_publish", fake_authorize)
+        df = pd.DataFrame({
+            "date": ["2026-01-02"], "brl_usd": [5.0], "ars_usd": [float("nan")],
+            "cny_usd": [7.0], "brl_usd_pct_change_90d": [float("nan")],
+            "ars_usd_pct_change_90d": [float("nan")], "cny_usd_pct_change_90d": [float("nan")],
+            "source": ["frankfurter"],
+        })
+        with pytest.raises(RuntimeError, match="stop-here"):
+            sbp.publish_flat_silver(table_name="silver_fred_fx", df=df, job="t",
+                                    canonical_key="silver/fred_fx/part-000.parquet",
+                                    bucket="b", s3_client=None, argv=["prog"])
+        assert captured["target"].account_id == "668891723125"
+        assert "leviathan-dev-batch-job-role" in captured["target"].role_arn
