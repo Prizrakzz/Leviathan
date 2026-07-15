@@ -198,6 +198,9 @@ class TestComparisons:
 
 class TestXlsxAndSchema:
     def test_xlsx_roundtrip(self):
+        # a NON-default era layout roundtrips through the explicit calibration seam (the
+        # defaults are calibrated to the real ProdProgressive headers -- BF-W3 lane fix);
+        # header=0 pins the detection off for this headerless-title fixture.
         raw = pd.DataFrame({
             "week_no": [10, 11, 12],
             "week_ending": ["2020-11-06", "2020-11-13", "2020-11-20"],
@@ -206,7 +209,10 @@ class TestXlsxAndSchema:
         buf = io.BytesIO()
         raw.to_excel(buf, index=False)
         snap = _snap("ProdProgressive-Koring_2020_21_Week12.xlsx", _dt(2021, 1, 1))
-        recs = read_deliveries_xlsx(buf.getvalue(), snap)
+        recs = read_deliveries_xlsx(
+            buf.getvalue(), snap, header=0,
+            column_map={"week_number": "week_no", "week_ending_label": "week_ending",
+                        "prog_total_mt": "cumulative_tons"})
         assert len(recs) == 3
         assert {r.week_number for r in recs} == {10, 11, 12}
         assert recs[0].prog_total_mt == 1000.0
@@ -228,3 +234,42 @@ class TestXlsxAndSchema:
         df = build_deliveries_silver([])
         assert list(df.columns) == [f.name for f in SILVER_ARROW_SCHEMA]
         assert len(df) == 0
+
+
+def test_read_deliveries_xlsx_real_prodprogressive_layout():
+    """The REAL SAGIS workbook shape (BF-W3 lane-caught: the placeholder map parsed 0 of 2,668
+    golden rows): multi-row title block with the header at row index 4, sheets Total/White with
+    Total authoritative, columns Week / Week Ending / Prog. Total. Auto sheet+header detection
+    plus the calibrated default map must parse it with NO explicit args."""
+    import io
+
+    import pandas as pd
+
+    from leviathan.transforms.bronze_to_silver.sagis_deliveries import (
+        DEFAULT_DELIVERY_COLUMN_MAP,
+        read_deliveries_xlsx,
+    )
+
+    def _sheet_df(scale):
+        title = pd.DataFrame([["SAGIS ProdProgressive", None, None],
+                              ["Producer deliveries", None, None],
+                              [None, None, None],
+                              ["Season 2025/2026", None, None]])
+        header = pd.DataFrame([["Week", "Week Ending", "Prog. Total"]])
+        data = pd.DataFrame([[1, "2025-05-03", 1000.5 * scale], [2, "2025-05-10", 2500.0 * scale]])
+        return pd.concat([title, header, data], ignore_index=True)
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+        # White first: sheet ORDER must not matter -- the Total sheet is picked by name.
+        _sheet_df(0.5).to_excel(xw, sheet_name="White_Maize", header=False, index=False)
+        _sheet_df(1.0).to_excel(xw, sheet_name="Total_Maize", header=False, index=False)
+
+    # filename must encode the season (build_snapshot parses it; seasonless records are
+    # dropped as unkeyable) -- use the real published shape.
+    snap = _snap("ProdProgressive-Mielies_2025_26_Week02.xlsx", _dt(2025, 5, 12), crop="maize")
+    recs = read_deliveries_xlsx(buf.getvalue(), snap)
+    assert len(recs) == 2
+    assert recs[0].week_number == 1 and recs[0].prog_total_mt == 1000.5   # Total sheet, not White
+    assert recs[1].week_number == 2 and recs[1].prog_total_mt == 2500.0
+    assert DEFAULT_DELIVERY_COLUMN_MAP["prog_total_mt"] == "Prog. Total"

@@ -223,15 +223,47 @@ def records_from_normalized(
     return out
 
 
-# Documented default column mapping for the SAGIS ProdProgressive delivery sheets. The exact
-# published column headers vary by era/crop; this map is the calibration point (a real run
-# passes explicit ``column_map``). NOT part of the deterministic acceptance surface -- the
-# selection/aggregation/comparison logic (tested) is source-layout-independent.
+# Column mapping for the SAGIS ProdProgressive delivery sheets, CALIBRATED against the real
+# published workbooks (BF-W3 lane run, 2026-07-15): three sheets per crop file (Total/White/
+# Yellow -- Total is authoritative), title block above the table (header at row index ~4),
+# columns "Week" / "Week Ending" / "Prog. Total". The pre-calibration placeholder
+# (week_no/week_ending/cumulative_tons, sheet 0, header 0) parsed 0 of 2,668 golden rows.
+# Explicit ``column_map``/``sheet_name``/``header`` args remain the per-era calibration seam.
 DEFAULT_DELIVERY_COLUMN_MAP: dict[str, str] = {
-    "week_number": "week_no",
-    "week_ending_label": "week_ending",
-    "prog_total_mt": "cumulative_tons",
+    "week_number": "Week",
+    "week_ending_label": "Week Ending",
+    "prog_total_mt": "Prog. Total",
 }
+
+_HEADER_SCAN_ROWS = 16   # title block depth to scan for the real header row (old .xls era: row 12)
+
+
+def _canon_header(s: object) -> str:
+    """Header token canonicalization across publication eras: case, punctuation and spacing
+    drift ('Week Ending' vs 'Week ending'; 'Prog. Total' vs 'Prog Total') but the words do not."""
+    return " ".join(str(s).strip().lower().replace(".", " ").split())
+
+
+def _pick_total_sheet(xl: "pd.ExcelFile") -> object:
+    """The authoritative sheet: the one whose name contains 'total' (case-insensitive);
+    single-sheet workbooks and unmatched layouts fall back to the first sheet."""
+    for name in xl.sheet_names:
+        if "total" in str(name).lower():
+            return name
+    return xl.sheet_names[0]
+
+
+def _detect_header_row(xl: "pd.ExcelFile", sheet: object, cmap: dict[str, str]) -> int:
+    """Scan the title block for the row carrying the mapped source headers (the week column at
+    minimum). SAGIS places a multi-row title above the table; hardcoding 0 read the title as
+    headers and yielded zero records."""
+    probe = xl.parse(sheet, header=None, nrows=_HEADER_SCAN_ROWS)
+    want = {_canon_header(v) for v in cmap.values()}
+    for i, (_, row) in enumerate(probe.iterrows()):
+        cells = {_canon_header(c) for c in row.tolist()}
+        if len(want & cells) >= 2:
+            return i
+    return 0
 
 
 def read_deliveries_xlsx(
@@ -239,22 +271,34 @@ def read_deliveries_xlsx(
     snapshot: SagisSnapshot,
     *,
     column_map: Optional[dict[str, str]] = None,
-    sheet_name: object = 0,
-    header: int = 0,
+    sheet_name: object = None,
+    header: Optional[int] = None,
 ) -> list[DeliveryWeekRecord]:
     """Thin adapter: read one SAGIS delivery snapshot's xlsx bytes into records.
 
-    Reads the sheet with pandas, renames the documented source columns via ``column_map``,
-    coerces types, and delegates to :func:`records_from_normalized`. The Excel layout is a
-    documented assumption (``DEFAULT_DELIVERY_COLUMN_MAP``); the deterministic producer logic
-    downstream does not depend on it.
+    Selects the authoritative sheet (auto: the 'Total' sheet), detects the real header row
+    under the title block (auto), renames the documented source columns via ``column_map``,
+    coerces types, and delegates to :func:`records_from_normalized`. Explicit ``sheet_name``/
+    ``header`` override the detection (the per-era calibration seam); the deterministic
+    producer logic downstream does not depend on the layout.
     """
     import io
 
     cmap = column_map or DEFAULT_DELIVERY_COLUMN_MAP
-    df = pd.read_excel(io.BytesIO(xlsx_bytes), sheet_name=sheet_name, header=header)
-    inv = {src: dst for dst, src in cmap.items()}
-    df = df.rename(columns=inv)
+    xl = pd.ExcelFile(io.BytesIO(xlsx_bytes))
+    sheet = sheet_name if sheet_name is not None else _pick_total_sheet(xl)
+    hdr = header if header is not None else _detect_header_row(xl, sheet, cmap)
+    df = xl.parse(sheet, header=hdr)
+    # match source headers by CANONICAL token (era drift: 'Week ending', 'Prog Total'), first
+    # match per canonical target wins; unmatched columns pass through untouched.
+    inv = {_canon_header(src): dst for dst, src in cmap.items()}
+    rename, taken = {}, set()
+    for col in df.columns:
+        dst = inv.get(_canon_header(col))
+        if dst and dst not in taken:
+            rename[col] = dst
+            taken.add(dst)
+    df = df.rename(columns=rename)
     normalized: list[dict] = []
     for _, r in df.iterrows():
         wk = r.get("week_number")
@@ -269,6 +313,12 @@ def read_deliveries_xlsx(
         if "prog_total_mt" in df.columns:
             val = r.get("prog_total_mt")
             rec["prog_total_mt"] = None if pd.isna(val) else float(val)
+        # print-layout GHOST TAIL (old .xls era, live-caught): a second page block repeats the
+        # bare week-number column 4..53 with every value cell empty. A week number with neither
+        # a week-ending label nor a prog total is not an observation -- emitting it minted
+        # None-valued records that collided with the real weeks at the co-authoritative guard.
+        if rec.get("week_ending_label") is None and rec.get("prog_total_mt") is None:
+            continue
         normalized.append(rec)
     return records_from_normalized(normalized, snapshot)
 
