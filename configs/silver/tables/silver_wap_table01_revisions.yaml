@@ -109,8 +109,8 @@ min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: release_month x commodity x country x marketing_year x row_label
 vintage_retention: per-vintage
-knowledge_date_col: null
-knowledge_semantics: null
+knowledge_date_col: release_month
+knowledge_semantics: year_month
 publication_lag_days: null
 freshness_sla:
   cadence: monthly

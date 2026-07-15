@@ -106,6 +106,53 @@ def _upload_json(s3_client, bucket: str, key: str, payload: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Fail-closed release_date guard (F2)
+# ---------------------------------------------------------------------------
+
+def _snapshot_ingest_date(dfs: list[pd.DataFrame]) -> str:
+    """Newest bronze ingest date across all partitions, as a 'YYYY-MM-DD' string.
+
+    Bronze stamps every row with its download (ingest) date. A release can never
+    be known before the snapshot that observed it, so the newest ingest date is
+    the hard upper bound for every silver release_date.
+    """
+    stamps = []
+    for df in dfs:
+        if "release_date" in df.columns and len(df):
+            stamps.append(pd.to_datetime(df["release_date"]).max())
+    if not stamps:
+        raise ValueError(
+            "PSD guard: no bronze release_date values found to bound silver dates"
+        )
+    return max(stamps).strftime("%Y-%m-%d")
+
+
+def _assert_release_dates_not_future(silver_df: pd.DataFrame, ingest_date: str) -> None:
+    """Abort if any silver release_date post-dates the bronze snapshot ingest date.
+
+    The silver transform clamps computed WASDE release_dates to the ingest date,
+    so a future date reaching this guard means the clamp was bypassed or has
+    regressed. Raising prevents a silent recurrence of future-dated PSD rows in
+    the serving layer.
+
+    Comparison is lexical over 'YYYY-MM-DD' strings, which equals chronological
+    order for ISO-8601 dates.
+    """
+    if silver_df.empty:
+        return
+    rd = silver_df["release_date"].astype(str)
+    future_mask = rd > ingest_date
+    n_future = int(future_mask.sum())
+    if n_future:
+        sample = sorted(rd[future_mask].unique())[:5]
+        raise ValueError(
+            "PSD silver guard: %d release_date row(s) post-date the bronze snapshot "
+            "ingest date %s (clamp bypassed or regressed). Examples: %s"
+            % (n_future, ingest_date, sample)
+        )
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -182,6 +229,22 @@ def main() -> None:
         len(silver_df.columns),
         silver_df["leviathan_slug"].nunique(),
         silver_df["release_date"].nunique(),
+    )
+
+    # ------------------------------------------------------------------
+    # Fail-closed guard: no silver release_date may post-date the snapshot
+    # ------------------------------------------------------------------
+    # The transform clamps computed WASDE dates to the bronze ingest date; this
+    # guard is the belt-and-suspenders check that aborts the run (before any
+    # write) if that clamp is ever bypassed and a future-dated row survives.
+    ingest_date = _snapshot_ingest_date(dfs)
+    try:
+        _assert_release_dates_not_future(silver_df, ingest_date)
+    except ValueError as exc:
+        logger.error("%s", exc)
+        sys.exit(1)
+    logger.info(
+        "PSD guard OK: all release_dates <= snapshot ingest date %s", ingest_date
     )
 
     # ------------------------------------------------------------------

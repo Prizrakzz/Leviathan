@@ -1,0 +1,204 @@
+{
+  "applied_at": "2026-07-15T14:13:01.413426+00:00",
+  "backup": {
+    "captured_at": "2026-07-15T14:13:00.893422+00:00",
+    "catalog_hash": "fb264ddf09a958475f34e1ca273790558f888f34eb441c64d93c4389a00d351d",
+    "table": "silver_noaa_oni",
+    "table_input": {
+      "CreateTime": "2026-06-18 03:00:37+03:00",
+      "IsMaterializedView": false,
+      "IsMultiDialectView": false,
+      "IsRegisteredWithLakeFormation": false,
+      "LastAccessTime": "1970-01-01 03:00:00+03:00",
+      "Name": "silver_noaa_oni",
+      "Owner": "hadoop",
+      "Parameters": {
+        "EXTERNAL": "TRUE",
+        "parquet.compression": "SNAPPY",
+        "transient_lastDdlTime": "1781740836"
+      },
+      "PartitionKeys": [],
+      "Retention": 0,
+      "StorageDescriptor": {
+        "BucketColumns": [],
+        "Columns": [
+          {
+            "Name": "year",
+            "Type": "bigint"
+          },
+          {
+            "Name": "month",
+            "Type": "bigint"
+          },
+          {
+            "Name": "season",
+            "Type": "string"
+          },
+          {
+            "Name": "oni_anom",
+            "Type": "double"
+          },
+          {
+            "Name": "phase",
+            "Type": "string"
+          },
+          {
+            "Name": "oni_lag3",
+            "Type": "double"
+          },
+          {
+            "Name": "oni_lag6",
+            "Type": "double"
+          },
+          {
+            "Name": "oni_lag9",
+            "Type": "double"
+          },
+          {
+            "Name": "oni_lag12",
+            "Type": "double"
+          },
+          {
+            "Name": "el_nino_flag",
+            "Type": "tinyint"
+          },
+          {
+            "Name": "la_nina_flag",
+            "Type": "tinyint"
+          },
+          {
+            "Name": "la_nina_brazil_flag",
+            "Type": "tinyint"
+          },
+          {
+            "Name": "argentina_la_nina_flag",
+            "Type": "tinyint"
+          },
+          {
+            "Name": "source",
+            "Type": "string"
+          }
+        ],
+        "Compressed": false,
+        "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+        "Location": "s3://leviathan-dev-shahem-001/silver/weather/source=noaa_oni",
+        "NumberOfBuckets": -1,
+        "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+        "Parameters": {},
+        "SerdeInfo": {
+          "Parameters": {
+            "serialization.format": "1"
+          },
+          "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+        },
+        "SkewedInfo": {
+          "SkewedColumnNames": [],
+          "SkewedColumnValueLocationMaps": {},
+          "SkewedColumnValues": []
+        },
+        "SortColumns": [],
+        "StoredAsSubDirectories": false
+      },
+      "TableType": "EXTERNAL_TABLE",
+      "UpdateTime": "2026-06-18 03:00:37+03:00"
+    }
+  },
+  "change_type": "additive_update",
+  "database": "leviathan_dev",
+  "guard_mode": "canonical",
+  "plan": {
+    "change_type": "additive_update",
+    "database": "leviathan_dev",
+    "desired_hash": "8dbaebd38efa2c9f823c68a4ad72a3efcf4de1add1d39197b151a562586068bb",
+    "diffs": [
+      "columns: [{'name': 'year', 'type': 'bigint'}, {'name': 'month', 'type': 'bigint'}, {'name': 'season', 'type': 'string'}, {'name': 'oni_anom', 'type': 'double'}, {'name': 'phase', 'type': 'string'}, {'name': 'oni_lag3', 'type': 'double'}, {'name': 'oni_lag6', 'type': 'double'}, {'name': 'oni_lag9', 'type': 'double'}, {'name': 'oni_lag12', 'type': 'double'}, {'name': 'el_nino_flag', 'type': 'tinyint'}, {'name': 'la_nina_flag', 'type': 'tinyint'}, {'name': 'la_nina_brazil_flag', 'type': 'tinyint'}, {'name': 'argentina_la_nina_flag', 'type': 'tinyint'}, {'name': 'source', 'type': 'string'}] != [{'name': 'year', 'type': 'bigint'}, {'name': 'month', 'type': 'bigint'}, {'name': 'season', 'type': 'string'}, {'name': 'oni_anom', 'type': 'double'}, {'name': 'phase', 'type': 'string'}, {'name': 'oni_lag3', 'type': 'double'}, {'name': 'oni_lag6', 'type': 'double'}, {'name': 'oni_lag9', 'type': 'double'}, {'name': 'oni_lag12', 'type': 'double'}, {'name': 'el_nino_flag', 'type': 'bigint'}, {'name': 'la_nina_flag', 'type': 'bigint'}, {'name': 'la_nina_brazil_flag', 'type': 'bigint'}, {'name': 'argentina_la_nina_flag', 'type': 'bigint'}, {'name': 'source', 'type': 'string'}]"
+    ],
+    "glue_call": "glue.update_table(DatabaseName='leviathan_dev', TableInput=<desired silver_noaa_oni>)  # additive; VersionId re-checked",
+    "live_hash": "fb264ddf09a958475f34e1ca273790558f888f34eb441c64d93c4389a00d351d",
+    "registered_partition_audit": {
+      "registered": false
+    },
+    "table": "silver_noaa_oni",
+    "table_input": {
+      "Name": "silver_noaa_oni",
+      "Parameters": {
+        "EXTERNAL": "TRUE",
+        "parquet.compression": "SNAPPY"
+      },
+      "PartitionKeys": [],
+      "StorageDescriptor": {
+        "Columns": [
+          {
+            "Name": "year",
+            "Type": "bigint"
+          },
+          {
+            "Name": "month",
+            "Type": "bigint"
+          },
+          {
+            "Name": "season",
+            "Type": "string"
+          },
+          {
+            "Name": "oni_anom",
+            "Type": "double"
+          },
+          {
+            "Name": "phase",
+            "Type": "string"
+          },
+          {
+            "Name": "oni_lag3",
+            "Type": "double"
+          },
+          {
+            "Name": "oni_lag6",
+            "Type": "double"
+          },
+          {
+            "Name": "oni_lag9",
+            "Type": "double"
+          },
+          {
+            "Name": "oni_lag12",
+            "Type": "double"
+          },
+          {
+            "Name": "el_nino_flag",
+            "Type": "bigint"
+          },
+          {
+            "Name": "la_nina_flag",
+            "Type": "bigint"
+          },
+          {
+            "Name": "la_nina_brazil_flag",
+            "Type": "bigint"
+          },
+          {
+            "Name": "argentina_la_nina_flag",
+            "Type": "bigint"
+          },
+          {
+            "Name": "source",
+            "Type": "string"
+          }
+        ],
+        "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+        "Location": "s3://leviathan-dev-shahem-001/silver/weather/source=noaa_oni",
+        "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+        "Parameters": {},
+        "SerdeInfo": {
+          "Parameters": {
+            "serialization.format": "1"
+          },
+          "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+        }
+      },
+      "TableType": "EXTERNAL_TABLE"
+    },
+    "unsafe": []
+  },
+  "table": "silver_noaa_oni"
+}

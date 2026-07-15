@@ -461,6 +461,145 @@ def test_crit3_unresolvable_key_column_is_indeterminate(tmp_path):
 
 
 # --------------------------------------------------------------------------------------------------
+# 10b. crit-3 partition-layout scope (F2-L6): a recursive silver/production/ root shelters FOREIGN
+#      subtrees (source=usda_esr/ registered elsewhere, source=conab/ unregistered stray). Scoping to
+#      the table's own <lead_key>= layout drops them so one foreign fragment can no longer poison all
+#      of the table's commodities to INDETERMINATE.
+# --------------------------------------------------------------------------------------------------
+def test_scope_to_partition_layout_keeps_own_layout_drops_foreign():
+    root = "s3://leviathan-dev-shahem-001/silver/production"
+    own = [
+        "leviathan-dev-shahem-001/silver/production/commodity=corn_cbot/year=2020/p.parquet",
+        "leviathan-dev-shahem-001/silver/production/commodity=cotton/year=2021/p.parquet",
+    ]
+    foreign = [
+        # source=usda_esr nests commodity_code= (a DIFFERENT lead segment) ...
+        "leviathan-dev-shahem-001/silver/production/source=usda_esr/commodity_code=0440000/year=2020/p.parquet",
+        # ... and source=conab is an unregistered stray that nests commodity= DEEPER.
+        "leviathan-dev-shahem-001/silver/production/source=conab/commodity=corn/year=2020/p.parquet",
+    ]
+    assert fr._scope_to_partition_layout(own + foreign, root, ["commodity", "year"]) == own
+    # scheme-tagged (s3://...) fragments scope identically, and the KEPT list preserves the originals.
+    tagged = ["s3://" + p for p in own + foreign]
+    assert fr._scope_to_partition_layout(tagged, root, ["commodity"]) == ["s3://" + p for p in own]
+
+
+def test_scope_to_partition_layout_root_embedding_source_keeps_commodity():
+    # a weather root that embeds source=chirps INSIDE the s3_root: the source= is part of the ROOT, so
+    # genuine commodity= fragments beneath it are the first RELATIVE segment and must NOT be dropped.
+    root = "s3://leviathan-dev-shahem-001/silver/weather/source=chirps"
+    files = [
+        "leviathan-dev-shahem-001/silver/weather/source=chirps/commodity=corn_cbot/year=2020/p.parquet",
+        "leviathan-dev-shahem-001/silver/weather/source=chirps/commodity=cotton/year=2021/p.parquet",
+    ]
+    assert fr._scope_to_partition_layout(files, root, ["commodity"]) == files
+
+
+def test_scope_to_partition_layout_anti_mask_falls_back_to_unscoped():
+    # anti-mask: if scoping an already NON-EMPTY list would empty it, the unscoped list is returned --
+    # the scope must never manufacture a vacuous (all-clean) pass.
+    root = "s3://leviathan-dev-shahem-001/silver/production"
+    only_foreign = [
+        "leviathan-dev-shahem-001/silver/production/source=usda_esr/commodity_code=0440000/year=2020/p.parquet",
+        "leviathan-dev-shahem-001/silver/production/source=conab/commodity=corn/year=2020/p.parquet",
+    ]
+    assert fr._scope_to_partition_layout(only_foreign, root, ["commodity"]) == only_foreign
+
+
+def test_scope_to_partition_layout_is_a_strict_noop_for_local_and_empty():
+    # local-materialization fragments (s3_root prefix ABSENT from the path) -> unchanged.
+    local = ["/tmp/x/commodity=a/part.parquet", "/tmp/x/commodity=b/part.parquet"]
+    root = "s3://leviathan-dev-shahem-001/silver/production"
+    assert fr._scope_to_partition_layout(local, root, ["commodity"]) == local
+    # empty partition_key_names / falsy s3_root / empty file list -> unchanged (the existing-test shape).
+    assert fr._scope_to_partition_layout(local, root, []) == local
+    assert fr._scope_to_partition_layout(local, None, ["commodity"]) == local
+    assert fr._scope_to_partition_layout([], root, ["commodity"]) == []
+
+
+def test_crit3_scope_removes_foreign_subtrees_verdict_green(tmp_path):
+    # integration: a production-style contract whose recursive root shelters the two foreign subtrees.
+    # WITHOUT scoping the first foreign fragment raises PartitionKeyUnresolved -> INDETERMINATE; scoping
+    # fences to the table's own commodity=/year= layout so the bounded reader succeeds -> GREEN.
+    own = _write_parquet(tmp_path / "commodity=corn_cbot" / "year=2020" / "part.parquet",
+                         {"metric": pa.array([1.0, 2.0])})
+    esr = _write_parquet(
+        tmp_path / "source=usda_esr" / "commodity_code=0440000" / "year=2020" / "part.parquet",
+        {"metric": pa.array([9.0])})
+    conab = _write_parquet(tmp_path / "source=conab" / "commodity=corn" / "year=2020" / "part.parquet",
+                           {"metric": pa.array([9.0])})
+    h = _bare_harness(tmp_path)
+    probe = _probe(files=(own, esr, conab), num_files=3)
+    contract = {"natural_key": ["commodity", "year", "metric"], "s3_root": str(tmp_path),
+                "partition_keys": [{"name": "commodity"}, {"name": "year"}]}
+    out = h.crit3_key_clean("silver_production", contract, probe, per_commodity="per_group",
+                            commodities=["corn_cbot"])
+    assert out["corn_cbot"][0] == fr.GREEN and out["corn_cbot"][1]["duplicate_keys"] == 0
+    # PROOF the scope is load-bearing: the UNSCOPED read raises on the first foreign fragment.
+    with pytest.raises(fr.PartitionKeyUnresolved):
+        h._key_dup_count("silver_production", ["commodity", "year", "metric"], probe)
+
+
+def test_crit3_scope_never_lets_foreign_fragments_reach_the_reader():
+    # via an injected key_dup_fn that CAPTURES its files argument: the two foreign fragments are gone
+    # before the bounded reader ever sees them (only the table's own commodity= fragment survives).
+    s3_root = "s3://leviathan-dev-shahem-001/silver/production"
+    own = "leviathan-dev-shahem-001/silver/production/commodity=corn_cbot/year=2020/part.parquet"
+    esr = "leviathan-dev-shahem-001/silver/production/source=usda_esr/commodity_code=0440000/year=2020/part.parquet"
+    conab = "leviathan-dev-shahem-001/silver/production/source=conab/commodity=corn/year=2020/part.parquet"
+    captured: dict = {}
+
+    def _capture(table, nk, files, region):
+        captured["files"] = list(files)
+        return 0
+
+    h = fr.Harness(silver_reg=None, feature_reg=None, calendar_slugs=set(), geo_dir=None,
+                   backends=fr.Backends(key_dup_fn=_capture), pg_mirror_tables=frozenset(),
+                   pg_reachable=False, skip_aws=False)
+    probe = _probe(files=(own, esr, conab), num_files=3)
+    contract = {"natural_key": ["commodity", "year", "metric"], "s3_root": s3_root,
+                "partition_keys": [{"name": "commodity"}, {"name": "year"}]}
+    out = h.crit3_key_clean("silver_production", contract, probe, per_commodity="per_group",
+                            commodities=["corn_cbot"])
+    assert out["corn_cbot"][0] == fr.GREEN
+    assert captured["files"] == [own]
+    assert esr not in captured["files"] and conab not in captured["files"]
+
+
+def test_crit3_scope_preserves_wasde_indeterminate(tmp_path):
+    # guard: silver_wasde's lead partition key release_date IS path-materialized, so scoping KEEPS its
+    # fragments; a natural-key column that is neither a footer column nor a path segment still yields the
+    # genuine INDETERMINATE class -- the scope must not mask it into a false GREEN.
+    f = _write_parquet(tmp_path / "release_date=2026-06-12" / "part.parquet",
+                       {"commodity": pa.array(["corn_cbot"]), "value": pa.array([1.0])})
+    h = _bare_harness(tmp_path)
+    probe = _probe(files=(f,), num_files=1)
+    contract = {"natural_key": ["release_date", "commodity", "attribute"], "s3_root": str(tmp_path),
+                "partition_keys": [{"name": "release_date"}]}
+    out = h.crit3_key_clean("silver_wasde", contract, probe, per_commodity="table_level",
+                            commodities=["corn_cbot"])
+    v, ev = out["corn_cbot"]
+    assert v == fr.INDETERMINATE and "attribute" in ev["detail"]
+
+
+def test_crit3_scope_keeps_genuine_within_partition_dup_red(tmp_path):
+    # guard: with scoping ACTIVE, a real within-partition duplicate on the table's own commodity=
+    # fragment is still caught -> RED, while the foreign subtree is dropped (not a poisoned INDETERMINATE).
+    dup = _write_parquet(tmp_path / "commodity=a" / "year=2020" / "part.parquet",
+                         {"metric": pa.array([1.0, 1.0])})
+    esr = _write_parquet(
+        tmp_path / "source=usda_esr" / "commodity_code=0440000" / "year=2020" / "part.parquet",
+        {"metric": pa.array([9.0])})
+    h = _bare_harness(tmp_path)
+    probe = _probe(files=(dup, esr), num_files=2)
+    contract = {"natural_key": ["commodity", "year", "metric"], "s3_root": str(tmp_path),
+                "partition_keys": [{"name": "commodity"}, {"name": "year"}]}
+    out = h.crit3_key_clean("silver_production", contract, probe, per_commodity="per_group",
+                            commodities=["a"])
+    assert out["a"][0] == fr.RED and out["a"][1]["duplicate_keys"] == 1
+
+
+# --------------------------------------------------------------------------------------------------
 # 11. crit-6 pg-mirror leg RUNS in-VPC when pg is reachable (FIX 4): clean->GREEN, drift->RED,
 #     error->INDETERMINATE; the reachability probe fails closed to PENDING-IN-VPC.
 # --------------------------------------------------------------------------------------------------

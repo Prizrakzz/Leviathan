@@ -203,6 +203,22 @@ SERVING_TABLE_OVERRIDE = {
     "silver_cpc_soil": "gold_weather_z",
 }
 
+# LANE L4 knowledge-date declarations (BF-W3 F2 wave, user-ratified 2026-07-15). Three flat
+# feature-layer goldens retain multiple release vintages of the same fact (they are in PER_VINTAGE)
+# but have no numbers TableSpec to source a knowledge_date_col from, so the PIT/vintage-adequacy
+# census (KIND_SINGLE_VINTAGE) had nothing to key on. The step-0 S3 footer pre-check confirmed each
+# carries MANY distinct vintages (nass_citrus release_date=129, sagis_cec release_date=273 with the
+# column FULLY populated -- 0/2071 null, wap release_month=226), so arming the census gate stays
+# green rather than newly hard-failing. Consulted ONLY in the numbers/esr_compact else-branch below
+# (the single-derivation-site invariant: numbers_spec + esr_compact win first). Shape mirrors what a
+# numbers-backed table emits: (knowledge_date_col, knowledge_semantics, publication_lag_days). wap's
+# publication_lag_days is null -- release_month is the vintage stamp itself, no fixed data-date lag.
+KNOWLEDGE_DATE_OVERRIDE = {
+    "silver_nass_citrus": ("release_date", "vintage", 0),
+    "silver_sagis_cec": ("release_date", "vintage", 0),
+    "silver_wap_table01_revisions": ("release_month", "year_month", None),
+}
+
 # Natural-key fallback for tables absent from source_contracts (numbers-only / consumer-none).
 # silver_esr (SILVER-F030 re-baseline): the TRUE physical natural key is the partition tuple plus
 # the weekly grain -- the same (country_code, week_ending_date) recurs across market_years and as_of
@@ -317,8 +333,11 @@ EXTRA_NOTES["silver_conab_coffee"] = (
     "physical-parquet-only R2-adds; as of BF-W2 step 3 the registry carries their catalog Glue types "
     "(the F024 TARGET, 22 cols) so the gated ADD COLUMNS migration "
     "(reports/silver_readiness/R2_SA/F024_conab_additive_migration.json) can apply via "
-    "CatalogMigrator without emitting Type: null (runbook Deviation 9). Live Glue stays 10 cols "
-    "until that apply; the widened producer reproduces all 22. The orphan EAV "
+    "CatalogMigrator without emitting Type: null (runbook Deviation 9). The F024 widen was APPLIED "
+    "OUT-OF-BAND on 2026-07-14 (direct ALTER, not CatalogMigrator); live Glue now carries all 22 "
+    "cols and CatalogMigrator.plan_table('silver_conab_coffee') NOOPs (manifest-of-record: "
+    "sql/athena/migrations/silver/20260714T201146Z_silver_conab_coffee_additive_update.json). The "
+    "widened producer reproduces all 22. The orphan EAV "
     "silver/production/source=conab/ is classified in place (F060), not deleted here."
 )
 
@@ -477,7 +496,14 @@ def build_contract(name: str, ctx: dict) -> dict:
         # publication event, so no +7d data_date lag).
         knowledge_date_col, knowledge_semantics, publication_lag_days = "as_of_date", "vintage", 0
     else:
-        knowledge_date_col = knowledge_semantics = publication_lag_days = None
+        # LANE L4 (BF-W3): a flat feature-layer golden with no numbers TableSpec can still declare
+        # its knowledge date reproducibly (arms the value_census vintage-adequacy check). Consulted
+        # HERE ONLY so the numbers_spec + esr_compact derivations above always win first.
+        kd = KNOWLEDGE_DATE_OVERRIDE.get(name)
+        if kd:
+            knowledge_date_col, knowledge_semantics, publication_lag_days = kd
+        else:
+            knowledge_date_col = knowledge_semantics = publication_lag_days = None
 
     cascade_ref = None
     if name in ctx["cascade_by_table"]:
@@ -647,6 +673,16 @@ CURATION_OVERRIDES: dict = {
         # Weekly in-season (Apr-Nov) but dark all winter: the 170d interim ceiling spans the
         # off-season gap so the alarm never cries wolf; OP-8 replaces it with a seasonal window.
         "freshness_sla": {"cadence": "weekly", "max_lag_days": 170},
+        # BF-W3 lane L3 (user-ratified 2026-07-15): OP-8 per-column floor calibration, MERGED into
+        # this existing entry (a second top-level "silver_nass_crop_progress" key would be a
+        # duplicate-dict-key clobber that silently drops the freshness override above). Mirrors the
+        # cotton min_nonnull_frac_overrides pattern (0.296 -> 0.25). The two structural condition/
+        # progress metrics fall below the uniform provisional 0.5 in the worst commodity
+        # (pct_good_excellent structural frac 0.303, pct_harvested 0.171 -- the progress row is
+        # absent for many weeks at source); floors sit ~15pp under so an all-null regression still
+        # hard-fails (KIND_ALL_NAN) and a drop below the floor still trips. week_of_year is
+        # deliberately unlisted (its populatedness is intrinsic to the weekly grain, not a gap).
+        "min_nonnull_frac_overrides": {"pct_good_excellent": 0.25, "pct_harvested": 0.15},
     },
     "silver_wasde": {
         "freshness_sla": {"cadence": "monthly"},  # WASDE releases monthly; the MY grain is not the cadence

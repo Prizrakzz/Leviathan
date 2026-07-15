@@ -141,3 +141,6 @@ projection_domains:
   projection.year.range: 1979,2035
   projection.year.type: integer
   storage.location.template: s3://leviathan-dev-shahem-001/silver/nass_crop_progress/commodity=${commodity}/year=${year}
+min_nonnull_frac_overrides:
+  pct_good_excellent: 0.25
+  pct_harvested: 0.15

@@ -19,10 +19,17 @@ After silver write, asserts:
   - iod_dmi_3month_avg non-null ≥ 1800
   - 1997-11 3mo avg ≈ 0.97 (known strong positive IOD event)
 
+Publish authorization
+---------------------
+Raw + bronze (like silver) touch the canonical surface ONLY under a fully-authorized
+canonical publish (``publish_guard.authorize_publish`` -> ``may_mutate_canonical``); the
+default ``--publish-mode`` is dry-run, so a dry-run / shadow run writes nothing canonical.
+
 Usage
 -----
-    python jobs/batch/noaa_iod_task.py
-    python jobs/batch/noaa_iod_task.py --force-overwrite
+    python jobs/batch/noaa_iod_task.py                       # dry-run (writes nothing)
+    python jobs/batch/noaa_iod_task.py --publish-mode shadow
+    python jobs/batch/noaa_iod_task.py --publish-mode canonical --force-overwrite
     python jobs/batch/noaa_iod_task.py --dry-run
 """
 from __future__ import annotations
@@ -36,6 +43,8 @@ import requests
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.common.publish_guard import PublishTarget, authorize_publish
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import bronze_iod_key, raw_iod_key, silver_iod_key
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
@@ -51,6 +60,7 @@ logger = get_logger("noaa_iod_task")
 
 _IOD_URL = "https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/dmi.had.long.data"
 _TIMEOUT  = 30
+_TABLE    = "silver_noaa_iod"
 
 # Validation thresholds
 _MIN_ROWS           = 1860
@@ -75,6 +85,18 @@ def _write(s3_client, bucket: str, key: str, df: pd.DataFrame) -> None:
                          ContentType="application/octet-stream")
 
 
+def _caller_identity(aws_region: str):
+    """Best-effort STS identity for the publish target. Returns (account_id, role_arn); falls
+    back to empty strings when no credentials are available (fine for dry-run)."""
+    try:
+        import boto3
+        ident = boto3.client("sts", region_name=aws_region).get_caller_identity()
+        return ident.get("Account", ""), ident.get("Arn", "")
+    except Exception as exc:  # noqa: BLE001 -- dry-run must not require live credentials
+        logger.info("STS identity unavailable (%s); using empty target (dry-run only)", exc)
+        return "", ""
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -88,6 +110,9 @@ def main() -> None:
     parser.add_argument("--aws-region", default=None, dest="aws_region")
     parser.add_argument("--force-overwrite", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    # NOTE: --publish-mode is consumed by the publish guard from sys.argv (default dry-run).
+    parser.add_argument("--publish-mode", default=None,
+                        help="dry-run|shadow|canonical (default dry-run; canonical needs a signed approval)")
     args = parser.parse_args()
 
     bucket     = args.bucket     or get_required_env("LEVIATHAN_BUCKET")
@@ -101,6 +126,23 @@ def main() -> None:
         logger.info("Silver exists — use --force-overwrite to re-run: %s", s_key)
         return
 
+    # Authorize BEFORE any mutating write. raw + bronze touch the canonical surface only under a
+    # fully-authorized canonical publish (may_mutate_canonical); dry-run / shadow write nothing.
+    account_id, role_arn = _caller_identity(aws_region)
+    contract = load_registry().table(_TABLE)
+    auth = authorize_publish(
+        PublishTarget(
+            account_id=account_id,
+            bucket=bucket,
+            database=contract["glue_database"],
+            prefix=contract["s3_prefix"].rstrip("/") + "/",
+            role_arn=role_arn,
+            table=_TABLE,
+        ),
+        argv=sys.argv,
+    )
+    logger.info("publish authorized: mode=%s may_canonical=%s", auth.mode.value, auth.may_mutate_canonical)
+
     # ------------------------------------------------------------------
     # Fetch raw
     # ------------------------------------------------------------------
@@ -110,7 +152,7 @@ def main() -> None:
     raw_bytes = resp.content
     logger.info("Downloaded %d bytes", len(raw_bytes))
 
-    if not args.dry_run:
+    if auth.may_mutate_canonical:
         upload_bytes_to_s3(raw_bytes, bucket, r_key, aws_region)
         logger.info("Raw written → %s", r_key)
 
@@ -119,7 +161,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     df_bronze = extract_iod_bronze(raw_bytes)
 
-    if not args.dry_run:
+    if auth.may_mutate_canonical:
         buf = io.BytesIO()
         df_bronze.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
         s3.put_object(Bucket=bucket, Key=b_key, Body=buf.getvalue(),

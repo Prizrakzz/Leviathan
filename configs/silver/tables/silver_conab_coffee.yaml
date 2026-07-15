@@ -203,6 +203,8 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   is_repeated_survey, repeated_from_survey_number, survey_content_fingerprint, source_raw_key, source_file_etag,
   worksheet, parser_version) were physical-parquet-only R2-adds; as of BF-W2 step 3 the registry carries
   their catalog Glue types (the F024 TARGET, 22 cols) so the gated ADD COLUMNS migration (reports/silver_readiness/R2_SA/F024_conab_additive_migration.json)
-  can apply via CatalogMigrator without emitting Type: null (runbook Deviation 9). Live Glue stays 10
-  cols until that apply; the widened producer reproduces all 22. The orphan EAV silver/production/source=conab/
-  is classified in place (F060), not deleted here.'
+  can apply via CatalogMigrator without emitting Type: null (runbook Deviation 9). The F024 widen was
+  APPLIED OUT-OF-BAND on 2026-07-14 (direct ALTER, not CatalogMigrator); live Glue now carries all 22
+  cols and CatalogMigrator.plan_table(''silver_conab_coffee'') NOOPs (manifest-of-record: sql/athena/migrations/silver/20260714T201146Z_silver_conab_coffee_additive_update.json).
+  The widened producer reproduces all 22. The orphan EAV silver/production/source=conab/ is classified
+  in place (F060), not deleted here.'

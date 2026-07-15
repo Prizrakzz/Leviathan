@@ -16,6 +16,7 @@ observation. These tests prove the fix:
 from __future__ import annotations
 
 import math
+import sys
 
 import pandas as pd
 import pyarrow as pa
@@ -28,6 +29,13 @@ from leviathan.transforms.bronze_to_silver.noaa_iod import (
 from leviathan.transforms.raw_to_bronze.noaa_iod import (
     extract_iod_bronze,
     parse_header_bounds,
+)
+from leviathan.storage.paths import bronze_iod_key, raw_iod_key
+from tests.unit.silver.conftest import (
+    FakeS3,
+    canonical_authorization,
+    dryrun_authorization,
+    shadow_authorization,
 )
 
 # ---------------------------------------------------------------------------
@@ -224,3 +232,99 @@ def test_silver_schema_matches_registry():
                 for c in contract["physical_columns"]}
     actual = {f.name: f.type for f in SILVER_ARROW_SCHEMA}
     assert actual == expected
+
+
+# ---------------------------------------------------------------------------
+# Task-level publish authorization (SILVER-F004): --publish-mode is accepted and the
+# raw + bronze S3 writes touch the canonical surface ONLY under a canonical (may_mutate_
+# canonical) authorization -- a dry-run / shadow run must write NOTHING. Mirrors the
+# noaa_oni_task gate; previously the raw/bronze writes were gated only on --dry-run and
+# --publish-mode was undeclared (argparse SystemExit(2) before any publish decision).
+# ---------------------------------------------------------------------------
+
+
+class _FakeResp:
+    """Minimal requests.Response stand-in for the IOD fetch (never hits the network)."""
+
+    def __init__(self, content: bytes):
+        self.content = content
+
+    def raise_for_status(self) -> None:
+        return None
+
+
+class _FakeManifest:
+    class _State:
+        value = "VALIDATED"
+
+    state = _State()
+
+
+def _passing_silver() -> pd.DataFrame:
+    """A silver frame large enough to clear the task's row / non-null validation floors so
+    main() runs end to end (the raw/bronze gate under test fires BEFORE validation)."""
+    n = 1900  # >= _MIN_ROWS (1860) and non-null 3mo >= _MIN_3MO_NON_NULL (1800)
+    dates = pd.date_range("1870-01-01", periods=n, freq="MS")
+    return pd.DataFrame({
+        "date": dates,
+        "dmi_value": 0.1,
+        "iod_dmi_3month_avg": 0.1,
+        "iod_phase": "neutral",
+        "iod_dmi_ethiopia_lag4": 0.1,
+    })
+
+
+class TestTaskPublishGating:
+    def _run_main(self, monkeypatch, auth, argv):
+        """Drive noaa_iod_task.main() fully mocked: FakeS3 for canonical writes, a stubbed
+        authorization verdict (the bit under test), a golden fetch, and a validation-passing
+        silver. Returns the FakeS3 so the caller can assert what (if anything) was written."""
+        from jobs.batch import noaa_iod_task as task
+
+        s3 = FakeS3()
+
+        def _fake_upload(body, bucket, key, region):
+            # the raw path writes via upload_bytes_to_s3 (not s3.put_object); record it in the
+            # same store so raw + bronze are asserted uniformly.
+            s3.store[(bucket, key)] = bytes(body)
+
+        monkeypatch.setattr(task, "get_thread_local_s3_client", lambda region: s3)
+        monkeypatch.setattr(task, "upload_bytes_to_s3", _fake_upload)
+        monkeypatch.setattr(task, "_caller_identity",
+                            lambda region: ("111111111111", "arn:aws:sts::x:assumed-role/r/s"))
+        monkeypatch.setattr(task, "authorize_publish", lambda *a, **k: auth)
+        monkeypatch.setattr(task.requests, "get",
+                            lambda url, timeout=None: _FakeResp(_bytes(_IOD_FILE)))
+        monkeypatch.setattr(task, "build_iod_silver", lambda df: _passing_silver())
+        # the silver publisher's own gating is covered by the flat-producer tests; stub it here so
+        # this test isolates the raw/bronze gate.
+        monkeypatch.setattr(task, "publish_flat_silver", lambda **k: _FakeManifest())
+        monkeypatch.setenv("LEVIATHAN_BUCKET", "leviathan-test")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+        monkeypatch.setattr(sys, "argv", ["noaa_iod_task.py", *argv])
+
+        task.main()
+        return s3
+
+    def test_argparse_accepts_publish_mode_canonical(self, monkeypatch):
+        # The marquee argparse fix: --publish-mode canonical must parse (no SystemExit(2)).
+        try:
+            self._run_main(monkeypatch, canonical_authorization(),
+                           ["--publish-mode", "canonical", "--force-overwrite"])
+        except SystemExit as exc:  # pragma: no cover - fail with a clear message
+            pytest.fail(f"argparse rejected --publish-mode (SystemExit {exc.code})")
+
+    @pytest.mark.parametrize("auth_factory", [dryrun_authorization, shadow_authorization])
+    def test_non_canonical_auth_writes_no_raw_or_bronze(self, monkeypatch, auth_factory):
+        s3 = self._run_main(monkeypatch, auth_factory(), ["--force-overwrite"])
+        keys = s3.keys()
+        assert raw_iod_key() not in keys
+        assert bronze_iod_key() not in keys
+        assert keys == []                       # nothing canonical touched in dry-run / shadow
+
+    def test_canonical_auth_with_force_overwrite_writes_raw_and_bronze(self, monkeypatch):
+        s3 = self._run_main(monkeypatch, canonical_authorization(),
+                            ["--publish-mode", "canonical", "--force-overwrite"])
+        keys = s3.keys()
+        assert raw_iod_key() in keys
+        assert bronze_iod_key() in keys

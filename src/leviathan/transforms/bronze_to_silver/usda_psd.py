@@ -306,7 +306,21 @@ def transform_psd_bronze_to_silver(
     # Bronze stamps every row with the download date (e.g. '2026-05-20').
     # visible_slice("prior_marketing_year") filters release_date <= crop_year_start,
     # so all historical rows would fail that filter without this correction.
-    combined["release_date"] = _compute_psd_release_dates(combined)
+    #
+    # F2 clamp: the WASDE-calendar formula treats month_code as an MY-relative
+    # sequential index, which projects current-crop rows to FUTURE calendar dates
+    # (up to ~2027 for the 2026-05-20 snapshot).  A release_date can never
+    # post-date the snapshot that observed it, so clamp each computed date to an
+    # upper bound of that row's bronze ingest date: min(computed, ingest).  Only
+    # rows the formula pushed past ingest are affected; historical backdating is
+    # untouched.  Both series are ISO-8601 'YYYY-MM-DD' strings, which sort
+    # lexicographically == chronologically, so the element-wise min is exact and
+    # preserves release_date's existing object/string dtype.
+    ingest_date = pd.to_datetime(combined["release_date"]).dt.strftime("%Y-%m-%d")
+    computed_date = _compute_psd_release_dates(combined)
+    combined["release_date"] = computed_date.where(
+        computed_date <= ingest_date, ingest_date
+    )
 
     # -----------------------------------------------------------------------
     # 5. Remap non-standard consumption attribute labels → "Domestic Consumption"

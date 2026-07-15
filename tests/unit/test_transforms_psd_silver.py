@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 from leviathan.transforms.bronze_to_silver.usda_psd import (
     _SILVER_COLS,
+    _compute_psd_release_dates,
     transform_psd_bronze_to_silver,
 )
 
@@ -470,3 +471,81 @@ class TestSchema:
         for col in ("production_mt", "ending_stocks_mt", "consumption_mt",
                     "su_ratio", "area_harvested_1000ha", "yield_mt_ha"):
             assert silver[col].dtype == "float64", f"{col} should be float64"
+
+
+# ---------------------------------------------------------------------------
+# TestReleaseDateClamp (F2)
+# ---------------------------------------------------------------------------
+
+class TestReleaseDateClamp:
+    """The WASDE-calendar formula treats month_code as an MY-relative sequential
+    index, so current-crop rows are projected to FUTURE dates.  A release_date
+    can never post-date the bronze snapshot that observed it, so the transform
+    clamps each computed date to an upper bound of the row's ingest date."""
+
+    _INGEST = "2026-05-20"
+
+    def test_old_formula_would_produce_future_date(self) -> None:
+        """Sanity: without the clamp, corn MY=2026 mc=7 lands in Mar 2027.
+
+        total = 9 + 7 - 2 = 14 -> cal_month = 14%12+1 = 3 (Mar),
+        cal_year = 2026 + 14//12 = 2026 + 1 = 2027.  This is the raw (unclamped)
+        output of the shared date helper and is what the clamp must correct.
+        """
+        bronze = _make_bronze(commodity_code=440000, month_code=7, market_year=2026,
+                              release_date=self._INGEST)
+        raw = _compute_psd_release_dates(bronze)
+        assert (raw == "2027-03-10").all()
+        assert (raw > self._INGEST).all()  # genuinely future vs. the snapshot
+
+    def test_future_row_clamped_to_ingest_date(self) -> None:
+        """A row the formula pushes past the snapshot is clamped to the ingest date."""
+        bronze = _make_bronze(commodity_code=440000, month_code=7, market_year=2026,
+                              release_date=self._INGEST)
+        silver = transform_psd_bronze_to_silver([bronze])
+        assert (silver["release_date"] == self._INGEST).all()
+        # Nothing survives past the snapshot.
+        assert (silver["release_date"] <= self._INGEST).all()
+
+    def test_historical_row_unchanged_by_clamp(self) -> None:
+        """A pre-current-crop row (computed date <= ingest) is left untouched.
+
+        Corn MY=2000 mc=5 -> total=12 -> Jan 2001, well before the 2026 snapshot,
+        so the clamp is a no-op and backdating is preserved exactly.
+        """
+        bronze = _make_bronze(commodity_code=440000, month_code=5, market_year=2000,
+                              release_date=self._INGEST)
+        raw = _compute_psd_release_dates(bronze)
+        assert (raw == "2001-01-10").all()          # historical, below the bound
+        silver = transform_psd_bronze_to_silver([bronze])
+        assert (silver["release_date"] == "2001-01-10").all()
+
+    def test_month_code_zero_historical_unchanged(self) -> None:
+        """mc=0 (pre-WASDE-tracking) anchors to Jan 1 and stays well below the bound."""
+        bronze = _make_bronze(commodity_code=440000, month_code=0, market_year=1990,
+                              release_date=self._INGEST)
+        silver = transform_psd_bronze_to_silver([bronze])
+        assert (silver["release_date"] == "1990-01-01").all()
+
+    def test_mixed_frame_clamps_only_future_rows(self) -> None:
+        """Historical and current-crop rows in one frame: only the future one moves."""
+        hist = _make_bronze(commodity_code=440000, month_code=5, market_year=2000,
+                            release_date=self._INGEST)
+        future = _make_bronze(commodity_code=440000, month_code=7, market_year=2026,
+                              release_date=self._INGEST)
+        silver = transform_psd_bronze_to_silver([pd.concat([hist, future], ignore_index=True)])
+        dates = set(silver["release_date"].unique())
+        assert dates == {"2001-01-10", self._INGEST}
+        assert (silver["release_date"] <= self._INGEST).all()
+
+    def test_clamp_preserves_release_date_dtype(self) -> None:
+        """The clamp must not change release_date's object/string dtype."""
+        future = transform_psd_bronze_to_silver([
+            _make_bronze(commodity_code=440000, month_code=7, market_year=2026,
+                         release_date=self._INGEST)
+        ])
+        historical = transform_psd_bronze_to_silver([_make_bronze()])
+        assert future["release_date"].dtype == object
+        assert historical["release_date"].dtype == object
+        # And the values remain plain ISO date strings, not Timestamps.
+        assert all(isinstance(v, str) for v in future["release_date"])

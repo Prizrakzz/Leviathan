@@ -195,6 +195,50 @@ def _partition_values_from_path(path, path_cols) -> tuple:
     return tuple(values)
 
 
+def _scope_to_partition_layout(files, s3_root, partition_key_names) -> list:
+    """Fence a probe's fragment list to the REGISTERED table's own partition layout: keep only
+    fragments whose FIRST path segment relative to `s3_root` is a `<lead_key>=` Hive segment, where
+    lead_key == `partition_key_names[0]`.
+
+    crit-3 walks `probe.files` from a RECURSIVE dataset rooted at the table's s3_root. When that root
+    (e.g. silver/production/) shelters FOREIGN subtrees -- `source=usda_esr/` (the separately-registered
+    silver_esr table) and `source=conab/` (an unregistered stray that nests `commodity=` DEEPER) -- the
+    first foreign fragment has no `<lead_key>=` segment where the reader expects it and raises
+    PartitionKeyUnresolved, which the caller turns into a POISONED INDETERMINATE for every commodity of
+    the table (F2-L6). Scoping to `lead_key=` drops those foreign fragments while KEEPING the table's own
+    `commodity=`/`year=` layout. Weather roots that embed `source=chirps` INSIDE their own s3_root are
+    unaffected: the `source=` is part of the root, so genuine `commodity=` fragments under it survive.
+
+    STRICT NO-OP -- the list is returned UNCHANGED -- when there is nothing to scope: an empty
+    `partition_key_names`, a falsy `s3_root`, or a path that does not sit under the s3_root prefix (the
+    local-materialization / unit-test fragments). ANTI-MASK: if scoping an already non-empty list would
+    empty it, the UNSCOPED list is returned -- the scope must never manufacture a vacuous pass."""
+    files = list(files or ())
+    if not partition_key_names or not s3_root or not files:
+        return files
+    lead = str(partition_key_names[0]) + "="
+
+    def _norm(s):
+        s = str(s).replace("\\", "/")
+        return s[len("s3://"):] if s.startswith("s3://") else s
+
+    root = _norm(s3_root).rstrip("/") + "/"
+    kept = []
+    for f in files:
+        p = _norm(f)
+        idx = p.find(root)
+        if idx < 0:
+            # s3_root prefix absent from a path -> local-test fragments; strict no-op.
+            return files
+        first_seg = p[idx + len(root):].split("/", 1)[0]
+        if first_seg.startswith(lead):
+            kept.append(f)
+    if not kept:
+        # anti-mask: never let scoping turn a non-empty list empty (a vacuous-pass footgun).
+        return files
+    return kept
+
+
 def enforce_fragment_cap(table: str, probe, *, cap: int = TABLE_FRAGMENT_CAP) -> None:
     """Raise FragmentCapExceeded when a probe's fragment count exceeds the cap (F1-SAFE-03)."""
     n = int(getattr(probe, "num_files", 0) or 0)
@@ -540,7 +584,7 @@ class Harness:
             return False
 
     # ---- crit-3 (the one load-bearing data read; bounded, key-columns only) ----------------------
-    def _key_dup_count(self, table: str, natural_key: list, probe) -> int:
+    def _key_dup_count(self, table: str, natural_key: list, probe, *, files=None) -> int:
         """Bounded key-columns-only projected read over the footer-listed exact-prefix files. NEVER
         Athena, NEVER a recursive list. Respects the fragment cap already enforced on `probe`.
 
@@ -553,12 +597,13 @@ class Harness:
         each group, summed. If the whole key is path-materialized (`in_file` empty), each group's dups ==
         max(0, rows-1). An unresolvable path column raises PartitionKeyUnresolved so the caller emits
         INDETERMINATE (never a silent RED/pass)."""
+        resolved = list(files) if files is not None else list(getattr(probe, "files", ()) or ())
         if self.backends.key_dup_fn is not None:
-            return self.backends.key_dup_fn(table, natural_key, getattr(probe, "files", ()), None)
+            return self.backends.key_dup_fn(table, natural_key, resolved, None)
         import pyarrow.dataset as ds  # lazy
         import pyarrow.fs as pafs
         from urllib.parse import urlparse
-        files = list(getattr(probe, "files", ()) or ())
+        files = resolved
         if not files or not natural_key:
             return 0
         first = str(files[0])
@@ -620,8 +665,15 @@ class Harness:
         # commodity's files -- both go through the same bounded projected reader. For simplicity and to
         # keep this the ONE data read, the harness reads table-wide key dups and applies the verdict
         # per commodity (a duplicate key is a table-level defect regardless of commodity).
+        # Fence the recursive dataset to THIS table's own partition layout before the bounded read:
+        # silver/production/ shelters foreign subtrees (source=usda_esr/, the source=conab/ stray) whose
+        # first fragment would raise PartitionKeyUnresolved and poison all commodities to INDETERMINATE
+        # (F2-L6). A strict no-op for local-test contracts (no s3_root / no partition_keys).
+        partition_key_names = [pk.get("name") for pk in (contract.get("partition_keys") or [])]
+        scoped = _scope_to_partition_layout(getattr(probe, "files", ()), contract.get("s3_root"),
+                                             partition_key_names)
         try:
-            dups = self._key_dup_count(table, natural_key, probe)
+            dups = self._key_dup_count(table, natural_key, probe, files=scoped)
         except PartitionKeyUnresolved as exc:  # partial-key dedup would be a fake RED -> INDETERMINATE
             for cm in commodities:
                 out[cm] = (INDETERMINATE, {"detail": f"unresolvable partition key: {exc}"[:200],

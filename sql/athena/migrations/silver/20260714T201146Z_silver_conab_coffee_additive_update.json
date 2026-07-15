@@ -1,0 +1,236 @@
+{
+  "added_columns": [
+    "region_raw",
+    "area_revision_ha",
+    "yield_revision_bags_per_ha",
+    "production_revision_pct",
+    "production_revision_streak",
+    "is_repeated_survey",
+    "repeated_from_survey_number",
+    "survey_content_fingerprint",
+    "source_raw_key",
+    "source_file_etag",
+    "worksheet",
+    "parser_version"
+  ],
+  "applied_at": "2026-07-14T20:11:46+00:00",
+  "applied_out_of_band": true,
+  "backup": {
+    "baseline_id": "20260712_p65impl",
+    "basis": "reports/silver_readiness/20260712_p65impl/_raw/silver_conab_coffee.get-table.json",
+    "catalog_hash": "3060c7e654704482b9891d1cb802e76a53df0cd99eafcf43513bce58da35f8f9",
+    "note": "pre-widen 10-column R0 catalog state; identity fields scrubbed",
+    "table": "silver_conab_coffee",
+    "table_input": {
+      "LastAccessTime": "1970-01-01 03:00:00+03:00",
+      "Name": "silver_conab_coffee",
+      "Owner": "hadoop",
+      "Parameters": {
+        "EXTERNAL": "TRUE",
+        "parquet.compression": "SNAPPY",
+        "transient_lastDdlTime": "1781740857"
+      },
+      "PartitionKeys": [],
+      "Retention": 0,
+      "StorageDescriptor": {
+        "BucketColumns": [],
+        "Columns": [
+          {
+            "Name": "commodity",
+            "Type": "string"
+          },
+          {
+            "Name": "country",
+            "Type": "string"
+          },
+          {
+            "Name": "safra_year",
+            "Type": "bigint"
+          },
+          {
+            "Name": "survey_number",
+            "Type": "bigint"
+          },
+          {
+            "Name": "region",
+            "Type": "string"
+          },
+          {
+            "Name": "area_in_production_ha",
+            "Type": "double"
+          },
+          {
+            "Name": "yield_bags_per_ha",
+            "Type": "double"
+          },
+          {
+            "Name": "production_thousand_bags",
+            "Type": "double"
+          },
+          {
+            "Name": "production_revision_thousand_bags",
+            "Type": "double"
+          },
+          {
+            "Name": "source",
+            "Type": "string"
+          }
+        ],
+        "Compressed": false,
+        "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+        "Location": "s3://leviathan-dev-shahem-001/silver/conab_coffee",
+        "NumberOfBuckets": -1,
+        "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+        "Parameters": {},
+        "SerdeInfo": {
+          "Parameters": {
+            "serialization.format": "1"
+          },
+          "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+        },
+        "SkewedInfo": {
+          "SkewedColumnNames": [],
+          "SkewedColumnValueLocationMaps": {},
+          "SkewedColumnValues": []
+        },
+        "SortColumns": [],
+        "StoredAsSubDirectories": false
+      },
+      "TableType": "EXTERNAL_TABLE"
+    }
+  },
+  "change_type": "additive_update",
+  "database": "leviathan_dev",
+  "guard_mode": "out-of-band",
+  "mechanism": "Direct ALTER TABLE ADD COLUMNS (Athena/Hive), NOT leviathan.silver.migrate.CatalogMigrator. Applied by an unknown actor on 2026-07-14 (Glue UpdateTime 2026-07-14T20:11:46Z, VersionId 1, last_modified_by=hadoop). This manifest is a record-of-fact reconstructed after the fact (F2-L5) to close the provenance gap; the widen bypassed the migration tool. AWS identity fields (catalog id, account number, IAM role ARN, lease fencing token) are intentionally scrubbed from this record.",
+  "package": "SILVER-F024",
+  "plan": {
+    "change_type": "additive_update",
+    "database": "leviathan_dev",
+    "desired_hash": "3625ab03f45d6a249b05b72a02f54f2bdf8951ecb522f2e18c86eb7b4f53e44e",
+    "diffs": [
+      "columns: 10-col R0 -> 22-col additive ADD COLUMNS (region_raw, area_revision_ha, yield_revision_bags_per_ha, production_revision_pct, production_revision_streak, is_repeated_survey, repeated_from_survey_number, survey_content_fingerprint, source_raw_key, source_file_etag, worksheet, parser_version)"
+    ],
+    "glue_call": "glue.update_table(DatabaseName='leviathan_dev', TableInput=<desired silver_conab_coffee>)  # additive; applied OUT-OF-BAND via direct ALTER, not CatalogMigrator",
+    "live_hash": "3060c7e654704482b9891d1cb802e76a53df0cd99eafcf43513bce58da35f8f9",
+    "registered_partition_audit": {
+      "registered": false
+    },
+    "table": "silver_conab_coffee",
+    "table_input": {
+      "Name": "silver_conab_coffee",
+      "Parameters": {
+        "EXTERNAL": "TRUE",
+        "parquet.compression": "SNAPPY"
+      },
+      "PartitionKeys": [],
+      "StorageDescriptor": {
+        "Columns": [
+          {
+            "Name": "commodity",
+            "Type": "string"
+          },
+          {
+            "Name": "country",
+            "Type": "string"
+          },
+          {
+            "Name": "safra_year",
+            "Type": "bigint"
+          },
+          {
+            "Name": "survey_number",
+            "Type": "bigint"
+          },
+          {
+            "Name": "region",
+            "Type": "string"
+          },
+          {
+            "Name": "area_in_production_ha",
+            "Type": "double"
+          },
+          {
+            "Name": "yield_bags_per_ha",
+            "Type": "double"
+          },
+          {
+            "Name": "production_thousand_bags",
+            "Type": "double"
+          },
+          {
+            "Name": "production_revision_thousand_bags",
+            "Type": "double"
+          },
+          {
+            "Name": "source",
+            "Type": "string"
+          },
+          {
+            "Name": "region_raw",
+            "Type": "string"
+          },
+          {
+            "Name": "area_revision_ha",
+            "Type": "double"
+          },
+          {
+            "Name": "yield_revision_bags_per_ha",
+            "Type": "double"
+          },
+          {
+            "Name": "production_revision_pct",
+            "Type": "double"
+          },
+          {
+            "Name": "production_revision_streak",
+            "Type": "bigint"
+          },
+          {
+            "Name": "is_repeated_survey",
+            "Type": "boolean"
+          },
+          {
+            "Name": "repeated_from_survey_number",
+            "Type": "bigint"
+          },
+          {
+            "Name": "survey_content_fingerprint",
+            "Type": "string"
+          },
+          {
+            "Name": "source_raw_key",
+            "Type": "string"
+          },
+          {
+            "Name": "source_file_etag",
+            "Type": "string"
+          },
+          {
+            "Name": "worksheet",
+            "Type": "string"
+          },
+          {
+            "Name": "parser_version",
+            "Type": "string"
+          }
+        ],
+        "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+        "Location": "s3://leviathan-dev-shahem-001/silver/conab_coffee",
+        "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+        "Parameters": {},
+        "SerdeInfo": {
+          "Parameters": {
+            "serialization.format": "1"
+          },
+          "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+        }
+      },
+      "TableType": "EXTERNAL_TABLE"
+    },
+    "unsafe": []
+  },
+  "reconciliation": "CatalogMigrator.plan_table('silver_conab_coffee') now reports change_type=NOOP against the widened live catalog (desired_hash == live_hash == 3625ab03f45d6a249b05b72a02f54f2bdf8951ecb522f2e18c86eb7b4f53e44e); the checked-in registry (configs/silver/tables/silver_conab_coffee.yaml) and the live Glue catalog agree on all 22 columns.",
+  "source_migration": "reports/silver_readiness/R2_SA/F024_conab_additive_migration.json",
+  "table": "silver_conab_coffee"
+}

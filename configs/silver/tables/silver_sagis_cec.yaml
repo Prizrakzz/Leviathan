@@ -128,9 +128,9 @@ min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: production_year x report_month x crop x scope x estimate_number
 vintage_retention: per-vintage
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: release_date
+knowledge_semantics: vintage
+publication_lag_days: 0
 freshness_sla:
   cadence: monthly
   max_lag_days: null
