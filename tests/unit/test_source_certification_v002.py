@@ -122,7 +122,9 @@ def test_producer_coverage_flags_core_orphan():
     status_by_table = {"silver_fred_fx": "orphan", "silver_psd": "producer"}
     gaps = producer_coverage_gaps(contracts, status_by_table)
     assert [g["source_key"] for g in gaps] == ["fred_fx"]
-    assert gaps[0]["r3_package"] == "SILVER-F040"
+    # post-BF-W3: the planned-gap mapping is fulfilled and empty, so a REAPPEARING orphan is an
+    # unowned REGRESSION -- flagged with r3_package None (no planned package builds it).
+    assert gaps[0]["r3_package"] is None
 
 
 def test_producer_coverage_live_gap_equals_expected_orphan_set():
@@ -142,6 +144,7 @@ def test_producer_coverage_live_gap_equals_expected_orphan_set():
 
 
 def test_expected_producer_gaps_covers_six_families():
-    families = {k.split("_")[0] for k in EXPECTED_PRODUCER_GAPS}
-    # fred, oni, ams, icco, nass(citrus), sagis
-    assert {"fred", "oni", "ams", "icco", "nass", "sagis"} <= families
+    # BF-W3 step 0.5 fulfilled the row-removal contract: the planned-gap set is EMPTY and must
+    # STAY empty -- re-adding an entry means planning a new orphan, which the coverage test
+    # (live-gap == expected) would otherwise silently absorb.
+    assert EXPECTED_PRODUCER_GAPS == {}

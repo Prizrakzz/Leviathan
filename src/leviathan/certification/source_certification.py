@@ -552,14 +552,11 @@ PRODUCER_STATUS_COVERED = "producer"
 
 EXPECTED_PRODUCER_GAPS: dict[str, str] = {
     # source_key : owning R3 package that builds the producer
-    "fred_fx": "SILVER-F040",               # full orphan (build from scratch)
-    "oni": "SILVER-F057",                   # full orphan (build from scratch)
-    "ams_cotton_quality": "SILVER-F050",    # half orphan (restore b2s)
-    "icco_cocoa": "SILVER-F051",            # half orphan (restore b2s)
-    "nass_citrus": "SILVER-F056",           # half orphan (restore b2s)
-    "sagis_deliveries": "SILVER-F042",      # half orphan (restore b2s)
-    # sagis_cec (SILVER-F058) + sagis_weekly_exports (SILVER-F059): REMOVED -- the R2/R3 OB lane
-    # registered both producers, so they left the live gap (the row-removal contract this set encodes).
+    # EMPTY as of BF-W3 step 0.5 (2026-07-15, commit e1fc5a10): the R3 producer-repoint landed
+    # for the final six (fred_fx/F040, oni/F057, ams_cotton_quality/F050, icco_cocoa/F051,
+    # nass_citrus/F056, sagis_deliveries/F042), following sagis_cec/F058 + sagis_weekly_exports/
+    # F059 which left earlier. The row-removal contract this set encodes is fulfilled; ANY entry
+    # reappearing here means a producer regressed to orphan -- the coverage test fails on it.
 }
 
 
