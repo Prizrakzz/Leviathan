@@ -87,7 +87,7 @@ physical_columns:
   target_arrow_type: string
   nullable: true
 - name: months_to_marketing_year_end
-  glue_type: int
+  glue_type: bigint
   arrow_type: int64
   parquet_physical_type: INT64
   target_arrow_type: int64
@@ -143,55 +143,55 @@ physical_columns:
   target_arrow_type: string
   nullable: true
 - name: source_table_id
-  glue_type: null
+  glue_type: string
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: string
   nullable: true
 - name: estimate_role
-  glue_type: null
+  glue_type: string
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: string
   nullable: true
 - name: projection_month
-  glue_type: null
+  glue_type: string
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: string
   nullable: true
 - name: is_current_release_estimate
-  glue_type: null
+  glue_type: boolean
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: bool
   nullable: true
 - name: release_sequence
-  glue_type: null
+  glue_type: bigint
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: int64
   nullable: true
 - name: revision_gap_days
-  glue_type: null
+  glue_type: bigint
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: int64
   nullable: true
 - name: is_projection
-  glue_type: null
+  glue_type: boolean
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: bool
   nullable: true
 - name: is_source_final
-  glue_type: null
+  glue_type: boolean
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: bool
   nullable: true
 - name: marketing_year_end_date
-  glue_type: null
+  glue_type: string
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: string
@@ -204,18 +204,60 @@ drift_summary:
   glue_type: string
   target: string
   owner_package: SILVER-F033
-- column: months_to_marketing_year_end
-  kind: glue_catalog_mismatch
-  current_physical: int64
-  glue_type: int
+- column: source_table_id
+  kind: null_typed
+  current_physical: null
+  glue_type: string
+  target: string
+  owner_package: SILVER-F033
+- column: estimate_role
+  kind: null_typed
+  current_physical: null
+  glue_type: string
+  target: string
+  owner_package: SILVER-F033
+- column: projection_month
+  kind: null_typed
+  current_physical: null
+  glue_type: string
+  target: string
+  owner_package: SILVER-F033
+- column: is_current_release_estimate
+  kind: null_typed
+  current_physical: null
+  glue_type: boolean
+  target: bool
+  owner_package: SILVER-F033
+- column: release_sequence
+  kind: null_typed
+  current_physical: null
+  glue_type: bigint
   target: int64
   owner_package: SILVER-F033
-  note: C-WRONG-6 int64 fix. glue_type stays int here to match the LIVE catalog (registry == live-Glue
-    invariant); the int32->int64 correction is a REVIEWED catalog migration cut as a plan-only artifact
-    by scripts/silver/wasde_f036_migration_plan.py (reports/silver_readiness/ R2_wasde/) and applied in
-    the gated B-wave WITH the F013 registered-partition SD repair. The INV-2 target is already int64 and
-    physical parquet is already int64, so this is a widening the migrate tool conservatively routes through
-    review, never a silent apply.
+- column: revision_gap_days
+  kind: null_typed
+  current_physical: null
+  glue_type: bigint
+  target: int64
+  owner_package: SILVER-F033
+- column: is_projection
+  kind: null_typed
+  current_physical: null
+  glue_type: boolean
+  target: bool
+  owner_package: SILVER-F033
+- column: is_source_final
+  kind: null_typed
+  current_physical: null
+  glue_type: boolean
+  target: bool
+  owner_package: SILVER-F033
+- column: marketing_year_end_date
+  kind: null_typed
+  current_physical: null
+  glue_type: string
+  target: string
+  owner_package: SILVER-F033
 natural_key:
 - release_date
 - source_table_id
@@ -261,10 +303,10 @@ location_mode: static
 write_mode: registered-partition
 fingerprint:
   schema_fingerprint_sha256: 969ca6e58e0792de3560eb29131b35ae68fdfc601ddfbe351a101a712c28468a
-  catalog_hash_sha256: 166fae2b5e5e82c3f75cdee83ae33c51a028e6a61115964c4e6c7dd55063aad8
+  catalog_hash_sha256: 9985cfb0e4da444b3b9eb62b013152ce993dd890e0cea21db986a36540ab6672
   registered_partition_count: 461
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 20
+  glue_nonpartition_cols: 29
   physical_parquet_cols: 21
 provenance:
   baseline_id: 20260712_p65impl

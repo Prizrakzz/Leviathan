@@ -95,10 +95,13 @@ def test_esr_compact_pins_inv2_widen_targets(reg):
 
 
 def test_wasde_records_glue_catalog_mismatch(reg):
+    # POST-F036 (BF-W2 step 17 applied 2026-07-15): the C-WRONG-6 int32/int64 mismatch is CLOSED --
+    # glue bigint == physical int64. NO glue_catalog_mismatch row may remain for the column;
+    # a reappearing one means the live catalog regressed.
     c = reg.table("silver_wasde")
     mm = [d for d in c["drift_summary"] if d["kind"] == "glue_catalog_mismatch"]
     cols = {d["column"] for d in mm}
-    assert "months_to_marketing_year_end" in cols  # C-WRONG-6: glue int32 vs physical int64
+    assert "months_to_marketing_year_end" not in cols, mm
 
 
 def test_wasde_null_typed_column_recorded(reg):

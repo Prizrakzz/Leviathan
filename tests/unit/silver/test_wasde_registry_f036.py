@@ -53,23 +53,27 @@ def plan_mod():
 # The additive schema is present but hidden (registry == live-Glue invariant holds).
 # ---------------------------------------------------------------------------
 def test_additive_columns_present_as_hidden_schema(contract):
+    # POST-F036 (BF-W2 step 17 applied 2026-07-15): the columns are REGISTERED in Glue -- concrete
+    # glue types matching the live catalog (registry == live-Glue invariant). arrow_type stays None
+    # until the physical sample carries them (the step-23 catch-up publishes the first 29-col
+    # objects); the transitional lag is recorded as null_typed drift rows, asserted below.
+    _GLUE = {"string": "string", "bool": "boolean", "int64": "bigint"}
     by = {c["name"]: c for c in contract["physical_columns"]}
+    drift_cols = {d["column"] for d in contract["drift_summary"] if d["kind"] == "null_typed"}
     for name, target in _ADDITIVE.items():
         assert name in by, f"{name} missing from the registry contract"
         assert by[name]["target_arrow_type"] == target
-        # hidden-schema: not yet in the live catalog nor the current physical sample.
-        assert by[name]["glue_type"] is None
-        assert by[name]["arrow_type"] is None
+        assert by[name]["glue_type"] == _GLUE[target]
         assert by[name]["nullable"] is True
+        assert name in drift_cols, f"{name} physical-lag drift row missing"
 
 
 def test_additive_columns_excluded_from_generated_ddl(contract):
-    """The additive columns keep the generated DDL at the live 20 catalog columns (so the
-    registry-vs-liveGlue invariant is preserved until the reviewed migration applies)."""
+    """POST-F036: the migration applied, so the additive columns are catalog columns -- the DDL
+    carries all 29 (registry == live-Glue invariant, now at the post-migration state)."""
     catalog_names = {n for n, _ in D.catalog_columns(contract)}
-    assert catalog_names.isdisjoint(_ADDITIVE)
-    assert set(D.physical_only_columns(contract)) == set(_ADDITIVE)
-    # ... yet they ARE declared columns the transform/tests can reference.
+    assert set(_ADDITIVE).issubset(catalog_names)
+    assert set(D.physical_only_columns(contract)) == set()
     assert set(_ADDITIVE).issubset(load_registry().columns("silver_wasde"))
 
 
@@ -82,13 +86,13 @@ def test_deprecated_compat_columns_flagged(contract):
 
 
 def test_int64_drift_retained_with_migration_note(contract):
+    # POST-F036: glue (bigint) == physical (int64) == target -- the C-WRONG-6 mismatch is CLOSED,
+    # so NO glue_catalog_mismatch row may remain (a reappearing row = catalog regression).
     mm = [d for d in contract["drift_summary"]
           if d["column"] == "months_to_marketing_year_end" and d["kind"] == "glue_catalog_mismatch"]
-    assert mm, "the C-WRONG-6 int64 glue_catalog_mismatch drift must remain until the migration lands"
-    d = mm[0]
-    assert d["glue_type"] == "int" and d["target"] == "int64"
-    assert d["owner_package"].startswith("SILVER-F")
-    assert "note" in d and "B-wave" in d["note"]
+    assert mm == [], f"C-WRONG-6 reopened: {mm}"
+    col = {c["name"]: c for c in contract["physical_columns"]}["months_to_marketing_year_end"]
+    assert col["glue_type"] == "bigint" and col["arrow_type"] == "int64"
 
 
 def test_frozen_natural_key_matches_transform_and_is_coherent(contract):

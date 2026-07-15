@@ -186,10 +186,10 @@ location_mode: static
 write_mode: overwrite
 fingerprint:
   schema_fingerprint_sha256: 637c4ffaa93ed26b01ad04e6defa652fee3f35877c7eabd3ce4ca1459776808a
-  catalog_hash_sha256: 04c0be9d4743eed469ac26a5c3ab6f387cdb336d0f4c99f033282d0705055990
+  catalog_hash_sha256: 3625ab03f45d6a249b05b72a02f54f2bdf8951ecb522f2e18c86eb7b4f53e44e
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 10
+  glue_nonpartition_cols: 22
   physical_parquet_cols: 22
 provenance:
   baseline_id: 20260712_p65impl

@@ -628,6 +628,12 @@ CURATION_OVERRIDES: dict = {
     "silver_wasde": {
         "freshness_sla": {"cadence": "monthly"},  # WASDE releases monthly; the MY grain is not the cadence
         "deprecated_columns": ["months_to_marketing_year_end", "is_final_or_latest"],
+        # BF-W2 step 17 APPLIED 2026-07-15 (F036 catalog migration, hash 6c45229d -> 9985cfb0): the
+        # live Glue table now carries the 9 additive columns CONCRETELY and months_to_marketing_year_end
+        # as bigint. The registry == live-Glue invariant therefore requires concrete types here too --
+        # additive_columns_registered resolves them, type_overrides flips months.
+        "additive_columns_registered": True,
+        "type_overrides": {"months_to_marketing_year_end": "bigint"},
         "additive_columns": [
             ("source_table_id", "string"), ("estimate_role", "string"), ("projection_month", "string"),
             ("is_current_release_estimate", "bool"), ("release_sequence", "int64"),
@@ -636,12 +642,11 @@ CURATION_OVERRIDES: dict = {
         ],
         "drift_notes": {
             "months_to_marketing_year_end": (
-                "C-WRONG-6 int64 fix. glue_type stays int here to match the LIVE catalog (registry == "
-                "live-Glue invariant); the int32->int64 correction is a REVIEWED catalog migration cut as a "
-                "plan-only artifact by scripts/silver/wasde_f036_migration_plan.py (reports/silver_readiness/ "
-                "R2_wasde/) and applied in the gated B-wave WITH the F013 registered-partition SD repair. The "
-                "INV-2 target is already int64 and physical parquet is already int64, so this is a widening the "
-                "migrate tool conservatively routes through review, never a silent apply."
+                "C-WRONG-6 int64 fix APPLIED 2026-07-15 (BF-W2 step 17): glue_type is bigint matching the "
+                "LIVE catalog (registry == live-Glue invariant), via the reviewed CatalogMigrator."
+                "restore_table apply (plan artifact scripts/silver/wasde_f036_migration_plan.py, "
+                "reports/silver_readiness/R2_wasde/) WITH the F013 repair of all 461 registered-partition "
+                "SDs. INV-2 target and physical parquet were already int64."
             ),
         },
         "natural_key": ["release_date", "source_table_id", "commodity", "region", "marketing_year",
@@ -681,10 +686,20 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
     for cn in ov.get("deprecated_columns", []):
         if cn in by_name:
             by_name[cn]["deprecated"] = True
+    # arrow -> glue for REGISTERED additive columns (additive_columns_registered: the catalog
+    # migration has been applied, so the contract carries concrete types -- the same resolution
+    # wasde_f036_migration_plan.build_target_contract uses).
+    _ARROW_TO_GLUE = {"string": "string", "bool": "boolean", "int64": "bigint"}
+    registered = bool(ov.get("additive_columns_registered"))
     for cn, target in ov.get("additive_columns", []):
         if cn not in by_name:
-            cols.append({"name": cn, "glue_type": None, "arrow_type": None,
+            cols.append({"name": cn,
+                         "glue_type": _ARROW_TO_GLUE[target] if registered else None,
+                         "arrow_type": target if registered else None,
                          "parquet_physical_type": None, "target_arrow_type": target, "nullable": True})
+    for cn, gt in (ov.get("type_overrides") or {}).items():
+        if cn in by_name:
+            by_name[cn]["glue_type"] = gt
     for row in contract.get("drift_summary") or []:
         note = ov.get("drift_notes", {}).get(row.get("column") or row.get("name") or "")
         if note:

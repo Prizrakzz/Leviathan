@@ -21,7 +21,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_wasde (
     prior_estimate               double,
     revision                     double,
     revision_direction           string,
-    months_to_marketing_year_end int,
+    months_to_marketing_year_end bigint,
     is_first_estimate            boolean,
     is_final_or_latest           boolean,
     raw_table_name               string,
@@ -29,7 +29,16 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_wasde (
     raw_attribute                string,
     raw_status                   string,
     raw_projection_month         string,
-    source                       string
+    source                       string,
+    source_table_id              string,
+    estimate_role                string,
+    projection_month             string,
+    is_current_release_estimate  boolean,
+    release_sequence             bigint,
+    revision_gap_days            bigint,
+    is_projection                boolean,
+    is_source_final              boolean,
+    marketing_year_end_date      string
 )
 PARTITIONED BY (release_date string)
 STORED AS PARQUET

@@ -136,16 +136,14 @@ def test_sampled_generated_ddl_parses(reg, mode, name):
 # Registry fidelity + parse round-trip.
 # ---------------------------------------------------------------------------
 def test_generated_matches_live_glue_for_every_table(reg):
-    """Generated DDL (from the registry) == the live Glue catalog for 42 of 43 tables.
+    """Generated DDL (from the registry) == the live Glue catalog for ALL 43 tables.
 
-    Encodes the model_predictions column-order fix (no accidental drift) PLUS the one sanctioned
-    exception: silver_conab_coffee's registry deliberately LEADS live Glue by EXACTLY the F024
-    additive column set (BF-W2 step 3 / runbook Deviation 9 -- CatalogMigrator cannot emit
-    glue_type-null columns, so the registry must carry the ADD COLUMNS target types before the
-    gated apply). Anything beyond that exact additive set is drift and fails here.
+    Encodes the model_predictions column-order fix (no accidental drift). BF-W2 retired the one
+    sanctioned exception: the F024 CONAB additive migration (step 5) and the F036 WASDE 29-column
+    migration (step 17, m2mye int->bigint + F013 461-partition SD repair) are both APPLIED, the
+    snapshots under 20260712_p65impl/tables/ refreshed to the post-migration live state
+    (2026-07-15), and the registry regenerates to exactly that state. ANY divergence is drift.
     """
-    f024 = json.loads(_F024_ARTIFACT.read_text(encoding="utf-8"))
-    expected_extra = [c["name"] for c in f024["added_columns"]]
     drift = {}
     for name in reg.names():
         R = D.structured_from_contract(reg.table(name))
@@ -154,10 +152,7 @@ def test_generated_matches_live_glue_for_every_table(reg):
         d = D.diff_structured(G, R)
         if d:
             drift[name] = d
-    assert set(drift) == {"silver_conab_coffee"}, f"registry diverges from live Glue: {drift}"
-    assert drift["silver_conab_coffee"] == [f"columns extra: {expected_extra}"], (
-        "conab registry-vs-liveGlue divergence must be exactly the F024 additive target: "
-        f"{drift['silver_conab_coffee']}")
+    assert drift == {}, f"registry diverges from live Glue: {drift}"
 
 
 def test_model_predictions_snapshot_columns_at_catalog_positions(reg):
@@ -246,11 +241,11 @@ def test_diff_report_covers_the_known_findings(report_mod):
     by_disp = {}
     for r in rows:
         by_disp.setdefault(r.disposition, []).append(r)
-    # the CONAB registry now leads live Glue by the sanctioned F024 additive set (BF-W2 step 3);
-    # it is classified migration-pending, never as a regression, and its hidden-schema row is gone.
+    # POST-F024 (BF-W2 step 5 APPLIED): the CONAB migration landed and the snapshot was re-captured,
+    # so NO migration-pending row may remain -- a reappearing one means live Glue regressed.
     reg_wins = by_disp.get(report_mod.REGISTRY_WINS, [])
-    assert any(r.table == "silver_conab_coffee" and r.dimension == "catalog-migration-pending"
-               for r in reg_wins)
+    assert not any(r.table == "silver_conab_coffee" and r.dimension == "catalog-migration-pending"
+                   for r in reg_wins)
     assert not any(r.table == "silver_conab_coffee" and r.dimension == "physical-only-columns"
                    for r in rows)
     assert not any(r.table == "silver_conab_coffee" and r.dimension == "registry-vs-liveGlue"
