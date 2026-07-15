@@ -251,7 +251,9 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
         notes=[
             "READ-ONLY footer census; no Athena issued (INV-3).",
             f"min_nonnull_frac is provisional ({min_frac}); per-source calibration pending (OP-8/AV-11).",
-        ],
+        ] + ([f"min_nonnull_frac_overrides ACTIVE: {floor_overrides} (OP-8 user-gated per-column "
+              "calibration; the gate compared these columns against their calibrated floors)"]
+             if floor_overrides else []),
     )
     # Fold per-group value rows + vintage rows into the result's gate/warn lists (waived vintage
     # rows land in WARN, and the artifact carries the waiver object itself).
