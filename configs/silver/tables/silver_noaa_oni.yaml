@@ -30,7 +30,7 @@ physical_columns:
   nullable: false
 - name: season
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: false
@@ -42,7 +42,7 @@ physical_columns:
   nullable: true
 - name: phase
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
@@ -72,60 +72,36 @@ physical_columns:
   nullable: true
 - name: el_nino_flag
   glue_type: bigint
-  arrow_type: int8
-  parquet_physical_type: INT32
+  arrow_type: int64
+  parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: true
 - name: la_nina_flag
   glue_type: bigint
-  arrow_type: int8
-  parquet_physical_type: INT32
+  arrow_type: int64
+  parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: true
 - name: la_nina_brazil_flag
   glue_type: bigint
-  arrow_type: int8
-  parquet_physical_type: INT32
+  arrow_type: int64
+  parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: true
 - name: argentina_la_nina_flag
   glue_type: bigint
-  arrow_type: int8
-  parquet_physical_type: INT32
+  arrow_type: int64
+  parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: true
 - name: source
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 writer_schema_pinned: false
-drift_summary:
-- column: el_nino_flag
-  kind: widen_int
-  current_physical: int8
-  glue_type: tinyint
-  target: int64
-  owner_package: SILVER-F057
-- column: la_nina_flag
-  kind: widen_int
-  current_physical: int8
-  glue_type: tinyint
-  target: int64
-  owner_package: SILVER-F057
-- column: la_nina_brazil_flag
-  kind: widen_int
-  current_physical: int8
-  glue_type: tinyint
-  target: int64
-  owner_package: SILVER-F057
-- column: argentina_la_nina_flag
-  kind: widen_int
-  current_physical: int8
-  glue_type: tinyint
-  target: int64
-  owner_package: SILVER-F057
+drift_summary: []
 natural_key:
 - year
 - month
@@ -162,8 +138,8 @@ producer:
 location_mode: static
 write_mode: overwrite
 fingerprint:
-  schema_fingerprint_sha256: ee3455a16e2897cba17fca995aadad856a360530adf402dd68a4ff9c7ac37892
-  catalog_hash_sha256: e7b0e432e49d37e68269b69572679c08c83a9f984e5aa832114dc2ca6a78e40e
+  schema_fingerprint_sha256: d80a44e0c3c9556cf9d67d0592c36ec7c9f633f4c4c5bf27d2546ad14339902b
+  catalog_hash_sha256: b20bfbdda1e5bb7416d9e7bf9a8beb02dc9ea5ab1fe998086464beb910648a63
   registered_partition_count: 0
   placeholder_partition_count: 0
   glue_nonpartition_cols: 14

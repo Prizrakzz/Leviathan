@@ -294,10 +294,12 @@ def test_runner_build_evidence_smoke(tmp_path):
     # HONEST: today it must be RED (orphans unadopted, chirps all-NaN, ESR single-vintage).
     assert cert["verdict"] == "RED"
     assert cert["signed"] is False
-    # the concrete work orders the assignment calls out are present
+    # POST-B1/B2 close (KNOWN_STALENESS emptied at the BF-W3 close): the weather trio and the
+    # ESR compact table are no longer known-stale -- they evaluate BACKFILL_READY, not a wave
+    # work order.
     wo = cert["work_orders"]
-    assert "silver_chirps" in wo.get("BF-W1", [])
-    assert "silver_esr_compact" in wo.get("BF-W2", [])
+    assert cert["tables"]["silver_chirps"]["readiness_state"] == r.BACKFILL_READY
+    assert cert["tables"]["silver_esr_compact"]["readiness_state"] == r.BACKFILL_READY
     # the R4 real run censused ALL 43 tables (scratch/R4_census_all.log), so the V001
     # missing-census order is gone; it must REAPPEAR if any table is ever added uncensused.
     assert r.WO_V001 not in wo

@@ -115,8 +115,10 @@ def test_migration_plan_is_additive_with_reviewed_int64(plan_mod):
     assert added == set(_ADDITIVE)                          # the 9 governed columns are catalog adds
     changes = {c["name"]: (c["from"], c["to"]) for c in out["column_changes"]["type_changes"]}
     assert changes == {"months_to_marketing_year_end": ("int", "bigint")}   # the int64 fix
-    # the int->bigint correction is surfaced as a REVIEWED (not auto-apply) item, never silent.
-    assert any("months_to_marketing_year_end" in u for u in p["unsafe"])
+    # the int->bigint correction stays VISIBLE in the plan's type_changes (asserted above);
+    # post the BF-W3 direction-aware narrowing fix a WIDEN is auto-applyable, so it must NOT
+    # be flagged unsafe (genuine narrows / drops / partition-key changes still are).
+    assert not any("months_to_marketing_year_end" in u for u in p["unsafe"])
 
 
 def test_migration_plan_flags_the_461_partition_repair(plan_mod):

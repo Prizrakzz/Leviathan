@@ -253,5 +253,12 @@ def test_diff_report_covers_the_known_findings(report_mod):
     # the model_predictions order bug is recorded as fixed.
     hand_wins = by_disp.get(report_mod.HAND_WINS_FIXED, [])
     assert any(r.table == "silver_model_predictions" for r in hand_wins)
-    # every one of the 43 tables has at least one classified row.
-    assert len({r.table for r in rows}) == 43
+    # every table either carries at least one classified row OR is FULLY CLEAN (generated DDL
+    # byte-identical to the hand DDL) -- the BF-W3 wasde hand-DDL sync produced the first fully
+    # clean table, which is the goal state, not a coverage gap.
+    reg = load_registry()
+    covered = {r.table for r in rows}
+    for name in sorted(set(reg.names()) - covered):
+        gen_text = D.render_ddl(reg.table(name))
+        hand_text = (report_mod.HAND_DDL_DIR / f"{name}.sql").read_text(encoding="utf-8")
+        assert gen_text == hand_text, f"{name} has no drift row but generated != hand DDL"
