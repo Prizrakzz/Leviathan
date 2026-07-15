@@ -20,11 +20,10 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_esr_compact (
     gross_new_sales_1000mt   float,
     changes_1000mt           float,
     source_unit_id           smallint,
-    as_of_date               string,
     ingest_date              string,
     source                   string
 )
-PARTITIONED BY (commodity string)
+PARTITIONED BY (commodity string, as_of_date string)
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/esr/'
 TBLPROPERTIES (

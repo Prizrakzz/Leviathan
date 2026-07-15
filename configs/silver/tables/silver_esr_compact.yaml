@@ -17,6 +17,9 @@ partition_keys:
 - name: commodity
   glue_type: string
   projected: false
+- name: as_of_date
+  glue_type: string
+  projected: false
 recovery_strategy: get-partitions reconcile + explicit per-partition locations (ESR as_of=/as_of_date
   mapping; never MSCK)
 physical_columns:
@@ -81,12 +84,6 @@ physical_columns:
   parquet_physical_type: INT32
   target_arrow_type: int64
   nullable: true
-- name: as_of_date
-  glue_type: string
-  arrow_type: large_string
-  parquet_physical_type: BYTE_ARRAY
-  target_arrow_type: string
-  nullable: false
 - name: ingest_date
   glue_type: string
   arrow_type: large_string
@@ -190,10 +187,10 @@ location_mode: static
 write_mode: registered-partition
 fingerprint:
   schema_fingerprint_sha256: 15b7f0a68442d7ecaf8822e723a13e2534480e3b7226c1fb45120019e9285dac
-  catalog_hash_sha256: 669fa230f9d31539906b92a9b967d21b97cede78ecc39c5944a8b3da19d80ea3
-  registered_partition_count: 10
+  catalog_hash_sha256: 10e9e4be31fcefec1d4654688c1cb0a10870bf11593af776c6c92d3ddae340b8
+  registered_partition_count: 20
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 13
+  glue_nonpartition_cols: 12
   physical_parquet_cols: 13
 provenance:
   baseline_id: 20260712_p65impl
