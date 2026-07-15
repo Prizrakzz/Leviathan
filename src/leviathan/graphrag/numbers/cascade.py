@@ -245,6 +245,12 @@ def _plus_days(iso: str, days: int) -> str:
 # exchange slugs; the cascade bypasses the agent, so it aliases here.
 PSD_SLUG_ALIAS = {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}
 
+# Contracts with NO series in silver_psd AT ALL (DISTINCT leviathan_slug, C002-verified 2026-07-15):
+# USDA PSD carries no cocoa balance sheet (ICCO territory) and no frozen-orange-juice series. A
+# quantify against them can only ever return 0 rows -- declare the absence so the leg SKIPs
+# honestly at _scope and the C002 slug check reads it as KNOWN-UNSERVED rather than drift.
+PSD_UNSERVED_SLUGS = frozenset({"cocoa", "frozen_orange_juice"})
+
 
 # _scope's country slot for a region-ruled leg that CANNOT honestly resolve to one table country
 # (compound/prose/missing region token): quantify must SKIP the node whole -- country=None on a PSD trade
@@ -309,6 +315,8 @@ def _scope(n, row) -> tuple:
     column: a resolved region needs a currency (metric pick, _region_row) or the leg is not honest."""
     commodity = getattr(n, "contract", None)
     commodity = PSD_SLUG_ALIAS.get(commodity, commodity)
+    if (row or {}).get("table") == "silver_psd" and commodity in PSD_UNSERVED_SLUGS:
+        return commodity, SKIP_NODE          # declared-unserved: PSD has no series for this contract
     rule = (row or {}).get("country_rule", "primary")
     if rule == "none":
         return commodity, None

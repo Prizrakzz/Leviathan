@@ -192,6 +192,8 @@ def check_commodity_slug_vocabulary(reg, *, query_fn, caches=None) -> list[str]:
         if not scol:
             continue
         commodity = str(commodity)
+        if table == "silver_psd" and commodity in casc.PSD_UNSERVED_SLUGS:
+            continue                          # declared-unserved (cascade SKIPs these legs at _scope)
         key = (table, scol, commodity)
         if key in seen:
             continue

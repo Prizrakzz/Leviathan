@@ -683,3 +683,22 @@ def test_primary_title_folds_eu_members(monkeypatch):
     # PSD spells it "Cote d'Ivoire" (live DISTINCT-title probe) -- same class as France->EU.
     monkeypatch.setattr(slv, "_primary_country", lambda c: "cote_divoire")
     assert cq._primary_title("cocoa") == "Cote d'Ivoire"
+
+
+def test_psd_unserved_slugs_skip_at_scope():
+    """Declared-unserved contracts (PSD has NO cocoa/FCOJ series): the leg SKIPs whole at _scope
+    instead of firing a query that can only return 0 rows (C002-caught at the first live Branch-A
+    gate fire, 2026-07-15). Non-PSD rows for the same contracts are untouched."""
+    from types import SimpleNamespace
+    from leviathan.graphrag.numbers.cascade import SKIP_NODE, _scope
+
+    n = SimpleNamespace(contract="cocoa", prior={})
+    commodity, country = _scope(n, {"table": "silver_psd", "country_rule": "primary"})
+    assert commodity == "cocoa" and country is SKIP_NODE
+
+    n2 = SimpleNamespace(contract="frozen_orange_juice", prior={})
+    _, country2 = _scope(n2, {"table": "silver_psd", "country_rule": "none"})
+    assert country2 is SKIP_NODE                      # unserved beats every country_rule
+
+    _, country3 = _scope(n2, {"table": "silver_esr", "country_rule": "none"})
+    assert country3 is not SKIP_NODE                  # only silver_psd is declared-unserved

@@ -128,12 +128,15 @@ def test_currency_routed_region_leg_needs_no_country_distinct(monkeypatch):
 # commodity-slug vocabulary (PSD slug-miss class)
 # ---------------------------------------------------------------------------
 def test_commodity_slug_absent_fails(monkeypatch):
+    # robusta_coffee: a slug-miss NOT in cascade.PSD_UNSERVED_SLUGS (cocoa moved there 2026-07-15 --
+    # PSD genuinely has no cocoa series, so it is declared-unserved, covered by the dedicated test).
     reg = _Reg({"silver_psd": _ts(id="silver_psd", shape="wide", commodity_col="leviathan_slug")})
     monkeypatch.setattr(cch, "_mapped_legs",
-                        lambda: [_leg("cocoa", "grind", "silver_psd", "Ghana", commodity="cocoa")])
-    pg = _MockPg({("silver_psd", "leviathan_slug"): ["corn_cbot", "wheat_cbot"]})  # no cocoa
+                        lambda: [_leg("robusta_coffee", "grind", "silver_psd", "Ghana",
+                                      commodity="robusta_coffee")])
+    pg = _MockPg({("silver_psd", "leviathan_slug"): ["corn_cbot", "wheat_cbot"]})  # no robusta
     errs = cch.check_commodity_slug_vocabulary(reg, query_fn=pg)
-    assert any("cocoa" in e for e in errs), errs
+    assert any("robusta_coffee" in e for e in errs), errs
 
 
 # ---------------------------------------------------------------------------
@@ -186,3 +189,32 @@ def test_real_registry_wide_metrics_resolve_to_f010_columns():
 
     errs = cch.check_metric_vocabulary(reg, query_fn=pg)
     assert errs == [], errs
+
+
+def test_psd_unserved_slugs_are_known_not_drift(monkeypatch):
+    """The C002 slug check treats cascade.PSD_UNSERVED_SLUGS as declared-unserved: no drift error
+    for cocoa/frozen_orange_juice on silver_psd (the runtime SKIPs those legs at _scope), while any
+    OTHER missing slug still fails."""
+    import leviathan.graphrag.numbers.contract_check as ck
+
+    legs = [("cocoa", "US_section301_tariffs", {"table": "silver_psd"}, None, "cocoa", "United States"),
+            ("wheat", "d1", {"table": "silver_psd"}, None, "unmapped_slug", "United States")]
+    monkeypatch.setattr(ck, "_mapped_legs", lambda: legs)
+
+    class _Reg:
+        def get(self, tid):
+            from leviathan.graphrag.numbers.registry import TableSpec
+            return TableSpec(id=tid, description="", shape="wide", commodity_col="leviathan_slug",
+                             country_col="country", knowledge_date_col="release_date",
+                             knowledge_semantics="vintage")
+
+    calls = []
+
+    def fake_distinct(table, col, query_fn):
+        calls.append((table, col))
+        return {"corn_cbot", "soybeans_cbot"}
+
+    monkeypatch.setattr(ck.cc, "_distinct_set", fake_distinct)
+    errs = ck.check_commodity_slug_vocabulary(_Reg(), query_fn=lambda sql: [])
+    assert not any("cocoa" in e for e in errs)         # declared-unserved: silent-known
+    assert any("unmapped_slug" in e for e in errs)     # a real miss still fails
