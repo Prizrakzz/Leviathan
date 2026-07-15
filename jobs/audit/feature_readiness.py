@@ -18,9 +18,12 @@ REUSES SHIPPED PRIMITIVES ONLY (no new src/leviathan surface):
         -> value_census.census_one_table (parquet FOOTER statistics; per-commodity groups driven off
            the registry partition_mode via sample_groups -- NOT a name heuristic, F1-C01).
   * crit-6 Vocabulary-consistent
-        -> pg-mirror numbers tables emit PENDING-IN-VPC off-VPC (the C002 DISTINCT leg runs in-VPC as a
-           separate AWS Batch job, E2b); non-mirror tables get footer-bounds INDETERMINATE. NEVER an
-           Athena DISTINCT on a projection table (the Jul-2026 LIST-storm class).
+        -> pg-mirror numbers tables emit PENDING-IN-VPC off-VPC; IN-VPC (GRAPHRAG_NUMBERS_BACKEND=pg +
+           a reachable pg mirror) the C002 vocabulary leg runs HERE for that table by reusing
+           contract_check's shipped per-family checks (clean->GREEN, drift->RED, error->INDETERMINATE);
+           non-mirror tables get footer-bounds INDETERMINATE. NEVER an Athena DISTINCT on a projection
+           table (the Jul-2026 LIST-storm class); silver_nasa_power stays excluded from the DISTINCT
+           path; chirps/cpc_soil are absent from the numbers registry.
   * crit-7 Coverage-declared
         -> a pure-offline lint: crop_calendars entry (calendar families) + <slug>_regions.yaml
            geography (weather families).
@@ -29,8 +32,10 @@ SAFETY (r4 folds):
   * F1-SAFE-01: the crit-6 pg leg is IN-VPC ONLY; the local run emits PENDING-IN-VPC (never a FAIL/skip).
   * F1-SAFE-02: the whole live run is wrapped in cascade_census._athena_firewall() -- the OBSERVABLE
     guard. `athena_queries_issued: 0` is stamped only as evidence-of, not the enforcement.
-  * F1-SAFE-03: a per-probe fragment-count cap (>500 fragments -> loud abort) -- a de-compaction
-    regression fails visibly instead of silently issuing a huge footer scan / key-column load.
+  * F1-SAFE-03: a per-probe TABLE-WIDE fragment-count cap (> TABLE_FRAGMENT_CAP fragments -> loud
+    abort) -- a LIST-storm-scale de-compaction regression fails visibly instead of silently issuing a
+    huge footer scan / key-column load. Calibrated ABOVE the largest natural compacted grain (never
+    trips natural country=/region=/year= partitioning).
 
 cp1252 console: all stdout is ASCII-only. Report FILES are UTF-8.
 
@@ -42,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -62,10 +68,17 @@ if str(_REPO_ROOT / "src") not in sys.path:
 PACKAGE = "FR-001"
 SCHEMA_VERSION = "f1_machine_summary/1"
 
-# F1-SAFE-03: crit-1/crit-3 are footer-safe ONLY under the BF-W1-compacted layout (chirps
-# commodity=cotton == 46 files today; pre-compaction ~thousands). A prefix over this many fragments
-# ABORTS loudly -- a layout regression must fail visibly.
-FRAGMENT_CAP = 500
+# F1-SAFE-03: the cap fires on the probe's TABLE-WIDE num_files, so it must clear the largest CORRECT
+# compacted layout and only trip a LIST-storm-scale (~590k-fragment) de-compaction regression -- NEVER
+# natural partition grain. Calibration evidence (MEASURED correct compacted layouts, BF-W1/BF-W2):
+#   silver_chirps      1426  (31 commodities x 46 year-files)
+#   silver_nasa_power  1426
+#   silver_cpc_soil     837
+#   silver_production  2375
+#   silver_modis_ndvi  9723  (513 for ONE commodity -- natural country=/region=/year= grain)
+# The old 500 cap spuriously ABORTed all five (killing the CHIRPS crit-4 must-measure gate); 25000
+# clears every measured layout with headroom while still tripping a ~590k de-compaction loudly.
+TABLE_FRAGMENT_CAP = 25000
 
 # Verdict vocabulary (mirrors the machine-summary schema).
 GREEN = "GREEN"
@@ -146,8 +159,14 @@ _KIND_SINGLE_VINTAGE = "single_vintage"
 
 
 class FragmentCapExceeded(RuntimeError):
-    """A resolved prefix carries more fragments than FRAGMENT_CAP -- a de-compaction regression that
-    must abort the probe loudly (F1-SAFE-03), never silently issue a huge footer/key-column read."""
+    """A resolved prefix carries more fragments than TABLE_FRAGMENT_CAP -- a de-compaction regression
+    that must abort the probe loudly (F1-SAFE-03), never silently issue a huge footer/key-column read."""
+
+
+class PartitionKeyUnresolved(RuntimeError):
+    """A natural-key column is neither a parquet (in-file) column nor a '<col>=<value>' segment of a
+    fragment path -- crit-3 cannot dedup on a PARTIAL key, so the caller emits INDETERMINATE naming the
+    column (never a silent RED/pass, F1 crit-3)."""
 
 
 # --------------------------------------------------------------------------------------------------
@@ -157,7 +176,26 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def enforce_fragment_cap(table: str, probe, *, cap: int = FRAGMENT_CAP) -> None:
+def _partition_values_from_path(path, path_cols) -> tuple:
+    """Parse the '<col>=<value>' Hive segments of ONE fragment path and return the value tuple for
+    `path_cols` (order-preserving). Raises PartitionKeyUnresolved naming the first `path_cols` column
+    absent from the path. `path_cols == []` -> `()` (the flat, no-partition case)."""
+    found: dict = {}
+    for seg in str(path).replace("\\", "/").split("/"):
+        if "=" in seg:
+            k, _, v = seg.partition("=")
+            found[k] = v
+    values = []
+    for c in path_cols:
+        if c not in found:
+            raise PartitionKeyUnresolved(
+                f"natural-key column {c!r} is neither an in-file column nor a partition segment of "
+                f"path {str(path)!r}")
+        values.append(found[c])
+    return tuple(values)
+
+
+def enforce_fragment_cap(table: str, probe, *, cap: int = TABLE_FRAGMENT_CAP) -> None:
     """Raise FragmentCapExceeded when a probe's fragment count exceeds the cap (F1-SAFE-03)."""
     n = int(getattr(probe, "num_files", 0) or 0)
     if n > cap:
@@ -343,23 +381,100 @@ def crit5_vintage(table: str, contract: dict, census_d: dict) -> tuple:
 def crit6_vocabulary(table: str, contract: dict, *, pg_mirror: bool, pg_reachable: bool) -> tuple:
     """Vocabulary-consistent (table-level). Returns (verdict, evidence_dict).
 
-    * pg-mirror numbers table + pg unreachable (the off-VPC local run) -> PENDING-IN-VPC (never a FAIL;
-      the C002 DISTINCT leg runs in-VPC as AWS Batch, E2b -- F1-SAFE-01).
+    * pg-mirror numbers table + pg UNREACHABLE (the off-VPC local run) -> PENDING-IN-VPC (never a FAIL;
+      F1-SAFE-01).
+    * pg-mirror numbers table + pg REACHABLE (in-VPC, GRAPHRAG_NUMBERS_BACKEND=pg) -> RUN the C002
+      vocabulary leg for THIS table via contract_check's shipped per-family checks: clean -> GREEN
+      (checked filter values in evidence), drift -> RED (naming the drifted values), leg error ->
+      INDETERMINATE (with the error). No longer the circular defer-to-E2b branch.
     * every other (feature/flat/projection) table -> INDETERMINATE via footer distinct-BOUNDS only.
-      NEVER an Athena DISTINCT on a projection table, NEVER a recursive silver/weather/ list (the
-      Jul-2026 LIST-storm class).
+
+    FENCES: NEVER an Athena DISTINCT (the Jul-2026 LIST-storm class); silver_nasa_power stays excluded
+    from the DISTINCT path (contract_check's NUMBERS_PROJECTION_TABLES fence); chirps/cpc_soil are
+    absent from the numbers registry (the leg yields no families for them).
     """
     if pg_mirror:
         if not pg_reachable:
             return (PENDING_IN_VPC, {
                 "detail": "C002 DISTINCT vocabulary leg requires the in-VPC RDS pg mirror; resolved by "
                           "the E2b AWS Batch job (GRAPHRAG_NUMBERS_BACKEND=pg)"})
-        return (INDETERMINATE, {"detail": "pg reachable but the in-harness C002 leg is not run here "
-                                          "(delegated to contract_check.run_live at E2b)"})
+        try:
+            errors, checked = _pg_vocabulary_leg(table)
+        except Exception as exc:  # noqa: BLE001 -- a leg error is INDETERMINATE, never a false GREEN/RED
+            return (INDETERMINATE, {
+                "detail": f"C002 pg vocabulary leg error: {type(exc).__name__}: {exc}"[:200]})
+        if errors:
+            return (RED, {"detail": "C002 vocabulary drift (pg mirror, in-VPC)",
+                          "drift": list(errors)[:8], "checked": checked})
+        return (GREEN, {"detail": "C002 vocabulary clean (pg mirror, in-VPC)", "checked": checked})
     return (INDETERMINATE, {
         "detail": "non-mirror table: crit-6 via footer distinct-bounds only (largest genuine scope gap); "
                   "declared filter strings that cannot be footer-confirmed are reported indeterminate -- "
                   "NEVER an Athena DISTINCT on a projection table"})
+
+
+def _probe_pg_reachable(query_fn: Optional[Callable] = None) -> bool:
+    """Probe the in-VPC pg mirror ONCE via the SAME path contract_check uses (pgnumbers.pg_query). Any
+    connection/import/DSN error -> False, so the off-VPC local run stays PENDING-IN-VPC (never a false
+    RUN). F1-SAFE-01. `query_fn` is injectable for tests."""
+    try:
+        if query_fn is None:
+            from leviathan.graphrag.numbers import pgnumbers
+            query_fn = pgnumbers.pg_query
+        query_fn("SELECT 1")
+        return True
+    except Exception:  # noqa: BLE001 -- any error means the pg mirror is not reachable from here
+        return False
+
+
+def _pg_vocabulary_leg(table: str, *, query_fn: Optional[Callable] = None, reg=None) -> tuple:
+    """F1-SAFE-01 in-VPC leg: run the SILVER-C002 vocabulary families for ONE pg-mirror `table` by
+    reusing contract_check's shipped per-family check functions, scoped to this table via a single-table
+    registry facade -- the WHOLE C002 gate never runs and only THIS table's DISTINCT probes fire.
+
+    Returns (errors, checked): `errors` == the drift strings for this table (empty == clean); `checked`
+    == the filter columns asserted. `query_fn` MUST be pgnumbers.pg_query (raise-on-failure, the same
+    path contract_check uses) -- NEVER Athena. silver_nasa_power is excluded by contract_check's own
+    NUMBERS_PROJECTION_TABLES fence; chirps/cpc_soil are absent from the numbers registry (no legs)."""
+    from leviathan.graphrag.numbers import contract_check as cctr
+    if query_fn is None:
+        from leviathan.graphrag.numbers import pgnumbers
+        query_fn = pgnumbers.pg_query
+    if reg is None:
+        from leviathan.graphrag.numbers.registry import load_registry
+        reg = load_registry()
+
+    class _OneTable:
+        """A single-table view of the numbers registry: check_metric_vocabulary iterates `.tables`;
+        the country/slug families iterate causal legs and call `.get(<leg table>)`, so any other
+        table raises here and is skipped -- both families are thereby scoped to `table`."""
+        tables = frozenset({table})
+
+        @staticmethod
+        def get(tid):
+            if tid != table:
+                raise KeyError(tid)
+            return reg.get(tid)
+
+    facade = _OneTable()
+    caches: dict = {}
+    errors: list = []
+    errors += cctr.check_metric_vocabulary(facade, query_fn=query_fn, caches=caches)
+    errors += cctr.check_country_vocabulary(facade, query_fn=query_fn, caches=caches)
+    errors += cctr.check_commodity_slug_vocabulary(facade, query_fn=query_fn, caches=caches)
+
+    try:
+        ts = reg.get(table)
+    except Exception:  # noqa: BLE001 -- evidence-only; an unregistered table yields no families above
+        ts = None
+    checked = {
+        "table": table,
+        "distinct_cols_probed": sorted({k[2] for k in caches if k and k[0] == "distinct"}),
+        "metric_col": getattr(ts, "metric_col", None),
+        "country_col": getattr(ts, "country_col", None),
+        "commodity_col": getattr(ts, "commodity_col", None),
+    }
+    return errors, checked
 
 
 def crit7_coverage(table: str, commodity: str, *, calendar_slugs, regions_present: bool,
@@ -427,7 +542,17 @@ class Harness:
     # ---- crit-3 (the one load-bearing data read; bounded, key-columns only) ----------------------
     def _key_dup_count(self, table: str, natural_key: list, probe) -> int:
         """Bounded key-columns-only projected read over the footer-listed exact-prefix files. NEVER
-        Athena, NEVER a recursive list. Respects the fragment cap already enforced on `probe`."""
+        Athena, NEVER a recursive list. Respects the fragment cap already enforced on `probe`.
+
+        EXACT-KEY semantics (F1 crit-3): Hive partition keys are PATH-materialized, not parquet columns,
+        so a `[c for c in natural_key if c in schema.names]` dedup would drop them and count fake
+        cross-partition duplicates (the 73,244-dup nass/wasde/iod class). The key is split into `in_file`
+        (footer columns) and `path_cols` (partition keys parsed from each fragment path); files are
+        GROUPED by their partition-value tuple -- partition values are constant per fragment and are part
+        of the key, so a duplicate can never span groups -- and deduped on the in-file columns WITHIN
+        each group, summed. If the whole key is path-materialized (`in_file` empty), each group's dups ==
+        max(0, rows-1). An unresolvable path column raises PartitionKeyUnresolved so the caller emits
+        INDETERMINATE (never a silent RED/pass)."""
         if self.backends.key_dup_fn is not None:
             return self.backends.key_dup_fn(table, natural_key, getattr(probe, "files", ()), None)
         import pyarrow.dataset as ds  # lazy
@@ -439,22 +564,42 @@ class Harness:
         first = str(files[0])
         if Path(first).exists():
             # local parquet (tests / a local materialization) -- read directly.
-            dataset = ds.dataset(files, format="parquet")
+            fs = None
+            norm = [str(f) for f in files]
         else:
             # pyarrow S3 fragment paths are `bucket/key` (no scheme); read via S3FileSystem.
-            import os
             region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
             fs = pafs.S3FileSystem(region=region)
             norm = [f"{urlparse(f).netloc}{urlparse(f).path}" if str(f).startswith("s3://") else str(f)
                     for f in files]
-            dataset = ds.dataset(norm, filesystem=fs, format="parquet")
-        cols = [c for c in natural_key if c in dataset.schema.names]
-        if not cols:
-            return 0
+
+        def _dataset(paths):
+            return (ds.dataset(paths, format="parquet") if fs is None
+                    else ds.dataset(paths, filesystem=fs, format="parquet"))
+
+        schema_names = set(_dataset(norm).schema.names)
+        in_file = [c for c in natural_key if c in schema_names]
+        path_cols = [c for c in natural_key if c not in schema_names]
+
+        # group fragments by their partition-value tuple (parsed from the ORIGINAL path, which carries
+        # the hive segments even for `bucket/key` S3 paths). Raises PartitionKeyUnresolved on a key
+        # column present in neither the footer schema nor the path.
+        groups: dict = {}
+        for orig, npath in zip(files, norm):
+            pkey = _partition_values_from_path(orig, path_cols)
+            groups.setdefault(pkey, []).append(npath)
+
         import pandas as pd  # lazy
-        tbl = dataset.to_table(columns=cols)
-        df: pd.DataFrame = tbl.to_pandas()
-        return int(df.duplicated(subset=cols).sum())
+        total = 0
+        for _pkey, paths in groups.items():
+            g = _dataset(paths)
+            if in_file:
+                df: pd.DataFrame = g.to_table(columns=in_file).to_pandas()
+                total += int(df.duplicated(subset=in_file).sum())
+            else:
+                # whole key path-materialized: every row in a partition shares the full key.
+                total += max(0, int(g.count_rows()) - 1)
+        return int(total)
 
     def crit3_key_clean(self, table: str, contract: dict, probe, *, per_commodity: str,
                         commodities) -> dict:
@@ -477,6 +622,11 @@ class Harness:
         # per commodity (a duplicate key is a table-level defect regardless of commodity).
         try:
             dups = self._key_dup_count(table, natural_key, probe)
+        except PartitionKeyUnresolved as exc:  # partial-key dedup would be a fake RED -> INDETERMINATE
+            for cm in commodities:
+                out[cm] = (INDETERMINATE, {"detail": f"unresolvable partition key: {exc}"[:200],
+                                           "natural_key": natural_key})
+            return out
         except Exception as exc:  # noqa: BLE001 -- a read failure is INDETERMINATE, never a false pass
             for cm in commodities:
                 out[cm] = (INDETERMINATE, {"detail": f"key read failed: {type(exc).__name__}: {exc}"[:200]})
@@ -726,7 +876,8 @@ def _pg_mirror_tables() -> frozenset:
                           ESR_SERVING_TABLE, "silver_fred_fx", "silver_noaa_oni", "gold_weather_z"})
 
 
-def build_harness(*, skip_aws: bool, backends: Optional[Backends] = None) -> Harness:
+def build_harness(*, skip_aws: bool, backends: Optional[Backends] = None,
+                  pg_reachable: bool = False) -> Harness:
     from leviathan.silver import registry as sreg
     from leviathan.features import registry as freg
     from leviathan.features.calendar import load_crop_calendars
@@ -741,13 +892,14 @@ def build_harness(*, skip_aws: bool, backends: Optional[Backends] = None) -> Har
         geo_dir=geo_dir,
         backends=backends or (Backends() if skip_aws else _default_backends()),
         pg_mirror_tables=_pg_mirror_tables(),
-        pg_reachable=False,
+        pg_reachable=pg_reachable,
         skip_aws=skip_aws,
     )
 
 
-def run(evidence_dir: Path, tables: Optional[list[str]], *, skip_aws: bool) -> int:
-    harness = build_harness(skip_aws=skip_aws)
+def run(evidence_dir: Path, tables: Optional[list[str]], *, skip_aws: bool,
+        pg_reachable: bool = False) -> int:
+    harness = build_harness(skip_aws=skip_aws, pg_reachable=pg_reachable)
     targets = tables or [t for t in SOURCE_KEY_TO_TABLE.values() if t in harness.silver_reg.tables]
     targets = sorted(dict.fromkeys(targets))
 
@@ -785,7 +937,12 @@ def main(argv=None) -> int:
     ap.add_argument("--skip-aws", action="store_true", help="offline enumeration mode (no AWS reads)")
     a = ap.parse_args(argv)
     tables = [t.strip() for t in a.tables.split(",") if t.strip()] if a.tables else None
-    return run(Path(a.evidence_dir), tables, skip_aws=a.skip_aws)
+    # FIX 4: with the pg numbers backend selected, PROBE the in-VPC pg mirror ONCE and thread the
+    # result through so crit-6 RUNS the C002 vocabulary leg in-VPC (off-VPC stays PENDING-IN-VPC).
+    pg_reachable = False
+    if os.environ.get("GRAPHRAG_NUMBERS_BACKEND", "").strip().lower() == "pg":
+        pg_reachable = _probe_pg_reachable()
+    return run(Path(a.evidence_dir), tables, skip_aws=a.skip_aws, pg_reachable=pg_reachable)
 
 
 if __name__ == "__main__":

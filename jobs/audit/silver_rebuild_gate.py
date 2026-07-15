@@ -292,11 +292,21 @@ def stage_feature_probe(table: str, ctx: GateContext) -> StageResult:
             return StageResult("feature_probe", RED, f"no parquet at {location}")
         required = set(ctx.silver_reg.value_columns(table) or [])
         required |= {k for k in (c.get("natural_key") or [])}
-        missing = sorted(required - set(probe.columns))
+        # Hive partition-key columns (commodity= for silver_nass_crop_progress, release_date= for
+        # silver_wasde) are materialized in the S3 PATH, NEVER in the parquet FOOTER schema that
+        # probe.columns reflects -- so a partitioned table whose natural_key includes its partition key
+        # would false-RED here ("missing required columns ['commodity']"). Declared partition keys count
+        # as PRESENT (satisfied from the contract / path-materialized); only genuinely-missing IN-FILE
+        # columns stay RED (e.g. silver_wasde's additive F036 columns lagging on pre-2026-06 partitions).
+        pk = {k.get("name") for k in (c.get("partition_keys") or [])}
+        path_materialized = sorted((required & pk) - set(probe.columns))
+        missing = sorted((required - pk) - set(probe.columns))
         if missing:
             return StageResult("feature_probe", RED, f"missing required columns {missing}")
-        return StageResult("feature_probe", GREEN,
-                           f"{probe.num_files} file(s), {probe.num_rows} rows, contract columns present")
+        detail = f"{probe.num_files} file(s), {probe.num_rows} rows, contract columns present"
+        if path_materialized:
+            detail += f"; +{len(path_materialized)} partition-key column(s) path-materialized"
+        return StageResult("feature_probe", GREEN, detail)
     except Exception as e:  # noqa: BLE001
         return StageResult("feature_probe", RED, f"{type(e).__name__}: {str(e)[:200]}")
 

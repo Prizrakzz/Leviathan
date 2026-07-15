@@ -86,6 +86,21 @@ def _probe(*, exists=True, num_files=3, num_rows=100, columns=(), files=()):
                                  columns=tuple(columns), files=tuple(files))
 
 
+def _write_parquet(path, cols):
+    """Write a hive-layout local parquet fragment (path carries the '<col>=<value>' segments)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.table(cols), path)
+    return str(path)
+
+
+def _bare_harness(tmp_path):
+    """A Harness with default (un-injected) backends -> crit-3 exercises the REAL bounded pyarrow
+    key-dup reader over local fragments (no key_dup_fn shortcut, no AWS)."""
+    return fr.Harness(silver_reg=None, feature_reg=None, calendar_slugs=set(), geo_dir=tmp_path,
+                      backends=fr.Backends(), pg_mirror_tables=frozenset(), pg_reachable=False,
+                      skip_aws=False)
+
+
 def _fake_backends(*, probe=None, stage=None, census_d=None, dups=0):
     return fr.Backends(
         probe_fn=lambda t, root: probe if probe is not None else _probe(),
@@ -306,17 +321,23 @@ def test_projected_table_probe_never_constructs_athena_client(tmp_path, monkeypa
 
 
 # --------------------------------------------------------------------------------------------------
-# 8. >500-fragment prefix aborts loudly (F1-SAFE-03).
+# 8. LIST-storm-scale de-compaction aborts loudly; natural grain passes (F1-SAFE-03, TABLE_FRAGMENT_CAP).
 # --------------------------------------------------------------------------------------------------
-def test_over_500_fragments_aborts_loudly():
+def test_over_table_fragment_cap_aborts_loudly():
+    assert fr.TABLE_FRAGMENT_CAP == 25000            # calibrated above the largest measured layout
     with pytest.raises(fr.FragmentCapExceeded):
-        fr.enforce_fragment_cap("silver_chirps", _probe(num_files=501))
+        fr.enforce_fragment_cap("silver_chirps", _probe(num_files=fr.TABLE_FRAGMENT_CAP + 1))
     # at the cap is fine; one over is not.
-    fr.enforce_fragment_cap("silver_chirps", _probe(num_files=500))
+    fr.enforce_fragment_cap("silver_chirps", _probe(num_files=fr.TABLE_FRAGMENT_CAP))
+    # the five MEASURED correct compacted layouts must all pass (chirps/nasa_power 1426, cpc_soil 837,
+    # production 2375, modis_ndvi 9723 -- the layout the old 500 cap spuriously aborted).
+    for n in (1426, 837, 2375, 9723):
+        fr.enforce_fragment_cap("silver_modis_ndvi", _probe(num_files=n))
 
 
 def test_evaluate_table_records_abort_on_decompaction():
-    h = fr.build_harness(skip_aws=False, backends=_fake_backends(probe=_probe(num_files=9001)))
+    # a genuine ~590k-fragment de-compaction regression still aborts loudly.
+    h = fr.build_harness(skip_aws=False, backends=_fake_backends(probe=_probe(num_files=590_000)))
     rec = h.evaluate_table("silver_chirps")
     assert rec["criteria"]["crit1_present"][0] == fr.ABORTED
     assert "aborted" in rec
@@ -379,3 +400,101 @@ def test_skip_aws_run_is_offline_and_writes_artifacts(tmp_path):
     assert (tmp_path / "silver_chirps.json").exists()
     assert (tmp_path / "f1_machine_summary.json").exists()
     assert (tmp_path / "FEATURE_READINESS_REPORT.md").exists()
+
+
+# --------------------------------------------------------------------------------------------------
+# 10. crit-3 exact-key dedup: Hive partition keys are path-materialized, not footer columns (FIX 2).
+# --------------------------------------------------------------------------------------------------
+def test_crit3_hive_partition_key_not_double_counted(tmp_path):
+    # `commodity` is a PATH-materialized partition key; identical IN-FILE rows across two partitions
+    # form a UNIQUE full key -> 0 dups. The old partial-key dedup counted them as fake dups (the
+    # 73,244-dup nass_crop_progress/wasde/noaa_iod class).
+    fa = _write_parquet(tmp_path / "commodity=a" / "part.parquet",
+                        {"year": pa.array([2020, 2021]), "metric": pa.array([1.0, 2.0])})
+    fb = _write_parquet(tmp_path / "commodity=b" / "part.parquet",
+                        {"year": pa.array([2020, 2021]), "metric": pa.array([1.0, 2.0])})
+    h = _bare_harness(tmp_path)
+    probe = _probe(files=(fa, fb), num_files=2)
+    nk = ["commodity", "year", "metric"]
+    assert h._key_dup_count("silver_nass_crop_progress", nk, probe) == 0
+    # ...and crit-3 rolls that up to GREEN for each served commodity.
+    out = h.crit3_key_clean("silver_nass_crop_progress", {"natural_key": nk}, probe,
+                            per_commodity="per_group", commodities=["a", "b"])
+    assert out["a"][0] == fr.GREEN and out["b"][0] == fr.GREEN
+
+
+def test_crit3_genuine_dup_within_partition_is_counted(tmp_path):
+    # a real duplicate WITHIN one partition (same commodity/year/metric twice) is still caught -> RED.
+    f = _write_parquet(tmp_path / "commodity=a" / "part.parquet",
+                       {"year": pa.array([2020, 2020]), "metric": pa.array([1.0, 1.0])})
+    h = _bare_harness(tmp_path)
+    probe = _probe(files=(f,), num_files=1)
+    nk = ["commodity", "year", "metric"]
+    assert h._key_dup_count("silver_nass_crop_progress", nk, probe) == 1
+    out = h.crit3_key_clean("silver_nass_crop_progress", {"natural_key": nk}, probe,
+                            per_commodity="per_group", commodities=["a"])
+    assert out["a"][0] == fr.RED and out["a"][1]["duplicate_keys"] == 1
+
+
+def test_crit3_whole_key_path_materialized_counts_rows_minus_one(tmp_path):
+    # edge: EVERY natural-key column is a partition key -> each row in a partition shares the full key,
+    # so dups per group == rows-1 (counted via count_rows, no in-file columns to dedup on).
+    f = _write_parquet(tmp_path / "commodity=a" / "year=2020" / "part.parquet",
+                       {"value": pa.array([1.0, 2.0, 3.0])})
+    h = _bare_harness(tmp_path)
+    probe = _probe(files=(f,), num_files=1)
+    assert h._key_dup_count("silver_x", ["commodity", "year"], probe) == 2
+
+
+def test_crit3_unresolvable_key_column_is_indeterminate(tmp_path):
+    # `release_date` is neither an in-file column NOR a path segment -> INDETERMINATE naming it (never a
+    # silent RED/pass) -- the wasde release_date class.
+    f = _write_parquet(tmp_path / "commodity=a" / "part.parquet",
+                       {"year": pa.array([2020]), "metric": pa.array([1.0])})
+    h = _bare_harness(tmp_path)
+    probe = _probe(files=(f,), num_files=1)
+    out = h.crit3_key_clean("silver_wasde",
+                            {"natural_key": ["commodity", "year", "metric", "release_date"]}, probe,
+                            per_commodity="table_level", commodities=["a"])
+    v, ev = out["a"]
+    assert v == fr.INDETERMINATE and "release_date" in ev["detail"]
+
+
+# --------------------------------------------------------------------------------------------------
+# 11. crit-6 pg-mirror leg RUNS in-VPC when pg is reachable (FIX 4): clean->GREEN, drift->RED,
+#     error->INDETERMINATE; the reachability probe fails closed to PENDING-IN-VPC.
+# --------------------------------------------------------------------------------------------------
+def test_crit6_pg_reachable_and_clean_is_green(monkeypatch):
+    monkeypatch.setattr(fr, "_pg_vocabulary_leg",
+                        lambda table, **k: ([], {"table": table, "metric_col": "metric",
+                                                 "distinct_cols_probed": ["metric"]}))
+    v, ev = fr.crit6_vocabulary("silver_wasde", {}, pg_mirror=True, pg_reachable=True)
+    assert v == fr.GREEN and ev["checked"]["metric_col"] == "metric"
+
+
+def test_crit6_pg_reachable_with_drift_is_red(monkeypatch):
+    drift = ["silver_wasde: metric column 'Ending Stocks' is not a physical column of silver_wasde"]
+    monkeypatch.setattr(fr, "_pg_vocabulary_leg", lambda table, **k: (drift, {"table": table}))
+    v, ev = fr.crit6_vocabulary("silver_wasde", {}, pg_mirror=True, pg_reachable=True)
+    assert v == fr.RED and "Ending Stocks" in ev["drift"][0]
+
+
+def test_crit6_pg_leg_error_is_indeterminate(monkeypatch):
+    def _boom(table, **k):
+        raise RuntimeError("pg query blew up")
+    monkeypatch.setattr(fr, "_pg_vocabulary_leg", _boom)
+    v, ev = fr.crit6_vocabulary("silver_wasde", {}, pg_mirror=True, pg_reachable=True)
+    assert v == fr.INDETERMINATE and "pg query blew up" in ev["detail"]
+
+
+def test_probe_pg_reachable_connectionerror_stays_pending_in_vpc():
+    # the reachability probe FAILS CLOSED: a ConnectionError -> False -> crit-6 PENDING-IN-VPC (F1-SAFE-01).
+    def _boom(sql):
+        raise ConnectionError("no route to the RDS pg mirror")
+    assert fr._probe_pg_reachable(query_fn=_boom) is False
+    v, ev = fr.crit6_vocabulary("silver_wasde", {}, pg_mirror=True, pg_reachable=False)
+    assert v == fr.PENDING_IN_VPC and "in-VPC" in ev["detail"]
+
+
+def test_probe_pg_reachable_clean_query_is_true():
+    assert fr._probe_pg_reachable(query_fn=lambda sql: [(1,)]) is True
