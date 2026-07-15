@@ -25,7 +25,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Sequence
 
-# Season token: "2011/12", "2011-12", "2011_12", or "2011/2012" -> normalized "2011/12".
+# Season token: "2011/12", "2011-12", "2011_12", or "2011/2012" -> normalized "2011-12"
+# (the DASH form is the canonical SAGIS silver season across deliveries and exports).
 _SEASON_RE = re.compile(r"(19|20)(\d{2})[\-_/](\d{2,4})")
 # Week token: "Week51", "Week_51", "Week-51", "wk51", or a trailing "_51".
 _WEEK_RE = re.compile(r"(?:week|wk)[\s_\-]*(\d{1,2})", re.IGNORECASE)
@@ -33,18 +34,28 @@ _TRAILING_WEEK_RE = re.compile(r"[\-_](\d{1,2})(?=\.[A-Za-z]+$)")
 
 
 def normalize_season(raw_start: str, raw_end: str) -> str:
-    """Normalize a season to ``YYYY/YY`` (e.g. ('2011','12') or ('2011','2012') -> '2011/12')."""
+    """Normalize a season to ``YYYY-YY`` (e.g. ('2011','12') or ('2011','2012') -> '2011-12')."""
     start = raw_start
     end = raw_end if len(raw_end) == 2 else raw_end[-2:]
-    return f"{start}/{end}"
+    return f"{start}-{end}"
 
 
 def parse_season(text: str) -> Optional[str]:
-    """Extract a normalized ``YYYY/YY`` season from a filename, else None."""
+    """Extract a normalized ``YYYY-YY`` season from a filename, else None.
+
+    GLUED-WEEK guard (live-caught, BF-W3): several published filenames glue the snapshot
+    week onto the season end-year with no separator -- ``Mielies2024-2552.8.xlsx`` means
+    season 2024-25 at week 52.8, but the naive 4-digit end-group read it as '2552' and
+    normalized to the impossible season '2024-52'. When a 4-digit end-year is NOT the
+    start year + 1, but its first two digits ARE, the tail digits belong to the week token.
+    """
     m = _SEASON_RE.search(text)
     if not m:
         return None
     century, yy, end = m.group(1), m.group(2), m.group(3)
+    start = int(f"{century}{yy}")
+    if len(end) == 4 and int(end) != start + 1 and int(end[:2]) == (start + 1) % 100:
+        end = end[:2]
     return normalize_season(f"{century}{yy}", end)
 
 

@@ -189,10 +189,10 @@ def select_authoritative(records: Sequence[DeliveryWeekRecord]) -> list[dict]:
 
 
 def _season_shift(season: str, back: int) -> str:
-    """Shift a ``YYYY/YY`` season back by ``back`` years: ('2011/12', 1) -> '2010/11'."""
-    start = int(season.split("/")[0])
+    """Shift a canonical ``YYYY-YY`` season back by ``back`` years: ('2011-12', 1) -> '2010-11'."""
+    start = int(season.split("-")[0])
     s0 = start - back
-    return f"{s0}/{str(s0 + 1)[-2:]}"
+    return f"{s0}-{str(s0 + 1)[-2:]}"
 
 
 def records_from_normalized(
@@ -235,13 +235,15 @@ DEFAULT_DELIVERY_COLUMN_MAP: dict[str, str] = {
     "prog_total_mt": "Prog. Total",
 }
 
-_HEADER_SCAN_ROWS = 16   # title block depth to scan for the real header row (old .xls era: row 12)
+_HEADER_SCAN_ROWS = 24   # title block depth to scan for the real header row (old .xls maize era
+                         # carries the header at row index 16-17, under the grade-legend block)
 
 
 def _canon_header(s: object) -> str:
     """Header token canonicalization across publication eras: case, punctuation and spacing
-    drift ('Week Ending' vs 'Week ending'; 'Prog. Total' vs 'Prog Total') but the words do not."""
-    return " ".join(str(s).strip().lower().replace(".", " ").split())
+    drift ('Week Ending' vs 'Week ending'; 'Prog. Total' vs 'Prog Total'), and the 2010-12
+    old-.xls era prints the AFRIKAANS 'Prog Totaal' in the English header row."""
+    return " ".join(str(s).strip().lower().replace(".", " ").replace("totaal", "total").split())
 
 
 def _pick_total_sheet(xl: "pd.ExcelFile") -> object:
@@ -289,16 +291,46 @@ def read_deliveries_xlsx(
     sheet = sheet_name if sheet_name is not None else _pick_total_sheet(xl)
     hdr = header if header is not None else _detect_header_row(xl, sheet, cmap)
     df = xl.parse(sheet, header=hdr)
-    # match source headers by CANONICAL token (era drift: 'Week ending', 'Prog Total'), first
-    # match per canonical target wins; unmatched columns pass through untouched.
+    # match source headers by CANONICAL token (era drift: 'Week ending', 'Prog Total').
+    # WIDE GRADE-BLOCK eras (old .xls maize; the 2016-18 'Table 1' era): White/Yellow/Total
+    # blocks repeat the same headers side by side and the TOTAL block is rightmost -- the
+    # published prog total is therefore the LAST 'prog total' column, never the first (the
+    # first is the White block; picking it minted white-only values for 2016-17, live-caught).
+    # Every other mapped target keeps first-match; unmatched columns pass through untouched.
     inv = {_canon_header(src): dst for dst, src in cmap.items()}
+    cols = list(df.columns)
     rename, taken = {}, set()
-    for col in df.columns:
+    prog_src = _canon_header(cmap.get("prog_total_mt", ""))
+    # pandas dedupes repeated headers as 'Prog Total.1' / '.2' -- canonically 'prog total N';
+    # accept the bare token plus the dedup-suffixed forms so the LAST block is reachable.
+    prog_pat = re.compile(rf"{re.escape(prog_src)}( \d+)?$")
+    prog_matches = [c for c in cols if prog_pat.fullmatch(_canon_header(c))]
+    if prog_matches:
+        rename[prog_matches[-1]] = "prog_total_mt"
+        taken.add("prog_total_mt")
+    for col in cols:
         dst = inv.get(_canon_header(col))
-        if dst and dst not in taken:
+        if dst and dst not in taken and col not in rename:
             rename[col] = dst
             taken.add(dst)
     df = df.rename(columns=rename)
+    # UNIT SCALE (old-era finals publish in '000 ton; the modern era in tons). The label alone
+    # LIES on at least one file (wheat 2005-06 says '000 ton over plain-ton values), so the
+    # scale applies ONLY when the label says thousands AND the magnitudes agree: a full-season
+    # cumulative below 50,000 cannot be tons for any SA crop, and a '000-ton cumulative above
+    # it (>= 50M tons) is equally impossible. Both signals must point the same way.
+    scale = 1.0
+    try:
+        probe = xl.parse(sheet, header=None, nrows=hdr)
+        says_thousand = any("'000" in str(v) for _, r in probe.iterrows() for v in r.tolist())
+    except Exception:  # noqa: BLE001 -- a probe failure never blocks the read
+        says_thousand = False
+    if says_thousand and "prog_total_mt" in df.columns:
+        vals = pd.to_numeric(df["prog_total_mt"], errors="coerce").dropna()
+        if len(vals) and float(vals.max()) < 50_000:
+            scale = 1000.0
+            logger.info("SAGIS deliveries %s: '000-ton era detected (max %.0f) -> x1000",
+                        snapshot.filename, float(vals.max()))
     normalized: list[dict] = []
     for _, r in df.iterrows():
         wk = r.get("week_number")
@@ -309,10 +341,16 @@ def read_deliveries_xlsx(
         rec: dict = {"week_number": wk}
         if "week_ending_label" in df.columns:
             val = r.get("week_ending_label")
-            rec["week_ending_label"] = None if pd.isna(val) else str(val)
+            # source cells carry stray trailing blanks in the old .xls era -- strip, and an
+            # all-blank label is no label.
+            s = None if pd.isna(val) else str(val).strip()
+            rec["week_ending_label"] = s or None
         if "prog_total_mt" in df.columns:
             val = r.get("prog_total_mt")
-            rec["prog_total_mt"] = None if pd.isna(val) else float(val)
+            try:
+                rec["prog_total_mt"] = None if pd.isna(val) else float(val) * scale
+            except (TypeError, ValueError):
+                rec["prog_total_mt"] = None
         # print-layout GHOST TAIL (old .xls era, live-caught): a second page block repeats the
         # bare week-number column 4..53 with every value cell empty. A week number with neither
         # a week-ending label nor a prog total is not an observation -- emitting it minted
@@ -320,7 +358,21 @@ def read_deliveries_xlsx(
         if rec.get("week_ending_label") is None and rec.get("prog_total_mt") is None:
             continue
         normalized.append(rec)
-    return records_from_normalized(normalized, snapshot)
+    # WITHIN-FILE revision collapse (live-caught: wheat 2011-12 week 51): a repeated week
+    # number inside ONE snapshot is a sequential post-season adjustment of the cumulative
+    # ('24 Oct' -3711 then '28 Nov' -26); the sheet's bottom-most occurrence is the season
+    # final. Cross-snapshot conflicts still fail closed at the co-authoritative guard --
+    # this collapse only ever applies within a single file.
+    by_week: dict[int, dict] = {}
+    dups = 0
+    for rec in normalized:
+        if rec["week_number"] in by_week:
+            dups += 1
+        by_week[rec["week_number"]] = rec
+    if dups:
+        logger.info("SAGIS deliveries %s: %d within-file week revisions collapsed (last wins)",
+                    snapshot.filename, dups)
+    return records_from_normalized(list(by_week.values()), snapshot)
 
 
 def build_deliveries_silver(records: Sequence[DeliveryWeekRecord]) -> pd.DataFrame:
@@ -345,13 +397,19 @@ def build_deliveries_silver(records: Sequence[DeliveryWeekRecord]) -> pd.DataFra
         for r in df.itertuples(index=False)
     }
 
+    # Derived-column semantics REVERSE-ENGINEERED from the golden physical (BF-W3 lane,
+    # exact-match verified 782/800 pct + 500/500 z sampled rows): pct_of_prior_yr is the plain
+    # RATIO prog / prior-season-same-week (never x100), and z_vs_3yr_avg uses the SAMPLE std
+    # (ddof=1) over the trailing <=3 prior seasons' same week. prior_prog_total_mt is emitted
+    # for EVERY row with a prior observation -- the golden populated it only from 2023-24
+    # onward (a builder quirk on this non-census-gated column; documented deviation).
     prior_tot, pct, zscore = [], [], []
     for r in df.itertuples(index=False):
         p1 = lut.get((_season_shift(r.season, 1), r.crop, r.week_number))
         prior_tot.append(p1)
         cur = r.prog_total_mt
         pct.append(
-            (cur / p1 * 100.0) if (cur is not None and p1 not in (None, 0) and not _isnan(p1)) else np.nan
+            (cur / p1) if (cur is not None and p1 not in (None, 0) and not _isnan(p1)) else np.nan
         )
         # Trailing 3 PRIOR seasons (never the current/future) for the z-score.
         hist = [
@@ -360,7 +418,7 @@ def build_deliveries_silver(records: Sequence[DeliveryWeekRecord]) -> pd.DataFra
         hist = [h for h in hist if h is not None and not _isnan(h)]
         if cur is not None and not _isnan(cur) and len(hist) >= 2:
             mu = float(np.mean(hist))
-            sd = float(np.std(hist, ddof=0))
+            sd = float(np.std(hist, ddof=1))
             zscore.append((cur - mu) / sd if sd > 0 else np.nan)
         else:
             zscore.append(np.nan)

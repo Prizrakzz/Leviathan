@@ -57,9 +57,13 @@ def _rec(snap, week, total=None, grades=None):
 
 class TestSnapshotParser:
     @pytest.mark.parametrize("fn,exp", [
-        ("ProdProgressive-Mielies_2026-2027_03.xlsx", "2026/27"),
-        ("IMP-EXP_Progressive_Koring_2011_12_Week51.xls", "2011/12"),
-        ("ProdProgressive_-_Sojabone_2015/16.xlsx", "2015/16"),
+        ("ProdProgressive-Mielies_2026-2027_03.xlsx", "2026-27"),
+        ("IMP-EXP_Progressive_Koring_2011_12_Week51.xls", "2011-12"),
+        ("ProdProgressive_-_Sojabone_2015/16.xlsx", "2015-16"),
+        # GLUED week digits (live-caught, BF-W3): the snapshot week is fused onto the season
+        # end-year; the naive 4-digit end minted the impossible season '2024-52'.
+        ("ProdProgressive-Mielies2024-2552.8.xlsx", "2024-25"),
+        ("ProdProgressive_-_-Sonneblom-2018-1952.9.xls", "2018-19"),
     ])
     def test_parse_season(self, fn, exp):
         assert parse_season(fn) == exp
@@ -161,10 +165,10 @@ class TestAuthoritativeSelection:
 class TestComparisons:
     def _multi_season(self):
         recs = []
-        seasons = ["2010/11", "2011/12", "2012/13", "2013/14"]
-        totals = {"2010/11": 100.0, "2011/12": 110.0, "2012/13": 120.0, "2013/14": 150.0}
+        seasons = ["2010-11", "2011-12", "2012-13", "2013-14"]
+        totals = {"2010-11": 100.0, "2011-12": 110.0, "2012-13": 120.0, "2013-14": 150.0}
         for i, season in enumerate(seasons):
-            start = int(season.split("/")[0])
+            start = int(season.split("-")[0])
             snap = _snap(f"ProdProgressive-Koring_{start}_{str(start+1)[-2:]}_Week10.xls",
                          _dt(start + 1, 1, 1))
             recs.append(_rec(snap, 10, totals[season]))
@@ -172,23 +176,25 @@ class TestComparisons:
 
     def test_pct_of_prior_year(self):
         df = build_deliveries_silver(self._multi_season())
-        row = df[df["season"] == "2011/12"].iloc[0]
+        row = df[df["season"] == "2011-12"].iloc[0]
         assert row["prior_prog_total_mt"] == pytest.approx(100.0)
-        assert row["pct_of_prior_yr"] == pytest.approx(110.0)   # 110/100*100
+        # golden-faithful semantics (BF-W3 reverse-engineered): a plain RATIO, never x100.
+        assert row["pct_of_prior_yr"] == pytest.approx(1.10)
 
     def test_first_season_has_null_comparisons(self):
         df = build_deliveries_silver(self._multi_season())
-        row = df[df["season"] == "2010/11"].iloc[0]
+        row = df[df["season"] == "2010-11"].iloc[0]
         assert math.isnan(row["pct_of_prior_yr"])
         assert math.isnan(row["z_vs_3yr_avg"])
 
     def test_z_uses_only_prior_seasons_no_leakage(self):
         df = build_deliveries_silver(self._multi_season())
-        # 2013/14 z uses prior seasons 2010/11,2011/12,2012/13 = mean 110, std ~8.165.
-        row = df[df["season"] == "2013/14"].iloc[0]
+        # 2013-14 z uses prior seasons 2010-11,2011-12,2012-13; SAMPLE std (ddof=1) is the
+        # golden-faithful formula (BF-W3: 500/500 sampled golden rows match exactly).
+        row = df[df["season"] == "2013-14"].iloc[0]
         import numpy as np
         mu = np.mean([100.0, 110.0, 120.0])
-        sd = np.std([100.0, 110.0, 120.0], ddof=0)
+        sd = np.std([100.0, 110.0, 120.0], ddof=1)
         assert row["z_vs_3yr_avg"] == pytest.approx((150.0 - mu) / sd, abs=1e-6)
 
 
