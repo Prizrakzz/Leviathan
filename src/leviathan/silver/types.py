@@ -193,14 +193,32 @@ def is_narrowing_change(old_target: str, new_target: str) -> bool:
     changes must go through a reviewed migration, never a silent edit)."""
     if old_target == new_target:
         return False
-    ob = old_target.split(":", 1)[0].rstrip("0123456789")
-    nb = new_target.split(":", 1)[0].rstrip("0123456789")
     # Any base change is disallowed at the registry edit surface.
     if _norm_base(old_target) != _norm_base(new_target):
         return True
-    # Same base, different token: for int/float our only target is the widest (int64/float64),
-    # so any same-base change away from it is a narrowing.
-    return True
+    # Same base, different width: compare bit widths -- a WIDEN (int32 -> int64) is legal, a
+    # narrow is not. The old direction-blind refusal also blocked legitimate widen applies
+    # (live-caught at the BF-W3 ONI T7 flag widen; B2's F036 int->bigint had to detour through
+    # restore_table for the same false NARROW). Unparseable widths (date/timestamp units,
+    # string variants) stay fail-closed: reviewed migration, never a silent edit.
+    ow, nw = _bit_width(old_target), _bit_width(new_target)
+    if ow is None or nw is None:
+        return True
+    return nw < ow
+
+
+def _bit_width(target: str) -> Optional[int]:
+    t = target.lower()
+    base = _norm_base(target)
+    if base not in ("int", "float"):
+        return None
+    digits = ""
+    for ch in t.split(":", 1)[0].split("[", 1)[0][::-1]:
+        if ch.isdigit():
+            digits = ch + digits
+        else:
+            break
+    return int(digits) if digits else None
 
 
 def _norm_base(target: str) -> str:

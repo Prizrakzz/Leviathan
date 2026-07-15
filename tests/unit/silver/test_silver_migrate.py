@@ -318,3 +318,18 @@ def test_restore_refused_if_current_hash_mismatches(fake_s3, fake_glue):
     with pytest.raises(MigrationConflict):
         mig.restore_table("silver_demo", snapshot=_raw_snapshot(),
                           expected_current_hash="deadbeef")  # wrong expected hash
+
+
+def test_narrowing_check_is_direction_aware():
+    # Live-caught at the BF-W3 ONI T7 flag widen: tinyint->bigint (int8->int64) is a WIDEN and
+    # must be applyable; the reverse stays refused. Unparseable widths stay fail-closed.
+    from leviathan.silver.types import is_narrowing_change
+
+    assert is_narrowing_change("int64", "int32") is True      # narrow refused
+    assert is_narrowing_change("int32", "int64") is False     # widen legal
+    assert is_narrowing_change("int8", "int64") is False      # the ONI flag widen
+    assert is_narrowing_change("float64", "float32") is True
+    assert is_narrowing_change("float32", "float64") is False
+    assert is_narrowing_change("float64", "int64") is True    # base change refused
+    assert is_narrowing_change("int64", "int64") is False     # no-op
+    assert is_narrowing_change("timestamp[us]", "timestamp[ms]") is True  # fail-closed
