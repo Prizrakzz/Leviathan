@@ -244,3 +244,19 @@ def test_type_helpers_inv2_targets():
     assert classify_drift("double", "double") == []
     assert is_narrowing_change("int64", "int32") is True
     assert is_narrowing_change("int64", "int64") is False
+
+
+def test_structural_lint_flags_bad_floor_overrides():
+    # OP-8 calibration: keys must be value_columns; values must be fractions in [0, 1].
+    c = _minimal_contract()
+    vcs = c.get("value_columns") or []
+    c["min_nonnull_frac_overrides"] = {"not_a_value_column": 0.25}
+    problems = R._structural_lints(c, "x.yaml")
+    assert any("not a value_column" in p for p in problems)
+    if vcs:
+        c["min_nonnull_frac_overrides"] = {vcs[0]: 1.5}
+        problems = R._structural_lints(c, "x.yaml")
+        assert any("fraction in [0,1]" in p for p in problems)
+        c["min_nonnull_frac_overrides"] = {vcs[0]: 0.25}
+        assert not any("min_nonnull_frac_overrides" in p
+                       for p in R._structural_lints(c, "x.yaml"))

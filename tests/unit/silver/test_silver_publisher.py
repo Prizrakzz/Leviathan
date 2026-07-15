@@ -332,3 +332,16 @@ def test_plain_key_canonical_root_unchanged(fake_s3):
                           strategy=PublishStrategy.REGISTERED, manifest_store=lambda k, b: None)
     shadow = pub._shadow_key("silver/weather/source=chirps/commodity=cocoa/year=2020/part-000.parquet")
     assert shadow == "silver/weather/source=chirps/_shadow/commodity=cocoa/year=2020/part-000.parquet"
+
+
+def test_validation_hooks_floor_override_calibrates_one_column():
+    # OP-8 (BF-W3 cotton): the override floor applies to its column only; others keep the base.
+    hooks = ValidationHooks(min_nonnull_frac=0.5, floor_overrides={"sparse": 0.25})
+    ok_obj = _obj(metrics={"sparse": 0.296, "dense": 1.0})
+    assert hooks.run(ok_obj) == []
+    # below even the calibrated floor still fails, and the message names the effective floor.
+    bad = hooks.run(_obj(metrics={"sparse": 0.1, "dense": 1.0}))
+    assert len(bad) == 1 and "sparse" in bad[0] and "0.25" in bad[0]
+    # a non-overridden column keeps the base 0.5.
+    bad2 = hooks.run(_obj(metrics={"sparse": 0.296, "dense": 0.4}))
+    assert len(bad2) == 1 and "dense" in bad2[0]

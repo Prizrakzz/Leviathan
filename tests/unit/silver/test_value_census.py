@@ -235,3 +235,36 @@ def test_census_walker_skips_hidden_control_plane_segments():
     assert job._is_hidden(".hidden/part.parquet")
     assert not job._is_hidden("commodity=cocoa/")
     assert not job._is_hidden("silver/weather/source=chirps/commodity=cocoa/year=1981/part-000.parquet")
+
+# ---------------------------------------------------------------------------
+# OP-8 per-column floor calibration (min_nonnull_frac_overrides, BF-W3 cotton).
+# ---------------------------------------------------------------------------
+def test_floor_override_calibrates_one_column(tmp_path):
+    # 25% non-null passes under a calibrated 0.25 floor while the base floor stays 0.5.
+    tbl = pa.table({"value": pa.array([1.0, None, None, None], type=pa.float64())})
+    md = _write(tmp_path, "sparse_cal.parquet", tbl)
+    census = census_column([_stat(md, "value")], "value")
+    assert evaluate_gate("t", {"value": census}, ["value"], 0.5,
+                         floor_overrides={"value": 0.25}) == []
+    # a column NOT named in the overrides keeps the base floor.
+    rows = evaluate_gate("t", {"value": census}, ["value"], 0.5,
+                         floor_overrides={"other": 0.25})
+    assert [r.kind for r in rows] == [KIND_NONNULL_BELOW_FLOOR]
+
+
+def test_floor_override_does_not_waive_all_nan(tmp_path):
+    # the calibration never waives the ALL-NaN hard gate: a dead column still fails at floor 0.
+    tbl = pa.table({"value": pa.array([None, None], type=pa.float64())})
+    md = _write(tmp_path, "dead_cal.parquet", tbl)
+    census = census_column([_stat(md, "value")], "value")
+    rows = evaluate_gate("t", {"value": census}, ["value"], 0.5,
+                         floor_overrides={"value": 0.0})
+    assert [r.kind for r in rows] == [KIND_ALL_NAN]
+
+
+def test_live_registry_carries_the_cotton_calibration():
+    # the tracked contract (BF-W3 lane COTTON) validates against the schema and reaches consumers.
+    from leviathan.silver.registry import load_registry as load_silver
+    reg = load_silver()
+    ov = reg.tables["silver_ams_cotton_quality"].get("min_nonnull_frac_overrides")
+    assert ov == {"samples_classed": 0.25}

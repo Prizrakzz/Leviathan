@@ -169,6 +169,7 @@ def build_flat_publish(
     validation = ValidationHooks(
         min_rows=min_rows,
         min_nonnull_frac=float(floor) if floor is not None else 0.0,
+        floor_overrides=contract.get("min_nonnull_frac_overrides") or None,
     )
     # The publisher persists the run manifest on EVERY run (dry-run included). With no S3 client
     # (dry-run), the default S3 manifest store cannot run -> supply a no-op sink; the manifest is

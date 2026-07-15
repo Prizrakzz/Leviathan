@@ -149,3 +149,5 @@ provenance:
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
   Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.'
+min_nonnull_frac_overrides:
+  samples_classed: 0.25

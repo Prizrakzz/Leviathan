@@ -177,6 +177,7 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
     partition_mode = contract.get("partition_mode", "flat")
     value_columns = list(contract.get("value_columns") or [])
     min_frac = contract.get("min_nonnull_frac")
+    floor_overrides = contract.get("min_nonnull_frac_overrides") or None
     knowledge_col = contract.get("knowledge_date_col")
     vintage = contract.get("vintage_retention")
     projection_domains = contract.get("projection_domains") or {}
@@ -214,7 +215,8 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
             fstats = [stats_by_key.get(k, {}).get(col) for k in keys]
             g_census[col] = census_column(fstats, col)
         label = g or "(flat)"
-        for r in evaluate_gate(table, g_census, value_columns, min_frac):  # value checks only
+        for r in evaluate_gate(table, g_census, value_columns, min_frac,
+                               floor_overrides=floor_overrides):  # value checks only
             per_group_rows.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
                                           f"[{label}] {r.detail}"))
         for r in evaluate_warnings(table, g_census, value_columns):

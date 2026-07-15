@@ -612,6 +612,14 @@ CURATION_OVERRIDES: dict = {
     # it is reconciled 1:1 against the numbers TableSpec (F010), so a COT Tue-positions/Fri-release
     # lag (3d) or MPOB ~10th-of-month lag belongs in a numbers-stack change with its own eval gate.
     "silver_cot": {"freshness_sla": {"cadence": "weekly"}},          # CFTC COT is a weekly release
+    # ── BF-W3 lane COTTON (user-gated 2026-07-15): OP-8 per-column floor calibration.
+    # samples_classed is structurally ABSENT from the AMS national extraction scope before season
+    # 2018 (19/27 seasons null; bronze cross-check: the metric row is absent at source for every
+    # null season -- B3_wave/cotton/null_evidence.json). The rebuild is byte-identical to the
+    # physical golden, so the uniform provisional floor 0.5 can NEVER pass (deterministic 0.296).
+    # Calibrated floor 0.25 keeps the gate live: an all-null regression still hard-fails
+    # (KIND_ALL_NAN), and a fall below 0.25 (losing the 2018+ populated seasons) still trips.
+    "silver_ams_cotton_quality": {"min_nonnull_frac_overrides": {"samples_classed": 0.25}},
     # ── BF-W2 rider 6 (user-gated 2026-07-15): FAOSTAT QCL single_vintage waiver. A re-pull CANNOT
     # flip the V001 gate (one global annual release; distinct(ingest_date) stays 1) and would DESTROY
     # the prior raw ZIP (bucket versioning Suspended at that key). PIT adequacy for an annual
@@ -711,7 +719,8 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
         note = ov.get("drift_notes", {}).get(row.get("column") or row.get("name") or "")
         if note:
             row["note"] = note
-    for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver"):
+    for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver",
+                "min_nonnull_frac_overrides"):
         if key in ov:
             contract[key] = ov[key]
     if "freshness_sla" in ov:

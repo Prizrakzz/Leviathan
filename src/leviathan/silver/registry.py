@@ -85,9 +85,14 @@ def _validate(instance: Any, schema: dict, path: str, errors: list[str]) -> None
             if req not in instance:
                 errors.append(f"{path}: missing required property '{req}'")
         addl = schema.get("additionalProperties", True)
+        pat_props = schema.get("patternProperties", {})
         for key, val in instance.items():
             if key in props:
                 _validate(val, props[key], f"{path}.{key}", errors)
+                continue
+            pat = next((p for p in pat_props if re.search(p, key)), None)
+            if pat is not None:
+                _validate(val, pat_props[pat], f"{path}.{key}", errors)
             elif addl is False:
                 errors.append(f"{path}: additional property '{key}' not permitted")
     # array
@@ -220,6 +225,16 @@ def _structural_lints(contract: dict, label: str) -> list[str]:
     for vc in vcs:
         if vc not in set(names) | set(pk_names):
             out.append(f"{label}: value_column '{vc}' is not a declared column")
+    # OP-8 per-column floor calibration: overrides must target declared value_columns and stay
+    # fractions; an override without a base floor has nothing to calibrate against.
+    overrides = contract.get("min_nonnull_frac_overrides") or {}
+    for oc, ofl in overrides.items():
+        if oc not in vcs:
+            out.append(f"{label}: min_nonnull_frac_overrides key '{oc}' is not a value_column")
+        if not isinstance(ofl, (int, float)) or isinstance(ofl, bool) or not (0 <= float(ofl) <= 1):
+            out.append(f"{label}: min_nonnull_frac_overrides['{oc}'] must be a fraction in [0,1]")
+    if overrides and frac is None:
+        out.append(f"{label}: min_nonnull_frac_overrides set but min_nonnull_frac is null")
     return out
 
 

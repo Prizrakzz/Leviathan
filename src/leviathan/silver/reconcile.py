@@ -181,7 +181,7 @@ def reconcile_source_contracts(reg: SilverRegistry, path: Optional[Path] = None)
                                    f"source '{sc.get('source_key')}' glue_table '{table}' absent"))
             continue
         # single-authority: value_columns / min_nonnull_frac must NOT live in source_contracts.
-        for banned in ("value_columns", "min_nonnull_frac"):
+        for banned in ("value_columns", "min_nonnull_frac", "min_nonnull_frac_overrides"):
             if banned in sc:
                 out.append(Divergence("source_contracts", table, "value_authority_leak",
                                       f"source_contracts re-declares '{banned}' (registry is the "

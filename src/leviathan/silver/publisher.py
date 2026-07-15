@@ -138,6 +138,7 @@ class ValidationHooks:
 
     min_rows: int = 1
     min_nonnull_frac: float = 0.0
+    floor_overrides: Optional[dict] = None   # OP-8 per-column floors; fall back to min_nonnull_frac
     expected_fingerprint: Optional[str] = None
     row_hook: Optional[Callable[[StagedObject], tuple[bool, str]]] = None
     value_hook: Optional[Callable[[StagedObject], tuple[bool, str]]] = None
@@ -164,9 +165,12 @@ class ValidationHooks:
     def _default_value(self, obj: StagedObject) -> tuple[bool, str]:
         if not obj.null_metrics:
             return True, "null_metrics not provided; skipped"
-        bad = {c: f for c, f in obj.null_metrics.items() if f < self.min_nonnull_frac}
+        overrides = self.floor_overrides or {}
+        bad = {c: f for c, f in obj.null_metrics.items()
+               if f < overrides.get(c, self.min_nonnull_frac)}
         if bad:
-            return False, f"columns below non-null floor {self.min_nonnull_frac}: {bad}"
+            floors = {c: overrides.get(c, self.min_nonnull_frac) for c in bad}
+            return False, f"columns below non-null floor {floors}: {bad}"
         return True, "value non-null ok"
 
     def _default_schema(self, obj: StagedObject) -> tuple[bool, str]:

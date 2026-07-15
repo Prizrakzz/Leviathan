@@ -469,6 +469,18 @@
     "notes": {
       "type": "string"
     },
+    "min_nonnull_frac_overrides": {
+      "type": "object",
+      "description": "OP-8 per-column calibration of the V001 non-null floor (BF-W3 lane COTTON class): a user-gated, source-real floor for value_columns structurally absent at the source over part of the range. Keys must be declared value_columns; values replace min_nonnull_frac for that column only. The gate stays live -- all-null still hard-fails, and a fall below the calibrated floor still trips.",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z0-9_]+$": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
     "vintage_waiver": {
       "type": "object",
       "description": "Declared, user-gated waiver of the V001 single_vintage hard gate for annual latest-only sources where a second vintage is structurally impossible without destroying raw history (BF-W2 rider 6, FAOSTAT class). The census demotes the single_vintage GateRow to a WARN and carries this object in the artifact; the readiness certificate then reports the table with the waiver, never silently green.",

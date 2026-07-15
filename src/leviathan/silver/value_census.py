@@ -33,7 +33,7 @@ S3, opens no socket, and prints nothing. ASCII only.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Mapping, Optional, Sequence
 
 # ---------------------------------------------------------------------------
 # Sentinel vocabulary. A footer can only prove *saturation* of a sentinel when a
@@ -283,6 +283,7 @@ def evaluate_gate(
     *,
     knowledge_date_col: Optional[str] = None,
     knowledge_census: Optional[ColumnCensus] = None,
+    floor_overrides: Optional[Mapping[str, float]] = None,
 ) -> list[GateRow]:
     """Return the ordered list of HARD-FAIL rows for one table (empty == green).
 
@@ -310,9 +311,13 @@ def evaluate_gate(
     left uncaught (latest-only is NOT a licence to ship a single global as_of).
     """
     rows: list[GateRow] = []
-    floor = min_nonnull_frac
+    overrides = floor_overrides or {}
 
     for col in value_columns:
+        # OP-8 per-column calibration (min_nonnull_frac_overrides): a user-gated, source-real
+        # floor for columns structurally absent at the source over part of the range. The gate
+        # stays live -- an all-null regression still hard-fails via KIND_ALL_NAN above the floor.
+        floor = overrides.get(col, min_nonnull_frac)
         c = census_by_column.get(col)
         if c is None:
             rows.append(
