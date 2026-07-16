@@ -35,13 +35,23 @@ _BRONZE_PREFIX = "bronze/production/source=sagis_weekly/dataset=imp_exp_progress
 
 
 def _row_to_export(r: dict) -> WeeklyExportRow:
+    """Map one LIVE bronze imp_exp_progressive record to a WeeklyExportRow.
+
+    The governed bronze schema (written by the SB-F042 b2s parser) is
+    ``[season, dataset, crop, grade, flow_type, week_number, week_ending, weekly_mt,
+    prog_total_mt, source]`` -- the cumulative value lives in ``prog_total_mt`` (flow-agnostic
+    name; the exports/imports split is the ``flow_type`` dimension, filtered in
+    :func:`load_rows`), and grade totals are ``grade == 'total'``. The first live Wave-1
+    canary caught the original fixture-schema mapping (``prog_exports_mt`` / ``is_total``
+    keys that do not exist in bronze) as an all-null value column at the publisher's
+    non-null floor -- fail-closed exactly as designed."""
     return WeeklyExportRow(
         season=str(r["season"]),
         crop=str(r["crop"]),
         week_number=int(r["week_number"]),
-        prog_exports_mt=(None if pd.isna(r.get("prog_exports_mt")) else float(r["prog_exports_mt"])),
+        prog_exports_mt=(None if pd.isna(r.get("prog_total_mt")) else float(r["prog_total_mt"])),
         week_ending=r.get("week_ending"),
-        is_total=bool(r.get("is_total", True)),
+        is_total=(str(r.get("grade", "total")).strip().lower() == "total"),
         snapshot_id=str(r.get("snapshot_id", "")),
         snapshot_week=int(r.get("snapshot_week", 0)),
         snapshot_release_date=r.get("snapshot_release_date"),
@@ -58,10 +68,18 @@ def load_rows(bucket: str, aws_region: str, s3=None) -> list[WeeklyExportRow]:
     s3 = s3 or get_thread_local_s3_client(aws_region)
     keys = list_s3_keys(bucket, _BRONZE_PREFIX, suffix=".parquet", aws_region=aws_region)
     rows: list[WeeklyExportRow] = []
+    dropped_imports = 0
     for key in keys:
         df = pd.read_parquet(io.BytesIO(s3_download_with_retry(bucket, key, s3)))
-        rows.extend(_row_to_export(rec) for rec in df.to_dict("records"))
-    logger.info("loaded %d weekly-export bronze rows from %d files", len(rows), len(keys))
+        for rec in df.to_dict("records"):
+            # bronze carries BOTH flows in one dataset; this producer is exports-only.
+            # Counting an imports row as exports would corrupt the table -- filter hard.
+            if str(rec.get("flow_type", "")).strip().lower() != "exports":
+                dropped_imports += 1
+                continue
+            rows.append(_row_to_export(rec))
+    logger.info("loaded %d weekly-export bronze rows from %d files (dropped %d non-export flow rows)",
+                len(rows), len(keys), dropped_imports)
     return rows
 
 
