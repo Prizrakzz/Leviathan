@@ -309,6 +309,65 @@ def _extras(ts: TableSpec) -> list[tuple[str, str]]:
     return out
 
 
+def _vintage_tiebreak_order(ts: TableSpec) -> str:
+    """Extra ORDER BY terms appended (after ``knowledge_date DESC``) to the latest-vintage ROW_NUMBER window so
+    the per-grain pick is a DETERMINISTIC TOTAL order — identical on Athena and the pg mirror BY CONSTRUCTION
+    (one SQL string; explicit directions + NULLS so neither engine's default null placement can diverge). The
+    tiebreak columns are string in silver (see the generated DDL) and TEXT COLLATE "C" in the pg mirror ==
+    Presto byte-order varchar comparison, so the sort is byte-identical on both backends.
+
+    Returns "" for tables without a ``vintage_tiebreak`` spec -> the emitted SQL is byte-identical to before.
+
+    silver_wasde: early-era releases (1985-1999) carry MULTIPLE estimate_role rows per numbers grain at ONE
+    release_date; without a tiebreak the ROW_NUMBER tie is engine-arbitrary (the F2 pg-parity break). The role
+    rank makes the MOST-SETTLED figure win (actual < estimate < projection), then projection_month DESC NULLS
+    LAST, then source_table_id ASC as the final total-order tiebreak."""
+    terms: list[str] = []
+    for t in ts.vintage_tiebreak:
+        if t.role_order:                                     # CASE rank: listed-first value ranks 0 (wins)
+            whens = " ".join(f"WHEN {_q(v)} THEN {i}" for i, v in enumerate(t.role_order))
+            terms.append(f"CASE {t.col} {whens} ELSE {len(t.role_order)} END {t.dir.upper()}")
+        else:
+            frag = f"{t.col} {t.dir.upper()}"
+            if t.nulls:
+                frag += f" NULLS {t.nulls.upper()}"
+            terms.append(frag)
+    return "".join(f", {t}" for t in terms)
+
+
+def _vintage_cmp(ts: TableSpec):
+    """A comparator mirroring the latest-vintage ROW_NUMBER ORDER BY (``knowledge_date`` DESC, then the spec's
+    ``vintage_tiebreak`` terms) so apply_pit_filter picks the SAME per-grain winner build_sql's SQL does — the
+    anti-leakage oracle stays in lockstep with the tiebreak fix. ``cmp(a, b) < 0`` means a sorts BEFORE b (a
+    wins). Tiebreak columns compare AS TEXT (their silver type), matching the SQL on both backends."""
+    kcol = ts.knowledge_date_col
+
+    def cmp(a: dict, b: dict) -> int:
+        ka, kb = str(a.get(kcol) or ""), str(b.get(kcol) or "")
+        if ka != kb:
+            return -1 if ka > kb else 1                      # knowledge_date DESC: newer vintage wins
+        for t in ts.vintage_tiebreak:
+            va, vb = a.get(t.col), b.get(t.col)
+            if t.role_order:                                 # role rank ASC: listed-first value (rank 0) wins
+                ra = t.role_order.index(va) if va in t.role_order else len(t.role_order)
+                rb = t.role_order.index(vb) if vb in t.role_order else len(t.role_order)
+                if ra != rb:
+                    return -1 if ra < rb else 1
+                continue
+            an, bn = (va is None or va == ""), (vb is None or vb == "")
+            if an or bn:                                     # explicit NULLS placement (default last)
+                if an and bn:
+                    continue
+                last = (t.nulls or "last") == "last"
+                return (1 if last else -1) if an else (-1 if last else 1)
+            sa, sb = str(va), str(vb)                        # TEXT compare (byte order == COLLATE "C" == Presto)
+            if sa != sb:
+                c = 1 if sa > sb else -1
+                return -c if t.dir == "desc" else c
+        return 0
+    return cmp
+
+
 def _total_order(extras: list[tuple[str, str]]) -> str:
     """A deterministic TOTAL ordering over the aliased output columns, chronology first. Without one,
     multi-row results under LIMIT are ENGINE-ARBITRARY — Athena and the pg mirror legitimately return
@@ -339,7 +398,7 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         # as-known: rank vintages within the identity group, keep the newest published on/before asof
         part = ", ".join(ts.group_cols()) or "1"
         inner = (f"SELECT {sel}, ROW_NUMBER() OVER (PARTITION BY {part} "
-                 f"ORDER BY {ts.knowledge_date_col} DESC) AS _rn "
+                 f"ORDER BY {ts.knowledge_date_col} DESC{_vintage_tiebreak_order(ts)}) AS _rn "
                  f"FROM {db}.{table} WHERE {where}")
         outcols = "value" + "".join(f", {a}" for _, a in extras)
         base = f"SELECT {outcols} FROM ({inner}) AS _v WHERE _rn = 1"   # alias: PG-required, Athena-accepted
@@ -422,13 +481,15 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     kept = [r for r in rows if keep(r)]
 
     if ts.knowledge_semantics == "vintage" and kept:
-        best: dict[tuple, dict] = {}
+        # Pick the per-grain winner with the SAME total order build_sql's ROW_NUMBER uses: knowledge_date DESC,
+        # then the spec's vintage_tiebreak (silver_wasde role priority). With no tiebreak this reduces to the
+        # newest knowledge_date, first-seen on a tie — byte-identical to the prior behavior.
+        import functools as _ft
+        cmp = _vintage_cmp(ts)
+        groups: dict[tuple, list[dict]] = {}
         for r in kept:
-            key = tuple(r.get(c) for c in ts.group_cols())
-            cur = best.get(key)
-            if cur is None or str(r.get(ts.knowledge_date_col)) > str(cur.get(ts.knowledge_date_col)):
-                best[key] = r
-        kept = list(best.values())
+            groups.setdefault(tuple(r.get(c) for c in ts.group_cols()), []).append(r)
+        kept = [min(g, key=_ft.cmp_to_key(cmp)) for g in groups.values()]
     return kept
 
 

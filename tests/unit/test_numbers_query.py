@@ -8,7 +8,7 @@ from __future__ import annotations
 import random
 
 from leviathan.graphrag.numbers.query import NumberQuery, apply_pit_filter, build_sql
-from leviathan.graphrag.numbers.registry import Metric, TableSpec, load_registry
+from leviathan.graphrag.numbers.registry import Metric, TableSpec, VintageTiebreakTerm, load_registry
 
 
 def _psd() -> TableSpec:                                   # wide + vintage
@@ -647,3 +647,141 @@ def test_vintage_agg_latest_without_order_col_unchanged():
                                 commodity="corn", country="Brazil", period="2023", agg="latest"), _psd())
     assert not sql.strip().endswith("LIMIT 1")
     assert "ROW_NUMBER() OVER" in sql and "_rn = 1" in sql
+
+
+# ── F2 (silver_rebuild_gate Branch-A parity): the WASDE role-priority vintage tiebreak. The F2 rebuild put
+#    the F036 columns (estimate_role/projection_month/source_table_id, all silver `string`) physically into
+#    every silver_wasde partition. Early-era releases (1985-1999) carry MULTIPLE estimate_role rows per numbers
+#    grain at ONE release_date, so the release_date-only latest-vintage ROW_NUMBER TIES and pg-vs-Athena break
+#    the tie by engine order (value flip-flops). A deterministic role-priority tiebreak restores parity. ──────
+def _wasde_tiebreak() -> TableSpec:
+    """silver_wasde WITH the F2 role-priority vintage tiebreak (mirrors the live tables.yaml entry): within a
+    grain the pick is release_date DESC, then role rank (actual < estimate < projection), then projection_month
+    DESC NULLS LAST, then source_table_id ASC — a total order identical on Athena and the pg mirror."""
+    return TableSpec(id="silver_wasde", description="", shape="tall", commodity_col="commodity",
+                     country_col="region", period_col="marketing_year", period_type="marketing_year",
+                     period_sql_type="string", knowledge_date_col="release_date",
+                     knowledge_semantics="vintage", metric_col="attribute", value_col="estimate",
+                     unit_col="unit", vintage_partition_col="release_date", vintage_partition_format="iso",
+                     vintage_dates_real=True,
+                     grain_cols=["commodity", "table_type", "region", "marketing_year", "attribute"],
+                     vintage_tiebreak=[
+                         VintageTiebreakTerm(col="estimate_role",
+                                             role_order=["actual", "estimate", "projection"]),
+                         VintageTiebreakTerm(col="projection_month", dir="desc", nulls="last"),
+                         VintageTiebreakTerm(col="source_table_id", dir="asc")])
+
+
+def _wasde_multirole_rows() -> list[dict]:
+    """ONE grain (corn / balance_sheet / united_states / 1986/87 / ending_stocks), ONE release_date, three
+    rows differing ONLY by estimate_role — the early-era multi-role shape that ties the release_date-only pick."""
+    grain = dict(commodity="corn", table_type="balance_sheet", region="united_states",
+                 marketing_year="1986/87", attribute="ending_stocks", release_date="1986-05-09", unit="1000 MT")
+    return [
+        {**grain, "estimate_role": "projection", "estimate": 300.0, "projection_month": "05", "source_table_id": "ws_p"},
+        {**grain, "estimate_role": "estimate", "estimate": 200.0, "projection_month": "", "source_table_id": "ws_e"},
+        {**grain, "estimate_role": "actual", "estimate": 100.0, "projection_month": "", "source_table_id": "ws_a"},
+    ]
+
+
+def test_wasde_registry_declares_role_tiebreak():
+    ts = load_registry().get("silver_wasde")
+    tb = ts.vintage_tiebreak
+    assert [t.col for t in tb] == ["estimate_role", "projection_month", "source_table_id"]
+    assert tb[0].role_order == ["actual", "estimate", "projection"]   # actual (rank 0) wins the tie
+    assert tb[1].dir == "desc" and tb[1].nulls == "last"             # projection_month DESC NULLS LAST
+    assert tb[2].dir == "asc" and tb[2].role_order == []             # source_table_id ASC (final total order)
+    # every OTHER vintage table carries NO tiebreak -> its generated SQL stays byte-identical (zero change).
+    for tid in ("silver_psd", "silver_esr", "silver_production", "silver_fred_fx",
+                "silver_noaa_oni", "gold_weather_z"):
+        assert load_registry().get(tid).vintage_tiebreak == []
+
+
+def test_wasde_role_tiebreak_in_generated_sql_both_engines():
+    # build_sql is BACKEND-AGNOSTIC: the ONE string it returns runs on BOTH pg and Athena (run() only picks the
+    # executor), so this single assertion covers both engines' ordering. Role rank + explicit dirs/NULLS force
+    # a deterministic total order; the tiebreak cols are silver `string` == pg TEXT COLLATE "C" == Presto order.
+    sql = build_sql(NumberQuery(table="silver_wasde", metric="ending_stocks", asof="1986-12-31",
+                                commodity="corn", country="united_states", period="1986/87"), _wasde_tiebreak())
+    assert ("ORDER BY release_date DESC, CASE estimate_role WHEN 'actual' THEN 0 WHEN 'estimate' THEN 1 "
+            "WHEN 'projection' THEN 2 ELSE 3 END ASC, projection_month DESC NULLS LAST, "
+            "source_table_id ASC") in sql
+    assert "ROW_NUMBER() OVER (PARTITION BY commodity, table_type, region, marketing_year, attribute" in sql
+
+
+def test_tiebreak_absent_spec_is_byte_identical_window():
+    # a wasde-shaped spec WITHOUT vintage_tiebreak must emit the PRE-FIX window verbatim (release_date DESC
+    # only) — the byte-identical guarantee for every table that does not set the key.
+    q = NumberQuery(table="silver_wasde", metric="ending_stocks", asof="2024-05-31", commodity="corn",
+                    period="2023/24")
+    no_tb = build_sql(q, _wasde_projected())                          # existing helper: no vintage_tiebreak
+    window = no_tb.split("ORDER BY", 1)[1].split(") AS _rn")[0].strip()
+    assert window == "release_date DESC"                              # exactly the old ordering, no CASE/terms
+    assert "CASE" not in no_tb
+    # and PSD (no tiebreak in the live registry) never grows a CASE rank either.
+    psd = build_sql(NumberQuery(table="silver_psd", metric="ending_stocks_mt", asof="2024-02-15",
+                                commodity="corn", country="Brazil", period="2023"),
+                    load_registry().get("silver_psd"))
+    assert "CASE" not in psd and "ROW_NUMBER() OVER (PARTITION BY" in psd
+
+
+def test_wasde_multirole_tiebreak_picks_actual_oracle():
+    # (pg-mirror semantics reference) apply_pit_filter must pick the 'actual' row from the tied multi-role grain.
+    ts = _wasde_tiebreak()
+    q = NumberQuery(table="silver_wasde", metric="ending_stocks", asof="1986-12-31", commodity="corn",
+                    country="united_states", period="1986/87")
+    kept = apply_pit_filter(_wasde_multirole_rows(), q, ts)
+    assert len(kept) == 1
+    assert kept[0]["estimate_role"] == "actual" and kept[0]["estimate"] == 100.0
+
+
+def test_wasde_multirole_tiebreak_picks_actual_sql_executes():
+    # EXECUTE the generated SQL on a real engine (stdlib sqlite3: CASE + window ORDER BY + NULLS LAST match
+    # Athena/PG here) — a string assertion cannot prove the tie actually resolves to 'actual'. Rows inserted
+    # projection-first to prove the pick is order-independent.
+    import sqlite3
+    sql = build_sql(NumberQuery(table="silver_wasde", metric="ending_stocks", asof="1986-12-31",
+                                commodity="corn", country="united_states", period="1986/87"), _wasde_tiebreak())
+    con = sqlite3.connect(":memory:")
+    con.execute("ATTACH ':memory:' AS leviathan_dev")
+    con.execute("""CREATE TABLE leviathan_dev.silver_wasde (
+        commodity TEXT, table_type TEXT, region TEXT, marketing_year TEXT, attribute TEXT,
+        estimate REAL, release_date TEXT, estimate_role TEXT, projection_month TEXT,
+        source_table_id TEXT, unit TEXT)""")
+    order = ["commodity", "table_type", "region", "marketing_year", "attribute", "estimate",
+             "release_date", "estimate_role", "projection_month", "source_table_id", "unit"]
+    con.executemany("INSERT INTO leviathan_dev.silver_wasde VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    [tuple(r[c] for c in order) for r in _wasde_multirole_rows()])
+    got = con.execute(sql).fetchall()
+    assert len(got) == 1
+    assert got[0][0] == 100.0                                         # value column = actual's estimate
+
+
+def test_wasde_modern_single_role_unaffected():
+    # REGRESSION: a modern grain carries ONE estimate_role ('actual') per release across TWO release_dates.
+    # Recency still dominates (latest release_date wins) and the role tiebreak is a no-op — exactly the
+    # pre-F036 behavior. Checked on BOTH the SQL engine and the oracle.
+    import sqlite3
+    ts = _wasde_tiebreak()
+    q = NumberQuery(table="silver_wasde", metric="ending_stocks", asof="2024-06-30", commodity="corn",
+                    country="united_states", period="2023/24")
+    base = dict(commodity="corn", table_type="balance_sheet", region="united_states",
+                marketing_year="2023/24", attribute="ending_stocks", unit="1000 MT",
+                estimate_role="actual", projection_month="", source_table_id="ws1")
+    rows = [{**base, "release_date": "2024-05-10", "estimate": 50.0},
+            {**base, "release_date": "2024-06-12", "estimate": 55.0}]   # newest vintage -> wins
+    sql = build_sql(q, ts)
+    con = sqlite3.connect(":memory:")
+    con.execute("ATTACH ':memory:' AS leviathan_dev")
+    con.execute("""CREATE TABLE leviathan_dev.silver_wasde (
+        commodity TEXT, table_type TEXT, region TEXT, marketing_year TEXT, attribute TEXT,
+        estimate REAL, release_date TEXT, estimate_role TEXT, projection_month TEXT,
+        source_table_id TEXT, unit TEXT)""")
+    order = ["commodity", "table_type", "region", "marketing_year", "attribute", "estimate",
+             "release_date", "estimate_role", "projection_month", "source_table_id", "unit"]
+    con.executemany("INSERT INTO leviathan_dev.silver_wasde VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    [tuple(r[c] for c in order) for r in rows])
+    got = con.execute(sql).fetchall()
+    assert len(got) == 1 and got[0][0] == 55.0                       # latest release_date, unchanged by tiebreak
+    kept = apply_pit_filter(rows, q, ts)                             # oracle agrees
+    assert len(kept) == 1 and kept[0]["estimate"] == 55.0

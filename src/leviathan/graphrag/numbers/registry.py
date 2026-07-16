@@ -30,6 +30,21 @@ class Metric(BaseModel):
     desc: str = ""
 
 
+class VintageTiebreakTerm(BaseModel):
+    """One ORDER BY term appended (AFTER knowledge_date DESC) to the latest-vintage ROW_NUMBER window so the
+    per-grain pick is a DETERMINISTIC TOTAL order — identical on Athena and the pg mirror by construction.
+
+    A term with a non-empty ``role_order`` emits a CASE rank (the value listed FIRST ranks 0 == wins the tie —
+    e.g. actual < estimate < projection makes the most-settled figure win); otherwise it is a plain
+    ``col dir [NULLS first|last]`` term. Directions AND null placement are emitted EXPLICITLY because Presto
+    (Athena) and Postgres disagree on the DEFAULT null placement for DESC — a bare DESC on a nullable column
+    would order differently on the two engines and reopen the parity break."""
+    col: str
+    dir: Literal["asc", "desc"] = "asc"
+    nulls: Optional[Literal["first", "last"]] = None
+    role_order: list[str] = []                               # non-empty -> emit a CASE rank (priority order)
+
+
 class TableSpec(BaseModel):
     id: str
     description: str
@@ -78,6 +93,17 @@ class TableSpec(BaseModel):
     unit_col: Optional[str] = None
     metrics: dict[str, Metric] = {}                          # wide: column->Metric ; tall: metric-value->Metric
     grain_cols: list[str] = []                               # explicit unique-observation identity (else inferred)
+    vintage_tiebreak: list[VintageTiebreakTerm] = []         # optional per-grain tiebreak for latest-vintage
+    #                                                          selection (vintage tables only). silver_wasde:
+    #                                                          early-era releases (1985-1999) carry MULTIPLE
+    #                                                          estimate_role rows per numbers grain at ONE
+    #                                                          release_date, so the release_date-only ROW_NUMBER
+    #                                                          ties and pg-vs-Athena break the tie by engine
+    #                                                          order (the F2 silver_rebuild_gate Branch-A break).
+    #                                                          These terms are appended after the knowledge_date
+    #                                                          DESC to force a deterministic total order. EMPTY
+    #                                                          (every other table) -> the generated SQL is
+    #                                                          byte-identical to before (zero behavior change).
     partitions: list[str] = []
     notes: str = ""
 
