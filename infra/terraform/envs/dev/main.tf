@@ -754,20 +754,20 @@ module "eventbridge" {
             bronze = { tasks = [] }
             silver = { tasks = [{
               integration = "batch"
-              jobdef      = "leviathan-dev-b3-flat-silver:5"
+              jobdef      = "leviathan-dev-b3-flat-silver"
               queue       = "leviathan-dev-queue-ondemand"
               command     = ["-m", "jobs.batch.frankfurter_fx_task", "--publish-mode", "shadow"]
               env         = []
             }] }
           }
           gate = {
-            jobdef  = "leviathan-dev-silver-gate:1"
+            jobdef  = "leviathan-dev-silver-gate"
             queue   = "leviathan-dev-queue-ondemand"
             command = ["-m", "jobs.audit.silver_rebuild_gate", "--tables", "silver_fred_fx", "--asof", "<aws.scheduler.scheduled-time>", "--baseline-uri", "s3://leviathan-dev-shahem-001/cascade_census/rolling/fx_macro_daily/census.json"]
           }
           promote = { mode = "autonomous", tasks = [{
             integration = "batch"
-            jobdef      = "leviathan-dev-silver-publisher-runner:1"
+            jobdef      = "leviathan-dev-silver-publisher-runner"
             queue       = "leviathan-dev-queue-ondemand"
             command     = ["-m", "jobs.batch.frankfurter_fx_task", "--publish-mode", "canonical", "--force-overwrite"]
             env         = [{ Name = "LEVIATHAN_APPROVAL_MODE", Value = "kms" }, { Name = "LEVIATHAN_KMS_KEY_ID", Value = "alias/leviathan-dev-publish-signer" }]
