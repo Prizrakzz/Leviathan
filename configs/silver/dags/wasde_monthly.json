@@ -1,0 +1,84 @@
+{
+  "schedule": "wasde_monthly",
+  "family": "usda_wasde",
+  "wave": 3,
+  "cron": "cron(0 18 8-13 * ? *)",
+  "publish_class": "A (registered)",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
+  "skip_existing": true,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_wasde"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/wasde_monthly/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze_modern->silver(per release_date)",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_usda_wasde",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-usda-wasde-raw-backfill:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_usda_wasde.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "wasde_bronze_modern",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-wasde-bronze-modern:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/wasde_bronze_modern_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "wasde_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-wasde-silver:2",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/wasde_silver_task.py",
+            "--release-date",
+            "${RELEASE_DATE}"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    }
+  ],
+  "per_release_date": true,
+  "notes": "--skip-existing on the fetch (DOM-range, not calendar-encoded); SILVER iterates per release_date (--release-date). Registered per release_date."
+}

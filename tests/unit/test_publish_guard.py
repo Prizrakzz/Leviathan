@@ -12,8 +12,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from leviathan.common.publish_guard import (
+    ENV_APPROVAL_MODE,
+    ENV_KMS_KEY_ID,
+    ENV_KMS_PUBLIC_KEY_PEM,
     PROD_ENVIRONMENT,
     ApprovalError,
+    ApprovalMode,
     Authorization,
     EnvironmentMismatch,
     PublishApproval,
@@ -25,10 +29,15 @@ from leviathan.common.publish_guard import (
     authorize_publish,
     check_environment,
     is_readiness_context,
+    mint_approval,
+    reset_public_key_cache,
+    resolve_approval_mode,
     resolve_publish_mode,
     sign_approval,
+    sign_approval_kms,
     load_approval_from_env,
     verify_approval,
+    verify_approval_kms,
 )
 
 _SECRET = "r0-placeholder-secret"
@@ -380,3 +389,296 @@ def test_sts_assumed_role_foreign_name_still_rejected() -> None:
                 env={},
                 secret=_SECRET,
             )
+
+
+# ===========================================================================
+# (7) R1 KMS-asymmetric approval signing (A-W1). A LOCAL ECDSA P-256 keypair simulates the CMK:
+# the stub kms client "signs" with the private key (as kms:Sign would) and returns the SPKI public
+# key (as kms:GetPublicKey would); the guard verifies against the CACHED public key with the
+# `cryptography` package -- NO kms:Verify call is ever made. These stay fully hermetic (no boto3,
+# no AWS): boto3 is never constructed because every path is handed a stub client or a PEM.
+# ===========================================================================
+from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
+
+_KMS_KEY_ID = "arn:aws:kms:us-east-1:668891723125:key/11111111-2222-3333-4444-555555555555"
+
+
+class _StubKmsClient:
+    """Simulates the two KMS calls the R1 path uses. kms:Sign returns a real DER ECDSA signature
+    (MessageType=RAW + ECDSA_SHA_256, exactly as KMS would); kms:GetPublicKey returns the DER SPKI
+    public key. Records call counts so tests can prove the one-time GetPublicKey fetch is cached."""
+
+    def __init__(self, private_key: "ec.EllipticCurvePrivateKey") -> None:
+        self._private_key = private_key
+        self.sign_calls = 0
+        self.get_public_key_calls = 0
+
+    def sign(self, *, KeyId: str, Message: bytes, MessageType: str, SigningAlgorithm: str) -> dict:
+        assert MessageType == "RAW"
+        assert SigningAlgorithm == "ECDSA_SHA_256"
+        self.sign_calls += 1
+        der = self._private_key.sign(Message, ec.ECDSA(hashes.SHA256()))
+        return {"KeyId": KeyId, "Signature": der, "SigningAlgorithm": SigningAlgorithm}
+
+    def get_public_key(self, *, KeyId: str) -> dict:
+        self.get_public_key_calls += 1
+        der = self._private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        return {"KeyId": KeyId, "PublicKey": der, "KeyUsage": "SIGN_VERIFY"}
+
+
+def _pem_of(private_key: "ec.EllipticCurvePrivateKey") -> str:
+    return private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("ascii")
+
+
+def _kms_fields(**over: object) -> dict:
+    expiry = over.pop(
+        "expiry", (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    )
+    fields = dict(
+        environment="leviathan_dev",
+        table="silver_model_predictions",
+        registry_hash="reg-abc123",
+        git_sha="deadbeef",
+        expiry=expiry,
+    )
+    fields.update(over)
+    fields["expiry"] = expiry
+    return fields
+
+
+@pytest.fixture(autouse=True)
+def _clear_public_key_cache():
+    # the verification-public-key cache is module-global; keep each KMS test hermetic.
+    reset_public_key_cache()
+    yield
+    reset_public_key_cache()
+
+
+def test_resolve_approval_mode_default_is_hmac_and_kms_selectable() -> None:
+    assert resolve_approval_mode(env={}) is ApprovalMode.HMAC
+    assert resolve_approval_mode(env={ENV_APPROVAL_MODE: "kms"}) is ApprovalMode.KMS
+    assert resolve_approval_mode("kms", env={}) is ApprovalMode.KMS
+    # explicit arg beats env
+    assert resolve_approval_mode("hmac", env={ENV_APPROVAL_MODE: "kms"}) is ApprovalMode.HMAC
+
+
+def test_unknown_approval_mode_fails_closed() -> None:
+    with pytest.raises(ApprovalError):
+        resolve_approval_mode(env={ENV_APPROVAL_MODE: "sign-it-yourself"})
+
+
+def test_kms_mint_then_verify_via_pem_is_green() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    stub = _StubKmsClient(priv)
+    approval = mint_approval(mode="kms", key_id=_KMS_KEY_ID, kms_client=stub, **_kms_fields())
+    assert stub.sign_calls == 1
+    # KMS signatures are base64(DER), NOT hex like the HMAC placeholder.
+    assert approval.signature != sign_approval(secret=_SECRET, **_kms_fields(expiry=approval.expiry))
+    auth = authorize_publish(
+        _good_target(),
+        mode=PublishMode.CANONICAL,
+        approval=approval,
+        env={},
+        approval_mode="kms",
+        public_key_pem=_pem_of(priv),
+    )
+    assert auth.may_mutate_canonical is True
+    assert auth.mode is PublishMode.CANONICAL
+
+
+def test_kms_verify_via_getpublickey_fetches_once_and_caches() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    stub = _StubKmsClient(priv)
+    approval = mint_approval(mode="kms", key_id=_KMS_KEY_ID, kms_client=stub, **_kms_fields())
+    # two verifies against the same key id -> exactly one kms:GetPublicKey call (cached thereafter).
+    for _ in range(2):
+        verify_approval(
+            approval, _good_target(), mode="kms", env={}, key_id=_KMS_KEY_ID, kms_client=stub
+        )
+    assert stub.get_public_key_calls == 1
+    assert stub.sign_calls == 1
+
+
+def test_kms_tampered_payload_fails_closed() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    stub = _StubKmsClient(priv)
+    good = mint_approval(mode="kms", key_id=_KMS_KEY_ID, kms_client=stub, **_kms_fields())
+    tampered = PublishApproval(
+        environment=good.environment,
+        table=good.table,
+        registry_hash="reg-DIFFERENT",  # payload changed; the ECDSA signature no longer covers it
+        git_sha=good.git_sha,
+        expiry=good.expiry,
+        signature=good.signature,
+    )
+    with pytest.raises(ApprovalError):
+        authorize_publish(
+            _good_target(),
+            mode=PublishMode.CANONICAL,
+            approval=tampered,
+            env={},
+            approval_mode="kms",
+            public_key_pem=_pem_of(priv),
+        )
+
+
+def test_kms_signature_from_other_key_fails_closed() -> None:
+    signer = ec.generate_private_key(ec.SECP256R1())
+    other = ec.generate_private_key(ec.SECP256R1())
+    approval = mint_approval(
+        mode="kms", key_id=_KMS_KEY_ID, kms_client=_StubKmsClient(signer), **_kms_fields()
+    )
+    with pytest.raises(ApprovalError):
+        verify_approval_kms(approval, public_key_pem=_pem_of(other))
+
+
+def test_kms_bad_base64_signature_fails_closed() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    approval = mint_approval(
+        mode="kms", key_id=_KMS_KEY_ID, kms_client=_StubKmsClient(priv), **_kms_fields()
+    )
+    broken = PublishApproval(
+        environment=approval.environment,
+        table=approval.table,
+        registry_hash=approval.registry_hash,
+        git_sha=approval.git_sha,
+        expiry=approval.expiry,
+        signature="not-base-64-@@@",
+    )
+    with pytest.raises(ApprovalError):
+        verify_approval_kms(broken, public_key_pem=_pem_of(priv))
+
+
+def test_kms_expired_approval_is_rejected() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    stub = _StubKmsClient(priv)
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    approval = mint_approval(
+        mode="kms", key_id=_KMS_KEY_ID, kms_client=stub, **_kms_fields(expiry=stale)
+    )
+    # signature is valid but the window has closed -> still fails closed on expiry.
+    with pytest.raises(ApprovalError):
+        authorize_publish(
+            _good_target(),
+            mode=PublishMode.CANONICAL,
+            approval=approval,
+            env={},
+            approval_mode="kms",
+            public_key_pem=_pem_of(priv),
+        )
+
+
+def test_kms_wrong_table_binding_is_rejected() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    stub = _StubKmsClient(priv)
+    approval = mint_approval(
+        mode="kms", key_id=_KMS_KEY_ID, kms_client=stub, **_kms_fields(table="silver_esr")
+    )
+    with pytest.raises(ApprovalError):
+        authorize_publish(
+            _good_target(),  # table=silver_model_predictions
+            mode=PublishMode.CANONICAL,
+            approval=approval,
+            env={},
+            approval_mode="kms",
+            public_key_pem=_pem_of(priv),
+        )
+
+
+def test_kms_missing_key_id_mint_fails_closed() -> None:
+    # no key id in the arg and none in the environment -> mint refuses (never calls a real client).
+    with pytest.raises(ApprovalError):
+        mint_approval(mode="kms", key_id=None, env={}, **_kms_fields())
+
+
+def test_kms_missing_public_key_verify_fails_closed() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    approval = mint_approval(
+        mode="kms", key_id=_KMS_KEY_ID, kms_client=_StubKmsClient(priv), **_kms_fields()
+    )
+    # verify in kms mode with neither a PEM nor a key id -> fails closed, no client constructed.
+    with pytest.raises(ApprovalError):
+        verify_approval(approval, _good_target(), mode="kms", env={})
+
+
+def test_kms_mode_resolved_from_env_end_to_end() -> None:
+    import dataclasses
+    import json as _json
+
+    priv = ec.generate_private_key(ec.SECP256R1())
+    stub = _StubKmsClient(priv)
+    approval = mint_approval(mode="kms", key_id=_KMS_KEY_ID, kms_client=stub, **_kms_fields())
+    # the full SFN container seam: the signed approval is threaded as LEVIATHAN_APPROVAL_JSON, and
+    # mode + verification PEM come from the env contract the promote task sets. No secret anywhere.
+    auth = authorize_publish(
+        _good_target(),
+        argv=["silver_task.py", "--publish-mode", "canonical"],
+        env={
+            ENV_APPROVAL_MODE: "kms",
+            ENV_KMS_PUBLIC_KEY_PEM: _pem_of(priv),
+            "LEVIATHAN_APPROVAL_JSON": _json.dumps(dataclasses.asdict(approval)),
+        },
+    )
+    assert auth.may_mutate_canonical is True
+
+
+def test_kms_mint_resolves_key_id_from_env() -> None:
+    # the SFN promote task passes the CMK via LEVIATHAN_KMS_KEY_ID, not an explicit arg.
+    priv = ec.generate_private_key(ec.SECP256R1())
+    stub = _StubKmsClient(priv)
+    approval = mint_approval(
+        mode="kms", env={ENV_KMS_KEY_ID: _KMS_KEY_ID}, kms_client=stub, **_kms_fields()
+    )
+    assert stub.sign_calls == 1
+    verify_approval(approval, _good_target(), mode="kms", public_key_pem=_pem_of(priv))
+
+
+def test_kms_signed_approval_rejected_under_hmac_mode() -> None:
+    # a KMS (base64/DER) signature must not accidentally verify under the default HMAC path.
+    priv = ec.generate_private_key(ec.SECP256R1())
+    approval = mint_approval(
+        mode="kms", key_id=_KMS_KEY_ID, kms_client=_StubKmsClient(priv), **_kms_fields()
+    )
+    with pytest.raises(ApprovalError):
+        authorize_publish(
+            _good_target(),
+            mode=PublishMode.CANONICAL,
+            approval=approval,
+            env={},  # default mode = hmac
+            secret=_SECRET,
+        )
+
+
+def test_hmac_mode_unchanged_when_mode_absent() -> None:
+    # the R0 HMAC path is byte-identical: an approval signed with the placeholder secret still
+    # verifies when no LEVIATHAN_APPROVAL_MODE is set (default hmac).
+    auth = authorize_publish(
+        _good_target(),
+        mode=PublishMode.CANONICAL,
+        approval=_valid_approval(),
+        env={},
+        secret=_SECRET,
+    )
+    assert auth.may_mutate_canonical is True
+    # and an explicit hmac mode is equivalent.
+    auth2 = authorize_publish(
+        _good_target(),
+        mode=PublishMode.CANONICAL,
+        approval=_valid_approval(),
+        env={ENV_APPROVAL_MODE: "hmac"},
+        secret=_SECRET,
+    )
+    assert auth2.may_mutate_canonical is True
+
+
+def test_sign_approval_kms_missing_key_id_fails_closed() -> None:
+    priv = ec.generate_private_key(ec.SECP256R1())
+    with pytest.raises(ApprovalError):
+        sign_approval_kms(key_id="", kms_client=_StubKmsClient(priv), **_kms_fields())

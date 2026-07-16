@@ -20,6 +20,14 @@ locals {
   # absent secret would fail at plan time. ECS/Batch valueFrom resolves the name-based ARN for a
   # same-region secret; the iam GetSecretValue grant widens it with a trailing -* for the random suffix.
   fas_api_key_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:leviathan/dev/fas-api-key"
+
+  # A-W8 MLflow relocation: name-based ARN for the mlflow pg DSN mounted as
+  # MLFLOW_BACKEND_STORE_URI on the Fargate tracking server. The secret
+  # leviathan/dev/mlflow-backend-dsn is created OUT-OF-BAND at cutover (it holds
+  # the db password), so this is CONSTRUCTED, not looked up -- a data source on an
+  # absent secret fails at plan time. ECS valueFrom resolves the name-based ARN
+  # for a same-region secret; the iam GetSecretValue grant widens it with -*.
+  mlflow_backend_dsn_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:leviathan/dev/mlflow-backend-dsn"
 }
 
 module "s3" {
@@ -303,6 +311,13 @@ module "silver_observability" {
   silver_metric_namespace = var.silver_metric_namespace
   silver_batch_families   = var.silver_batch_families
   silver_freshness_slas   = var.silver_freshness_slas
+
+  # A-W5 step 3: orchestration-plane alarms + the aws.states failure rule. The machine ARN
+  # gates the SFN-specific alarms/rule (empty -> they don't create), so this can apply before or
+  # after step_functions; the scheduler + Batch-queued-age alarms always apply. The per-family
+  # schedules live in the default scheduler group.
+  state_machine_arn    = module.step_functions.state_machine_arn
+  scheduler_group_name = "default"
 }
 
 # WAFv2: managed groups + rate limits (esp. /v1/respond*). Ships in COUNT mode (blocking_enabled=false);
@@ -412,6 +427,32 @@ module "serving" {
 }
 
 # ---------------------------------------------------------------------------
+# A-W8 -- MLflow tracking server relocated to ECS Fargate on the existing
+# serving cluster, backed by a new `mlflow` database on leviathan-dev-pg,
+# reachable at mlflow.leviathan.local:5000 (Cloud Map). Artifacts stay on S3.
+# Apply ONLY via `-target=module.mlflow_fargate` AFTER the out-of-band cutover
+# steps (pg db + secret + `mlflow db upgrade`). Wire into A-W9 (EC2 retire).
+# ---------------------------------------------------------------------------
+module "mlflow_fargate" {
+  source = "../../modules/mlflow_fargate"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+  bucket_name  = var.bucket_name
+
+  vpc_id     = data.aws_subnet.serving.vpc_id
+  subnet_ids = var.batch_subnet_ids
+
+  # Runs on the existing serving cluster (no second cluster).
+  cluster_arn = module.serving.cluster_arn
+
+  # Same RDS SG the serving task already sources from; adds the one 5432 rule.
+  rds_security_group_id  = tolist(data.aws_db_instance.pg.vpc_security_groups)[0]
+  backend_dsn_secret_arn = local.mlflow_backend_dsn_secret_arn
+}
+
+# ---------------------------------------------------------------------------
 # Monthly cost budget — alerts at 80 % actual and 100 % forecasted.
 # Set budget_alert_email in terraform.tfvars to receive emails.
 # ---------------------------------------------------------------------------
@@ -515,12 +556,13 @@ resource "aws_scheduler_schedule" "notifications" {
 
 
 # ---------------------------------------------------------------------------
-# Phase D D-W1: weekly USDA ESR ingest schedule. Ships DISABLED -- enabling is a
-# USER-GATED flip (the same P3 morning-brief discipline above): the recurring fetch
-# must not start firing until (a) the leviathan/dev/fas-api-key secret is created,
-# (b) the usda_esr_fetch jobdef + the execution-role GetSecretValue grant are applied
-# (tf -target), and (c) a manual weekly dry-probe is reviewed. Fires the fetch jobdef
-# every Thursday 14:00 UTC -- ESR publishes ~08:00 ET / 13:00 UTC (fetch_usda_esr.py:45-46).
+# Phase D D-W1 / A-W0: weekly USDA ESR ingest schedule. Now codified ENABLED (was
+# DISABLED in code while live drifted ENABLED out of band since ~7/14). A-W0 reconciles
+# code==live so no future `-target` apply can silently disable the working ingest (the
+# #1 landmine). The three original enable prerequisites -- (a) the leviathan/dev/fas-api-key
+# secret, (b) the usda_esr_fetch jobdef + execution-role GetSecretValue grant, (c) a
+# reviewed weekly dry-probe -- were satisfied out of band (B2 task #103). Fires the fetch
+# jobdef every Thursday 14:00 UTC -- ESR publishes ~08:00 ET / 13:00 UTC (fetch_usda_esr.py:45-46).
 # The jobdef is terraform-managed (batch module usda_esr_fetch) and referenced BY NAME so
 # the schedule tracks the latest active revision; its baked command/sizing make the
 # ContainerOverrides below redundant safety (mirrors the morning-brief rationale).
@@ -555,7 +597,7 @@ resource "aws_iam_role_policy" "esr_ingest_scheduler" {
 
 resource "aws_scheduler_schedule" "esr_weekly_ingest" {
   name  = "${var.project_name}-${var.environment}-esr-weekly-ingest"
-  state = "DISABLED" # USER-GATED enable flip (see comment); starts DISABLED like the P3 morning-brief did
+  state = "ENABLED" # A-W0 drift reconcile: codifies the out-of-band B2 (task #103) enable done ~7/14; live has been ENABLED since. A full apply must NOT revert this -- see docs/private/TF_TARGET_CHECKLIST.md.
 
   flexible_time_window {
     mode = "OFF"
@@ -580,4 +622,116 @@ resource "aws_scheduler_schedule" "esr_weekly_ingest" {
       RetryStrategy = { Attempts = 2 }
     })
   }
+}
+
+
+# ---------------------------------------------------------------------------
+# A-W1 -- R1 KMS-asymmetric runtime publish signer (the A2 fork).
+#
+# The state machine mints its own short-lived PublishApproval at promote time via
+# kms:Sign on this CMK (private key never leaves KMS); verification uses the CACHED
+# PUBLIC key, so it needs NO KMS grant and no KMS-holding identity. The two-role
+# split (silver-publisher signs, silver-validator has NO KMS) is the SILVER-F014
+# provenance -- and that provenance ALREADY EXISTS in module.iam (committed 4b3ec8fa):
+# module.iam.aws_iam_role.silver_publisher / .silver_validator, with the exact physical
+# names leviathan-dev-silver-{publisher,validator} that the code-side publish guard
+# binds to (constants.SILVER_{PUBLISHER,VALIDATOR}_ROLE_NAME).
+#
+# DIVERGENCE FROM PLAN A-W1 / Section 5 (flagged, deliberate): the plan enumerates NEW
+# root-level `aws_iam_role.silver_publisher` + `.silver_validator` because its ground
+# truth (line 50) says the F014 roles "do NOT exist in state". They DO exist in CODE
+# (module.iam). Creating same-named root roles would collide (EntityAlreadyExists) and
+# would NOT be the role the guard checks. So A-W1's only genuinely-new grant -- kms:Sign
+# on the CMK -- is attached to the EXISTING F014 publisher role below. The F014 publisher
+# already carries s3:GetObject/PutObject on silver/* (+gold/*) via silver_publisher_base,
+# and the F014 validator already is S3-read-only with NO KMS -- exactly the plan's asks.
+# The F014 canonical-deny (silver_canonical_publish_approved=false) still fences silver/
+# writes until approved; that gate is orthogonal to this KMS signing capability.
+# ---------------------------------------------------------------------------
+resource "aws_kms_key" "publish_signer" {
+  description              = "${var.project_name}-${var.environment} R1 publish signer: asymmetric SIGN_VERIFY CMK for scheduled PublishApproval minting (kms:Sign by silver-publisher; verify via cached public key)."
+  key_usage                = "SIGN_VERIFY"
+  customer_master_key_spec = "ECC_NIST_P256"
+  deletion_window_in_days  = 30
+  enable_key_rotation      = false # rotation is unsupported for asymmetric CMKs
+
+  # Standard root-enable key policy: IAM policies (the silver-publisher inline kms:Sign
+  # below) govern access. Public-key caching (kms:GetPublicKey) is an out-of-band admin/build
+  # step; the validator makes NO KMS call at verify time by design.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableIAMPolicies"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+resource "aws_kms_alias" "publish_signer" {
+  name          = "alias/${var.project_name}-${var.environment}-publish-signer"
+  target_key_id = aws_kms_key.publish_signer.key_id
+}
+
+# The genuinely-new A-W1 grant: kms:Sign (+ GetPublicKey to self-cache) on the CMK, as an
+# INLINE policy on the EXISTING F014 publisher role. Referencing module.iam's role NAME makes
+# terraform create/settle that role before this policy, so a -target on THIS resource pulls the
+# F014 publisher role into the graph (see the -target notes in the plan handoff).
+resource "aws_iam_role_policy" "silver_publisher_kms_sign" {
+  name = "${var.project_name}-${var.environment}-silver-publisher-kms-sign"
+  role = module.iam.silver_publisher_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "PublishSignerKmsSign"
+      Effect   = "Allow"
+      Action   = ["kms:Sign", "kms:GetPublicKey"]
+      Resource = aws_kms_key.publish_signer.arn
+    }]
+  })
+}
+
+
+# ---------------------------------------------------------------------------
+# A-W2 -- SFN platform (ONE parameterized thin-contract machine) + Scheduler.
+# step_functions holds the machine + exec role + log group; eventbridge holds the
+# per-family schedules (placeholder-EMPTY here; they land in A-W6/A-W7 all DISABLED).
+# silver_pipeline_topic_arn is passed as a CONSTRUCTED string (not the module output)
+# to break the step_functions<->silver_observability cycle (A-W5 orch alarms depend on
+# the machine ARN). The topic name is deterministic == module.silver_observability's.
+# ---------------------------------------------------------------------------
+module "step_functions" {
+  source = "../../modules/step_functions"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+
+  pass_role_arns = [
+    module.iam.batch_job_role_arn,
+    module.iam.batch_execution_role_arn,
+    module.iam.silver_publisher_role_arn,
+    module.iam.silver_validator_role_arn,
+  ]
+
+  alerts_topic_arn          = module.alerting.topic_arn
+  silver_pipeline_topic_arn = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.project_name}-${var.environment}-silver-pipeline-alerts"
+}
+
+module "eventbridge" {
+  source = "../../modules/eventbridge"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  aws_region        = var.aws_region
+  state_machine_arn = module.step_functions.state_machine_arn
+
+  # Placeholder-EMPTY: per-family schedules (family -> {cron, input_json}) land in A-W6/A-W7,
+  # every one created state="DISABLED".
+  schedules = {}
 }

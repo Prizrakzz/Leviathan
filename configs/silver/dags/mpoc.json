@@ -1,0 +1,92 @@
+{
+  "schedule": "mpoc",
+  "family": "mpoc",
+  "wave": 1,
+  "cron": "cron(0 12 15 * ? *)",
+  "publish_class": "A",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_mpoc_exports_by_country",
+    "silver_mpoc_stock_comparison",
+    "silver_mpoc_trade_stats_monthly"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/mpoc/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze->silver x3 (F052 adapter)",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_mpoc",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_mpoc.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "mpoc_exports_by_country_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpoc_exports_by_country_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "mpoc_stock_comparison_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpoc_stock_comparison_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "mpoc_trade_stats_monthly_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpoc_trade_stats_monthly_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    }
+  ],
+  "notes": "F052 multi-sheet adapter: fetch_mpoc lands bronze, three shared-runner silver producers."
+}

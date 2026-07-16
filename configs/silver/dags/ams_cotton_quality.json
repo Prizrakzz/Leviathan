@@ -1,0 +1,64 @@
+{
+  "schedule": "ams_cotton_quality",
+  "family": "ams",
+  "wave": 1,
+  "cron": "cron(0 12 15 * ? *)",
+  "publish_class": "A",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_ams_cotton_quality"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/ams_cotton_quality/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze->silver",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_usda_ams_cotton_annual",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_usda_ams_cotton_annual.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "ams_cotton_quality",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/ams_cotton_quality_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    }
+  ],
+  "notes": "Annual cotton-quality release."
+}

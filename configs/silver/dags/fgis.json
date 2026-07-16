@@ -1,0 +1,81 @@
+{
+  "schedule": "fgis",
+  "family": "usda_fgis",
+  "wave": 2,
+  "cron": "cron(0 12 ? * THU *)",
+  "publish_class": "B->A(W4)",
+  "retrofit_required": true,
+  "retrofit_landed": false,
+  "promote_mode": "stop_and_notify",
+  "auth_mode": "hmac",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_fgis"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/fgis/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze->silver_fgis",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_usda_fgis",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_usda_fgis_export_inspections.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "fgis_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-usda-fgis-bronze:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/fgis_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "fgis_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-fgis-silver:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/fgis_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "notes": "ONE weekly run self-heals (cumulative CY{year}.csv) -- NOT a large-first-run. Named bronze+silver jobdefs. CLASS-B latest-only; held DISABLED until the A-W4 retrofit."
+}

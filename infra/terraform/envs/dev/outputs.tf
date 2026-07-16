@@ -102,6 +102,14 @@ output "mlflow_tracking_uri" {
   description = "MLFLOW_TRACKING_URI — set this in SageMaker Training Jobs and Batch containers."
 }
 
+# A-W8: the relocated Fargate tracking server's stable Cloud Map endpoint. This
+# is the URI the three re-registered training jobdefs point at post-cutover
+# (supersedes mlflow_tracking_uri once A-W9 retires the EC2).
+output "mlflow_fargate_tracking_uri" {
+  value       = module.mlflow_fargate.tracking_uri
+  description = "MLFLOW_TRACKING_URI on the relocated Fargate server (http://mlflow.leviathan.local:5000)."
+}
+
 output "sagemaker_training_role_arn" {
   value       = module.iam.sagemaker_training_role_arn
   description = "IAM role ARN to pass as RoleArn when submitting SageMaker Training Jobs."

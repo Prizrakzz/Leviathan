@@ -1,0 +1,83 @@
+{
+  "schedule": "wap",
+  "family": "usda_wap",
+  "wave": 3,
+  "cron": "cron(0 18 12-14 * ? *)",
+  "publish_class": "A",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
+  "skip_existing": true,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_wap_table01",
+    "silver_wap_table01_revisions"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/wap/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze->silver (coupling INTRA-task)",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_usda_wap",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-usda-wap-raw-backfill:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_usda_wap.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "wap_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/wap_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "wap_silver",
+          "invocation_form": "m",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "-m",
+            "jobs.batch.wap_silver_task"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    }
+  ],
+  "notes": "--skip-existing; archive one run. wap_silver_task[m] publishes table01 + _revisions in ONE call -- the coupling is INTRA-task (module form imports jobs.*)."
+}

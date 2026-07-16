@@ -1,0 +1,83 @@
+{
+  "schedule": "modis_biweekly",
+  "family": "weather",
+  "wave": 2,
+  "cron": "cron(0 9 ? * MON *)",
+  "publish_class": "B->A(W4)",
+  "retrofit_required": true,
+  "retrofit_landed": false,
+  "promote_mode": "stop_and_notify",
+  "auth_mode": "hmac",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_modis_ndvi"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/modis_biweekly/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->r2b(run-id)->b2s",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_modis_ndvi",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_modis_ndvi.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "modis_ndvi_raw_to_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-modis-ndvi-raw-to-bronze:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/modis_ndvi_raw_to_bronze_task.py",
+            "--run-id",
+            "${RUN_ID}"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "modis_ndvi_bronze_to_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-modis-ndvi-bronze-to-silver:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/modis_ndvi_bronze_to_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "notes": "fetch_modis_ndvi has NO jobdef (runs on the shared runner override); the chain is run-id keyed, NOT date-keyed. Over-schedule weekly + skip-existing; the fetch resolves missing composites then r2b keys by --run-id. modis_ndvi bronze_to_silver is CLASS-B latest-only; held until A-W4. Same catalog family (weather) as weather_daily but a SEPARATE biweekly schedule."
+}

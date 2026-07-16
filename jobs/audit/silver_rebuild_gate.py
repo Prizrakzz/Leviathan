@@ -396,9 +396,11 @@ def _artifact_path(run_id: str):
     return repo / "reports" / "silver_readiness" / "silver_rebuild_gate" / f"{run_id}.json"
 
 
-def _build_live_context(tables: list[str], *, census_asof: str) -> GateContext:
+def _build_live_context(tables: list[str], *, census_asof: str,
+                        baseline_uri: Optional[str] = None) -> GateContext:
     """Wire the real pg backend ONLY when a Branch-A table is present (Branch-B-only runs need no pg -- and
-    must not open a mirror connection). Loads the prior census baseline for the --diff."""
+    must not open a mirror connection). Loads the prior census baseline for the --diff (from S3 when
+    ``baseline_uri`` is set -- FAIL CLOSED on fetch error -- else the image-baked snapshot)."""
     from leviathan.graphrag.numbers.registry import load_registry as load_numbers
     from leviathan.silver import registry as sreg
     numbers_reg = load_numbers()
@@ -416,12 +418,57 @@ def _build_live_context(tables: list[str], *, census_asof: str) -> GateContext:
         conn = psycopg.connect(os.environ["EVIDENCE_PG_DSN"], autocommit=True)
         query_fn = pgnumbers.pg_query
 
-    prior = _load_prior_census(census_asof)
+    prior = _load_prior_census(census_asof, baseline_uri=baseline_uri)
     return GateContext(numbers_reg=numbers_reg, silver_reg=silver_reg, query_fn=query_fn, conn=conn,
                        census_asof=census_asof, prior_census=prior)
 
 
-def _load_prior_census(asof: str) -> Optional[dict]:
+class BaselineFetchError(RuntimeError):
+    """A scheduled rolling-baseline census (--baseline-uri / CENSUS_BASELINE_S3) could not be fetched or
+    parsed. The gate FAILS CLOSED on this and NEVER silently falls back to the image-baked snapshot: a
+    stale or wrong baseline can mask a regression and let the census --diff pass a bad rebuild."""
+
+
+def _s3_client():
+    """boto3 S3 client factory. Indirection so tests can stub S3 with no boto3/network dependency, and so
+    module import stays AWS-free (boto3 is imported lazily here, never at module load)."""
+    import boto3
+    return boto3.client("s3")
+
+
+def _load_census_from_s3(uri: str) -> dict:
+    """Fetch a rolling-baseline census.json from S3 (read-only get_object) for the scheduled gate.
+
+    FAIL CLOSED (raise BaselineFetchError) on a malformed URI, any get_object error, or unparseable JSON.
+    A scheduled gate must never run against a stale/absent baseline; falling back to the image-baked
+    snapshot here would let a regression pass the census --diff. ASCII-only messages."""
+    if not uri.startswith("s3://"):
+        raise BaselineFetchError(f"baseline-uri must be an s3://bucket/key URI, got: {uri!r}")
+    bucket, _, key = uri[len("s3://"):].partition("/")
+    if not bucket or not key:
+        raise BaselineFetchError(f"baseline-uri is missing a bucket or key: {uri!r}")
+    try:
+        body = _s3_client().get_object(Bucket=bucket, Key=key)["Body"].read()
+    except Exception as e:  # noqa: BLE001 -- fail closed on ANY S3 error (auth/network/404/...)
+        raise BaselineFetchError(
+            f"baseline census fetch failed for {uri}: {type(e).__name__}: {str(e)[:200]}") from e
+    try:
+        return json.loads(body.decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        raise BaselineFetchError(
+            f"baseline census at {uri} is not valid JSON: {type(e).__name__}: {str(e)[:200]}") from e
+
+
+def _load_prior_census(asof: str, baseline_uri: Optional[str] = None) -> Optional[dict]:
+    """Load the baseline census.json to --diff against.
+
+    When ``baseline_uri`` (an s3://bucket/key) is set -- the scheduled rolling-baseline path (A-W3) --
+    fetch it from S3 and FAIL CLOSED on any error (see _load_census_from_s3); never fall back to the
+    image-baked snapshot. When unset (default), load the image-baked
+    ``data/cascade_census/as_of_date={asof}/census.json`` exactly as before (returns None if the file is
+    absent or unparseable -- unchanged, backward-compatible behavior)."""
+    if baseline_uri:
+        return _load_census_from_s3(baseline_uri)
     from pathlib import Path
     repo = Path(__file__).resolve().parents[2]
     p = repo / "data" / "cascade_census" / f"as_of_date={asof}" / "census.json"
@@ -437,6 +484,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="silver_rebuild_gate (SILVER-C001): consumer-sync dispatcher")
     ap.add_argument("--tables", required=True, help="comma-separated table ids that were rebuilt")
     ap.add_argument("--asof", default="2026-02-15", help="census as-of (for the --diff baseline)")
+    ap.add_argument("--baseline-uri", default=None,
+                    help="s3://bucket/key of the rolling baseline census.json to --diff against "
+                         "(scheduled gate). Overrides CENSUS_BASELINE_S3. Unset -> the image-baked "
+                         "data/cascade_census/as_of_date={asof}/census.json (backward compatible).")
     ap.add_argument("--json", dest="out", default=None, help="artifact bundle path (default: reports/...)")
     a = ap.parse_args(argv)
     tables = [t.strip() for t in a.tables.split(",") if t.strip()]
@@ -444,7 +495,15 @@ def main(argv=None) -> int:
         print("FAIL silver_rebuild_gate: no --tables given")
         return 1
 
-    ctx = _build_live_context(tables, census_asof=a.asof)
+    # CLI --baseline-uri wins; CENSUS_BASELINE_S3 is the env fallback; empty/whitespace -> unset.
+    baseline_uri = (a.baseline_uri or os.environ.get("CENSUS_BASELINE_S3") or "").strip() or None
+
+    try:
+        ctx = _build_live_context(tables, census_asof=a.asof, baseline_uri=baseline_uri)
+    except BaselineFetchError as e:
+        # Fail closed: a scheduled gate never runs against a stale/absent baseline (no image-baked fallback).
+        print(f"FAIL silver_rebuild_gate: {e}")
+        return 1
     bundle = run_gate(tables, ctx)
 
     from pathlib import Path

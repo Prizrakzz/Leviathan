@@ -43,3 +43,27 @@ variable "silver_freshness_slas" {
   description = "family_key -> interim freshness ceiling (days) for the freshness-SLA-breach alarms. From silver_observability.auto.tfvars.json."
   default     = {}
 }
+
+# --- A-W5 step 3: orchestration-plane alarm inputs -------------------------
+variable "state_machine_arn" {
+  type        = string
+  description = <<-EOT
+    ARN of the silver thin-contract state machine (module.step_functions). Drives the
+    AWS/States ExecutionsFailed/Aborted/TimedOut alarms + the aws.states failure rule,
+    all count-gated on this being non-empty so the module still applies before A-W2
+    wires the machine in. Empty (default) = no SFN-specific alarms/rule.
+  EOT
+  default     = ""
+}
+
+variable "scheduler_group_name" {
+  type        = string
+  description = "EventBridge Scheduler group holding the per-family schedules -- the ScheduleGroup dimension for the TargetErrorCount alarm. Default group unless a named group is created."
+  default     = "default"
+}
+
+variable "batch_queued_age_threshold_seconds" {
+  type        = number
+  description = "Ceiling (seconds) for the Batch queued-job-age alarm (custom metric BatchQueuedJobAgeSeconds)."
+  default     = 3600
+}

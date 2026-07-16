@@ -1,0 +1,94 @@
+{
+  "schedule": "enso_monthly",
+  "family": "noaa_climate",
+  "wave": 1,
+  "cron": "cron(0 12 5 * ? *)",
+  "publish_class": "A",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_noaa_iod",
+    "silver_noaa_oni"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/enso_monthly/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "2 indep single-task",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_noaa_oni",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_noaa_oni.py"
+          ],
+          "env": {},
+          "publishes": false
+        },
+        {
+          "id": "fetch_noaa_iod",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_noaa_iod.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "noaa_oni",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/noaa_oni_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "noaa_iod",
+          "invocation_form": "m",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "-m",
+            "jobs.batch.noaa_iod_task"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    }
+  ],
+  "liveness_only_tables": [
+    "silver_noaa_iod"
+  ],
+  "notes": "Two independent single-source chains (oni + iod). noaa_iod_task is module form [m]. IOD is upstream-structural/frozen (ends 2025-04), scheduled monthly purely as a liveness/batch-failed poll; the noaa_climate freshness certificate is computed off ONI only -- there is NO per-IOD freshness alarm and enso is NOT gated on iod freshness."
+}

@@ -1,0 +1,119 @@
+{
+  "schedule": "mpob",
+  "family": "mpob",
+  "wave": 1,
+  "cron": "cron(0 6 10-12 * ? *)",
+  "publish_class": "A",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
+  "skip_existing": true,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_mpob",
+    "silver_mpob_annual"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/mpob/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze(x2+text)->silver(monthly+annual)",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_mpob",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_mpob.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "mpob_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-mpob-bronze:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpob_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        },
+        {
+          "id": "mpob_overview_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-mpob-overview-bronze:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpob_overview_bronze_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        },
+        {
+          "id": "mpob_overview_text",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-mpob-overview-text:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpob_overview_text_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "mpob_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-mpob-silver:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpob_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "mpob_annual_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-mpob-annual-silver:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/mpob_annual_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    }
+  ],
+  "notes": "Fully named jobdefs (bronze x2 + text + monthly/annual silver). --skip-existing; --year cumulative self-heals."
+}

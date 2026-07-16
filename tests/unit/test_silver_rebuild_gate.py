@@ -6,6 +6,7 @@ feature-only table NEVER calls load_pg_numbers (the crash class Attack 3 #1 fixe
 red stage. Plus the census --diff new-dark detector and the offline (no-pg) skip posture."""
 from __future__ import annotations
 
+import json
 import types
 
 import pytest
@@ -190,3 +191,140 @@ def test_branch_a_offline_skips_pg_stages(monkeypatch):
     assert by["contract_check"] == g.SKIPPED
     assert by["cascade_census_diff"] == g.SKIPPED
     assert by["config_check"] == g.GREEN
+
+
+# ---------------------------------------------------------------------------
+# A-W3 step 1: --baseline-uri / CENSUS_BASELINE_S3 rolling-baseline census input.
+#   * set   -> fetch census.json from S3 (stubbed) and USE it,
+#   * unset -> the image-baked local path exactly as before (never touches S3),
+#   * fetch error -> FAIL CLOSED (BaselineFetchError -> nonzero exit), NO fallback to the stale snapshot.
+# S3 is stubbed via g._s3_client so no boto3/network is exercised.
+# ---------------------------------------------------------------------------
+class _FakeBody:
+    def __init__(self, data):
+        self._data = data
+
+    def read(self):
+        return self._data
+
+
+class _FakeS3:
+    """Minimal boto3 S3 client stand-in: records get_object calls, returns a body or raises."""
+
+    def __init__(self, body=None, exc=None):
+        self._body = body
+        self._exc = exc
+        self.calls = []
+
+    def get_object(self, Bucket, Key):   # noqa: N803 -- boto3 kwarg names
+        self.calls.append((Bucket, Key))
+        if self._exc is not None:
+            raise self._exc
+        return {"Body": _FakeBody(self._body)}
+
+
+def test_baseline_uri_stubbed_s3_census_is_used(monkeypatch):
+    """--baseline-uri set: the census.json fetched from S3 (stubbed) is what _load_prior_census returns,
+    and the s3://bucket/key is split into the right Bucket/Key."""
+    census = {"banner": {"athena_calls": 0},
+              "legs": [{"contract": "cocoa", "node_id": "grind", "verdict": "DARK-WITH-REASON"}]}
+    fake = _FakeS3(body=json.dumps(census).encode("utf-8"))
+    monkeypatch.setattr(g, "_s3_client", lambda: fake)
+
+    uri = "s3://leviathan-dev-shahem-001/cascade_census/rolling/fx_macro_daily/census.json"
+    out = g._load_prior_census("2026-02-15", baseline_uri=uri)
+
+    assert out == census
+    assert fake.calls == [("leviathan-dev-shahem-001",
+                           "cascade_census/rolling/fx_macro_daily/census.json")]
+
+
+def test_baseline_uri_unset_uses_local_path_and_never_touches_s3(monkeypatch):
+    """Unset -> the image-baked local tree exactly as before; S3 is NEVER contacted (byte-identical
+    legacy path). Returns None here iff the file is absent in this tree -- must not raise either way."""
+    def _boom():
+        raise AssertionError("S3 must NOT be touched when --baseline-uri is unset")
+
+    monkeypatch.setattr(g, "_s3_client", _boom)
+    out = g._load_prior_census("2026-02-15", baseline_uri=None)
+    assert out is None or isinstance(out, dict)
+
+
+def test_baseline_uri_fetch_error_fails_closed(monkeypatch):
+    """A get_object error raises BaselineFetchError -- NO silent fallback to the image-baked snapshot."""
+    fake = _FakeS3(exc=RuntimeError("EndpointConnectionError: could not connect to the endpoint"))
+    monkeypatch.setattr(g, "_s3_client", lambda: fake)
+    with pytest.raises(g.BaselineFetchError):
+        g._load_prior_census("2026-02-15", baseline_uri="s3://leviathan-dev-shahem-001/missing.json")
+
+
+def test_baseline_uri_bad_scheme_fails_closed(monkeypatch):
+    """A non-s3:// URI fails closed before any S3 call."""
+    monkeypatch.setattr(g, "_s3_client",
+                        lambda: (_ for _ in ()).throw(AssertionError("no S3 for a bad URI")))
+    with pytest.raises(g.BaselineFetchError):
+        g._load_prior_census("2026-02-15", baseline_uri="https://not-s3/census.json")
+
+
+def test_baseline_uri_unparseable_json_fails_closed(monkeypatch):
+    """A fetched-but-corrupt baseline fails closed rather than silently degrading."""
+    fake = _FakeS3(body=b"this is not json {{{")
+    monkeypatch.setattr(g, "_s3_client", lambda: fake)
+    with pytest.raises(g.BaselineFetchError):
+        g._load_prior_census("2026-02-15", baseline_uri="s3://b/bad.json")
+
+
+def _capture_build_live_context(store, *, raise_after_capture=True):
+    """Return a _build_live_context stand-in that records the baseline_uri it was called with and (by
+    default) fails closed, so main() short-circuits before run_gate / any real stage."""
+    def _fn(tables, *, census_asof, baseline_uri=None):
+        store["baseline_uri"] = baseline_uri
+        if raise_after_capture:
+            raise g.BaselineFetchError(f"baseline census fetch failed for {baseline_uri}: stubbed")
+        raise AssertionError("unreachable in these tests")
+    return _fn
+
+
+def test_main_baseline_fetch_error_is_nonzero_exit(monkeypatch, capsys):
+    """main() catches BaselineFetchError, prints a clean ASCII FAIL line, and returns nonzero (fail closed).
+    Also proves --baseline-uri is threaded through to _build_live_context."""
+    store = {}
+    monkeypatch.setattr(g, "_build_live_context", _capture_build_live_context(store))
+    rc = g.main(["--tables", "silver_wasde", "--baseline-uri", "s3://b/k/census.json"])
+    assert rc == 1
+    assert store["baseline_uri"] == "s3://b/k/census.json"
+    out = capsys.readouterr().out
+    assert "FAIL silver_rebuild_gate" in out and "baseline" in out.lower()
+    assert out.isascii()
+
+
+def test_main_baseline_uri_env_fallback(monkeypatch):
+    """CENSUS_BASELINE_S3 supplies the baseline when --baseline-uri is omitted."""
+    store = {}
+    monkeypatch.setenv("CENSUS_BASELINE_S3", "s3://env-bucket/rolling/census.json")
+    monkeypatch.setattr(g, "_build_live_context", _capture_build_live_context(store))
+    rc = g.main(["--tables", "silver_wasde"])
+    assert rc == 1
+    assert store["baseline_uri"] == "s3://env-bucket/rolling/census.json"
+
+
+def test_main_cli_baseline_uri_overrides_env(monkeypatch):
+    """CLI --baseline-uri wins over CENSUS_BASELINE_S3."""
+    store = {}
+    monkeypatch.setenv("CENSUS_BASELINE_S3", "s3://env-bucket/census.json")
+    monkeypatch.setattr(g, "_build_live_context", _capture_build_live_context(store))
+    rc = g.main(["--tables", "silver_wasde", "--baseline-uri", "s3://cli-bucket/census.json"])
+    assert rc == 1
+    assert store["baseline_uri"] == "s3://cli-bucket/census.json"
+
+
+def test_main_no_baseline_is_unset_not_empty_string(monkeypatch):
+    """With neither the flag nor the env var, _build_live_context receives baseline_uri=None (unset),
+    so the legacy image-baked path is taken. Use raise_after_capture to short-circuit before run_gate."""
+    store = {}
+    monkeypatch.delenv("CENSUS_BASELINE_S3", raising=False)
+    monkeypatch.setattr(g, "_build_live_context", _capture_build_live_context(store))
+    # baseline_uri is None here, so main()'s except BaselineFetchError is inert to that resolution; the
+    # stub still raises BaselineFetchError to avoid run_gate, but we only assert the resolved value.
+    g.main(["--tables", "silver_wasde"])
+    assert store["baseline_uri"] is None

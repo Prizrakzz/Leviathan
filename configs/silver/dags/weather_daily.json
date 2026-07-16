@@ -1,0 +1,177 @@
+{
+  "schedule": "weather_daily",
+  "family": "weather",
+  "wave": 3,
+  "cron": "cron(0 8 * * ? *)",
+  "publish_class": "B(per-year)+A(compact)",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_chirps",
+    "silver_cpc_soil",
+    "silver_modis_ndvi",
+    "silver_nasa_power",
+    "gold_weather_z"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/weather_daily/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze(glue|batch)->per-year silver->compact(A)->gold_weather_z",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "nasa_power_fetch",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-nasa-power-backfill:3",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_nasa_power.py"
+          ],
+          "env": {},
+          "publishes": false
+        },
+        {
+          "id": "chirps_to_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-chirps-to-bronze-backfill:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/chirps_to_bronze_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        },
+        {
+          "id": "cpc_soil_to_raw",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-cpc-soil-to-raw:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/cpc_soil_to_raw_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "nasa_power_raw_to_bronze",
+          "invocation_form": "g",
+          "integration": "glue",
+          "glue_job": "leviathan-dev-raw-to-bronze-nasa-power",
+          "command": [],
+          "env": {},
+          "publishes": false
+        },
+        {
+          "id": "cpc_soil_raw_to_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-cpc-soil-raw-to-bronze:2",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/cpc_raw_to_bronze_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "nasa_power_bronze_to_silver",
+          "invocation_form": "g",
+          "integration": "glue",
+          "glue_job": "leviathan-dev-bronze-to-silver-nasa-power",
+          "command": [],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        },
+        {
+          "id": "chirps_bronze_to_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-chirps-bronze-to-silver:2",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/bronze_to_silver_chirps_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        },
+        {
+          "id": "cpc_bronze_to_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-cpc-soil-bronze-to-silver:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/cpc_bronze_to_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        },
+        {
+          "id": "compact_weather_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-weather-compact:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/compact_weather_silver_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    },
+    {
+      "name": "gold",
+      "tasks": [
+        {
+          "id": "gold_weather_z",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-gold-weather-z:5",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/gold_weather_z_task.py",
+            "--commodity",
+            "all",
+            "--force-overwrite"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "one_off_backfill": "windowed last-published->today (nasa_power/chirps/cpc)",
+  "gate_id": "G7",
+  "notes": "Glue+batch mix (nasa_power r2b/b2s are Glue; chirps/cpc are Batch). 4-wide silver Map (nasa_power[g]/chirps/cpc/compact) + dependent gold phase (gold_weather_z, folded here -- it has no own schedule). compact_weather_silver is the guarded (A) producer whose downstream gate protects the latest-only per-source b2s + gold_weather_z, so per A-W4 those need NO retrofit. GATED one-off windowed backfill (G7, last-published->today for nasa_power/chirps/cpc) BEFORE enable; ongoing = logical_date-minus-horizon. Family gate spans all 5 weather tables; silver_modis_ndvi is refreshed by the separate modis_biweekly schedule."
+}

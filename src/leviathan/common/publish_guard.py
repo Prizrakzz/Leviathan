@@ -55,15 +55,31 @@ git_sha / expiry`` and signed. R0 uses a **placeholder** shared-secret HMAC-SHA2
 (:func:`sign_approval` / :func:`verify_approval`) so the mechanism and its call sites exist and are
 tested end to end. This is deliberately NOT production-grade key management.
 
-R1 MUST harden this (documented handoff, do not ship canonical authority on the placeholder):
-  * replace the shared-secret HMAC with **KMS asymmetric Sign/Verify** (an asymmetric CMK; the
-    signing key never enters the process — mirrors the milestone-boundary KMS attestation, INV-9);
-  * cross-check ``registry_hash`` against the live registry hash and ``git_sha`` against the merged
-    fix SHA at verify time (R0 only checks the signature covers them, not that they are *current*);
-  * bind the approval to a single-use nonce / fencing token so an approval cannot be replayed.
+R1 (this module, behind ``LEVIATHAN_APPROVAL_MODE``): requirement (1) below is IMPLEMENTED. The
+``kms`` mode replaces the shared-secret HMAC with KMS asymmetric ECDSA sign (mint) + cached
+public-key verify (an asymmetric SIGN_VERIFY CMK; the private key never enters the process). The
+``hmac`` mode stays the DEFAULT (R0 fallback, behaviour byte-identical to before) until the KMS
+canary proves out. Requirements (2) and (3) are DELIBERATELY NOT implemented on the scheduled
+self-mint path -- in a self-minting model the payload binding is not the control, the GATE is (a
+stale / rolled-back self-mint still fails the freshly-run rebuild gate, INV-6). Do NOT represent the
+registry_hash/git_sha binding as a stale-image or replay defence.
+  (1) DONE: replace the shared-secret HMAC with KMS asymmetric ``Sign`` (mint) + cached-public-key
+      verify. NO ``kms:Verify`` call is ever made -- an asymmetric SIGN_VERIFY signature is checked
+      with the PUBLIC key, which is public, so verification needs no KMS permission or identity.
+  (2) GATE-FIRST (not done here): cross-check ``registry_hash`` against the live registry hash and
+      ``git_sha`` against the deployed image SHA at verify time.
+  (3) GATE-FIRST (not done here): bind a single-use nonce / fencing token so an approval cannot be
+      replayed.
+
+The signing MODE is selected by ``LEVIATHAN_APPROVAL_MODE`` (``kms`` | ``hmac``; default ``hmac``).
+KMS mint reads the CMK key id from ``LEVIATHAN_KMS_KEY_ID``; KMS verify reads the verification
+public key from ``LEVIATHAN_KMS_PUBLIC_KEY_PEM`` (a PEM string) when present, otherwise fetches it
+ONCE via ``kms:GetPublicKey`` for the key id and caches it in-process.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -88,6 +104,16 @@ ENV_READINESS = "LEVIATHAN_READINESS"
 ENV_ROLE_ARN = "LEVIATHAN_ROLE_ARN"
 ENV_APPROVAL_SECRET = "LEVIATHAN_APPROVAL_SECRET"
 ENV_APPROVAL_JSON = "LEVIATHAN_APPROVAL_JSON"
+# R1 KMS-asymmetric approval-signing contract (the SFN promote task sets these for the scheduled
+# self-mint path). ENV_APPROVAL_MODE selects hmac (R0 default) vs kms; ENV_KMS_KEY_ID names the
+# SIGN_VERIFY CMK the mint path signs with; ENV_KMS_PUBLIC_KEY_PEM (optional) short-circuits the
+# one-time kms:GetPublicKey fetch on the verify path.
+ENV_APPROVAL_MODE = "LEVIATHAN_APPROVAL_MODE"
+ENV_KMS_KEY_ID = "LEVIATHAN_KMS_KEY_ID"
+ENV_KMS_PUBLIC_KEY_PEM = "LEVIATHAN_KMS_PUBLIC_KEY_PEM"
+
+# The KMS SIGN_VERIFY signing algorithm this module mints + verifies with (ECC_NIST_P256 CMK).
+KMS_SIGNING_ALGORITHM = "ECDSA_SHA_256"
 
 # A role ARN (the caller's, or one declared in the environment) is a *readiness* identity when it
 # matches this pattern. Readiness identities can never select canonical (deny-first, INV acceptance).
@@ -100,6 +126,14 @@ class PublishMode(str, Enum):
     DRY_RUN = "dry-run"
     SHADOW = "shadow"
     CANONICAL = "canonical"
+
+
+class ApprovalMode(str, Enum):
+    """How a canonical approval is signed + verified. ``hmac`` is the R0 placeholder (default);
+    ``kms`` is the R1 asymmetric signer (mint via ``kms:Sign``, verify via the cached public key)."""
+
+    HMAC = "hmac"
+    KMS = "kms"
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +423,248 @@ def _parse_iso_utc(value: str) -> datetime:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
+# ---------------------------------------------------------------------------
+# R1 KMS asymmetric signing (mint via kms:Sign; verify via the cached public key -- NO kms:Verify).
+# ---------------------------------------------------------------------------
+def resolve_approval_mode(
+    mode: Optional[object] = None,
+    env: Optional[Mapping[str, str]] = None,
+) -> ApprovalMode:
+    """Resolve the approval signing mode. Precedence: explicit ``mode`` arg >
+    ``LEVIATHAN_APPROVAL_MODE`` env > default ``hmac`` (R0). An unrecognised value fails closed."""
+    if isinstance(mode, ApprovalMode):
+        return mode
+    env = os.environ if env is None else env
+    raw = mode if mode is not None else env.get(ENV_APPROVAL_MODE)
+    if raw is None or str(raw).strip() == "":
+        return ApprovalMode.HMAC
+    try:
+        return ApprovalMode(str(raw).strip().lower())
+    except ValueError as exc:
+        allowed = ", ".join(m.value for m in ApprovalMode)
+        raise ApprovalError(
+            f"unknown {ENV_APPROVAL_MODE} '{raw}': expected one of {allowed}"
+        ) from exc
+
+
+def _default_kms_client():
+    """Build a real boto3 KMS client (only reached on the live KMS path; tests stub this seam)."""
+    try:
+        import boto3
+    except ImportError as exc:  # pragma: no cover - boto3 is a runtime dependency
+        raise ApprovalError(
+            "boto3 is required for KMS approval signing but is not importable"
+        ) from exc
+    return boto3.client("kms")
+
+
+def sign_approval_kms(
+    *,
+    environment: str,
+    table: str,
+    registry_hash: str,
+    git_sha: str,
+    expiry: str,
+    key_id: Optional[str],
+    kms_client: Optional[object] = None,
+) -> str:
+    """Sign the canonical approval payload with an asymmetric KMS CMK (``kms:Sign``, ECDSA_SHA_256).
+
+    Returns the DER ECDSA signature base64-encoded (a JSON/env-safe string for ``PublishApproval.
+    signature``). The private key never leaves KMS. Fails closed if no key id is supplied."""
+    if not key_id:
+        raise ApprovalError(
+            f"cannot KMS-sign an approval without a CMK key id (set {ENV_KMS_KEY_ID})"
+        )
+    payload = _canonical_payload(
+        environment=environment,
+        table=table,
+        registry_hash=registry_hash,
+        git_sha=git_sha,
+        expiry=expiry,
+    )
+    client = _default_kms_client() if kms_client is None else kms_client
+    resp = client.sign(
+        KeyId=key_id,
+        Message=payload,
+        MessageType="RAW",
+        SigningAlgorithm=KMS_SIGNING_ALGORITHM,
+    )
+    signature = resp["Signature"]
+    if not isinstance(signature, (bytes, bytearray)):
+        signature = bytes(signature)
+    return base64.b64encode(bytes(signature)).decode("ascii")
+
+
+# In-process cache of verification public keys. Keyed by "pem:<sha256>" (inline PEM) or
+# "kms:<key_id>" (fetched once via kms:GetPublicKey). Verification NEVER calls kms:Verify.
+_KMS_PUBLIC_KEY_CACHE: dict = {}
+
+
+def reset_public_key_cache() -> None:
+    """Clear the in-process verification-public-key cache (test seam / key-rotation hook)."""
+    _KMS_PUBLIC_KEY_CACHE.clear()
+
+
+def _load_public_key_from_pem(pem: str) -> object:
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
+
+    raw = pem.encode("utf-8") if isinstance(pem, str) else pem
+    try:
+        return load_pem_public_key(raw)
+    except (ValueError, TypeError) as exc:
+        raise ApprovalError(
+            f"could not parse {ENV_KMS_PUBLIC_KEY_PEM} as a PEM public key: {exc}"
+        ) from exc
+
+
+def _fetch_public_key_from_kms(key_id: str, kms_client: Optional[object] = None) -> object:
+    from cryptography.hazmat.primitives.serialization import load_der_public_key
+
+    client = _default_kms_client() if kms_client is None else kms_client
+    resp = client.get_public_key(KeyId=key_id)
+    der = resp["PublicKey"]
+    if not isinstance(der, (bytes, bytearray)):
+        der = bytes(der)
+    try:
+        return load_der_public_key(bytes(der))
+    except (ValueError, TypeError) as exc:
+        raise ApprovalError(
+            f"kms:GetPublicKey for {key_id!r} did not return a parseable DER public key: {exc}"
+        ) from exc
+
+
+def get_kms_public_key(
+    *,
+    key_id: Optional[str] = None,
+    public_key_pem: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
+    kms_client: Optional[object] = None,
+) -> object:
+    """Return the cached ECDSA verification public key. Sourced from ``LEVIATHAN_KMS_PUBLIC_KEY_PEM``
+    (or the ``public_key_pem`` arg) when present, else fetched ONCE via ``kms:GetPublicKey`` for the
+    key id and cached in-process. This path performs signature verification locally and NEVER calls
+    ``kms:Verify`` -- the validator identity needs no KMS grant. Fails closed if neither a PEM nor a
+    key id is available."""
+    env = os.environ if env is None else env
+    pem = public_key_pem if public_key_pem is not None else env.get(ENV_KMS_PUBLIC_KEY_PEM)
+    if pem:
+        digest = hashlib.sha256(pem.encode("utf-8") if isinstance(pem, str) else pem).hexdigest()
+        cache_key = f"pem:{digest}"
+        cached = _KMS_PUBLIC_KEY_CACHE.get(cache_key)
+        if cached is None:
+            cached = _load_public_key_from_pem(pem)
+            _KMS_PUBLIC_KEY_CACHE[cache_key] = cached
+        return cached
+    key_id = key_id if key_id is not None else env.get(ENV_KMS_KEY_ID)
+    if not key_id:
+        raise ApprovalError(
+            f"no KMS public key available to verify approval "
+            f"(set {ENV_KMS_PUBLIC_KEY_PEM} or {ENV_KMS_KEY_ID})"
+        )
+    cache_key = f"kms:{key_id}"
+    cached = _KMS_PUBLIC_KEY_CACHE.get(cache_key)
+    if cached is None:
+        cached = _fetch_public_key_from_kms(key_id, kms_client=kms_client)
+        _KMS_PUBLIC_KEY_CACHE[cache_key] = cached
+    return cached
+
+
+def verify_approval_kms(
+    approval: PublishApproval,
+    *,
+    key_id: Optional[str] = None,
+    public_key_pem: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
+    kms_client: Optional[object] = None,
+) -> None:
+    """Verify a KMS-signed approval signature against the CACHED public key (no ``kms:Verify``).
+
+    Raises :class:`ApprovalError` if the signature is malformed or does not verify. Binding + expiry
+    are enforced by :func:`verify_approval` (this checks the cryptographic signature only)."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    public_key = get_kms_public_key(
+        key_id=key_id, public_key_pem=public_key_pem, env=env, kms_client=kms_client
+    )
+    if not isinstance(public_key, ec.EllipticCurvePublicKey):
+        raise ApprovalError(
+            "KMS verification public key is not an ECDSA key; expected an ECC_NIST_P256 "
+            f"SIGN_VERIFY CMK for {KMS_SIGNING_ALGORITHM}"
+        )
+    payload = _canonical_payload(
+        environment=approval.environment,
+        table=approval.table,
+        registry_hash=approval.registry_hash,
+        git_sha=approval.git_sha,
+        expiry=approval.expiry,
+    )
+    try:
+        signature = base64.b64decode(approval.signature or "", validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ApprovalError("approval signature is not valid base64 (KMS mode)") from exc
+    try:
+        public_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature as exc:
+        raise ApprovalError(
+            "approval signature is invalid (KMS asymmetric public-key verify failed)"
+        ) from exc
+
+
+def mint_approval(
+    *,
+    environment: str,
+    table: str,
+    registry_hash: str,
+    git_sha: str,
+    expiry: str,
+    mode: Optional[object] = None,
+    env: Optional[Mapping[str, str]] = None,
+    secret: Optional[str] = None,
+    key_id: Optional[str] = None,
+    kms_client: Optional[object] = None,
+) -> PublishApproval:
+    """Build + sign a :class:`PublishApproval` in the resolved mode (``hmac`` R0 or ``kms`` R1).
+
+    This is the mint seam the SFN promote task uses to self-issue a short-lived canonical grant with
+    NO plaintext secret (kms mode) and NO human. Mode/key id are resolved from the environment when
+    not passed explicitly."""
+    resolved_mode = resolve_approval_mode(mode, env)
+    if resolved_mode is ApprovalMode.KMS:
+        env_map = os.environ if env is None else env
+        resolved_key_id = key_id if key_id is not None else env_map.get(ENV_KMS_KEY_ID)
+        signature = sign_approval_kms(
+            environment=environment,
+            table=table,
+            registry_hash=registry_hash,
+            git_sha=git_sha,
+            expiry=expiry,
+            key_id=resolved_key_id,
+            kms_client=kms_client,
+        )
+    else:
+        if secret is None:
+            secret = os.environ.get(ENV_APPROVAL_SECRET)
+        signature = sign_approval(
+            environment=environment,
+            table=table,
+            registry_hash=registry_hash,
+            git_sha=git_sha,
+            expiry=expiry,
+            secret=secret,
+        )
+    return PublishApproval(
+        environment=environment,
+        table=table,
+        registry_hash=registry_hash,
+        git_sha=git_sha,
+        expiry=expiry,
+        signature=signature,
+    )
+
+
 def verify_approval(
     approval: PublishApproval,
     target: PublishTarget,
@@ -396,12 +672,21 @@ def verify_approval(
     *,
     now: Optional[datetime] = None,
     secret: Optional[str] = None,
+    mode: Optional[object] = None,
+    env: Optional[Mapping[str, str]] = None,
+    key_id: Optional[str] = None,
+    public_key_pem: Optional[str] = None,
+    kms_client: Optional[object] = None,
 ) -> None:
     """Fail closed unless the approval is (1) bound to this environment+table, (2) signed with a
     valid signature, and (3) unexpired. Raises :class:`ApprovalError` otherwise (before mutation).
 
-    R0 note: signature verification is the placeholder HMAC scheme; ``registry_hash``/``git_sha`` are
-    covered by the signature but NOT cross-checked against live state until R1 (see module docstring).
+    The signature check dispatches on the resolved :class:`ApprovalMode` (``LEVIATHAN_APPROVAL_MODE``,
+    default ``hmac``). ``hmac`` is the R0 placeholder path (byte-identical to before); ``kms`` verifies
+    the KMS asymmetric signature against the cached public key -- no ``kms:Verify`` call.
+
+    Note: ``registry_hash``/``git_sha`` are covered by the signature but NOT cross-checked against
+    live state, and no nonce is bound -- those remain GATE-FIRST controls (see module docstring).
     """
     if approval is None:  # defensive: callers should branch earlier
         raise ApprovalError("canonical publish requires a signed approval artifact")
@@ -414,22 +699,32 @@ def verify_approval(
         raise ApprovalError(
             f"approval table {approval.table!r} != target table {target.table!r}"
         )
-    if secret is None:
-        secret = os.environ.get(ENV_APPROVAL_SECRET)
-    if not secret:
-        raise ApprovalError(
-            f"no signing secret available to verify approval (set {ENV_APPROVAL_SECRET})"
+    resolved_mode = resolve_approval_mode(mode, env)
+    if resolved_mode is ApprovalMode.KMS:
+        verify_approval_kms(
+            approval,
+            key_id=key_id,
+            public_key_pem=public_key_pem,
+            env=env,
+            kms_client=kms_client,
         )
-    expected = sign_approval(
-        environment=approval.environment,
-        table=approval.table,
-        registry_hash=approval.registry_hash,
-        git_sha=approval.git_sha,
-        expiry=approval.expiry,
-        secret=secret,
-    )
-    if not hmac.compare_digest(expected, approval.signature or ""):
-        raise ApprovalError("approval signature is invalid")
+    else:
+        if secret is None:
+            secret = os.environ.get(ENV_APPROVAL_SECRET)
+        if not secret:
+            raise ApprovalError(
+                f"no signing secret available to verify approval (set {ENV_APPROVAL_SECRET})"
+            )
+        expected = sign_approval(
+            environment=approval.environment,
+            table=approval.table,
+            registry_hash=approval.registry_hash,
+            git_sha=approval.git_sha,
+            expiry=approval.expiry,
+            secret=secret,
+        )
+        if not hmac.compare_digest(expected, approval.signature or ""):
+            raise ApprovalError("approval signature is invalid")
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
@@ -474,6 +769,10 @@ def authorize_publish(
     environment: PublishEnvironment = PROD_ENVIRONMENT,
     now: Optional[datetime] = None,
     secret: Optional[str] = None,
+    approval_mode: Optional[object] = None,
+    key_id: Optional[str] = None,
+    public_key_pem: Optional[str] = None,
+    kms_client: Optional[object] = None,
 ) -> Authorization:
     """Authorize (or deny) a publish. The thin integration hook every writer adopts.
 
@@ -515,7 +814,18 @@ def authorize_publish(
             "canonical publish requires a signed approval artifact "
             "(environment/table/registry-hash/git-SHA/expiry)"
         )
-    verify_approval(approval, target, environment, now=now, secret=secret)  # raises on any problem
+    verify_approval(  # raises on any problem
+        approval,
+        target,
+        environment,
+        now=now,
+        secret=secret,
+        mode=approval_mode,
+        env=env,
+        key_id=key_id,
+        public_key_pem=public_key_pem,
+        kms_client=kms_client,
+    )
     logger.info(
         "publish authorized CANONICAL: table=%s git_sha=%s expiry=%s",
         target.table, approval.git_sha, approval.expiry,

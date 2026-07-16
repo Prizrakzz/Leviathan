@@ -90,7 +90,7 @@ _CONTAINER = {
         {"name": "AWS_REGION", "value": _REGION},
         {"name": "LEVIATHAN_BUCKET", "value": "leviathan-dev-shahem-001"},
         {"name": "LEVIATHAN_ENV", "value": "dev"},
-        {"name": "MLFLOW_TRACKING_URI", "value": "http://172.31.29.109:5000"},
+        {"name": "MLFLOW_TRACKING_URI", "value": "http://mlflow.leviathan.local:5000"},
         {"name": "PYTHONIOENCODING", "value": "utf-8"},
     ],
 }

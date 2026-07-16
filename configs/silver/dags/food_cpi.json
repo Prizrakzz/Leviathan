@@ -1,0 +1,64 @@
+{
+  "schedule": "food_cpi",
+  "family": "world_bank",
+  "wave": 2,
+  "cron": "cron(0 16 4 * ? *)",
+  "publish_class": "B->A(W4)",
+  "retrofit_required": true,
+  "retrofit_landed": false,
+  "promote_mode": "stop_and_notify",
+  "auth_mode": "hmac",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_food_cpi"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/food_cpi/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->silver",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_world_bank_food_cpi",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_world_bank_food_cpi.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "food_cpi",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/food_cpi_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "notes": "Full series in one run. CLASS-B latest-only (no bronze step); split from pink_sheet under the one world_bank catalog family; held DISABLED until the A-W4 retrofit."
+}

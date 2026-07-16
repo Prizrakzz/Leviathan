@@ -1,0 +1,79 @@
+{
+  "schedule": "futures_prices",
+  "family": "futures",
+  "wave": 2,
+  "cron": "cron(0 23 ? * MON-FRI *)",
+  "publish_class": "B->A(W4)",
+  "retrofit_required": true,
+  "retrofit_landed": false,
+  "promote_mode": "stop_and_notify",
+  "auth_mode": "hmac",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_futures_prices"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_prices/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->silver (single-task)",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_yfinance_futures",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_yfinance_futures.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "yfinance_futures",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/yfinance_futures_task.py",
+            "--force-overwrite"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        },
+        {
+          "id": "quandl_chris",
+          "invocation_form": "m",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "-m",
+            "jobs.batch.quandl_chris_task"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "notes": "yfinance_futures_task MUST pass --force-overwrite (else the run is a no-op); one run self-heals. quandl_chris_task is module form [m]. CLASS-B latest-only; held DISABLED until the A-W4 retrofit."
+}

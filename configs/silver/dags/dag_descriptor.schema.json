@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leviathan/configs/silver/dags/dag_descriptor.schema.json",
+  "title": "Silver DAG chain descriptor (A1-A2 A-W6)",
+  "description": "One hand-authored per-schedule chain descriptor (Section-3 row of docs/private/A1A2_PLAN.md). Renders via scripts/silver/gen_sfn_inputs.py into the A-W2 SFN execution-input JSON. Validated structurally by leviathan.silver.registry._validate (the self-contained subset validator; no external jsonschema dependency) and rule-checked by gen_sfn_inputs.lint_descriptor.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schedule",
+    "family",
+    "wave",
+    "cron",
+    "publish_class",
+    "retrofit_required",
+    "retrofit_landed",
+    "promote_mode",
+    "auth_mode",
+    "gate_tables",
+    "gate_baseline_uri",
+    "asof",
+    "retry",
+    "phases"
+  ],
+  "properties": {
+    "schedule": {
+      "type": "string",
+      "minLength": 1
+    },
+    "family": {
+      "type": "string",
+      "minLength": 1
+    },
+    "wave": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "cron": {
+      "type": "string",
+      "minLength": 1
+    },
+    "publish_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retrofit_required": {
+      "type": "boolean"
+    },
+    "retrofit_landed": {
+      "type": "boolean"
+    },
+    "promote_mode": {
+      "type": "string",
+      "enum": [
+        "autonomous",
+        "stop_and_notify",
+        "post_publish_audit"
+      ]
+    },
+    "auth_mode": {
+      "type": "string",
+      "enum": [
+        "kms",
+        "hmac"
+      ]
+    },
+    "skip_existing": {
+      "type": "boolean"
+    },
+    "asof": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gate_tables": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "gate_baseline_uri": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gate_jobdef": {
+      "type": "string"
+    },
+    "gate_queue": {
+      "type": "string"
+    },
+    "shared_silver_jobdef": {
+      "type": "string"
+    },
+    "queue": {
+      "type": "string"
+    },
+    "chain_shape": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_retry_attempts",
+        "maximum_event_age_in_seconds"
+      ],
+      "properties": {
+        "maximum_retry_attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 185
+        },
+        "maximum_event_age_in_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "tasks"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "fetch",
+              "bronze",
+              "silver",
+              "gold"
+            ]
+          },
+          "tasks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": [
+                "id",
+                "invocation_form",
+                "integration",
+                "command",
+                "env",
+                "publishes"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "invocation_form": {
+                  "type": "string",
+                  "enum": [
+                    "m",
+                    "s",
+                    "g"
+                  ]
+                },
+                "integration": {
+                  "type": "string",
+                  "enum": [
+                    "batch",
+                    "glue"
+                  ]
+                },
+                "jobdef": {
+                  "type": "string"
+                },
+                "glue_job": {
+                  "type": "string"
+                },
+                "queue": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "env": {
+                  "type": "object"
+                },
+                "publishes": {
+                  "type": "boolean"
+                },
+                "publish_mode": {
+                  "type": "string",
+                  "enum": [
+                    "shadow_canonical",
+                    "latest_only",
+                    "projected_canonical"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

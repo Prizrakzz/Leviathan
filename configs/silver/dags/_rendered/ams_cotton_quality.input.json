@@ -1,0 +1,58 @@
+{
+  "asof": "${ASOF}",
+  "auth_mode": "kms",
+  "family": "ams",
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/ams_cotton_quality/census.json",
+  "gate_tables": [
+    "silver_ams_cotton_quality"
+  ],
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "command": [
+            "jobs/ingest/fetch_usda_ams_cotton_annual.py"
+          ],
+          "env": {},
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue"
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "command": [
+            "jobs/batch/ams_cotton_quality_task.py",
+            "--publish-mode",
+            "shadow"
+          ],
+          "env": {},
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue"
+        }
+      ]
+    }
+  ],
+  "promote": {
+    "mode": "autonomous",
+    "tasks": [
+      {
+        "command": [
+          "jobs/batch/ams_cotton_quality_task.py",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": {},
+        "integration": "batch",
+        "jobdef": "leviathan-dev-b3-flat-silver:4",
+        "queue": "leviathan-dev-queue",
+        "role": "leviathan-dev-silver-publisher"
+      }
+    ]
+  }
+}

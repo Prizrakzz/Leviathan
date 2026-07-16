@@ -1,0 +1,75 @@
+{
+  "schedule": "production_faostat",
+  "family": "faostat",
+  "wave": 3,
+  "cron": "cron(0 6 1 * ? *)",
+  "publish_class": "A* (projected canonical)",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "post_publish_audit",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_production"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/production_faostat/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze[g]->silver_production[g]",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "upload_faostat",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/upload_faostat.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "raw_to_bronze_faostat",
+          "invocation_form": "g",
+          "integration": "glue",
+          "glue_job": "leviathan-dev-raw-to-bronze-faostat",
+          "command": [],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "bronze_to_silver_faostat",
+          "invocation_form": "g",
+          "integration": "glue",
+          "glue_job": "leviathan-dev-bronze-to-silver-faostat",
+          "command": [],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "projected_canonical"
+        }
+      ]
+    }
+  ],
+  "notes": "FAOSTAT Glue projected-canonical (pythonshell silver), NO shadow -- the Glue jobs do not expose --publish-mode (carried open Q), so the rebuild gate runs as a POST-PUBLISH audit rather than a gate-before-promote. Bulk one run."
+}

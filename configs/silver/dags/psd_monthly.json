@@ -1,0 +1,82 @@
+{
+  "schedule": "psd_monthly",
+  "family": "usda_psd",
+  "wave": 2,
+  "cron": "cron(0 18 8-13 * ? *)",
+  "publish_class": "B->A(W4)",
+  "retrofit_required": true,
+  "retrofit_landed": false,
+  "promote_mode": "stop_and_notify",
+  "auth_mode": "hmac",
+  "skip_existing": true,
+  "asof": "${ASOF}",
+  "gate_tables": [
+    "silver_psd"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/psd_monthly/census.json",
+  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue",
+  "chain_shape": "fetch->bronze->silver_psd",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_usda_psd",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/ingest/fetch_usda_psd.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "psd_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-usda-psd-bronze:1",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "jobs/batch/psd_task.py"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "psd_silver",
+          "invocation_form": "m",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue",
+          "command": [
+            "-m",
+            "jobs.batch.psd_silver_task"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "notes": "--skip-existing; full DB snapshot self-heals. psd_silver is module form [m] (defensive jobs.* import). CLASS-B latest-only; held DISABLED until the A-W4 retrofit."
+}
