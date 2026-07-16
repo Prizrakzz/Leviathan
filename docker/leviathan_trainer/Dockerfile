@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir --no-compile --upgrade pip \
         pyyaml \
         scipy \
         "scikit-learn>=1.3" \
-    && pip install --no-cache-dir --no-compile --no-deps "xgboost>=2.0,<3" \
+    && pip install --no-cache-dir --no-compile --no-deps "xgboost>=3.2,<4" \
     && rm -rf \
         /usr/local/lib/python3.11/site-packages/nvidia \
         /usr/local/lib/python3.11/site-packages/nvidia_nccl* \
