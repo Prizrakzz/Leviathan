@@ -48,7 +48,7 @@ _XLSX_MAGIC = b"PK\x03\x04"
 _MIN_EXCEL_BYTES = 10_000  # sanity floor; real FNC files are 460 KB+
 
 _MANIFEST_PATH = (
-    Path(__file__).parent.parent / "configs" / "sources" / "fnc_excel_sources.yaml"
+    Path(__file__).parent.parent.parent / "configs" / "sources" / "fnc_excel_sources.yaml"
 )
 
 _UA = (

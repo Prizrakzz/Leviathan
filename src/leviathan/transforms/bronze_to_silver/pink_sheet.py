@@ -27,8 +27,12 @@ reproduce every live column rather than remove one.
 Multi-release deduplication
 ---------------------------
 The Pink Sheet is cumulative: every monthly release contains the full history back to 1960. When
-multiple releases are present in bronze, we keep the latest release's value for each
-(date, series_name) pair before pivoting.
+multiple releases are present in bronze, we first normalize each row's ``series_name`` to its
+governed silver name, then keep the latest release's value for each (date, series_name) pair before
+pivoting. Normalizing BEFORE the dedup collapses releases written under different naming conventions
+(pre-F023 governed names vs raw World Bank names) onto a single key -- otherwise both survive the
+dedup and pivot into two columns that then rename to the same governed name (a hard ValueError in the
+downstream z-score loop).
 """
 from __future__ import annotations
 
@@ -167,6 +171,18 @@ def build_silver(dfs: list[pd.DataFrame]) -> pd.DataFrame:
         return pd.DataFrame(columns=SILVER_COLUMNS)
 
     # ------------------------------------------------------------------
+    # Step 0 -- normalize series_name to the governed silver names in the LONG
+    # frame, BEFORE the dedup. Releases predating the F023 rewrite already carry
+    # governed names (e.g. soybeans_usd_t) while newer releases carry the raw
+    # World Bank names (e.g. soybeans_usd_mt) that _SERIES_RENAME maps to the same
+    # governed column. Renaming here makes both conventions share one dedup key so
+    # the (date, series_name) dedup below collapses the cross-convention duplicate;
+    # otherwise both survive and pivot into two columns that rename to the same
+    # name. ``replace`` leaves any non-mapped series_name untouched.
+    # ------------------------------------------------------------------
+    combined["series_name"] = combined["series_name"].replace(_SERIES_RENAME)
+
+    # ------------------------------------------------------------------
     # Step 1 -- deduplicate: keep latest release per (date, series_name)
     # release_ym is "YYYYMmm" (e.g. "2026M05"); sortable as int after stripping "M".
     # ------------------------------------------------------------------
@@ -189,12 +205,23 @@ def build_silver(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     )
 
     # ------------------------------------------------------------------
-    # Step 3 -- pivot long -> wide, rename bronze series to silver columns
+    # Step 3 -- pivot long -> wide. series_name was already normalized to the
+    # governed silver column names in Step 0, so no post-pivot rename is needed.
     # ------------------------------------------------------------------
     wide = deduped.pivot(index="date", columns="series_name", values="value_usd")
     wide.columns.name = None
     wide = wide.reset_index()
-    wide = wide.rename(columns=_SERIES_RENAME)
+
+    # Defensive: after Step 0 normalization the pivot columns must be unique. A
+    # duplicate here would mean an un-normalized cross-convention alias slipped
+    # past the dedup and would otherwise crash the z-score loop below with an
+    # opaque "multiple columns to the single column" ValueError.
+    if wide.columns.duplicated().any():
+        dupes = sorted(set(wide.columns[wide.columns.duplicated()]))
+        raise ValueError(
+            f"pink_sheet pivot produced duplicate columns {dupes}; series_name "
+            "normalization (Step 0) did not collapse a cross-convention alias."
+        )
 
     # Ensure all 15 value columns are present even if a series was absent from this bronze slice.
     for col in _VALUE_COLS:

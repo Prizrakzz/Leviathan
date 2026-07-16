@@ -377,10 +377,54 @@ def diagnose_table_drift(
 
 
 def find_table(tables: list[NormalizedTable], identity_substr: str) -> Optional[NormalizedTable]:
-    """First table whose identity/caption contains ``identity_substr`` (case-insensitive)."""
+    """First table whose identity/caption contains ``identity_substr`` (case-insensitive).
+
+    NOTE: MPOC's current live pages render every data table inside an Elementor *tab widget* whose
+    section titles all sit in the nav BEFORE any panel content, so :func:`_nearest_heading` can only
+    ever reach the preceding table's trailing number cells -- table identity is unreliable on the
+    live layout. Prefer :func:`find_table_by_header` (header-row signature) for those pages; this
+    heading-based finder still serves the older archive pages that carry numbered section headings."""
     needle = identity_substr.lower()
     for t in tables:
         blob = (t.identity or "").lower() + " " + (t.caption or "").lower()
         if needle in blob:
             return t
+    return None
+
+
+def find_table_by_header(
+    tables: list[NormalizedTable],
+    *,
+    first_col: Optional[str] = None,
+    header_all: Optional[list[str]] = None,
+    header_any: Optional[list[str]] = None,
+) -> Optional[NormalizedTable]:
+    """Resolve a table by its HEADER-ROW signature -- robust when section headings are absent.
+
+    The header row is the stable anchor on MPOC's live tab-widget pages (see :func:`find_table`).
+    All checks are case-insensitive against the whitespace-collapsed header cells:
+
+    * ``first_col`` -- the first header cell must START WITH this string (e.g. ``"country"`` selects
+      the country-grain tables). Combined with returning the FIRST match, this picks the leading
+      "Exports to Major Countries" table ahead of the trailing full-destination list.
+    * ``header_all`` -- every token must appear as a substring of SOME header cell (e.g.
+      ``["export", "import"]`` uniquely selects the monthly Exports/Imports table).
+    * ``header_any`` -- at least one token must appear as a substring of some header cell.
+
+    Returns the FIRST table satisfying every supplied constraint, or ``None`` (a producer treats
+    ``None`` as fail-closed layout drift)."""
+    for t in tables:
+        header_l = [(h or "").strip().lower() for h in t.header]
+        if first_col is not None:
+            if not header_l or not header_l[0].startswith(first_col.lower()):
+                continue
+        if header_all is not None and not all(
+            any(tok.lower() in h for h in header_l) for tok in header_all
+        ):
+            continue
+        if header_any is not None and not any(
+            any(tok.lower() in h for h in header_l) for tok in header_any
+        ):
+            continue
+        return t
     return None

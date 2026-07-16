@@ -69,6 +69,31 @@ logger = get_logger(__name__)
 # Validation marker — every MPOB BEPI palm oil table page contains this string
 _TABLE_MARKER = "CRUDE PALM OIL"
 
+
+class _ContentValidationMiss(Exception):
+    """An HTTP-200 page that lacks the expected palm-oil table marker.
+
+    MPOB's stat server serves ``This page is under construction`` (HTTP 200,
+    ~32 bytes) for a monthly_release ``val1`` slot until that month is
+    published — and rolls older months back to that placeholder once a newer
+    release supersedes them.  For a monthly_release entry this is a not-yet-
+    published (or rolled-off) month, so ``main`` downgrades it to a soft miss
+    (WARNING + tally) rather than failing the whole autonomous chain.  All
+    other entry classes keep treating a marker miss as fatal.
+    """
+
+
+def _is_unpublished_month(release_type: str, exc: BaseException) -> bool:
+    """Return True when *exc* is a monthly_release content-validation miss.
+
+    Only a marker-absent HTTP-200 page (``_ContentValidationMiss``) on a
+    ``monthly_release`` entry qualifies as a soft miss.  HTTP errors, S3
+    failures, bad PDFs, and marker misses on other entry classes all stay
+    fatal.
+    """
+    return isinstance(exc, _ContentValidationMiss) and release_type == "monthly_release"
+
+
 _UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -184,7 +209,7 @@ def main() -> None:
     bucket = get_required_env("LEVIATHAN_BUCKET")
     region = get_required_env("AWS_REGION")
 
-    uploaded = skipped = errors = 0
+    uploaded = skipped = missing = errors = 0
 
     session = requests.Session()
     session.headers.update({"User-Agent": _UA})
@@ -226,7 +251,7 @@ def main() -> None:
             else:
                 html_text = _download_html(url, session)
                 if _TABLE_MARKER not in html_text.upper():
-                    raise RuntimeError(
+                    raise _ContentValidationMiss(
                         f"Validation failed: '{_TABLE_MARKER}' not found in response from {url}"
                     )
                 payload = html_text.encode("utf-8")
@@ -253,15 +278,26 @@ def main() -> None:
             uploaded += 1
 
         except Exception as exc:  # noqa: BLE001
-            logger.error("Failed %s (%s): %s", label, url, exc)
-            errors += 1
+            # A not-yet-published (or rolled-off) monthly_release month returns
+            # HTTP 200 without the table marker; that must not fail an autonomous
+            # chain, so downgrade it to a soft miss. Everything else stays fatal.
+            if _is_unpublished_month(rt, exc):
+                logger.warning("Not yet published — skipping %s (%s): %s", label, url, exc)
+                missing += 1
+            else:
+                logger.error("Failed %s (%s): %s", label, url, exc)
+                errors += 1
 
         time.sleep(args.sleep_seconds)
 
     session.close()
 
     logger.info(
-        "Done. uploaded=%d  skipped=%d  errors=%d", uploaded, skipped, errors
+        "Done. uploaded=%d  skipped=%d  missing=%d  errors=%d",
+        uploaded,
+        skipped,
+        missing,
+        errors,
     )
 
     if errors:

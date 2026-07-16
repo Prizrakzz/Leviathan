@@ -32,7 +32,6 @@
         {
           "command": [
             "jobs/batch/nass_citrus_task.py",
-            "--discover",
             "--publish-mode",
             "shadow"
           ],
@@ -50,7 +49,6 @@
       {
         "command": [
           "jobs/batch/nass_citrus_task.py",
-          "--discover",
           "--publish-mode",
           "canonical"
         ],

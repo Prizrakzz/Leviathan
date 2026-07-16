@@ -72,6 +72,7 @@ import yaml
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.mpoc.adapter import find_table_by_header, parse_tables
 from leviathan.storage.paths import (
     raw_mpoc_article_key,
     raw_mpoc_competitive_prices_key,
@@ -111,6 +112,32 @@ def _download_html(url: str, session: requests.Session, timeout: int = 30) -> st
     resp = session.get(url, timeout=timeout, allow_redirects=True)
     resp.raise_for_status()
     return resp.text
+
+
+def _assert_tables_parseable(html_text: str, rt: str, url: str) -> None:
+    """Structural drift guard: assert the SILVER producers' target tables are actually resolvable.
+
+    The loose text-marker check ("EXPORTS TO MAJOR COUNTRIES" etc.) passes even when the live layout
+    has drifted (the phrase survives in the tab nav / JSON-LD while the table itself is unparseable).
+    Resolving the tables by their header signature here -- the same finder the F053/F054/F055
+    producers use -- makes a drifted page fail at FETCH, before it can overwrite an archived page.
+    """
+    tables = parse_tables(html_text)
+    if rt == "trade_statistics":
+        if find_table_by_header(tables, first_col="country") is None:
+            raise RuntimeError(
+                f"Structural drift: no COUNTRY-headed exports table resolvable in {url}"
+            )
+        if find_table_by_header(tables, header_all=["export", "import"]) is None:
+            raise RuntimeError(
+                f"Structural drift: no monthly Exports/Imports table resolvable in {url}"
+            )
+    elif rt == "stock_comparison":
+        # each country renders a 'Country : <name>' header cell; require at least one.
+        if find_table_by_header(tables, first_col="country") is None:
+            raise RuntimeError(
+                f"Structural drift: no per-country ending-stock table resolvable in {url}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +288,7 @@ def main() -> None:
                     raise RuntimeError(
                         f"Validation failed: '{_MARKER_TRADE_STATS}' not found in {url}"
                     )
+                _assert_tables_parseable(html_text, rt, url)
                 check_min_file_size(html_text.encode("utf-8"), "mpoc_trade_stats", context=url)
 
             elif rt == "stock_comparison":
@@ -268,6 +296,7 @@ def main() -> None:
                     raise RuntimeError(
                         f"Validation failed: '{_MARKER_STOCK_COMPARISON}' not found in {url}"
                     )
+                _assert_tables_parseable(html_text, rt, url)
                 check_min_file_size(html_text.encode("utf-8"), "mpoc_stock_comparison", context=url)
 
             elif rt == "competitive_prices":

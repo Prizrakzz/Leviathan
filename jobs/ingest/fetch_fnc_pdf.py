@@ -96,7 +96,7 @@ _CDX_UA = "Leviathan-Data-Pipeline/1.0 (research)"
 _SSL_CTX = ssl.create_default_context()
 
 _MANIFEST_PATH = (
-    Path(__file__).parent.parent / "configs" / "sources" / "fnc_reports.yaml"
+    Path(__file__).parent.parent.parent / "configs" / "sources" / "fnc_reports.yaml"
 )
 
 # Report index pages to scrape

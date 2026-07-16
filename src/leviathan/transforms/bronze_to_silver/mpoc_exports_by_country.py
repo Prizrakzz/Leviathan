@@ -19,7 +19,7 @@ from leviathan.common.logging import get_logger
 from leviathan.silver.mpoc.adapter import (
     NormalizedTable,
     diagnose_table_drift,
-    find_table,
+    find_table_by_header,
     normalize_country,
     parse_number,
 )
@@ -28,8 +28,14 @@ logger = get_logger(__name__)
 
 OUTPUT_COLUMNS: list[str] = ["year", "country", "exports_mt", "source"]
 
-# The table identity + required header the F052 drift check enforces on each year page.
-EXPORTS_TABLE_IDENTITY = "exports to major countries"
+# Table resolution + the required header the F052 drift check enforces on each year page.
+#
+# The live MPOC pages no longer carry a per-table "Exports to Major Countries" heading (all section
+# titles sit in the tab-widget nav, ahead of every panel), so identity-by-heading resolves the wrong
+# table or none at all. The country-grain tables are instead identified by a first header cell that
+# reads COUNTRY; the "Exports to Major Countries" table is the FIRST such table, ahead of the
+# trailing full-destination list (which shares the same header). See find_table_by_header.
+_EXPORTS_FIRST_COL = "country"
 _EXPORTS_REQUIRED_COLUMNS = ["country"]
 
 # Countries that are aggregate rollups, not real destinations -- excluded from the country grain.
@@ -71,10 +77,9 @@ def _exports_column_index(table: NormalizedTable, year: int) -> int:
 
 
 def _rows_for_release(release: MpocExportsRelease) -> list[dict]:
-    table = find_table(release.tables, EXPORTS_TABLE_IDENTITY)
+    table = find_table_by_header(release.tables, first_col=_EXPORTS_FIRST_COL)
     drift = diagnose_table_drift(
         table,
-        expected_identity_substr=EXPORTS_TABLE_IDENTITY,
         expected_columns=_EXPORTS_REQUIRED_COLUMNS,
     )
     if drift:

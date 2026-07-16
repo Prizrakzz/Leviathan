@@ -2,6 +2,12 @@
 
 End-to-end from golden MPOC HTML fixtures through the F052 adapter into each silver grain. Pure
 Python -- no S3/AWS.
+
+Two fixture families are covered per producer:
+  * synthetic minimal tables (the original intent tests: schema/grain/dedup/conflict/completeness);
+  * REAL trimmed excerpts of the LIVE MPOC tab-widget layout (section headings absent, two-row
+    year sub-headers, per-country stock grids), which the fixture-only heuristics silently
+    mis-resolved (F053/54/55 MpocDriftError on the live pages).
 """
 from __future__ import annotations
 
@@ -18,16 +24,77 @@ from leviathan.transforms.bronze_to_silver.mpoc_exports_by_country import (
 )
 from leviathan.transforms.bronze_to_silver.mpoc_stock_comparison import (
     MpocConflictError as StockConflictError,
+    MpocDriftError as StockDriftError,
     MpocStockRelease,
     OUTPUT_COLUMNS as STOCK_COLS,
     transform_stock_comparison,
 )
 from leviathan.transforms.bronze_to_silver.mpoc_trade_stats_monthly import (
     MpocCompletenessError,
+    MpocDriftError as MonthlyDriftError,
     MpocMonthlyRelease,
     OUTPUT_COLUMNS as MONTHLY_COLS,
     transform_trade_stats_monthly,
 )
+
+
+# =========================================================================== REAL live-layout excerpts
+# Trimmed straight from the pages fetched 2026-07-16 (S3 raw/production/source=mpoc/...). Section
+# headings are gone; tables must be resolved by header signature. Page order mirrors the live site:
+# monthly Exports/Imports -> Exports to Major Countries -> Monthly Average Prices (CPO) -> full
+# destination list. The CPO table carries the '4. Monthly Average Prices' heading -- the historical
+# 'monthly'-identity trap that mis-resolved the monthly producer onto the CPO-price table.
+_LIVE_MONTHLY_EI = """
+<table><tbody>
+<tr><th></th><th colspan="2"><strong>Exports</strong></th><th colspan="2"><strong>Imports</strong></th></tr>
+<tr><th></th><th>2023</th><th>2022</th><th>2023</th><th>2022</th></tr>
+<tr><td>Jan</td><td>1,136,027</td><td>1,155,826</td><td>144,937</td><td>70,596</td></tr>
+<tr><td>Feb</td><td>1,126,127</td><td>1,111,507</td><td>52,446</td><td>149,833</td></tr>
+<tr><td>Jan-Dec</td><td>15,097,572</td><td>15,712,071</td><td>874,371</td><td>1,060,538</td></tr>
+</tbody></table>
+"""
+
+_LIVE_MAJOR = """
+<table><tbody>
+<tr><th>COUNTRY</th><th>JAN – DEC 2023</th><th>JAN – DEC 2022</th><th>CHANGE (MT)</th><th>CHANGE (%)</th></tr>
+<tr><td>INDIA</td><td>2,809,956</td><td>2,891,422</td><td>(81,466)</td><td>(2.82)</td></tr>
+<tr><td>CHINA</td><td>1,466,864</td><td>1,763,640</td><td>(296,777)</td><td>(16.83)</td></tr>
+<tr><td>TOTAL</td><td>9,018,807</td><td>9,565,130</td><td>(546,323)</td><td>(5.71)</td></tr>
+</tbody></table>
+"""
+
+_LIVE_CPO = """
+<h4>4. Monthly Average Prices</h4>
+<table><tbody>
+<tr><th></th><th colspan="2">CPO Local Prices</th></tr>
+<tr><th></th><th>2023</th><th>2022</th></tr>
+<tr><td>Jan</td><td>3,924</td><td>5,359</td></tr>
+</tbody></table>
+"""
+
+# Full-destination list: a SECOND country-headed table, later on the page, carrying a country
+# (SPAIN) absent from the major-countries table -- proves the producer picks the FIRST country table.
+_LIVE_FULL_DEST = """
+<table><tbody>
+<tr><th>COUNTRY</th><th>JAN – DEC 2023</th><th>JAN – DEC 2022</th><th>CHANGE (MT)</th><th>CHANGE (%)</th></tr>
+<tr><td>INDIA</td><td>2,809,956</td><td>2,891,422</td><td>(81,466)</td><td>(2.82)</td></tr>
+<tr><td>SPAIN</td><td>84,902</td><td>161,688</td><td>(76,786)</td><td>(47.49)</td></tr>
+<tr><td>GRAND TOTAL</td><td>15,097,552</td><td>15,712,071</td><td>(614,520)</td><td>(3.91)</td></tr>
+</tbody></table>
+"""
+
+_LIVE_TRADE_PAGE = _LIVE_MONTHLY_EI + _LIVE_MAJOR + _LIVE_CPO + _LIVE_FULL_DEST
+
+# 2009 archive monthly table: prior year (2008) is listed FIRST, so the page-year column must be
+# resolved from the year sub-header, not by fixed position.
+_LIVE_MONTHLY_EI_2009 = """
+<table><tbody>
+<tr><th></th><th colspan="2">Exports</th><th colspan="2">Imports</th></tr>
+<tr><th></th><th>2008</th><th>2009</th><th>2008</th><th>2009</th></tr>
+<tr><td>Jan</td><td>1,037,468</td><td>1,353,686</td><td>52,868</td><td>29,863</td></tr>
+<tr><td>Feb</td><td>1,065,491</td><td>1,257,482</td><td>28,789</td><td>27,423</td></tr>
+</tbody></table>
+"""
 
 
 # --------------------------------------------------------------------------- F053 exports-by-country
@@ -78,6 +145,21 @@ class TestExportsByCountry:
         with pytest.raises(MpocDriftError):
             transform_exports_by_country([MpocExportsRelease(2023, parse_tables("<p>no table</p>"))])
 
+    # --- live tab-widget layout (headings absent; two country tables on the page) ---
+    def test_live_layout_resolves_major_countries(self):
+        df = transform_exports_by_country([MpocExportsRelease(2023, parse_tables(_LIVE_TRADE_PAGE))])
+        assert list(df.columns) == EXPORTS_COLS
+        # first COUNTRY-headed table (Exports to Major Countries), NOT the trailing full list:
+        assert set(df["country"]) == {"india", "china"}   # SPAIN (full-list only) absent; TOTAL out
+        assert df[df.country == "india"].exports_mt.iloc[0] == 2_809_956.0   # 2023 column
+        assert df[df.country == "china"].exports_mt.iloc[0] == 1_466_864.0
+
+    def test_live_layout_missing_country_table_is_drift(self):
+        # only the monthly + CPO tables (no COUNTRY-headed table) -> fail closed
+        page = _LIVE_MONTHLY_EI + _LIVE_CPO
+        with pytest.raises(MpocDriftError):
+            transform_exports_by_country([MpocExportsRelease(2023, parse_tables(page))])
+
 
 # --------------------------------------------------------------------------- F054 monthly trade-stats
 def _monthly_page(year: int, months: int = 12) -> str:
@@ -118,47 +200,139 @@ class TestTradeStatsMonthly:
             [MpocMonthlyRelease(2023, parse_tables(_monthly_page(2023, 8)))])
         assert len(df) == 8
 
+    # --- live tab-widget layout (two-row header; year sub-header; CPO 'monthly' trap present) ---
+    def test_live_layout_two_row_header_page_year_columns(self):
+        df = transform_trade_stats_monthly([MpocMonthlyRelease(2023, parse_tables(_LIVE_TRADE_PAGE))])
+        assert list(df["month"]) == [1, 2]                     # Jan, Feb (Jan-Dec total skipped)
+        # 2023 columns picked (exports col 1, imports col 3) -- NOT the adjacent 2022 columns:
+        assert df[df.month == 1].exports_mt.iloc[0] == 1_136_027.0
+        assert df[df.month == 1].imports_mt.iloc[0] == 144_937.0
+
+    def test_live_layout_avoids_monthly_average_prices_trap(self):
+        # the CPO 'Monthly Average Prices' table must never be resolved: if it were, the header has
+        # no export/import column and the result would be empty / wrong. Verify real numbers land.
+        df = transform_trade_stats_monthly([MpocMonthlyRelease(2023, parse_tables(_LIVE_TRADE_PAGE))])
+        assert not df.empty
+        assert df[df.month == 2].exports_mt.iloc[0] == 1_126_127.0
+
+    def test_live_layout_prior_year_first_resolves_page_year(self):
+        # 2009 archive lists 2008 before 2009; the page-year column is read from the year sub-header
+        df = transform_trade_stats_monthly(
+            [MpocMonthlyRelease(2009, parse_tables(_LIVE_MONTHLY_EI_2009))])
+        assert df[df.month == 1].exports_mt.iloc[0] == 1_353_686.0   # 2009 exports, not 2008
+        assert df[df.month == 1].imports_mt.iloc[0] == 29_863.0       # 2009 imports, not 2008
+
+    def test_live_layout_only_cpo_table_is_drift(self):
+        # a page with only the CPO 'Monthly Average Prices' table -> no export/import table -> drift
+        with pytest.raises(MonthlyDriftError):
+            transform_trade_stats_monthly([MpocMonthlyRelease(2023, parse_tables(_LIVE_CPO))])
+
 
 # --------------------------------------------------------------------------- F055 stock-comparison
-_STOCK_HTML = """
-<h3>Oils and Fats Ending Stocks</h3>
-<table><tr><th>Country</th><th>Oil</th><th>Nov 2024</th><th>Dec 2024</th></tr>
-<tr><td>China</td><td>Palm</td><td>600</td><td>620</td></tr>
-<tr><td>China</td><td>Soybean</td><td>900</td><td>910</td></tr>
-<tr><td>India</td><td>Palm</td><td>400</td><td>n.a.</td></tr></table>
+# Real per-country grids (China + USA) trimmed from the live Stock Comparison page. oil_type is a
+# column GROUP, the year is a sub-header, and the month is the row label. Sunflower is all '-' for
+# China (missing, not zero); China 2026 has a blank July; USA labels carry footnote asterisks.
+_STOCK_CHINA = """
+<table><tbody>
+<tr><th colspan="13">Country : China</th></tr>
+<tr><th colspan="13">Oils and Fats Ending Stocks</th></tr>
+<tr><th></th><th colspan="2">Palm Oil (MT)</th><th colspan="2">Soybean Oil (MT)</th><th colspan="2">Sunflower Oil (MT)</th><th colspan="2">Rapeseed Oil (MT)</th><th colspan="2">Other Oils (MT)</th><th colspan="2">Total Ending Stocks (MT)</th></tr>
+<tr><th></th><th>2026</th><th>2025</th><th>2026</th><th>2025</th><th>2026</th><th>2025</th><th>2026</th><th>2025</th><th>2026</th><th>2024</th><th>2026</th><th>2025</th></tr>
+<tr><td>January</td><td>709,200</td><td>418,900</td><td>883,300</td><td>757,300</td><td>-</td><td>-</td><td>242,000</td><td>551,000</td><td>-</td><td>-</td><td>1,834,500</td><td>1,727,200</td></tr>
+<tr><td>July</td><td></td><td>585,500</td><td></td><td>989,300</td><td>-</td><td>-</td><td></td><td>673,000</td><td>-</td><td>-</td><td></td><td>2,247,800</td></tr>
+</tbody></table>
 """
+
+_STOCK_USA = """
+<table><tbody>
+<tr><th colspan="13">Country : USA</th></tr>
+<tr><th colspan="13">Oils and Fats Ending Stocks</th></tr>
+<tr><th></th><th colspan="2">Palm Oil (MT)</th><th colspan="2">Soybean Oil (MT)*</th><th colspan="2">Sunflower Oil (MT)*</th><th colspan="2">Rapeseed Oil (MT)</th><th colspan="2">Other Oils (MT)</th><th colspan="2">Total Ending Stocks (MT)*</th></tr>
+<tr><th></th><th>2026</th><th>2025</th><th>2026</th><th>2025</th><th>2026</th><th>2025</th><th>2026</th><th>2025</th><th>2026</th><th>2025</th><th>2026</th><th>2025</th></tr>
+<tr><td>January</td><td>159,000</td><td>159,000</td><td>795,000</td><td>694,000</td><td>29,000</td><td>26,000</td><td>57,000</td><td>55,000</td><td>121,000</td><td>126,000</td><td>1,161,000</td><td>1,060,000</td></tr>
+</tbody></table>
+"""
+
+_STOCK_PAGE = _STOCK_CHINA + _STOCK_USA
 
 
 class TestStockComparison:
     def test_schema_and_melt(self):
-        df = transform_stock_comparison(MpocStockRelease("2026-05-01", parse_tables(_STOCK_HTML)))
+        df = transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(_STOCK_PAGE)))
         assert list(df.columns) == STOCK_COLS
-        # 3 (country,oil) rows x 2 months minus one n.a. cell = 5
-        assert len(df) == 5
-        row = df[(df.country == "china") & (df.oil_type == "palm_oil") & (df.month == 12)]
-        assert row.ending_stocks_mt.iloc[0] == 620.0
+        assert set(df["country"]) == {"china", "usa"}
+        # only the four canonical oils survive; 'Other Oils' + 'Total Ending Stocks' are dropped
+        assert set(df["oil_type"]) <= {"palm_oil", "soybean_oil", "sunflower_oil", "rapeseed_oil"}
+        row = df[(df.country == "china") & (df.oil_type == "palm_oil")
+                 & (df.year == 2026) & (df.month == 1)]
+        assert row.ending_stocks_mt.iloc[0] == 709_200.0
 
-    def test_year_month_parsed_from_header(self):
-        df = transform_stock_comparison(MpocStockRelease("2026-05-01", parse_tables(_STOCK_HTML)))
-        assert set(df["year"]) == {2024}
-        assert set(df["month"]) == {11, 12}
+    def test_year_and_month_from_subheaders(self):
+        df = transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(_STOCK_PAGE)))
+        assert set(df["year"]) == {2025, 2026}
+        # China palm: Jan+Jul for 2025 (both present), only Jan for 2026 (July 2026 is blank)
+        china_palm = df[(df.country == "china") & (df.oil_type == "palm_oil")]
+        assert set(china_palm[china_palm.year == 2025].month) == {1, 7}
+        assert set(china_palm[china_palm.year == 2026].month) == {1}
+
+    def test_asterisked_oil_labels_normalized(self):
+        df = transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(_STOCK_USA)))
+        usa_soy = df[(df.country == "usa") & (df.oil_type == "soybean_oil")
+                     & (df.year == 2026) & (df.month == 1)]      # label was 'Soybean Oil (MT)*'
+        assert usa_soy.ending_stocks_mt.iloc[0] == 795_000.0
+
+    def test_blank_and_dash_cells_dropped_not_zero(self):
+        df = transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(_STOCK_CHINA)))
+        # China sunflower is all '-' -> no rows at all (missing, never 0.0)
+        assert df[(df.country == "china") & (df.oil_type == "sunflower_oil")].empty
+        # China palm July 2026 is a blank cell -> dropped (only 2025 July survives)
+        assert df[(df.country == "china") & (df.oil_type == "palm_oil")
+                  & (df.year == 2026) & (df.month == 7)].empty
 
     def test_as_of_not_a_row_column(self):
-        df = transform_stock_comparison(MpocStockRelease("2026-05-01", parse_tables(_STOCK_HTML)))
+        df = transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(_STOCK_PAGE)))
         assert "as_of_date" not in df.columns  # provenance is manifest-only (plan L697)
 
     def test_conflicting_snapshot_cell_fails_closed(self):
         # the SAME (country, oil, year, month) cell appears twice with two different values
         conflict = """
-        <h3>Oils and Fats Ending Stocks</h3>
-        <table><tr><th>Country</th><th>Oil</th><th>Nov 2024</th></tr>
-        <tr><td>China</td><td>Palm</td><td>600</td></tr>
-        <tr><td>China</td><td>Palm</td><td>999</td></tr></table>
+        <table><tbody>
+        <tr><th colspan="5">Country : China</th></tr>
+        <tr><th colspan="5">Oils and Fats Ending Stocks</th></tr>
+        <tr><th></th><th colspan="2">Palm Oil (MT)</th><th colspan="2">Soybean Oil (MT)</th></tr>
+        <tr><th></th><th>2026</th><th>2025</th><th>2026</th><th>2025</th></tr>
+        <tr><td>January</td><td>600</td><td>-</td><td>-</td><td>-</td></tr>
+        <tr><td>January</td><td>999</td><td>-</td><td>-</td><td>-</td></tr>
+        </tbody></table>
         """
         with pytest.raises(StockConflictError):
-            transform_stock_comparison(MpocStockRelease("2026-05-01", parse_tables(conflict)))
+            transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(conflict)))
 
-    def test_na_cell_dropped_not_zero(self):
-        df = transform_stock_comparison(MpocStockRelease("2026-05-01", parse_tables(_STOCK_HTML)))
-        india_dec = df[(df.country == "india") & (df.month == 12)]
-        assert india_dec.empty  # 'n.a.' is missing, never 0.0
+    def test_no_country_table_is_drift(self):
+        with pytest.raises(StockDriftError):
+            transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables("<p>no stock</p>")))
+
+    def test_country_table_without_oil_grid_is_drift(self):
+        # a 'Country : X' header + ending-stock marker but no oil/year grid beneath it -> fail closed
+        broken = """
+        <table><tbody>
+        <tr><th colspan="3">Country : China</th></tr>
+        <tr><th colspan="3">Oils and Fats Ending Stocks</th></tr>
+        <tr><th>Foo</th><th>Bar</th><th>Baz</th></tr>
+        <tr><td>x</td><td>1</td><td>2</td></tr>
+        </tbody></table>
+        """
+        with pytest.raises(StockDriftError):
+            transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(broken)))
+
+    def test_country_table_without_ending_stock_marker_is_drift(self):
+        # a 'Country : X' header present but the ending-stocks page marker is absent -> fail closed
+        no_marker = """
+        <table><tbody>
+        <tr><th colspan="3">Country : China</th></tr>
+        <tr><th>Foo</th><th>Bar</th><th>Baz</th></tr>
+        <tr><td>x</td><td>1</td><td>2</td></tr>
+        </tbody></table>
+        """
+        with pytest.raises(StockDriftError):
+            transform_stock_comparison(MpocStockRelease("2026-07-16", parse_tables(no_marker)))

@@ -115,6 +115,43 @@ class TestDedup:
         df = build_silver([pd.DataFrame(rows)])
         assert len(df) == 3
 
+    def test_mixed_convention_releases_collapse_to_one_governed_column(self):
+        """Two releases written under DIFFERENT series_name conventions -- an older
+        release already carrying governed silver names and a newer release carrying
+        raw World Bank names -- must collapse onto one governed column per series,
+        with the latest release winning the shared (date, series) key.
+
+        Regression for the pink_sheet_monthly ValueError: dedup on (date, series_name)
+        used to run before renaming, so both conventions survived, pivoted into two
+        columns, and renamed into two identically-named columns -> the z-score loop
+        raised "Cannot set a DataFrame with multiple columns to the single column
+        soybeans_usd_t_zscore_5yr".
+        """
+        d = "2026-01-01"
+        # Older release (pre-F023 producer): already-governed silver names.
+        governed = [
+            _make_bronze_row(d, "urea_usd_mt", 300.0, release_ym="2026M05"),
+            _make_bronze_row(d, "soybeans_usd_t", 500.0, release_ym="2026M05"),
+        ]
+        # Newer release: raw World Bank names that _SERIES_RENAME maps to the same
+        # governed columns as above.
+        raw = [
+            _make_bronze_row(d, "urea_e_europe_bulk_spot_usd_mt", 420.0, release_ym="2026M07"),
+            _make_bronze_row(d, "soybeans_usd_mt", 560.0, release_ym="2026M07"),
+        ]
+        df = build_silver([pd.DataFrame(governed), pd.DataFrame(raw)])
+
+        # No duplicate columns leaked out of the pivot/rename.
+        assert df.columns.duplicated().sum() == 0
+        assert list(df.columns) == SILVER_COLUMNS
+
+        row = df[df["date"] == pd.Timestamp(d)]
+        assert len(row) == 1
+        # Latest release (2026M07) wins each cross-convention key.
+        assert row.iloc[0]["urea_usd_mt"] == pytest.approx(420.0)
+        assert row.iloc[0]["soybeans_usd_t"] == pytest.approx(560.0)
+        assert row.iloc[0]["latest_release_ym"] == "2026M07"
+
 
 # ---------------------------------------------------------------------------
 # TestPivotAndRename

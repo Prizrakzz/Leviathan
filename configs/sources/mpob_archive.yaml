@@ -97,11 +97,19 @@ releases:
   # val codes without val1 for annual tables, not monthly releases).
   # --------------------------------------------------------------------------
 
-  # 2026 — April only (val=202675, art=1249); earlier months under construction
+  # 2026 — the val=202675 root exposes only the LATEST published month; older
+  # val1 slots roll to "This page is under construction" (32-byte placeholder,
+  # no CRUDE PALM OIL marker) once superseded by a newer release.
+  # Verified live 2026-07-16: val1=06 (June 2026) serves the full CPO table
+  # ("PERFORMANCE OF THE MALAYSIAN PALM OIL INDUSTRY, JUNE 2026"); val1=01..05
+  # are all under-construction. The April entry authored 2026-05-20 (val1=04)
+  # has since rolled off. Bump this val1 to the current month as MPOB publishes
+  # (~10th of each month); the fetcher treats a not-yet-published monthly_release
+  # (HTTP 200 without the marker) as a soft miss (WARNING + tally), not a failure.
   - release_type: monthly_release
     year: 2026
-    month: 4
-    stat_url: "https://bepi.mpob.gov.my/stat/web_report1.php?val=202675&val1=04"
+    month: 6
+    stat_url: "https://bepi.mpob.gov.my/stat/web_report1.php?val=202675&val1=06"
 
   # NOTE: 2020 monthly releases (val=202075, art=996-1007) are not included.
   # The Joomla articles exist but the stat server returns "under construction"

@@ -34,8 +34,7 @@
           "jobdef": "leviathan-dev-b3-flat-silver:4",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/nass_citrus_task.py",
-            "--discover"
+            "jobs/batch/nass_citrus_task.py"
           ],
           "env": {},
           "publishes": true,
@@ -44,5 +43,5 @@
       ]
     }
   ],
-  "notes": "nass_citrus_task does fetch+bronze+silver in one; --discover pulls the missing 2025-26 season (~10-15 PDFs). Same catalog family (usda_nass) as nass_crop_progress/nass_annual but a SEPARATE season-scoped schedule."
+  "notes": "Silver-only (SILVER-F056): nass_citrus_task.py reads the existing usda_nass_citrus bronze corpus and publishes silver -- it does NOT fetch or ingest bronze (its argparse takes only --bucket/--aws-region/--run-id/--code-sha/--publish-mode). The prior '--discover' flag was a stray from jobs/ingest/fetch_usda_nass_citrus.py (scrapes NASS index pages to the manifest YAML; never feeds this chain) and exited 2. No tracked raw->bronze producer exists (an untracked step built the bronze), so like fx_macro_daily this is a lone silver phase. Same catalog family (usda_nass) as nass_crop_progress but a SEPARATE season-scoped schedule."
 }
