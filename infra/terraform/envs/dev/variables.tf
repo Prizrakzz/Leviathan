@@ -143,3 +143,13 @@ variable "silver_alert_email" {
   description = "Email for the silver-pipeline SNS subscription placeholder ('' = no subscription)."
   default     = ""
 }
+
+variable "dag_schedules" {
+  type = map(object({
+    cron       = string
+    enabled    = bool
+    input_json = string
+  }))
+  default     = {}
+  description = "Per-family DAG schedules rendered by gen_sfn_inputs --render-schedule (dag_schedules.auto.tfvars.json)."
+}

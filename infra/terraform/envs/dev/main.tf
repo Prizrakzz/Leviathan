@@ -798,7 +798,13 @@ module "eventbridge" {
 
   # Placeholder-EMPTY: per-family schedules (family -> {cron, input_json}) land in A-W6/A-W7,
   # every one created state="DISABLED".
-  schedules = {
+  schedules = merge({
+    for k, v in var.dag_schedules : k => {
+      cron       = v.cron
+      enabled    = v.enabled
+      input_json = replace(v.input_json, "$${state_machine_arn}", module.step_functions.state_machine_arn)
+    }
+  }, {
     # Wave 0 (G5.0, user-approved 2026-07-16): fred_fx daily. Input = full StartExecution body;
     # Name uses the scheduler execution-id context attribute so each fire is unique and
     # at-least-once double-fires collide into ExecutionAlreadyExists (chain-entry idempotency).
@@ -840,5 +846,5 @@ module "eventbridge" {
         })
       })
     }
-  }
+  })
 }
