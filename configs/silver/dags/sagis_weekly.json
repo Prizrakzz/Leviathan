@@ -42,18 +42,6 @@
           "publishes": false
         },
         {
-          "id": "fetch_sagis_swb",
-          "invocation_form": "s",
-          "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
-          "queue": "leviathan-dev-queue-ondemand",
-          "command": [
-            "jobs/ingest/fetch_sagis_swb.py"
-          ],
-          "env": {},
-          "publishes": false
-        },
-        {
           "id": "fetch_sagis_weekly",
           "invocation_form": "s",
           "integration": "batch",
@@ -113,5 +101,5 @@
       ]
     }
   ],
-  "notes": "discover+skip self-heals. Three silver producers; sagis_deliveries is module form [m]. fetch_sagis_cec runs on the named cec raw-backfill jobdef, swb/weekly on the shared runner."
+  "notes": "discover+skip self-heals. Three silver producers; sagis_deliveries is module form [m]. fetch_sagis_cec runs on the named cec raw-backfill jobdef, weekly on the shared runner. fetch_sagis_swb DROPPED 2026-07-17 (user decision): ~780 bulletin PDFs had NO downstream consumer (no silver producer, not in the evidence corpus) and it was the slowest/flakiest fetch in the family; re-add only when a consumer exists."
 }

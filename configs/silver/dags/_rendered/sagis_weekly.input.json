@@ -39,15 +39,6 @@
         },
         {
           "command": [
-            "jobs/ingest/fetch_sagis_swb.py"
-          ],
-          "env": [],
-          "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver",
-          "queue": "leviathan-dev-queue-ondemand"
-        },
-        {
-          "command": [
             "jobs/ingest/fetch_sagis_weekly.py"
           ],
           "env": [],
