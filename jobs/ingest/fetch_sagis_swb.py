@@ -196,6 +196,36 @@ def _upload_ym(url: str) -> tuple[int, int]:
 # Main
 # ---------------------------------------------------------------------------
 
+def _is_permanent_404(exc: Exception) -> bool:
+    """True if *exc* is an HTTP 404 -- a permanently-pruned historical bulletin.
+
+    SAGIS leaves dead download links in the WordPress page HTML long after the
+    underlying file is removed, so they are re-discovered on every run and can
+    never enter the skip-manifest (only successful uploads are recorded there).
+    A 404 is therefore tallied as ``missing`` and tolerated; any other status
+    (5xx, etc.) stays a hard error.
+    """
+    return (
+        isinstance(exc, requests.HTTPError)
+        and exc.response is not None
+        and exc.response.status_code == 404
+    )
+
+
+def _exit_reason(uploaded: int, skipped: int, errors: int, missing: int) -> str | None:
+    """Return a SystemExit message if the run should fail, else ``None``.
+
+    Any non-404 failure fails the run.  A run that uploaded nothing, skipped
+    nothing, and saw only 404s means every discovered link is dead -- fail
+    rather than exit green with no signal.
+    """
+    if errors:
+        return f"{errors} bulletin(s) failed - see logs above."
+    if uploaded == 0 and skipped == 0 and missing > 0:
+        return f"No bulletins uploaded and {missing} link(s) returned 404 - source may be dead."
+    return None
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
@@ -271,7 +301,7 @@ def main() -> None:
     if args.limit:
         urls = urls[: args.limit]
 
-    uploaded = skipped = errors = 0
+    uploaded = skipped = errors = missing = 0
 
     for pdf_url in urls:
         upload_year, upload_month = _upload_ym(pdf_url)
@@ -326,18 +356,31 @@ def main() -> None:
             )
             uploaded += 1
 
-        except Exception as exc:  # noqa: BLE001 — any download, validation, or S3 error is logged; loop continues
-            logger.error("Failed %s: %s", filename, exc)
-            errors += 1
+        except Exception as exc:  # noqa: BLE001 — download, validation, or S3 error; 404s tolerated below
+            if _is_permanent_404(exc):
+                # Link is still on the page but the file was pruned from the
+                # site.  It can never enter the skip-manifest, so tolerate it
+                # every run rather than fail the whole fetch forever.
+                logger.warning(
+                    "Missing (HTTP 404) - link on page but file pruned: %s", filename
+                )
+                missing += 1
+            else:
+                logger.error("Failed %s: %s", filename, exc)
+                errors += 1
 
         time.sleep(args.sleep_seconds)
 
     logger.info(
-        "Done. uploaded=%d  skipped=%d  errors=%d", uploaded, skipped, errors
+        "Done. uploaded=%d  skipped=%d  missing=%d  errors=%d",
+        uploaded, skipped, missing, errors,
     )
 
-    if errors:
-        raise SystemExit(f"{errors} bulletin(s) failed — see logs above.")
+    reason = _exit_reason(
+        uploaded=uploaded, skipped=skipped, errors=errors, missing=missing
+    )
+    if reason:
+        raise SystemExit(reason)
 
 
 if __name__ == "__main__":
