@@ -483,13 +483,14 @@ def _load_prior_census(asof: str, baseline_uri: Optional[str] = None) -> Optiona
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="silver_rebuild_gate (SILVER-C001): consumer-sync dispatcher")
     ap.add_argument("--tables", required=True, help="comma-separated table ids that were rebuilt")
-    ap.add_argument("--asof", default="2026-02-15", help="census as-of (for the --diff baseline)")
+    ap.add_argument("--asof", default="2026-02-15", help="census as-of (for the --diff baseline); full ISO timestamps are truncated to the date so scheduler context attributes work")
     ap.add_argument("--baseline-uri", default=None,
                     help="s3://bucket/key of the rolling baseline census.json to --diff against "
                          "(scheduled gate). Overrides CENSUS_BASELINE_S3. Unset -> the image-baked "
                          "data/cascade_census/as_of_date={asof}/census.json (backward compatible).")
     ap.add_argument("--json", dest="out", default=None, help="artifact bundle path (default: reports/...)")
     a = ap.parse_args(argv)
+    a.asof = str(a.asof)[:10]  # scheduler passes <aws.scheduler.scheduled-time> (full ISO)
     tables = [t.strip() for t in a.tables.split(",") if t.strip()]
     if not tables:
         print("FAIL silver_rebuild_gate: no --tables given")

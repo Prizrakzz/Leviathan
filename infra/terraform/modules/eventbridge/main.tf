@@ -46,7 +46,7 @@ resource "aws_scheduler_schedule" "family" {
   for_each = var.schedules
 
   name  = "${local.name_prefix}-${each.key}"
-  state = var.schedule_state # DISABLED by contract; A-W7 flips per wave
+  state = each.value.enabled ? "ENABLED" : var.schedule_state # A-W7 flips per family (G5.x)
 
   flexible_time_window {
     mode = "OFF"

@@ -29,6 +29,7 @@ variable "schedules" {
   type = map(object({
     cron       = string
     input_json = string
+    enabled    = optional(bool, false) # A-W7 per-family enable (G5.x gates); false = born DISABLED
   }))
   default     = {}
   description = <<-EOT
