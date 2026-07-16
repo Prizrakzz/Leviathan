@@ -7,6 +7,7 @@ dry-run publish (nothing written, stops at VALIDATED), and the standard CLI + au
 from __future__ import annotations
 
 import io
+import os
 
 import pandas as pd
 import pyarrow as pa
@@ -195,3 +196,49 @@ class TestCanonicalIdentityResolution:
             account_id=_STS_ACCOUNT, role_arn=_STS_ARN, approval=approval,
         )
         assert auth.may_mutate_canonical is True
+
+    def test_canonical_defaults_env_to_os_environ_for_self_mint(self, contract, monkeypatch):
+        # The canonical self-mint reads LEVIATHAN_APPROVAL_MODE (+ the kms binding) from `env`. When
+        # the caller passes no env, authorize_for_contract must hand authorize_publish the LIVE process
+        # env on the canonical path -- else the guard sees {} and fails closed with ApprovalError (the
+        # round-3 pink_sheet/mpob/mpob_annual promote failure; fnc passed only because it plumbed
+        # env=os.environ). Capture the env authorize_publish actually receives.
+        monkeypatch.setattr(fp, "_resolve_caller_identity", lambda: (_STS_ACCOUNT, _STS_ARN))
+        monkeypatch.setenv("LEVIATHAN_APPROVAL_MODE", "kms")
+        captured = {}
+
+        def _rec(target, *, mode, approval, env):
+            captured["env"] = env
+            return object()
+
+        monkeypatch.setattr(fp, "authorize_publish", _rec)
+        fp.authorize_for_contract(contract, publish_mode="canonical")
+        assert captured["env"] is os.environ
+        assert captured["env"].get("LEVIATHAN_APPROVAL_MODE") == "kms"
+
+    def test_non_canonical_env_stays_empty_offline(self, contract, monkeypatch):
+        # dry-run/shadow never reach the approval gate -> keep the empty offline mapping (no live-env
+        # leak), byte-identical to before the fix.
+        captured = {}
+
+        def _rec(target, *, mode, approval, env):
+            captured["env"] = env
+            return object()
+
+        monkeypatch.setattr(fp, "authorize_publish", _rec)
+        for mode in ("dry-run", "shadow"):
+            fp.authorize_for_contract(contract, publish_mode=mode)
+            assert captured["env"] == {}
+
+    def test_explicit_env_wins_over_os_environ(self, contract, monkeypatch):
+        monkeypatch.setattr(fp, "_resolve_caller_identity", lambda: (_STS_ACCOUNT, _STS_ARN))
+        captured = {}
+
+        def _rec(target, *, mode, approval, env):
+            captured["env"] = env
+            return object()
+
+        monkeypatch.setattr(fp, "authorize_publish", _rec)
+        my_env = {"LEVIATHAN_APPROVAL_MODE": "hmac"}
+        fp.authorize_for_contract(contract, publish_mode="canonical", env=my_env)
+        assert captured["env"] is my_env

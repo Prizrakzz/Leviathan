@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import os
 from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 
@@ -281,4 +282,13 @@ def authorize_for_contract(
         role_arn=role_arn,
         table=contract["table_name"],
     )
-    return authorize_publish(target, mode=mode, approval=approval, env=env or {})
+    # The canonical branch of authorize_publish reads LEVIATHAN_APPROVAL_MODE (+ the KMS key/registry
+    # binding) from ``env`` to R1-self-mint the signed approval via kms:Sign. When the caller does not
+    # supply env we must hand it the LIVE process env on the canonical path, else the guard sees an
+    # empty mapping, cannot see kms mode, and fails closed with ApprovalError (the round-3 pink_sheet /
+    # mpob / mpob_annual promote failure -- fnc_colombia passed only because it plumbed env=os.environ
+    # explicitly). Resolve it ONCE here for the whole flat-producer family. dry-run/shadow never reach
+    # the approval gate, so they stay on the empty offline mapping (byte-identical); explicit env wins.
+    if env is None:
+        env = os.environ if mode is PublishMode.CANONICAL else {}
+    return authorize_publish(target, mode=mode, approval=approval, env=env)
