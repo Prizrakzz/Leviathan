@@ -92,15 +92,7 @@ output "ecr_trainer_repository_url" {
   description = "ECR repository URL for the leviathan-trainer image."
 }
 
-output "mlflow_instance_id" {
-  value       = module.mlflow_server.instance_id
-  description = "EC2 instance ID of the MLflow tracking server (use with SSM port-forward)."
-}
 
-output "mlflow_tracking_uri" {
-  value       = module.mlflow_server.tracking_uri
-  description = "MLFLOW_TRACKING_URI — set this in SageMaker Training Jobs and Batch containers."
-}
 
 # A-W8: the relocated Fargate tracking server's stable Cloud Map endpoint. This
 # is the URI the three re-registered training jobdefs point at post-cutover

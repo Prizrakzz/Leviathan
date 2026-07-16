@@ -197,14 +197,6 @@ resource "aws_instance" "mlflow" {
     encrypted   = true
   }
 
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes = [
-      ami,
-      user_data,
-    ]
-  }
-
   # Terraform expands ${var.*} before this reaches the instance.
   # $FERNET_KEY and $(...) are bash — Terraform leaves $VAR (no braces) alone.
   # Inner << SERVICE_EOF heredocs are unquoted so bash expands $FERNET_KEY into them.
