@@ -258,7 +258,7 @@ resource "aws_ecs_task_definition" "this" {
         { name = "MLFLOW_DEFAULT_ARTIFACT_ROOT", value = local.artifact_root },
         # MLflow 3.x DNS-rebinding protection 403s unknown Host headers; allow both the
         # in-VPC Cloud Map name (training jobs) and the public domain (ALB/browser).
-        { name = "MLFLOW_SERVER_ALLOWED_HOSTS", value = "mlflow.leviathan.local,mlflow.leviathan.local:5000,mlflow.leviathanconvexity.com,localhost,127.0.0.1" },
+        { name = "MLFLOW_SERVER_ALLOWED_HOSTS", value = "mlflow.leviathan.local,mlflow.leviathan.local:5000,mlflow.leviathanconvexity.com,172.31.*,localhost,localhost:*,127.0.0.1,127.0.0.1:*" },
       ]
 
       secrets = [
