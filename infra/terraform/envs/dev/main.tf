@@ -687,6 +687,21 @@ resource "aws_kms_alias" "publish_signer" {
 
 # The single-task producers (fx et al) re-fetch raw+bronze inside their canonical run;
 # those surfaces are non-golden intermediates (regenerable), so the publisher may write them.
+# The MLflow bootstrap job (evidence-build jobdef, batch-job-role) writes the backend DSN secret once.
+resource "aws_iam_role_policy" "batch_job_mlflow_secret_write" {
+  name = "leviathan-dev-batch-job-mlflow-secret-write"
+  role = "leviathan-dev-batch-job-role"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "MlflowDsnSecretWrite"
+      Effect   = "Allow"
+      Action   = ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:DescribeSecret"]
+      Resource = "arn:aws:secretsmanager:us-east-1:668891723125:secret:leviathan/dev/mlflow-backend-dsn-*"
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "silver_publisher_intermediates" {
   name = "leviathan-dev-silver-publisher-intermediates"
   role = module.iam.silver_publisher_role_name
