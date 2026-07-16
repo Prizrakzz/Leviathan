@@ -51,6 +51,9 @@ module "iam" {
   notifications_store_table_arn = module.dynamodb.table_arn
   # D-W1: execution-role GetSecretValue for the weekly ESR fetch's FAS_API_KEY (user-gated secret).
   fas_api_key_secret_arn = local.fas_api_key_secret_arn
+  # SILVER-F014 latch: flipped TRUE under the signed A1-A2 G1+G5.0 grants (2026-07-16) --
+  # canonical authority now rests on kms:Sign + gate-first + shadow-first, not the deny.
+  silver_canonical_publish_approved = true
 }
 
 # Cost tripwires (Jul-2026 S3 LIST storm): daily S3 budget alert + CE anomaly detection -> email.
@@ -681,6 +684,27 @@ resource "aws_kms_alias" "publish_signer" {
 # INLINE policy on the EXISTING F014 publisher role. Referencing module.iam's role NAME makes
 # terraform create/settle that role before this policy, so a -target on THIS resource pulls the
 # F014 publisher role into the graph (see the -target notes in the plan handoff).
+
+# The single-task producers (fx et al) re-fetch raw+bronze inside their canonical run;
+# those surfaces are non-golden intermediates (regenerable), so the publisher may write them.
+resource "aws_iam_role_policy" "silver_publisher_intermediates" {
+  name = "leviathan-dev-silver-publisher-intermediates"
+  role = module.iam.silver_publisher_role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "RawBronzeIntermediates"
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+      Resource = [
+        "arn:aws:s3:::leviathan-dev-shahem-001/raw/*",
+        "arn:aws:s3:::leviathan-dev-shahem-001/bronze/*",
+        "arn:aws:s3:::leviathan-dev-shahem-001",
+      ]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "silver_publisher_kms_sign" {
   name = "${var.project_name}-${var.environment}-silver-publisher-kms-sign"
   role = module.iam.silver_publisher_role_name
