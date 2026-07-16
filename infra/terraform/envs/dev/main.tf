@@ -91,6 +91,18 @@ module "ecr_trainer" {
   repository_name = "leviathan-trainer"
 }
 
+# A-W8 MLflow relocation: ECR repo for the baked MLflow server image (docker/mlflow/Dockerfile,
+# pushed by scripts/build_push_mlflow.ps1). Produces leviathan-dev-mlflow -- the default
+# container_image of module.mlflow_fargate. Apply this FIRST (-target=module.ecr_mlflow) so the
+# image can be pushed before the ECS service pulls it.
+module "ecr_mlflow" {
+  source = "../../modules/ecr"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  repository_name = "mlflow"
+}
+
 module "batch" {
   source = "../../modules/batch"
 
@@ -453,6 +465,20 @@ module "mlflow_fargate" {
   # Same RDS SG the serving task already sources from; adds the one 5432 rule.
   rds_security_group_id  = tolist(data.aws_db_instance.pg.vpc_security_groups)[0]
   backend_dsn_secret_arn = local.mlflow_backend_dsn_secret_arn
+
+  # Problem 2: internet-facing authenticated endpoint at https://mlflow.leviathanconvexity.com,
+  # reusing the serving *.leviathanconvexity.com wildcard cert + the public Route53 zone + the
+  # EXISTING Cognito pool (a dedicated ALB app client is minted in it). The user signs in with their
+  # existing Google account and lands on MLflow. Kill-switch: set mlflow_public_https=false to fall
+  # back to an HTTP:80 ALB locked to mlflow_admin_cidrs (the dormant serving_admin_cidrs).
+  mlflow_public_https      = true
+  public_domain            = var.public_domain
+  public_zone_id           = var.public_zone_id
+  certificate_arn          = var.serving_certificate_arn
+  cognito_user_pool_id     = module.cognito.user_pool_id
+  cognito_user_pool_arn    = "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/${module.cognito.user_pool_id}"
+  cognito_user_pool_domain = module.cognito.domain_prefix
+  mlflow_admin_cidrs       = var.serving_admin_cidrs
 }
 
 # ---------------------------------------------------------------------------
@@ -708,9 +734,9 @@ resource "aws_iam_role_policy" "silver_publisher_intermediates" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid      = "RawBronzeIntermediates"
-      Effect   = "Allow"
-      Action   = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+      Sid    = "RawBronzeIntermediates"
+      Effect = "Allow"
+      Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
       Resource = [
         "arn:aws:s3:::leviathan-dev-shahem-001/raw/*",
         "arn:aws:s3:::leviathan-dev-shahem-001/bronze/*",

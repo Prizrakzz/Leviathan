@@ -1,0 +1,112 @@
+<#
+.SYNOPSIS
+    Build the leviathan-mlflow Docker image and push it to ECR.
+
+.DESCRIPTION
+    Authenticates to ECR, builds the image for linux/amd64 (required for
+    AWS Fargate x86-64), tags it, and pushes to the dev repository.
+    Always also tags as :latest so the ECS task definition picks it up.
+
+.PARAMETER Tag
+    Optional additional tag (e.g. a datestamp like "20260716"). Default: "latest" only.
+
+.PARAMETER Region
+    AWS region. Default: us-east-1.
+
+.EXAMPLE
+    .\scripts\build_push_mlflow.ps1
+    .\scripts\build_push_mlflow.ps1 -Tag "20260716"
+#>
+param(
+    [string]$Tag       = "latest",
+    [string]$Region    = "us-east-1",
+    [string]$AccountId = "668891723125",
+    [string]$RepoName  = "leviathan-dev-mlflow",
+    [switch]$ForceAmd64Platform
+)
+
+$ErrorActionPreference = "Stop"
+
+$EcrBase    = "${AccountId}.dkr.ecr.${Region}.amazonaws.com"
+$LatestImage = "${EcrBase}/${RepoName}:latest"
+$TaggedImage = "${EcrBase}/${RepoName}:${Tag}"
+
+# ---------------------------------------------------------------------------
+# Step 1: Authenticate to ECR
+# ---------------------------------------------------------------------------
+Write-Host "==> Authenticating to ECR ($EcrBase)..." -ForegroundColor Cyan
+# Note: --password-stdin via PowerShell pipe is unreliable on Windows;
+# capture the token first and pass it directly instead.
+$EcrToken = aws ecr get-login-password --region $Region
+if ($LASTEXITCODE -ne 0) { throw "ecr get-login-password failed (exit $LASTEXITCODE)" }
+# Suppress stderr (docker --password warning) without tripping PowerShell NativeCommandError
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+$null = docker login --username AWS --password $EcrToken $EcrBase 2>&1
+$loginExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($loginExit -ne 0) { throw "ECR login failed (exit $loginExit)" }
+Write-Host "ECR login succeeded." -ForegroundColor Green
+
+# ---------------------------------------------------------------------------
+# Step 2: Build -- must target linux/amd64 for Fargate (build host may differ)
+# ---------------------------------------------------------------------------
+Write-Host "==> Building image: $LatestImage" -ForegroundColor Cyan
+$DockerPlatform = docker version --format '{{.Server.Os}}/{{.Server.Arch}}'
+if ($LASTEXITCODE -ne 0) { throw "docker version failed (exit $LASTEXITCODE)" }
+$PlatformArgs = @()
+if ($ForceAmd64Platform -or $DockerPlatform.Trim() -ne "linux/amd64") {
+    $PlatformArgs = @("--platform", "linux/amd64")
+    Write-Host "    Using explicit platform linux/amd64 (Docker server: $DockerPlatform)" -ForegroundColor DarkGray
+} else {
+    Write-Host "    Docker server is already linux/amd64; omitting --platform." -ForegroundColor DarkGray
+}
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+docker build `
+    @PlatformArgs `
+    --tag $LatestImage `
+    --file docker/mlflow/Dockerfile `
+    . 2>&1
+$buildExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($buildExit -ne 0) { throw "docker build failed (exit $buildExit)" }
+
+# ---------------------------------------------------------------------------
+# Step 3: Tag with the extra label if one was requested
+# ---------------------------------------------------------------------------
+if ($Tag -ne "latest") {
+    Write-Host "==> Tagging as $TaggedImage" -ForegroundColor Cyan
+    docker tag $LatestImage $TaggedImage
+    if ($LASTEXITCODE -ne 0) { throw "docker tag failed (exit $LASTEXITCODE)" }
+}
+
+# ---------------------------------------------------------------------------
+# Step 4: Push
+# ---------------------------------------------------------------------------
+Write-Host "==> Pushing $LatestImage" -ForegroundColor Cyan
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+docker push $LatestImage 2>&1
+$pushExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($pushExit -ne 0) { throw "docker push :latest failed (exit $pushExit)" }
+
+if ($Tag -ne "latest") {
+    Write-Host "==> Pushing $TaggedImage" -ForegroundColor Cyan
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    docker push $TaggedImage 2>&1
+    $pushTagExit = $LASTEXITCODE
+    $ErrorActionPreference = $prevEAP
+    if ($pushTagExit -ne 0) { throw "docker push :$Tag failed (exit $pushTagExit)" }
+}
+
+Write-Host ""
+Write-Host "==> Done. Image live in ECR:" -ForegroundColor Green
+Write-Host "    $LatestImage" -ForegroundColor Green
+if ($Tag -ne "latest") {
+    Write-Host "    $TaggedImage" -ForegroundColor Green
+}
+Write-Host ""
+Write-Host "The MLflow ECS service will pull :latest on its next deployment." -ForegroundColor DarkGray

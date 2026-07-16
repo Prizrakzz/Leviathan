@@ -28,3 +28,18 @@ output "service_discovery_service_arn" {
 output "log_group_name" {
   value = aws_cloudwatch_log_group.this.name
 }
+
+output "mlflow_url" {
+  value       = var.mlflow_public_https ? "https://${local.alb_fqdn}" : "http://${aws_lb.this.dns_name}"
+  description = "Browser URL for the MLflow UI. HTTPS path -> Cognito-authenticated https://mlflow.<domain>; fallback -> the raw ALB HTTP DNS (admin-CIDR locked)."
+}
+
+output "alb_dns_name" {
+  value       = aws_lb.this.dns_name
+  description = "ALB DNS name (alias target of the mlflow.<domain> A record)."
+}
+
+output "alb_security_group_id" {
+  value       = aws_security_group.alb.id
+  description = "MLflow ALB SG (source of the task SG's 5000 ingress rule)."
+}

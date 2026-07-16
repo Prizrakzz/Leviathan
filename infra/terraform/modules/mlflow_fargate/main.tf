@@ -243,15 +243,11 @@ resource "aws_ecs_task_definition" "this" {
       image     = var.container_image
       essential = true
 
-      # The public mlflow image ships only the sqlite driver. psycopg2-binary is
-      # installed at start so the pg backend resolves (fast no-op if a custom
-      # image already bundles it). $MLFLOW_BACKEND_STORE_URI (no braces) is left
-      # literal by Terraform and expanded by /bin/sh from the injected secret;
-      # ${var.container_port} IS a Terraform interpolation.
-      command = [
-        "/bin/sh", "-c",
-        "pip install --no-cache-dir --quiet 'psycopg2-binary>=2.9' boto3 && exec mlflow server --backend-store-uri \"$MLFLOW_BACKEND_STORE_URI\" --default-artifact-root \"$MLFLOW_DEFAULT_ARTIFACT_ROOT\" --host 0.0.0.0 --port ${var.container_port}"
-      ]
+      # NO command override: the baked image entrypoint (docker/mlflow/Dockerfile) already runs
+      # ONLY `mlflow server --backend-store-uri "$MLFLOW_BACKEND_STORE_URI"
+      # --default-artifact-root "$MLFLOW_DEFAULT_ARTIFACT_ROOT" --host 0.0.0.0 --port 5000`, with
+      # mlflow/psycopg2-binary/boto3/gunicorn baked in. The old runtime `pip install ...` was
+      # removed -- it failed and crashlooped the container with no logs.
 
       portMappings = [
         { containerPort = var.container_port, protocol = "tcp" }
@@ -293,12 +289,29 @@ resource "aws_ecs_service" "this" {
     assign_public_ip = true # public subnet, no NAT
   }
 
-  # Cloud Map A-record registration -> mlflow.leviathan.local.
+  # Cloud Map A-record registration -> mlflow.leviathan.local (in-VPC training jobs).
   service_registries {
     registry_arn = aws_service_discovery_service.mlflow.arn
   }
 
+  # Internet-facing ALB target-group registration (browser access at https://mlflow.<domain>).
+  # Registers the task ENI IP into the mlflow target group (target_type = ip). See alb.tf.
+  load_balancer {
+    target_group_arn = aws_lb_target_group.this.arn
+    container_name   = "mlflow"
+    container_port   = var.container_port
+  }
+
+  # MLflow boots fast, but give the /health check a short grace before the LB can kill a new task.
+  health_check_grace_period_seconds = 60
+
   tags = local.common_tags
 
-  depends_on = [aws_security_group_rule.rds_from_mlflow_task]
+  # The listeners + the ALB->task SG rule must exist before the service registers targets.
+  depends_on = [
+    aws_security_group_rule.rds_from_mlflow_task,
+    aws_security_group_rule.task_from_alb,
+    aws_lb_listener.http,
+    aws_lb_listener.https,
+  ]
 }
