@@ -682,3 +682,48 @@ def test_sign_approval_kms_missing_key_id_fails_closed() -> None:
     priv = ec.generate_private_key(ec.SECP256R1())
     with pytest.raises(ApprovalError):
         sign_approval_kms(key_id="", kms_client=_StubKmsClient(priv), **_kms_fields())
+
+
+class TestKmsSelfMint:
+    """R1 scheduled self-mint: kms mode + no env approval -> authorize mints via kms:Sign."""
+
+    def test_kms_mode_self_mints_and_authorizes(self):
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+        import leviathan.common.publish_guard as pg
+        priv = ec.generate_private_key(ec.SECP256R1())
+        stub = _StubKmsClient(priv)
+        pem = priv.public_key().public_bytes(
+            serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode()
+        env = {
+            "LEVIATHAN_APPROVAL_MODE": "kms",
+            "LEVIATHAN_KMS_KEY_ID": "alias/test-signer",
+            "LEVIATHAN_KMS_PUBLIC_KEY_PEM": pem,
+        }
+        target = pg.PublishTarget(
+            account_id=pg.PROD_ENVIRONMENT.account_id,
+            bucket=pg.PROD_ENVIRONMENT.bucket,
+            database=pg.PROD_ENVIRONMENT.database,
+            prefix=pg.PROD_ENVIRONMENT.prefix_allowlist[0],
+            role_arn="arn:aws:iam::668891723125:role/leviathan-dev-silver-publisher",
+            table="silver_fred_fx",
+        )
+        auth = pg.authorize_publish(
+            target, mode=pg.PublishMode.CANONICAL, env=env, kms_client=stub,
+        )
+        assert auth.may_mutate_canonical is True
+
+    def test_hmac_mode_still_requires_env_approval(self):
+        import pytest as _pytest
+        import leviathan.common.publish_guard as pg
+        target = pg.PublishTarget(
+            account_id=pg.PROD_ENVIRONMENT.account_id,
+            bucket=pg.PROD_ENVIRONMENT.bucket,
+            database=pg.PROD_ENVIRONMENT.database,
+            prefix=pg.PROD_ENVIRONMENT.prefix_allowlist[0],
+            role_arn="arn:aws:iam::668891723125:role/leviathan-dev-silver-publisher",
+            table="silver_fred_fx",
+        )
+        with _pytest.raises(pg.ApprovalError):
+            pg.authorize_publish(target, mode=pg.PublishMode.CANONICAL, env={})

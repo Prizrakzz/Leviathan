@@ -809,6 +809,25 @@ def authorize_publish(
     check_environment(target, environment)  # raises EnvironmentMismatch before any mutation
     if approval is None:
         approval = load_approval_from_env(env)
+    if approval is None and resolve_approval_mode(env=env, mode=approval_mode) is ApprovalMode.KMS:
+        # R1 scheduled self-mint (A-W1): in kms mode the promote container mints its own
+        # short-lived approval via kms:Sign under the silver-publisher role. The payload binding
+        # is NOT a stale-image/replay control on this path (plan Risk #1) -- GATE-FIRST +
+        # SHADOW-FIRST + the kms:Sign IAM scope are the controls. Verification below runs in full.
+        from datetime import timedelta as _timedelta
+        _e = env if env is not None else os.environ
+        approval = mint_approval(
+            environment=environment.name,
+            table=target.table or "",
+            registry_hash=_e.get("LEVIATHAN_REGISTRY_HASH", "self-mint"),
+            git_sha=_e.get("LEVIATHAN_GIT_SHA", "self-mint"),
+            expiry=(datetime.now(timezone.utc) + _timedelta(minutes=30)).isoformat(),
+            mode=ApprovalMode.KMS,
+            env=env,
+            key_id=key_id,
+            kms_client=kms_client,
+        )
+        logger.info("publish approval SELF-MINTED via kms:Sign: table=%s", target.table)
     if approval is None:
         raise ApprovalError(
             "canonical publish requires a signed approval artifact "
