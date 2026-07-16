@@ -68,7 +68,7 @@ variable "cpu" {
 variable "memory" {
   type        = number
   description = "Fargate task memory (MiB). 1024 = 1 GB."
-  default     = 2048
+  default     = 4096
 }
 
 variable "service_dns_namespace" {

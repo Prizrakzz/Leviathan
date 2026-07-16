@@ -31,4 +31,4 @@ EXPOSE 5000
 # Clean baked entrypoint -- ONLY `mlflow server`. `exec` makes mlflow PID 1 (clean SIGTERM on task stop).
 # $MLFLOW_BACKEND_STORE_URI (Secrets Manager -> ECS secret) and $MLFLOW_DEFAULT_ARTIFACT_ROOT (ECS env)
 # are injected by the task definition and expanded by the shell. NO runtime pip.
-ENTRYPOINT ["/bin/sh", "-c", "exec mlflow server --backend-store-uri \"$MLFLOW_BACKEND_STORE_URI\" --default-artifact-root \"$MLFLOW_DEFAULT_ARTIFACT_ROOT\" --host 0.0.0.0 --port 5000"]
+ENTRYPOINT ["/bin/sh", "-c", "exec mlflow server --backend-store-uri \"$MLFLOW_BACKEND_STORE_URI\" --default-artifact-root \"$MLFLOW_DEFAULT_ARTIFACT_ROOT\" --host 0.0.0.0 --port 5000 --workers ${MLFLOW_WORKERS:-2}"]
