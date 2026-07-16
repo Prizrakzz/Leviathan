@@ -769,7 +769,7 @@ module "eventbridge" {
             integration = "batch"
             jobdef      = "leviathan-dev-silver-publisher-runner"
             queue       = "leviathan-dev-queue-ondemand"
-            command     = ["-m", "jobs.batch.frankfurter_fx_task", "--publish-mode", "canonical", "--force-overwrite"]
+            command     = ["-m", "jobs.batch.frankfurter_fx_task", "--publish-mode", "canonical"]
             env         = [{ Name = "LEVIATHAN_APPROVAL_MODE", Value = "kms" }, { Name = "LEVIATHAN_KMS_KEY_ID", Value = "alias/leviathan-dev-publish-signer" }]
           }] }
         })
