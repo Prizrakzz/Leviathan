@@ -62,13 +62,13 @@ variable "container_port" {
 variable "cpu" {
   type        = number
   description = "Fargate task CPU units. 512 = 0.5 vCPU."
-  default     = 512
+  default     = 1024
 }
 
 variable "memory" {
   type        = number
   description = "Fargate task memory (MiB). 1024 = 1 GB."
-  default     = 1024
+  default     = 2048
 }
 
 variable "service_dns_namespace" {
