@@ -49,55 +49,60 @@ locals {
   # Item scope: ItemSelector merges the top-level family with the current task
   # ({ family, task }). A batch item never has glue_job (and the Glue branch never
   # runs for it) so the missing-field-on-the-wrong-branch trap is avoided.
-  task_item_processor = {
-    ProcessorConfig = { Mode = "INLINE" }
-    StartAt         = "RouteIntegration"
-    States = {
-      RouteIntegration = {
-        Type = "Choice"
-        Choices = [{
-          Variable     = "$.task.integration"
-          StringEquals = "glue"
-          Next         = "GlueSync"
-        }]
-        Default = "BatchSync"
-      }
+  # INLINE Map iterator states share ONE global namespace across the whole
+  # definition (AWS DUPLICATE_STATE_NAME), so the processor is stamped per phase
+  # with suffixed state names instead of shared verbatim.
+  task_item_processors = {
+    for phase in ["Fetch", "Bronze", "Silver", "Promote"] : phase => {
+      ProcessorConfig = { Mode = "INLINE" }
+      StartAt         = "RouteIntegration${phase}"
+      States = {
+        "RouteIntegration${phase}" = {
+          Type = "Choice"
+          Choices = [{
+            Variable     = "$.task.integration"
+            StringEquals = "glue"
+            Next         = "GlueSync${phase}"
+          }]
+          Default = "BatchSync${phase}"
+        }
 
-      BatchSync = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::batch:submitJob.sync"
-        Parameters = {
-          "JobName.$"       = "States.Format('{}-{}', $.family, States.UUID())"
-          "JobDefinition.$" = "$.task.jobdef"
-          "JobQueue.$"      = "$.task.queue"
-          ContainerOverrides = {
-            "Command.$"     = "$.task.command"
-            "Environment.$" = "$.task.env"
+        "BatchSync${phase}" = {
+          Type     = "Task"
+          Resource = "arn:aws:states:::batch:submitJob.sync"
+          Parameters = {
+            "JobName.$"       = "States.Format('{}-{}', $.family, States.UUID())"
+            "JobDefinition.$" = "$.task.jobdef"
+            "JobQueue.$"      = "$.task.queue"
+            ContainerOverrides = {
+              "Command.$"     = "$.task.command"
+              "Environment.$" = "$.task.env"
+            }
           }
+          Retry = [{
+            ErrorEquals     = ["States.TaskFailed", "States.Timeout"]
+            IntervalSeconds = 60
+            MaxAttempts     = 2
+            BackoffRate     = 2.0
+          }]
+          End = true
         }
-        Retry = [{
-          ErrorEquals     = ["States.TaskFailed", "States.Timeout"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        End = true
-      }
 
-      GlueSync = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::glue:startJobRun.sync"
-        Parameters = {
-          "JobName.$"   = "$.task.glue_job"
-          "Arguments.$" = "$.task.arguments"
+        "GlueSync${phase}" = {
+          Type     = "Task"
+          Resource = "arn:aws:states:::glue:startJobRun.sync"
+          Parameters = {
+            "JobName.$"   = "$.task.glue_job"
+            "Arguments.$" = "$.task.arguments"
+          }
+          Retry = [{
+            ErrorEquals     = ["States.TaskFailed", "States.Timeout", "Glue.ConcurrentRunsExceededException"]
+            IntervalSeconds = 60
+            MaxAttempts     = 2
+            BackoffRate     = 2.0
+          }]
+          End = true
         }
-        Retry = [{
-          ErrorEquals     = ["States.TaskFailed", "States.Timeout", "Glue.ConcurrentRunsExceededException"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        End = true
       }
     }
   }
@@ -117,7 +122,7 @@ locals {
         Type           = "Map"
         ItemsPath      = "$.phases.fetch.tasks"
         ItemSelector   = local.map_item_selector
-        ItemProcessor  = local.task_item_processor
+        ItemProcessor  = local.task_item_processors["Fetch"]
         MaxConcurrency = var.map_max_concurrency
         ResultPath     = "$.fetchResults" # scratch path: preserve the input object for later states
         Next           = "Bronze"
@@ -126,7 +131,7 @@ locals {
         Type           = "Map"
         ItemsPath      = "$.phases.bronze.tasks"
         ItemSelector   = local.map_item_selector
-        ItemProcessor  = local.task_item_processor
+        ItemProcessor  = local.task_item_processors["Bronze"]
         MaxConcurrency = var.map_max_concurrency
         ResultPath     = "$.bronzeResults"
         Next           = "Silver"
@@ -135,7 +140,7 @@ locals {
         Type           = "Map"
         ItemsPath      = "$.phases.silver.tasks"
         ItemSelector   = local.map_item_selector
-        ItemProcessor  = local.task_item_processor
+        ItemProcessor  = local.task_item_processors["Silver"]
         MaxConcurrency = var.map_max_concurrency
         ResultPath     = "$.silverResults"
         Next           = "Gate"
@@ -177,7 +182,7 @@ locals {
         Type           = "Map"
         ItemsPath      = "$.promote.tasks"
         ItemSelector   = local.map_item_selector
-        ItemProcessor  = local.task_item_processor
+        ItemProcessor  = local.task_item_processors["Promote"]
         MaxConcurrency = var.map_max_concurrency
         ResultPath     = "$.promoteResults"
         Next           = "Reconcile"
