@@ -13,7 +13,15 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from leviathan.common.publish_guard import PublishMode
+from datetime import datetime, timedelta, timezone
+
+from leviathan.common.publish_guard import (
+    ApprovalError,
+    PublishApproval,
+    PublishMode,
+    sign_approval,
+)
+from leviathan.silver import flat_producer as fp
 from leviathan.silver import value_census as vc
 from leviathan.silver.flat_producer import (
     add_standard_producer_args,
@@ -114,3 +122,76 @@ class TestStandardCli:
         assert p.parse_args(["--publish-mode", "shadow"]).publish_mode == "shadow"
         with pytest.raises(SystemExit):
             p.parse_args(["--publish-mode", "bogus"])
+
+
+# The STS identity a RUNNING Batch task actually presents (the arn:aws:sts:: assumed-role form);
+# account/bucket/db all match the one canonical environment so check_environment passes.
+_STS_ACCOUNT = "668891723125"
+_STS_ARN = ("arn:aws:sts::668891723125:assumed-role/"
+            "leviathan-dev-batch-job-role/f9c68238ffdd4a598d5eb2233393309e")
+_SECRET = "r0-flat-producer-secret"
+
+
+def _canonical_approval(table: str, secret: str = _SECRET, **over) -> PublishApproval:
+    fields = dict(
+        environment="leviathan_dev",
+        table=table,
+        registry_hash="reg-flat",
+        git_sha="abc123",
+        expiry=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+    )
+    fields.update(over)
+    return PublishApproval(signature=sign_approval(secret=secret, **fields), **fields)
+
+
+class TestCanonicalIdentityResolution:
+    """The flat_producer STS-identity gap: canonical publish (pink_sheet / mpob / mpob_annual)
+    failed closed because authorize_for_contract built the PublishTarget with account_id=''/
+    role_arn='' -- and check_environment (only reached on canonical) rejects an empty identity.
+    The fix resolves the LIVE STS identity centrally, ONLY on the canonical path, ONLY when the
+    caller supplied neither. dry-run/shadow stay fully offline."""
+
+    def test_canonical_empty_args_resolves_via_sts_and_authorizes(self, contract, monkeypatch):
+        calls = {"n": 0}
+
+        def _stub():
+            calls["n"] += 1
+            return (_STS_ACCOUNT, _STS_ARN)
+
+        monkeypatch.setattr(fp, "_resolve_caller_identity", _stub)
+        monkeypatch.setenv("LEVIATHAN_APPROVAL_SECRET", _SECRET)
+        approval = _canonical_approval(contract["table_name"])
+        # Caller (task) passes NO account_id/role_arn -- exactly the pink_sheet/mpob call shape.
+        auth = authorize_for_contract(contract, publish_mode="canonical", approval=approval)
+        assert auth.may_mutate_canonical is True
+        assert calls["n"] == 1  # STS seam consulted exactly once
+
+    def test_canonical_empty_args_passes_check_environment(self, contract, monkeypatch):
+        # With the identity resolved, check_environment no longer fails closed -- the NEXT gate is
+        # the missing approval (ApprovalError), proving we got past the environment check that was
+        # raising EnvironmentMismatch on account_id=''/role_arn=''.
+        monkeypatch.setattr(fp, "_resolve_caller_identity", lambda: (_STS_ACCOUNT, _STS_ARN))
+        with pytest.raises(ApprovalError):
+            authorize_for_contract(contract, publish_mode="canonical")
+
+    def test_dry_run_and_shadow_make_no_sts_call(self, contract, monkeypatch):
+        def _boom():
+            raise AssertionError("STS must never be resolved off the canonical path")
+
+        monkeypatch.setattr(fp, "_resolve_caller_identity", _boom)
+        for mode in ("dry-run", "shadow"):
+            auth = authorize_for_contract(contract, publish_mode=mode)
+            assert auth.may_mutate_canonical is False
+
+    def test_explicit_identity_wins_no_sts_call(self, contract, monkeypatch):
+        def _boom():
+            raise AssertionError("explicit identity supplied; the STS seam must not run")
+
+        monkeypatch.setattr(fp, "_resolve_caller_identity", _boom)
+        monkeypatch.setenv("LEVIATHAN_APPROVAL_SECRET", _SECRET)
+        approval = _canonical_approval(contract["table_name"])
+        auth = authorize_for_contract(
+            contract, publish_mode="canonical",
+            account_id=_STS_ACCOUNT, role_arn=_STS_ARN, approval=approval,
+        )
+        assert auth.may_mutate_canonical is True

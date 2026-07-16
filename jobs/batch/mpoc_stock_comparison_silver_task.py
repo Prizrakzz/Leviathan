@@ -73,9 +73,12 @@ def main() -> int:
         return 1
 
     auth = authorize_for_contract(contract, publish_mode=args.publish_mode)
+    # shadow/canonical STAGE objects to S3 -> a live client is required; dry-run stages nothing (None ok).
+    from leviathan.storage.s3 import get_thread_local_s3_client
+    publish_s3 = None if args.publish_mode == "dry-run" else get_thread_local_s3_client(aws_region)
     plan = build_flat_publish(
         df=df, contract=contract, canonical_key=silver_mpoc_key("stock_comparison"),
-        auth=auth, s3_client=None, job="mpoc_stock_comparison_silver", run_id=args.run_id,
+        auth=auth, s3_client=publish_s3, job="mpoc_stock_comparison_silver", run_id=args.run_id,
     )
     manifest = plan.run()
     # source-as-of provenance is threaded into the manifest inputs (NOT a row column).

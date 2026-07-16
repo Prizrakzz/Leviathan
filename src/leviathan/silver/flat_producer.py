@@ -155,6 +155,15 @@ def build_flat_publish(
     authority). ``auth`` is the :class:`~leviathan.common.publish_guard.Authorization` verdict; in
     dry-run/shadow it never touches canonical. The staged object carries the row count + per-value
     non-null metrics so the publisher's V001-style validation gate runs before any promotion."""
+    # Fail closed at plan-build time: shadow AND canonical STAGE objects to S3 (put_object), so a
+    # write-mode publish with no client is a wiring bug -- surface it here as an actionable error
+    # rather than a cryptic ``'NoneType' object has no attribute 'put_object'`` deep in the staging
+    # loop. Only dry-run legitimately stages nothing and may pass ``s3_client=None``.
+    if s3_client is None and auth.mode is not PublishMode.DRY_RUN:
+        raise ValueError(
+            f"{contract.get('table_name')}: publish-mode '{auth.mode.value}' stages objects to S3 and "
+            "requires a live s3_client; only dry-run may pass s3_client=None"
+        )
     body = encode_parquet(df, contract)
     value_columns = list(contract.get("value_columns", []))
     metrics = null_metrics_for(df, value_columns) if value_columns else None
@@ -221,6 +230,26 @@ def add_standard_producer_args(parser: argparse.ArgumentParser) -> argparse.Argu
     return parser
 
 
+def _resolve_caller_identity() -> tuple[str, str]:
+    """Best-effort live STS identity for a canonical publish target: ``(account_id, role_arn)``.
+
+    Reuses the in-repo idiom (``boto3.client("sts").get_caller_identity()`` -> ``Account`` / ``Arn``;
+    the same shape ``jobs/batch/_sb_producer_publish.publish_flat_silver`` and
+    ``noaa_oni_task._caller_identity`` already resolve). ``boto3`` is imported lazily so importing
+    this module never pulls it, and a missing-credentials failure falls back to empty strings --
+    :func:`~leviathan.common.publish_guard.check_environment` then fails closed exactly as before.
+
+    This is a module-level seam ON PURPOSE: it is called ONLY on the canonical path (never in
+    dry-run/shadow), and tests monkeypatch it so unit runs + readiness identities stay AWS-free."""
+    try:
+        import boto3
+
+        ident = boto3.client("sts").get_caller_identity()
+        return ident.get("Account", ""), ident.get("Arn", "")
+    except Exception:  # noqa: BLE001 -- best-effort; empty identity => check_environment fails closed
+        return "", ""
+
+
 def authorize_for_contract(
     contract: dict,
     *,
@@ -233,8 +262,17 @@ def authorize_for_contract(
     """Authorize a flat producer's publish for its contract via the publish guard.
 
     dry-run/shadow return a non-canonical verdict without any environment check; canonical runs the
-    full fail-closed environment + approval gate. Readiness identities are denied canonical."""
+    full fail-closed environment + approval gate. Readiness identities are denied canonical.
+
+    On the canonical path the guard's :func:`check_environment` fails closed on an empty
+    ``account_id`` / ``role_arn`` (dry-run/shadow never reach it, which is why only the PROMOTE step
+    of pink_sheet / mpob / mpob_annual failed). Resolve the LIVE STS identity for the WHOLE flat
+    producer family in this ONE place -- callers need not each plumb it -- but ONLY when the caller
+    supplied neither (explicit args always win) and ONLY for canonical, so dry-run/shadow and every
+    readiness identity stay fully offline and byte-identical to before."""
     mode = PublishMode(publish_mode)
+    if mode is PublishMode.CANONICAL and not account_id and not role_arn:
+        account_id, role_arn = _resolve_caller_identity()
     target = PublishTarget(
         account_id=account_id,
         bucket=contract["s3_bucket"],
