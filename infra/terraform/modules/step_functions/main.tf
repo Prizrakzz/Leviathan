@@ -188,12 +188,41 @@ locals {
         Next           = "Reconcile"
       }
 
-      # --- reconcile: A-W3 replaces this Pass with a batch task writing the post-census
-      #     to s3://<bucket>/cascade_census/rolling/{family}/census.json (out of A-W2 scope). ---
+      # --- reconcile (A-W3 step 2): after the GREEN gate + GREEN promote, re-run the census on the SAME
+      #     silver-gate jobdef/image and roll the run's post-census FORWARD to the family's rolling S3
+      #     baseline s3://<bucket>/cascade_census/rolling/{family}/census.json (== $.gate_baseline_uri, the
+      #     key the next scheduled gate reads via --baseline-uri). advance_rolling_census exits 0 ONLY on a
+      #     clean census (rc==0) uploaded successfully; a nonzero exit raises States.TaskFailed on the .sync
+      #     integration -> Catch -> [FailNotify] (a failed reconcile FAILS visibly, never leaves a stale
+      #     baseline). GRAPHRAG_NUMBERS_BACKEND=pg mirrors the Gate invariant (plan line 87). ---
       Reconcile = {
-        Type       = "Pass"
-        Comment    = "A-W3 fills this: write the run's post-census to the rolling S3 baseline key."
-        ResultPath = "$.reconcile"
+        Type     = "Task"
+        Resource = "arn:aws:states:::batch:submitJob.sync"
+        Parameters = {
+          "JobName.$"       = "States.Format('{}-reconcile-{}', $.family, States.UUID())"
+          "JobDefinition.$" = "$.gate.jobdef" # same silver-gate jobdef/image (advance_rolling_census must be IN it)
+          "JobQueue.$"      = "$.gate.queue"
+          ContainerOverrides = {
+            # -m module form (the census + rolling baseline write): python -m jobs.audit.advance_rolling_census
+            #   --asof <$.asof, string-coerced> --dest-uri <$.gate_baseline_uri>.
+            "Command.$" = "States.Array('-m', 'jobs.audit.advance_rolling_census', '--asof', States.Format('{}', $.asof), '--dest-uri', $.gate_baseline_uri)"
+            Environment = [{ Name = "GRAPHRAG_NUMBERS_BACKEND", Value = "pg" }]
+          }
+        }
+        # Retry ONLY transient Batch service faults -- NEVER States.TaskFailed (a failed reconcile must not
+        # be retried into a false green; the census is deterministic given the mirror).
+        Retry = [{
+          ErrorEquals     = ["Batch.ServerException", "Batch.TooManyRequestsException", "States.Timeout"]
+          IntervalSeconds = 30
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          ResultPath  = "$.error"
+          Next        = "FailNotify"
+        }]
+        ResultPath = "$.reconcileResult"
         Next       = "Succeeded"
       }
 

@@ -1,10 +1,29 @@
-"""Unit tests for the NASS annual silver Batch task helpers."""
+"""Unit tests for the NASS annual silver Batch task (selection helpers + A-W4 CLASS-B retrofit).
+
+``silver_nass_annual`` is partitioned (projected); the A-W4 retrofit routes the per-(commodity, year)
+write through the shadow-first publisher (ShadowPublisher, PROJECTED strategy) rather than the flat
+``build_flat_publish`` path -- the parquet body carries the ``year`` partition column, so the
+single-object flat encode does not fit. ``--publish-mode`` defaults to dry-run (nothing written);
+the fixture tests exercise ``_publish_nass_annual`` directly with injected guard verdicts.
+"""
 from __future__ import annotations
 
 import pandas as pd
+from leviathan.silver.publisher import ManifestState
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import silver_nass_annual_key
 
 from jobs.batch import nass_annual_silver_task as task
+from tests.unit.silver.conftest import (
+    FakeS3,
+    canonical_authorization,
+    dryrun_authorization,
+    shadow_authorization,
+)
+
+_CONTRACT = load_registry().table("silver_nass_annual")
+_BUCKET = _CONTRACT["s3_bucket"]
+_SENTINEL = b"OLD-CANONICAL-NASS-ANNUAL"
 
 
 def _silver_row(slug: str, state: str, year: int) -> dict[str, object]:
@@ -25,6 +44,18 @@ def _silver_row(slug: str, state: str, year: int) -> dict[str, object]:
         "source": "usda_nass",
     }
 
+
+def _two_partition_final() -> pd.DataFrame:
+    return pd.DataFrame([
+        _silver_row("corn_cbot", "IA", 2024),
+        _silver_row("corn_cbot", "IL", 2024),
+        _silver_row("soybeans_cbot", "IA", 2023),
+    ])[task.OUTPUT_COLUMNS]
+
+
+# ---------------------------------------------------------------------------
+# Selection / transform helpers
+# ---------------------------------------------------------------------------
 
 def test_select_keys_filters_bronze_commodity_and_year() -> None:
     keys = [
@@ -102,50 +133,54 @@ def test_transform_keys_aggregates_worker_errors(monkeypatch) -> None:
     assert frames[0].iloc[0]["state"] == "IA"
 
 
-def test_write_partitions_groups_by_slug_and_year(monkeypatch) -> None:
-    calls: list[tuple[str, int, str]] = []
+# ---------------------------------------------------------------------------
+# Shadow-first publish (A-W4 CLASS-B retrofit)
+# ---------------------------------------------------------------------------
 
-    def fake_write_partition(
-        _bucket: str,
-        _region: str,
-        commodity: str,
-        year: int,
-        df: pd.DataFrame,
-        _force: bool,
-    ) -> str:
-        calls.append((commodity, year, silver_nass_annual_key(commodity, year)))
-        assert set(df["leviathan_slug"]) == {commodity}
-        assert set(df["year"]) == {year}
-        return "written"
+def test_silver_columns_match_contract() -> None:
+    # Every contracted physical column is produced; the only extra body column is the
+    # ``year`` partition key (carried in the parquet body AND the object path).
+    contract_cols = [c["name"] for c in _CONTRACT["physical_columns"]]
+    assert set(contract_cols) <= set(task.OUTPUT_COLUMNS)
+    assert set(task.OUTPUT_COLUMNS) - set(contract_cols) == {"year"}
 
-    monkeypatch.setattr(task, "_write_partition", fake_write_partition)
-    final = pd.DataFrame(
-        [
-            _silver_row("corn_cbot", "IA", 2024),
-            _silver_row("corn_cbot", "IL", 2024),
-            _silver_row("soybeans_cbot", "IA", 2023),
-        ]
-    )
 
-    written, skipped = task._write_partitions(
-        final,
-        bucket="bucket",
-        aws_region="region",
-        force_overwrite=True,
-        workers=2,
-    )
+def test_dry_run_writes_nothing_but_validates() -> None:
+    state = task._publish_nass_annual(_two_partition_final(), _CONTRACT, dryrun_authorization(),
+                                      None, _BUCKET, force_overwrite=True)
+    assert state is ManifestState.VALIDATED
 
-    assert written == 2
-    assert skipped == 0
-    assert sorted(calls) == [
-        (
-            "corn_cbot",
-            2024,
-            "silver/nass_annual/commodity=corn_cbot/year=2024/part-000.parquet",
-        ),
-        (
-            "soybeans_cbot",
-            2023,
-            "silver/nass_annual/commodity=soybeans_cbot/year=2023/part-000.parquet",
-        ),
-    ]
+
+def test_shadow_stages_to_shadow_only_and_leaves_canonical_byte_identical() -> None:
+    s3 = FakeS3()
+    canonical_key = silver_nass_annual_key("corn_cbot", 2024)
+    s3.store[(_BUCKET, canonical_key)] = _SENTINEL
+    etag_before = s3._etag(_SENTINEL)
+
+    state = task._publish_nass_annual(_two_partition_final(), _CONTRACT, shadow_authorization(),
+                                      s3, _BUCKET, force_overwrite=True)
+
+    assert state is ManifestState.VALIDATED
+    assert s3.store[(_BUCKET, canonical_key)] == _SENTINEL
+    assert s3._etag(s3.store[(_BUCKET, canonical_key)]) == etag_before
+    assert any("_shadow" in k for k in s3.keys())
+    # both partitions staged under _shadow/ (control-plane manifest excluded); canonical untouched.
+    for _, key in s3.store:
+        if key == canonical_key or "/_manifests/" in key:
+            continue
+        assert "/_shadow/" in key
+
+
+def test_canonical_overwrites_the_nass_annual_partition() -> None:
+    s3 = FakeS3()
+    canonical_key = silver_nass_annual_key("corn_cbot", 2024)
+    s3.store[(_BUCKET, canonical_key)] = _SENTINEL
+
+    state = task._publish_nass_annual(_two_partition_final(), _CONTRACT, canonical_authorization(),
+                                      s3, _BUCKET, force_overwrite=True)
+
+    assert state is ManifestState.CERTIFIED
+    assert (_BUCKET, canonical_key) in s3.store
+    assert s3.store[(_BUCKET, canonical_key)] != _SENTINEL
+    # the second partition's canonical object was also promoted.
+    assert (_BUCKET, silver_nass_annual_key("soybeans_cbot", 2023)) in s3.store

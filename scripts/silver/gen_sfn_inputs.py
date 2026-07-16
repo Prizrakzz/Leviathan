@@ -10,12 +10,42 @@ gate tables, retry policy, and the fetch/bronze/silver(/gold) task chain with th
 invocation form ([m]=-m module, [s]=script .py, [g]=Glue StartJobRun).
 
 This generator renders each descriptor into the SFN startExecution ``Input`` JSON matching the
-A-W2 schema::
+A-W2 thin-contract state machine (infra/terraform/modules/step_functions/main.tf), whose shape is
+proven by the LIVE Wave-0 reference entry ``module.eventbridge.schedules.fx_macro_daily`` in
+infra/terraform/envs/dev/main.tf (ran end-to-end today incl. the autonomous KMS promote)::
 
-    { family, phases[], gate_tables, asof, gate_baseline_uri, promote, auth_mode }
+    { family, asof, auth_mode, gate_tables, gate_baseline_uri,
+      phases {fetch:{tasks:[]}, bronze:{tasks:[]}, silver:{tasks:[]}},   # OBJECT, not a list
+      gate  {jobdef, queue, command},                                    # the silver_rebuild_gate task
+      promote {mode, tasks} }
+
+Shape rules the machine enforces (main.tf), which earlier renders violated:
+  * ``phases`` is an OBJECT keyed fetch/bronze/silver -- each Map reads a fixed ``$.phases.<p>.tasks``
+    ItemsPath, and a MISSING path errors the Map, so all three keys are ALWAYS emitted (empty
+    ``{"tasks": []}`` when the descriptor lacks that phase). There is NO Gold Map: a ``gold`` phase
+    folds into ``silver`` (weather's dependent gold_weather_z; see the weather caveat below).
+  * ``gate`` is a first-class block (``$.gate.jobdef``/``$.gate.queue``/``$.gate.command``); a null
+    gate crashes the [Gate] state.
+  * every Batch task carries ``env`` as the ContainerOverrides.Environment LIST ``[{Name,Value}]``
+    (never ``{}``); an autonomous promote task carries the KMS approval pair.
+  * jobdefs are UNVERSIONED names (``leviathan-dev-b3-flat-silver`` etc.) so the schedule tracks the
+    latest active revision; the ``:N`` revision suffix is stripped.
+
+PLATFORM CONSTANTS (not descriptor-driven -- see the constants below): the scheduled thin contract
+runs on the on-demand Fargate queue ``leviathan-dev-queue-ondemand`` (NOT the interruptible
+FARGATE_SPOT ``leviathan-dev-queue``, which must never carry a mid-canonical-publish task); the gate
+jobdef is ``leviathan-dev-silver-gate``; the promote leg runs under ``leviathan-dev-silver-publisher-
+runner`` (which carries the silver-publisher role + kms:Sign) with the KMS approval env pair.
 
 The scheduler's ``Input=`` is thus reproducible from the descriptors, never hand-typed. Rendered
 inputs are written under ``configs/silver/dags/_rendered/{schedule}.input.json``.
+
+The ``--render-schedule`` mode additionally emits, per family, the FULL ``StartExecution`` body
+(``{StateMachineArn, Name, Input}``) under ``_rendered/{schedule}.schedule.json`` so a Terraform
+schedule entry can ``file()`` the body instead of open-coding it in HCL. ``StateMachineArn`` is left
+as the ``${state_machine_arn}`` placeholder for tf to fill; ``Name`` and the gate/asof carry the
+``<aws.scheduler.*>`` context attributes the scheduler resolves at fire time; ``Input`` is the
+execution-input JSON as an escaped string.
 
 READ-ONLY of the descriptors; deterministic; AWS-free. Re-running produces a byte-identical
 rendered tree -- the ``--check`` idempotency gate (exit 3 on drift), mirroring
@@ -30,9 +60,13 @@ The publish-mode contract:
   * ``projected_canonical`` (FAOSTAT Glue) publishes with no shadow -- the gate is a post-publish
     audit (promote_mode == post_publish_audit).
 
-Usage:  python scripts/silver/gen_sfn_inputs.py [--check]
-  --check : render to a buffer and fail (exit 3) if it differs from the checked-in rendered tree.
-            Also runs the descriptor lint (exit 2 on any violation) in both modes.
+Usage:
+  python scripts/silver/gen_sfn_inputs.py                    write the {schedule}.input.json tree
+  python scripts/silver/gen_sfn_inputs.py --render-schedule  write the {schedule}.schedule.json tree
+  python scripts/silver/gen_sfn_inputs.py --check            byte-identity gate on the .input.json tree
+  python scripts/silver/gen_sfn_inputs.py --render-schedule --check  byte-identity gate on .schedule.json
+
+The descriptor lint (exit 2 on any violation) runs in every mode; ``--check`` exits 3 on drift.
 """
 from __future__ import annotations
 
@@ -50,8 +84,26 @@ GENERATED_BY = "scripts/silver/gen_sfn_inputs.py"
 INVOCATION_FORMS = frozenset({"m", "s", "g"})
 PUBLISH_MODES = frozenset({"shadow_canonical", "latest_only", "projected_canonical"})
 PROMOTE_MODES = frozenset({"autonomous", "stop_and_notify", "post_publish_audit"})
-SILVER_STAGE_PHASES = frozenset({"silver", "gold"})
-SILVER_PUBLISHER_ROLE = "leviathan-dev-silver-publisher"
+
+# --- Platform constants (NOT descriptor-driven; the scheduled thin contract is uniform) ---------
+# The on-demand Fargate queue -- every Batch task + the gate run here. The descriptors' interruptible
+# FARGATE_SPOT "leviathan-dev-queue" must never carry a scheduled canonical-publish task.
+ONDEMAND_QUEUE = "leviathan-dev-queue-ondemand"
+# The silver_rebuild_gate task (one gate jobdef for every family), invoked module-form.
+GATE_JOBDEF = "leviathan-dev-silver-gate"
+GATE_MODULE = "jobs.audit.silver_rebuild_gate"
+# The promote leg's runner jobdef -- carries the silver-publisher role (jobRoleArn) + kms:Sign, so the
+# rendered promote task needs no role field; the KMS approval mode + key travel in task.env.
+PROMOTE_RUNNER_JOBDEF = "leviathan-dev-silver-publisher-runner"
+KMS_KEY_ALIAS = "alias/leviathan-dev-publish-signer"
+
+# Placeholders the scheduler / terraform substitute (never expanded here).
+ASOF_PLACEHOLDER = "<aws.scheduler.scheduled-time>"          # the gate truncates the ISO to a date
+SCHED_EXEC_ID = "<aws.scheduler.execution-id>"              # makes each fire's execution Name unique
+STATE_MACHINE_ARN_PLACEHOLDER = "${state_machine_arn}"      # tf fills this in the schedule body
+
+RENDERED_INPUT_SUFFIX = ".input.json"
+RENDERED_SCHEDULE_SUFFIX = ".schedule.json"
 
 # Fields every descriptor MUST carry (the lint rejects a missing one).
 _REQUIRED_TOP = (
@@ -175,58 +227,137 @@ def lint_all(descriptors: dict[str, dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 # Render
 # ---------------------------------------------------------------------------
-def _render_task(t: dict, *, publish_stage: str | None = None, role: str | None = None) -> dict:
-    """Render one descriptor task into an SFN Map-item task.
+def _unversion(jobdef: str) -> str:
+    """Strip a trailing ``:N`` revision so the schedule tracks the latest ACTIVE jobdef revision.
 
-    ``publish_stage`` ('shadow'|'canonical') is appended as ``--publish-mode <stage>`` ONLY for a
-    shadow_canonical publisher; ``role`` (silver-publisher) is attached on the promote copy."""
-    out: dict = {"integration": t["integration"]}
+    ``leviathan-dev-b3-flat-silver:4`` -> ``leviathan-dev-b3-flat-silver``. A name with no numeric
+    revision suffix (``leviathan-dev-silver-gate``) is returned unchanged; per-family jobdefs like
+    ``leviathan-dev-mpob-silver:1`` are kept, just unversioned."""
+    if not jobdef:
+        return jobdef
+    head, sep, tail = jobdef.rpartition(":")
+    return head if (sep and tail.isdigit()) else jobdef
+
+
+def _env_list(env) -> list[dict]:
+    """Batch ContainerOverrides.Environment shape: a LIST of ``{Name, Value}`` -- never ``{}``.
+
+    The machine reads ``$.task.env`` as this list; an object crashes the item. Accepts a descriptor
+    ``{}``/``{K: V}`` (converted, key-sorted) or an already-rendered list; empty -> ``[]``."""
+    if not env:
+        return []
+    if isinstance(env, list):
+        return [{"Name": e["Name"], "Value": e["Value"]} for e in env]
+    return [{"Name": k, "Value": v} for k, v in sorted(env.items())]
+
+
+def _render_task(t: dict, *, publish_stage: str | None = None) -> dict:
+    """Render one descriptor phase task into an SFN Map-item task (Batch or Glue).
+
+    ``publish_stage`` ('shadow') is appended as ``--publish-mode <stage>`` ONLY for a shadow_canonical
+    Batch publisher (latest_only / projected_canonical never take the flag; Glue never does)."""
     if t["integration"] == "glue":
-        out["glue_job"] = t["glue_job"]
-    else:
-        out["jobdef"] = t["jobdef"]
-        out["queue"] = t.get("queue")
+        # Glue branch reads $.task.glue_job + $.task.arguments (a MISSING arguments path errors the
+        # startJobRun Map item) -- so always emit arguments, defaulting to an empty map.
+        return {
+            "integration": "glue",
+            "glue_job": t["glue_job"],
+            "arguments": dict(t.get("arguments", {})),
+        }
     cmd = list(t.get("command", []))
     if publish_stage and t.get("publishes") and t.get("publish_mode") == "shadow_canonical":
         cmd = cmd + ["--publish-mode", publish_stage]
-    out["command"] = cmd
-    out["env"] = dict(t.get("env", {}))
-    if role:
-        out["role"] = role
-    return out
+    return {
+        "integration": "batch",
+        "jobdef": _unversion(t["jobdef"]),
+        "queue": ONDEMAND_QUEUE,
+        "command": cmd,
+        "env": _env_list(t.get("env")),
+    }
+
+
+def _render_promote_task(desc: dict, t: dict) -> dict:
+    """A shadow_canonical publisher's canonical re-run: the same command + ``--publish-mode canonical``
+    under the silver-publisher-runner jobdef, carrying the KMS approval env pair. No ``role`` field --
+    the runner jobdef already binds jobRoleArn=silver-publisher (the machine reads no $.task.role)."""
+    return {
+        "integration": "batch",
+        "jobdef": PROMOTE_RUNNER_JOBDEF,
+        "queue": ONDEMAND_QUEUE,
+        "command": list(t.get("command", [])) + ["--publish-mode", "canonical"],
+        "env": [
+            {"Name": "LEVIATHAN_APPROVAL_MODE", "Value": desc["auth_mode"]},
+            {"Name": "LEVIATHAN_KMS_KEY_ID", "Value": KMS_KEY_ALIAS},
+        ],
+    }
+
+
+def _render_gate(desc: dict) -> dict:
+    """The silver_rebuild_gate task block ($.gate). Platform-fixed jobdef/queue + module-form command;
+    --tables is the comma-joined gate_tables, --asof is the scheduler placeholder (truncated to a date
+    by the gate), --baseline-uri is the rolling per-schedule census."""
+    return {
+        "jobdef": GATE_JOBDEF,
+        "queue": ONDEMAND_QUEUE,
+        "command": [
+            "-m", GATE_MODULE,
+            "--tables", ",".join(desc["gate_tables"]),
+            "--asof", ASOF_PLACEHOLDER,
+            "--baseline-uri", desc["gate_baseline_uri"],
+        ],
+    }
 
 
 def render_input(desc: dict) -> dict:
-    """Render one descriptor into its A-W2 SFN execution-input JSON."""
+    """Render one descriptor into its A-W2 SFN execution-input JSON (object-keyed phases + gate)."""
     promote_mode = desc.get("promote_mode", "autonomous")
-    phases_out: list[dict] = []
-    promote_tasks: list[dict] = []
-    for phase in desc.get("phases", []):
-        pname = phase["name"]
-        stage = "shadow" if pname in SILVER_STAGE_PHASES else None
-        tasks_out = []
-        for t in phase.get("tasks", []):
-            tasks_out.append(_render_task(t, publish_stage=stage))
-            if pname in SILVER_STAGE_PHASES and t.get("publishes") \
-                    and t.get("publish_mode") == "shadow_canonical":
-                promote_tasks.append(
-                    _render_task(t, publish_stage="canonical", role=SILVER_PUBLISHER_ROLE)
-                )
-        phases_out.append({"name": pname, "tasks": tasks_out})
 
-    # only an autonomous family self-promotes; held (stop_and_notify) + post_publish_audit do not
-    # re-run a canonical publish leg from the machine.
-    if promote_mode != "autonomous":
-        promote_tasks = []
+    # Bucket descriptor phases by name. The machine has fetch/bronze/silver Maps + no Gold Map, so a
+    # 'gold' phase folds into 'silver' (its tasks run in the silver Map, ordered after the silver ones).
+    by_name: dict[str, list] = {}
+    for phase in desc.get("phases", []):
+        by_name.setdefault(phase["name"], []).extend(phase.get("tasks", []))
+    silver_src = list(by_name.get("silver", [])) + list(by_name.get("gold", []))
+
+    phases_out = {
+        "fetch": {"tasks": [_render_task(t) for t in by_name.get("fetch", [])]},
+        "bronze": {"tasks": [_render_task(t) for t in by_name.get("bronze", [])]},
+        "silver": {"tasks": [_render_task(t, publish_stage="shadow") for t in silver_src]},
+    }
+
+    # Only an autonomous family self-promotes (held stop_and_notify + post_publish_audit do not re-run
+    # a canonical leg from the machine). Each shadow_canonical silver/gold publisher promotes once.
+    promote_tasks: list[dict] = []
+    if promote_mode == "autonomous":
+        promote_tasks = [
+            _render_promote_task(desc, t)
+            for t in silver_src
+            if t.get("publishes") and t.get("publish_mode") == "shadow_canonical"
+        ]
 
     return {
         "family": desc["family"],
-        "phases": phases_out,
-        "gate_tables": list(desc["gate_tables"]),
-        "asof": desc.get("asof", "${ASOF}"),
-        "gate_baseline_uri": desc["gate_baseline_uri"],
-        "promote": {"mode": promote_mode, "tasks": promote_tasks},
+        "asof": ASOF_PLACEHOLDER,
         "auth_mode": desc["auth_mode"],
+        "gate_tables": list(desc["gate_tables"]),
+        "gate_baseline_uri": desc["gate_baseline_uri"],
+        "phases": phases_out,
+        "gate": _render_gate(desc),
+        "promote": {"mode": promote_mode, "tasks": promote_tasks},
+    }
+
+
+def render_schedule(desc: dict) -> dict:
+    """Render the FULL StartExecution body for a family's scheduler target (``--render-schedule``).
+
+    StateMachineArn is the ${state_machine_arn} tf placeholder; Name carries the execution-id context
+    attribute (unique per fire -> at-least-once double-fires collide into ExecutionAlreadyExists); Input
+    is the execution-input JSON as an escaped string (compact, key-sorted)."""
+    exec_input = render_input(desc)
+    return {
+        "StateMachineArn": STATE_MACHINE_ARN_PLACEHOLDER,
+        "Name": f"{desc['family']}-sched-{SCHED_EXEC_ID}",
+        "Input": json.dumps(exec_input, ensure_ascii=True, sort_keys=True, separators=(",", ":")),
     }
 
 
@@ -239,10 +370,31 @@ def render_all(descriptors: dict[str, dict]) -> dict[str, str]:
     return {stem: _dump_json(render_input(desc)) for stem, desc in sorted(descriptors.items())}
 
 
+def render_all_schedules(descriptors: dict[str, dict]) -> dict[str, str]:
+    return {stem: _dump_json(render_schedule(desc)) for stem, desc in sorted(descriptors.items())}
+
+
+def scan_unresolved_placeholders(descriptors: dict[str, dict]) -> list[str]:
+    """Non-fatal advisory: descriptor command args carrying an unresolved ``${...}`` template var.
+
+    The scheduler only substitutes ``<aws.scheduler.*>`` context attributes, so a literal ``${X}`` in a
+    command reaches the job UNRESOLVED. Reported (not lint-failed) so the input tree still renders."""
+    import re
+    pat = re.compile(r"\$\{[^}]+\}")
+    out: list[str] = []
+    for stem, desc in sorted(descriptors.items()):
+        for phase in desc.get("phases", []):
+            for t in phase.get("tasks", []):
+                hits = [a for a in t.get("command", []) if isinstance(a, str) and pat.search(a)]
+                if hits:
+                    out.append(f"{stem}/{t.get('id')}: command carries unresolved placeholder(s) {hits}")
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def generate(check: bool = False) -> int:
+def generate(check: bool = False, render_schedule: bool = False) -> int:
     descriptors = load_descriptors()
     if not descriptors:
         print(f"no descriptors under {DAGS_DIR}", file=sys.stderr)
@@ -255,24 +407,34 @@ def generate(check: bool = False) -> int:
             print(f"  - {v}")
         return 2
 
-    rendered = render_all(descriptors)
+    # Non-fatal advisory (does not gate rendering): unresolved ${...} command placeholders.
+    for warn in scan_unresolved_placeholders(descriptors):
+        print(f"WARN {warn}", file=sys.stderr)
+
+    if render_schedule:
+        rendered = render_all_schedules(descriptors)
+        suffix, label = RENDERED_SCHEDULE_SUFFIX, "StartExecution bodies"
+    else:
+        rendered = render_all(descriptors)
+        suffix, label = RENDERED_INPUT_SUFFIX, "SFN inputs"
 
     if check:
         drift = []
         for stem, text in rendered.items():
-            existing = RENDERED_DIR / f"{stem}.input.json"
+            existing = RENDERED_DIR / f"{stem}{suffix}"
             if not existing.exists() or existing.read_text(encoding="utf-8") != text:
                 drift.append(stem)
         if drift:
-            print("RENDERED-INPUT DRIFT (regenerate): " + ", ".join(sorted(drift)))
+            print(f"RENDERED DRIFT ({suffix}, regenerate): " + ", ".join(sorted(drift)))
             return 3
-        print(f"sfn-input check OK: {len(rendered)} inputs byte-identical (lint clean)")
+        print(f"sfn-{'schedule' if render_schedule else 'input'} check OK: "
+              f"{len(rendered)} {label} byte-identical (lint clean)")
         return 0
 
     RENDERED_DIR.mkdir(parents=True, exist_ok=True)
     for stem, text in rendered.items():
-        (RENDERED_DIR / f"{stem}.input.json").write_text(text, encoding="utf-8")
-    print(f"wrote {len(rendered)} rendered SFN inputs to {RENDERED_DIR} (lint clean)")
+        (RENDERED_DIR / f"{stem}{suffix}").write_text(text, encoding="utf-8")
+    print(f"wrote {len(rendered)} rendered {label} to {RENDERED_DIR} (lint clean)")
     return 0
 
 
@@ -280,8 +442,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true",
                     help="render to a buffer and fail (exit 3) if it differs from the checked-in tree")
+    ap.add_argument("--render-schedule", action="store_true",
+                    help="emit the {schedule}.schedule.json StartExecution bodies instead of .input.json")
     args = ap.parse_args()
-    return generate(check=args.check)
+    return generate(check=args.check, render_schedule=args.render_schedule)
 
 
 if __name__ == "__main__":

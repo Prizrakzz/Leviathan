@@ -1,13 +1,35 @@
-"""AWS Batch task: USDA NASS annual bronze Parquet to silver Parquet.
+"""AWS Batch task: USDA NASS annual bronze Parquet -> silver (shadow-first, SILVER-F015/INV-6).
 
-Reads NASS annual bronze shards from S3, converts them to a state/national
-wide annual feature table, and writes partitions under ``silver/nass_annual/``.
+Reads NASS annual bronze shards from S3, converts them to a state/national wide
+annual feature table, and publishes partitions under ``silver/nass_annual/``.
+
+Publish contract (A-W4 CLASS-B retrofit)
+----------------------------------------
+``silver_nass_annual`` is a PARTITIONED (projected) table -- one object per
+``(commodity, year)``. The flat-table ``build_flat_publish`` path does NOT fit
+(its single-object plan + exact contract-column encode cannot express the
+per-partition fan-out, and the parquet body carries the ``year`` partition
+column), so the write routes through the SILVER-F015 shadow-first publisher
+(:class:`leviathan.silver.publisher.ShadowPublisher`, PROJECTED strategy) directly
+-- the same pattern the quandl CHRIS task uses -- with the task's own parquet
+writer (preserving the on-disk byte layout). ``--publish-mode`` (default
+``dry-run``) resolves through the publish guard:
+
+  * dry-run   : nothing is written anywhere.
+  * shadow    : each partition object is staged ONLY under ``silver/nass_annual/_shadow/``;
+                canonical partitions are untouched.
+  * canonical : shadow-stage -> validate -> promote, ONLY with a verified signed approval.
+
+This replaces the former latest-only ``put_object`` overwrite so a red rebuild
+gate can protect the canonical writes. The projected table is never partition-
+registered in Glue (INV-3); PROJECTED cataloging is a no-op.
 """
 from __future__ import annotations
 
 import argparse
 import io
 import logging
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -16,6 +38,15 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.flat_producer import authorize_for_contract
+from leviathan.silver.publisher import (
+    ManifestState,
+    PublishStrategy,
+    ShadowPublisher,
+    StagedObject,
+    ValidationHooks,
+)
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import parse_hive_key, silver_nass_annual_key
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
@@ -30,6 +61,8 @@ from leviathan.transforms.bronze_to_silver.usda_nass_annual import (
 logger = get_logger("nass_annual_silver_task")
 
 _BRONZE_PREFIX = "bronze/production/source=usda_nass/series=annual/"
+_TABLE = "silver_nass_annual"
+_JOB = "nass_annual_silver"
 
 
 def _parse_bool(value: str | bool) -> bool:
@@ -46,7 +79,7 @@ def _positive_int(value: str) -> int:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="USDA NASS annual bronze -> silver")
+    parser = argparse.ArgumentParser(description="USDA NASS annual bronze -> silver (shadow-first)")
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--aws-region", default=None, dest="aws_region")
     parser.add_argument("--force-overwrite", default="false")
@@ -55,7 +88,7 @@ def _parse_args() -> argparse.Namespace:
         "--workers",
         type=_positive_int,
         default=8,
-        help="Concurrent S3/parquet workers. Use 1 for sequential debugging.",
+        help="Concurrent S3/parquet load workers. Use 1 for sequential debugging.",
     )
     parser.add_argument(
         "--bronze-commodities",
@@ -67,6 +100,13 @@ def _parse_args() -> argparse.Namespace:
         default="all",
         help="Comma-separated years or 'all'.",
     )
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Alias for --publish-mode dry-run (writes nothing).")
+    parser.add_argument("--publish-mode", default="dry-run",
+                        choices=["dry-run", "shadow", "canonical"], dest="publish_mode",
+                        help="dry-run|shadow|canonical (default dry-run; canonical needs a signed approval)")
+    parser.add_argument("--role-arn", default="", dest="role_arn")
+    parser.add_argument("--account-id", default="", dest="account_id")
     args = parser.parse_args()
     args.force_overwrite = _parse_bool(args.force_overwrite)
     return args
@@ -139,101 +179,103 @@ def _transform_keys(
     return frames, errors
 
 
-def _target_exists(s3_client, bucket: str, key: str) -> bool:
-    try:
-        s3_client.head_object(Bucket=bucket, Key=key)
-        return True
-    except s3_client.exceptions.ClientError as exc:
-        if exc.response["Error"]["Code"] == "404":
-            return False
-        raise
-
-
-def _write_partition(
-    bucket: str,
-    aws_region: str,
-    commodity: str,
-    year: int,
-    df: pd.DataFrame,
-    force_overwrite: bool,
-) -> str:
-    s3_client = get_thread_local_s3_client(aws_region)
-    key = silver_nass_annual_key(commodity, year)
-    if not force_overwrite and _target_exists(s3_client, bucket, key):
-        logger.info("skipping existing silver partition: %s", key)
-        return "skipped"
-
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=buf.getvalue(),
-        ContentType="application/octet-stream",
-    )
-    logger.info("wrote silver partition: %s rows=%d", key, len(df))
-    return "written"
-
-
-def _write_partitions(
-    final: pd.DataFrame,
-    bucket: str,
-    aws_region: str,
-    force_overwrite: bool,
-    workers: int,
-) -> tuple[int, int]:
-    groups = [
-        (str(commodity), int(year), group.reset_index(drop=True))
-        for (commodity, year), group in final.groupby(["leviathan_slug", "year"])
-    ]
-    written = skipped = errors = completed = 0
-
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_partition = {
-            executor.submit(
-                _write_partition,
-                bucket,
-                aws_region,
-                commodity,
-                year,
-                group,
-                force_overwrite,
-            ): (commodity, year)
-            for commodity, year, group in groups
-        }
-        for future in as_completed(future_to_partition):
-            commodity, year = future_to_partition[future]
-            completed += 1
-            try:
-                status = future.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.error("failed to write commodity=%s year=%s: %s", commodity, year, exc)
-                errors += 1
-                continue
-            if status == "written":
-                written += 1
-            else:
-                skipped += 1
-            logger.info(
-                "write progress=%d/%d commodity=%s year=%s status=%s",
-                completed,
-                len(groups),
-                commodity,
-                year,
-                status,
-            )
-
-    if errors:
-        raise SystemExit(1)
-    return written, skipped
-
-
 def _validate_final_uniqueness(df: pd.DataFrame) -> None:
     duplicate_mask = df.duplicated(subset=["leviathan_slug", "state", "year"], keep=False)
     if duplicate_mask.any():
         dupes = df.loc[duplicate_mask, ["leviathan_slug", "state", "year"]].drop_duplicates()
         preview = dupes.head(5).to_dict("records")
         raise ValueError(f"NASS annual silver has duplicate output rows: {preview}")
+
+
+# ---------------------------------------------------------------------------
+# Shadow-first publish (A-W4 CLASS-B retrofit)
+# ---------------------------------------------------------------------------
+
+def _exists(s3_client, bucket: str, key: str) -> bool:
+    try:
+        s3_client.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _caller_identity(aws_region: str) -> tuple[str, str]:
+    """Best-effort STS identity for the canonical publish target (empty on failure)."""
+    try:
+        import boto3
+        ident = boto3.client("sts", region_name=aws_region).get_caller_identity()
+        return ident.get("Account", ""), ident.get("Arn", "")
+    except Exception as exc:  # noqa: BLE001 -- dry-run / shadow must not require live credentials
+        logger.info("STS identity unavailable (%s); using empty target (dry-run/shadow only)", exc)
+        return "", ""
+
+
+def _partition_body(df: pd.DataFrame) -> bytes:
+    buf = io.BytesIO()
+    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
+    return buf.getvalue()
+
+
+def _publish_nass_annual(
+    final: pd.DataFrame,
+    contract: dict,
+    auth,
+    s3_client,
+    bucket: str,
+    *,
+    force_overwrite: bool,
+) -> ManifestState | None:
+    """Publish one silver object per (commodity, year) through the shadow-first publisher (PROJECTED).
+    Returns the manifest state, or ``None`` when every partition is a skipped existing canonical
+    object (canonical mode only)."""
+    groups = [
+        (str(commodity), int(year), group.reset_index(drop=True))
+        for (commodity, year), group in final.groupby(["leviathan_slug", "year"])
+    ]
+    staged: list[StagedObject] = []
+    skipped = 0
+    for commodity, year, group in groups:
+        canonical_key = silver_nass_annual_key(commodity, year)
+        if (
+            not force_overwrite
+            and auth.may_mutate_canonical
+            and s3_client is not None
+            and _exists(s3_client, bucket, canonical_key)
+        ):
+            logger.info("skipping existing silver partition: %s", canonical_key)
+            skipped += 1
+            continue
+        staged.append(StagedObject(
+            canonical_key=canonical_key,
+            body=_partition_body(group[OUTPUT_COLUMNS]),
+            partition_values=[commodity, str(year)],
+            row_count=len(group),
+        ))
+
+    if not staged:
+        logger.info("nass_annual: no partitions to publish (skipped=%d existing)", skipped)
+        return None
+
+    # dry-run (no client) needs a no-op manifest sink; shadow/canonical persist via the S3 store.
+    manifest_store = None if s3_client is not None else (lambda _k, _b: None)
+    publisher = ShadowPublisher(
+        job=_JOB,
+        table=contract["table_name"],
+        database=contract["glue_database"],
+        bucket=bucket,
+        canonical_root=contract["s3_root"],
+        auth=auth,
+        s3_client=s3_client,
+        strategy=PublishStrategy.PROJECTED,
+        validation=ValidationHooks(min_rows=1),
+        manifest_store=manifest_store,
+    )
+    manifest = publisher.run(staged)
+    logger.info(
+        "nass_annual silver publish mode=%s state=%s partitions=%d skipped=%d",
+        auth.mode.value, manifest.state.value, len(staged), skipped,
+    )
+    return manifest.state
 
 
 def main() -> None:
@@ -245,8 +287,22 @@ def main() -> None:
     load_env()
     args = _parse_args()
 
+    publish_mode = "dry-run" if args.dry_run else args.publish_mode
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
+    contract = load_registry().table(_TABLE)
+
+    account_id, role_arn = args.account_id, args.role_arn
+    if publish_mode == "canonical" and not account_id and not role_arn:
+        account_id, role_arn = _caller_identity(aws_region)
+    auth = authorize_for_contract(
+        contract, publish_mode=publish_mode,
+        role_arn=role_arn, account_id=account_id, env=os.environ,
+    )
+    logger.info("publish authorized: mode=%s may_canonical=%s", auth.mode.value, auth.may_mutate_canonical)
+
+    s3_read = get_thread_local_s3_client(aws_region)
+    publish_client = None if publish_mode == "dry-run" else s3_read
 
     all_keys = list_s3_keys(bucket, _BRONZE_PREFIX, suffix=".parquet", aws_region=aws_region)
     keys = _select_keys(all_keys, args.bronze_commodities, args.years, args.limit)
@@ -254,11 +310,8 @@ def main() -> None:
         raise FileNotFoundError(f"No NASS annual bronze parquet files found under {_BRONZE_PREFIX}")
 
     logger.info(
-        "NASS annual silver task bucket=%s bronze_keys=%d force=%s workers=%d",
-        bucket,
-        len(keys),
-        args.force_overwrite,
-        args.workers,
+        "NASS annual silver task bucket=%s bronze_keys=%d force=%s workers=%d mode=%s",
+        bucket, len(keys), args.force_overwrite, args.workers, publish_mode,
     )
 
     start = datetime.now(timezone.utc)
@@ -274,21 +327,12 @@ def main() -> None:
     final = final[OUTPUT_COLUMNS].drop_duplicates().reset_index(drop=True)
     _validate_final_uniqueness(final)
 
-    written, skipped = _write_partitions(
-        final,
-        bucket,
-        aws_region,
-        args.force_overwrite,
-        args.workers,
-    )
+    _publish_nass_annual(final, contract, auth, publish_client, bucket,
+                         force_overwrite=args.force_overwrite)
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     logger.info(
-        "Done NASS annual silver written=%d skipped=%d rows=%d elapsed=%.1fs",
-        written,
-        skipped,
-        len(final),
-        elapsed,
+        "Done NASS annual silver rows=%d elapsed=%.1fs", len(final), elapsed,
     )
 
 

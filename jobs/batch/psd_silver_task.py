@@ -1,40 +1,52 @@
-"""AWS Batch task: USDA PSD bronze/ → silver/ layer.
+"""AWS Batch entrypoint: USDA PSD bronze -> silver (shadow-first, SILVER-F015/INV-6).
 
 Downloads all PSD bronze Parquets (one per monthly release date), applies the
-silver transform, and writes a single consolidated silver Parquet to S3.
+silver transform, enforces the F2 fail-closed release_date guard, and publishes
+the flat table:
 
-Output S3 keys
---------------
     silver/psd/part-000.parquet
-    silver/psd/_run_log.json
+
+Publish contract (A-W4 CLASS-B retrofit)
+----------------------------------------
+The silver write is routed through the SILVER-F015 shadow-first controlled
+publisher via ``leviathan.silver.flat_producer.build_flat_publish`` with an
+EXPLICIT registry-derived INV-2 arrow schema (the F010 ``silver_psd`` contract).
+``--publish-mode`` (default ``dry-run``) resolves through the publish guard:
+
+  * dry-run   : nothing is written anywhere (the manifest is an in-memory plan).
+  * shadow    : the object is staged ONLY under ``silver/psd/_shadow/`` and
+                validated; the canonical object is never touched.
+  * canonical : shadow-stage -> validate -> promote -> catalog, but ONLY with a
+                verified signed approval (the guard raises otherwise before any write).
+
+This replaces the former latest-only ``put_object`` overwrite so a red rebuild
+gate can protect the canonical write (a red gate cannot protect data already
+overwritten). The legacy ``--dry-run`` flag is retained as an alias for
+``--publish-mode dry-run``. The bespoke ``silver/psd/_run_log.json`` is retired
+in favour of the publisher's per-run manifest under ``silver/psd/_manifests/``.
 
 Usage
 -----
-    # Idempotent run (skip if silver already exists)
-    python jobs/batch/psd_silver_task.py \\
-        --bucket leviathan-dev-shahem-001 --aws-region us-east-1
-
-    # Force overwrite
-    python jobs/batch/psd_silver_task.py \\
-        --bucket leviathan-dev-shahem-001 --aws-region us-east-1 --force-overwrite
-
-    # Dry-run (no writes)
-    python jobs/batch/psd_silver_task.py \\
-        --bucket leviathan-dev-shahem-001 --aws-region us-east-1 --dry-run
+    python jobs/batch/psd_silver_task.py                          # dry-run (writes nothing)
+    python jobs/batch/psd_silver_task.py --publish-mode shadow
+    python jobs/batch/psd_silver_task.py --publish-mode canonical --force-overwrite
+    python jobs/batch/psd_silver_task.py --dry-run
 """
 from __future__ import annotations
 
 import argparse
 import io
-import json
 import logging
+import os
 import sys
-from datetime import datetime, timezone
 
 import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.flat_producer import authorize_for_contract, build_flat_publish
+from leviathan.silver.publisher import ManifestState
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import silver_psd_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.bronze_to_silver.usda_psd import transform_psd_bronze_to_silver
@@ -42,37 +54,11 @@ from leviathan.transforms.bronze_to_silver.usda_psd import transform_psd_bronze_
 logger = get_logger("psd_silver_task")
 
 _BRONZE_PREFIX = "bronze/production/source=usda_psd/"
-_SILVER_LOG_KEY = "silver/psd/_run_log.json"
+_TABLE = "silver_psd"
+_JOB = "psd_silver"
 
 
-# ---------------------------------------------------------------------------
-# Argument parsing
-# ---------------------------------------------------------------------------
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="USDA PSD bronze → silver")
-    parser.add_argument("--bucket", default=None)
-    parser.add_argument("--aws-region", default=None, dest="aws_region")
-    parser.add_argument(
-        "--force-overwrite",
-        action="store_true",
-        default=False,
-        help="Overwrite existing silver Parquet (default: skip).",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Log what would be written without writing to S3.",
-    )
-    return parser.parse_args()
-
-
-# ---------------------------------------------------------------------------
-# S3 helpers
-# ---------------------------------------------------------------------------
-
-def _key_exists(s3_client, bucket: str, key: str) -> bool:
+def _exists(s3_client, bucket: str, key: str) -> bool:
     try:
         s3_client.head_object(Bucket=bucket, Key=key)
         return True
@@ -85,28 +71,21 @@ def _download_parquet(s3_client, bucket: str, key: str) -> pd.DataFrame:
     return pd.read_parquet(io.BytesIO(resp["Body"].read()))
 
 
-def _upload_parquet(s3_client, bucket: str, key: str, df: pd.DataFrame) -> None:
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=buf.getvalue(),
-        ContentType="application/octet-stream",
-    )
-
-
-def _upload_json(s3_client, bucket: str, key: str, payload: dict) -> None:
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=json.dumps(payload, indent=2, default=str).encode(),
-        ContentType="application/json",
-    )
+def _caller_identity(aws_region: str) -> tuple[str, str]:
+    """Best-effort STS identity for the canonical publish target. Returns (account_id, role_arn);
+    empty strings when no credentials are available (fine for dry-run / shadow, which skip the
+    environment check)."""
+    try:
+        import boto3
+        ident = boto3.client("sts", region_name=aws_region).get_caller_identity()
+        return ident.get("Account", ""), ident.get("Arn", "")
+    except Exception as exc:  # noqa: BLE001 -- dry-run / shadow must not require live credentials
+        logger.info("STS identity unavailable (%s); using empty target (dry-run/shadow only)", exc)
+        return "", ""
 
 
 # ---------------------------------------------------------------------------
-# Fail-closed release_date guard (F2)
+# Fail-closed release_date guard (F2) -- PRESERVED
 # ---------------------------------------------------------------------------
 
 def _snapshot_ingest_date(dfs: list[pd.DataFrame]) -> str:
@@ -153,69 +132,107 @@ def _assert_release_dates_not_future(silver_df: pd.DataFrame, ingest_date: str) 
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Bronze load
 # ---------------------------------------------------------------------------
+
+def _load_bronze(bucket: str, aws_region: str, s3_client) -> list[pd.DataFrame]:
+    bronze_keys = sorted(
+        list_s3_keys(bucket, _BRONZE_PREFIX, suffix="part-000.parquet", aws_region=aws_region)
+    )
+    if not bronze_keys:
+        logger.error("No bronze PSD Parquets found under %s -- aborting", _BRONZE_PREFIX)
+        sys.exit(1)
+    logger.info("Loading %d bronze PSD Parquets ...", len(bronze_keys))
+    dfs: list[pd.DataFrame] = []
+    for key in bronze_keys:
+        try:
+            dfs.append(_download_parquet(s3_client, bucket, key))
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to download %s: %s", key, exc)
+            sys.exit(1)
+    return dfs
+
+
+# ---------------------------------------------------------------------------
+# Publish
+# ---------------------------------------------------------------------------
+
+def _publish_psd(
+    df: pd.DataFrame,
+    contract: dict,
+    auth,
+    s3_client,
+    bucket: str,
+    *,
+    force_overwrite: bool,
+) -> ManifestState | None:
+    """Publish the flat PSD silver object through the shadow-first publisher. Returns the manifest
+    state, or ``None`` when an existing canonical object is skipped (canonical mode only)."""
+    canonical_key = silver_psd_key()
+    if (
+        not force_overwrite
+        and auth.may_mutate_canonical
+        and s3_client is not None
+        and _exists(s3_client, bucket, canonical_key)
+    ):
+        logger.info(
+            "silver exists -- use --publish-mode canonical --force-overwrite to re-run: %s",
+            canonical_key,
+        )
+        return None
+    plan = build_flat_publish(
+        df=df, contract=contract, canonical_key=canonical_key,
+        auth=auth, s3_client=s3_client, job=_JOB,
+    )
+    manifest = plan.run()
+    logger.info(
+        "PSD silver publish mode=%s state=%s rows=%d key=%s",
+        auth.mode.value, manifest.state.value, len(df), canonical_key,
+    )
+    return manifest.state
+
 
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         stream=sys.stderr,
     )
-
     load_env()
-    args = _parse_args()
 
+    parser = argparse.ArgumentParser(description="USDA PSD bronze -> silver (shadow-first)")
+    parser.add_argument("--bucket", default=None)
+    parser.add_argument("--aws-region", default=None, dest="aws_region")
+    parser.add_argument("--force-overwrite", action="store_true")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Alias for --publish-mode dry-run (writes nothing).")
+    parser.add_argument("--publish-mode", default="dry-run",
+                        choices=["dry-run", "shadow", "canonical"], dest="publish_mode",
+                        help="dry-run|shadow|canonical (default dry-run; canonical needs a signed approval)")
+    parser.add_argument("--role-arn", default="", dest="role_arn")
+    parser.add_argument("--account-id", default="", dest="account_id")
+    args = parser.parse_args()
+
+    publish_mode = "dry-run" if args.dry_run else args.publish_mode
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
+    contract = load_registry().table(_TABLE)
 
-    s3 = get_thread_local_s3_client(aws_region)
-    silver_key = silver_psd_key()
-    start = datetime.now(timezone.utc)
-
-    # ------------------------------------------------------------------
-    # Locate bronze Parquets
-    # ------------------------------------------------------------------
-    bronze_keys = list_s3_keys(
-        bucket, _BRONZE_PREFIX, suffix="part-000.parquet", aws_region=aws_region
+    account_id, role_arn = args.account_id, args.role_arn
+    if publish_mode == "canonical" and not account_id and not role_arn:
+        account_id, role_arn = _caller_identity(aws_region)
+    auth = authorize_for_contract(
+        contract, publish_mode=publish_mode,
+        role_arn=role_arn, account_id=account_id, env=os.environ,
     )
-    bronze_keys.sort()
+    logger.info("publish authorized: mode=%s may_canonical=%s", auth.mode.value, auth.may_mutate_canonical)
 
-    logger.info(
-        "PSD silver task  bucket=%s  bronze_partitions=%d  force=%s  dry_run=%s",
-        bucket,
-        len(bronze_keys),
-        args.force_overwrite,
-        args.dry_run,
-    )
+    # A read client is always needed to load bronze; the publisher only writes in shadow/canonical.
+    s3_read = get_thread_local_s3_client(aws_region)
+    publish_client = None if publish_mode == "dry-run" else s3_read
 
-    if not bronze_keys:
-        logger.error("No bronze PSD Parquets found under %s — aborting", _BRONZE_PREFIX)
-        sys.exit(1)
+    dfs = _load_bronze(bucket, aws_region, s3_read)
 
-    # ------------------------------------------------------------------
-    # Short-circuit if silver already up-to-date
-    # ------------------------------------------------------------------
-    if not args.force_overwrite and _key_exists(s3, bucket, silver_key):
-        logger.info("Silver already exists at %s — skipping (use --force-overwrite)", silver_key)
-        sys.exit(0)
-
-    # ------------------------------------------------------------------
-    # Download all bronze partitions
-    # ------------------------------------------------------------------
-    dfs: list[pd.DataFrame] = []
-    for key in bronze_keys:
-        logger.info("Downloading bronze  %s", key)
-        try:
-            df = _download_parquet(s3, bucket, key)
-            dfs.append(df)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to download %s: %s", key, exc)
-            sys.exit(1)
-
-    # ------------------------------------------------------------------
-    # Transform
-    # ------------------------------------------------------------------
     logger.info("Running PSD silver transform on %d bronze DataFrames", len(dfs))
     try:
         silver_df = transform_psd_bronze_to_silver(dfs)
@@ -224,68 +241,25 @@ def main() -> None:
         sys.exit(1)
 
     logger.info(
-        "Silver DataFrame: rows=%d  cols=%d  slugs=%d  releases=%d",
-        len(silver_df),
-        len(silver_df.columns),
-        silver_df["leviathan_slug"].nunique(),
-        silver_df["release_date"].nunique(),
+        "Silver DataFrame: rows=%d cols=%d slugs=%d releases=%d",
+        len(silver_df), len(silver_df.columns),
+        silver_df["leviathan_slug"].nunique(), silver_df["release_date"].nunique(),
     )
 
-    # ------------------------------------------------------------------
-    # Fail-closed guard: no silver release_date may post-date the snapshot
-    # ------------------------------------------------------------------
-    # The transform clamps computed WASDE dates to the bronze ingest date; this
-    # guard is the belt-and-suspenders check that aborts the run (before any
-    # write) if that clamp is ever bypassed and a future-dated row survives.
+    # Fail-closed guard (F2): no silver release_date may post-date the bronze snapshot ingest date.
     ingest_date = _snapshot_ingest_date(dfs)
     try:
         _assert_release_dates_not_future(silver_df, ingest_date)
     except ValueError as exc:
         logger.error("%s", exc)
         sys.exit(1)
-    logger.info(
-        "PSD guard OK: all release_dates <= snapshot ingest date %s", ingest_date
-    )
+    logger.info("PSD guard OK: all release_dates <= snapshot ingest date %s", ingest_date)
 
-    # ------------------------------------------------------------------
-    # Write silver Parquet
-    # ------------------------------------------------------------------
-    if args.dry_run:
-        logger.info("DRY RUN — skipping write to %s", silver_key)
-    else:
-        logger.info("Writing silver Parquet  %s", silver_key)
-        try:
-            _upload_parquet(s3, bucket, silver_key, silver_df)
-            logger.info("Silver written  %s", silver_key)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to write silver Parquet: %s", exc)
-            sys.exit(1)
+    if publish_mode == "dry-run":
+        logger.info("dry-run -- would publish %s rows=%d", silver_psd_key(), len(silver_df))
 
-    # ------------------------------------------------------------------
-    # Write run log
-    # ------------------------------------------------------------------
-    elapsed = (datetime.now(timezone.utc) - start).total_seconds()
-    run_log = {
-        "task":             "psd_silver_task",
-        "completed_at":     datetime.now(timezone.utc).isoformat(),
-        "bucket":           bucket,
-        "silver_key":       silver_key,
-        "bronze_partitions": bronze_keys,
-        "silver_rows":      len(silver_df),
-        "silver_slugs":     int(silver_df["leviathan_slug"].nunique()),
-        "silver_releases":  int(silver_df["release_date"].nunique()),
-        "dry_run":          args.dry_run,
-        "force_overwrite":  args.force_overwrite,
-        "elapsed_seconds":  round(elapsed, 2),
-    }
-
-    if not args.dry_run:
-        try:
-            _upload_json(s3, bucket, _SILVER_LOG_KEY, run_log)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not write run log: %s", exc)
-
-    logger.info("Done  elapsed=%.1fs", elapsed)
+    _publish_psd(silver_df, contract, auth, publish_client, bucket,
+                 force_overwrite=args.force_overwrite)
 
 
 if __name__ == "__main__":

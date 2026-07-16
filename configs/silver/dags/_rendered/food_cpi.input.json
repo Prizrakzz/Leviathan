@@ -1,41 +1,56 @@
 {
-  "asof": "${ASOF}",
+  "asof": "<aws.scheduler.scheduled-time>",
   "auth_mode": "hmac",
   "family": "world_bank",
+  "gate": {
+    "command": [
+      "-m",
+      "jobs.audit.silver_rebuild_gate",
+      "--tables",
+      "silver_food_cpi",
+      "--asof",
+      "<aws.scheduler.scheduled-time>",
+      "--baseline-uri",
+      "s3://leviathan-dev-shahem-001/cascade_census/rolling/food_cpi/census.json"
+    ],
+    "jobdef": "leviathan-dev-silver-gate",
+    "queue": "leviathan-dev-queue-ondemand"
+  },
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/food_cpi/census.json",
   "gate_tables": [
     "silver_food_cpi"
   ],
-  "phases": [
-    {
-      "name": "fetch",
+  "phases": {
+    "bronze": {
+      "tasks": []
+    },
+    "fetch": {
       "tasks": [
         {
           "command": [
             "jobs/ingest/fetch_world_bank_food_cpi.py"
           ],
-          "env": {},
+          "env": [],
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
-          "queue": "leviathan-dev-queue"
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand"
         }
       ]
     },
-    {
-      "name": "silver",
+    "silver": {
       "tasks": [
         {
           "command": [
             "jobs/batch/food_cpi_task.py"
           ],
-          "env": {},
+          "env": [],
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
-          "queue": "leviathan-dev-queue"
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand"
         }
       ]
     }
-  ],
+  },
   "promote": {
     "mode": "stop_and_notify",
     "tasks": []

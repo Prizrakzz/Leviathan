@@ -9,19 +9,19 @@
   "promote_mode": "stop_and_notify",
   "auth_mode": "hmac",
   "skip_existing": false,
-  "asof": "${ASOF}",
+  "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
     "silver_fgis"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/fgis/census.json",
-  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
   "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
   },
-  "queue": "leviathan-dev-queue",
+  "queue": "leviathan-dev-queue-ondemand",
   "chain_shape": "fetch->bronze->silver_fgis",
   "phases": [
     {
@@ -32,7 +32,7 @@
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-b3-flat-silver:4",
-          "queue": "leviathan-dev-queue",
+          "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_usda_fgis_export_inspections.py"
           ],
@@ -49,7 +49,7 @@
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-usda-fgis-bronze:1",
-          "queue": "leviathan-dev-queue",
+          "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/fgis_task.py"
           ],
@@ -66,7 +66,7 @@
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-fgis-silver:1",
-          "queue": "leviathan-dev-queue",
+          "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/fgis_silver_task.py"
           ],

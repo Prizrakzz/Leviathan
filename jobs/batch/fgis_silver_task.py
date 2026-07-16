@@ -1,41 +1,53 @@
-"""AWS Batch task: USDA FGIS Export Inspections bronze → silver Parquet.
+"""AWS Batch task: USDA FGIS Export Inspections bronze -> silver (shadow-first, SILVER-F015/INV-6).
 
-Reads per-CY bronze Parquets from S3, aggregates per-shipment rows into
-weekly volumes with cumulative season-to-date (CTD), and writes partitions
-under ``silver/fgis/``.
+Reads per-CY bronze Parquets from S3, aggregates per-shipment rows into weekly
+volumes with cumulative season-to-date (CTD), and publishes partitions under
+``silver/fgis/``.
 
 Marketing year / calendar year boundary
 -----------------------------------------
 A single marketing year spans **two** calendar year (CY) bronze files:
 
-    corn / soybeans  (Sep-start):  MY2024 = CY2024 (Sep–Dec) + CY2025 (Jan–Aug)
-    wheat classes    (Jun-start):  MY2024 = CY2024 (Jun–Dec) + CY2025 (Jan–May)
+    corn / soybeans  (Sep-start):  MY2024 = CY2024 (Sep-Dec) + CY2025 (Jan-Aug)
+    wheat classes    (Jun-start):  MY2024 = CY2024 (Jun-Dec) + CY2025 (Jan-May)
 
-For a requested set of marketing years Y, this task loads bronze CY files
-for years Y and Y+1 (i.e. the union of all CYs needed).  The transform then
-filters by ``marketing_year`` column — which was already computed during
-bronze creation — so no date arithmetic is needed here.
+For a requested set of marketing years Y, this task loads bronze CY files for
+years Y and Y+1 (i.e. the union of all CYs needed). The transform then filters by
+``marketing_year`` column -- which was already computed during bronze creation.
+
+Publish contract (A-W4 CLASS-B retrofit)
+----------------------------------------
+``silver_fgis`` is a PARTITIONED (projected) table -- one object per
+``(leviathan_slug, marketing_year)``. The flat-table ``build_flat_publish`` path
+does NOT fit (per-partition fan-out + the parquet body carries the ``leviathan_slug``
+and ``marketing_year`` partition columns), so the write routes through the
+SILVER-F015 shadow-first publisher (:class:`leviathan.silver.publisher.ShadowPublisher`,
+PROJECTED strategy) directly -- the quandl-CHRIS pattern -- with the task's own parquet
+writer. ``--publish-mode`` (default ``dry-run``) resolves through the publish guard:
+
+  * dry-run   : nothing is written anywhere.
+  * shadow    : each partition object is staged ONLY under ``silver/fgis/_shadow/``;
+                canonical partitions are untouched.
+  * canonical : shadow-stage -> validate -> promote, ONLY with a verified signed approval.
+
+This replaces the former latest-only ``put_object`` overwrite so a red rebuild
+gate can protect the canonical writes (INV-3: projected tables are never
+partition-registered in Glue; PROJECTED cataloging is a no-op). The legacy
+``--dry-run`` flag is retained as an alias for ``--publish-mode dry-run``.
 
 Usage
 -----
-    # Dry-run: show which partitions would be written
-    python jobs/batch/fgis_silver_task.py --bucket leviathan-dev-shahem-001 \\
-        --aws-region us-east-1 --dry-run
-
-    # Smoke test: corn + soy MY2024 only
-    python jobs/batch/fgis_silver_task.py --marketing-years 2024 --slugs corn_cbot,soybeans_cbot
-
-    # Full backfill
-    python jobs/batch/fgis_silver_task.py
-
-    # Force overwrite
-    python jobs/batch/fgis_silver_task.py --force-overwrite true
+    python jobs/batch/fgis_silver_task.py --dry-run
+    python jobs/batch/fgis_silver_task.py --marketing-years 2024 --slugs corn_cbot,soybeans_cbot \\
+        --publish-mode shadow
+    python jobs/batch/fgis_silver_task.py --publish-mode canonical --force-overwrite true
 """
 from __future__ import annotations
 
 import argparse
 import io
 import logging
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -44,6 +56,15 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.flat_producer import authorize_for_contract
+from leviathan.silver.publisher import (
+    ManifestState,
+    PublishStrategy,
+    ShadowPublisher,
+    StagedObject,
+    ValidationHooks,
+)
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import bronze_fgis_key, parse_hive_key, silver_fgis_key
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
@@ -60,6 +81,8 @@ logger = get_logger("fgis_silver_task")
 
 _BRONZE_PREFIX = "bronze/production/source=usda_fgis_export_inspections/"
 _FGIS_MIN_CY = 1983
+_TABLE = "silver_fgis"
+_JOB = "fgis_silver"
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +103,7 @@ def _positive_int(value: str) -> int:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="USDA FGIS bronze -> silver")
+    parser = argparse.ArgumentParser(description="USDA FGIS bronze -> silver (shadow-first)")
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--aws-region", default=None, dest="aws_region")
     parser.add_argument(
@@ -92,7 +115,7 @@ def _parse_args() -> argparse.Namespace:
         "--workers",
         type=_positive_int,
         default=8,
-        help="Concurrent S3 write workers (default: 8).",
+        help="Concurrent S3 load workers (default: 8).",
     )
     parser.add_argument(
         "--marketing-years",
@@ -108,8 +131,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Log what would be written without actually writing.",
+        help="Alias for --publish-mode dry-run (writes nothing).",
     )
+    parser.add_argument("--publish-mode", default="dry-run",
+                        choices=["dry-run", "shadow", "canonical"], dest="publish_mode",
+                        help="dry-run|shadow|canonical (default dry-run; canonical needs a signed approval)")
+    parser.add_argument("--role-arn", default="", dest="role_arn")
+    parser.add_argument("--account-id", default="", dest="account_id")
     args = parser.parse_args()
     args.force_overwrite = _parse_bool(args.force_overwrite)
     return args
@@ -183,7 +211,7 @@ def _load_bronze_union(
                 errors += 1
 
     if errors:
-        raise RuntimeError(f"{errors} CY bronze file(s) failed to load — aborting.")
+        raise RuntimeError(f"{errors} CY bronze file(s) failed to load -- aborting.")
 
     if not frames:
         return pd.DataFrame()
@@ -192,133 +220,97 @@ def _load_bronze_union(
 
 
 # ---------------------------------------------------------------------------
-# Write
+# Shadow-first publish (A-W4 CLASS-B retrofit)
 # ---------------------------------------------------------------------------
 
-def _target_exists(s3_client, bucket: str, key: str) -> bool:
+def _exists(s3_client, bucket: str, key: str) -> bool:
     try:
         s3_client.head_object(Bucket=bucket, Key=key)
         return True
-    except s3_client.exceptions.ClientError as exc:
-        if exc.response["Error"]["Code"] == "404":
-            return False
-        raise
+    except Exception:  # noqa: BLE001
+        return False
 
 
-def _write_partition(
-    bucket: str,
-    aws_region: str,
-    slug: str,
-    marketing_year: int,
-    df: pd.DataFrame,
-    force_overwrite: bool,
-    dry_run: bool,
-) -> str:
-    key = silver_fgis_key(slug, marketing_year)
+def _caller_identity(aws_region: str) -> tuple[str, str]:
+    """Best-effort STS identity for the canonical publish target (empty on failure)."""
+    try:
+        import boto3
+        ident = boto3.client("sts", region_name=aws_region).get_caller_identity()
+        return ident.get("Account", ""), ident.get("Arn", "")
+    except Exception as exc:  # noqa: BLE001 -- dry-run / shadow must not require live credentials
+        logger.info("STS identity unavailable (%s); using empty target (dry-run/shadow only)", exc)
+        return "", ""
 
-    if dry_run:
-        logger.info("[DRY RUN] Would write: %s rows=%d", key, len(df))
-        return "dry_run"
 
-    s3_client = get_thread_local_s3_client(aws_region)
-    if not force_overwrite and _target_exists(s3_client, bucket, key):
-        logger.info("skipping existing silver partition: %s", key)
-        return "skipped"
-
+def _partition_body(df: pd.DataFrame) -> bytes:
     buf = io.BytesIO()
     df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=buf.getvalue(),
-        ContentType="application/octet-stream",
-    )
-    logger.info("wrote silver partition: %s rows=%d", key, len(df))
-    return "written"
+    return buf.getvalue()
 
 
-def _write_partitions(
+def _publish_fgis(
     silver: pd.DataFrame,
+    contract: dict,
+    auth,
+    s3_client,
     bucket: str,
-    aws_region: str,
-    force_overwrite: bool,
-    dry_run: bool,
-    workers: int,
+    *,
     slug_filter: set[str] | None,
     my_filter: set[int] | None,
-) -> tuple[int, int, int]:
-    """Write one silver Parquet per (slug, marketing_year) partition.
-
-    Returns:
-        (written, skipped, dry_run_count) counts.
-    """
-    groups: list[tuple[str, int, pd.DataFrame]] = []
-    for (slug, marketing_year), group in silver.groupby(
-        ["leviathan_slug", "marketing_year"]
-    ):
+    force_overwrite: bool,
+) -> ManifestState | None:
+    """Publish one silver object per (leviathan_slug, marketing_year) through the shadow-first
+    publisher (PROJECTED), applying the slug/MY filters. Returns the manifest state, or ``None``
+    when no partitions remain after filtering / skipping existing canonical objects."""
+    staged: list[StagedObject] = []
+    skipped = 0
+    for (slug, marketing_year), group in silver.groupby(["leviathan_slug", "marketing_year"]):
         slug = str(slug)
         marketing_year = int(marketing_year)
         if slug_filter is not None and slug not in slug_filter:
             continue
         if my_filter is not None and marketing_year not in my_filter:
             continue
-        groups.append((slug, marketing_year, group[OUTPUT_COLUMNS].reset_index(drop=True)))
+        canonical_key = silver_fgis_key(slug, marketing_year)
+        if (
+            not force_overwrite
+            and auth.may_mutate_canonical
+            and s3_client is not None
+            and _exists(s3_client, bucket, canonical_key)
+        ):
+            logger.info("skipping existing silver partition: %s", canonical_key)
+            skipped += 1
+            continue
+        staged.append(StagedObject(
+            canonical_key=canonical_key,
+            body=_partition_body(group[OUTPUT_COLUMNS].reset_index(drop=True)),
+            partition_values=[slug, str(marketing_year)],
+            row_count=len(group),
+        ))
 
-    if not groups:
-        logger.warning("No silver partitions to write after slug/MY filtering.")
-        return 0, 0, 0
+    if not staged:
+        logger.warning("fgis: no partitions to publish after filtering (skipped=%d existing)", skipped)
+        return None
 
-    written = skipped = dry_run_count = errors = completed = 0
-
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_partition = {
-            executor.submit(
-                _write_partition,
-                bucket,
-                aws_region,
-                slug,
-                marketing_year,
-                group,
-                force_overwrite,
-                dry_run,
-            ): (slug, marketing_year)
-            for slug, marketing_year, group in groups
-        }
-        for future in as_completed(future_to_partition):
-            slug, marketing_year = future_to_partition[future]
-            completed += 1
-            try:
-                status = future.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.error(
-                    "failed to write slug=%s marketing_year=%d: %s",
-                    slug,
-                    marketing_year,
-                    exc,
-                )
-                errors += 1
-                continue
-
-            if status == "written":
-                written += 1
-            elif status == "skipped":
-                skipped += 1
-            else:
-                dry_run_count += 1
-
-            logger.info(
-                "write progress=%d/%d slug=%s marketing_year=%d status=%s",
-                completed,
-                len(groups),
-                slug,
-                marketing_year,
-                status,
-            )
-
-    if errors:
-        raise SystemExit(1)
-
-    return written, skipped, dry_run_count
+    manifest_store = None if s3_client is not None else (lambda _k, _b: None)
+    publisher = ShadowPublisher(
+        job=_JOB,
+        table=contract["table_name"],
+        database=contract["glue_database"],
+        bucket=bucket,
+        canonical_root=contract["s3_root"],
+        auth=auth,
+        s3_client=s3_client,
+        strategy=PublishStrategy.PROJECTED,
+        validation=ValidationHooks(min_rows=1),
+        manifest_store=manifest_store,
+    )
+    manifest = publisher.run(staged)
+    logger.info(
+        "fgis silver publish mode=%s state=%s partitions=%d skipped=%d",
+        auth.mode.value, manifest.state.value, len(staged), skipped,
+    )
+    return manifest.state
 
 
 # ---------------------------------------------------------------------------
@@ -334,8 +326,22 @@ def main() -> None:
     load_env()
     args = _parse_args()
 
+    publish_mode = "dry-run" if args.dry_run else args.publish_mode
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
+    contract = load_registry().table(_TABLE)
+
+    account_id, role_arn = args.account_id, args.role_arn
+    if publish_mode == "canonical" and not account_id and not role_arn:
+        account_id, role_arn = _caller_identity(aws_region)
+    auth = authorize_for_contract(
+        contract, publish_mode=publish_mode,
+        role_arn=role_arn, account_id=account_id, env=os.environ,
+    )
+    logger.info("publish authorized: mode=%s may_canonical=%s", auth.mode.value, auth.may_mutate_canonical)
+
+    s3_read = get_thread_local_s3_client(aws_region)
+    publish_client = None if publish_mode == "dry-run" else s3_read
 
     # --- Resolve filters ---
     slug_filter: set[str] | None = None
@@ -350,7 +356,7 @@ def main() -> None:
         )
 
     # Infer available marketing years from available CYs.
-    # A CY provides data for MY(CY-1) (Jan–Aug tail) and MY(CY) (Sep–Dec head).
+    # A CY provides data for MY(CY-1) (Jan-Aug tail) and MY(CY) (Sep-Dec head).
     all_possible_mys: set[int] = set()
     for cy in available_cys:
         all_possible_mys.add(cy - 1)  # tail end
@@ -380,15 +386,8 @@ def main() -> None:
         )
 
     logger.info(
-        "FGIS silver task  bucket=%s  marketing_years=%s  cys=%s  "
-        "slugs=%s  force=%s  dry_run=%s  workers=%d",
-        bucket,
-        requested_mys,
-        needed_cys,
-        args.slugs,
-        args.force_overwrite,
-        args.dry_run,
-        args.workers,
+        "FGIS silver task bucket=%s marketing_years=%s cys=%s slugs=%s force=%s mode=%s workers=%d",
+        bucket, requested_mys, needed_cys, args.slugs, args.force_overwrite, publish_mode, args.workers,
     )
 
     start = datetime.now(timezone.utc)
@@ -396,7 +395,7 @@ def main() -> None:
     # --- Load bronze ---
     bronze = _load_bronze_union(bucket, needed_cys, aws_region, args.workers)
     if bronze.empty:
-        logger.warning("No bronze rows loaded — nothing to transform.")
+        logger.warning("No bronze rows loaded -- nothing to transform.")
         return
 
     logger.info("Loaded %d bronze rows from %d CY files", len(bronze), len(needed_cys))
@@ -404,30 +403,17 @@ def main() -> None:
     # --- Transform ---
     silver = transform_fgis_bronze_to_silver(bronze)
     if silver.empty:
-        logger.warning("Transform produced empty silver DataFrame — nothing to write.")
+        logger.warning("Transform produced empty silver DataFrame -- nothing to write.")
         return
 
-    # --- Write partitions ---
-    written, skipped, dry_run_count = _write_partitions(
-        silver,
-        bucket,
-        aws_region,
-        args.force_overwrite,
-        args.dry_run,
-        args.workers,
-        slug_filter,
-        my_filter,
+    # --- Publish partitions (shadow-first) ---
+    _publish_fgis(
+        silver, contract, auth, publish_client, bucket,
+        slug_filter=slug_filter, my_filter=my_filter, force_overwrite=args.force_overwrite,
     )
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
-    logger.info(
-        "Done FGIS silver  written=%d skipped=%d dry_run=%d rows=%d elapsed=%.1fs",
-        written,
-        skipped,
-        dry_run_count,
-        len(silver),
-        elapsed,
-    )
+    logger.info("Done FGIS silver rows=%d elapsed=%.1fs", len(silver), elapsed)
 
 
 if __name__ == "__main__":

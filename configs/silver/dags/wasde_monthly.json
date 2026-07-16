@@ -9,19 +9,19 @@
   "promote_mode": "autonomous",
   "auth_mode": "kms",
   "skip_existing": true,
-  "asof": "${ASOF}",
+  "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
     "silver_wasde"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/wasde_monthly/census.json",
-  "gate_jobdef": "leviathan-dev-evidence-build",
+  "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
   "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
   },
-  "queue": "leviathan-dev-queue",
+  "queue": "leviathan-dev-queue-ondemand",
   "chain_shape": "fetch->bronze_modern->silver(per release_date)",
   "phases": [
     {
@@ -32,7 +32,7 @@
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-usda-wasde-raw-backfill:1",
-          "queue": "leviathan-dev-queue",
+          "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_usda_wasde.py"
           ],
@@ -49,7 +49,7 @@
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-wasde-bronze-modern:1",
-          "queue": "leviathan-dev-queue",
+          "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/wasde_bronze_modern_task.py"
           ],
@@ -66,7 +66,7 @@
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-wasde-silver:2",
-          "queue": "leviathan-dev-queue",
+          "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/wasde_silver_task.py",
             "--release-date",
