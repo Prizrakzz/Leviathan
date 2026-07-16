@@ -50,7 +50,7 @@ variable "backend_dsn_secret_arn" {
 variable "container_image" {
   type        = string
   description = "MLflow server image. Public upstream by default; a custom ECR image bundling psycopg2 may be substituted (then the pip bootstrap is a no-op)."
-  default     = "ghcr.io/mlflow/mlflow:v2.22.0"
+  default     = "ghcr.io/mlflow/mlflow:v3.14.0"
 }
 
 variable "container_port" {
