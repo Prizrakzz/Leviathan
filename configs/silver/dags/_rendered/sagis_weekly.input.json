@@ -52,17 +52,6 @@
       "tasks": [
         {
           "command": [
-            "jobs/batch/sagis_cec_silver_task.py",
-            "--publish-mode",
-            "shadow"
-          ],
-          "env": [],
-          "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver",
-          "queue": "leviathan-dev-queue-ondemand"
-        },
-        {
-          "command": [
             "jobs/batch/sagis_weekly_exports_silver_task.py",
             "--publish-mode",
             "shadow"
@@ -90,26 +79,6 @@
   "promote": {
     "mode": "autonomous",
     "tasks": [
-      {
-        "command": [
-          "jobs/batch/sagis_cec_silver_task.py",
-          "--publish-mode",
-          "canonical"
-        ],
-        "env": [
-          {
-            "Name": "LEVIATHAN_APPROVAL_MODE",
-            "Value": "kms"
-          },
-          {
-            "Name": "LEVIATHAN_KMS_KEY_ID",
-            "Value": "alias/leviathan-dev-publish-signer"
-          }
-        ],
-        "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
-        "queue": "leviathan-dev-queue-ondemand"
-      },
       {
         "command": [
           "jobs/batch/sagis_weekly_exports_silver_task.py",
