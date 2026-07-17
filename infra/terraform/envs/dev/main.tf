@@ -827,53 +827,11 @@ module "eventbridge" {
 
   # Placeholder-EMPTY: per-family schedules (family -> {cron, input_json}) land in A-W6/A-W7,
   # every one created state="DISABLED".
-  schedules = merge({
+  schedules = {
     for k, v in var.dag_schedules : k => {
       cron       = v.cron
       enabled    = v.enabled
       input_json = replace(v.input_json, "$${state_machine_arn}", module.step_functions.state_machine_arn)
     }
-  }, {
-    # Wave 0 (G5.0, user-approved 2026-07-16): fred_fx daily. Input = full StartExecution body;
-    # Name uses the scheduler execution-id context attribute so each fire is unique and
-    # at-least-once double-fires collide into ExecutionAlreadyExists (chain-entry idempotency).
-    fx_macro_daily = {
-      cron    = "cron(0 18 ? * MON-FRI *)"
-      enabled = true
-      input_json = jsonencode({
-        StateMachineArn = module.step_functions.state_machine_arn
-        Name            = "fred-sched-<aws.scheduler.execution-id>"
-        Input = jsonencode({
-          family            = "fred"
-          asof              = "<aws.scheduler.scheduled-time>"
-          auth_mode         = "kms"
-          gate_tables       = ["silver_fred_fx"]
-          gate_baseline_uri = "s3://leviathan-dev-shahem-001/cascade_census/rolling/fx_macro_daily/census.json"
-          phases = {
-            fetch  = { tasks = [] }
-            bronze = { tasks = [] }
-            silver = { tasks = [{
-              integration = "batch"
-              jobdef      = "leviathan-dev-b3-flat-silver"
-              queue       = "leviathan-dev-queue-ondemand"
-              command     = ["-m", "jobs.batch.frankfurter_fx_task", "--publish-mode", "shadow"]
-              env         = []
-            }] }
-          }
-          gate = {
-            jobdef  = "leviathan-dev-silver-gate"
-            queue   = "leviathan-dev-queue-ondemand"
-            command = ["-m", "jobs.audit.silver_rebuild_gate", "--tables", "silver_fred_fx", "--asof", "<aws.scheduler.scheduled-time>", "--baseline-uri", "s3://leviathan-dev-shahem-001/cascade_census/rolling/fx_macro_daily/census.json"]
-          }
-          promote = { mode = "autonomous", tasks = [{
-            integration = "batch"
-            jobdef      = "leviathan-dev-silver-publisher-runner"
-            queue       = "leviathan-dev-queue-ondemand"
-            command     = ["-m", "jobs.batch.frankfurter_fx_task", "--publish-mode", "canonical"]
-            env         = [{ Name = "LEVIATHAN_APPROVAL_MODE", Value = "kms" }, { Name = "LEVIATHAN_KMS_KEY_ID", Value = "alias/leviathan-dev-publish-signer" }]
-          }] }
-        })
-      })
-    }
-  })
+  }
 }
