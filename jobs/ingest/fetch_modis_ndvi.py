@@ -35,6 +35,8 @@ from pathlib import Path
 
 import requests
 
+from datetime import timedelta
+
 from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.logging import get_logger
 from leviathan.storage.metadata import utc_now_iso
@@ -52,6 +54,11 @@ _TASKS_FILENAME = "_tasks.json"
 _REATTACH_MAX_AGE_DAYS = 14
 # AppEEARS task statuses that are still pollable/downloadable server-side.
 _ALIVE_STATUSES = frozenset({"queued", "pending", "processing", "done"})
+
+# MOD13Q1 is a 16-day composite; one period of overlap protects the window seam.
+_COMPOSITE_PERIOD_DAYS = 16
+# First MOD13Q1 composite ever published -- the full-history window start.
+_FULL_HISTORY_START = "02-18-2000"
 
 # ── module-level token state ──────────────────────────────────────────────────
 
@@ -187,13 +194,14 @@ def _submit_one_task(
     run_id: str,
     user: str,
     password: str,
+    start_date_appeears: str = _FULL_HISTORY_START,
 ) -> str:
     """Submit one AppEEARS point task; return task_id."""
     payload = {
         "task_type": "point",
         "task_name": f"leviathan_modis_ndvi_{group}_{run_id}",
         "params": {
-            "dates": [{"startDate": "02-18-2000", "endDate": end_date_appeears}],
+            "dates": [{"startDate": start_date_appeears, "endDate": end_date_appeears}],
             "layers": [
                 {"product": product, "layer": layers["ndvi"]},
                 {"product": product, "layer": layers["quality"]},
@@ -468,6 +476,48 @@ def _persist_tasks_record(record: dict, bucket: str, aws_region: str) -> None:
         )
 
 
+def _derive_delta_start(bucket: str, aws_region: str, requested_end: date) -> str | None:
+    """MM-DD-YYYY AppEEARS window start for a DELTA fetch, or None for full history.
+
+    Every historical run requested the full 02-18-2000 -> today window, making
+    NASA re-extract ~26 years x ~23 composites x hundreds of coordinates each
+    time (a major driver of the observed 6-45h server-side wait). The delta
+    start is derived from the newest COMPLETED raw run (>=1 group CSV): its
+    checkpoint-recorded end_date when available (exact), else its run_id UTC
+    stamp (pre-checkpoint runs -- equal to the submit-day default end_date),
+    minus one 16-day composite period of overlap. Fail-soft: any surprise
+    returns None and the fetch falls back to full history.
+    """
+    try:
+        csv_keys = list_s3_keys(bucket, _RAW_PREFIX, suffix=".csv", aws_region=aws_region)
+        completed = sorted({
+            k.split("run_id=")[1].split("/")[0]
+            for k in csv_keys if "run_id=" in k and "/group=" in k
+        })
+        if not completed:
+            return None
+        latest = completed[-1]
+        try:
+            rec = download_s3_json(bucket, _tasks_json_key(latest), aws_region)
+            last_end = datetime.strptime(rec["end_date"], "%Y-%m-%d").date()
+        except Exception:  # noqa: BLE001 — pre-checkpoint runs have no _tasks.json
+            last_end = datetime.strptime(latest, "%Y%m%dT%H%M%SZ").date()
+        start = last_end - timedelta(days=_COMPOSITE_PERIOD_DAYS)
+        if start >= requested_end:
+            start = requested_end - timedelta(days=_COMPOSITE_PERIOD_DAYS)
+        logger.info(
+            "DELTA window: last completed run %s (data through ~%s) -> startDate %s",
+            latest, last_end.isoformat(), start.isoformat(),
+        )
+        return start.strftime("%m-%d-%Y")
+    except Exception as exc:  # noqa: BLE001 — optimization must never block the fetch
+        logger.warning(
+            "Delta-window probe failed (%s: %s) -- falling back to FULL-HISTORY fetch.",
+            type(exc).__name__, str(exc)[:200],
+        )
+        return None
+
+
 def _probe_task_alive(task_id: str, user: str, password: str) -> bool:
     """True iff the AppEEARS task still exists server-side in a pollable state."""
     try:
@@ -485,6 +535,7 @@ def _find_reattachable_run(
     requested_end: date,
     user: str,
     password: str,
+    requested_start: date | None = None,
 ) -> dict | None:
     """Most-recent incomplete run whose NASA tasks are still worth re-attaching to.
 
@@ -513,6 +564,21 @@ def _find_reattachable_run(
                 run_id, record["end_date"], requested_end.isoformat(),
             )
             return None
+        if requested_start is not None:
+            # Manual --start-date backfill: the checkpoint's window must COVER the
+            # requested start or re-attaching would silently narrow the backfill.
+            # Pre-delta checkpoints carry no start_date == full history == covers all.
+            rec_start_iso = record.get("start_date")
+            rec_start = (
+                datetime.strptime(rec_start_iso, "%Y-%m-%d").date()
+                if rec_start_iso else date(2000, 2, 18)
+            )
+            if rec_start > requested_start:
+                logger.info(
+                    "run_id=%s window starts %s, narrower than requested %s -- fresh submit.",
+                    run_id, rec_start.isoformat(), requested_start.isoformat(),
+                )
+                return None
         task_ids: dict[str, str] = record["task_ids_by_group"]
         uploaded = list_s3_keys(bucket, f"{_RAW_PREFIX}run_id={run_id}/", suffix=".csv", aws_region=aws_region)
         already_done: dict[str, str] = {}
@@ -570,6 +636,16 @@ def main() -> None:
         help="Latest observation date in YYYY-MM-DD format (default: today)",
     )
     parser.add_argument(
+        "--start-date",
+        default=None,
+        help=(
+            "Earliest observation date in YYYY-MM-DD format. Default: DELTA window "
+            "derived from the newest completed run minus one 16-day composite period "
+            "(full history 2000-02-18 when no prior run exists). Pass an explicit "
+            "date for manual backfills."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print group coordinate counts without submitting anything",
@@ -616,8 +692,27 @@ def main() -> None:
         logger.info("[DRY-RUN] Would submit %d AppEEARS tasks:", len(group_coords))
         for group, coords in group_coords.items():
             logger.info("  group=%-22s  %d coordinates", group, len(coords))
-        logger.info("[DRY-RUN] Date range: 02-18-2000 → %s", end_date_appeears)
+        logger.info(
+            "[DRY-RUN] Date range: %s -> %s",
+            args.start_date or "<delta-probe at runtime>", end_date_appeears,
+        )
         return
+
+    # ── Resolve the fetch window start (manual override > delta probe > full) ─
+    if args.start_date:
+        requested_start: date | None = datetime.strptime(args.start_date, "%Y-%m-%d").date()
+        start_date_appeears = requested_start.strftime("%m-%d-%Y")
+        logger.info("Manual start date: %s", args.start_date)
+    else:
+        requested_start = None
+        start_date_appeears = _derive_delta_start(bucket, aws_region, end_dt)
+        if start_date_appeears is None:
+            start_date_appeears = _FULL_HISTORY_START
+            logger.info(
+                "No completed prior run found -- FULL-HISTORY fetch (2000-02-18 -> %s).",
+                args.end_date,
+            )
+    start_date_iso = datetime.strptime(start_date_appeears, "%m-%d-%Y").date().isoformat()
 
     already_done: dict[str, str] = {}
     if args.resume:
@@ -647,12 +742,19 @@ def main() -> None:
         # from a crashed/restarted run instead of resubmitting at the back of
         # the queue. --no-reattach forces a clean submit.
         reattach = None if args.no_reattach else _find_reattachable_run(
-            bucket, aws_region, end_dt, user, password,
+            bucket, aws_region, end_dt, user, password, requested_start,
         )
         if reattach is not None:
             run_id = reattach["run_id"]
             task_ids = dict(reattach["alive_task_ids"])
             already_done = reattach["already_done"]
+            # Dead-group resubmits reuse the CHECKPOINT's window so every group of
+            # the run covers the same date range (pre-delta checkpoints = full history).
+            rec_start_iso = reattach["record"].get("start_date")
+            rec_start_appeears = (
+                datetime.strptime(rec_start_iso, "%Y-%m-%d").strftime("%m-%d-%Y")
+                if rec_start_iso else _FULL_HISTORY_START
+            )
             for group in reattach["dead_groups"]:
                 if group not in group_coords:
                     logger.warning(
@@ -669,6 +771,7 @@ def main() -> None:
                     run_id=run_id,
                     user=user,
                     password=password,
+                    start_date_appeears=rec_start_appeears,
                 )
                 time.sleep(2)  # rate-limit guard between POSTs
             submit_record = {
@@ -697,6 +800,7 @@ def main() -> None:
                     run_id=run_id,
                     user=user,
                     password=password,
+                    start_date_appeears=start_date_appeears,
                 )
                 task_ids[group] = task_id
                 if i < len(group_coords) - 1:
@@ -708,6 +812,7 @@ def main() -> None:
                 "source": "modis_ndvi",
                 "stage": "fetch",
                 "submitted_at": utc_now_iso(),
+                "start_date": start_date_iso,
                 "end_date": args.end_date,
                 "total_coordinates": total_coords,
                 "task_ids_by_group": task_ids,

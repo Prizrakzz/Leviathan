@@ -37,7 +37,7 @@ import io
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 import yaml
@@ -50,6 +50,13 @@ from leviathan.transforms.raw_to_bronze.modis_ndvi import parse_appeears_csv
 logger = get_logger("modis_ndvi_raw_to_bronze")
 
 _RAW_PREFIX = "raw/weather/source=modis_ndvi/"
+# A bronze YEAR object is mutable while composites can still arrive for it: MODIS
+# publishes 16-day composites ~2-4 weeks in arrears, so the current year -- and in
+# January, the previous year -- must be REWRITTEN, not skip-existing'd. Without
+# this, the year object freezes at whatever composites existed at first write and
+# every later fetch's new data is silently dropped at the bronze leg (observed:
+# year=2026 written 2026-05-26 would have eaten the 7-week July catch-up).
+_MUTABLE_YEAR_LOOKBACK_DAYS = 45
 _SOURCE_CONFIG = "configs/sources/modis_ndvi.yaml"
 
 
@@ -143,11 +150,15 @@ def _write_bronze_partition(
     year: int,
     df_partition: pd.DataFrame,
     force_overwrite: bool,
+    refresh_year_floor: int,
 ) -> bool:
-    """Write one bronze Parquet to S3.  Returns True if written, False if skipped."""
+    """Write one bronze Parquet to S3.  Returns True if written, False if skipped.
+
+    Partitions at or after ``refresh_year_floor`` are always rewritten (the year
+    object is still accreting composites); older years honor skip-existing."""
     key = bronze_modis_ndvi_key(commodity, country, region, year)
 
-    if not force_overwrite:
+    if not force_overwrite and year < refresh_year_floor:
         try:
             s3_client.head_object(Bucket=bucket, Key=key)
             logger.debug("Skipping existing bronze: %s", key)
@@ -175,7 +186,11 @@ def _write_all_partitions(
     Returns (written_count, skipped_count).
     """
     groups = list(df.groupby(["commodity", "country", "region", "year"]))
-    logger.info("Writing %d bronze partitions (force_overwrite=%s)...", len(groups), force_overwrite)
+    refresh_year_floor = (date.today() - timedelta(days=_MUTABLE_YEAR_LOOKBACK_DAYS)).year
+    logger.info(
+        "Writing %d bronze partitions (force_overwrite=%s, refresh_year_floor=%d)...",
+        len(groups), force_overwrite, refresh_year_floor,
+    )
 
     written = skipped = 0
 
@@ -187,6 +202,7 @@ def _write_all_partitions(
             str(commodity), str(country), str(region), int(year),
             group_df.reset_index(drop=True),
             force_overwrite,
+            refresh_year_floor,
         )
 
     with ThreadPoolExecutor(max_workers=64) as pool:

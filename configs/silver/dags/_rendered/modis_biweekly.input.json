@@ -51,7 +51,9 @@
       "tasks": [
         {
           "command": [
-            "jobs/batch/modis_ndvi_bronze_to_silver_task.py"
+            "jobs/batch/modis_ndvi_bronze_to_silver_task.py",
+            "--publish-mode",
+            "shadow"
           ],
           "env": [],
           "integration": "batch",
