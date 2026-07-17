@@ -38,11 +38,20 @@ import requests
 from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.logging import get_logger
 from leviathan.storage.metadata import utc_now_iso
-from leviathan.storage.s3 import upload_bytes_to_s3
+from leviathan.storage.s3 import download_s3_json, list_s3_keys, upload_bytes_to_s3
 
 logger = get_logger("fetch_modis_ndvi")
 
 _BASE_URL = "https://appeears.earthdatacloud.nasa.gov/api"
+
+_RAW_PREFIX = "raw/weather/source=modis_ndvi/"
+_TASKS_FILENAME = "_tasks.json"
+# Re-attach horizon: NASA task handles older than this are not worth probing (the
+# biweekly cadence has lapped them and AppEEARS bundles expire), and a recorded
+# end_date this far from the requested one is a different catch-up window.
+_REATTACH_MAX_AGE_DAYS = 14
+# AppEEARS task statuses that are still pollable/downloadable server-side.
+_ALIVE_STATUSES = frozenset({"queued", "pending", "processing", "done"})
 
 # ── module-level token state ──────────────────────────────────────────────────
 
@@ -432,6 +441,118 @@ def _save_run_record(path: Path, payload: dict) -> None:
     logger.info("Run record saved → %s", path)
 
 
+# ── S3 task checkpoint + re-attach ───────────────────────────────────────────
+
+def _tasks_json_key(run_id: str) -> str:
+    return f"{_RAW_PREFIX}run_id={run_id}/{_TASKS_FILENAME}"
+
+
+def _persist_tasks_record(record: dict, bucket: str, aws_region: str) -> None:
+    """Mirror the submit checkpoint to S3 so a FRESH container can re-attach.
+
+    The local data/batch_runs/ checkpoint dies with the container (Batch/Fargate),
+    which forced every restart to resubmit at the back of NASA's queue -- observed
+    6-45h server-side for the 5-group request (May 24 2026 run: first group
+    5h45m, last 45h). Best-effort: an upload failure only costs the re-attach
+    option for this run, never the run itself."""
+    key = _tasks_json_key(record["run_id"])
+    try:
+        upload_bytes_to_s3(
+            json.dumps(record, indent=2).encode("utf-8"), bucket, key, aws_region
+        )
+        logger.info("Task checkpoint mirrored -> s3://%s/%s", bucket, key)
+    except Exception as exc:  # noqa: BLE001 — checkpoint mirror is best-effort
+        logger.warning(
+            "Could not mirror task checkpoint to S3 (%s: %s) -- re-attach will be "
+            "unavailable if this container dies.", type(exc).__name__, exc,
+        )
+
+
+def _probe_task_alive(task_id: str, user: str, password: str) -> bool:
+    """True iff the AppEEARS task still exists server-side in a pollable state."""
+    try:
+        r = _api_get(f"/task/{task_id}", user, password)
+        if r.status_code != 200:
+            return False
+        return str(r.json().get("status", "")).lower() in _ALIVE_STATUSES
+    except Exception:  # noqa: BLE001 — an unprobeable task is treated as dead
+        return False
+
+
+def _find_reattachable_run(
+    bucket: str,
+    aws_region: str,
+    requested_end: date,
+    user: str,
+    password: str,
+) -> dict | None:
+    """Most-recent incomplete run whose NASA tasks are still worth re-attaching to.
+
+    Fail-soft by design: any surprise (S3 hiccup, malformed checkpoint, API
+    refusal) logs a warning and returns None so the primary fresh-submit path is
+    never blocked. Returns ``{run_id, record, alive_task_ids, dead_groups,
+    already_done}`` or None.
+    """
+    try:
+        keys = list_s3_keys(bucket, _RAW_PREFIX, suffix=_TASKS_FILENAME, aws_region=aws_region)
+        if not keys:
+            return None
+        # run_id is a sortable UTC timestamp -> lexically newest == most recent run
+        key = sorted(keys)[-1]
+        run_id = key.split("run_id=")[1].split("/")[0]
+        submitted = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - submitted).days
+        if age_days > _REATTACH_MAX_AGE_DAYS:
+            logger.info("Newest task checkpoint (run_id=%s) is %dd old -- fresh submit.", run_id, age_days)
+            return None
+        record = download_s3_json(bucket, key, aws_region)
+        rec_end = datetime.strptime(record["end_date"], "%Y-%m-%d").date()
+        if abs((requested_end - rec_end).days) > _REATTACH_MAX_AGE_DAYS:
+            logger.info(
+                "run_id=%s window end %s too far from requested %s -- fresh submit.",
+                run_id, record["end_date"], requested_end.isoformat(),
+            )
+            return None
+        task_ids: dict[str, str] = record["task_ids_by_group"]
+        uploaded = list_s3_keys(bucket, f"{_RAW_PREFIX}run_id={run_id}/", suffix=".csv", aws_region=aws_region)
+        already_done: dict[str, str] = {}
+        for k in uploaded:
+            if "/group=" in k:
+                already_done[k.split("/group=")[1].split("/")[0]] = k
+        pending = {g: t for g, t in task_ids.items() if g not in already_done}
+        if not pending:
+            logger.info("run_id=%s is already fully uploaded -- fresh submit.", run_id)
+            return None
+        alive: dict[str, str] = {}
+        dead: list[str] = []
+        for group, task_id in pending.items():
+            if _probe_task_alive(task_id, user, password):
+                alive[group] = task_id
+            else:
+                dead.append(group)
+        if not alive:
+            logger.info("run_id=%s has no live NASA tasks left -- fresh submit.", run_id)
+            return None
+        logger.info(
+            "RE-ATTACH run_id=%s: %d live task(s) [%s], %d group(s) already uploaded, "
+            "%d dead (will resubmit under the same run)",
+            run_id, len(alive), ", ".join(sorted(alive)), len(already_done), len(dead),
+        )
+        return {
+            "run_id": run_id,
+            "record": record,
+            "alive_task_ids": alive,
+            "dead_groups": dead,
+            "already_done": already_done,
+        }
+    except Exception as exc:  # noqa: BLE001 — resilience feature must never block the fresh path
+        logger.warning(
+            "Re-attach scan failed (%s: %s) -- falling back to fresh submit.",
+            type(exc).__name__, str(exc)[:200],
+        )
+        return None
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -457,6 +578,11 @@ def main() -> None:
         "--resume",
         metavar="RUN_ID",
         help="Resume a previous run by reading its checkpoint JSON; skips task submission",
+    )
+    parser.add_argument(
+        "--no-reattach",
+        action="store_true",
+        help="Skip the S3 _tasks.json scan and always submit fresh AppEEARS tasks",
     )
     args = parser.parse_args()
 
@@ -493,6 +619,7 @@ def main() -> None:
         logger.info("[DRY-RUN] Date range: 02-18-2000 → %s", end_date_appeears)
         return
 
+    already_done: dict[str, str] = {}
     if args.resume:
         # ── Resume mode: load task IDs from checkpoint, skip submission ─────
         checkpoint_path = Path("data/batch_runs") / f"modis_ndvi_submit_{args.resume}.json"
@@ -507,7 +634,6 @@ def main() -> None:
             logger.info("  %-22s → %s", group, tid)
         # Load per-group upload progress if a previous run completed some groups
         progress_path = Path("data/batch_runs") / f"modis_ndvi_progress_{run_id}.json"
-        already_done: dict[str, str] = {}
         if progress_path.exists():
             already_done = json.loads(progress_path.read_text())
             logger.info(
@@ -516,47 +642,86 @@ def main() -> None:
             )
         _login(user, password)
     else:
-        run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        logger.info("run_id=%s", run_id)
-
-        # ── Phase 2: submit tasks sequentially (2 s gap to avoid 429 burst) ─
         _login(user, password)
-        task_ids = {}
-        for i, (group, coords) in enumerate(group_coords.items()):
-            task_id = _submit_one_task(
-                group=group,
-                coords=coords,
-                end_date_appeears=end_date_appeears,
-                product=product,
-                layers=layers,
-                run_id=run_id,
-                user=user,
-                password=password,
-            )
-            task_ids[group] = task_id
-            if i < len(group_coords) - 1:
-                time.sleep(2)  # rate-limit guard between POSTs
-
-        # Checkpoint — write task IDs immediately so a crash doesn't lose them
-        submit_record: dict = {
-            "run_id": run_id,
-            "source": "modis_ndvi",
-            "stage": "fetch",
-            "submitted_at": utc_now_iso(),
-            "end_date": args.end_date,
-            "total_coordinates": total_coords,
-            "task_ids_by_group": task_ids,
-        }
-        _save_run_record(
-            Path("data/batch_runs") / f"modis_ndvi_submit_{run_id}.json",
-            submit_record,
+        # ── Auto re-attach: a fresh container inherits in-flight NASA tasks ──
+        # from a crashed/restarted run instead of resubmitting at the back of
+        # the queue. --no-reattach forces a clean submit.
+        reattach = None if args.no_reattach else _find_reattachable_run(
+            bucket, aws_region, end_dt, user, password,
         )
+        if reattach is not None:
+            run_id = reattach["run_id"]
+            task_ids = dict(reattach["alive_task_ids"])
+            already_done = reattach["already_done"]
+            for group in reattach["dead_groups"]:
+                if group not in group_coords:
+                    logger.warning(
+                        "Dead group %s from run_id=%s no longer in config -- skipping.",
+                        group, run_id,
+                    )
+                    continue
+                task_ids[group] = _submit_one_task(
+                    group=group,
+                    coords=group_coords[group],
+                    end_date_appeears=end_date_appeears,
+                    product=product,
+                    layers=layers,
+                    run_id=run_id,
+                    user=user,
+                    password=password,
+                )
+                time.sleep(2)  # rate-limit guard between POSTs
+            submit_record = {
+                **reattach["record"],
+                "task_ids_by_group": task_ids,
+                "reattached_at": utc_now_iso(),
+            }
+            _save_run_record(
+                Path("data/batch_runs") / f"modis_ndvi_submit_{run_id}.json",
+                submit_record,
+            )
+            _persist_tasks_record(submit_record, bucket, aws_region)
+        else:
+            run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            logger.info("run_id=%s", run_id)
+
+            # ── Phase 2: submit tasks sequentially (2 s gap to avoid 429 burst) ─
+            task_ids = {}
+            for i, (group, coords) in enumerate(group_coords.items()):
+                task_id = _submit_one_task(
+                    group=group,
+                    coords=coords,
+                    end_date_appeears=end_date_appeears,
+                    product=product,
+                    layers=layers,
+                    run_id=run_id,
+                    user=user,
+                    password=password,
+                )
+                task_ids[group] = task_id
+                if i < len(group_coords) - 1:
+                    time.sleep(2)  # rate-limit guard between POSTs
+
+            # Checkpoint — write task IDs immediately so a crash doesn't lose them
+            submit_record = {
+                "run_id": run_id,
+                "source": "modis_ndvi",
+                "stage": "fetch",
+                "submitted_at": utc_now_iso(),
+                "end_date": args.end_date,
+                "total_coordinates": total_coords,
+                "task_ids_by_group": task_ids,
+            }
+            _save_run_record(
+                Path("data/batch_runs") / f"modis_ndvi_submit_{run_id}.json",
+                submit_record,
+            )
+            _persist_tasks_record(submit_record, bucket, aws_region)
 
     # ── Phase 3–5: poll + stream download+upload as each group completes ──────
     logger.info("Polling AppEEARS for task completion (15–45 min expected)…")
     logger.info("Each group will be downloaded and uploaded to S3 as soon as it is ready.")
-    _already_done = already_done if args.resume else {}
-    s3_keys = _poll_and_stream(task_ids, user, password, run_id, bucket, aws_region, _already_done)
+    s3_keys = _poll_and_stream(task_ids, user, password, run_id, bucket, aws_region, already_done)
 
     # ── Phase 6: final run record ─────────────────────────────────────────────
     final_record: dict = {

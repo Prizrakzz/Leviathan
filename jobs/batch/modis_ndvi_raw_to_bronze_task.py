@@ -59,9 +59,14 @@ def _discover_max_run_id(bucket: str, aws_region: str) -> str:
     """Return the MAX run_id partition under the raw prefix (fails closed if none).
 
     MODIS run_ids are ISO-UTC stamps (e.g. ``20260524T183717Z``), so the lexical
-    max is the chronologically latest fetch run."""
+    max is the chronologically latest fetch run. Only run_ids with at least one
+    ``group=`` data object count: the fetcher mirrors a ``_tasks.json`` checkpoint
+    into the run prefix at SUBMISSION time (before any CSV exists), so a crashed
+    submission must never be discovered as the newest data partition."""
     keys = list_s3_keys(bucket, _RAW_PREFIX, aws_region=aws_region)
-    run_ids = sorted({r for r in (parse_hive_key(k, "run_id") for k in keys) if r})
+    run_ids = sorted(
+        {r for r in (parse_hive_key(k, "run_id") for k in keys if "/group=" in k) if r}
+    )
     if not run_ids:
         raise FileNotFoundError(
             f"No MODIS raw run_id partitions under s3://{bucket}/{_RAW_PREFIX} -- "
