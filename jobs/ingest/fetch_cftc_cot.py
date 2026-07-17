@@ -61,6 +61,7 @@ Pass ``--dry-run`` to print S3 keys without downloading anything.
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime
 import io
 import logging
@@ -110,8 +111,20 @@ _UA = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 
-# First line of every valid disaggregated COT file starts with this column name.
+# Header column name carried by the annual / bulk backfill ZIP files.  The live
+# weekly newcot TXT files (f_disagg.txt / c_disagg.txt) became HEADERLESS in
+# 2026 — their first line is now the first data row rather than this header.
 _EXPECTED_HEADER_COLUMN = "Market_and_Exchange_Names"
+
+# The disaggregated "short format" is a fixed 191-column schema.  A headerless
+# weekly data row must have exactly this many fields; anything else (an HTML
+# error page, a truncated file, or a schema change) fails validation closed.
+_EXPECTED_FIELD_COUNT = 191
+
+# Exchange separator that appears in every CFTC Market_and_Exchange_Names value
+# (e.g. "CORN - CHICAGO BOARD OF TRADE").  Used to sanity-check that the first
+# field of a headerless file really is a market name and not stray text.
+_MARKET_EXCHANGE_SEP = " - "
 
 # CORN-CBOT (002602) appears in every annual and weekly disaggregated file.
 # Used as a sentinel to confirm we have a valid COT file (not an HTML error page).
@@ -148,23 +161,55 @@ def _extract_txt_from_zip(zip_bytes: bytes, url: str) -> bytes:
 
 
 def _validate_txt(data: bytes, url: str) -> None:
-    """Raise RuntimeError if *data* does not look like a valid COT TXT file."""
+    """Raise RuntimeError if *data* does not look like a valid COT TXT file.
+
+    Accepts both on-disk variants of the disaggregated report:
+
+    * Headered — the annual / 2006-2016 bulk ZIP files.  Line 1 is the column
+      header containing :data:`_EXPECTED_HEADER_COLUMN`.
+    * Headerless — the live weekly newcot TXT files (headerless since 2026).
+      Line 1 is the first data row; it must have exactly
+      :data:`_EXPECTED_FIELD_COUNT` fields and begin with a market name.
+
+    Fails closed on genuinely wrong payloads (HTML error pages, truncated files,
+    wrong field count) regardless of variant.
+    """
+    body = data.decode("utf-8", errors="replace")
     try:
-        first_line = data[:1024].decode("utf-8", errors="replace").splitlines()[0]
-    except (IndexError, UnicodeDecodeError) as exc:
+        first_line = body.splitlines()[0]
+    except IndexError as exc:
         raise RuntimeError(
-            f"Validation failed: could not decode first line from {url}"
+            f"Validation failed: empty file from {url}"
         ) from exc
 
     if _EXPECTED_HEADER_COLUMN not in first_line:
-        raise RuntimeError(
-            f"Validation failed: expected column '{_EXPECTED_HEADER_COLUMN}' not found "
-            f"in header from {url}. First line: {first_line[:200]!r}"
-        )
+        # Headerless (weekly) file — structurally validate the first data row.
+        try:
+            fields = next(csv.reader([first_line]))
+        except csv.Error as exc:
+            raise RuntimeError(
+                f"Validation failed: could not CSV-parse first line from {url}. "
+                f"First line: {first_line[:200]!r}"
+            ) from exc
+
+        if len(fields) != _EXPECTED_FIELD_COUNT:
+            raise RuntimeError(
+                f"Validation failed: expected a header column "
+                f"'{_EXPECTED_HEADER_COLUMN}' or a {_EXPECTED_FIELD_COUNT}-field "
+                f"headerless data row from {url}, got {len(fields)} fields. "
+                f"First line: {first_line[:200]!r}"
+            )
+
+        market = fields[0].strip()
+        if _MARKET_EXCHANGE_SEP not in market or market[:1].isdigit():
+            raise RuntimeError(
+                f"Validation failed: first field {market[:80]!r} from {url} does "
+                "not look like a CFTC market name (expected '<COMMODITY> - "
+                "<EXCHANGE>'). File may be an HTML error response."
+            )
 
     # Confirm the sentinel contract code is present anywhere in the file.
     # Avoids silently storing HTML error pages as if they were COT data.
-    body = data.decode("utf-8", errors="replace")
     if _SENTINEL_CONTRACT_CODE not in body:
         raise RuntimeError(
             f"Validation failed: sentinel contract code '{_SENTINEL_CONTRACT_CODE}' "

@@ -1,31 +1,48 @@
-"""AWS Batch task: UNICA annual-by-state bronze → silver Parquet.
+"""AWS Batch task: UNICA annual-by-state bronze -> silver Parquet (shadow-first, SILVER-F015/INV-6).
 
-Reads all per-season UNICA bronze Parquets from S3, pivots the EAV rows into
-a wide annual table with one row per (harvest_year, state_region), then writes
-a single flat silver file at:
+Reads all per-season UNICA bronze Parquets from S3, pivots the EAV rows into a wide annual table
+with one row per (harvest_year, state_region), and publishes a single FLAT silver object at:
 
     silver/unica_annual_state/part-000.parquet
 
-Coverage: Brazil Centre-South historical seasons 1980/1981–2020/2021.
+Coverage: Brazil Centre-South historical seasons 1980/1981-2020/2021.
+
+Publish contract (A-W4 CLASS-B retrofit)
+----------------------------------------
+``silver_unica_annual_state`` is a FLAT table (``partition_mode: flat``, ``projection: forbidden``),
+so the write routes through ``leviathan.silver.flat_producer.build_flat_publish`` with the EXPLICIT
+INV-2 arrow schema from the table's F010 registry contract -- never a bespoke
+``df.to_parquet(...) + put_object(...)``. ``--publish-mode`` (default ``dry-run``) resolves through
+the publish guard:
+
+  * dry-run   : nothing is written anywhere (the manifest is an in-memory plan).
+  * shadow    : the object is staged ONLY under ``silver/unica_annual_state/_shadow/``; canonical is
+                untouched (INV-6 -- a red rebuild gate can still protect canonical).
+  * canonical : shadow-stage -> validate -> promote -> catalog, ONLY with a verified signed approval.
+
+The legacy ``--dry-run`` flag is retained as an alias for ``--publish-mode dry-run``; ``--force-overwrite``
+continues to accept its string value (``--force-overwrite true``) and only bites the canonical path.
+The unica family DAG runs ``promote_mode=stop_and_notify``, so the canonical wiring here is
+correct-by-construction -- it does not execute until the A-W4 promotion.
 
 Usage
 -----
-    # Dry-run: show what would be written
-    python jobs/batch/unica_annual_state_task.py --bucket leviathan-dev-shahem-001 \\
-        --aws-region us-east-1 --dry-run
+    # dry-run (writes nothing)
+    python jobs/batch/unica_annual_state_task.py --bucket B --aws-region us-east-1
 
-    # Full run (idempotent)
-    python jobs/batch/unica_annual_state_task.py --bucket leviathan-dev-shahem-001 \\
-        --aws-region us-east-1
+    # shadow (stages under _shadow/, canonical untouched)
+    python jobs/batch/unica_annual_state_task.py --bucket B --aws-region us-east-1 --publish-mode shadow
 
-    # Force overwrite
-    python jobs/batch/unica_annual_state_task.py --force-overwrite true
+    # canonical (needs a signed approval)
+    python jobs/batch/unica_annual_state_task.py --bucket B --aws-region us-east-1 \\
+        --publish-mode canonical --force-overwrite true
 """
 from __future__ import annotations
 
 import argparse
 import io
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 
@@ -33,6 +50,9 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
+from leviathan.silver.flat_producer import authorize_for_contract, build_flat_publish
+from leviathan.silver.publisher import ManifestState
+from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import (
     parse_hive_key,
     silver_unica_annual_state_key,
@@ -48,6 +68,8 @@ from leviathan.transforms.bronze_to_silver.unica_annual_state import (
 
 logger = get_logger("unica_annual_state_task")
 
+TABLE = "silver_unica_annual_state"
+_JOB = "unica_annual_state_silver"
 _BRONZE_PREFIX = "bronze/production/source=unica/"
 
 
@@ -63,19 +85,30 @@ def _parse_bool(value: str | bool) -> bool:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="UNICA annual-by-state bronze → silver")
+    parser = argparse.ArgumentParser(
+        description="UNICA annual-by-state bronze -> silver (shadow-first)"
+    )
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--aws-region", default=None, dest="aws_region")
     parser.add_argument(
         "--force-overwrite",
         default="false",
-        help="Re-write the silver file even if it already exists.",
+        help="Re-write the canonical silver object even if it already exists (canonical mode only).",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Log what would be written without writing to S3.",
+        help="Alias for --publish-mode dry-run (writes nothing).",
     )
+    parser.add_argument(
+        "--publish-mode",
+        default="dry-run",
+        choices=["dry-run", "shadow", "canonical"],
+        dest="publish_mode",
+        help="dry-run|shadow|canonical (default dry-run; canonical needs a signed approval)",
+    )
+    parser.add_argument("--role-arn", default="", dest="role_arn")
+    parser.add_argument("--account-id", default="", dest="account_id")
     args = parser.parse_args()
     args.force_overwrite = _parse_bool(args.force_overwrite)
     return args
@@ -124,48 +157,65 @@ def _load_all_bronze(bucket: str, harvest_years: list[str], aws_region: str) -> 
 
 
 # ---------------------------------------------------------------------------
-# Write
+# Shadow-first publish (A-W4 CLASS-B retrofit)
 # ---------------------------------------------------------------------------
 
 
-def _target_exists(s3_client, bucket: str, key: str) -> bool:
+def _key_exists(s3_client, bucket: str, key: str) -> bool:
     try:
         s3_client.head_object(Bucket=bucket, Key=key)
         return True
-    except s3_client.exceptions.ClientError as exc:
-        if exc.response["Error"]["Code"] == "404":
-            return False
-        raise
+    except Exception:  # noqa: BLE001
+        return False
 
 
-def _write_silver(
-    bucket: str,
-    aws_region: str,
+def _caller_identity(aws_region: str) -> tuple[str, str]:
+    """Best-effort STS identity for the canonical publish target (empty on failure).
+
+    dry-run / shadow must not require live credentials, so a missing-identity failure falls back to
+    empty strings -- the publish guard's check_environment then fails closed on the canonical path
+    exactly as designed."""
+    try:
+        import boto3
+
+        ident = boto3.client("sts", region_name=aws_region).get_caller_identity()
+        return ident.get("Account", ""), ident.get("Arn", "")
+    except Exception as exc:  # noqa: BLE001 -- dry-run / shadow must not require live credentials
+        logger.info("STS identity unavailable (%s); using empty target (dry-run/shadow only)", exc)
+        return "", ""
+
+
+def _publish_silver(
     df: pd.DataFrame,
+    contract: dict,
+    auth,
+    s3_client,
+    canonical_key: str,
+    *,
     force_overwrite: bool,
-    dry_run: bool,
-) -> str:
-    key = silver_unica_annual_state_key()
+    bucket: str,
+) -> ManifestState | None:
+    """Publish the single flat UNICA annual-state silver object through the shadow-first publisher.
 
-    if dry_run:
-        logger.info("[DRY RUN] Would write: %s  rows=%d", key, len(df))
-        return "dry_run"
-
-    s3_client = get_thread_local_s3_client(aws_region)
-    if not force_overwrite and _target_exists(s3_client, bucket, key):
-        logger.info("skipping existing silver file: %s", key)
-        return "skipped"
-
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=buf.getvalue(),
-        ContentType="application/octet-stream",
+    Returns the manifest state, or ``None`` when an existing canonical object is skipped (canonical
+    mode, no ``--force-overwrite``)."""
+    if (
+        not force_overwrite
+        and auth.may_mutate_canonical
+        and s3_client is not None
+        and _key_exists(s3_client, bucket, canonical_key)
+    ):
+        logger.info("silver exists -- skipping (canonical, no --force-overwrite): %s", canonical_key)
+        return None
+    plan = build_flat_publish(
+        df=df,
+        contract=contract,
+        canonical_key=canonical_key,
+        auth=auth,
+        s3_client=s3_client,
+        job=_JOB,
     )
-    logger.info("wrote silver file: %s  rows=%d", key, len(df))
-    return "written"
+    return plan.run().state
 
 
 # ---------------------------------------------------------------------------
@@ -176,21 +226,27 @@ def _write_silver(
 def main() -> int:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         stream=sys.stderr,
     )
     t0 = datetime.now(tz=timezone.utc)
     load_env()
     args = _parse_args()
 
+    publish_mode = "dry-run" if args.dry_run else args.publish_mode
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
+    contract = load_registry().table(TABLE)
+
+    account_id, role_arn = args.account_id, args.role_arn
+    if publish_mode == "canonical" and not account_id and not role_arn:
+        account_id, role_arn = _caller_identity(aws_region)
 
     logger.info(
-        "UNICA annual state silver task  bucket=%s  force=%s  dry_run=%s",
+        "UNICA annual state silver task  bucket=%s  mode=%s  force=%s",
         bucket,
+        publish_mode,
         args.force_overwrite,
-        args.dry_run,
     )
 
     harvest_years = _available_harvest_years(bucket, aws_region)
@@ -207,11 +263,39 @@ def main() -> int:
     logger.info("Silver rows after transform: %d", len(silver))
 
     if silver.empty:
-        logger.warning("Silver transform returned empty DataFrame — nothing to write")
+        logger.warning("Silver transform returned empty DataFrame -- nothing to write")
         return 0
 
-    result = _write_silver(bucket, aws_region, silver, args.force_overwrite, args.dry_run)
-    logger.info("result=%s", result)
+    auth = authorize_for_contract(
+        contract,
+        publish_mode=publish_mode,
+        role_arn=role_arn,
+        account_id=account_id,
+        env=os.environ,
+    )
+    # A read client already loaded bronze; the publisher only writes in shadow/canonical.
+    publish_client = None
+    if publish_mode != "dry-run":
+        from leviathan.storage.s3 import get_thread_local_s3_client as _pub_client_factory
+
+        publish_client = _pub_client_factory(aws_region)
+
+    state = _publish_silver(
+        silver,
+        contract,
+        auth,
+        publish_client,
+        silver_unica_annual_state_key(),
+        force_overwrite=args.force_overwrite,
+        bucket=bucket,
+    )
+    logger.info(
+        "publish %s state=%s mode=%s rows=%d",
+        TABLE,
+        state.value if state else "skipped",
+        publish_mode,
+        len(silver),
+    )
 
     elapsed = (datetime.now(tz=timezone.utc) - t0).total_seconds()
     logger.info("done  elapsed=%.1fs", elapsed)

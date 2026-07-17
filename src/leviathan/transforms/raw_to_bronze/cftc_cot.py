@@ -39,6 +39,7 @@ Only 8 of the 191 raw columns are retained; the remaining 183 are dropped
 """
 from __future__ import annotations
 
+import csv
 import io
 
 import pandas as pd
@@ -95,6 +96,151 @@ BRONZE_COLUMNS: list[str] = [
     "source",
 ]
 
+# ---------------------------------------------------------------------------
+# Header handling
+# ---------------------------------------------------------------------------
+#
+# The disaggregated "short format" is a fixed 191-column schema.  Two on-disk
+# variants exist and both land in this parser:
+#
+#   * Headered  — the annual / 2006-2016 bulk ZIP files (backfill).  Line 1 is
+#     the column header row.
+#   * Headerless — the live weekly ``newcot`` TXT files (f_disagg.txt /
+#     c_disagg.txt).  CFTC dropped the header row in 2026; line 1 is now the
+#     first data row.
+#
+# We parse by *column name* (``usecols`` below), so a headerless file must have
+# a header stitched back on before pandas sees it.  ``_CANONICAL_COLUMNS`` is
+# the exact CFTC column order (verbatim from the published headered files); the
+# import-time self-check below guarantees it stays aligned with ``_KEEP_COLS``.
+_HEADER_MARKER = "Market_and_Exchange_Names"
+_EXPECTED_FIELD_COUNT = 191
+
+_CANONICAL_COLUMNS: list[str] = [
+    "Market_and_Exchange_Names", "As_of_Date_In_Form_YYMMDD", "Report_Date_as_YYYY-MM-DD",
+    "CFTC_Contract_Market_Code", "CFTC_Market_Code", "CFTC_Region_Code", "CFTC_Commodity_Code",
+    "Open_Interest_All", "Prod_Merc_Positions_Long_All", "Prod_Merc_Positions_Short_All",
+    "Swap_Positions_Long_All", "Swap__Positions_Short_All", "Swap__Positions_Spread_All",
+    "M_Money_Positions_Long_All", "M_Money_Positions_Short_All",
+    "M_Money_Positions_Spread_All", "Other_Rept_Positions_Long_All",
+    "Other_Rept_Positions_Short_All", "Other_Rept_Positions_Spread_All",
+    "Tot_Rept_Positions_Long_All", "Tot_Rept_Positions_Short_All",
+    "NonRept_Positions_Long_All", "NonRept_Positions_Short_All", "Open_Interest_Old",
+    "Prod_Merc_Positions_Long_Old", "Prod_Merc_Positions_Short_Old", "Swap_Positions_Long_Old",
+    "Swap__Positions_Short_Old", "Swap__Positions_Spread_Old", "M_Money_Positions_Long_Old",
+    "M_Money_Positions_Short_Old", "M_Money_Positions_Spread_Old",
+    "Other_Rept_Positions_Long_Old", "Other_Rept_Positions_Short_Old",
+    "Other_Rept_Positions_Spread_Old", "Tot_Rept_Positions_Long_Old",
+    "Tot_Rept_Positions_Short_Old", "NonRept_Positions_Long_Old",
+    "NonRept_Positions_Short_Old", "Open_Interest_Other", "Prod_Merc_Positions_Long_Other",
+    "Prod_Merc_Positions_Short_Other", "Swap_Positions_Long_Other",
+    "Swap__Positions_Short_Other", "Swap__Positions_Spread_Other",
+    "M_Money_Positions_Long_Other", "M_Money_Positions_Short_Other",
+    "M_Money_Positions_Spread_Other", "Other_Rept_Positions_Long_Other",
+    "Other_Rept_Positions_Short_Other", "Other_Rept_Positions_Spread_Other",
+    "Tot_Rept_Positions_Long_Other", "Tot_Rept_Positions_Short_Other",
+    "NonRept_Positions_Long_Other", "NonRept_Positions_Short_Other",
+    "Change_in_Open_Interest_All", "Change_in_Prod_Merc_Long_All",
+    "Change_in_Prod_Merc_Short_All", "Change_in_Swap_Long_All", "Change_in_Swap_Short_All",
+    "Change_in_Swap_Spread_All", "Change_in_M_Money_Long_All", "Change_in_M_Money_Short_All",
+    "Change_in_M_Money_Spread_All", "Change_in_Other_Rept_Long_All",
+    "Change_in_Other_Rept_Short_All", "Change_in_Other_Rept_Spread_All",
+    "Change_in_Tot_Rept_Long_All", "Change_in_Tot_Rept_Short_All",
+    "Change_in_NonRept_Long_All", "Change_in_NonRept_Short_All", "Pct_of_Open_Interest_All",
+    "Pct_of_OI_Prod_Merc_Long_All", "Pct_of_OI_Prod_Merc_Short_All", "Pct_of_OI_Swap_Long_All",
+    "Pct_of_OI_Swap_Short_All", "Pct_of_OI_Swap_Spread_All", "Pct_of_OI_M_Money_Long_All",
+    "Pct_of_OI_M_Money_Short_All", "Pct_of_OI_M_Money_Spread_All",
+    "Pct_of_OI_Other_Rept_Long_All", "Pct_of_OI_Other_Rept_Short_All",
+    "Pct_of_OI_Other_Rept_Spread_All", "Pct_of_OI_Tot_Rept_Long_All",
+    "Pct_of_OI_Tot_Rept_Short_All", "Pct_of_OI_NonRept_Long_All",
+    "Pct_of_OI_NonRept_Short_All", "Pct_of_Open_Interest_Old", "Pct_of_OI_Prod_Merc_Long_Old",
+    "Pct_of_OI_Prod_Merc_Short_Old", "Pct_of_OI_Swap_Long_Old", "Pct_of_OI_Swap_Short_Old",
+    "Pct_of_OI_Swap_Spread_Old", "Pct_of_OI_M_Money_Long_Old", "Pct_of_OI_M_Money_Short_Old",
+    "Pct_of_OI_M_Money_Spread_Old", "Pct_of_OI_Other_Rept_Long_Old",
+    "Pct_of_OI_Other_Rept_Short_Old", "Pct_of_OI_Other_Rept_Spread_Old",
+    "Pct_of_OI_Tot_Rept_Long_Old", "Pct_of_OI_Tot_Rept_Short_Old",
+    "Pct_of_OI_NonRept_Long_Old", "Pct_of_OI_NonRept_Short_Old", "Pct_of_Open_Interest_Other",
+    "Pct_of_OI_Prod_Merc_Long_Other", "Pct_of_OI_Prod_Merc_Short_Other",
+    "Pct_of_OI_Swap_Long_Other", "Pct_of_OI_Swap_Short_Other", "Pct_of_OI_Swap_Spread_Other",
+    "Pct_of_OI_M_Money_Long_Other", "Pct_of_OI_M_Money_Short_Other",
+    "Pct_of_OI_M_Money_Spread_Other", "Pct_of_OI_Other_Rept_Long_Other",
+    "Pct_of_OI_Other_Rept_Short_Other", "Pct_of_OI_Other_Rept_Spread_Other",
+    "Pct_of_OI_Tot_Rept_Long_Other", "Pct_of_OI_Tot_Rept_Short_Other",
+    "Pct_of_OI_NonRept_Long_Other", "Pct_of_OI_NonRept_Short_Other", "Traders_Tot_All",
+    "Traders_Prod_Merc_Long_All", "Traders_Prod_Merc_Short_All", "Traders_Swap_Long_All",
+    "Traders_Swap_Short_All", "Traders_Swap_Spread_All", "Traders_M_Money_Long_All",
+    "Traders_M_Money_Short_All", "Traders_M_Money_Spread_All", "Traders_Other_Rept_Long_All",
+    "Traders_Other_Rept_Short_All", "Traders_Other_Rept_Spread_All",
+    "Traders_Tot_Rept_Long_All", "Traders_Tot_Rept_Short_All", "Traders_Tot_Old",
+    "Traders_Prod_Merc_Long_Old", "Traders_Prod_Merc_Short_Old", "Traders_Swap_Long_Old",
+    "Traders_Swap_Short_Old", "Traders_Swap_Spread_Old", "Traders_M_Money_Long_Old",
+    "Traders_M_Money_Short_Old", "Traders_M_Money_Spread_Old", "Traders_Other_Rept_Long_Old",
+    "Traders_Other_Rept_Short_Old", "Traders_Other_Rept_Spread_Old",
+    "Traders_Tot_Rept_Long_Old", "Traders_Tot_Rept_Short_Old", "Traders_Tot_Other",
+    "Traders_Prod_Merc_Long_Other", "Traders_Prod_Merc_Short_Other", "Traders_Swap_Long_Other",
+    "Traders_Swap_Short_Other", "Traders_Swap_Spread_Other", "Traders_M_Money_Long_Other",
+    "Traders_M_Money_Short_Other", "Traders_M_Money_Spread_Other",
+    "Traders_Other_Rept_Long_Other", "Traders_Other_Rept_Short_Other",
+    "Traders_Other_Rept_Spread_Other", "Traders_Tot_Rept_Long_Other",
+    "Traders_Tot_Rept_Short_Other", "Conc_Gross_LE_4_TDR_Long_All",
+    "Conc_Gross_LE_4_TDR_Short_All", "Conc_Gross_LE_8_TDR_Long_All",
+    "Conc_Gross_LE_8_TDR_Short_All", "Conc_Net_LE_4_TDR_Long_All",
+    "Conc_Net_LE_4_TDR_Short_All", "Conc_Net_LE_8_TDR_Long_All", "Conc_Net_LE_8_TDR_Short_All",
+    "Conc_Gross_LE_4_TDR_Long_Old", "Conc_Gross_LE_4_TDR_Short_Old",
+    "Conc_Gross_LE_8_TDR_Long_Old", "Conc_Gross_LE_8_TDR_Short_Old",
+    "Conc_Net_LE_4_TDR_Long_Old", "Conc_Net_LE_4_TDR_Short_Old", "Conc_Net_LE_8_TDR_Long_Old",
+    "Conc_Net_LE_8_TDR_Short_Old", "Conc_Gross_LE_4_TDR_Long_Other",
+    "Conc_Gross_LE_4_TDR_Short_Other", "Conc_Gross_LE_8_TDR_Long_Other",
+    "Conc_Gross_LE_8_TDR_Short_Other", "Conc_Net_LE_4_TDR_Long_Other",
+    "Conc_Net_LE_4_TDR_Short_Other", "Conc_Net_LE_8_TDR_Long_Other",
+    "Conc_Net_LE_8_TDR_Short_Other", "Contract_Units", "CFTC_Contract_Market_Code_Quotes",
+    "CFTC_Market_Code_Quotes", "CFTC_Commodity_Code_Quotes", "CFTC_SubGroup_Code",
+    "FutOnly_or_Combined",
+]
+
+# Fail fast at import time if the canonical schema ever drifts out of sync with
+# the columns we actually select — a misaligned header would silently corrupt
+# every downstream value (wrong physical column mapped to each name).
+if len(_CANONICAL_COLUMNS) != _EXPECTED_FIELD_COUNT:
+    raise RuntimeError(
+        f"_CANONICAL_COLUMNS has {len(_CANONICAL_COLUMNS)} entries, "
+        f"expected {_EXPECTED_FIELD_COUNT}"
+    )
+if _CANONICAL_COLUMNS[0] != _HEADER_MARKER:
+    raise RuntimeError("_CANONICAL_COLUMNS[0] must be the header marker column")
+_missing_keep = [c for c in _KEEP_COLS if c not in _CANONICAL_COLUMNS]
+if _missing_keep:
+    raise RuntimeError(f"_KEEP_COLS not covered by _CANONICAL_COLUMNS: {_missing_keep}")
+
+_CANONICAL_HEADER = ",".join(_CANONICAL_COLUMNS)
+
+
+def _ensure_header(raw_bytes: bytes) -> bytes:
+    """Return *raw_bytes* guaranteed to start with a column header row.
+
+    Headered files (annual / bulk backfill) are returned unchanged.  Headerless
+    files (live weekly ``newcot`` TXT) get the canonical CFTC header prepended.
+
+    Fails closed if a headerless first row does not have exactly
+    :data:`_EXPECTED_FIELD_COUNT` fields — refusing to stitch on a header that
+    would misalign the columns (schema drift, truncation, or a wrong payload).
+    """
+    if not raw_bytes:
+        return raw_bytes
+
+    first_line = raw_bytes.split(b"\n", 1)[0].decode("utf-8", errors="replace").rstrip("\r")
+    if _HEADER_MARKER in first_line:
+        return raw_bytes  # already headered
+
+    n_fields = len(next(csv.reader([first_line])))
+    if n_fields != _EXPECTED_FIELD_COUNT:
+        raise ValueError(
+            f"Headerless COT file has {n_fields} fields on the first row, "
+            f"expected {_EXPECTED_FIELD_COUNT}; refusing to prepend the canonical "
+            "header (possible schema drift or wrong payload)."
+        )
+    return _CANONICAL_HEADER.encode("utf-8") + b"\n" + raw_bytes
+
 
 def parse_cot_txt(raw_bytes: bytes, year_label: str) -> pd.DataFrame:
     """Parse a CFTC disaggregated futures TXT file into long-format bronze.
@@ -108,6 +254,10 @@ def parse_cot_txt(raw_bytes: bytes, year_label: str) -> pd.DataFrame:
         Only rows for Leviathan-mapped markets are retained.
         Empty DataFrame if no mapped markets are found.
     """
+    # Weekly newcot files are headerless (CFTC dropped the header row in 2026);
+    # stitch the canonical header back on so the by-name column selection works.
+    raw_bytes = _ensure_header(raw_bytes)
+
     df = pd.read_csv(
         io.BytesIO(raw_bytes),
         usecols=lambda c: c in _KEEP_COLS,

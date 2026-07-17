@@ -27,9 +27,11 @@ EXPECTED_SCHEDULES = {
     "fgis", "modis_biweekly", "weather_daily", "esr_weekly", "wasde_monthly", "production_faostat",
 }
 
-# The six module-form producers named in A-W6 (invocation form [m] = -m jobs.batch.X).
+# The module-form producers named in A-W6 (invocation form [m] = -m jobs.batch.X).
+# quandl_chris DEFERRED from the futures_prices chain 2026-07-17 (NASDAQ_API_KEY never
+# provisioned; credentials are user-handled) -- re-add here when the task returns.
 EXPECTED_MODULE_PRODUCERS = {
-    "frankfurter_fx", "noaa_iod", "wap_silver", "sagis_deliveries", "quandl_chris", "psd_silver",
+    "frankfurter_fx", "noaa_iod", "wap_silver", "sagis_deliveries", "psd_silver",
 }
 
 
@@ -125,7 +127,7 @@ def test_module_form_tasks_carry_dash_m(descriptors):
             assert cmd[1].startswith("jobs."), f"{stem}/{t.get('id')}: '-m' must name a jobs.* module"
 
 
-def test_exactly_six_module_form_producers(descriptors):
+def test_module_form_producer_census(descriptors):
     module_ids = {t["id"] for _s, _p, t in _iter_tasks(descriptors) if t.get("invocation_form") == "m"}
     assert module_ids == EXPECTED_MODULE_PRODUCERS
 
