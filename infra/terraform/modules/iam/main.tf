@@ -706,6 +706,18 @@ data "aws_iam_policy_document" "silver_publisher_base" {
       values   = ["silver/*", "gold/*"]
     }
   }
+
+  # Weather _staging retirement only. The compact promote leg deletes consumed
+  # month-grain staging objects after publishing the [commodity, year] canonical
+  # object. Scoped to the _staging tier -- which sits OUTSIDE the commodity=
+  # data plane -- so this grants no delete on any canonical silver object.
+  # Best-effort in code: a denied/failed delete leaves staging to be re-merged
+  # idempotently on the next cycle, never corruption.
+  statement {
+    sid       = "S3DeleteWeatherStagingOnly"
+    actions   = ["s3:DeleteObject"]
+    resources = ["${var.bucket_arn}/silver/weather/source=*/_staging/*"]
+  }
 }
 
 resource "aws_iam_policy" "silver_publisher_base" {
