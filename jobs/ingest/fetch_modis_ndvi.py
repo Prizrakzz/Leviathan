@@ -490,18 +490,34 @@ def _derive_delta_start(bucket: str, aws_region: str, requested_end: date) -> st
     """
     try:
         csv_keys = list_s3_keys(bucket, _RAW_PREFIX, suffix=".csv", aws_region=aws_region)
-        completed = sorted({
-            k.split("run_id=")[1].split("/")[0]
-            for k in csv_keys if "run_id=" in k and "/group=" in k
-        })
-        if not completed:
+        groups_by_run: dict[str, set[str]] = {}
+        for k in csv_keys:
+            if "run_id=" in k and "/group=" in k:
+                rid = k.split("run_id=")[1].split("/")[0]
+                groups_by_run.setdefault(rid, set()).add(k.split("/group=")[1].split("/")[0])
+        latest = None
+        last_end: date | None = None
+        # Newest run first; a run only anchors the delta window when it is FULLY
+        # uploaded (a partial run would orphan the missing groups' date range).
+        # Checkpointed runs are checked exactly against their task_ids_by_group;
+        # pre-checkpoint runs (no _tasks.json) are assumed complete -- they all are.
+        for rid in sorted(groups_by_run, reverse=True):
+            try:
+                rec = download_s3_json(bucket, _tasks_json_key(rid), aws_region)
+                if not set(rec["task_ids_by_group"]) <= groups_by_run[rid]:
+                    logger.info(
+                        "run_id=%s is partially uploaded (%d/%d groups) -- not a delta anchor.",
+                        rid, len(groups_by_run[rid]), len(rec["task_ids_by_group"]),
+                    )
+                    continue
+                latest = rid
+                last_end = datetime.strptime(rec["end_date"], "%Y-%m-%d").date()
+            except Exception:  # noqa: BLE001 — pre-checkpoint runs have no _tasks.json
+                latest = rid
+                last_end = datetime.strptime(rid, "%Y%m%dT%H%M%SZ").date()
+            break
+        if latest is None or last_end is None:
             return None
-        latest = completed[-1]
-        try:
-            rec = download_s3_json(bucket, _tasks_json_key(latest), aws_region)
-            last_end = datetime.strptime(rec["end_date"], "%Y-%m-%d").date()
-        except Exception:  # noqa: BLE001 — pre-checkpoint runs have no _tasks.json
-            last_end = datetime.strptime(latest, "%Y%m%dT%H%M%SZ").date()
         start = last_end - timedelta(days=_COMPOSITE_PERIOD_DAYS)
         if start >= requested_end:
             start = requested_end - timedelta(days=_COMPOSITE_PERIOD_DAYS)

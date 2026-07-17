@@ -134,10 +134,7 @@ def _process_document(
         return "error", []
 
     # Derive document_date from key: release_month=YYYY-MM → first day of month
-    try:
-        document_date = f"{year}-{month:02d}-01"
-    except Exception:
-        document_date = "1970-01-01"
+    document_date = f"{year}-{month:02d}-01"
 
     chunks = chunk_document(doc)
     if not chunks:

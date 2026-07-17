@@ -88,12 +88,16 @@ def _load_bronze(bucket: str, aws_region: str, s3_client) -> list[pd.DataFrame]:
                                       aws_region=aws_region))
     logger.info("Loading %d bronze Parquets ...", len(bronze_keys))
     dfs: list[pd.DataFrame] = []
+    errors = 0
     for k in bronze_keys:
         try:
             raw = s3_download_with_retry(bucket, k, s3_client)
             dfs.append(pd.read_parquet(io.BytesIO(raw)))
         except Exception:
             logger.exception("Failed to load: %s", k)
+            errors += 1
+    if errors:
+        raise RuntimeError(f"{errors} bronze COT parquet(s) failed to load -- aborting")
     return dfs
 
 

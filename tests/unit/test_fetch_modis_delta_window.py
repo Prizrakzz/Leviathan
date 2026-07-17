@@ -266,3 +266,28 @@ def test_r2b_writes_missing_old_year():
         force_overwrite=False, refresh_year_floor=date.today().year,
     )
     assert wrote and len(s3.puts) == 1
+
+
+def test_partial_run_not_a_delta_anchor(monkeypatch):
+    """A run with a checkpoint but missing group CSVs must not anchor the window --
+    the OLDER complete run wins, so the partial run's date range is never orphaned."""
+    old_rid, new_rid = _rid(30), _rid(0.2)
+    keys = [_csv_key(old_rid), _csv_key(new_rid, "grains")]  # new run: 1 of 3 groups
+
+    def fake_list(bucket, prefix, suffix=None, aws_region=None):
+        return list(keys) if suffix == ".csv" else []
+
+    def fake_json(bucket, key, region):
+        if new_rid in key:
+            return {
+                "end_date": date.today().isoformat(),
+                "task_ids_by_group": {"grains": "t1", "oilseeds": "t2", "palm_africa": "t3"},
+            }
+        raise FileNotFoundError("old run is pre-checkpoint")
+
+    monkeypatch.setattr(mod, "list_s3_keys", fake_list)
+    monkeypatch.setattr(mod, "download_s3_json", fake_json)
+    out = mod._derive_delta_start(_BUCKET, _REGION, date.today())
+    old_date = datetime.strptime(old_rid, "%Y%m%dT%H%M%SZ").date()
+    expected = (old_date - timedelta(days=mod._COMPOSITE_PERIOD_DAYS)).strftime("%m-%d-%Y")
+    assert out == expected
