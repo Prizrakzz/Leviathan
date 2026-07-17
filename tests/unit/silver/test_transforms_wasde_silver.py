@@ -56,6 +56,11 @@ def test_estimate_role_vocabulary():
     ("Major Exporters", W.REGION_CLEAN),
     ("May", W.REGION_MONTH_NAME),        # year-header leak
     ("February", W.REGION_MONTH_NAME),
+    # bare month ABBREVIATIONS = two-vintage projection column headers leaked into the
+    # region axis (scanned-era continuation tables; 1989-03-09 WasdeKeyConflict canary)
+    ("Mar", W.REGION_MONTH_NAME),
+    ("Mar.", W.REGION_MONTH_NAME),
+    ("Feb", W.REGION_MONTH_NAME),
     ("february_0_30_4_58_0_62", W.REGION_NUMERIC_CONCAT),
     ("i", W.REGION_SINGLE_CHAR),
     ("1234", W.REGION_PURE_NUMERIC),

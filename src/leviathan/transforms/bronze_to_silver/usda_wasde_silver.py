@@ -221,6 +221,18 @@ _MONTHS = {
 }
 _MONTH_NAMES_LOWER = frozenset(_MONTHS)
 
+# Bare month ABBREVIATIONS leak into the region axis from scanned-era two-vintage
+# projection column headers ("Feb. Proj. / Mar. Proj." on World S&U continuation
+# tables) -- Textract row reconstruction emits the header token as a region cell.
+# 1989-03-09 live canary: region='Mar'/'Mar.' rows carried stray numbers that
+# collided on the F036 natural key (0.31 vs 16.0 -- parse noise, not competing
+# estimates). Exact-token match only: no real WASDE geographic scope is a bare
+# 3-letter month abbreviation.
+_MONTH_ABBREVS_LOWER = frozenset({
+    "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "sept", "oct",
+    "nov", "dec",
+})
+
 
 class WasdeKeyConflict(RuntimeError):
     """Two rows share a natural key with DIVERGENT estimate values. F034 forbids drop/keep-last;
@@ -288,6 +300,11 @@ def classify_region(raw: str) -> str:
         return REGION_EMPTY
     # a bare month name is the classic "year header leaked into region" defect
     if low.rstrip(".:") in _MONTH_NAMES_LOWER or norm in _MONTH_NAMES_LOWER:
+        return REGION_MONTH_NAME
+    # bare month ABBREVIATION ("Feb." / "Mar.") = a two-vintage projection column
+    # header leaked into the region axis (scanned-era continuation tables); its rows
+    # carry stray numbers that collide on the F036 natural key (1989-03-09 canary).
+    if low.rstrip(".:") in _MONTH_ABBREVS_LOWER or norm in _MONTH_ABBREVS_LOWER:
         return REGION_MONTH_NAME
     # single alpha character (OCR fragment "i")
     if len(norm) == 1 and norm.isalpha():
