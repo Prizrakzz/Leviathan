@@ -15,6 +15,13 @@ def test_gold_weather_z_has_a_valid_sample_commodity():
     assert "gold_weather_z" in parity.SAMPLE_COMMODITY
     commodity = parity.SAMPLE_COMMODITY["gold_weather_z"]
     assert commodity, "gold_weather_z sample commodity must be non-empty (else the panel is vacuous)"
+    # weather-R3 (2026-07-17) went red on exactly this: the sample said base-name 'corn' but the gold
+    # task's 'all' mode keys by CONTRACT slug (discovered from silver/weather partitions) -> 30/30
+    # queries vacuous. Presence is not validity; pin the contract form.
+    assert commodity == "corn_cbot", (
+        "gold_weather_z is keyed by contract slug (gold/weather_z/<contract>.parquet); "
+        "a base-name sample makes the parity panel vacuous"
+    )
     # it must be in the default parity table set (so a plain run exercises it)
     default_tables = set(parity.SAMPLE_COMMODITY)
     assert "gold_weather_z" in default_tables

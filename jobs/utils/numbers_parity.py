@@ -25,10 +25,12 @@ logger = get_logger("numbers_parity")
 # VACUOUS — 0 rows == 0 rows passes without proving anything.
 SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_production": "corn_cbot",
                     "silver_esr": "corn_cbot", "silver_fred_fx": None, "silver_noaa_oni": None,
-                    # gold_weather_z (D-W4) is a TALL z-table keyed by base commodity (like silver_wasde);
-                    # without this entry BF-W1's rebuild target got NO sample commodity and its panel passed
-                    # vacuously (0==0). 'corn' is a real gold_weather_z commodity (Attack 3 #4).
-                    "gold_weather_z": "corn"}
+                    # gold_weather_z is a TALL z-table keyed by CONTRACT slug: the gold task's 'all'
+                    # mode discovers commodities from silver/weather canonical partitions, which are the 31
+                    # contract slugs (verified 2026-07-17: gold/weather_z/corn_cbot.parquet, commodity column
+                    # == 'corn_cbot', 44,954 rows 1981-2026). The earlier 'corn' base-name sample made the
+                    # panel vacuous the FIRST time the weather gate ran it live (weather-R3 red).
+                    "gold_weather_z": "corn_cbot"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]
