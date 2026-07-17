@@ -33,11 +33,17 @@ resource "aws_ecr_lifecycle_policy" "this" {
       },
       {
         rulePriority = 2
-        description  = "Hard cap: keep at most 5 images total"
+        # A-W7 Wave-3 RCA: the old hard cap (any, >5) EXPIRED TAGGED images during rapid
+        # rebuild days -- 8 worker rebuilds on 2026-07-17 evicted every pre-w4 digest and
+        # broke 8 ACTIVE Batch jobdefs that pinned them (CannotPullContainerError at the
+        # esr/wasde canaries). Jobdefs pin digests for immutability; the registry must
+        # therefore retain tagged images far beyond the rebuild cadence. 30 tagged images
+        # at ~1-2GB each is a few $/mo -- cheap vs a broken scheduled pipeline.
+        description  = "Cap tagged images at 30 (digest pins must survive rebuild bursts)"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
-          countNumber = 5
+          countNumber = 30
         }
         action = {
           type = "expire"
