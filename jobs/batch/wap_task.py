@@ -146,8 +146,13 @@ def _process_pdf_key(
             write_document(s3, bucket, t_key, doc)
             logger.info("text written  %s", t_key)
         except Exception as exc:  # noqa: BLE001
-            logger.error("Text extraction failed  key=%s: %s", raw_key, exc)
-            return "error", raw_key
+            # A malformed historical PDF (e.g. pypdf "Invalid octal" on 2023-04) fails
+            # extraction DETERMINISTICALLY -- one bad archive file must not fail the whole
+            # scheduled chain (Wave-3 canary RCA; same tolerance philosophy as the
+            # sagis/unica pruned-404 fixes). Tallied separately as 'unparseable' and
+            # WARNed; download/S3 failures elsewhere remain hard errors.
+            logger.warning("Text extraction failed (unparseable PDF)  key=%s: %s", raw_key, exc)
+            return "unparseable", raw_key
 
     # ── Bronze extraction (Table 01) ───────────────────────────────────────
     if force_overwrite or not table01_exists(s3, bucket, b_key):
@@ -204,7 +209,7 @@ def _run_pdf_source(
     keys_a = [k for k in keys if not _is_era_b(parse_hive_key(k, "release_month"))]
     keys_b = [k for k in keys if _is_era_b(parse_hive_key(k, "release_month"))]
 
-    written = skipped = errors = 0
+    written = skipped = errors = unparseable = 0
 
     for batch_keys, workers in [(keys_a, _WORKERS_A), (keys_b, _WORKERS_B)]:
         if not batch_keys:
@@ -225,8 +230,17 @@ def _run_pdf_source(
                     written += 1
                 elif status == "skipped":
                     skipped += 1
+                elif status == "unparseable":
+                    unparseable += 1
                 else:
                     errors += 1
+
+    if unparseable:
+        logger.warning("unparseable PDFs tolerated this run: %d", unparseable)
+    # Never let a fully-dead source look green: nothing written, nothing skipped,
+    # and at least one unparseable -> treat as failure.
+    if written == 0 and skipped == 0 and unparseable > 0:
+        errors += unparseable
 
     return written, skipped, errors
 

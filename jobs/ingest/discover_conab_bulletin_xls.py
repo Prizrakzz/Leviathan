@@ -301,6 +301,36 @@ def main() -> None:
     write_manifest(entries, Path(args.output))
     logger.info("Wrote manifest: %s", args.output)
 
+    # Chain handoff (Wave-3 RCA): on AWS Batch the downstream fetch task runs in a
+    # DIFFERENT container, so a container-local manifest is invisible to it. When the
+    # thin-contract env is present (LEVIATHAN_BUCKET), mirror the manifest to S3 --
+    # fail CLOSED on an upload error (a silently-missing manifest would freeze the
+    # DAG on stale surveys, the exact failure the descriptor note warns about). Local
+    # runs without the env keep the old local-only behavior.
+    import os as _os
+
+    bucket = _os.environ.get("LEVIATHAN_BUCKET")
+    if bucket:
+        _upload_manifest_s3(bucket, S3_MANIFEST_KEY, Path(args.output).read_bytes())
+        logger.info("Mirrored manifest to s3://%s/%s", bucket, S3_MANIFEST_KEY)
+    else:
+        logger.info("LEVIATHAN_BUCKET unset -- local-only manifest (no S3 mirror)")
+
+
+# S3 mirror key for the cross-container discover->fetch handoff. Deliberately OUTSIDE
+# raw/production/source=conab/bulletin_xls/ -- conab_xls_task lists that prefix with NO
+# suffix filter and would try to parse the manifest JSON as a bulletin.
+S3_MANIFEST_KEY = "raw/production/source=conab/discovery/conab_bulletin_excels.json"
+
+
+def _upload_manifest_s3(bucket: str, key: str, data: bytes) -> None:
+    """put_object seam (monkeypatched in tests; boto3 imported lazily)."""
+    import boto3
+
+    boto3.client("s3").put_object(
+        Bucket=bucket, Key=key, Body=data, ContentType="application/json"
+    )
+
 
 if __name__ == "__main__":
     main()

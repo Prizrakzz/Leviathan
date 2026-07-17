@@ -60,6 +60,21 @@ _CONTENT_TYPE_XLSX = (
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _MANIFEST_PATH = _PROJECT_ROOT / "data" / "conab" / "conab_bulletin_excels.json"
 
+# S3 mirror of the manifest (written by discover_conab_bulletin_xls when LEVIATHAN_BUCKET
+# is set). On AWS Batch the discover task runs in a DIFFERENT container, so the local
+# manifest path is empty here -- the S3 mirror is the cross-container handoff (Wave-3 RCA).
+_S3_MANIFEST_KEY = "raw/production/source=conab/discovery/conab_bulletin_excels.json"
+
+
+def _download_manifest_s3(bucket: str, key: str):
+    """get_object seam (monkeypatched in tests; boto3 imported lazily). Returns bytes or None."""
+    import boto3
+
+    try:
+        return boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
+    except Exception:  # noqa: BLE001 -- absent mirror -> fall through to the local error path
+        return None
+
 
 # ---------------------------------------------------------------------------
 # HTTP helper
@@ -108,10 +123,20 @@ def main() -> None:
     # Load manifest
     # -----------------------------------------------------------------------
     if not _MANIFEST_PATH.exists():
-        parser.error(
-            f"Not found: {_MANIFEST_PATH}\n"
-            "  Run: .venv\\Scripts\\python.exe jobs/ingest/discover_conab_bulletin_xls.py"
-        )
+        # Cross-container handoff: on Batch the discover task mirrored the manifest to S3.
+        import os as _os
+
+        bucket = _os.environ.get("LEVIATHAN_BUCKET")
+        data = _download_manifest_s3(bucket, _S3_MANIFEST_KEY) if bucket else None
+        if data is not None:
+            _MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _MANIFEST_PATH.write_bytes(data)
+            logger.info("Fetched manifest from s3://%s/%s", bucket, _S3_MANIFEST_KEY)
+        else:
+            parser.error(
+                f"Not found: {_MANIFEST_PATH} (and no S3 mirror at {_S3_MANIFEST_KEY})\n"
+                "  Run: .venv\\Scripts\\python.exe jobs/ingest/discover_conab_bulletin_xls.py"
+            )
 
     entries: list[dict] = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
     logger.info("Loaded %d entries from %s", len(entries), _MANIFEST_PATH.name)
