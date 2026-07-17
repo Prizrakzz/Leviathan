@@ -136,7 +136,7 @@ class SilverRegistry:
     def value_columns(self, name: str) -> list[str]:
         return list(self.tables[name].get("value_columns", []))
 
-    def min_nonnull_frac(self, name: str):
+    def min_nonnull_frac(self, name: str) -> Optional[float]:
         return self.tables[name].get("min_nonnull_frac")
 
     def columns(self, name: str) -> set[str]:

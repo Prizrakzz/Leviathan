@@ -31,6 +31,7 @@ from typing import Any, Optional, Sequence
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from leviathan.common.aws_identity import resolve_caller_identity
 from leviathan.common.publish_guard import (
     Authorization,
     PublishMode,
@@ -39,6 +40,7 @@ from leviathan.common.publish_guard import (
 )
 from leviathan.silver.publisher import (
     PublishStrategy,
+    RunManifest,
     ShadowPublisher,
     StagedObject,
     ValidationHooks,
@@ -132,7 +134,7 @@ class FlatSilverPlan:
     schema: pa.Schema
     row_count: int
 
-    def run(self):
+    def run(self) -> RunManifest:
         """Execute the controlled publish and return the run manifest (dry-run: in-memory)."""
         return self.publisher.run([self.staged])
 
@@ -142,7 +144,7 @@ def build_flat_publish(
     df,
     contract: dict,
     canonical_key: str,
-    auth,
+    auth: Authorization,
     s3_client: Any = None,
     job: str,
     run_id: Optional[str] = None,
@@ -241,14 +243,12 @@ def _resolve_caller_identity() -> tuple[str, str]:
     :func:`~leviathan.common.publish_guard.check_environment` then fails closed exactly as before.
 
     This is a module-level seam ON PURPOSE: it is called ONLY on the canonical path (never in
-    dry-run/shadow), and tests monkeypatch it so unit runs + readiness identities stay AWS-free."""
-    try:
-        import boto3
+    dry-run/shadow), and tests monkeypatch it so unit runs + readiness identities stay AWS-free.
 
-        ident = boto3.client("sts").get_caller_identity()
-        return ident.get("Account", ""), ident.get("Arn", "")
-    except Exception:  # noqa: BLE001 -- best-effort; empty identity => check_environment fails closed
-        return "", ""
+    Thin adapter over the shared best-effort resolver
+    :func:`leviathan.common.aws_identity.resolve_caller_identity` (the same idiom the batch tasks
+    now share); the wrapper is retained so the monkeypatch seam and AWS-free unit runs are unchanged."""
+    return resolve_caller_identity()
 
 
 def authorize_for_contract(

@@ -44,9 +44,12 @@ import calendar as _calmod
 import re
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Iterable, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence
 
 from leviathan.silver.value_census import GateRow
+
+if TYPE_CHECKING:  # pyarrow is imported lazily inside the writer-schema functions below.
+    import pyarrow as pa
 
 # ---------------------------------------------------------------------------
 # Canonical vocabularies (INV-1: the physical vocabulary the numbers registry must match exactly).
@@ -991,7 +994,7 @@ def latest_state_view(rows: Sequence[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # F036 (INV-2) -- explicit writer arrow schema from the registry contract.
 # ---------------------------------------------------------------------------
-def arrow_schema_from_contract(contract: dict):
+def arrow_schema_from_contract(contract: dict) -> "pa.Schema":
     """Build the explicit ``pyarrow`` writer schema (INV-2) from a SILVER-F010 registry contract.
 
     Uses each column's ``target_arrow_type`` (the widen-migration target), in the registry column
@@ -1013,7 +1016,7 @@ def arrow_schema_from_contract(contract: dict):
     return pa.schema(fields)
 
 
-def to_arrow_table(rows: Sequence[dict], contract: dict):
+def to_arrow_table(rows: Sequence[dict], contract: dict) -> "pa.Table":
     """Cast staged silver rows to the explicit contract schema (INV-2). Coerces the boolean/int/float
     columns and leaves date-like columns as ISO strings (the contract types them string)."""
     import pyarrow as pa
