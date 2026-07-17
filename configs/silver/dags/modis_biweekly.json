@@ -31,7 +31,7 @@
           "id": "fetch_modis_ndvi",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-modis-fetch:1",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_modis_ndvi.py"

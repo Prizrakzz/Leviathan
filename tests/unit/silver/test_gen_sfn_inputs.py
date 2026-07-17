@@ -32,6 +32,7 @@ EXPECTED_SCHEDULES = {
 # provisioned; credentials are user-handled) -- re-add here when the task returns.
 EXPECTED_MODULE_PRODUCERS = {
     "frankfurter_fx", "noaa_iod", "wap_silver", "sagis_deliveries", "psd_silver",
+    "quandl_chris",  # restored 2026-07-17 (NASDAQ_API_KEY provisioned)
 }
 
 

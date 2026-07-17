@@ -42,7 +42,7 @@
           ],
           "env": [],
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver",
+          "jobdef": "leviathan-dev-modis-fetch",
           "queue": "leviathan-dev-queue-ondemand"
         }
       ]
