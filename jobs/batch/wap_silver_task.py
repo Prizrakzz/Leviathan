@@ -76,6 +76,12 @@ def _parse_args() -> argparse.Namespace:
         default=False,
         help="Log what would be written without writing to S3.",
     )
+    # NOTE: --publish-mode is consumed by the publish guard from sys.argv (default dry-run).
+    parser.add_argument(
+        "--publish-mode",
+        default=None,
+        help="dry-run|shadow|canonical (default dry-run; canonical needs a signed approval)",
+    )
     return parser.parse_args()
 
 

@@ -46,9 +46,8 @@
           "jobdef": "leviathan-dev-b3-flat-silver:4",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_conab.py",
-            "--years",
-            "${YEARS}"
+            "jobs/ingest/fetch_conab_bulletin_xls.py",
+            "--skip-existing-s3"
           ],
           "env": {},
           "publishes": false
@@ -92,5 +91,5 @@
     }
   ],
   "discovery_first": true,
-  "notes": "MANIFEST-DRIVEN, not auto-discovering: discover_conab_bulletin_xls MUST be the first fetch task or a scheduled run never picks up a new coffee survey (the DAG freezes). Per-year --years."
+  "notes": "MANIFEST-DRIVEN, not auto-discovering: discover_conab_bulletin_xls MUST be the first fetch task or a scheduled run never picks up a new coffee survey (the DAG freezes). Per-year --years. 2026-07-17: fetch task swapped from fetch_conab.py with the unresolved YEARS placeholder (script has no such arg AND feeds crop_year PDFs nothing downstream reads) to fetch_conab_bulletin_xls.py --skip-existing-s3 (the manifest-driven XLS feeder conab_xls_task actually consumes); ordering discover->fetch now honored by map_max_concurrency=1."
 }

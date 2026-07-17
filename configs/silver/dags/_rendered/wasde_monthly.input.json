@@ -52,8 +52,6 @@
         {
           "command": [
             "jobs/batch/wasde_silver_task.py",
-            "--release-date",
-            "${RELEASE_DATE}",
             "--publish-mode",
             "shadow"
           ],
@@ -71,8 +69,6 @@
       {
         "command": [
           "jobs/batch/wasde_silver_task.py",
-          "--release-date",
-          "${RELEASE_DATE}",
           "--publish-mode",
           "canonical"
         ],

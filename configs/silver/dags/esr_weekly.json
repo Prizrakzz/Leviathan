@@ -73,7 +73,8 @@
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/bronze_to_silver_esr_task.py",
-            "--vintage-mode"
+            "--vintage-mode",
+            "all"
           ],
           "env": {},
           "publishes": true,

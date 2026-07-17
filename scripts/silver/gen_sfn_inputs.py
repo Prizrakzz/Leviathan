@@ -85,15 +85,17 @@ INVOCATION_FORMS = frozenset({"m", "s", "g"})
 PUBLISH_MODES = frozenset({"shadow_canonical", "latest_only", "projected_canonical"})
 PROMOTE_MODES = frozenset({"autonomous", "stop_and_notify", "post_publish_audit"})
 
-# Store_true (valueless) option flags that MAY legitimately appear as a command's final token.
-# Every OTHER trailing "--opt" token is a value-expecting option left dangling (the SFN container
-# override passes the command verbatim, so a bare value-option makes the job's argparse exit 2 --
-# e.g. nass_task.py's ``--series`` with no value: "argument --series: expected one argument").
-# The lint below rejects that class fail-closed at render time so a truncated command can never
-# reach the scheduler. New store_true flags used in a descriptor tail are added here.
+# Store_true (valueless) option flags that MAY legitimately stand alone -- as a command's final
+# token, or immediately before the next "--opt". Every OTHER "--opt" so positioned is a
+# value-expecting option left dangling (the SFN container override passes the command verbatim, so a
+# bare value-option makes the job's argparse exit 2 -- e.g. nass_task.py's ``--series`` with no
+# value: "argument --series: expected one argument"). The lint below rejects that class fail-closed
+# at render time so a truncated command can never reach the scheduler. Only add a flag here if it is
+# genuinely store_true (NO value): a value-REQUIRED option (e.g. bronze_to_silver_esr_task's
+# ``--vintage-mode {latest,all}``) must supply its value in the descriptor, never be whitelisted --
+# whitelisting one is exactly the defect class this lint exists to catch.
 _VALUELESS_TRAILING_FLAGS = frozenset({
     "--skip-existing-s3",   # fetch_usda_esr
-    "--vintage-mode",       # bronze_to_silver_esr_task
     "--force-overwrite",    # yfinance_futures / gold_weather_z / nass_task
 })
 
@@ -212,15 +214,28 @@ def lint_descriptor(desc: dict, stem: str) -> list[str]:
                     e.append(f"{stem}: glue-form task {tid!r} must set 'glue_job'")
                 if t.get("jobdef"):
                     e.append(f"{stem}: glue-form task {tid!r} must not set 'jobdef'")
-            # A command must not END on a value-expecting option flag (dangling value): the SFN
-            # container override is passed verbatim, so a bare "--opt" makes the job's argparse
-            # exit 2 ("expected one argument"). Known store_true flags are exempt.
-            if cmd and isinstance(cmd[-1], str) and cmd[-1].startswith("--") \
-                    and cmd[-1] not in _VALUELESS_TRAILING_FLAGS:
-                e.append(
-                    f"{stem}: task {tid!r} command ends on value-expecting option {cmd[-1]!r} "
-                    f"with no value (dangling arg -> argparse exit 2)"
-                )
+            # A value-expecting option must be followed by its value. A "--opt" token that is the
+            # command's LAST token, OR is immediately followed by another "--opt" token, has no
+            # value: the SFN container override is passed verbatim, so the job's argparse exits 2
+            # ("expected one argument"). Known store_true flags are exempt. The trailing case is the
+            # historically-observed defect (esr --vintage-mode dangling value, nass --series); the
+            # mid-command case generalizes it (a value silently dropped between two flags).
+            for i, tok in enumerate(cmd):
+                if not (isinstance(tok, str) and tok.startswith("--")
+                        and tok not in _VALUELESS_TRAILING_FLAGS):
+                    continue
+                nxt = cmd[i + 1] if i + 1 < len(cmd) else None
+                if nxt is None:
+                    e.append(
+                        f"{stem}: task {tid!r} command ends on value-expecting option {tok!r} "
+                        f"with no value (dangling arg -> argparse exit 2)"
+                    )
+                elif isinstance(nxt, str) and nxt.startswith("--"):
+                    e.append(
+                        f"{stem}: task {tid!r} command has value-expecting option {tok!r} "
+                        f"immediately followed by another option {nxt!r} (missing value -> "
+                        f"argparse exit 2)"
+                    )
 
             # publishing tasks must declare a known publish_mode
             if t.get("publishes"):
@@ -397,10 +412,12 @@ def render_all_schedules(descriptors: dict[str, dict]) -> dict[str, str]:
 
 
 def scan_unresolved_placeholders(descriptors: dict[str, dict]) -> list[str]:
-    """Non-fatal advisory: descriptor command args carrying an unresolved ``${...}`` template var.
+    """FATAL lint: descriptor command args carrying an unresolved ``${...}`` template var.
 
     The scheduler only substitutes ``<aws.scheduler.*>`` context attributes, so a literal ``${X}`` in a
-    command reaches the job UNRESOLVED. Reported (not lint-failed) so the input tree still renders."""
+    command reaches the job UNRESOLVED (the job's argparse sees the literal string ``${RUN_ID}``, never
+    a run id). ``generate()`` folds a non-empty result into the exit-2 lint gate (render AND --check),
+    fail-closed, so a command with an unsubstitutable placeholder can never reach the scheduler."""
     import re
     pat = re.compile(r"\$\{[^}]+\}")
     out: list[str] = []
@@ -422,16 +439,18 @@ def generate(check: bool = False, render_schedule: bool = False) -> int:
         print(f"no descriptors under {DAGS_DIR}", file=sys.stderr)
         return 4
 
+    # The unresolved-placeholder scan is a FATAL lint (folded into the exit-2 gate below), NOT an
+    # advisory: a command carrying a literal ${...} the scheduler cannot substitute reaches the job's
+    # argparse verbatim. This gates BOTH render and --check paths (generate() returns before either).
     violations = lint_all(descriptors)
-    if violations:
+    unresolved = scan_unresolved_placeholders(descriptors)
+    if violations or unresolved:
         print("DESCRIPTOR LINT FAILED:")
         for v in violations:
             print(f"  - {v}")
+        for u in unresolved:
+            print(f"  - unresolved placeholder: {u}")
         return 2
-
-    # Non-fatal advisory (does not gate rendering): unresolved ${...} command placeholders.
-    for warn in scan_unresolved_placeholders(descriptors):
-        print(f"WARN {warn}", file=sys.stderr)
 
     if render_schedule:
         rendered = render_all_schedules(descriptors)

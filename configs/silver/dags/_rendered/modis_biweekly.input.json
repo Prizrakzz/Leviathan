@@ -25,9 +25,7 @@
       "tasks": [
         {
           "command": [
-            "jobs/batch/modis_ndvi_raw_to_bronze_task.py",
-            "--run-id",
-            "${RUN_ID}"
+            "jobs/batch/modis_ndvi_raw_to_bronze_task.py"
           ],
           "env": [],
           "integration": "batch",

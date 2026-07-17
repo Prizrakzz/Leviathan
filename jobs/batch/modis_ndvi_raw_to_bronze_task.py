@@ -1,26 +1,39 @@
-"""AWS Batch Fargate task: MODIS NDVI raw CSV → bronze Parquet.
+"""AWS Batch Fargate task: MODIS NDVI raw CSV -> bronze Parquet.
 
-Reads one AppEEARS results CSV from S3 (raw tier), parses it into per-region
-DataFrames using the raw_to_bronze transform, and writes one bronze Parquet
-file per (commodity, country, region, year).
+Reads one AppEEARS results CSV from S3 (raw tier) per commodity group, parses it
+into per-region DataFrames using the raw_to_bronze transform, and writes one
+bronze Parquet file per (commodity, country, region, year).
 
-Each bronze file contains up to 23 rows — one row per 16-day MODIS composite
+Each bronze file contains up to 23 rows -- one row per 16-day MODIS composite
 period within the calendar year.
 
-Required args:
-  --run_id      Fetch run identifier, e.g. 20260524T203000Z
-  --group       Commodity group name, e.g. grains
-  --bucket      S3 bucket name
-  --aws_region  e.g. us-east-1
+Thin-contract invocation (A-Wave-3 retrofit)
+--------------------------------------------
+The descriptor invokes this task with NO args; every argument has a safe default
+so the chain never argparse-exits:
+
+  --run_id      Fetch run identifier, e.g. 20260524T183717Z.
+                DEFAULT: the MAX run_id partition discovered under the raw prefix
+                ``raw/weather/source=modis_ndvi/`` (run_ids are ISO-UTC stamps, so
+                lexical max == chronological latest). Fails closed if none exist.
+  --group       Commodity group name, e.g. grains.
+                DEFAULT: ``all`` -- iterate every group in
+                ``configs/sources/modis_ndvi.yaml`` (commodity_groups keys); if
+                that config is unavailable, fall back to the group= partitions
+                actually present under the resolved run_id.
+  --bucket      S3 bucket name.            DEFAULT: ``$LEVIATHAN_BUCKET``.
+  --aws_region  e.g. us-east-1.            DEFAULT: ``$AWS_REGION``.
+
+Single-group invocation is unchanged: pass ``--run_id X --group grains --bucket B
+--aws_region R`` and only that group is processed.
 
 Optional args:
-  --force_overwrite  true   (default: false — skip existing bronze keys)
+  --force_overwrite  true   (default: false -- skip existing bronze keys)
 """
 from __future__ import annotations
 
 import argparse
 import io
-import json
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,44 +41,75 @@ from datetime import date
 
 import pandas as pd
 import yaml
-
+from leviathan.common.config import get_required_env, load_env, load_yaml
 from leviathan.common.logging import get_logger
-from leviathan.storage.paths import bronze_modis_ndvi_key
+from leviathan.storage.paths import bronze_modis_ndvi_key, parse_hive_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.raw_to_bronze.modis_ndvi import parse_appeears_csv
 
 logger = get_logger("modis_ndvi_raw_to_bronze")
 
+_RAW_PREFIX = "raw/weather/source=modis_ndvi/"
+_SOURCE_CONFIG = "configs/sources/modis_ndvi.yaml"
 
-# ── arg parsing ───────────────────────────────────────────────────────────────
 
-def _parse_args() -> argparse.Namespace:
-    # Support both argparse (local / Batch) and Glue getResolvedOptions
+# -- run_id / group discovery (thin-contract defaults) --------------------------
+
+def _discover_max_run_id(bucket: str, aws_region: str) -> str:
+    """Return the MAX run_id partition under the raw prefix (fails closed if none).
+
+    MODIS run_ids are ISO-UTC stamps (e.g. ``20260524T183717Z``), so the lexical
+    max is the chronologically latest fetch run."""
+    keys = list_s3_keys(bucket, _RAW_PREFIX, aws_region=aws_region)
+    run_ids = sorted({r for r in (parse_hive_key(k, "run_id") for k in keys) if r})
+    if not run_ids:
+        raise FileNotFoundError(
+            f"No MODIS raw run_id partitions under s3://{bucket}/{_RAW_PREFIX} -- "
+            "run fetch_modis_ndvi.py first"
+        )
+    latest = run_ids[-1]
+    logger.info("discovered %d run_id partition(s); using MAX=%s", len(run_ids), latest)
+    return latest
+
+
+def _groups_from_config() -> list[str]:
+    """Commodity-group names from configs/sources/modis_ndvi.yaml (empty list if absent)."""
     try:
-        from awsglue.utils import getResolvedOptions
-        raw = getResolvedOptions(
-            sys.argv, ["run_id", "group", "bucket", "aws_region"]
+        cfg = load_yaml(_SOURCE_CONFIG)
+    except FileNotFoundError:
+        logger.info("source config %s not found; will derive groups from raw partitions", _SOURCE_CONFIG)
+        return []
+    return list((cfg.get("commodity_groups") or {}).keys())
+
+
+def _discover_groups_from_raw(bucket: str, run_id: str, aws_region: str) -> list[str]:
+    """Distinct group= partitions present under the resolved run_id (config fallback)."""
+    prefix = f"{_RAW_PREFIX}run_id={run_id}/"
+    keys = list_s3_keys(bucket, prefix, aws_region=aws_region)
+    return sorted({g for g in (parse_hive_key(k, "group") for k in keys) if g})
+
+
+def _resolve_groups(bucket: str, run_id: str, group_arg: str, aws_region: str) -> list[str]:
+    """Resolve the group list: a single named group, or every group when ``all``."""
+    if group_arg and group_arg.strip().lower() != "all":
+        return [group_arg.strip()]
+
+    groups = _groups_from_config()
+    if groups:
+        logger.info("group=all -> %d group(s) from %s: %s", len(groups), _SOURCE_CONFIG, groups)
+        return groups
+
+    groups = _discover_groups_from_raw(bucket, run_id, aws_region)
+    if not groups:
+        raise FileNotFoundError(
+            f"group=all but no groups found in {_SOURCE_CONFIG} nor under "
+            f"s3://{bucket}/{_RAW_PREFIX}run_id={run_id}/"
         )
-        ns = argparse.Namespace(**raw)
-        ns.force_overwrite = "--force_overwrite" in sys.argv and (
-            sys.argv[sys.argv.index("--force_overwrite") + 1].lower() == "true"
-        )
-        return ns
-    except ImportError:
-        pass
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--run_id", required=True)
-    parser.add_argument("--group", required=True)
-    parser.add_argument("--bucket", required=True)
-    parser.add_argument("--aws_region", required=True)
-    parser.add_argument("--force_overwrite", default="false")
-    args = parser.parse_args()
-    args.force_overwrite = args.force_overwrite.lower() == "true"
-    return args
+    logger.info("group=all -> %d group(s) from raw partitions: %s", len(groups), groups)
+    return groups
 
 
-# ── geography helpers ─────────────────────────────────────────────────────────
+# -- geography helpers ----------------------------------------------------------
 
 def _build_region_to_country(bucket: str, aws_region: str) -> dict[str, str]:
     """Load all geography configs from S3 and return {region_id: country}."""
@@ -79,11 +123,11 @@ def _build_region_to_country(bucket: str, aws_region: str) -> dict[str, str]:
             country = region_block["country"]
             for loc in region_block.get("locations", []):
                 mapping[loc["region"]] = country
-    logger.info("Built region→country mapping: %d entries", len(mapping))
+    logger.info("Built region->country mapping: %d entries", len(mapping))
     return mapping
 
 
-# ── bronze write ──────────────────────────────────────────────────────────────
+# -- bronze write ---------------------------------------------------------------
 
 def _write_bronze_partition(
     s3_client,
@@ -126,7 +170,7 @@ def _write_all_partitions(
     Returns (written_count, skipped_count).
     """
     groups = list(df.groupby(["commodity", "country", "region", "year"]))
-    logger.info("Writing %d bronze partitions (force_overwrite=%s)…", len(groups), force_overwrite)
+    logger.info("Writing %d bronze partitions (force_overwrite=%s)...", len(groups), force_overwrite)
 
     written = skipped = 0
 
@@ -151,7 +195,7 @@ def _write_all_partitions(
     return written, skipped
 
 
-# ── raw CSV fetch ─────────────────────────────────────────────────────────────
+# -- raw CSV fetch --------------------------------------------------------------
 
 def _fetch_raw_csv(bucket: str, run_id: str, group: str, aws_region: str) -> tuple[str, bytes]:
     """Download the raw CSV from S3.  Returns (file_name, csv_bytes)."""
@@ -159,7 +203,7 @@ def _fetch_raw_csv(bucket: str, run_id: str, group: str, aws_region: str) -> tup
     keys = list_s3_keys(bucket, prefix, suffix=".csv", aws_region=aws_region)
     if not keys:
         raise FileNotFoundError(
-            f"No raw CSV found at s3://{bucket}/{prefix}*.csv — "
+            f"No raw CSV found at s3://{bucket}/{prefix}*.csv -- "
             "run fetch_modis_ndvi.py first"
         )
     if len(keys) > 1:
@@ -172,45 +216,97 @@ def _fetch_raw_csv(bucket: str, run_id: str, group: str, aws_region: str) -> tup
     return file_name, csv_bytes
 
 
-# ── main ──────────────────────────────────────────────────────────────────────
+# -- per-group processing -------------------------------------------------------
+
+def _process_group(
+    bucket: str,
+    run_id: str,
+    group: str,
+    aws_region: str,
+    region_to_country: dict[str, str],
+    force_overwrite: bool,
+) -> tuple[int, int]:
+    """Fetch + parse + write one commodity group. Returns (written, skipped)."""
+    _file_name, csv_bytes = _fetch_raw_csv(bucket, run_id, group, aws_region)
+
+    ingest_date = date.today().isoformat()
+    df = parse_appeears_csv(csv_bytes, region_to_country, ingest_date)
+    logger.info("group=%s parsed DataFrame: %d rows, %d columns", group, len(df), len(df.columns))
+
+    if df.empty:
+        logger.warning("group=%s empty DataFrame after parsing -- nothing to write", group)
+        return 0, 0
+
+    written, skipped = _write_all_partitions(df, bucket, aws_region, force_overwrite)
+    logger.info("group=%s done: written=%d skipped=%d", group, written, skipped)
+    return written, skipped
+
+
+# -- arg parsing ----------------------------------------------------------------
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="MODIS NDVI raw CSV -> bronze Parquet")
+    parser.add_argument("--run_id", default=None,
+                        help="raw run_id partition (default: MAX discovered under the raw prefix)")
+    parser.add_argument("--group", default="all",
+                        help="commodity group name, or 'all' to iterate every group (default: all)")
+    parser.add_argument("--bucket", default=None, help="S3 bucket (default: $LEVIATHAN_BUCKET)")
+    parser.add_argument("--aws_region", default=None, help="AWS region (default: $AWS_REGION)")
+    parser.add_argument("--force_overwrite", default="false")
+    args = parser.parse_args()
+    args.force_overwrite = str(args.force_overwrite).lower() == "true"
+    return args
+
+
+# -- main -----------------------------------------------------------------------
 
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    load_env()
     args = _parse_args()
+
+    bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
+    aws_region = args.aws_region or get_required_env("AWS_REGION")
+
+    run_id = args.run_id or _discover_max_run_id(bucket, aws_region)
+    groups = _resolve_groups(bucket, run_id, args.group, aws_region)
     logger.info(
-        "Starting modis_ndvi raw→bronze | run_id=%s group=%s bucket=%s",
-        args.run_id, args.group, args.bucket,
+        "Starting modis_ndvi raw->bronze | run_id=%s groups=%d bucket=%s",
+        run_id, len(groups), bucket,
     )
 
-    # Download raw CSV
-    _file_name, csv_bytes = _fetch_raw_csv(args.bucket, args.run_id, args.group, args.aws_region)
-
-    # Build region→country mapping from geography configs in S3
-    region_to_country = _build_region_to_country(args.bucket, args.aws_region)
+    # Build region->country mapping once (shared across every group).
+    region_to_country = _build_region_to_country(bucket, aws_region)
     if not region_to_country:
         raise RuntimeError(
-            "region_to_country mapping is empty — geography configs not found in S3 at "
-            f"s3://{args.bucket}/configs/geographies/. Deploy configs before running R2B."
+            "region_to_country mapping is empty -- geography configs not found in S3 at "
+            f"s3://{bucket}/configs/geographies/. Deploy configs before running R2B."
         )
 
-    # Parse CSV → bronze DataFrame
-    ingest_date = date.today().isoformat()
-    df = parse_appeears_csv(csv_bytes, region_to_country, ingest_date)
-    logger.info("Parsed DataFrame: %d rows, %d columns", len(df), len(df.columns))
+    total_written = total_skipped = 0
+    failures: list[str] = []
+    for group in groups:
+        try:
+            written, skipped = _process_group(
+                bucket, run_id, group, aws_region, region_to_country, args.force_overwrite
+            )
+            total_written += written
+            total_skipped += skipped
+        except Exception as exc:  # noqa: BLE001 -- one group's failure must not kill the rest
+            logger.error("[group=%s] FAILED: %s: %s", group, type(exc).__name__, str(exc)[:300])
+            failures.append(group)
 
-    if df.empty:
-        logger.warning("Empty DataFrame after parsing — nothing to write")
-        return
-
-    # Write bronze partitions
-    written, skipped = _write_all_partitions(df, args.bucket, args.aws_region, args.force_overwrite)
     logger.info(
-        "Done. Written=%d  Skipped=%d  (run_id=%s group=%s)",
-        written, skipped, args.run_id, args.group,
+        "Done. run_id=%s groups=%d written=%d skipped=%d%s",
+        run_id, len(groups), total_written, total_skipped,
+        f"  FAILURES={failures}" if failures else "",
     )
+    if failures:
+        sys.exit(1)
 
 
-main()
+if __name__ == "__main__":
+    main()

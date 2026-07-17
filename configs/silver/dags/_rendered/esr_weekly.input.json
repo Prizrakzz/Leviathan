@@ -57,6 +57,7 @@
           "command": [
             "jobs/batch/bronze_to_silver_esr_task.py",
             "--vintage-mode",
+            "all",
             "--publish-mode",
             "shadow"
           ],
@@ -75,6 +76,7 @@
         "command": [
           "jobs/batch/bronze_to_silver_esr_task.py",
           "--vintage-mode",
+          "all",
           "--publish-mode",
           "canonical"
         ],

@@ -8,6 +8,7 @@ per output. ``--publish-mode`` defaults to dry-run (nothing written); these test
 """
 from __future__ import annotations
 
+import sys
 from datetime import date
 
 import pandas as pd
@@ -93,3 +94,46 @@ def test_canonical_overwrites_the_modis_object() -> None:
     assert s3.store[(_BUCKET, canonical_key)] != _SENTINEL
     # the second (country, region, year) object was also promoted.
     assert (_BUCKET, silver_modis_ndvi_key(_COMMODITY, "united_states", "IL", 2019)) in s3.store
+
+
+# -- thin-contract retrofit (A-Wave-3): argparse defaults + 'all' discovery -----
+
+def test_parse_args_defaults_are_all_optional(monkeypatch) -> None:
+    # The descriptor passes NO args; every argument must default (no argparse exit 2).
+    monkeypatch.setattr(sys, "argv", ["modis_b2s"])
+    args = task._parse_args()
+    assert args.commodity == "all"
+    assert args.bucket is None
+    assert args.aws_region is None
+    assert args.publish_mode == "dry-run"
+    assert args.force_overwrite is False
+    assert args.dry_run is False
+
+
+def test_parse_args_accepts_appended_publish_mode_shadow(monkeypatch) -> None:
+    # The SFN renderer appends --publish-mode shadow for a shadow_canonical descriptor;
+    # the flag must be accepted (a choice), never argparse-exit.
+    monkeypatch.setattr(sys, "argv", ["modis_b2s", "--publish-mode", "shadow"])
+    args = task._parse_args()
+    assert args.publish_mode == "shadow"
+
+
+def test_parse_args_single_commodity_invocation_unchanged(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", [
+        "modis_b2s", "--commodity", "corn_cbot",
+        "--bucket", "test-leviathan", "--aws_region", "us-east-1",
+    ])
+    args = task._parse_args()
+    assert args.commodity == "corn_cbot"
+    assert args.bucket == "test-leviathan"
+    assert args.aws_region == "us-east-1"
+
+
+def test_discover_commodities_lists_bronze_partitions(monkeypatch) -> None:
+    keys = [
+        "bronze/weather/source=modis_ndvi/commodity=corn_cbot/country=united_states/x.parquet",
+        "bronze/weather/source=modis_ndvi/commodity=cocoa/country=ghana/y.parquet",
+        "bronze/weather/source=modis_ndvi/commodity=corn_cbot/country=brazil/z.parquet",
+    ]
+    monkeypatch.setattr(task, "list_s3_keys", lambda *a, **k: list(keys))
+    assert task._discover_commodities("test-leviathan", "us-east-1") == ["cocoa", "corn_cbot"]

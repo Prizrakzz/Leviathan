@@ -24,12 +24,22 @@ resolves through the publish guard:
 
 This replaces the former latest-only ``put_object`` overwrite so a red rebuild
 gate can protect the canonical writes (FLAT cataloging is a no-op; objects are
-discovered by LIST).
+discovered by LIST). The SFN renderer appends ``--publish-mode shadow`` for a
+``shadow_canonical`` descriptor and re-runs ``--publish-mode canonical`` to promote;
+a ``latest_only`` descriptor emits NO flag, so this task then runs at its ``dry-run``
+default (a held no-op) -- see configs/silver/dags/modis_biweekly.json.
 
-Required args:
-  --commodity   e.g. corn_cbot
-  --bucket      S3 bucket name
-  --aws_region  e.g. us-east-1
+Thin-contract invocation (A-Wave-3 retrofit)
+--------------------------------------------
+The descriptor invokes this task with NO positional args; every argument defaults:
+
+  --commodity   e.g. corn_cbot, or 'all' to iterate every commodity discovered under
+                ``bronze/weather/source=modis_ndvi/commodity=*/`` (default: all).
+  --bucket      S3 bucket name.            DEFAULT: ``$LEVIATHAN_BUCKET``.
+  --aws_region  e.g. us-east-1.            DEFAULT: ``$AWS_REGION``.
+
+Single-commodity invocation is unchanged: pass ``--commodity corn_cbot --bucket B
+--aws_region R`` and only that commodity is processed.
 
 Optional args:
   --force_overwrite  true             (default: false -- skip existing canonical keys)
@@ -46,7 +56,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
-
+from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.silver.flat_producer import authorize_for_contract
 from leviathan.silver.publisher import (
@@ -57,7 +67,7 @@ from leviathan.silver.publisher import (
     ValidationHooks,
 )
 from leviathan.silver.registry import load_registry
-from leviathan.storage.paths import silver_modis_ndvi_key
+from leviathan.storage.paths import parse_hive_key, silver_modis_ndvi_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys, s3_download_with_retry
 from leviathan.transforms.bronze_to_silver.modis_ndvi import modis_ndvi_bronze_to_silver
 
@@ -66,39 +76,19 @@ logger = get_logger("modis_ndvi_bronze_to_silver")
 _MAX_WORKERS = 64
 _TABLE = "silver_modis_ndvi"
 _JOB = "modis_ndvi_silver"
+_BRONZE_PREFIX = "bronze/weather/source=modis_ndvi/"
 
 
 # -- arg parsing ----------------------------------------------------------------
 
-def _sysargv_flag(name: str, default: str = "") -> str:
-    """Read ``--name VALUE`` from sys.argv (Glue getResolvedOptions branch helper)."""
-    if name in sys.argv:
-        idx = sys.argv.index(name)
-        if idx + 1 < len(sys.argv):
-            return sys.argv[idx + 1]
-    return default
-
-
 def _parse_args() -> argparse.Namespace:
-    try:
-        from awsglue.utils import getResolvedOptions
-        raw = getResolvedOptions(sys.argv, ["commodity", "bucket", "aws_region"])
-        ns = argparse.Namespace(**raw)
-        ns.force_overwrite = _sysargv_flag("--force_overwrite", "false").lower() == "true"
-        ns.publish_mode = _sysargv_flag("--publish-mode", "dry-run")
-        ns.dry_run = "--dry-run" in sys.argv
-        ns.role_arn = _sysargv_flag("--role-arn", "")
-        ns.account_id = _sysargv_flag("--account-id", "")
-        return ns
-    except ImportError:
-        pass
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--commodity", required=True)
-    parser.add_argument("--bucket", required=True)
-    parser.add_argument("--aws_region", required=True)
+    parser = argparse.ArgumentParser(description="MODIS NDVI bronze -> silver (shadow-first)")
+    parser.add_argument("--commodity", default="all",
+                        help="commodity slug, or 'all' to iterate every discovered commodity (default: all)")
+    parser.add_argument("--bucket", default=None, help="S3 bucket (default: $LEVIATHAN_BUCKET)")
+    parser.add_argument("--aws_region", default=None, help="AWS region (default: $AWS_REGION)")
     parser.add_argument("--force_overwrite", default="false")
-    parser.add_argument("--dry-run", action="store_true",
+    parser.add_argument("--dry-run", action="store_true", dest="dry_run",
                         help="Alias for --publish-mode dry-run (writes nothing).")
     parser.add_argument("--publish-mode", default="dry-run",
                         choices=["dry-run", "shadow", "canonical"], dest="publish_mode",
@@ -106,8 +96,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--role-arn", default="", dest="role_arn")
     parser.add_argument("--account-id", default="", dest="account_id")
     args = parser.parse_args()
-    args.force_overwrite = args.force_overwrite.lower() == "true"
+    args.force_overwrite = str(args.force_overwrite).lower() == "true"
     return args
+
+
+# -- commodity discovery (thin-contract 'all' sentinel) -------------------------
+
+def _discover_commodities(bucket: str, aws_region: str) -> list[str]:
+    """Distinct commodity slugs present under bronze/weather/source=modis_ndvi/."""
+    keys = list_s3_keys(bucket, _BRONZE_PREFIX, suffix=".parquet", aws_region=aws_region)
+    return sorted({c for c in (parse_hive_key(k, "commodity") for k in keys) if c})
 
 
 # -- bronze read ----------------------------------------------------------------
@@ -239,6 +237,34 @@ def _publish_modis(
     return manifest.state
 
 
+# -- per-commodity processing ---------------------------------------------------
+
+def _process_commodity(
+    commodity: str,
+    contract: dict,
+    auth,
+    publish_client,
+    bucket: str,
+    aws_region: str,
+    *,
+    force_overwrite: bool,
+) -> ManifestState | None:
+    """Load bronze + transform + publish one commodity. Returns the manifest state (or None)."""
+    df = _load_all_bronze(bucket, commodity, aws_region)
+
+    silver_df = modis_ndvi_bronze_to_silver(df, source_label=f"modis_ndvi/{commodity}")
+    logger.info("commodity=%s silver transform produced %d rows", commodity, len(silver_df))
+
+    if silver_df.empty:
+        logger.warning("commodity=%s silver transform returned empty DataFrame -- nothing to write", commodity)
+        return None
+
+    return _publish_modis(
+        silver_df, commodity, contract, auth, publish_client, bucket,
+        force_overwrite=force_overwrite,
+    )
+
+
 # -- main -----------------------------------------------------------------------
 
 def main() -> None:
@@ -246,41 +272,51 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    load_env()
     args = _parse_args()
+
+    bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
+    aws_region = args.aws_region or get_required_env("AWS_REGION")
 
     publish_mode = "dry-run" if getattr(args, "dry_run", False) else args.publish_mode
     contract = load_registry().table(_TABLE)
 
     account_id, role_arn = args.account_id, args.role_arn
     if publish_mode == "canonical" and not account_id and not role_arn:
-        account_id, role_arn = _caller_identity(args.aws_region)
+        account_id, role_arn = _caller_identity(aws_region)
     auth = authorize_for_contract(
         contract, publish_mode=publish_mode,
         role_arn=role_arn, account_id=account_id, env=os.environ,
     )
+
+    publish_client = None if publish_mode == "dry-run" else get_thread_local_s3_client(aws_region)
+
+    if args.commodity.strip().lower() == "all":
+        commodities = _discover_commodities(bucket, aws_region)
+    else:
+        commodities = [c.strip() for c in args.commodity.split(",") if c.strip()]
     logger.info(
-        "Starting modis_ndvi bronze->silver | commodity=%s bucket=%s mode=%s may_canonical=%s",
-        args.commodity, args.bucket, publish_mode, auth.may_mutate_canonical,
+        "Starting modis_ndvi bronze->silver | commodities=%d bucket=%s mode=%s may_canonical=%s",
+        len(commodities), bucket, publish_mode, auth.may_mutate_canonical,
     )
 
-    s3_read = get_thread_local_s3_client(args.aws_region)
-    publish_client = None if publish_mode == "dry-run" else s3_read
+    failures: list[str] = []
+    for commodity in commodities:
+        try:
+            _process_commodity(
+                commodity, contract, auth, publish_client, bucket, aws_region,
+                force_overwrite=args.force_overwrite,
+            )
+        except Exception as exc:  # noqa: BLE001 -- one commodity's failure must not kill the rest
+            logger.error("[%s] FAILED: %s: %s", commodity, type(exc).__name__, str(exc)[:300])
+            failures.append(commodity)
 
-    df = _load_all_bronze(args.bucket, args.commodity, args.aws_region)
-
-    silver_df = modis_ndvi_bronze_to_silver(
-        df, source_label=f"modis_ndvi/{args.commodity}"
+    logger.info(
+        "DONE: %d commodities, mode=%s%s",
+        len(commodities), publish_mode, f"  FAILURES={failures}" if failures else "",
     )
-    logger.info("Silver transform produced %d rows", len(silver_df))
-
-    if silver_df.empty:
-        logger.warning("Silver transform returned empty DataFrame -- nothing to write")
-        return
-
-    _publish_modis(
-        silver_df, args.commodity, contract, auth, publish_client, args.bucket,
-        force_overwrite=args.force_overwrite,
-    )
+    if failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

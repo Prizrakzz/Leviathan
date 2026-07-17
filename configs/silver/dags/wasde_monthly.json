@@ -68,9 +68,7 @@
           "jobdef": "leviathan-dev-wasde-silver:2",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/wasde_silver_task.py",
-            "--release-date",
-            "${RELEASE_DATE}"
+            "jobs/batch/wasde_silver_task.py"
           ],
           "env": {},
           "publishes": true,

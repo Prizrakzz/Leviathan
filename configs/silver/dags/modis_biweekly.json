@@ -22,7 +22,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->r2b(run-id)->b2s",
+  "chain_shape": "fetch->r2b(max-run-id)->b2s",
   "phases": [
     {
       "name": "fetch",
@@ -51,9 +51,7 @@
           "jobdef": "leviathan-dev-modis-ndvi-raw-to-bronze:1",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/modis_ndvi_raw_to_bronze_task.py",
-            "--run-id",
-            "${RUN_ID}"
+            "jobs/batch/modis_ndvi_raw_to_bronze_task.py"
           ],
           "env": {},
           "publishes": false
@@ -79,5 +77,5 @@
       ]
     }
   ],
-  "notes": "fetch_modis_ndvi has NO jobdef (runs on the shared runner override); the chain is run-id keyed, NOT date-keyed. Over-schedule weekly + skip-existing; the fetch resolves missing composites then r2b keys by --run-id. modis_ndvi bronze_to_silver is CLASS-B latest-only; held until A-W4. Same catalog family (weather) as weather_daily but a SEPARATE biweekly schedule."
+  "notes": "fetch_modis_ndvi has NO jobdef (runs on the shared runner override); the chain is run-id keyed, NOT date-keyed. Over-schedule weekly + skip-existing; the fetch resolves missing composites then r2b runs thin-contract (no args): it defaults run_id to the MAX raw partition and group to 'all' (every commodity_group). b2s runs thin-contract too (--commodity all). modis_ndvi bronze_to_silver code is the A-W4 shadow-first publisher, but this descriptor still declares publish_mode=latest_only so the renderer appends NO --publish-mode flag and b2s runs at its dry-run default (held no-op); flip publish_mode to shadow_canonical to arm the CLASS-B shadow+gate canary. Same catalog family (weather) as weather_daily but a SEPARATE biweekly schedule."
 }

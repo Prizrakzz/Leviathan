@@ -373,12 +373,68 @@ def test_render_schedule_tree_is_byte_identical(gen):
         assert on_disk.exists() and on_disk.read_text(encoding="utf-8") == text, f"{stem}: schedule drift"
 
 
-def test_scan_unresolved_placeholders_flags_the_known_three(gen, descriptors):
-    """The non-fatal advisory catches the three descriptors whose commands still carry a template var
-    the scheduler cannot substitute (modis/conab/wasde); Wave-0/1 families are clean."""
-    warns = gen.scan_unresolved_placeholders(descriptors)
-    flagged = {w.split("/", 1)[0] for w in warns}
-    assert flagged == {"modis_biweekly", "production_conab", "wasde_monthly"}, flagged
+# The unresolved-${...}-placeholder scan is a FATAL lint (exit 2 in render AND --check). It is
+# asserted on a SYNTHETIC descriptor fixture, NOT live-tree contents, so it stays true regardless of
+# which live descriptors currently carry a placeholder (modis_biweekly's ${RUN_ID} awaits its
+# sibling-lane fix this round; conab/wasde were already cleaned).
+#
+# CONSEQUENCE (expected, transitional): while modis_biweekly still carries ${RUN_ID}, the live tree
+# no longer renders clean, so the two tests asserting generate()==0 on the LIVE tree --
+# test_check_mode_exit_zero and test_render_schedule_tree_is_byte_identical -- will FAIL until the
+# modis lane lands, then self-heal. They assert the correct steady state; they are deliberately NOT
+# weakened (the fatal lint is doing its job: blocking a render of an unsubstitutable placeholder).
+def _synthetic_dirty():
+    """A minimal {stem: descriptor} pair: one task carrying an unresolved ${...}, one clean."""
+    return {
+        "synth_dirty": {"phases": [
+            {"name": "bronze", "tasks": [
+                {"id": "has_ph", "command": ["jobs/batch/x.py", "--run-id", "${RUN_ID}"]},
+            ]},
+        ]},
+        "synth_clean": {"phases": [
+            {"name": "silver", "tasks": [
+                {"id": "no_ph", "command": ["-m", "jobs.batch.y", "--mode", "all"]},
+            ]},
+        ]},
+    }
+
+
+def test_scan_unresolved_placeholders_mechanism_on_synthetic_fixture(gen):
+    """The scan MECHANISM: flag exactly the tasks whose command carries an unresolved ${...} the
+    scheduler cannot substitute, leaving clean tasks alone. Synthetic fixture -> independent of the
+    live tree."""
+    hits = gen.scan_unresolved_placeholders(_synthetic_dirty())
+    flagged = {h.split("/", 1)[0] for h in hits}
+    assert flagged == {"synth_dirty"}, flagged
+    assert any("${RUN_ID}" in h for h in hits), hits
+    # a template var mid-command is caught the same as a trailing one
+    only_clean = {"c": {"phases": [{"name": "silver", "tasks": [
+        {"id": "t", "command": ["-m", "jobs.batch.z", "--mode", "all"]}]}]}}
+    assert gen.scan_unresolved_placeholders(only_clean) == []
+
+
+def test_generate_is_fatal_exit2_on_unresolved_placeholder(gen, descriptors, monkeypatch):
+    """The FATAL behavior: a descriptor with an unresolved ${...} makes generate() exit 2 in BOTH the
+    render and --check paths (the scan is folded into the exit-2 lint gate, no longer a WARN).
+    Asserted on a SYNTHETIC tree (a lint-clean real descriptor + one injected placeholder) via a
+    monkeypatched load_descriptors, so exit 2 is attributable solely to the placeholder."""
+    clean = copy.deepcopy(descriptors["fx_macro_daily"])
+    # Baseline: the pristine descriptor is lint- AND placeholder-clean, so any exit 2 below is the
+    # placeholder alone (not a residual lint defect).
+    assert gen.lint_descriptor(clean, "fx_macro_daily") == []
+    assert gen.scan_unresolved_placeholders({"fx_macro_daily": clean}) == []
+
+    dirty = copy.deepcopy(clean)
+    # Append a bare ${...} positional (does NOT start with '--', so it trips ONLY the placeholder
+    # scan, not the dangling-option lint).
+    dirty["phases"][0]["tasks"][0]["command"].append("${UNSUBSTITUTABLE}")
+    assert gen.lint_descriptor(dirty, "fx_macro_daily") == [], "placeholder must not be a plain lint hit"
+    assert gen.scan_unresolved_placeholders({"fx_macro_daily": dirty})  # non-empty
+
+    monkeypatch.setattr(gen, "load_descriptors", lambda *a, **k: {"fx_macro_daily": dirty})
+    assert gen.generate(check=False) == 2, "render path must exit 2 on the placeholder"
+    assert gen.generate(check=True) == 2, "--check path must exit 2 on the placeholder"
+    assert gen.generate(check=True, render_schedule=True) == 2, "schedule --check path must exit 2"
 
 
 # ---------------------------------------------------------------------------
@@ -458,12 +514,53 @@ def test_lint_rejects_dangling_value_option(gen, descriptors):
 
 
 def test_lint_accepts_known_valueless_trailing_flags(gen, descriptors):
-    """store_true flags legitimately end a command (esr --vintage-mode, futures --force-overwrite);
-    the dangling-arg guard must NOT false-positive on them."""
+    """The dangling-arg guard must NOT false-positive on legitimately-clean commands: futures_prices
+    ends on the store_true --force-overwrite (whitelisted valueless), and esr_weekly's value-REQUIRED
+    --vintage-mode is followed by its value 'all' (NOT whitelisted -- it must supply the value, and
+    does)."""
     for stem in ("esr_weekly", "futures_prices"):
         d = descriptors[stem]
         viol = gen.lint_descriptor(d, stem)
         assert not any("value-expecting option" in v for v in viol), f"{stem}: {viol}"
+
+
+def test_lint_rejects_dangling_vintage_mode_now_that_it_is_not_whitelisted(gen, descriptors):
+    """Regression for the FIFTH occurrence of this defect class: --vintage-mode is a value-REQUIRED
+    option (choices latest|all), so it was REMOVED from the valueless whitelist. A truncated esr
+    command ending on a bare --vintage-mode (the historical dangling-value bug) must now be REJECTED
+    rather than silently accepted."""
+    assert "--vintage-mode" not in gen._VALUELESS_TRAILING_FLAGS
+    d = _one_descriptor(descriptors, "esr_weekly")
+    silver = next(p for p in d["phases"] if p["name"] == "silver")
+    silver["tasks"][0]["command"] = ["jobs/batch/bronze_to_silver_esr_task.py", "--vintage-mode"]
+    viol = gen.lint_descriptor(d, d["schedule"])
+    assert any("value-expecting option" in v and "'--vintage-mode'" in v for v in viol), viol
+
+
+def test_lint_rejects_mid_command_dangling_option(gen, descriptors):
+    """The dangling-arg rule generalizes from the command TAIL to mid-command: a value-expecting
+    option immediately followed by ANOTHER --opt (its value silently dropped) is rejected the same as
+    a trailing dangle. (E.g. ``--series --publish-mode shadow`` -- argparse would consume
+    ``--publish-mode`` as --series' value or exit 2.)"""
+    d = _one_descriptor(descriptors, "nass_crop_progress")
+    bronze = next(p for p in d["phases"] if p["name"] == "bronze")
+    bronze["tasks"][0]["command"] = [
+        "jobs/batch/nass_task.py", "--series", "--publish-mode", "shadow",
+    ]
+    viol = gen.lint_descriptor(d, d["schedule"])
+    assert any("immediately followed by another option" in v and "'--series'" in v for v in viol), viol
+
+
+def test_lint_accepts_store_true_flag_immediately_before_next_option(gen, descriptors):
+    """The mid-command generalization must NOT false-positive on a genuine store_true flag sitting
+    directly before the next --opt: --force-overwrite (whitelisted) before --publish-mode is clean."""
+    d = _one_descriptor(descriptors, "fx_macro_daily")
+    t = d["phases"][0]["tasks"][0]
+    t["command"] = [
+        "-m", "jobs.batch.frankfurter_fx_task", "--force-overwrite", "--publish-mode", "shadow",
+    ]
+    viol = gen.lint_descriptor(d, d["schedule"])
+    assert not any("value-expecting option" in v for v in viol), viol
 
 
 def test_nass_crop_progress_bronze_renders_series_all(gen, descriptors):
