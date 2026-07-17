@@ -88,12 +88,7 @@ export function putProfile(update: ProfileUpdate): Promise<Profile> {
 /** The resolved source-PDF pointer: a presigned URL (~900s), the 1-indexed `page` the cited passage was
  *  found on (`null` when it couldn't be localized — the modal opens at the top), the raw `kind`
  *  (pdf/html/txt), and the presign TTL. Mirrors the backend `CitationPdf` model. */
-export interface PdfPage {
-  url: string;
-  page: number | null;
-  kind: string;
-  expires_in: number;
-}
+export type PdfPage = Schemas['CitationPdf'];
 
 /** Resolve a citation's source PDF + page. `snippet`/`charStart`/`offsetKind` come off the chip's doc
  *  locator (6.5): a char offset resolves an EXACT page for new/E4 props, the snippet drives server-side
