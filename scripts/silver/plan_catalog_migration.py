@@ -17,8 +17,7 @@ import json
 from pathlib import Path
 
 from leviathan.common.publish_guard import Authorization, PublishMode
-from leviathan.silver import catalog
-from leviathan.silver.migrate import CatalogMigrator, ChangeType, build_desired_table
+from leviathan.silver.migrate import CatalogMigrator
 from leviathan.silver.registry import load_registry
 
 _REPO = Path(__file__).resolve().parents[2]

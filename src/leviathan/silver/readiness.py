@@ -39,7 +39,7 @@ and goes GREEN only when zero tables are BLOCKED -- which is NOT the case today.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 
 # ---------------------------------------------------------------------------

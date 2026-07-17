@@ -13,7 +13,6 @@ import sys
 from typing import Iterable
 
 import boto3
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))

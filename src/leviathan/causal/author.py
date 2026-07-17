@@ -18,7 +18,6 @@ import collections
 import json
 import re
 from datetime import date
-from pathlib import Path
 
 from leviathan.causal import schema as cs
 from leviathan.causal import validate as cval

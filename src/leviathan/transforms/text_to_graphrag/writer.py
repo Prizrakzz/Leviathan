@@ -19,7 +19,6 @@ import io
 import logging
 from typing import List
 
-import boto3
 import pyarrow as pa
 import pyarrow.parquet as pq
 

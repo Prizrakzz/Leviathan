@@ -24,7 +24,6 @@ Pure + AWS-free + ASCII only. ``pyarrow`` is the only dependency.
 """
 from __future__ import annotations
 
-from typing import Optional
 
 import pandas as pd
 import pyarrow as pa

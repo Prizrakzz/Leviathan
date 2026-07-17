@@ -36,7 +36,6 @@ is re-checked immediately before every mutation.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Optional, Sequence

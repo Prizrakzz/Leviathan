@@ -122,7 +122,6 @@ def _key_exists(s3_client, bucket: str, key: str) -> bool:
 
 
 def _upload_parquet(s3_client, bucket: str, key: str, df) -> None:
-    import pandas as pd  # noqa: PLC0415 (local import to keep boto3 import at top)
     buf = io.BytesIO()
     df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
     s3_client.put_object(

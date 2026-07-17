@@ -25,7 +25,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from leviathan.transforms.raw_to_text.schema import DocumentJson, Section
+from leviathan.transforms.raw_to_text.schema import DocumentJson
 from leviathan.transforms.raw_to_text.wasde_digital import _split_sections
 
 # Wayback Machine CDX base — sub-page URLs found in TOC pages are relative

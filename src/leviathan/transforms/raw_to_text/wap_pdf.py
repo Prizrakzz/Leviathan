@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 
 import pdfplumber
 
-from leviathan.transforms.raw_to_text.schema import DocumentJson, Section
+from leviathan.transforms.raw_to_text.schema import DocumentJson
 from leviathan.transforms.raw_to_text.wasde_digital import _split_sections
 
 # Pages 0–5 are commodity narrative; page 6 is Table 01 (separate pipeline).

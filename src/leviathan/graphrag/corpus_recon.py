@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import collections
-import io
 import json
 import re
 from datetime import datetime, timezone

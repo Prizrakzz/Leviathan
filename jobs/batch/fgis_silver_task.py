@@ -73,7 +73,6 @@ from leviathan.storage.s3 import (
 )
 from leviathan.transforms.bronze_to_silver.usda_fgis import (
     OUTPUT_COLUMNS,
-    _SLUG_MY_START_MONTH,
     transform_fgis_bronze_to_silver,
 )
 

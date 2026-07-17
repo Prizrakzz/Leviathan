@@ -35,7 +35,7 @@ import argparse
 import io
 import logging
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from leviathan.common.config import get_required_env, load_env
@@ -75,7 +75,6 @@ def _write_shards(
     Returns:
         ``(written, skipped, errors)``
     """
-    import pandas as pd
 
     def _write_one(args: tuple) -> tuple[str, str]:
         series, slug, year, shard_df, b_key = args

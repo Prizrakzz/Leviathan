@@ -20,7 +20,7 @@ guessing from the name.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from leviathan.silver.registry import SilverRegistry, load_registry

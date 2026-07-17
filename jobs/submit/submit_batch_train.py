@@ -18,7 +18,6 @@ import argparse
 import itertools
 import logging
 import os
-from datetime import date
 from pathlib import Path
 
 from leviathan.common.batch_submit import submit_batch_jobs, write_run_record

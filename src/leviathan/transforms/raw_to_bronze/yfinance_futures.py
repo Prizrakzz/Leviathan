@@ -32,7 +32,6 @@ not for return-based features without roll masking.
 from __future__ import annotations
 
 import io
-import math
 
 import numpy as np
 import pandas as pd

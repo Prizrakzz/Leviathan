@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Optional
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger

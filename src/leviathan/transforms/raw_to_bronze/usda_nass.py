@@ -28,7 +28,6 @@ Only rows whose ``commodity_desc`` appears in this map are retained.
 from __future__ import annotations
 
 import io
-from collections import defaultdict
 
 import pandas as pd
 

@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import calendar as _calmod
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, Iterable, Optional, Sequence
 

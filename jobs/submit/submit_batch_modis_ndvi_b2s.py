@@ -23,7 +23,6 @@ import yaml
 
 from leviathan.common.batch_submit import submit_batch_jobs, write_run_record
 from leviathan.common.config import get_required_env, load_env
-from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 from leviathan.storage.metadata import utc_now_iso
 

@@ -7,7 +7,7 @@ export const MAX_ATTACH = 4; // §II: GET-only stream, URL-safe JSON, cap <=4 (b
 export type AttachedChip = ContextAttachment & { key: string; label: string };
 
 /** Stable identity for dedupe (matches the backend's own validation targets). */
-export function chipKey(a: ContextAttachment): string {
+function chipKey(a: ContextAttachment): string {
   switch (a.type) {
     case 'node':
       return `node:${a.contract}:${a.driver_id}`;

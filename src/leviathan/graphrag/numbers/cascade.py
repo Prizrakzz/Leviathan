@@ -17,7 +17,6 @@ US exports up -- the flow found a new door).
 from __future__ import annotations
 
 import functools
-import os
 
 from leviathan.graphrag import params as _pr
 from leviathan.graphrag.numbers import query as Q

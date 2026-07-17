@@ -18,9 +18,6 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-from leviathan.model_datasets.wasde_snapshot_anomaly_audit import (
-    SNAPSHOT_KEY_WITHOUT_TARGET,
-)
 from leviathan.model_datasets.wasde_snapshot_targets import GROUP_KEY as TARGET_GROUP_KEY
 
 SNAPSHOT_SCORE_ID_COLUMNS = [

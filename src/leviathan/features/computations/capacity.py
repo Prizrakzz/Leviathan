@@ -12,7 +12,6 @@ own frost is in-season information carried by ``frost_event_flag``.
 """
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from leviathan.features.computations.base import (

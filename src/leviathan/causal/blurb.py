@@ -25,7 +25,6 @@ import json
 import shutil
 import sys
 import time
-from pathlib import Path
 
 from leviathan.causal import schema as cs
 from leviathan.causal import validate as cval

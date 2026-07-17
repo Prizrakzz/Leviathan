@@ -22,7 +22,7 @@ function field(raw: string, key: string): string {
 }
 
 /** Extract the (possibly partial) tldr + mechanism from the accumulating tool-input JSON. */
-export function streamingPreview(raw: string): { tldr: string; mechanism: string } {
+function streamingPreview(raw: string): { tldr: string; mechanism: string } {
   try {
     const o = JSON.parse(raw) as { tldr?: string; mechanism?: string };
     return { tldr: o.tldr ?? '', mechanism: o.mechanism ?? '' };

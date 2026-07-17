@@ -45,7 +45,6 @@ retire count). The rebuild/load wrappers wire this diff in as an opt-in gate.
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 

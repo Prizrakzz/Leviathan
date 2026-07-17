@@ -32,7 +32,6 @@ import argparse
 import io
 import logging
 import sys
-from datetime import datetime, timezone
 
 import requests
 

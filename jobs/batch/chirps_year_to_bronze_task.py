@@ -24,7 +24,7 @@ from datetime import date, datetime, timezone
 
 import pandas as pd
 
-from leviathan.common.constants import ALL_COMMODITIES, CHIRPS_START_YEAR
+from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 from leviathan.common.types import Region
 from leviathan.ingestion.weather.chirps import fetch_chirps_daily_values

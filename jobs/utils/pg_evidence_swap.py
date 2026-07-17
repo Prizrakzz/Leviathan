@@ -40,7 +40,6 @@ flipping. The guard runs OUTSIDE the swap transaction (a plain read), so a refus
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
 from leviathan.common import config

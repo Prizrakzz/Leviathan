@@ -56,12 +56,6 @@ export const SPACE = { dense: '4px' } as const;
 /** Deliberately tight — instrument-like. chip/input = 2px, panel/card = 4px. */
 export const RADIUS = { none: '0px', DEFAULT: '2px', chip: '2px', panel: '4px' } as const;
 
-/** Motion durations (ms): fast + functional, no decoration. */
-export const MOTION = { hover: 120, panel: 200, chip: 90 } as const;
-
-/** Regime-state -> token name (design §2.1). */
-export const REGIME_STATE = { dormant: 'text-faint', armed: 'amber', firing: 'amber' } as const;
-
 /**
  * P9-E2: the ONE scrim treatment behind every full-screen overlay (Radix Dialog.Overlay + hand-rolled
  * divs) -- each site keeps its own positioning/z/layout classes. Anchored popovers (UserMenu,

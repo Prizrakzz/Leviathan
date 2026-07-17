@@ -14,7 +14,6 @@ Required args: --commodity, --bucket, --aws_region.  Optional: --force_overwrite
 """
 from __future__ import annotations
 
-import io
 from typing import Iterable
 
 from bootstrap import run_bootstrap

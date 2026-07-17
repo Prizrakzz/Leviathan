@@ -51,7 +51,6 @@ import sys
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Optional
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger

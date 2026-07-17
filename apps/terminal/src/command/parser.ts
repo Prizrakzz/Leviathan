@@ -5,7 +5,7 @@
  * Phase-2 representative subset; the real universe (31 contracts) is injected from the backend in Phase 3.
  */
 
-export const TICKERS: Record<string, string> = {
+const TICKERS: Record<string, string> = {
   KC: 'arabica_coffee',
   RC: 'robusta_coffee',
   SB: 'raw_sugar',

@@ -16,7 +16,6 @@ Optional args: --force_overwrite (default: false)
 """
 from __future__ import annotations
 
-import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable
 

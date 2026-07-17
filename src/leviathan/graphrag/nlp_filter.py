@@ -13,7 +13,6 @@ rules that clear that bar, pick the one with the highest **skip-rate** (calls sa
 from __future__ import annotations
 
 import argparse
-import collections
 import json
 from dataclasses import dataclass
 from pathlib import Path

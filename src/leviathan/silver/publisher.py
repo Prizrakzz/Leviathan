@@ -43,7 +43,6 @@ from typing import Any, Callable, Optional, Sequence
 
 from leviathan.common.logging import get_logger
 from leviathan.common.publish_guard import Authorization, PublishMode
-from leviathan.silver import catalog
 from leviathan.silver.lease import Lease, lease_lock_id
 from leviathan.silver.partition_publish import (
     PartitionPublisher,
