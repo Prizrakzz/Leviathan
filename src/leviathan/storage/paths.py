@@ -2238,35 +2238,6 @@ def snapshot_candidate_certification_key(
     )
 
 
-def raw_chris_key(slug: str, tenor: int) -> str:
-    """S3 key for a Quandl CHRIS raw JSON file (one per slug × tenor).
-
-    Args:
-        slug:  Leviathan slug, e.g. ``"corn_cbot"``.
-        tenor: 1 (front month), 2, or 3.
-    """
-    return f"raw/production/source=quandl_chris/{slug}/tenor={tenor}/part-000.json"
-
-
-def bronze_chris_key(slug: str, tenor: int) -> str:
-    """S3 key for a Quandl CHRIS bronze Parquet (one per slug × tenor).
-
-    Args:
-        slug:  Leviathan slug.
-        tenor: 1, 2, or 3.
-    """
-    return f"bronze/production/source=quandl_chris/{slug}/tenor={tenor}/part-000.parquet"
-
-
-def silver_calendar_spreads_key() -> str:
-    """S3 key for the Quandl CHRIS calendar spreads silver Parquet.
-
-    Long format — one row per (date, leviathan_slug).  Contains C1/C2/C3
-    settlement prices, C1–C3 calendar spread, and 3yr rolling z-score.
-    """
-    return "silver/calendar_spreads/part-000.parquet"
-
-
 # ---------------------------------------------------------------------------
 # CONAB text and silver keys
 # ---------------------------------------------------------------------------
