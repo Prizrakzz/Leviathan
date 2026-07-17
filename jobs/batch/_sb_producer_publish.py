@@ -114,12 +114,9 @@ def publish_flat_silver(
     # check fails closed on an empty account/role (live-caught at the BF-W3 FX window -- dry-run
     # and shadow never reach check_environment, so T1-T5 cannot expose a blank identity).
     if not account_id and not role_arn:
-        try:
-            import boto3
-            ident = boto3.client("sts").get_caller_identity()
-            account_id, role_arn = ident.get("Account", ""), ident.get("Arn", "")
-        except Exception:  # noqa: BLE001 -- offline dry-run stays authorized without identity
-            pass
+        from leviathan.common.aws_identity import resolve_caller_identity
+
+        account_id, role_arn = resolve_caller_identity()
 
     reg = load_registry()
     contract = reg.table(table_name)

@@ -153,15 +153,6 @@ def raw_gain_key(
     )
 
 
-def raw_gain_coffee_key(
-    country_iso2: str,
-    publication_date: str,
-    filename: str,
-) -> str:
-    """S3 key for a USDA FAS GAIN Coffee Annual / Semi-annual report PDF."""
-    return raw_gain_key("usda_gain_coffee", country_iso2, publication_date, filename)
-
-
 def raw_conab_key(
     crop_year: str,
     survey_number: int,

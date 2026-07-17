@@ -38,14 +38,16 @@ _TABLE = "silver_ams_cotton_quality"
 _BRONZE_PREFIX = "bronze/production/source=usda_ams_cotton_classing/"
 
 
-def _caller_identity(aws_region: str):
-    try:
-        import boto3
-        ident = boto3.client("sts", region_name=aws_region).get_caller_identity()
-        return ident.get("Account", ""), ident.get("Arn", "")
-    except Exception as exc:  # noqa: BLE001
-        logger.info("STS identity unavailable (%s); dry-run only", exc)
-        return "", ""
+def _caller_identity(aws_region: str) -> tuple[str, str]:
+    """Best-effort STS identity for the canonical publish target (empty on failure).
+
+    Thin wrapper over the shared resolver ``leviathan.common.aws_identity.resolve_caller_identity``
+    (the one idiom the batch-task family shares). Kept as a module-level seam so tests can
+    monkeypatch it and readiness/unit runs stay AWS-free; an empty identity still makes the publish
+    guard fail closed on the canonical path exactly as before."""
+    from leviathan.common.aws_identity import resolve_caller_identity
+
+    return resolve_caller_identity(aws_region)
 
 
 def _read_bronze_corpus(bucket: str, prefix: str, aws_region: str) -> pd.DataFrame:

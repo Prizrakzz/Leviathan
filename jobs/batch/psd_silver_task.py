@@ -72,16 +72,15 @@ def _download_parquet(s3_client, bucket: str, key: str) -> pd.DataFrame:
 
 
 def _caller_identity(aws_region: str) -> tuple[str, str]:
-    """Best-effort STS identity for the canonical publish target. Returns (account_id, role_arn);
-    empty strings when no credentials are available (fine for dry-run / shadow, which skip the
-    environment check)."""
-    try:
-        import boto3
-        ident = boto3.client("sts", region_name=aws_region).get_caller_identity()
-        return ident.get("Account", ""), ident.get("Arn", "")
-    except Exception as exc:  # noqa: BLE001 -- dry-run / shadow must not require live credentials
-        logger.info("STS identity unavailable (%s); using empty target (dry-run/shadow only)", exc)
-        return "", ""
+    """Best-effort STS identity for the canonical publish target (empty on failure).
+
+    Thin wrapper over the shared resolver ``leviathan.common.aws_identity.resolve_caller_identity``
+    (the one idiom the batch-task family shares). Kept as a module-level seam so tests can
+    monkeypatch it and readiness/unit runs stay AWS-free; an empty identity still makes the publish
+    guard fail closed on the canonical path exactly as before."""
+    from leviathan.common.aws_identity import resolve_caller_identity
+
+    return resolve_caller_identity(aws_region)
 
 
 # ---------------------------------------------------------------------------
