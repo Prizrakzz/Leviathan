@@ -30,9 +30,10 @@ EXPECTED_SCHEDULES = {
 # The module-form producers named in A-W6 (invocation form [m] = -m jobs.batch.X).
 # quandl_chris DEFERRED from the futures_prices chain 2026-07-17 (NASDAQ_API_KEY never
 # provisioned; credentials are user-handled) -- re-add here when the task returns.
+# quandl_chris RETIRED permanently 2026-07-17: Nasdaq paywalled CHRIS (403 on all
+# series with a free key). yfinance is the futures source.
 EXPECTED_MODULE_PRODUCERS = {
     "frankfurter_fx", "noaa_iod", "wap_silver", "sagis_deliveries", "psd_silver",
-    "quandl_chris",  # restored 2026-07-17 (NASDAQ_API_KEY provisioned)
 }
 
 

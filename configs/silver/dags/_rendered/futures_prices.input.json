@@ -48,18 +48,6 @@
           "integration": "batch",
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand"
-        },
-        {
-          "command": [
-            "-m",
-            "jobs.batch.quandl_chris_task",
-            "--publish-mode",
-            "shadow"
-          ],
-          "env": [],
-          "integration": "batch",
-          "jobdef": "leviathan-dev-quandl-chris",
-          "queue": "leviathan-dev-queue-ondemand"
         }
       ]
     }

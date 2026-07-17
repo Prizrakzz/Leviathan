@@ -57,23 +57,9 @@
           "env": {},
           "publishes": true,
           "publish_mode": "latest_only"
-        },
-        {
-          "id": "quandl_chris",
-          "invocation_form": "m",
-          "integration": "batch",
-          "jobdef": "leviathan-dev-quandl-chris:1",
-          "queue": "leviathan-dev-queue-ondemand",
-          "command": [
-            "-m",
-            "jobs.batch.quandl_chris_task"
-          ],
-          "env": {},
-          "publishes": true,
-          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "yfinance_futures_task MUST pass --force-overwrite (else the run is a no-op); one run self-heals. quandl_chris_task is module form [m]. CLASS-B latest-only; held DISABLED until the A-W4 retrofit. quandl_chris DEFERRED 2026-07-17 (user decision): requires NASDAQ_API_KEY never provisioned (credentials are user-handled); yfinance EOD covers the 12 continuous contracts and the gate table. Re-add once the key exists in Secrets Manager (leviathan/dev/nasdaq-api-key) + jobdef secret wiring. quandl_chris RESTORED 2026-07-17: NASDAQ_API_KEY provisioned in Secrets Manager, injected via the dedicated leviathan-dev-quandl-chris jobdef secrets block (scoped exec-role read)."
+  "notes": "yfinance_futures_task MUST pass --force-overwrite (else the run is a no-op); one run self-heals. quandl_chris_task is module form [m]. CLASS-B latest-only; held DISABLED until the A-W4 retrofit. quandl_chris DEFERRED 2026-07-17 (user decision): requires NASDAQ_API_KEY never provisioned (credentials are user-handled); yfinance EOD covers the 12 continuous contracts and the gate table. Re-add once the key exists in Secrets Manager (leviathan/dev/nasdaq-api-key) + jobdef secret wiring. quandl_chris RETIRED PERMANENTLY 2026-07-17 (user decision): Nasdaq paywalled the CHRIS dataset -- the provisioned free key gets HTTP 403 on all 36 series; wiring itself was proven (auth calls went out). yfinance is THE futures source (12 front-month continuous, feeds the gated silver_futures_prices). Curve depth (C2/C3, term structure) = roadmap item with a real vendor (CME DataMine / Databento). The leviathan-dev-quandl-chris jobdef + nasdaq secret remain provisioned but unused."
 }
