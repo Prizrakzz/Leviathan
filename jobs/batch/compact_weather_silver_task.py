@@ -34,8 +34,14 @@ import pyarrow.parquet as pq
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.common.publish_guard import PublishTarget, authorize_publish
-from leviathan.silver.publisher import PublishStrategy, ShadowPublisher, StagedObject, ValidationHooks
-from leviathan.storage.paths import parse_hive_key
+from leviathan.silver.publisher import (
+    ManifestState,
+    PublishStrategy,
+    ShadowPublisher,
+    StagedObject,
+    ValidationHooks,
+)
+from leviathan.storage.paths import parse_hive_key, weather_staging_prefix
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
     list_s3_keys,
@@ -86,26 +92,63 @@ def _read_frame(bucket: str, key: str, aws_region: str) -> pd.DataFrame | None:
         return None
 
 
+def _retire_staging(s3_client, bucket: str, keys: list[str]) -> int:
+    """Best-effort delete of the ``_staging`` month objects a CANONICAL compaction consumed.
+
+    Staging lives OUTSIDE the ``commodity=`` data plane (the feature extractor + gold reader never
+    list it), so a delete failure never corrupts canonical -- it just leaves those month objects to be
+    re-merged (idempotently, keep-last) on the next run. Hence best-effort: logged, never fatal, and
+    only reached AFTER the compacted [commodity, year] object is CERTIFIED (the data is already
+    safely in canonical). Shadow/dry-run never retires (the canonical promote leg still needs it)."""
+    retired = 0
+    for k in keys:
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=k)
+            retired += 1
+        except Exception as exc:  # noqa: BLE001 -- staging is outside the data plane; a leftover is re-merged
+            logger.warning("staging retire failed (left in place, re-merged next run): %s: %s", k, exc)
+    return retired
+
+
 def _compact_one_commodity(bucket: str, source: str, table: str, commodity: str, aws_region: str,
                            auth, glue_client) -> dict:
-    prefix = _source_prefix(source, commodity)
-    keys = list_s3_keys(bucket, prefix, suffix=".parquet", aws_region=aws_region)
-    if not keys:
-        logger.info("no projected silver for source=%s commodity=%s", source, commodity)
+    # Read BOTH tiers: the coarse canonical [commodity, year] objects AND the per-source b2s month-grain
+    # staged under _staging/ (OUTSIDE commodity=). compact merges staging UNION canonical within a year
+    # and re-publishes the coarse object canonically, so fresh b2s data reaches canonical WITHOUT ever
+    # minting a month-grain object under commodity= (which the extractor + gold would double-read).
+    canonical_keys = list_s3_keys(bucket, _source_prefix(source, commodity), suffix=".parquet",
+                                  aws_region=aws_region)
+    staging_keys = list_s3_keys(bucket, weather_staging_prefix(source, commodity), suffix=".parquet",
+                                aws_region=aws_region)
+    if not canonical_keys and not staging_keys:
+        logger.info("no silver (canonical or staging) for source=%s commodity=%s", source, commodity)
         return {"commodity": commodity, "units": 0, "state": "empty"}
 
-    by_year: dict[int, list[str]] = defaultdict(list)
-    for k in keys:
+    canonical_by_year: dict[int, list[str]] = defaultdict(list)
+    for k in canonical_keys:
         y = _year_from_key(k)
         if y is not None:
-            by_year[y].append(k)
-    units = compaction_plan(source, table, commodity, by_year)
-    logger.info("source=%s commodity=%s: %d month objects -> %d (commodity,year) units",
-                source, commodity, len(keys), len(units))
+            canonical_by_year[y].append(k)
+    staging_by_year: dict[int, list[str]] = defaultdict(list)
+    for k in staging_keys:
+        y = _year_from_key(k)
+        if y is not None:
+            staging_by_year[y].append(k)
+
+    # Incremental: recompact ONLY the years carrying NEW staging month-grain (the daily/backfill b2s
+    # stages exactly those). Years present only in canonical are already compacted and left untouched
+    # (bounded daily cost). With NO staging at all, fall back to recompacting the existing canonical
+    # years so this stays a valid standalone canonical-only re-mint (idempotent).
+    compact_targets = dict(staging_by_year) if staging_by_year else dict(canonical_by_year)
+    units = compaction_plan(source, table, commodity, compact_targets)
+    logger.info("source=%s commodity=%s: %d staging + %d canonical objects -> %d (commodity,year) units",
+                source, commodity, len(staging_keys), len(canonical_keys), len(units))
 
     staged: list[StagedObject] = []
+    consumed_staging: list[str] = []
     for unit in units:
-        frames = [_read_frame(bucket, k, aws_region) for k in by_year[unit.year]]
+        src_keys = list(canonical_by_year.get(unit.year, [])) + list(staging_by_year.get(unit.year, []))
+        frames = [_read_frame(bucket, k, aws_region) for k in src_keys]
         frames = [f for f in frames if f is not None and not f.empty]
         if not frames:
             continue
@@ -119,6 +162,7 @@ def _compact_one_commodity(bucket: str, source: str, table: str, commodity: str,
             row_count=len(compacted),
             null_metrics=nonnull,
         ))
+        consumed_staging.extend(staging_by_year.get(unit.year, []))
 
     s3_client = get_thread_local_s3_client(aws_region)
     canonical_root = f"s3://{bucket}/{_SILVER_WEATHER}/source={source}"
@@ -130,10 +174,19 @@ def _compact_one_commodity(bucket: str, source: str, table: str, commodity: str,
         run_id=f"{table}-{commodity}",
     )
     manifest = publisher.run(staged)
-    logger.info("source=%s commodity=%s: publish %s (%d objects, mode=%s)",
-                source, commodity, manifest.state.value, len(staged), auth.mode.value)
+
+    # Retire the consumed staging month objects ONLY after the coarse object is CERTIFIED in canonical
+    # (canonical mode). Shadow/dry-run leaves staging in place for the canonical promote leg to consume.
+    retired = 0
+    if auth.may_mutate_canonical and manifest.state is ManifestState.CERTIFIED and consumed_staging:
+        retired = _retire_staging(s3_client, bucket, consumed_staging)
+
+    logger.info("source=%s commodity=%s: publish %s (%d objects, mode=%s, staging_retired=%d)",
+                source, commodity, manifest.state.value, len(staged), auth.mode.value, retired)
     return {"commodity": commodity, "units": len(staged), "state": manifest.state.value,
-            "file_collapse": {"from_month_objects": len(keys), "to_year_objects": len(staged)}}
+            "staging_retired": retired,
+            "file_collapse": {"from_staging_objects": len(staging_keys),
+                              "canonical_objects": len(canonical_keys), "to_year_objects": len(staged)}}
 
 
 def _nonnull_fraction(df: pd.DataFrame) -> dict:

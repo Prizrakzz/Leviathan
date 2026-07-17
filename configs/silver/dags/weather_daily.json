@@ -3,12 +3,12 @@
   "family": "weather",
   "wave": 3,
   "cron": "cron(0 8 * * ? *)",
-  "publish_class": "B(per-year)+A(compact)",
+  "publish_class": "A(compact shadow+gate+canonical)",
   "retrofit_required": false,
   "retrofit_landed": true,
   "promote_mode": "autonomous",
   "auth_mode": "kms",
-  "skip_existing": false,
+  "skip_existing": true,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
     "silver_chirps",
@@ -26,7 +26,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->bronze(glue|batch)->per-year silver->compact(A)->gold_weather_z",
+  "chain_shape": "fetch->bronze(glue|batch)->[b2s->_staging x3 + compact-shadow x3 + gold]->gate->promote(compact-canonical x3)",
   "phases": [
     {
       "name": "fetch",
@@ -38,7 +38,10 @@
           "jobdef": "leviathan-dev-nasa-power-backfill:3",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_nasa_power.py"
+            "jobs/ingest/fetch_nasa_power.py",
+            "--commodity",
+            "all",
+            "--skip-existing-s3"
           ],
           "env": {},
           "publishes": false
@@ -135,13 +138,51 @@
           "publish_mode": "latest_only"
         },
         {
-          "id": "compact_weather_silver",
+          "id": "compact_weather_silver_nasa_power",
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-weather-compact:4",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/compact_weather_silver_task.py"
+            "jobs/batch/compact_weather_silver_task.py",
+            "--source",
+            "nasa_power",
+            "--commodity",
+            "all"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "compact_weather_silver_chirps",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-weather-compact:4",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/batch/compact_weather_silver_task.py",
+            "--source",
+            "chirps",
+            "--commodity",
+            "all"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "compact_weather_silver_cpc_soil",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-weather-compact:4",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/batch/compact_weather_silver_task.py",
+            "--source",
+            "cpc_soil",
+            "--commodity",
+            "all"
           ],
           "env": {},
           "publishes": true,
@@ -162,7 +203,8 @@
             "jobs/batch/gold_weather_z_task.py",
             "--commodity",
             "all",
-            "--force-overwrite"
+            "--force-overwrite",
+            "true"
           ],
           "env": {},
           "publishes": true,
@@ -171,7 +213,7 @@
       ]
     }
   ],
-  "one_off_backfill": "windowed last-published->today (nasa_power/chirps/cpc)",
+  "one_off_backfill": "none for a within-year gap: the current-year self-window + skip-existing fetchers self-heal on the first canary; a cross-year gap needs a windowed backfill (see notes)",
   "gate_id": "G7",
-  "notes": "Glue+batch mix (nasa_power r2b/b2s are Glue; chirps/cpc are Batch). 4-wide silver Map (nasa_power[g]/chirps/cpc/compact) + dependent gold phase (gold_weather_z, folded here -- it has no own schedule). compact_weather_silver is the guarded (A) producer whose downstream gate protects the latest-only per-source b2s + gold_weather_z, so per A-W4 those need NO retrofit. GATED one-off windowed backfill (G7, last-published->today for nasa_power/chirps/cpc) BEFORE enable; ongoing = logical_date-minus-horizon. Family gate spans all 5 weather tables; silver_modis_ndvi is refreshed by the separate modis_biweekly schedule."
+  "notes": "COHERENCE (SILVER-F047): compact_weather_silver reads per-source SILVER (silver/weather/source=<s>/commodity=<c>/), NOT bronze, so per-source b2s MUST run to advance silver -- but b2s write MONTH-grain and the ShadowPublisher never retires, so a b2s write under commodity= would leave month-grain alongside the compacted year-grain and extractors._paths_with_year_partitions + gold_weather_z._read_long would DOUBLE-READ every weather row (the hazard retire_projected_weather_task exists for). DESIGN: the 3 b2s write month-grain to the _staging tier (silver/weather/source=<s>/_staging/commodity=<c>/..., OUTSIDE the commodity= data plane, invisible to the extractor + gold); the 3 compact tasks read canonical UNION _staging, merge within-year, publish the coarse [commodity, year] object canonically (shadow in [Silver], canonical in [Promote]), then RETIRE (best-effort delete) the staging months they consumed. Canonical stays clean year-grain. b2s self-window to the CURRENT year on the daily 'all' path (bounded staging) and process every year on a named-commodity backfill (unchanged). DATA-FLOW: fetch(nasa raw / chirps bronze / cpc raw) -> bronze(nasa r2b glue / cpc r2b batch) -> [Silver serialized Map: b2s x3 -> _staging ; compact x3 --publish-mode shadow ; gold_weather_z folded LAST reads canonical] -> [Gate over 5 weather tables] -> [Promote serialized: compact x3 --publish-mode canonical under silver-publisher-runner + KMS] -> [Reconcile]. GOLD LAG: gold_weather_z is latest_only reading canonical directly, so it runs on its OWN gold-weather-z jobdef in the folded silver phase and reflects the PREVIOUS cycle's fully-promoted canonical (this cycle's compact-canonical lands in [Promote], AFTER gold). For a MONTHLY z-anomaly refreshed daily this one-cycle lag is immaterial, converges within 24h, and gold never reads an in-flight (mid-promote) canonical. Putting gold in [Promote] was rejected: the renderer routes every promote task to leviathan-dev-silver-publisher-runner (not gold's embedder jobdef, which its heavy raw-weather transform is sized for). G7: chirps silver/bronze current to ~May-2026 and cpc raw to 2026-05-22 -- both WITHIN the current year -- so the current-year self-window + skip-existing fetchers refetch Jun/Jul on the FIRST canary and no separate one-off backfill is needed; a cross-year gap would need per-source `--commodity all --start-year <Y> --end-year <cur>` (nasa) / `--year <Y>` (chirps/cpc). Family gate spans all 5 weather tables; silver_modis_ndvi is refreshed by the separate modis_biweekly schedule."
 }

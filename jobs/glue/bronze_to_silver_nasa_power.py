@@ -27,7 +27,12 @@ run_bootstrap()
 import pandas as pd
 
 from leviathan.common.logging import get_logger
-from leviathan.storage.base_jobs import BaseBronzeToSilverJob, select_partitions_to_write
+from leviathan.storage.base_jobs import (
+    BaseBronzeToSilverJob,
+    filter_keys_by_year,
+    select_partitions_to_write,
+)
+from leviathan.storage.paths import silver_weather_staging_key
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
     list_s3_keys_with_mtime,
@@ -44,6 +49,7 @@ logger = get_logger("bronze_to_silver_nasa_power")
 
 class NasaPowerBronzeToSilver(BaseBronzeToSilverJob):
     source = "nasa_power"
+    staging = True  # month-grain -> _staging tier; compact publishes the canonical [commodity, year]
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return nasa_power_bronze_to_silver(df, source_label=f"{self.source}/{self.commodity}")
@@ -58,10 +64,9 @@ class NasaPowerBronzeToSilver(BaseBronzeToSilverJob):
             )
 
     def _silver_key(self, key_dict: dict) -> str:
-        return (
-            f"silver/weather/source=nasa_power/commodity={self.commodity}"
-            f"/country={key_dict['country']}/region={key_dict['region']}"
-            f"/year={key_dict['year']}/month={key_dict['month']:02d}/part-000.parquet"
+        return silver_weather_staging_key(
+            "nasa_power", self.commodity, key_dict["country"], key_dict["region"],
+            int(key_dict["year"]), int(key_dict["month"]), "part-000.parquet",
         )
 
     def _write_partition(self, key_dict: dict, part_df: pd.DataFrame) -> str:
@@ -81,10 +86,14 @@ class NasaPowerBronzeToSilver(BaseBronzeToSilverJob):
             self.bucket, self.bronze_prefix(), suffix=".parquet", aws_region=self.aws_region
         )
         bronze_keys = sorted(bronze_objects)
-        self._bronze_max_mtime = max(bronze_objects.values()) if bronze_objects else None
+        if self.year_window is not None:
+            bronze_keys = filter_keys_by_year(bronze_keys, self.year_window)
+        self._bronze_max_mtime = (
+            max((bronze_objects[k] for k in bronze_keys), default=None) if bronze_keys else None
+        )
         if not bronze_keys:
-            logger.warning("No bronze for commodity=%s source=%s -- nothing to do.",
-                           self.commodity, self.source)
+            logger.warning("No bronze for commodity=%s source=%s year_window=%s -- nothing to do.",
+                           self.commodity, self.source, self.year_window)
             return
 
         frames: list[pd.DataFrame] = []
@@ -146,4 +155,8 @@ class NasaPowerBronzeToSilver(BaseBronzeToSilverJob):
             raise RuntimeError(f"nasa_power b2s: {read_failed} read / {write_failed} write failures.")
 
 
-NasaPowerBronzeToSilver().run()
+# Thin-contract entry (A-Wave-3): --commodity all (default) iterates every commodity discovered under
+# the nasa_power bronze prefix, self-windowed to the current year; a named --commodity in the Glue
+# DefaultArguments preserves the single-commodity backfill (all years). Glue delivers job args in
+# sys.argv, so the raw-argv thin-contract runner needs no getResolvedOptions here.
+NasaPowerBronzeToSilver.run_thin_contract()

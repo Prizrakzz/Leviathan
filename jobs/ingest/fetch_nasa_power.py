@@ -15,9 +15,15 @@ from leviathan.ingestion.weather.nasa_power import fetch_nasa_power_daily
 from leviathan.storage.metadata import utc_now_iso, write_json_metadata
 from leviathan.storage.paths import raw_weather_key
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
-from leviathan.storage.s3 import s3_object_exists, upload_file_to_s3
+from leviathan.storage.s3 import list_s3_keys, s3_object_exists, upload_file_to_s3
 
 logger = get_logger("backfill_raw_nasa_power")
+
+
+def discover_commodities(bucket: str, aws_region: str) -> list[str]:
+    """Commodity slugs from configs/geographies/*_regions.yaml in S3 (thin-contract 'all' sentinel)."""
+    keys = list_s3_keys(bucket, "configs/geographies/", suffix="_regions.yaml", aws_region=aws_region)
+    return sorted(k.split("/")[-1][: -len("_regions.yaml")] for k in keys)
 
 
 def build_raw_filename(
@@ -43,39 +49,14 @@ def build_metadata_key(commodity: str, run_id: str, filename: str) -> str:
     return f"metadata/runs/source=nasa_power/commodity={commodity}/run_id={run_id}/{filename}"
 
 
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    parser = argparse.ArgumentParser()
+def _process_commodity(
+    args: argparse.Namespace, commodity: str, bucket: str, aws_region: str, source_config: dict,
+) -> int:
+    """Fetch NASA POWER raw for ONE commodity over ``[args.start_year, args.end_year]``.
 
-    parser.add_argument("--commodity", required=True)
-    parser.add_argument("--start-year", required=True, type=int)
-    parser.add_argument("--end-year", required=True, type=int)
-
-    parser.add_argument("--country", default=None)
-    parser.add_argument("--region", default=None)
-
-    parser.add_argument("--upload", action="store_true")
-    parser.add_argument("--skip-existing-s3", action="store_true")
-    parser.add_argument("--sleep-seconds", type=float, default=0.5)
-    parser.add_argument("--limit", type=int, default=None)
-
-    args = parser.parse_args()
-
-    # Do not ingest beyond this year without an explicit ML overlap window review.
-    MAX_INGEST_YEAR: int = datetime.date.today().year
-    if args.end_year > MAX_INGEST_YEAR:
-        raise SystemExit(
-            f"ERROR: --end-year {args.end_year} exceeds MAX_INGEST_YEAR={MAX_INGEST_YEAR}. "
-            "Update MAX_INGEST_YEAR only after an explicit ML overlap window review."
-        )
-
-    load_env()
-
-    bucket = get_required_env("LEVIATHAN_BUCKET")
-    aws_region = get_required_env("AWS_REGION")
-
-    source_config = load_yaml("configs/sources/nasa_power.yaml")
-    geography_config = load_yaml(f"configs/geographies/{args.commodity}_regions.yaml")
+    Returns the per-commodity failure count; ``main`` aggregates them across commodities. The window
+    write-gate (never request a not-yet-started month) and per-station skip-existing are unchanged."""
+    geography_config = load_yaml(f"configs/geographies/{commodity}_regions.yaml")
 
     base_url = source_config["base_url"]
     parameters = source_config["parameters"]
@@ -92,7 +73,7 @@ def main() -> None:
     success_count = 0
     failure_count = 0
 
-    logger.info("Starting NASA POWER %s backfill run_id=%s", args.commodity, run_id)
+    logger.info("Starting NASA POWER %s backfill run_id=%s", commodity, run_id)
 
     for window in month_windows(args.start_year, args.end_year):
         # WRITE-GATE (BF-W1): never request a month that has not started -- the API answers
@@ -117,7 +98,7 @@ def main() -> None:
                     continue
 
                 filename = build_raw_filename(
-                    commodity=args.commodity,
+                    commodity=commodity,
                     country=country,
                     region=region,
                     start_date=window.start_yyyymmdd,
@@ -125,7 +106,7 @@ def main() -> None:
                 )
 
                 local_path = build_local_raw_path(
-                    commodity=args.commodity,
+                    commodity=commodity,
                     country=country,
                     region=region,
                     filename=filename,
@@ -133,7 +114,7 @@ def main() -> None:
 
                 s3_key = raw_weather_key(
                     source="nasa_power",
-                    commodity=args.commodity,
+                    commodity=commodity,
                     country=country,
                     region=region,
                     year=window.year,
@@ -146,7 +127,7 @@ def main() -> None:
                 record = {
                     "run_id": run_id,
                     "source": "nasa_power",
-                    "commodity": args.commodity,
+                    "commodity": commodity,
                     "country": country,
                     "region": region,
                     "year": window.year,
@@ -264,7 +245,7 @@ def main() -> None:
     run_summary = {
         "run_id": run_id,
         "source": "nasa_power",
-        "commodity": args.commodity,
+        "commodity": commodity,
         "stage": "raw_backfill",
         "start_year": args.start_year,
         "end_year": args.end_year,
@@ -283,14 +264,14 @@ def main() -> None:
 
     metadata_path = write_json_metadata(
         run_summary,
-        Path(f"data/metadata/runs/nasa_power/{args.commodity}") / f"run_{run_id}.json",
+        Path(f"data/metadata/runs/nasa_power/{commodity}") / f"run_{run_id}.json",
     )
 
     logger.info("Wrote run metadata: %s", metadata_path)
 
     if args.upload:
         metadata_key = build_metadata_key(
-            commodity=args.commodity,
+            commodity=commodity,
             run_id=run_id,
             filename=metadata_path.name,
         )
@@ -303,15 +284,79 @@ def main() -> None:
         logger.info("Uploaded run metadata to s3://%s/%s", bucket, metadata_key)
 
     logger.info(
-        "Backfill complete. success=%s skipped=%s failures=%s api_calls=%s",
+        "NASA POWER %s complete. success=%s skipped=%s failures=%s api_calls=%s",
+        commodity,
         success_count,
         skipped_count,
         failure_count,
         api_call_count,
     )
 
-    if failure_count > 0:
-        raise RuntimeError(f"{failure_count} NASA POWER backfill tasks failed.")
+    return failure_count
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    parser = argparse.ArgumentParser()
+
+    # A-Wave-3 thin-contract: every arg optional. --commodity 'all' iterates every discovered
+    # commodity; --start-year/--end-year self-window to the CURRENT calendar year (with
+    # --skip-existing-s3 a daily run is incremental + self-heals within-year gaps). An explicit
+    # --commodity/--start-year/--end-year is the preserved backfill invocation.
+    parser.add_argument("--commodity", default="all",
+                        help="commodity slug, or 'all' to iterate every discovered commodity (default: all)")
+    parser.add_argument("--start-year", type=int, default=None, help="default: current year")
+    parser.add_argument("--end-year", type=int, default=None, help="default: current year")
+
+    parser.add_argument("--country", default=None)
+    parser.add_argument("--region", default=None)
+
+    # Upload defaults ON for the cloud ingestion contract; --no-upload is the local dry-run escape.
+    parser.add_argument("--upload", dest="upload", action="store_true", default=True)
+    parser.add_argument("--no-upload", dest="upload", action="store_false")
+    parser.add_argument("--skip-existing-s3", action="store_true")
+    parser.add_argument("--sleep-seconds", type=float, default=0.5)
+    parser.add_argument("--limit", type=int, default=None)
+
+    args = parser.parse_args()
+
+    load_env()
+    current_year = datetime.date.today().year
+    if args.start_year is None:
+        args.start_year = current_year
+    if args.end_year is None:
+        args.end_year = current_year
+
+    # Do not ingest beyond this year without an explicit ML overlap window review.
+    if args.end_year > current_year:
+        raise SystemExit(
+            f"ERROR: --end-year {args.end_year} exceeds MAX_INGEST_YEAR={current_year}. "
+            "Update the review gate only after an explicit ML overlap window review."
+        )
+
+    bucket = get_required_env("LEVIATHAN_BUCKET")
+    aws_region = get_required_env("AWS_REGION")
+    source_config = load_yaml("configs/sources/nasa_power.yaml")
+
+    if args.commodity.strip().lower() == "all":
+        commodities = discover_commodities(bucket, aws_region)
+    else:
+        commodities = [args.commodity.strip()]
+    logger.info("NASA POWER fetch: %d commodities, years=%d-%d, upload=%s",
+                len(commodities), args.start_year, args.end_year, args.upload)
+
+    failed: list[str] = []
+    for commodity in commodities:
+        try:
+            fc = _process_commodity(args, commodity, bucket, aws_region, source_config)
+            if fc:
+                failed.append(commodity)
+        except Exception as exc:  # noqa: BLE001 -- one commodity's failure must not kill the rest
+            logger.error("[%s] FAILED: %s: %s", commodity, type(exc).__name__, str(exc)[:300])
+            failed.append(commodity)
+
+    if failed:
+        raise RuntimeError(f"NASA POWER fetch failed for {len(failed)} commodities: {failed[:10]}")
 
 
 if __name__ == "__main__":

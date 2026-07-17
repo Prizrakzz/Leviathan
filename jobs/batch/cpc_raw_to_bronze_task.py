@@ -28,6 +28,7 @@ from datetime import date, datetime, timezone
 
 import pandas as pd
 
+from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.common.types import Region
 from leviathan.ingestion.weather.cpc_soil_moisture import extract_region_values
@@ -255,44 +256,52 @@ def _process_year(
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="CPC raw S3 → bronze Parquet (Batch task)")
+    # A-Wave-3 thin-contract: every arg optional. --commodity defaults to all-discovered, --year
+    # self-windows to the current calendar year (skip-existing makes a scheduled run incremental +
+    # self-healing within-year); explicit --commodity/--year keep the backfill unchanged.
     parser.add_argument("--commodity",       default=None,
                         help="Single commodity to process (default: all discovered from S3).")
-    parser.add_argument("--year",            required=True, type=int)
-    parser.add_argument("--bucket",          required=True)
-    parser.add_argument("--aws_region",      required=True)
+    parser.add_argument("--year",            type=int, default=None,
+                        help="calendar year (default: current year)")
+    parser.add_argument("--bucket",          default=None, help="S3 bucket (default: $LEVIATHAN_BUCKET)")
+    parser.add_argument("--aws_region",      default=None, help="AWS region (default: $AWS_REGION)")
     parser.add_argument("--variable",        default="w")
     parser.add_argument("--ingest_date",     default=date.today().isoformat())
     parser.add_argument("--force_overwrite", default="false")
     args = parser.parse_args()
 
+    load_env()
     force_overwrite = args.force_overwrite.lower() == "true"
+    year = args.year if args.year is not None else date.today().year
+    bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
+    aws_region = args.aws_region or get_required_env("AWS_REGION")
 
-    s3_client = get_thread_local_s3_client(args.aws_region)
+    s3_client = get_thread_local_s3_client(aws_region)
 
-    if args.commodity:
+    if args.commodity and args.commodity.strip().lower() != "all":
         commodities = [args.commodity]
     else:
-        commodities = _discover_commodities(args.bucket, args.aws_region)
+        commodities = _discover_commodities(bucket, aws_region)
         if not commodities:
             raise SystemExit("ERROR: No commodity region configs found in S3 under configs/geographies/")
 
     logger.info(
         "CPC raw → bronze  commodities=%d  variable=%s  year=%d  force_overwrite=%s",
-        len(commodities), args.variable, args.year, force_overwrite,
+        len(commodities), args.variable, year, force_overwrite,
     )
 
     all_commodity_locations = {
-        c: load_commodity_regions(s3_client, args.bucket, c) for c in commodities
+        c: load_commodity_regions(s3_client, bucket, c) for c in commodities
     }
     total_locations = sum(len(v) for v in all_commodity_locations.values())
     logger.info("Loaded %d locations across %d commodities", total_locations, len(commodities))
 
     _process_year(
-        aws_region=args.aws_region,
-        bucket=args.bucket,
+        aws_region=aws_region,
+        bucket=bucket,
         all_commodity_locations=all_commodity_locations,
         variable=args.variable,
-        year=args.year,
+        year=year,
         ingest_date=args.ingest_date,
         force_overwrite=force_overwrite,
     )

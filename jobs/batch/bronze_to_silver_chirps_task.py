@@ -2,13 +2,25 @@
 
 No bootstrap needed — leviathan is installed in the Docker image.
 
-Required job parameters (overridden at submission via Batch parameters):
-  --commodity   e.g. arabica_coffee
-  --bucket      S3 bucket name
-  --aws_region  e.g. us-east-1
+Thin-contract invocation (A-Wave-3 weather_daily retrofit)
+----------------------------------------------------------
+The descriptor invokes this task with NO args; every argument defaults:
+  --commodity   e.g. arabica_coffee, or 'all' to iterate every commodity discovered under
+                ``bronze/weather/source=chirps/commodity=*/`` and self-window each to the CURRENT
+                calendar year (default: all).
+  --bucket      S3 bucket name.            DEFAULT: ``$LEVIATHAN_BUCKET``.
+  --aws_region  e.g. us-east-1.            DEFAULT: ``$AWS_REGION``.
+Single-commodity invocation is the preserved backfill form (``--commodity X --bucket B
+--aws_region R``): it processes that commodity across ALL years unchanged.
 
 Optional:
   --force_overwrite true
+
+Layout coherence (SILVER-F047): month-grain silver is written to the ``_staging`` tier
+(``silver/weather/source=chirps/_staging/commodity=<c>/...``), OUTSIDE the ``commodity=`` data plane.
+compact_weather_silver reads staging UNION canonical and publishes the coarse ``[commodity, year]``
+object canonically; keeping month-grain out of ``commodity=`` is what stops the feature extractor +
+gold reader from double-reading every weather row.
 """
 from __future__ import annotations
 
@@ -18,6 +30,7 @@ from typing import Iterable
 import pandas as pd
 
 from leviathan.storage.base_jobs import BaseBronzeToSilverJob
+from leviathan.storage.paths import silver_weather_staging_key
 from leviathan.storage.s3 import get_thread_local_s3_client
 from leviathan.transforms.bronze_to_silver._weather_schema import (
     CHIRPS_LONG_SCHEMA,
@@ -28,6 +41,7 @@ from leviathan.transforms.bronze_to_silver.chirps_weather import chirps_bronze_t
 
 class ChirpsBronzeToSilver(BaseBronzeToSilverJob):
     source = "chirps"
+    staging = True  # month-grain -> _staging tier; compact publishes the canonical [commodity, year]
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return chirps_bronze_to_silver(df, source_label=f"{self.source}/{self.commodity}")
@@ -42,18 +56,15 @@ class ChirpsBronzeToSilver(BaseBronzeToSilverJob):
             )
 
     def _silver_key(self, key_dict: dict) -> str:
-        return (
-            f"silver/weather/source=chirps/commodity={self.commodity}"
-            f"/country={key_dict['country']}/region={key_dict['region']}"
-            f"/year={key_dict['year']}/month={key_dict['month']:02d}/part-000.parquet"
+        return silver_weather_staging_key(
+            "chirps", self.commodity, key_dict["country"], key_dict["region"],
+            int(key_dict["year"]), int(key_dict["month"]), "part-000.parquet",
         )
 
     def _write_partition(self, key_dict: dict, part_df: pd.DataFrame) -> str:
         """INV-2 override: serialise through the pinned LONG arrow schema (no ``string``/``large_string``
-        drift). NOTE (F045/F047): the BF-W1 value REBUILD must instead route through the registered
-        compaction writer (jobs/batch/compact_weather_silver_task.py), which fixes the NaN values AND
-        avoids re-minting the ~590k tiny-file projected layout -- this projected path stays for the
-        ordinary incremental append."""
+        drift). Writes to the ``_staging`` tier (see module docstring); compact_weather_silver merges
+        staging + canonical and publishes the coarse registered ``[commodity, year]`` object."""
         silver_key = self._silver_key(key_dict)
         body = to_parquet_bytes(part_df, CHIRPS_LONG_SCHEMA)
         get_thread_local_s3_client(self.aws_region).put_object(
@@ -62,5 +73,11 @@ class ChirpsBronzeToSilver(BaseBronzeToSilverJob):
         return silver_key
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-ChirpsBronzeToSilver().run()
+def main() -> None:
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    ChirpsBronzeToSilver.run_thin_contract()
+
+
+if __name__ == "__main__":
+    main()

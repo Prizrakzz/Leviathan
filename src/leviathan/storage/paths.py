@@ -519,6 +519,61 @@ def silver_weather_key(
     )
 
 
+# ---------------------------------------------------------------------------
+# Weather SILVER staging (A1-A2 weather_daily coherence).
+#
+# The per-source bronze->silver producers write MONTH-grain objects, but the
+# canonical weather silver layout is the COMPACTED [commodity, year] grain
+# (SILVER-F047; ``commodity=<c>/year=<y>/part-000.parquet``). Re-minting
+# month-grain objects UNDER ``commodity=<c>/`` would resurrect the ~590k
+# tiny-file layout AND be double-read by every raw-LIST consumer that bounds
+# on ``year=`` (leviathan.features.extractors._paths_with_year_partitions and
+# gold_weather_z._read_long both LIST ``.../source=<s>/commodity=<c>/`` and keep
+# every ``.parquet`` whose key carries a ``year=`` segment). So the daily chain's
+# b2s writes month-grain to a NON-canonical STAGING prefix that sits OUTSIDE the
+# ``commodity=`` data plane -- ``silver/weather/source=<s>/_staging/commodity=<c>/``
+# -- and the compaction job reads staging UNION canonical, merges within-year,
+# and publishes the coarse ``commodity=<c>/year=<y>`` object canonically (through
+# the F015 shadow publisher). Staging is a sibling of ``commodity=`` under the
+# ``source=`` root, so neither the extractor nor gold ever lists it.
+_WEATHER_STAGING_MARKER = "_staging"
+
+
+def weather_staging_prefix(source: str, commodity: str | None = None) -> str:
+    """LIST prefix for the weather silver STAGING tier (b2s -> compact handoff).
+
+    ``silver/weather/source=<source>/_staging/`` (whole source) or
+    ``.../_staging/commodity=<commodity>/`` (one commodity). Lives OUTSIDE the
+    canonical ``commodity=`` data plane, so the feature extractor and gold reader
+    never see it."""
+    base = f"silver/weather/source={source}/{_WEATHER_STAGING_MARKER}/"
+    return base if commodity is None else f"{base}commodity={commodity}/"
+
+
+def silver_weather_staging_key(
+    source: str,
+    commodity: str,
+    country: str,
+    region: str,
+    year: int,
+    month: int,
+    filename: str,
+) -> str:
+    """One MONTH-grain staging object key (mirror of :func:`silver_weather_key` with the
+    ``_staging`` marker inserted after ``source=`` so it sits outside ``commodity=``)."""
+    return (
+        f"silver/weather/"
+        f"source={source}/"
+        f"{_WEATHER_STAGING_MARKER}/"
+        f"commodity={commodity}/"
+        f"country={country}/"
+        f"region={region}/"
+        f"year={year}/"
+        f"month={month:02d}/"
+        f"{filename}"
+    )
+
+
 def raw_mpob_monthly_key(year: int, month: int) -> str:
     """S3 key for an MPOB BEPI monthly release HTML page.
 

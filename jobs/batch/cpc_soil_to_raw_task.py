@@ -24,6 +24,7 @@ from datetime import date, datetime, timezone
 
 import requests
 
+from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.ingestion.weather.cpc_soil_moisture import (
     CPC_FTP_BASE,
@@ -234,37 +235,45 @@ def _process_year_via_daily_files(
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="CPC Soil Moisture → raw S3 (Batch task)")
-    parser.add_argument("--year",           required=True, type=int)
-    parser.add_argument("--bucket",         required=True)
-    parser.add_argument("--aws_region",     required=True)
+    # A-Wave-3 thin-contract: every arg optional. --year self-windows to the current calendar year
+    # (its daily-files path is incremental + skip-existing, so a scheduled run self-heals within-year
+    # gaps); an explicit --year keeps the backfill (annual tarball for a prior year) unchanged.
+    parser.add_argument("--year",           type=int, default=None,
+                        help="calendar year (default: current year)")
+    parser.add_argument("--bucket",         default=None, help="S3 bucket (default: $LEVIATHAN_BUCKET)")
+    parser.add_argument("--aws_region",     default=None, help="AWS region (default: $AWS_REGION)")
     parser.add_argument("--variable",       default="w", help="CPC variable prefix (default: w)")
     parser.add_argument("--ingest_date",    default=date.today().isoformat())
     parser.add_argument("--force_overwrite", default="false")
     args = parser.parse_args()
 
+    load_env()
     force_overwrite = args.force_overwrite.lower() == "true"
     current_year = date.today().year
+    year = args.year if args.year is not None else current_year
+    bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
+    aws_region = args.aws_region or get_required_env("AWS_REGION")
 
     logger.info(
         "CPC soil moisture → raw  variable=%s  year=%d  force_overwrite=%s",
-        args.variable, args.year, force_overwrite,
+        args.variable, year, force_overwrite,
     )
 
-    if args.year < current_year:
+    if year < current_year:
         written, skipped = _process_year_via_tarball(
-            year=args.year,
+            year=year,
             variable=args.variable,
-            bucket=args.bucket,
-            aws_region=args.aws_region,
+            bucket=bucket,
+            aws_region=aws_region,
             ingest_date=args.ingest_date,
             force_overwrite=force_overwrite,
         )
     else:
         written, skipped = _process_year_via_daily_files(
-            year=args.year,
+            year=year,
             variable=args.variable,
-            bucket=args.bucket,
-            aws_region=args.aws_region,
+            bucket=bucket,
+            aws_region=aws_region,
             ingest_date=args.ingest_date,
             force_overwrite=force_overwrite,
         )

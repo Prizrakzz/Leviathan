@@ -47,7 +47,10 @@
       "tasks": [
         {
           "command": [
-            "jobs/ingest/fetch_nasa_power.py"
+            "jobs/ingest/fetch_nasa_power.py",
+            "--commodity",
+            "all",
+            "--skip-existing-s3"
           ],
           "env": [],
           "integration": "batch",
@@ -102,6 +105,40 @@
         {
           "command": [
             "jobs/batch/compact_weather_silver_task.py",
+            "--source",
+            "nasa_power",
+            "--commodity",
+            "all",
+            "--publish-mode",
+            "shadow"
+          ],
+          "env": [],
+          "integration": "batch",
+          "jobdef": "leviathan-dev-weather-compact",
+          "queue": "leviathan-dev-queue-ondemand"
+        },
+        {
+          "command": [
+            "jobs/batch/compact_weather_silver_task.py",
+            "--source",
+            "chirps",
+            "--commodity",
+            "all",
+            "--publish-mode",
+            "shadow"
+          ],
+          "env": [],
+          "integration": "batch",
+          "jobdef": "leviathan-dev-weather-compact",
+          "queue": "leviathan-dev-queue-ondemand"
+        },
+        {
+          "command": [
+            "jobs/batch/compact_weather_silver_task.py",
+            "--source",
+            "cpc_soil",
+            "--commodity",
+            "all",
             "--publish-mode",
             "shadow"
           ],
@@ -115,7 +152,8 @@
             "jobs/batch/gold_weather_z_task.py",
             "--commodity",
             "all",
-            "--force-overwrite"
+            "--force-overwrite",
+            "true"
           ],
           "env": [],
           "integration": "batch",
@@ -131,6 +169,58 @@
       {
         "command": [
           "jobs/batch/compact_weather_silver_task.py",
+          "--source",
+          "nasa_power",
+          "--commodity",
+          "all",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "jobs/batch/compact_weather_silver_task.py",
+          "--source",
+          "chirps",
+          "--commodity",
+          "all",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "jobs/batch/compact_weather_silver_task.py",
+          "--source",
+          "cpc_soil",
+          "--commodity",
+          "all",
           "--publish-mode",
           "canonical"
         ],

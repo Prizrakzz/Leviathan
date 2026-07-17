@@ -30,6 +30,7 @@ import yaml
 from leviathan.common.logging import get_logger
 from leviathan.common.types import ProcessResult
 from leviathan.storage.dead_letter import write_dead_letter
+from leviathan.storage.paths import parse_hive_key, weather_staging_prefix
 from leviathan.storage.s3 import (
     get_thread_local_s3_client,
     list_s3_keys,
@@ -38,6 +39,42 @@ from leviathan.storage.s3 import (
 )
 
 logger = get_logger(__name__)
+
+
+def _extract_cli_opt(argv: list[str], name: str, default: str | None = None) -> str | None:
+    """Return the value following ``--name`` in ``argv`` (or ``default`` if absent).
+
+    A raw sys.argv scan that works identically under AWS Batch (plain argv) and Glue Python Shell
+    (Glue also delivers ``--key value`` pairs in ``sys.argv``), so the A-Wave-3 thin-contract runner
+    needs no ``getResolvedOptions`` dependency and stays unit-testable with an explicit ``argv``.
+    Both the space form (``--name value``) and the equals form (``--name=value``) are accepted."""
+    flag = f"--{name}"
+    eq_prefix = f"{flag}="
+    for i, tok in enumerate(argv):
+        if tok == flag and i + 1 < len(argv):
+            return argv[i + 1]
+        if tok.startswith(eq_prefix):
+            return tok[len(eq_prefix):]
+    return default
+
+
+def filter_keys_by_year(keys: list[str], year: int | None) -> list[str]:
+    """Keep only keys whose ``year=`` Hive segment equals ``year`` (all keys when ``year is None``).
+
+    The daily thin-contract b2s self-windows to the CURRENT calendar year so a scheduled run reads
+    only that year's bronze and stages only that year's month-grain (bounded); a named-commodity
+    backfill passes ``year_window=None`` and processes every year unchanged."""
+    if year is None:
+        return list(keys)
+    out: list[str] = []
+    for k in keys:
+        try:
+            raw = parse_hive_key(k, "year")
+        except (TypeError, ValueError):
+            raw = None
+        if raw is not None and str(raw) == str(year):
+            out.append(k)
+    return out
 
 
 def select_partitions_to_write(
@@ -278,17 +315,44 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
       returns cleaned silver DataFrame.
     - Implement ``get_partitions(df)`` — yields ``(key_dict, partition_df)`` tuples.
     - Implement ``_silver_key(key_dict)`` — returns the S3 key for a partition.
+
+    Weather-trio subclasses set ``staging = True`` so their month-grain silver is written to the
+    ``silver/weather/source=<s>/_staging/`` tier (OUTSIDE the ``commodity=`` data plane) rather than
+    canonical. compact_weather_silver reads staging UNION canonical and publishes the coarse
+    ``[commodity, year]`` object canonically; keeping month-grain out of ``commodity=`` is what stops
+    the feature extractor + gold reader from double-reading every weather row (retire_projected_weather
+    docstring; SILVER-F047). Month-grain must NEVER land under ``commodity=`` in the daily chain.
     """
 
     source: ClassVar[str]
     _MAX_WORKERS: ClassVar[int] = 64
+    # When True, silver writes go to the ``_staging`` tier (weather trio); default keeps the legacy
+    # per-source ``commodity=`` canonical location for every other family.
+    staging: ClassVar[bool] = False
 
-    def __init__(self) -> None:
-        self.args = self._parse_args()
-        self.commodity: str = self.args["commodity"]
-        self.bucket: str = self.args["bucket"]
-        self.aws_region: str = self.args["aws_region"]
-        self.force_overwrite: bool = self._parse_optional_bool("force_overwrite")
+    def __init__(
+        self,
+        commodity: str | None = None,
+        bucket: str | None = None,
+        aws_region: str | None = None,
+        force_overwrite: bool | None = None,
+        year_window: int | None = None,
+    ) -> None:
+        # Explicit-params branch (A-Wave-3 thin-contract runner constructs one job per commodity);
+        # the no-arg branch preserves the legacy ``Subclass().run()`` sys.argv/getResolvedOptions path.
+        if commodity is None:
+            self.args = self._parse_args()
+            self.commodity: str = self.args["commodity"]
+            self.bucket: str = self.args["bucket"]
+            self.aws_region: str = self.args["aws_region"]
+            self.force_overwrite: bool = self._parse_optional_bool("force_overwrite")
+        else:
+            self.commodity = commodity
+            self.bucket = bucket  # type: ignore[assignment]
+            self.aws_region = aws_region  # type: ignore[assignment]
+            self.force_overwrite = bool(force_overwrite)
+        # None = every year (backfill); an int restricts the bronze read to that calendar year (daily).
+        self.year_window: int | None = year_window
 
     # ------------------------------------------------------------------
     # Path helpers — override in subclass for non-weather sources
@@ -298,7 +362,64 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
         return f"bronze/weather/source={self.source}/commodity={self.commodity}/"
 
     def silver_prefix(self) -> str:
+        if self.staging:
+            return weather_staging_prefix(self.source, self.commodity)
         return f"silver/weather/source={self.source}/commodity={self.commodity}/"
+
+    # ------------------------------------------------------------------
+    # A-Wave-3 thin-contract runner ('all' sentinel + env defaults + staging)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _discover_commodities(cls, bucket: str, aws_region: str) -> list[str]:
+        """Distinct commodity slugs present under ``bronze/weather/source=<source>/``."""
+        keys = list_s3_keys(bucket, f"bronze/weather/source={cls.source}/",
+                            suffix=".parquet", aws_region=aws_region)
+        return sorted({c for c in (parse_hive_key(k, "commodity") for k in keys) if c})
+
+    @classmethod
+    def run_thin_contract(cls, argv: list[str] | None = None) -> None:
+        """Zero-required-arg entry the weather_daily descriptor invokes (bare script path).
+
+        ``--commodity all`` (the default) iterates every commodity discovered under the source's bronze
+        prefix and self-windows each to the CURRENT calendar year; a single named ``--commodity`` (the
+        preserved backfill invocation) processes that commodity across ALL years. ``--bucket`` /
+        ``--aws_region`` default to ``$LEVIATHAN_BUCKET`` / ``$AWS_REGION``. One commodity's failure is
+        logged and the loop continues; a nonzero exit is raised iff any commodity failed."""
+        import datetime as _dt  # noqa: PLC0415
+        import sys as _sys  # noqa: PLC0415
+
+        from leviathan.common.config import get_required_env, load_env  # noqa: PLC0415
+
+        load_env()
+        args = list(_sys.argv[1:] if argv is None else argv)
+        commodity = _extract_cli_opt(args, "commodity", "all") or "all"
+        bucket = _extract_cli_opt(args, "bucket") or get_required_env("LEVIATHAN_BUCKET")
+        aws_region = _extract_cli_opt(args, "aws_region") or get_required_env("AWS_REGION")
+        force = (_extract_cli_opt(args, "force_overwrite", "false") or "false").lower() == "true"
+
+        if commodity.strip().lower() == "all":
+            commodities = cls._discover_commodities(bucket, aws_region)
+            year_window: int | None = _dt.date.today().year
+        else:
+            commodities = [c.strip() for c in commodity.split(",") if c.strip()]
+            year_window = None  # named-commodity backfill: every year
+
+        logger.info(
+            "thin-contract %s bronze->silver: %d commodities, year_window=%s staging=%s",
+            cls.source, len(commodities), year_window, cls.staging,
+        )
+        failures: list[str] = []
+        for c in commodities:
+            try:
+                cls(commodity=c, bucket=bucket, aws_region=aws_region,
+                    force_overwrite=force, year_window=year_window).run()
+            except Exception as exc:  # noqa: BLE001 — one commodity's failure must not kill the rest
+                logger.error("[%s] %s b2s FAILED: %s: %s", c, cls.source,
+                             type(exc).__name__, str(exc)[:300])
+                failures.append(c)
+        if failures:
+            raise SystemExit(1)
 
     # ------------------------------------------------------------------
     # Main entry point
@@ -310,10 +431,14 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
             self.bucket, self.bronze_prefix(), suffix=".parquet", aws_region=self.aws_region
         )
         bronze_keys = sorted(bronze_objects)
-        self._bronze_max_mtime = max(bronze_objects.values()) if bronze_objects else None
+        if self.year_window is not None:
+            bronze_keys = filter_keys_by_year(bronze_keys, self.year_window)
+        self._bronze_max_mtime = (
+            max((bronze_objects[k] for k in bronze_keys), default=None) if bronze_keys else None
+        )
         logger.info(
-            "Found %d bronze files for commodity=%s source=%s",
-            len(bronze_keys), self.commodity, self.source,
+            "Found %d bronze files for commodity=%s source=%s (year_window=%s)",
+            len(bronze_keys), self.commodity, self.source, self.year_window,
         )
 
         if not bronze_keys:
