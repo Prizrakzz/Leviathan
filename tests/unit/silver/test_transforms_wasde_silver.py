@@ -61,11 +61,35 @@ def test_estimate_role_vocabulary():
     ("Mar", W.REGION_MONTH_NAME),
     ("Mar.", W.REGION_MONTH_NAME),
     ("Feb", W.REGION_MONTH_NAME),
+    # month token + projection/estimate MARKER = a two-vintage column header leaked into
+    # the region axis (scanned-era World S&U continuation tables; 1994-10-12 'Sep Proj'
+    # WasdeKeyConflict canary). The rule is general across all 12 months x {proj, est}.
+    ("Sep. Proj", W.REGION_MONTH_NAME),
+    ("Sep Proj", W.REGION_MONTH_NAME),
+    ("Aug Proj", W.REGION_MONTH_NAME),
+    ("Feb Est", W.REGION_MONTH_NAME),
+    ("May Proj", W.REGION_MONTH_NAME),
+    ("September Projection", W.REGION_MONTH_NAME),
+    # bare roman-numeral OCR / column-index fragments (scanned-era continuation tables;
+    # 1994-07-12 'II' WasdeKeyConflict canary, raw forms 'II *' / 'III' / 'IV *').
+    ("II *", W.REGION_ROMAN_NUMERAL),
+    ("III", W.REGION_ROMAN_NUMERAL),
+    ("IV *", W.REGION_ROMAN_NUMERAL),
+    ("ii", W.REGION_ROMAN_NUMERAL),
+    ("vi", W.REGION_ROMAN_NUMERAL),
+    ("ix", W.REGION_ROMAN_NUMERAL),
     ("february_0_30_4_58_0_62", W.REGION_NUMERIC_CONCAT),
-    ("i", W.REGION_SINGLE_CHAR),
+    ("i", W.REGION_SINGLE_CHAR),          # single-char roman stays single_char (v / x too)
+    ("v", W.REGION_SINGLE_CHAR),
     ("1234", W.REGION_PURE_NUMERIC),
     ("item", W.REGION_HEADER_LEAK),
     ("", W.REGION_EMPTY),
+    # real scopes that STRUCTURALLY resemble the new junk rules MUST stay clean (no false
+    # quarantine): a multi-token region is not a month+marker header, and no real region is
+    # a bare roman numeral.
+    ("Other Europe", W.REGION_CLEAN),
+    ("Selected Exporters", W.REGION_CLEAN),
+    ("European Union 27", W.REGION_CLEAN),
 ])
 def test_classify_region(raw, cls):
     assert W.classify_region(raw) == cls

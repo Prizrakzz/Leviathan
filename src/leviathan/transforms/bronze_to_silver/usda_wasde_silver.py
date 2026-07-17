@@ -233,6 +233,38 @@ _MONTH_ABBREVS_LOWER = frozenset({
     "nov", "dec",
 })
 
+# Roman-numeral OCR / column-index fragments leak into the region axis of scanned-era
+# World S&U continuation tables -- Textract reconstructs a numbered column header or a
+# footnote roman numeral ("II *", "III", "IV *") as a region cell. 1994-07-12 live canary:
+# region='II' rows on world_soybean_oil_supply_and_use carried stray numbers that collided
+# on the F036 natural key (6050.0 vs 67.0 -- parse noise, not competing estimates); the same
+# ii/iii/iv signature recurs across the whole 1994-1999 scanned era. Exact-token match on the
+# canonical roman numerals 1-10: NO real WASDE geographic scope is a bare roman numeral. (i/v/x
+# are single characters already quarantined by the REGION_SINGLE_CHAR rule; they are listed here
+# only to make the set self-documenting -- the roman check sits AFTER the single-char check.)
+_ROMAN_NUMERALS_LOWER = frozenset({
+    "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
+})
+
+# A month token (name OR abbreviation) followed by a projection/estimate marker is a
+# TWO-VINTAGE PROJECTION COLUMN HEADER leaked into the region axis ("Sep. Proj", "Aug Proj",
+# "Feb Est" on scanned-era World S&U tables) -- the multi-token sibling of the bare month-abbrev
+# leak. 1994-10-12 canary: region='Sep Proj' collided on the natural key (56.0 vs 66.0). The rule
+# is general (every month x {proj,est}) so it pre-empts the whack-a-mole rather than chasing one
+# colliding header at a time; it is anchored (^...$) and marker-terminated so a real region can
+# never partial-match. Same quarantine class as a bare month header (REGION_MONTH_NAME).
+_HEADER_MARKERS = (
+    "proj", "projection", "projections", "projected",
+    "est", "estimate", "estimated", "estimates",
+)
+_MONTH_HEADER_RE = re.compile(
+    r"^(?:"
+    + "|".join(sorted(_MONTH_NAMES_LOWER | _MONTH_ABBREVS_LOWER, key=len, reverse=True))
+    + r")_(?:"
+    + "|".join(_HEADER_MARKERS)
+    + r")$"
+)
+
 
 class WasdeKeyConflict(RuntimeError):
     """Two rows share a natural key with DIVERGENT estimate values. F034 forbids drop/keep-last;
@@ -258,10 +290,11 @@ REGION_NUMERIC_CONCAT = "numeric_concat"
 REGION_PURE_NUMERIC = "pure_numeric"
 REGION_SINGLE_CHAR = "single_char"
 REGION_HEADER_LEAK = "header_leak"
+REGION_ROMAN_NUMERAL = "roman_numeral"
 
 _MALFORMED_CLASSES = frozenset({
     REGION_EMPTY, REGION_MONTH_NAME, REGION_NUMERIC_CONCAT, REGION_PURE_NUMERIC,
-    REGION_SINGLE_CHAR, REGION_HEADER_LEAK,
+    REGION_SINGLE_CHAR, REGION_HEADER_LEAK, REGION_ROMAN_NUMERAL,
 })
 
 # The region-gate KIND surfaced as a value-census GateRow (parallel to KIND_ALL_NAN etc).
@@ -285,8 +318,10 @@ def classify_region(raw: str) -> str:
     """Classify a RAW region token into a cleanliness class (F033).
 
     Clean == a plausible geographic scope. The malformed classes are exactly the distinct-value
-    pollution the live re-census found: month names leaked from a mis-parsed year header, numeric
-    concatenations (``february_0_30_4_58_0_62``), pure numerics, single characters (``i``), and
+    pollution the live re-census + the archival key-conflict sweep found: month names leaked from a
+    mis-parsed year header, bare month abbreviations and month+marker column headers (``Sep Proj``,
+    ``Feb Est``), numeric concatenations (``february_0_30_4_58_0_62``), pure numerics, single
+    characters (``i``), roman-numeral OCR/column fragments (``II *``, ``III``, ``IV``), and
     header/attribute leaks (``item``). Legitimate multi-token scopes (``eu_27``, ``fsu_12``) are
     NOT flagged just for containing a digit -- only the >=2-underscore-separated numeric-group
     signature is (the 0.6% clean signal from the recon).
@@ -306,9 +341,19 @@ def classify_region(raw: str) -> str:
     # carry stray numbers that collide on the F036 natural key (1989-03-09 canary).
     if low.rstrip(".:") in _MONTH_ABBREVS_LOWER or norm in _MONTH_ABBREVS_LOWER:
         return REGION_MONTH_NAME
+    # month token + projection/estimate MARKER ("Sep. Proj", "Aug Proj", "Feb Est") = the
+    # multi-token sibling of the bare month-abbrev leak (two-vintage column header). Same
+    # collide-on-the-key defect as a bare month header (1994-10-12 'Sep Proj' canary).
+    if _MONTH_HEADER_RE.match(norm):
+        return REGION_MONTH_NAME
     # single alpha character (OCR fragment "i")
     if len(norm) == 1 and norm.isalpha():
         return REGION_SINGLE_CHAR
+    # bare roman numeral ("II *", "III", "IV") = an OCR / column-index fragment from a
+    # scanned-era continuation table (1994-07-12 'II' canary). i/v/x are already caught above
+    # as single characters; ii/iii/iv/vi/vii/viii/ix are quarantined here by exact token.
+    if norm in _ROMAN_NUMERALS_LOWER:
+        return REGION_ROMAN_NUMERAL
     # pure numeric / punctuation-only
     if _PURE_NUMERIC_RE.match(low):
         return REGION_PURE_NUMERIC
