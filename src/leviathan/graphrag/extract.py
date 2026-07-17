@@ -522,7 +522,7 @@ def _fgt_stream_headers(client) -> dict | None:
     InvalidRequest. An explicit env value (on/off) wins for either lane. Lane is read from the client type
     (not a providers import — that would be circular), matching the single-client idiom."""
     is_bedrock = type(client).__name__ == "AnthropicBedrock"
-    # empty/whitespace counts as UNSET (review fold): a declared-but-empty env var in CI/.env must not
+    # empty/whitespace counts as UNSET: a declared-but-empty env var in CI/.env must not
     # silently disable the Anthropic default-on lane.
     env = (os.environ.get("GRAPHRAG_FGT_STREAM") or "").strip()
     on = (env.lower() in ("1", "true", "on", "yes")) if env else (not is_bedrock)

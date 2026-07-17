@@ -82,19 +82,19 @@ def _numbers_in(s: str) -> list[float]:
 # replacement for that exclusion.
 _CLAIM_NUM = re.compile(r"(?<![A-Za-z0-9])\d[\d,]*\.?\d*")
 # A YEAR-range separator immediately before a SHORT token: 1998-99, 1998/99, en-dash, em-dash -> the
-# tail '99'. Prefix is year-scoped (19xx/20xx) and the tail capped at 1-2 digits by the caller (review
-# fold, BLOCKER: the unscoped \d{4} form exempted the upper bound of ANY hyphenated range -- 'ranged
+# tail '99'. Prefix is year-scoped (19xx/20xx) and the tail capped at 1-2 digits by the caller (guards
+# a former bug: the unscoped \d{4} form exempted the upper bound of ANY hyphenated range -- 'ranged
 # 5900-9999 MT' let a fabricated 9999 ride uncited). Dashes as \u escapes to keep this source ASCII.
 _RANGE_TAIL = re.compile(r"(?:19|20)\d{2}[-/" + "\u2013\u2014" + r"]\Z")
-# A magnitude unit immediately after a 4-digit token flips it from year to CLAIM (review fold, major:
-# 'exports hit 1950 MMT' is a tonnage wearing a year costume -- the unit is the tell).
+# A magnitude unit immediately after a 4-digit token flips it from year to CLAIM ('exports hit 1950
+# MMT' is a tonnage wearing a year costume -- the unit is the tell).
 _UNIT_AFTER = re.compile(r"\s*(?:MMT|MT|KT|kt|MMbu|bu|%|percent|ha|bales|cwt|tonnes|tons)\b")
 
 
 def _claim_numbers_in(s: str) -> list[float]:
     """Magnitudes only. EXEMPT (never a claim): (a) a bare 4-digit calendar year 1900-2099 with no
     decimal/comma ('2,021' and '2010.5' keep their punctuation and stay magnitudes) -- UNLESS a unit
-    token follows ('exports hit 1950 MMT' IS a claim; review fold); (b) the 1-2 digit tail of a YEAR
+    token follows ('exports hit 1950 MMT' IS a claim); (b) the 1-2 digit tail of a YEAR
     range ('1998-99' -> the '99'); (c) any digit run immediately preceded by a letter (B40, T2, MY2021,
     CO2), handled by _CLAIM_NUM's lookbehind. A fabricated magnitude ('23.5 MMT' with no such row) is
     untouched by all three rules and still strips."""

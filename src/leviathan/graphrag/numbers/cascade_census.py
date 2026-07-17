@@ -53,7 +53,7 @@ DECLINES = "DECLINES-HONESTLY"
 DARK = "DARK-WITH-REASON"
 PROBE_ERROR = "probe-error"
 
-# CANONICAL single source (review fold, DRY): config_check.check_cascade_map imports this set so census
+# CANONICAL single source (DRY): config_check.check_cascade_map imports this set so census
 # and lint cannot drift. silver_esr REMOVED 2026-07-12 (the D-W5 ESR flip): re-certified against the
 # compact serving table (753,062 rows, all 8 checks pass; the sole WARN is the disclosed single-as_of
 # snapshot limitation -- per-week vintage is the option-b follow-up). silver_nasa_power REMOVED
@@ -169,7 +169,7 @@ def query_realizable(query: dict) -> bool | None:
     intersect it with the fireable-mapped set -- "can the QUERY's OWN selected legs fire?" (q6 grounds only
     unmapped biodiesel-chain drivers + a driverless consumption leg -> FALSE, even though its contract's
     rollup is TRUE). With no declaration the per-query answer is UNKNOWN -> **None**, and callers must fail
-    CLOSED (review fold, major): the contract rollup is NEVER a silent substitute -- it is exactly the
+    CLOSED: the contract rollup is NEVER a silent substitute -- it is exactly the
     granularity that would have greenlit q6's original undeclared `cascade_fired:true` pin."""
     contract = query.get("contract") or ""
     grounded = query.get("cascade_drivers")
@@ -275,7 +275,7 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn) -> dict:
                     rec["reason"] = _dark_reason(table, commodity, country, ts, caches, query_fn)
                 else:
                     # distinguish "not in the numbers registry" from "registered but certified-empty"
-                    # (review fold: a bare-except relabel conflated the two and hid the real cause)
+                    # (a bare-except relabel previously conflated the two and hid the real cause)
                     rec["reason"] = "uncertified-table" if table in _UNCERTIFIED else "table-not-registered"
             legs.append(rec)
 
@@ -294,7 +294,7 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn) -> dict:
         "dark": sum(1 for leg in legs if leg["verdict"] == DARK),
         "probe_errors": sum(1 for leg in legs if leg["verdict"] == PROBE_ERROR),
     }
-    # key renamed from per_contract_can_any_leg_fire (review fold): this rollup is pg-FIRES-based, a
+    # key renamed from per_contract_can_any_leg_fire: this rollup is pg-FIRES-based, a
     # DIFFERENT fact from the topology-only contract_can_any_leg_fire() function above.
     return {"as_of_date": asof, "legs": legs, "per_contract_has_firing_leg": per_contract,
             "per_query_realizability": per_query, "banner": banner}

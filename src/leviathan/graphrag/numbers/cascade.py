@@ -664,7 +664,7 @@ def _cross_era_diff(era_deltas: dict, eras: dict, cur: dict | None, row: dict) -
     cites as a 'gain above the <MY> baseline' (F2 class-1 fix). Two-era -> later era endpoint minus earlier
     era endpoint (an ENDPOINT-LEVEL fact, distinct from the within-era deltas a/b the DIVERGENCE line shows);
     one-era+current -> current level minus the era-end level, sign-identical to _divergence's b BY
-    CONSTRUCTION (semantic order, no sortkey swap -- review fold #4). The label reads earlier->later and the
+    CONSTRUCTION (semantic order, no sortkey swap). The label reads earlier->later and the
     sign is later-minus-baseline. None when either endpoint is missing (the divergence line still renders;
     only the citable row is skipped)."""
     keys = sorted(era_deltas)
@@ -681,8 +681,7 @@ def _cross_era_diff(era_deltas: dict, eras: dict, cur: dict | None, row: dict) -
             return None
         # SEMANTIC order is fixed here -- era endpoint = baseline, current = later -- so the sign is
         # identical to _divergence's b (cur - era_end) BY CONSTRUCTION. No sortkey swap: mixed MY-vs-asof
-        # key types could compare current below the era key and silently NEGATE the injected diff
-        # (review fold, minor #4).
+        # key types could compare current below the era key and silently NEGATE the injected diff.
     else:
         return None
     va, vb = _float_val(ea), _float_val(eb)
@@ -822,7 +821,7 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
             # (no row bloat on same-sign nodes). The handle rides ONLY the cross-era line whose value the
             # row actually backs -- NOT the DIVERGENCE line, whose visible numbers are the within-era
             # deltas a/b: a model echoing '+4 vs -4 [Nx]' against an endpoint-diff row of +2 would strip
-            # as number_mismatch, reintroducing the exact strip F2 exists to prevent (review fold, major #3).
+            # as number_mismatch, reintroducing the exact strip F2 exists to prevent.
             ced = _cross_era_diff(era_deltas, eras, cur, row)
             if ced is not None:
                 diff, period_lbl, later_rec = ced

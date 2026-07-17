@@ -201,7 +201,7 @@ def check_pin_realizability() -> list[str]:
         pins follow census truth in BOTH directions).
 
     Every cascade_fired-pinned query MUST declare `cascade_drivers: [...]` (the driver ids the question
-    grounds). FAIL-CLOSED (review fold, major): with no declaration query_realizable returns None and the
+    grounds). FAIL-CLOSED: with no declaration query_realizable returns None and the
     lint ERRORS -- the contract-rollup fallback it replaced was exactly the granularity hole that would
     have greenlit q6's original undeclared pin (soybean_oil_cbot rolls up TRUE via export/stock/oni/fx)."""
     from leviathan.graphrag.numbers import cascade_census as cc
