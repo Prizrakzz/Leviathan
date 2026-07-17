@@ -786,6 +786,14 @@ module "step_functions" {
 
   alerts_topic_arn          = module.alerting.topic_arn
   silver_pipeline_topic_arn = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.project_name}-${var.environment}-silver-pipeline-alerts"
+
+  # A-W7 Wave-3: serialize every phase Map so descriptor array ORDER is honored.
+  # Wave-3 introduces ORDERED phases (weather silver: per-source b2s -> compact -> gold;
+  # conab fetch: discover -> fetch). At the old MaxConcurrency=4 those raced -- and the
+  # weather b2s/gold writers are latest_only DIRECT canonical writes, so the race
+  # corrupts canonical before the gate can catch it. All live families' phase tasks are
+  # minutes-scale; none rely on intra-phase parallelism for a budget.
+  map_max_concurrency = 1
 }
 
 module "eventbridge" {
