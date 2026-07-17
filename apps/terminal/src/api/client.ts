@@ -1,6 +1,6 @@
 import { fetchWithAuth } from '../auth/oidc';
 import { MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
-import type { ContextAttachment, NotificationItem } from './schema';
+import type { ContextAttachment, NotificationItem, PdfPage } from './schema';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -85,11 +85,7 @@ export function putProfile(update: ProfileUpdate): Promise<Profile> {
 }
 
 // ── 6.5 PDF click-to-page (auth rides fetchWithAuth via getJSON; gated server-side by GRAPHRAG_PDF_LINKS) ──
-/** The resolved source-PDF pointer: a presigned URL (~900s), the 1-indexed `page` the cited passage was
- *  found on (`null` when it couldn't be localized — the modal opens at the top), the raw `kind`
- *  (pdf/html/txt), and the presign TTL. Mirrors the backend `CitationPdf` model. */
-export type PdfPage = Schemas['CitationPdf'];
-
+// `PdfPage` is defined in ./schema (a leaf module) so the mock can name it without importing this file.
 /** Resolve a citation's source PDF + page. `snippet`/`charStart`/`offsetKind` come off the chip's doc
  *  locator (6.5): a char offset resolves an EXACT page for new/E4 props, the snippet drives server-side
  *  fuzzy-match for legacy props. `VITE_MOCK=1` routes to the in-repo mock. The kill-switch 404s when off;

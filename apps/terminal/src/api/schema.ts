@@ -5,6 +5,14 @@
  * `orchestrator.respond` + `answer._emit` stage names.
  */
 
+import type { components } from './types.gen';
+
+/** The resolved source-PDF pointer: a presigned URL (~900s), the 1-indexed `page` the cited passage was
+ *  found on (`null` when it couldn't be localized — the modal opens at the top), the raw `kind`
+ *  (pdf/html/txt), and the presign TTL. Mirrors the backend `CitationPdf` model. Lives here (a leaf
+ *  schema module) so `mock.ts` can name it without importing `client.ts` (breaks the client↔mock cycle). */
+export type PdfPage = components['schemas']['CitationPdf'];
+
 /** Granular pipeline stages emitted over SSE (server.py / answer._emit). `token` carries a synthesis delta
  *  (the note streaming token-by-token) rather than a pipeline milestone. The union stays open
  *  (`string & {}`) so a newer backend's stages never crash an older bundle. */

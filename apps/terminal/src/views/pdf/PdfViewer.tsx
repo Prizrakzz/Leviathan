@@ -1,6 +1,7 @@
 import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
-import { getPdfPage, type PdfPage } from '@/api/client';
+import { getPdfPage } from '@/api/client';
+import type { PdfPage } from '@/api/schema';
 
 // The pdf.js worker rides its OWN hashed asset (self-contained, no CDN): vite resolves the bare specifier
 // inside `new URL(..., import.meta.url)` at build. This module is only ever pulled in by a lazy() chunk

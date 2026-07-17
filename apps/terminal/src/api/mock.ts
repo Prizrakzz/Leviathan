@@ -1,4 +1,4 @@
-import type { PdfPage } from './client';
+import type { PdfPage } from './schema';
 import type { components } from './types.gen';
 import graphArabica from './fixtures/graph.arabica.json';
 import graphSugar from './fixtures/graph.raw_sugar.json';
