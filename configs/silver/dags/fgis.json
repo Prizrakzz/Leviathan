@@ -34,7 +34,9 @@
           "jobdef": "leviathan-dev-b3-flat-silver:4",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_usda_fgis_export_inspections.py"
+            "jobs/ingest/fetch_usda_fgis_export_inspections.py",
+            "--mode",
+            "weekly"
           ],
           "env": {},
           "publishes": false

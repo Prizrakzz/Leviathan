@@ -23,7 +23,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->bronze(--series)->silver x2 fan-out",
+  "chain_shape": "fetch->bronze(--series all)->silver x2 fan-out",
   "phases": [
     {
       "name": "fetch",
@@ -53,7 +53,8 @@
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/nass_task.py",
-            "--series"
+            "--series",
+            "all"
           ],
           "env": {},
           "publishes": false
@@ -92,5 +93,5 @@
       ]
     }
   ],
-  "notes": "QuickStats full series in one run covers BOTH crop_progress and annual (no separate annual schedule); bronze --series. Year-round weekly, self-healing. Both silver producers are CLASS-B latest-only; held DISABLED until the A-W4 retrofit."
+  "notes": "QuickStats full series in one run covers BOTH crop_progress and annual (no separate annual schedule); bronze --series all writes both series so the two silver producers fan out. Year-round weekly, self-healing. Both silver producers are CLASS-B latest-only; held DISABLED until the A-W4 retrofit."
 }

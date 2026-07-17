@@ -27,7 +27,8 @@
         {
           "command": [
             "jobs/batch/nass_task.py",
-            "--series"
+            "--series",
+            "all"
           ],
           "env": [],
           "integration": "batch",

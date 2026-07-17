@@ -34,7 +34,9 @@
           "jobdef": "leviathan-dev-b3-flat-silver:4",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_cftc_cot.py"
+            "jobs/ingest/fetch_cftc_cot.py",
+            "--mode",
+            "weekly"
           ],
           "env": {},
           "publishes": false

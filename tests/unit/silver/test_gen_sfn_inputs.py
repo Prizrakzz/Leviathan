@@ -443,6 +443,40 @@ def test_lint_rejects_module_form_without_dash_m(gen, descriptors):
     assert any("-m" in v for v in gen.lint_descriptor(d, d["schedule"]))
 
 
+def test_lint_rejects_dangling_value_option(gen, descriptors):
+    """A command ending on a value-expecting option (bare ``--series``, no value) is rejected
+    fail-closed at render time -- the SFN container override is passed verbatim, so this makes the
+    job's argparse exit 2 ('expected one argument'). This is the Wave-2 nass_crop_progress bronze
+    defect that failed BatchSyncBronze across all 3 retries."""
+    d = _one_descriptor(descriptors, "nass_crop_progress")
+    bronze = next(p for p in d["phases"] if p["name"] == "bronze")
+    bronze["tasks"][0]["command"] = ["jobs/batch/nass_task.py", "--series"]  # value truncated
+    viol = gen.lint_descriptor(d, d["schedule"])
+    assert any("value-expecting option" in v and "'--series'" in v for v in viol), viol
+
+
+def test_lint_accepts_known_valueless_trailing_flags(gen, descriptors):
+    """store_true flags legitimately end a command (esr --vintage-mode, futures --force-overwrite);
+    the dangling-arg guard must NOT false-positive on them."""
+    for stem in ("esr_weekly", "futures_prices"):
+        d = descriptors[stem]
+        viol = gen.lint_descriptor(d, stem)
+        assert not any("value-expecting option" in v for v in viol), f"{stem}: {viol}"
+
+
+def test_nass_crop_progress_bronze_renders_series_all(gen, descriptors):
+    """Fixed path: the nass_crop_progress bronze task must render the COMPLETE
+    ``nass_task.py --series all`` command. ``all`` (not ``crop_progress``) because the one run must
+    write BOTH bronze series -- the chain fans out to nass_crop_progress_silver (reads
+    series=crop_progress) AND nass_annual_silver (reads series=annual), and both gate_tables gate."""
+    rendered = gen.render_input(descriptors["nass_crop_progress"])
+    bronze_tasks = rendered["phases"]["bronze"]["tasks"]
+    assert len(bronze_tasks) == 1, "nass_crop_progress must have exactly one bronze task"
+    assert bronze_tasks[0]["command"] == ["jobs/batch/nass_task.py", "--series", "all"]
+    # gate covers both series' silver tables (why bronze must be --series all, not crop_progress)
+    assert set(rendered["gate_tables"]) == {"silver_nass_annual", "silver_nass_crop_progress"}
+
+
 def test_lint_rejects_classb_autonomous_before_retrofit(gen, descriptors):
     d = _one_descriptor(descriptors, "cot")  # CLASS-B, retrofit not landed
     d["promote_mode"] = "autonomous"

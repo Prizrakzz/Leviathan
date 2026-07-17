@@ -85,6 +85,18 @@ INVOCATION_FORMS = frozenset({"m", "s", "g"})
 PUBLISH_MODES = frozenset({"shadow_canonical", "latest_only", "projected_canonical"})
 PROMOTE_MODES = frozenset({"autonomous", "stop_and_notify", "post_publish_audit"})
 
+# Store_true (valueless) option flags that MAY legitimately appear as a command's final token.
+# Every OTHER trailing "--opt" token is a value-expecting option left dangling (the SFN container
+# override passes the command verbatim, so a bare value-option makes the job's argparse exit 2 --
+# e.g. nass_task.py's ``--series`` with no value: "argument --series: expected one argument").
+# The lint below rejects that class fail-closed at render time so a truncated command can never
+# reach the scheduler. New store_true flags used in a descriptor tail are added here.
+_VALUELESS_TRAILING_FLAGS = frozenset({
+    "--skip-existing-s3",   # fetch_usda_esr
+    "--vintage-mode",       # bronze_to_silver_esr_task
+    "--force-overwrite",    # yfinance_futures / gold_weather_z / nass_task
+})
+
 # --- Platform constants (NOT descriptor-driven; the scheduled thin contract is uniform) ---------
 # The on-demand Fargate queue -- every Batch task + the gate run here. The descriptors' interruptible
 # FARGATE_SPOT "leviathan-dev-queue" must never carry a scheduled canonical-publish task.
@@ -200,6 +212,16 @@ def lint_descriptor(desc: dict, stem: str) -> list[str]:
                     e.append(f"{stem}: glue-form task {tid!r} must set 'glue_job'")
                 if t.get("jobdef"):
                     e.append(f"{stem}: glue-form task {tid!r} must not set 'jobdef'")
+            # A command must not END on a value-expecting option flag (dangling value): the SFN
+            # container override is passed verbatim, so a bare "--opt" makes the job's argparse
+            # exit 2 ("expected one argument"). Known store_true flags are exempt.
+            if cmd and isinstance(cmd[-1], str) and cmd[-1].startswith("--") \
+                    and cmd[-1] not in _VALUELESS_TRAILING_FLAGS:
+                e.append(
+                    f"{stem}: task {tid!r} command ends on value-expecting option {cmd[-1]!r} "
+                    f"with no value (dangling arg -> argparse exit 2)"
+                )
+
             # publishing tasks must declare a known publish_mode
             if t.get("publishes"):
                 pm = t.get("publish_mode")

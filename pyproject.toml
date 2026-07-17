@@ -45,6 +45,7 @@ batch = [
     "rasterio>=1.3,<1.5",  # 1.5+ requires Python >=3.12 and numpy>=2
     "pdfplumber>=0.11",    # PDF text extraction for WASDE/WAP text pipeline
     "pypdf>=4.0",          # PDF page truncation before Textract (Phase 2 scanned WASDE)
+    "yfinance>=0.2",       # continuous-futures fetch for silver_futures_prices (yfinance_futures_task); 0.2.x uses the pinned curl-cffi
 ]
 biweekly = [
     "playwright>=1.40",    # headless browser for JS-rendered listing page

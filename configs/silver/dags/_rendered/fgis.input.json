@@ -38,7 +38,9 @@
       "tasks": [
         {
           "command": [
-            "jobs/ingest/fetch_usda_fgis_export_inspections.py"
+            "jobs/ingest/fetch_usda_fgis_export_inspections.py",
+            "--mode",
+            "weekly"
           ],
           "env": [],
           "integration": "batch",

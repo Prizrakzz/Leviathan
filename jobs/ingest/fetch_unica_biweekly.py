@@ -81,8 +81,35 @@ _PLAYWRIGHT_TIMEOUT_MS = 60_000
 # HTTP download
 # ---------------------------------------------------------------------------
 
+class _PrunedSourceError(RuntimeError):
+    """A bulletin URL returned a *soft 404*: HTTP 200 with content that is not
+    a real bulletin.
+
+    Unlike SAGIS (which returns a hard HTTP 404 for pruned reports), UNICADATA
+    and the Wayback Machine signal a pruned/removed historical bulletin with a
+    200 response whose body is either:
+
+      * a sub-minimum placeholder PDF (the CMS serves a small "not found"
+        stand-in for bulletins whose real file was deleted), or
+      * a non-PDF HTML page (a Wayback snapshot-selection / redirect page
+        rather than the archived PDF binary).
+
+    These links live in the hand/Wayback-curated manifest, never upload
+    successfully, and therefore never enter the skip path — so they re-fail on
+    every single run.  They are tallied as ``missing`` and tolerated, exactly
+    like a permanent 404, while any other failure (network/5xx, S3, unexpected)
+    stays fatal.
+    """
+
+
 def _download_pdf(download_url: str) -> bytes:
-    """Download a bulletin PDF via plain HTTP.  Returns raw bytes."""
+    """Download a bulletin PDF via plain HTTP.  Returns raw bytes.
+
+    Raises:
+        _PrunedSourceError: On a soft 404 (non-PDF body or sub-minimum size) —
+            a permanently pruned historical bulletin, tolerated by the caller.
+        urllib.error.URLError: On network / HTTP transport errors (fatal).
+    """
     req = urllib.request.Request(
         download_url,
         headers={"User-Agent": "Mozilla/5.0"},
@@ -91,14 +118,43 @@ def _download_pdf(download_url: str) -> bytes:
         pdf_bytes: bytes = resp.read()
 
     if not pdf_bytes.startswith(_PDF_MAGIC):
-        raise RuntimeError(
+        raise _PrunedSourceError(
             f"Response is not a PDF (missing %%PDF header): {download_url}"
         )
     if len(pdf_bytes) < _MIN_PDF_BYTES:
-        raise RuntimeError(
-            f"PDF too small ({len(pdf_bytes):,} bytes) — likely an error page: {download_url}"
+        raise _PrunedSourceError(
+            f"PDF too small ({len(pdf_bytes):,} bytes) - likely a pruned/error page: {download_url}"
         )
     return pdf_bytes
+
+
+# ---------------------------------------------------------------------------
+# Error classification / run gating
+# ---------------------------------------------------------------------------
+
+def _is_pruned_source(exc: Exception) -> bool:
+    """True if *exc* marks a permanently pruned historical bulletin (soft 404).
+
+    Mirrors ``fetch_sagis_cec._is_permanent_404`` in intent: a dead link that
+    is re-discovered from the manifest every run and can never be skipped.  Any
+    other failure (network/5xx, S3, unexpected) is NOT pruned and stays fatal.
+    """
+    return isinstance(exc, _PrunedSourceError)
+
+
+def _exit_reason(uploaded: int, skipped: int, errors: int, missing: int) -> str | None:
+    """Return a SystemExit message if the run should fail, else ``None``.
+
+    Any non-pruned failure fails the run.  A run that uploaded nothing, skipped
+    nothing, and saw only pruned links means every discovered bulletin is dead
+    — fail rather than exit green with no signal.  Mirrors
+    ``fetch_sagis_cec._exit_reason``.
+    """
+    if errors:
+        return f"{errors} bulletin(s) failed - see logs above."
+    if uploaded == 0 and skipped == 0 and missing > 0:
+        return f"No bulletins uploaded and {missing} link(s) pruned/missing - source may be dead."
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -586,7 +642,7 @@ def main() -> None:
     ]
     logger.info("Downloading %d bulletin(s) …", len(target_bulletins))
 
-    uploaded = skipped = errors = 0
+    uploaded = skipped = errors = missing = 0
     first = True
 
     for b in target_bulletins:
@@ -647,17 +703,35 @@ def main() -> None:
             logger.error("Network error for idm=%s: %s", idm, exc)
             errors += 1
         except RuntimeError as exc:
-            logger.error("Validation error for idm=%s: %s", idm, exc)
-            errors += 1
+            if _is_pruned_source(exc):
+                # Permanently pruned historical bulletin (soft 404): the link
+                # lives in the hand/Wayback-curated manifest, is re-fetched every
+                # run, and never uploads or enters the skip path -- so it re-fails
+                # on every run forever.  Tally as missing and tolerate, exactly
+                # like the SAGIS hard-404 case.  _PrunedSourceError subclasses
+                # RuntimeError, so it lands here; genuine validation errors
+                # (a non-pruned RuntimeError) stay fatal in the else branch.
+                logger.warning("Missing (pruned/soft-404) idm=%s: %s", idm, exc)
+                missing += 1
+            else:
+                logger.error("Validation error for idm=%s: %s", idm, exc)
+                errors += 1
         except Exception as exc:  # noqa: BLE001 — unexpected error counted and logged; loop continues to remaining bulletins
             logger.error("Unexpected error for idm=%s: %s", idm, exc)
             errors += 1
 
     logger.info(
-        "Done. uploaded=%d  skipped=%d  errors=%d", uploaded, skipped, errors
+        "Done. uploaded=%d  skipped=%d  missing=%d  errors=%d",
+        uploaded,
+        skipped,
+        missing,
+        errors,
     )
-    if errors:
-        raise SystemExit(1)
+    reason = _exit_reason(
+        uploaded=uploaded, skipped=skipped, errors=errors, missing=missing
+    )
+    if reason:
+        raise SystemExit(reason)
 
 
 if __name__ == "__main__":
