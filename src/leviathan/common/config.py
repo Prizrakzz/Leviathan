@@ -5,7 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from dotenv import load_dotenv
+# python-dotenv is a LOCAL-DEV convenience (.env loading). Glue Python Shell
+# installs only the leviathan wheel (bootstrap pip --no-deps), so the import must
+# be tolerant: cloud runtimes get env vars from the platform, never a .env file.
+try:
+    from dotenv import load_dotenv
+except ImportError:  # Glue Python Shell / minimal envs
+    load_dotenv = None
 
 
 def _find_project_root() -> Path:
@@ -19,7 +25,8 @@ def _find_project_root() -> Path:
 PROJECT_ROOT: Path = _find_project_root()
 
 def load_env() -> None:
-    load_dotenv(PROJECT_ROOT / '.env')
+    if load_dotenv is not None:
+        load_dotenv(PROJECT_ROOT / '.env')
 
 
 def get_required_env(name: str) -> str:
