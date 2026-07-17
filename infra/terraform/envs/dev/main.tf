@@ -728,6 +728,27 @@ resource "aws_iam_role_policy" "batch_job_mlflow_secret_write" {
   })
 }
 
+# Wave-3: source-API credentials for the modis (NASA Earthdata) + quandl (Nasdaq Data
+# Link) fetchers. Batch injects containerProperties.secrets at container START via the
+# EXECUTION role, so the read grant lives there (scoped to exactly these two secrets).
+# The values never appear in task defs, logs, or the repo.
+resource "aws_iam_role_policy" "batch_exec_wave3_source_secrets" {
+  name = "leviathan-dev-batch-exec-wave3-source-secrets"
+  role = "leviathan-dev-batch-execution-role"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "Wave3SourceSecretsRead"
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue"]
+      Resource = [
+        "arn:aws:secretsmanager:us-east-1:668891723125:secret:leviathan/dev/earthdata-*",
+        "arn:aws:secretsmanager:us-east-1:668891723125:secret:leviathan/dev/nasdaq-api-key-*",
+      ]
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "silver_publisher_intermediates" {
   name = "leviathan-dev-silver-publisher-intermediates"
   role = module.iam.silver_publisher_role_name
