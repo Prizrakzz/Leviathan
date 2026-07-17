@@ -57,4 +57,8 @@ class NasaPowerRawToBronze(BaseRawToBronzeJob):
         validate_raw_json(json.loads(raw_bytes), self._schema, context=raw_key)
 
 
-NasaPowerRawToBronze().run()
+# Thin-contract entry (A-Wave-3): --commodity all (default) iterates every commodity discovered under
+# the nasa_power raw prefix, self-windowed to the current year; a named --commodity in the Glue
+# DefaultArguments preserves the single-commodity backfill (all years). Glue delivers job args in
+# sys.argv, so the raw-argv thin-contract runner needs no getResolvedOptions here.
+NasaPowerRawToBronze.run_thin_contract()

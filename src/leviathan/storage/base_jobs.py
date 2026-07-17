@@ -187,6 +187,9 @@ class BaseRawToBronzeJob(_BaseGlueJob, ABC):
         self.bucket: str = self.args["bucket"]
         self.aws_region: str = self.args["aws_region"]
         self.force_overwrite: bool = self._parse_optional_bool("force_overwrite")
+        # Set by run_thin_contract in 'all' mode: restrict the raw listing to this year so the
+        # daily chain is incremental; None (every explicit invocation) = all years (backfill).
+        self.year_window: int | None = None
 
     # ------------------------------------------------------------------
     # Path helpers — override in subclass for non-weather sources
@@ -209,6 +212,84 @@ class BaseRawToBronzeJob(_BaseGlueJob, ABC):
         """Schema validation hook. Default: no-op. Override to add validation."""
 
     # ------------------------------------------------------------------
+    # A-Wave-3 thin-contract runner ('all' sentinel + env defaults)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _discover_commodities(cls, bucket: str, aws_region: str) -> list[str]:
+        """Distinct commodity slugs present under ``raw/weather/source=<source>/``."""
+        keys = list_s3_keys(bucket, f"raw/weather/source={cls.source}/", aws_region=aws_region)
+        return sorted({c for c in (parse_hive_key(k, "commodity") for k in keys) if c})
+
+    @classmethod
+    def run_thin_contract(cls, argv: list[str] | None = None) -> None:
+        """Zero-required-arg entry the weather_daily descriptor invokes (Glue DefaultArguments).
+
+        ``--commodity all`` (the default) iterates every commodity discovered under the source's raw
+        prefix and self-windows each to the CURRENT calendar year; a single named ``--commodity`` (the
+        preserved backfill invocation) processes that commodity across ALL years. ``--bucket`` /
+        ``--aws_region`` default to ``$LEVIATHAN_BUCKET`` / ``$AWS_REGION``. Remaining argv tokens
+        (``--ingest_date``, ``--force_overwrite``, Glue system args) pass through to each
+        per-commodity run unchanged. One commodity's failure is logged and the loop continues; a
+        nonzero exit is raised iff any commodity failed."""
+        import datetime as _dt  # noqa: PLC0415
+        import sys as _sys  # noqa: PLC0415
+
+        from leviathan.common.config import get_required_env, load_env  # noqa: PLC0415
+
+        load_env()
+        args = list(_sys.argv[1:] if argv is None else argv)
+        commodity = _extract_cli_opt(args, "commodity", "all") or "all"
+        bucket = _extract_cli_opt(args, "bucket") or get_required_env("LEVIATHAN_BUCKET")
+        aws_region = _extract_cli_opt(args, "aws_region") or get_required_env("AWS_REGION")
+
+        if commodity.strip().lower() == "all":
+            commodities = cls._discover_commodities(bucket, aws_region)
+            year_window: int | None = _dt.date.today().year
+        else:
+            commodities = [c.strip() for c in commodity.split(",") if c.strip()]
+            year_window = None  # named-commodity backfill: every year
+
+        # __init__ parses sys.argv directly (getResolvedOptions in Glue takes the LAST occurrence,
+        # the local fallback the FIRST), so the consumed opts must be stripped from the passthrough
+        # remainder and re-supplied exactly once per commodity.
+        def _without(tokens: list[str], names: tuple[str, ...]) -> list[str]:
+            out: list[str] = []
+            i = 0
+            while i < len(tokens):
+                tok = tokens[i]
+                hit = next((n for n in names if tok == f"--{n}" or tok.startswith(f"--{n}=")), None)
+                if hit is None:
+                    out.append(tok)
+                    i += 1
+                elif tok == f"--{hit}" and i + 1 < len(tokens):
+                    i += 2
+                else:
+                    i += 1
+            return out
+
+        passthrough = _without(args, ("commodity", "bucket", "aws_region"))
+        script = _sys.argv[0] if _sys.argv else cls.source
+        logger.info(
+            "thin-contract %s raw->bronze: %d commodities, year_window=%s",
+            cls.source, len(commodities), year_window,
+        )
+        failures: list[str] = []
+        for c in commodities:
+            _sys.argv = [script, "--commodity", c, "--bucket", bucket,
+                         "--aws_region", aws_region, *passthrough]
+            try:
+                job = cls()
+                job.year_window = year_window
+                job.run()
+            except Exception as exc:  # noqa: BLE001 — one commodity's failure must not kill the rest
+                logger.error("[%s] %s raw->bronze FAILED: %s: %s", c, cls.source,
+                             type(exc).__name__, str(exc)[:300])
+                failures.append(c)
+        if failures:
+            raise SystemExit(1)
+
+    # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
 
@@ -216,9 +297,11 @@ class BaseRawToBronzeJob(_BaseGlueJob, ABC):
         raw_keys = list_s3_keys(
             self.bucket, self.raw_prefix(), suffix=self.raw_suffix(), aws_region=self.aws_region
         )
+        if self.year_window is not None:
+            raw_keys = filter_keys_by_year(raw_keys, self.year_window)
         logger.info(
-            "Found %d raw files for commodity=%s source=%s",
-            len(raw_keys), self.commodity, self.source,
+            "Found %d raw files for commodity=%s source=%s year_window=%s",
+            len(raw_keys), self.commodity, self.source, self.year_window,
         )
 
         if self.force_overwrite:
