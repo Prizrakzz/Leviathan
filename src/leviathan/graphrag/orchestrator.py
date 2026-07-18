@@ -86,10 +86,13 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
                   near: str | None = None, silver_lookup=None, on_stage=None,
-                  focus_driver: str | None = None, qfn=None) -> dict:
+                  focus_driver: str | None = None, qfn=None, xc_request: dict | None = None) -> dict:
+    # reroute v2: xc_request rides down to the cascade quantify seam (lane C) ONLY when the gate produced one
+    # (flag on + explicit ask). None -> the kwarg is omitted so the answer() call is byte-identical to today.
+    _xc = {"xc_request": xc_request} if xc_request is not None else {}
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn)
+                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn, **_xc)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -99,7 +102,8 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
 def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None,
                extra_context: str | None = None, route_fn=None, near: str | None = None,
-               silver_lookup=None, on_stage=None, focus_driver: str | None = None) -> dict:
+               silver_lookup=None, on_stage=None, focus_driver: str | None = None,
+               xc_request: dict | None = None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -140,11 +144,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
 
+    _xc = {"xc_request": xc_request} if xc_request is not None else {}   # reroute v2: omit when None (byte-identical)
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
                         near=near, silver_lookup=silver_lookup, on_stage=on_stage,
-                        focus_driver=focus_driver, numbers_lookup=query_fn)
+                        focus_driver=focus_driver, numbers_lookup=query_fn, **_xc)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -339,6 +344,100 @@ def _trivial_router_on() -> bool:
     saving the dispatch + synthesis Sonnet calls that a greeting otherwise pays for. Deterministic-only and
     fail-open in v1. Rollback = drop the env var (single flag, instant, no redeploy)."""
     return os.environ.get("GRAPHRAG_TRIVIAL_ROUTER", "off").lower() == "on"
+
+
+def _reroute_v2_on() -> bool:
+    """Cross-commodity relative-value fork feature flag (reroute v2). DEFAULT-OFF flip flag, case-insensitive,
+    fail-closed (any unrecognized value stays off) -- matches the SUGGEST_CATALOG/GEO_ROUTING convention. When
+    OFF the gate never computes a request, so `xc_request` is None and the reasoning/hybrid seam is
+    BYTE-IDENTICAL to today (the engine is gated by the ARGUMENT, never by reading this flag itself).
+    Rollback = drop the env var (single flag, instant, no redeploy)."""
+    return os.environ.get("GRAPHRAG_REROUTE_V2", "off").lower() == "on"
+
+
+# ── reroute v2 gate helpers (RV-W1.3): produce the cross-commodity request; NO firing logic lives here ────
+# The engine (lane C) decides whether the fork fires; the gate only resolves SOURCE + TARGET and selects the
+# single curated MATERIAL, census-realizable pair. Everything is fail-closed: any miss -> None (no fork).
+def _xc_pair_slugs(pair) -> tuple:
+    """The ordered leg slugs of a complex_map pair (interface: `.pair` = tuple of 2 slugs)."""
+    pr = getattr(pair, "pair", None)
+    if pr and len(pr) == 2:
+        return (pr[0], pr[1])
+    return (pair.side_a.get("contract"), pair.side_b.get("contract"))   # defensive fallback
+
+
+def _xc_other(pair, source: str) -> str | None:
+    a, b = _xc_pair_slugs(pair)
+    if source == a:
+        return b
+    if source == b:
+        return a
+    return None
+
+
+def _xc_find_pair(pairs, a: str, b: str):
+    """Order-INSENSITIVE lookup (RV-W1.3 F1 nit: authored ordered, but route() can yield either order).
+    Deterministic on the (defensive) duplicate case via pair-id lexical order."""
+    key = frozenset((a, b))
+    hits = sorted((p for p in pairs if frozenset(_xc_pair_slugs(p)) == key), key=lambda p: p.id)
+    return hits[0] if hits else None
+
+
+def _xc_realizable_default(pair_id: str):
+    """Per-PAIR census verdict (RV-W4.2, lane D). Lazily imported so the gate does not hard-depend on the
+    census module at import time; an ImportError propagates to the caller's fail-closed guard."""
+    from leviathan.graphrag.numbers import cascade_census as cc
+    return cc.pair_realizable(pair_id)
+
+
+def _xc_request(query: str, *, graph, state, detect=None, route=None, resolve_bare=None,
+                load_map=None, realizable=None) -> dict | None:
+    """Produce the cross-commodity RV request dict {pair_id, target_slug, source_slug} threaded into the
+    cascade quantify seam, or None (the default and every fail-closed outcome). RV-W1.3, extended with the
+    D7 open-target PAIR_CAP=1 and the C8 target binding. Dependencies default to the real symbols but are
+    INJECTABLE for hermetic tests (lanes A/D build concurrently). The whole body is try-wrapped: any
+    exception -- a raising detector, a missing lane-A/lane-D symbol, a cold-cache glob failure -- yields
+    None (fail-closed, C12), never a propagated 500."""
+    try:
+        detect = detect or it.is_cross_commodity_explicit
+        matched, target_span = detect(query)
+        if not matched:                                            # gate 1: the narrow explicit-ask matcher
+            return None
+        route = route or an.route
+        # gate 2 SOURCE = this-turn lexical route first hit, else the carried session contract (coreference).
+        src_hits = [c for c in (route(query, graph) or []) if c in graph.contracts]
+        source = src_hits[0] if src_hits else (
+            state.contracts[0] if (state and state.contracts
+                                   and state.contracts[0] in graph.contracts) else None)
+        if not source:
+            return None
+        if resolve_bare is None or load_map is None:               # lazy lane-A import (fail-closed on miss)
+            from leviathan.graphrag import complex_map as cm
+            resolve_bare = resolve_bare or cm.resolve_bare_commodity
+            load_map = load_map or cm.load_complex_map
+        realizable = realizable or _xc_realizable_default
+        material = [p for p in getattr(load_map(), "pairs", [])
+                    if getattr(p, "materiality_tier", None) == "material"]
+
+        if target_span is None:                                    # D7 OPEN-target: rank SOURCE's pairs
+            cands = sorted((p for p in material if source in _xc_pair_slugs(p)), key=lambda p: p.id)
+            for p in cands:                                        # PAIR_CAP=1: first realizable in id order
+                if realizable(p.id) is True:                       # fail-closed: only an explicit True fires
+                    tgt = _xc_other(p, source)
+                    if tgt:
+                        return {"pair_id": p.id, "source_slug": source, "target_slug": tgt}
+            return None
+
+        # gate 2 NAMED-target: bind TARGET to the captured <X>; a same-commodity object declines (C8).
+        target = resolve_bare(target_span)
+        if not target or target == source or target not in graph.contracts:
+            return None
+        pair = _xc_find_pair(material, source, target)             # gate 3: curated + material (order-insensitive)
+        if pair is None or realizable(pair.id) is not True:        # + per-pair census FIRES (fail-closed)
+            return None
+        return {"pair_id": pair.id, "source_slug": source, "target_slug": target}
+    except Exception:  # noqa: BLE001 -- a detector/resolver/census failure disables v2 this turn, never 500s
+        return None
 
 
 # Canned mentor-register replies (F1) — one per is_trivial class. 1-2 lines, lead-with-the-point desk voice;
@@ -757,6 +856,16 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     _tick_contracts = [] if (_geo_routing_on() and kind == "live") else \
         [c for c in (list(plan.contracts) if plan else []) if c in graph.contracts]
     an._emit(on_stage, "planning", intent=kind, contracts=_tick_contracts)   # staged-pipeline (P1.1)
+
+    # ── reroute v2 gate (RV-W1.3): the deterministic LAW that produces the cross-commodity request. It runs
+    # ONLY on the two branches that reach the cascade quantify seam (reasoning/hybrid), ONLY when the flag is
+    # on, and is fully fail-closed (any error -> None). The env flag gates whether the gate may compute a
+    # request at all; the ENGINE (lane C) is gated by the xc_request ARGUMENT, never by reading the flag --
+    # so a mis-plumbed enable can never fire the fork on an unasked turn (C9). Flag off => None => the
+    # reasoning/hybrid call is byte-identical to today.
+    xc_request = None
+    if _reroute_v2_on() and kind in ("reasoning", "hybrid"):
+        xc_request = _xc_request(query, graph=graph, state=state)
     try:
         if kind == "live":
             # Thread coreference reaches the news SEARCH ("any news related to that?"): the plan's
@@ -787,12 +896,12 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                              client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
                              extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                             on_stage=on_stage, focus_driver=att["focus_driver"])
+                             on_stage=on_stage, focus_driver=att["focus_driver"], xc_request=xc_request)
         else:
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                 silver_lookup=silver_lookup, on_stage=on_stage,
-                                focus_driver=att["focus_driver"], qfn=qfn)
+                                focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         an._emit(on_stage, "floor")
         res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)
