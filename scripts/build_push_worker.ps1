@@ -27,6 +27,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Build context = THIS script's repo root, NEVER the caller's cwd (the d9b2e10e trap: `docker build
+# ... .` packaged whatever tree the shell sat in -- on 2026-07-18 that baked a stale main-repo src/
+# into worker :latest, silently dropping the same-day CEC parser; caught by the in-container
+# content-check gate before any job ran on it).
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+Write-Host "==> Build context: $RepoRoot" -ForegroundColor Cyan
+
 $EcrBase    = "${AccountId}.dkr.ecr.${Region}.amazonaws.com"
 $LatestImage = "${EcrBase}/${RepoName}:latest"
 $TaggedImage = "${EcrBase}/${RepoName}:${Tag}"
@@ -66,8 +73,8 @@ $ErrorActionPreference = "SilentlyContinue"
 docker build `
     @PlatformArgs `
     --tag $LatestImage `
-    --file docker/leviathan_worker/Dockerfile `
-    . 2>&1
+    --file (Join-Path $RepoRoot "docker/leviathan_worker/Dockerfile") `
+    $RepoRoot 2>&1
 $buildExit = $LASTEXITCODE
 $ErrorActionPreference = $prevEAP
 if ($buildExit -ne 0) { throw "docker build failed (exit $buildExit)" }
