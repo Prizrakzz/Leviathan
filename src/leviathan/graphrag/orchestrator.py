@@ -333,6 +333,46 @@ def _geo_routing_on() -> bool:
     return os.environ.get("GRAPHRAG_GEO_ROUTING", "off").lower() == "on"
 
 
+def _trivial_router_on() -> bool:
+    """Trivial-turn router feature flag (F1). Default OFF -> byte-identical to pre-F1 behavior. When ON, a
+    pure greeting/smalltalk/meta turn short-circuits to a canned mentor reply (the intent.is_trivial gate),
+    saving the dispatch + synthesis Sonnet calls that a greeting otherwise pays for. Deterministic-only and
+    fail-open in v1. Rollback = drop the env var (single flag, instant, no redeploy)."""
+    return os.environ.get("GRAPHRAG_TRIVIAL_ROUTER", "off").lower() == "on"
+
+
+# Canned mentor-register replies (F1) — one per is_trivial class. 1-2 lines, lead-with-the-point desk voice;
+# NEVER bullish/bearish, NO internal slugs/ids, NO fabricated numbers (they MUST score 0 on register.register_
+# leaks AND register._MOOD — pinned by tests/unit/test_trivial_router.py). Each names a few example question
+# TYPES in prose; the data-scoped starter CHIPS are the live suggester's job (trace.trivial.starters flags the
+# FE to render them from the warm convergence matrix — F1 never mints or fabricates chips itself).
+_TRIVIAL_REPLIES = {
+    "greeting": (
+        "Hi -- I'm your commodities research desk. Ask me what's driving a market, how a shock propagates "
+        "through a balance sheet and where the price response turns convex, or for a specific observed figure "
+        "like exports, ending stocks, or a spot level at a point in time."),
+    "smalltalk": (
+        "Anytime -- I'm here whenever you want to trace what's moving a market, follow a shock through the "
+        "supply chain, or pull an observed figure. Just name a market or an event to pick up the thread."),
+    "meta": (
+        "I'm a commodities research desk covering the tracked agricultural complex -- grains, oilseeds, softs, "
+        "and the weather, policy, macro and logistics drivers behind them. I explain what's driving a market "
+        "and how a shock cascades and compounds, and I look up observed levels (exports, stocks, production, "
+        "prices, FX, ENSO) as they were known at any point in time. Name a market or a shock to start."),
+}
+
+
+def _trivial_answer(query: str, klass: str) -> dict:
+    """A respond()-shaped canned reply for a trivial social turn (mirrors _guardrail_check's early-return
+    shape). No LLM call, no data path, no session write. `trace.trivial.starters=True` is the FE hint to render
+    the live suggester's data-scoped starter chips (server.py starter path); F1 does NOT call /v1/suggest."""
+    return {"answer": _TRIVIAL_REPLIES.get(klass, _TRIVIAL_REPLIES["greeting"]),
+            "structured": None, "contract": None, "contracts": [], "citations": [], "evidence": [],
+            "number_calls": [], "model": "(canned)", "intent": "social",
+            "intent_decision": {"intent": "social", "trivial": klass},
+            "trace": {"trivial": {"class": klass, "starters": True}}}
+
+
 _EXCHANGE_TOKENS = frozenset({"kcbt", "cbot", "mgex", "cme", "ice", "jse", "zce", "dce", "matif", "nybot"})
 
 
@@ -518,7 +558,12 @@ def respond(*args, **kwargs) -> dict:
                   "DivergenceNodes": sum(1 for t in qt if t.get("divergence")),
                   "RerouteFired": 1 if rt else 0,
                   "MultiCountryTurn": 1 if len(rt_countries) >= 2 else 0,
-                  "CitedN": cited_n, "InjectedN": injected_n, "AnswerChars": len(_ans)},
+                  "CitedN": cited_n, "InjectedN": injected_n, "AnswerChars": len(_ans),
+                  # F1 counter: 1 on a trivial-router short-circuit (trace.trivial stamped by _trivial_answer),
+                  # else 0. Social turns emit under intent="social"/model="(canned)" -- a fresh dimension
+                  # bucket that never pollutes the reasoning/hybrid/numbers strip metrics (0-semantics, like
+                  # CascadeFired). Always 0 when GRAPHRAG_TRIVIAL_ROUTER is off (no turn stamps trace.trivial).
+                  "TrivialShortCircuit": 1 if tr.get("trivial") else 0},
                  dimensions={"intent": res.get("intent"), "model": res.get("model")},
                  units={"TurnLatencyMs": "Milliseconds", "MsFill": "Milliseconds",
                         "MsRest": "Milliseconds", "MsDispatch": "Milliseconds", "MsNumbers": "Milliseconds",
@@ -526,7 +571,7 @@ def respond(*args, **kwargs) -> dict:
                         "StripCount": "Count", "CascadeFired": "Count",
                         "CascadeNodes": "Count", "DivergenceNodes": "Count", "RerouteFired": "Count",
                         "MultiCountryTurn": "Count", "CitedN": "Count", "InjectedN": "Count",
-                        "AnswerChars": "Count"})
+                        "AnswerChars": "Count", "TrivialShortCircuit": "Count"})
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res
@@ -554,6 +599,26 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     refused = _guardrail_check(query)                 # input pre-filter (default off, fail-open)
     if refused is not None:
         return refused                                # refused turns never touch session state
+
+    # ── trivial-turn router (F1) ──────────────────────────────────────────────────────────────────
+    # Short-circuit a pure greeting/smalltalk/meta turn to a canned mentor reply BEFORE session load and the
+    # dispatch planner, saving two Sonnet calls. Placed EARLIEST (mirrors the guardrail early-return, and
+    # # v1 default (plan D9): earliest wins): a greeting is never persisted to thread history and never wipes
+    # coreference/as-of carry -- it returns ABOVE session load AND above _session_writeback, so session state
+    # is untouched BY CONSTRUCTION. is_trivial is deterministic-only (# v1 default (plan D2): NO Haiku fallback
+    # -- an ambiguous turn returns None and falls through). Off-topic-but-real questions also fall through
+    # (# v1 default (plan D8): canned scope-reply is for pure-social turns only). FAIL-OPEN: any classifier
+    # error -> None -> normal pipeline (parity with the guardrail). Quota is unchanged (# v1 default (plan D4):
+    # a short-circuit saves Bedrock spend but does NOT refund the daily turn counter, which increments at the
+    # route dependency before respond() runs -- making greetings quota-free is the D4 route-gate follow-up).
+    if _trivial_router_on():
+        try:
+            _klass = it.is_trivial(query)
+        except Exception:  # noqa: BLE001 — the router must NEVER break an answer (guardrail parity)
+            _klass = None
+        if _klass is not None:
+            an._emit(on_stage, "social", klass=_klass)   # one stage tick so SSE relays it as a normal turn
+            return _trivial_answer(query, _klass)         # never touches session state (returns above load)
 
     # ── session load (Phase 1) ────────────────────────────────────────────────────────────────────
     snap, store, ss = None, None, None
