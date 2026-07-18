@@ -64,6 +64,11 @@ MY_START_MONTH = {
     "corn": 9, "soybeans": 9, "soybean_oil_cbot": 10, "soybean_meal_cbot": 10,
     "raw_sugar": 10, "white_sugar": 10, "arabica_coffee": 10, "robusta_coffee": 10,
     "cotton": 8, "rough_rice": 8, "cocoa": 10,
+    # reroute-v2 veg-oil legs (WINDOW SCOPING only -- consistent with silver derivation, never a reader-facing
+    # calendar claim). Palm = Oct (10), NOT the plan body's Nov: USDA GAIN prints "Market Year Begins Oct" for
+    # BOTH Indonesia and Malaysia (2026-07-18 probe P2, refuting the draft's 11). Rapeseed-oil = Oct (10), the
+    # ZCE-home (China) convention.
+    "malaysian_crude_palm_oil_cme": 10, "rapeseed_oil_zce": 10,
 }
 _MY_DEFAULT_START = 9                                             # USDA split-year default (Sep-Aug family)
 
@@ -481,7 +486,7 @@ def _pair_units(groups: list) -> tuple:
 
 
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
-def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list) -> tuple:
+def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -534,6 +539,18 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list) -> tuple:
     block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls)
     r_lines, r_trace = _reroute(pairs, era_deltas)
     block_lines = block_lines + r_lines
+    # RV-W2: the cross-COMMODITY relative-value fork, gated ONLY by the orchestrator-threaded xc_request (the
+    # env flag is checked at the answer.py seam). xc_request None -> this branch is inert and everything below
+    # is byte-identical to v1. On FIRE the engine WRITES the trace key itself (C11: quantify_reroute_v2
+    # non-empty == fired) and appends its BY-COMMODITY block; a decline/failure leaves the key absent.
+    if xc_request:
+        xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls)
+        if xc_trace:
+            try:
+                sg.trace["quantify_reroute_v2"] = xc_trace
+            except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                pass
+            block_lines = block_lines + xc_lines
     block = ("OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
              + "\n".join(block_lines)) if block_lines else None
     return block, trace, r_trace
@@ -865,3 +882,286 @@ def _reroute(pairs: list, deltas_by_key: dict) -> tuple:
                           "dA": da, "countryB": p["countryB"], "dB": db, "window": window,
                           "reroute": True})
     return lines, trace
+
+
+# ── RV-W2: cross-COMMODITY relative-value fork (reroute v2) ─────────────────────────────────────────────
+# One event, two commodities, opposing balance-sheet legs: whose World stocks-to-use tightens RELATIVE to
+# whose -- measured on su_ratio, WORLD basis, each leg on its OWN marketing year. The cross-COMMODITY cousin
+# of _reroute's cross-COUNTRY fork ("the flow found a new door" -> "the shock found a second balance sheet").
+# NOT a trading system (no long/short/spread/basis/price): the engine NEVER reads price/feature tables
+# (the D1/D6 fence; crush_margin_z was struck -- C19). The engine is gated ONLY by the xc_request kwarg the
+# orchestrator threads at the answer.py seam (the env flag is checked THERE, never here -- cascade's own
+# discipline): xc_request None => this whole path is inert and the v1 return is byte-identical.
+#
+# World is SYNTHESIZED, not fetched: silver_psd has NO literal country="World" row (the 2026-07-18 probe P1
+# refuted the plan body's assumption). su_ratio-World == Recipe-B total-use synthesis:
+# SUM(ending_stocks_mt)/SUM(consumption_mt) across ALL countries at the SINGLE latest release_date <= asof
+# (NEVER across vintages), pre-scaled x100 to narrate '%' (reconciled to 0.03% vs USDA's published World Total).
+_XC_SU_STOCKS = "ending_stocks_mt"
+_XC_SU_USE = "consumption_mt"
+
+
+def _as_float(v) -> float | None:
+    try:
+        return float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _release_of(row: dict) -> str | None:
+    """The PSD publication vintage of a fetched row: silver stores it as 'release_date', Q.run's SELECT aliases
+    it to 'knowledge_date' -- read either so the single-vintage lock works on live rows AND on test fixtures."""
+    for k in ("release_date", "knowledge_date"):
+        v = (row or {}).get(k)
+        if v:
+            return str(v)
+    return None
+
+
+def _psd_component_rows(qfn, slug: str, metric: str, my: int, asof) -> list:
+    """PIT-safe per-country rows for a WIDE-PSD component metric at (slug, MY), as-known at asof: country=None
+    -> every country's latest vintage <= asof, via the SAME keyed fetch_window path a cascade leg uses (same
+    as-of guard, same sargable-partition discipline). Never raises (fetch_window degrades to rows=[])."""
+    rec = fetch_window(qfn, table="silver_psd", metric=metric, commodity=slug, country=None,
+                       t1=None, t2=None, asof=asof, agg="series", period=my, period_type="marketing_year")
+    return rec.get("rows") or []
+
+
+def _world_su_ratio(qfn, slug: str, my: int, asof) -> tuple | None:
+    """Recipe-B World stocks-to-use for (slug, MY) as a pre-scaled '%': SUM(ending_stocks_mt)/SUM(consumption_mt)
+    across ALL countries at the SINGLE latest release_date <= asof (ADDENDUM P1 -- no literal country='World'
+    row exists; NEVER sum across vintages). Returns (ratio_pct, release_date, n_countries) or None (no coherent
+    single-vintage snapshot -> the leg declines honestly)."""
+    st = _psd_component_rows(qfn, slug, _XC_SU_STOCKS, my, asof)
+    us = _psd_component_rows(qfn, slug, _XC_SU_USE, my, asof)
+    if not st or not us:
+        return None
+    rds = [r for r in (_release_of(x) for x in (st + us)) if r]
+    if not rds:
+        return None
+    rd = max(rds)                                                # single-vintage lock: only the latest snapshot
+
+    def _sum_at(rows: list) -> tuple:
+        seen: dict = {}                                          # per-country, drop every OTHER vintage
+        for r in rows:
+            if _release_of(r) != rd:
+                continue
+            c = r.get("country")
+            if c in seen:                                        # a country twice at one release: idempotent
+                continue
+            v = _as_float(r.get("value"))
+            if v is not None:
+                seen[c] = v
+        return sum(seen.values()), len(seen)
+
+    s_tot, s_n = _sum_at(st)
+    u_tot, u_n = _sum_at(us)
+    if s_n == 0 or u_n == 0 or u_tot == 0:
+        return None
+    return (100.0 * s_tot / u_tot, rd, min(s_n, u_n))
+
+
+def _leg_world_deltas(qfn, slug: str, windows: list, asof) -> dict:
+    """Per focus-window index: the WITHIN-window World su_ratio change (last-MY % minus first-MY %) computed on
+    the LEG'S OWN marketing year (index-aligned eras, C4: each leg its own MY span, keyed by era_idx so the
+    two legs align regardless of MY-int divergence -- NOT _shared_eras, which returns EMPTY on differing MY
+    starts, engine F4). Only an era with >=2 resolved World ratios yields a delta; else the era declines.
+    Returns {era_idx: {'d': delta_pp, 'a': (my, pct, rd), 'b': (my, pct, rd)}}."""
+    out: dict = {}
+    for i, w in enumerate(windows or []):
+        pts = []
+        for my in _my_span(w, slug):                            # widened to >=2 MYs so a within-era delta exists
+            wr = _world_su_ratio(qfn, slug, my, asof)
+            if wr is not None:
+                pts.append((my, wr[0], wr[1]))
+        if len(pts) >= 2:
+            a, b = pts[0], pts[-1]
+            out[i] = {"d": b[1] - a[1], "a": a, "b": b}
+    return out
+
+
+def _xc_label(slug: str) -> str:
+    """A reader-facing World-basis commodity label. soft_red_winter_wheat_cbot fans to PSD code 410000 = the
+    ALL-CLASS wheat aggregate at World, so it is labeled 'world wheat (all classes)', never 'soft red winter'
+    (C20 -- never misrepresent an all-wheat number as SRW)."""
+    s = (slug or "").lower()
+    if "wheat" in s:
+        return "world wheat (all classes)"
+    for suf in ("_cbot", "_cme", "_zce", "_dce", "_matif"):
+        if s.endswith(suf):
+            s = s[: -len(suf)]
+            break
+    return "world " + s.replace("_", " ")
+
+
+def _shared_event_matched(sg, shared_event) -> bool:
+    """True IFF the pair's curated shared_event driver was route-matched in THIS turn's walk. C20 mitigation for
+    feed_grain: the engine has NO other runtime signal for WHICH curated edge (feed substitution vs export/
+    acreage) drove the divergence, so absent a match it narrates GENERICALLY. Best-effort + exception-safe --
+    a miss just yields the generic frame, never a raise."""
+    tok = str(shared_event or "").strip().lower()
+    if not tok:
+        return False
+    try:
+        for n in getattr(sg, "nodes", None) or []:
+            if tok in str(getattr(n, "id", "") or "").lower():
+                return True
+            prior = getattr(n, "prior", None) or {}
+            if any(tok in str(v).lower() for v in prior.values()):
+                return True
+    except Exception:  # noqa: BLE001
+        return False
+    return False
+
+
+def _xc_frame(pair_row, sg) -> str:
+    """The narration frame directive, selected BY COMPLEX (RV-W2.4). soy_crush takes the joint-product path
+    (a co-move is not a story; only DEMAND divergence opposes -- oil_share stays qualitative prose, there is no
+    crush_margin_z serving metric); feed_grain narrates generically unless its shared_event route-matched this
+    turn (C20); substitution complexes narrate the second-balance-sheet substitution."""
+    complex_name = str(getattr(pair_row, "complex_name", "") or "")
+    if complex_name == "soy_crush":
+        return ("the crush shifted toward one product on DEMAND (meal and oil are JOINT products co-produced on "
+                "the supply side, so a co-move is not a relative-value story; only a demand divergence opposes)")
+    if complex_name == "feed_grain":
+        if _shared_event_matched(sg, getattr(pair_row, "shared_event", None)):
+            return "the relative feed-grain balance shifted (feed-ration substitution)"
+        return "the relative feed-grain balance shifted"        # generic: no runtime signal for WHICH edge (C20)
+    return "the shock reached a second balance sheet; one tightened as the other loosened (substitution)"
+
+
+def _xc_call(commodity: str, value: float, my: int, asof, *, unit: str = "%") -> dict:
+    """A synthetic call-record so a narrated v2 su_ratio/delta magnitude IS a citable, value-checkable row (the
+    _delta_call discipline; both legs' rows are injected so the all-numbers strip guard backs every magnitude).
+    No _provenance -- a World figure is a cross-country synthesis, not one source row."""
+    return {"query": {"commodity": commodity, "metric": "su_ratio_world",
+                      "period": (f"MY{my}" if my is not None else None), "asof": asof},
+            "rows": [{"value": round(float(value), 4), "unit": unit}], "status": "ok"}
+
+
+def _xc_sides_ok(pair_row, source: str, target: str) -> bool:
+    """Fail-closed guard: the pair is `material` AND both curated legs are su_ratio-World sides whose contracts
+    are EXACTLY {source, target}. Any drift (wrong tier, a leg off the pair, a non-world country_rule) declines
+    the whole fork -- never a guessed comparison."""
+    try:
+        if getattr(pair_row, "materiality_tier", None) != "material":
+            return False
+        sides = [getattr(pair_row, "side_a", None) or {}, getattr(pair_row, "side_b", None) or {}]
+        if {(s.get("contract") or "") for s in sides} != {source, target}:
+            return False
+        return all((s.get("country_rule") or "") == "world" for s in sides)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, asof,
+                calls: list, base: int, sg) -> tuple:
+    """The ratio-delta fork, labeled BY COMMODITY (RV-W2.3). BOTH legs are SYNTHESIZED World su_ratio legs over
+    the SAME focus-window eras (Invariant 4 -- the shared window is FORCED, no second walk, no sibling
+    retrieval), each on its OWN marketing year (C4). Fire IFF the two within-window signs OPPOSE (the reused
+    _reroute L852 sign test): one tightens while the other loosens. SAME-SIGN records NOTHING (a co-move is not
+    a relative-value story -- the honest backstop, esp. crush joint products); a missing within-window delta on
+    EITHER leg declines that era. PAIR_CAP=1: at most one era of one pair fires. On fire, inject both legs'
+    endpoint + delta [N] rows (value-checkable) and return (block_lines, fired_trace); ([], None) otherwise.
+    Never raises."""
+    if not _xc_sides_ok(pair_row, source, target):
+        return [], None
+    da_by = _leg_world_deltas(qfn, source, focus_windows, asof)
+    db_by = _leg_world_deltas(qfn, target, focus_windows, asof)
+    la, lb = _xc_label(source), _xc_label(target)
+    n = base
+    for i in sorted(set(da_by) & set(db_by)):                   # index-aligned eras: same era_idx on both legs
+        A, B = da_by[i], db_by[i]
+        sa, sb = _sign(A["d"]), _sign(B["d"])
+        if sa == 0 or sb == 0 or sa == sb:
+            continue                                            # co-move / flat -> record nothing (honest)
+        (mya0, pa0, _rda0), (mya1, pa1, _rda1) = A["a"], A["b"]
+        (myb0, pb0, _rdb0), (myb1, pb1, _rdb1) = B["a"], B["b"]
+        window = f"MY{mya0}-MY{mya1}"
+        lines: list = []
+        # one composite [N] line per leg (the RV-W3.2 shape); the endpoint value the handle cites plus its own
+        # baseline + delta are ALL injected so every magnitude value-checks against the all-numbers guard.
+        for (lbl, cmdty, my_lo, p_lo, my_hi, p_hi, d) in (
+                (la, source, mya0, pa0, mya1, pa1, A["d"]),
+                (lb, target, myb0, pb0, myb1, pb1, B["d"])):
+            n += 1
+            handle = n
+            calls.append(_xc_call(cmdty, p_hi, my_hi, asof))    # the endpoint the [N{handle}] line cites
+            n += 1
+            calls.append(_xc_call(cmdty, p_lo, my_lo, asof))    # the baseline (backs the '(vs MY.. ..%)' term)
+            n += 1
+            calls.append(_xc_call(cmdty, d, my_hi, asof, unit="pp"))   # the delta (backs the '..pp' term)
+            lines.append(f"- [N{handle}] {lbl} stocks-to-use MY{my_hi}: {p_hi:g}% "
+                         f"(vs MY{my_lo} {p_lo:g}%, {d:+g}pp over the window)")
+        lines.append(
+            f"CROSS-COMMODITY on su_ratio: {la} {pa1:g}% ({A['d']:+g}pp) vs {lb} {pb1:g}% ({B['d']:+g}pp) "
+            f"over {window} -- {_xc_frame(pair_row, sg)}; each World balance sheet aggregates DIFFERING local "
+            f"marketing years, so the comparison holds at the marketing-year grain, not a shared calendar; "
+            f"render '## Cross-commodity', labeled BY COMMODITY.")
+        fired = {"pair_id": getattr(pair_row, "id", None), "complex": getattr(pair_row, "complex_name", None),
+                 "commodityA": source, "dA": round(A["d"], 4), "su_ratio_A": round(pa1, 4), "myA": mya1,
+                 "commodityB": target, "dB": round(B["d"], 4), "su_ratio_B": round(pb1, 4), "myB": myb1,
+                 "window": window, "reroute_v2": True}
+        return lines, fired
+    return [], None
+
+
+def _slug_match(a, b) -> bool:
+    if not a or not b:
+        return False
+    a, b = str(a), str(b)
+    return a == b or PSD_SLUG_ALIAS.get(a, a) == b or a == PSD_SLUG_ALIAS.get(b, b)
+
+
+def _xc_focus_windows(sg, graph, groups: list, source: str, near, asof) -> list:
+    """The FOCUS event's own derived era windows -- reused for BOTH v2 legs so the shared window is FORCED by
+    construction (Invariant 4; no second _derive_windows). Prefer an already-built focus group's eras; else
+    derive from the grounded source node directly (the source may be grounded without a mapped su_ratio ref)."""
+    for g in groups or []:
+        if _slug_match(g.get("commodity"), source):
+            return g.get("eras") or []
+    try:
+        for n in _select_nodes(sg, graph):
+            c = getattr(n, "contract", None)
+            if _slug_match(c, source):
+                w = _derive_windows(n, near, asof)
+                if w:
+                    return w
+    except Exception:  # noqa: BLE001
+        return []
+    return []
+
+
+def _load_pair_row(pair_id: str):
+    """The curated complex_map pair (lane A's load_complex_map()); None on any failure (missing file, unknown
+    id, a non-material row the loader dropped) -> the fork declines. Imported lazily so the engine never hard-
+    depends on the v2 config existing."""
+    try:
+        from leviathan.graphrag.complex_map import load_complex_map
+        cm = load_complex_map()
+        for p in getattr(cm, "pairs", None) or []:
+            if getattr(p, "id", None) == pair_id:
+                return p
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list) -> tuple:
+    """Resolve the curated pair + the focus window, then run the ratio-delta fork. Returns (block_lines,
+    fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed)."""
+    try:
+        pair_id = (xc_request or {}).get("pair_id")
+        source = (xc_request or {}).get("source_slug")
+        target = (xc_request or {}).get("target_slug")
+        if not (pair_id and source and target) or source == target:
+            return [], None
+        pair_row = _load_pair_row(pair_id)
+        if pair_row is None:
+            return [], None
+        windows = _xc_focus_windows(sg, graph, groups, source, near, asof)
+        if not windows:
+            return [], None
+        return _reroute_xc(pair_row, source, target, windows, qfn, asof, calls, len(calls), sg)
+    except Exception:  # noqa: BLE001
+        return [], None
