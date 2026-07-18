@@ -1,14 +1,11 @@
-"""CEC-W0 -- per-era failing goldens that PIN the SAGIS CEC scope/estimate defect.
+"""CEC W0/W1 -- per-era GOLDENS that pin the SAGIS CEC scope/estimate defect + its repair.
 
-Task #118, wave W0. These fixtures freeze the defect as executable, source-faithful
-expectations BEFORE the era-aware parser exists (5ad4c0e6 discipline). There is NO
-raw->bronze CEC parser in the tracked estate today (the on-S3 bronze was materialized
-out-of-band by an untracked prototype -- CEC_PARSER_REPAIR_PLAN.md Section 0), so every
-golden below currently RAISES ``ImportError`` on the not-yet-built entrypoint and is
-marked ``xfail(strict=False)``. **W1 builds the parser and these flip to xpass** (strict
-is False so a flipped golden never fails the suite mid-transition; W1 removes the marks).
+Task #118. W0 froze the defect as executable, source-faithful expectations BEFORE the
+era-aware parser existed (5ad4c0e6 discipline); these were ``xfail`` on the not-yet-built
+entrypoint. **W1 built ``leviathan.transforms.raw_to_bronze.sagis_cec.parse_cec_report`` and
+flipped the marks** -- every golden below is now a HARD assert over the real raw fixtures.
 
-Expected W1 entrypoint (Architecture D6=(a), raw->silver-direct):
+W1 entrypoint (Architecture D6=(a), raw->silver-direct):
 
     from leviathan.transforms.raw_to_bronze.sagis_cec import parse_cec_report
     obs: list[CecObservation] = parse_cec_report(raw_bytes, source_key)
@@ -54,15 +51,13 @@ _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "sagis_cec"
 
 # One representative REAL raw object per era signature (era census in the W0 handoff).
 _PDF_MODERN = "CEC_2025-09.pdf"        # era D: PDF 2025-2026 (3-way maize collapse anchor)
-_DOC_OLD = "CEC-2006-05-b-S.doc"       # era B: .doc 2005-2006, 8-bit (2-way maize collapse anchor)
+_DOC_OLD = "CEC-2006-05-b-S.doc"       # era B: .doc 2005-2006, 8-bit cp1252 (2-way maize collapse)
+_DOC_MODERN = "CEC-2024-05-b.doc"      # era C: .doc 2007-2024, UTF-16LE fast-save (mixed-encoding CLX)
 _XLS = "CEC_2002_-_2005S.xls"          # era X: .xls 2002-2004 (developing-sector recovery)
 _PDF_EARLY = "CEC-1999-10-20.pdf"      # era A: PDF 1999-2004 (winter cereals, total-only)
 
-_W1 = "W1 builds leviathan.transforms.raw_to_bronze.sagis_cec.parse_cec_report; W0 pins the target"
-
-
 def _parse(fixture: str) -> list[CecObservation]:
-    """Call the W1 parser on a committed fixture. Raises ImportError until W1 lands (=> xfail)."""
+    """Call the W1 parser on a committed fixture."""
     from leviathan.transforms.raw_to_bronze.sagis_cec import parse_cec_report  # noqa: PLC0415
 
     data = (_FIXTURES / fixture).read_bytes()
@@ -77,15 +72,15 @@ def _one(obs: list[CecObservation], *, crop: str, scope: str) -> CecObservation:
 
 # ---------------------------------------------------------------------------
 # GREEN anchor: fixtures are present + intact (documents the era->format census).
-# This is the only non-xfail test -- it proves the committed bytes are real raw
-# objects of the claimed format, so every xfail below is attributable to the
-# missing W1 parser, not a missing/corrupt fixture.
+# Proves the committed bytes are real raw objects of the claimed format, so every
+# golden below is attributable to the parser, not a missing/corrupt fixture.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("fixture,magic", [
     (_PDF_MODERN, b"%PDF"),
     (_PDF_EARLY, b"%PDF"),
     (_DOC_OLD, b"\xd0\xcf\x11\xe0"),   # OLE compound file (.doc)
+    (_DOC_MODERN, b"\xd0\xcf\x11\xe0"),  # OLE compound file (.doc, UTF-16LE fast-save)
     (_XLS, b"\xd0\xcf\x11\xe0"),       # OLE compound file (.xls)
 ])
 def test_era_fixtures_present_and_valid_magic(fixture: str, magic: bytes) -> None:
@@ -95,10 +90,9 @@ def test_era_fixtures_present_and_valid_magic(fixture: str, magic: bytes) -> Non
 
 
 # ---------------------------------------------------------------------------
-# W0 GOLDENS (xfail -> W1 flips). Each pins the CORRECT per-era parse.
+# GOLDENS (W1 hard asserts). Each pins the CORRECT per-era parse.
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(reason=_W1, strict=False)
 def test_modern_pdf_maize_three_scopes_not_collapsed() -> None:
     """era D (CEC_2025-09.pdf): the 3-way collapse. Source prints THREE physical total_maize
     rows -- Commercial (16 178 500 t) / Non-Commercial (621 500 t) / RSA total (16 800 000 t) --
@@ -131,7 +125,6 @@ def test_modern_pdf_maize_three_scopes_not_collapsed() -> None:
     assert _one(obs, crop="yellow_maize", scope="commercial").current_estimate_t == 7_850_850
 
 
-@pytest.mark.xfail(reason=_W1, strict=False)
 def test_old_doc_maize_two_scopes_not_collapsed() -> None:
     """era B (CEC-2006-05-b-S.doc): the 2-way collapse. White maize carries a Commercial row
     (3 615 650 t / 985 000 ha, ~3.67 t/ha) AND a Developing/subsistence row (238 426 t /
@@ -162,7 +155,34 @@ def test_old_doc_maize_two_scopes_not_collapsed() -> None:
     assert _one(obs, crop="yellow_maize", scope="developing").current_estimate_t == 78_630
 
 
-@pytest.mark.xfail(reason=_W1, strict=False)
+def test_modern_doc_utf16_maize_matrix_recovered() -> None:
+    """era C (CEC-2024-05-b.doc): a UTF-16LE, fast-saved (qsaves=15) modern .doc whose main text is a
+    MIXED-encoding CLX piece table -- a UTF-16 cover page then cp1252 crop tables. A single-encoding
+    FIB-region read garbles it (the tables vanish); the piece-table reader recovers the full maize
+    matrix. Values source-hard (olefile CLX). Developing sector reports only 'Total Maize' (the modern
+    Non-Commercial layout), and total == commercial + developing (13 309 850 + 575 000 == 13 884 850)."""
+    obs = _parse(_DOC_MODERN)
+
+    commercial = _one(obs, crop="total_maize", scope="commercial")
+    developing = _one(obs, crop="total_maize", scope="developing")
+    total = _one(obs, crop="total_maize", scope="total")
+    assert commercial.current_estimate_t == 13_309_850
+    assert developing.current_estimate_t == 575_000
+    assert total.current_estimate_t == 13_884_850
+    assert commercial.current_estimate_t + developing.current_estimate_t == total.current_estimate_t
+
+    # per-crop commercial recovery (source-hard).
+    assert _one(obs, crop="white_maize", scope="commercial").current_estimate_t == 6_343_350
+    assert _one(obs, crop="yellow_maize", scope="commercial").current_estimate_t == 6_966_500
+
+    # D2: 'FOURTH ... ESTIMATE' -> 4, never the sentinel 99.
+    assert commercial.estimate_number == 4
+    assert all(o.estimate_number != 99 for o in obs)
+    # F5: the source PRINTS '28 May 2024' -> exact, no early imputation.
+    assert commercial.release_date == "2024-05-28"
+    assert commercial.production_year == 2024
+
+
 def test_xls_era_developing_sector_recovered() -> None:
     """era X (CEC_2002_-_2005S.xls): the developing sector the modern bronze dropped is EXPLICIT
     here under 'Ontwikkelende landbou / Developing agriculture'. All values source-hard (xlrd).
@@ -189,7 +209,6 @@ def test_xls_era_developing_sector_recovered() -> None:
     assert commercial.release_date == "2002-05-20"
 
 
-@pytest.mark.xfail(reason=_W1, strict=False)
 def test_early_pdf_winter_cereals_total_only() -> None:
     """era A (CEC-1999-10-20.pdf): winter cereals (wheat/barley/canola) have NO developing
     sector -- the source prints only 'TOTAAL / TOTAL RSA'. Wheat total is source-hard
@@ -211,7 +230,6 @@ def test_early_pdf_winter_cereals_total_only() -> None:
     assert wheat.release_date == "1999-10-20"
 
 
-@pytest.mark.xfail(reason=_W1, strict=False)
 def test_only_canonical_scopes_emitted_strict_vocabulary() -> None:
     """D1(c): the parser canonicalizes every era's sector label into exactly
     {commercial, developing, total}. No raw Afrikaans/English source label
@@ -219,13 +237,12 @@ def test_only_canonical_scopes_emitted_strict_vocabulary() -> None:
     value. (An era signature or label outside the ratified set must fail-closed / quarantine in
     W1; here we assert the positive: only canonical scopes reach the observations.)"""
     allowed = {"commercial", "developing", "total"}
-    for fixture in (_PDF_MODERN, _DOC_OLD, _XLS, _PDF_EARLY):
+    for fixture in (_PDF_MODERN, _DOC_OLD, _DOC_MODERN, _XLS, _PDF_EARLY):
         obs = _parse(fixture)
         bad = {o.scope for o in obs} - allowed
         assert not bad, f"{fixture} leaked non-canonical scope labels: {bad}"
 
 
-@pytest.mark.xfail(reason=_W1, strict=False)
 def test_no_release_date_precedes_source_publication() -> None:
     """F5 / D2b: no imputed release_date precedes the source's true publication. For the two
     fixtures whose source PRINTS the meeting date, the parsed release_date equals it exactly.
