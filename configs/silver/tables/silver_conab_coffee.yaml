@@ -164,16 +164,6 @@ value_columns:
 - production_thousand_bags
 - production_revision_thousand_bags
 min_nonnull_frac: 0.5
-# production_revision_thousand_bags is a first DIFFERENCE (groupby diff): null BY
-# CONSTRUCTION for every region's first survey AND wherever production is null, so its
-# ceiling is ((surveys-1)/surveys) x production-nonnull -- structurally below a level
-# floor. Faithful minimum observed: robusta 2023 = 0.432 (12 first-survey nulls + 5
-# non-conilon states blank in the CONAB source). 0.30 keeps fail-closed protection
-# against a genuine diff-logic regression (near-all-null) with margin for a sparse
-# 2-survey robusta slice. Calibrated 2026-07-17 (Wave-3 canary forensics); the old
-# 2026-06-24 v3 producer had ZERO-FILLED first-survey revisions, masking this.
-min_nonnull_frac_overrides:
-  production_revision_thousand_bags: 0.30
 min_nonnull_frac_status: provisional
 coverage_axis: commodity x safra_year x survey_number x region
 vintage_retention: latest-only
@@ -218,3 +208,5 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   cols and CatalogMigrator.plan_table(''silver_conab_coffee'') NOOPs (manifest-of-record: sql/athena/migrations/silver/20260714T201146Z_silver_conab_coffee_additive_update.json).
   The widened producer reproduces all 22. The orphan EAV silver/production/source=conab/ is classified
   in place (F060), not deleted here.'
+min_nonnull_frac_overrides:
+  production_revision_thousand_bags: 0.3

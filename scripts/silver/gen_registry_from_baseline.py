@@ -646,6 +646,16 @@ CURATION_OVERRIDES: dict = {
     # Calibrated floor 0.25 keeps the gate live: an all-null regression still hard-fails
     # (KIND_ALL_NAN), and a fall below 0.25 (losing the 2018+ populated seasons) still trips.
     "silver_ams_cotton_quality": {"min_nonnull_frac_overrides": {"samples_classed": 0.25}},
+    # ── Wave-3 conab canary forensics (2026-07-17): production_revision_thousand_bags is a first
+    # DIFFERENCE (groupby diff): null BY CONSTRUCTION for every region's first survey AND wherever
+    # production is null, so its ceiling is ((surveys-1)/surveys) x production-nonnull -- structurally
+    # below a level floor. Faithful minimum observed: robusta 2023 = 0.432 (12 first-survey nulls + 5
+    # non-conilon states blank in the CONAB source). 0.30 keeps fail-closed protection against a
+    # genuine diff-logic regression (near-all-null) with margin for a sparse 2-survey robusta slice.
+    # The old 2026-06-24 v3 producer had ZERO-FILLED first-survey revisions, masking this. (This
+    # override was first hand-edited into the YAML on 2026-07-17, breaking the generated-never-
+    # hand-written invariant -- moved to its reproducible home here 2026-07-18.)
+    "silver_conab_coffee": {"min_nonnull_frac_overrides": {"production_revision_thousand_bags": 0.30}},
     # ── BF-W3 lane ONI T7 (2026-07-15): the INV-2 target for the four ENSO flag columns is int64
     # (target_arrow_type), and the B3 canonical publish wrote them as physical INT64 -- the R0
     # baseline glue_type tinyint described the pre-rebuild int8 object. Catalog + registry follow
