@@ -358,23 +358,144 @@ def classify_crop(label: str, era: str) -> tuple[Optional[str], str]:
 # --------------------------------------------------------------------------- #
 # Report-level metadata parsing (ordinal, release_date, season)
 # --------------------------------------------------------------------------- #
-def parse_estimate_ordinal(text: str) -> Optional[int]:
-    """Parse the printed estimate ordinal ("FOURTH ... ESTIMATE", "eighth ... forecast",
-    "VIERDE ... SKATTING") -> N, or None if none is printed. Only ordinals adjacent to an
-    estimate/forecast keyword count (avoids "second-hand", province ordinals, etc.)."""
+# Season-qualifying phrases that pin an ordinal to a crop-season title ("... produksieskatting van
+# SOMERGEWASSE", "... production estimate of SUMMER crops"). Used to disambiguate a COMBINED
+# winter+summer report, where the two sections carry DIFFERENT ordinals (a winter-final "fifth" and a
+# summer "first"), so the report-level ordinal must match the season actually being emitted.
+_SEASON_ORDINAL_TERMS: dict[str, tuple[str, ...]] = {
+    "summer": ("somergewasse", "somer gewasse", "summer crop", "summer field crop"),
+    "winter": ("wintergewasse", "winter gewasse", "winter crop", "winter cereal"),
+}
+
+# A season word only NAMES an ordinal's title when it sits adjacent to the ordinal (the title
+# itself: "eerste produksieskatting van SOMERGEWASSE"). A wider window overruns the title boundary
+# into the NEXT section's heading ("... van wintergewasse <break> SUMMER FIELD CROPS - 2004/05")
+# and mislabels the season -- hence the tight bound, vs the 90-char estimate-keyword window.
+_SEASON_WINDOW = 45
+# Same overrun hazard for the title YEAR: every genuine title prints its season-year within ~50
+# chars of the ordinal ("...: 2001/02 SEASON", "... for summer crops for 2019"); a wider window
+# reads the NEIGHBOURING section's year ("... 2008-seisoen sorghum <break> preliminary area
+# planted estimate: 2008/09" -- the pair belongs to the next title).
+_TITLE_YEAR_WINDOW = 55
+
+# Future-schedule NOTICE phrasing ("the fifth production forecast ... WILL BE RELEASED on 27 June" /
+# "... op 21 Februarie 2006 VRYGESTEL SAL word"): a notice window names an ordinal but is not a data
+# title -- excluded from attribution candidates. The present-tense data phrasing ("... is hereby
+# released" / "hiermee word ... vrygestel") is KEPT.
+_NOTICE_TERMS = ("will be released", "vrygestel sal")
+
+# Crop -> season membership (SA cropping calendar). Winter cereals never appear in a summer
+# crop x sector matrix; a cross-season row in an emitted matrix is a transition-release bleed.
+_WINTER_CROPS = frozenset({"wheat", "barley", "canola", "oats"})
+_SUMMER_CROPS = frozenset({
+    "white_maize", "yellow_maize", "total_maize", "sorghum", "groundnuts",
+    "sunflower_seed", "soybeans", "dry_beans",
+})
+
+
+def _crop_season_mismatch(crop: str, season_type: Optional[str]) -> bool:
+    """True when a crop row cannot belong to the report's emitted season (transition bleed)."""
+    if season_type == "summer":
+        return crop in _WINTER_CROPS
+    if season_type == "winter":
+        return crop in _SUMMER_CROPS
+    return False
+
+
+@dataclass(frozen=True)
+class _OrdinalCandidate:
+    """One printed estimate-ordinal title: position, N, the season its title names (or None),
+    the season/production year its title prints (or None) + the form it was printed in
+    (``pair`` = "2004/05", ``bare`` = "2019"), and whether it is a future notice."""
+
+    pos: int
+    n: int
+    season: Optional[str]
+    title_year: Optional[int]
+    year_form: Optional[str]
+    notice: bool
+
+
+def _window_title_year(window: str) -> tuple[Optional[int], Optional[str]]:
+    """The season/production year printed inside an ordinal-title window -> (year, form).
+
+    Prefers the season-PAIR form ("2007/08" -> 2008, "1999/2000" -> 2000, form=``pair``) over a
+    bare year (form=``bare``); a bare year directly following a month name is a DATE
+    ("... 24 October 2019"), not a season year."""
+    m = re.search(r"\b((?:19|20)\d{2})\s*/\s*(\d{2,4})\b", window)
+    if m:
+        first, second = int(m.group(1)), m.group(2)
+        if len(second) == 4:
+            end = int(second)
+        else:
+            end = (first // 100) * 100 + int(second)
+            if end < first:
+                end += 100
+        if 1990 <= end <= 2100:
+            return end, "pair"
+    for m in re.finditer(r"\b((?:19|20)\d{2})\b", window):
+        pre = window[max(0, m.start() - 14): m.start()]
+        if any(mn in pre for mn in _MONTHS):
+            continue  # "... 24 october 2019" -- a date, not the season year
+        return int(m.group(1)), "bare"
+    return None, None
+
+
+def _ordinal_candidates(text: str) -> list[_OrdinalCandidate]:
+    """Collect every estimate-adjacent printed ordinal with its title season/year (folded text)."""
     f = _fold(text)
-    best: Optional[int] = None
-    best_pos = None
+    out: list[_OrdinalCandidate] = []
     for m in re.finditer(r"[a-z]+", f):
-        word = m.group()
-        n = _ORDINALS.get(word)
+        n = _ORDINALS.get(m.group())
         if n is None:
             continue
-        window = f[m.end(): m.end() + 60]
-        if any(k in window for k in ("estimate", "skatting", "forecast", "produksieskatting")):
-            if best_pos is None or m.start() < best_pos:
-                best, best_pos = n, m.start()
-    return best
+        window = f[m.end(): m.end() + 90]
+        if not any(k in window for k in ("estimate", "skatting", "forecast", "produksieskatting")):
+            continue
+        season_win = window[:_SEASON_WINDOW]
+        season = None
+        for s, terms in _SEASON_ORDINAL_TERMS.items():
+            if any(t in season_win for t in terms):
+                season = s
+                break
+        ty, form = _window_title_year(window[:_TITLE_YEAR_WINDOW])
+        out.append(_OrdinalCandidate(
+            pos=m.start(), n=n, season=season, title_year=ty, year_form=form,
+            notice=any(t in window for t in _NOTICE_TERMS),
+        ))
+    return out
+
+
+def _has_season_markers(text: str) -> tuple[bool, bool]:
+    """(has_summer, has_winter) section markers in the folded document text."""
+    f = _fold(text)
+    return (
+        any(t in f for t in _SEASON_ORDINAL_TERMS["summer"]),
+        any(t in f for t in _SEASON_ORDINAL_TERMS["winter"]),
+    )
+
+
+def parse_estimate_ordinal(text: str, season: Optional[str] = None) -> Optional[int]:
+    """Parse the printed estimate ordinal ("FOURTH ... ESTIMATE", "eighth ... forecast",
+    "VIERDE ... SKATTING") -> N, or None if none is printed. Only ordinals adjacent to an
+    estimate/forecast keyword count (avoids "second-hand", province ordinals, etc.).
+
+    ``season`` (``summer``/``winter``): a COMBINED report prints BOTH a winter-season and a
+    summer-season estimate title with DIFFERENT ordinals (e.g. the Feb release carries the winter
+    crops' FINAL/5th estimate AND the summer crops' 1st estimate). The scalar report ordinal must
+    then match the season whose matrix is actually emitted. When ``season`` is given, an ordinal
+    whose title names that season ("... produksieskatting van SOMERGEWASSE") is PREFERRED; only if
+    no season-named ordinal exists does the earliest estimate-adjacent ordinal apply (the modern
+    single-season / no-season-word reports, e.g. "EIGHTH PRODUCTION FORECAST: 2025", are unchanged).
+
+    This is the simple positional reading; the corpus attribution rules (title-year cross-check,
+    transition-release quarantine) live in :func:`_resolve_estimate_ordinal` / :func:`_build_meta`."""
+    cands = [c for c in _ordinal_candidates(text) if not c.notice]
+    if season:
+        named = [c for c in cands if c.season == season]
+        if named:
+            return min(named, key=lambda c: c.pos).n
+    return min(cands, key=lambda c: c.pos).n if cands else None
 
 
 _DATE_RE = re.compile(
@@ -661,6 +782,13 @@ def _emit_summary_rows(
     seen_keys: set[tuple[str, str]] = set()
 
     def _emit(crop: str, scope: str, values: list[float]) -> None:
+        if _crop_season_mismatch(crop, meta.season_type):
+            # a winter cereal inside a summer matrix (or vice versa) belongs to the OTHER season's
+            # section of a transition release -- the scalar meta cannot attribute it (cec-w23).
+            result.quarantined.append(QuarantineRecord(
+                "crop_season_mismatch", meta.era, meta.source_key,
+                f"{crop} row under season_type={meta.season_type}"))
+            return
         key = (crop, scope)
         if key in seen_keys:
             raise CecCollapseError(
@@ -785,6 +913,13 @@ def _read_early_pdf(data: bytes, source_key: str) -> CecParseResult:
                     values = [v for v in (_cell_value(c) for c in row[1:]) if v is not None]
                     if len(values) < 2:
                         continue
+                    if _crop_season_mismatch(crop, meta.season_type):
+                        # a winter-cereal block inside a summer-attributed report (2008-09
+                        # transition PDFs under this reader) -- other-season section, quarantine.
+                        result.quarantined.append(QuarantineRecord(
+                            "crop_season_mismatch", ERA_EARLY_PDF, source_key,
+                            f"{crop} block under season_type={meta.season_type}"))
+                        break
                     key = (crop, SCOPE_TOTAL)
                     if key in seen:
                         raise CecCollapseError(
@@ -879,13 +1014,80 @@ def _read_xls(data: bytes, source_key: str) -> CecParseResult:
 # --------------------------------------------------------------------------- #
 # Metadata assembly (shared)
 # --------------------------------------------------------------------------- #
+def _resolve_estimate_ordinal(
+    era: str, source_key: str, full_text: str, season_type: Optional[str], production_year: int,
+) -> int:
+    """Resolve the report-level printed ordinal via TITLE-ANCHORED attribution (cec-w23).
+
+    A CEC transition release (Aug-Dec/Jan) is a MULTI-SEASON document: the summer final forecast /
+    intentions to plant sit next to the winter-cereal forecasts (and in January, next to the previous
+    summer season's final). ONE scalar (production_year, estimate_number, season_type) cannot describe
+    such a document, and the un-anchored earliest-ordinal read bled the other section's ordinal (or
+    year) onto the emitted rows -- the source of every reconcile contradiction in the corpus census.
+
+    Rules (fail-closed; ``S`` = the season whose matrix is emitted, ``py`` = production_year):
+      1. Prefer the earliest S-NAMED data title whose printed title-year is ``py`` (or prints none).
+         Under the EARLY-PDF reader a second S-named title for a DIFFERENT year (the January
+         dual-summer layout) quarantines the file -- that reader walks per-crop province tables and
+         cannot prove which season's table it read.
+      2. S-named titles exist but ALL print a different year -> the emitted attribution belongs to
+         another season-year (the October intentions+final combined matrix) -> QUARANTINE.
+      3. No S-named title: an UNNAMED ordinal whose title prints EXACTLY ``py`` (the emitted
+         matrix's own column headers, "sewende skatting ... 2004/05") is positive evidence and is
+         used. Otherwise, if the OTHER season has a data title, the emitted matrix is an
+         intentions / area-revision block with no ordinal of its own (Oct/Nov transition) ->
+         QUARANTINE (never inherit the other season's ordinal -- the original defect).
+      4. Otherwise: multi-season documents with orphan ordinals QUARANTINE; single-season documents
+         fall back to the earliest year-consistent ordinal, else UNRESOLVED (rank-derived -- D2).
+    Future-schedule notices ("... will be released on 27 June") are never attribution candidates."""
+    cands = [c for c in _ordinal_candidates(full_text) if not c.notice]
+    if season_type is None:
+        return min(cands, key=lambda c: c.pos).n if cands else ESTIMATE_UNRESOLVED
+
+    s_cands = [c for c in cands if c.season == season_type]
+    o_cands = [c for c in cands if c.season not in (None, season_type)]
+    u_cands = [c for c in cands if c.season is None]
+    ok = [c for c in s_cands if c.title_year in (None, production_year)]
+    if ok:
+        if era == ERA_EARLY_PDF and any(c.title_year not in (None, production_year) for c in s_cands):
+            raise CecNotImplementedEra(
+                f"{source_key}: transition release with {season_type}-titles for two different "
+                f"season-years under the early-PDF reader -- per-section reader required (cec-w23)")
+        return min(ok, key=lambda c: c.pos).n
+    if s_cands:
+        years = sorted({c.title_year for c in s_cands})
+        raise CecNotImplementedEra(
+            f"{source_key}: transition release -- every {season_type}-season title prints year(s) "
+            f"{years} != production_year {production_year} (combined intentions/final matrix; cec-w23)")
+    u_strict = [c for c in u_cands
+                if c.title_year == production_year and c.year_form == "pair"]
+    if u_strict:
+        # the emitted matrix's own column headers print ordinal + the emitted season-year in the
+        # unambiguous PAIR form ("sewende skatting ... 2004/05") -- positive evidence (e.g. the Sep
+        # 2004/05-final whose cover title is the unnumbered "FINALE"). A BARE calendar year is NOT
+        # accepted here: winter sections print "second ... forecast: 2010 production season", whose
+        # bare 2010 collides with the summer production_year (the Sep-2010/11/12 false rescue).
+        return min(u_strict, key=lambda c: c.pos).n
+    if o_cands:
+        raise CecNotImplementedEra(
+            f"{source_key}: transition release -- emitted {season_type} matrix has no printed "
+            f"{season_type} ordinal while the other season does (intentions/area-revision; cec-w23)")
+    has_summer, has_winter = _has_season_markers(full_text)
+    if has_summer and has_winter and cands:
+        raise CecNotImplementedEra(
+            f"{source_key}: multi-season report with season-unattributable ordinal(s) (cec-w23)")
+    ok2 = [c for c in u_cands if c.title_year in (None, production_year)]
+    return min(ok2, key=lambda c: c.pos).n if ok2 else ESTIMATE_UNRESOLVED
+
+
 def _build_meta(era: str, source_key: str, header_text: str, full_text: str, source_format: str) -> _ReportMeta:
     """Assemble report-level metadata, applying the D2b conservative-late release_date rule."""
-    est = parse_estimate_ordinal(header_text) or parse_estimate_ordinal(full_text)
-    estimate_number = est if est is not None else ESTIMATE_UNRESOLVED
+    # season first: a COMBINED winter+summer report carries a distinct ordinal per section, so the
+    # scalar report ordinal must be read for the season whose matrix is emitted (fixes the Feb
+    # winter-final "5th" bleeding onto the summer 1st-estimate maize rows -- cec-w23).
+    season_type = _season_type(header_text) or _season_type(full_text)
 
     production_year = _expand_season_end_year(header_text) or _expand_season_end_year(full_text)
-    season_type = _season_type(header_text) or _season_type(full_text)
     release_date = parse_release_date(header_text) or parse_release_date(full_text)
 
     report_month = _report_month_from_key(source_key)
@@ -897,6 +1099,12 @@ def _build_meta(era: str, source_key: str, header_text: str, full_text: str, sou
     if production_year is None or report_month is None:
         raise CecParseError(
             f"{source_key}: cannot establish production_year/report_month (era={era}) -- quarantine")
+
+    # ordinal AFTER the year: the title-anchored rules cross-check each candidate title's printed
+    # season-year against production_year and quarantine the multi-season transition releases the
+    # scalar meta cannot describe (cec-w23).
+    estimate_number = _resolve_estimate_ordinal(
+        era, source_key, full_text, season_type, int(production_year))
 
     # D2b: if no printed release_date, impute a CONSERVATIVE LATE bound (end of report month),
     # never an early one (early = PIT lookahead leak).
@@ -954,6 +1162,11 @@ def reconcile_estimate_numbers(observations: list[CecObservation]) -> list[CecOb
     number) raises :class:`CecEstimateError` (D2 fail-closed on mismatch). Rows whose printed number
     was unresolved (:data:`ESTIMATE_UNRESOLVED`) are filled from the rank.
 
+    Fail-closed but COLLECT-AND-REPORT-ALL: every contradicting group is gathered (one line per
+    group, sorted by key for a deterministic report) and raised together, so a corpus dry-run surfaces
+    the FULL set of attribution defects in one pass instead of dying on the first. The raise is
+    unconditional whenever any contradiction exists -- the run still fails closed.
+
     Returns NEW observations (frozen dataclass); input is not mutated."""
     from collections import defaultdict
 
@@ -962,21 +1175,29 @@ def reconcile_estimate_numbers(observations: list[CecObservation]) -> list[CecOb
         groups[(o.production_year, o.crop, o.scope)].append(o)
 
     out: list[CecObservation] = []
+    contradictions: list[tuple[tuple, str]] = []
     for key, members in groups.items():
         ordered = sorted(members, key=lambda o: (o.release_date or "", o.source_key or ""))
         printed = [(rank, o.estimate_number) for rank, o in enumerate(ordered, start=1)
                    if o.estimate_number != ESTIMATE_UNRESOLVED]
         # release-date ordering must not contradict the printed sequence: a strictly later release
-        # (higher rank) can never carry a strictly lower printed estimate number.
+        # (higher rank) can never carry a strictly lower printed estimate number. Record the FIRST
+        # inversion per group (enough to flag it) and keep scanning the rest of the corpus.
         for (r1, n1), (r2, n2) in zip(printed, printed[1:]):
             if n2 < n1:
-                raise CecEstimateError(
+                contradictions.append((key, (
                     f"estimate_number order contradicts release-date order for {key}: "
-                    f"printed {n1} (rank {r1}) then {n2} (rank {r2})"
-                )
+                    f"printed {n1} (rank {r1}) then {n2} (rank {r2})")))
+                break
         for rank, o in enumerate(ordered, start=1):
             resolved = rank if o.estimate_number == ESTIMATE_UNRESOLVED else o.estimate_number
             out.append(_replace_estimate(o, resolved))
+
+    if contradictions:
+        contradictions.sort(key=lambda kv: str(kv[0]))
+        lines = "\n  ".join(msg for _, msg in contradictions)
+        raise CecEstimateError(
+            f"{len(contradictions)} estimate_number contradiction(s) across CEC groups:\n  {lines}")
     return out
 
 

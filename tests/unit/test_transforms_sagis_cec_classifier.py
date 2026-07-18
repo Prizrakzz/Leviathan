@@ -105,6 +105,123 @@ def test_parse_estimate_ordinal(text, expected):
     assert P.parse_estimate_ordinal(text) == expected
 
 
+def test_parse_estimate_ordinal_season_disambiguates_combined_report():
+    # cec-w23: a COMBINED report prints a winter-final ordinal EARLIER in the text than the summer
+    # title (e.g. the Feb release = winter crops' 5th/final + summer crops' 1st). With no season the
+    # earliest estimate-adjacent ordinal wins (the winter 5) and bleeds onto the emitted summer rows;
+    # with the emitted season passed, the season-NAMED title ordinal is preferred.
+    txt = ("Fifth production estimate of winter crops for the 1999/2000 season, tons and area planted. "
+           "First production estimate of summer crops: 1999/2000 season.")
+    assert P.parse_estimate_ordinal(txt) == 5                     # legacy: earliest estimate-adjacent
+    assert P.parse_estimate_ordinal(txt, season="summer") == 1    # summer-named title wins
+    assert P.parse_estimate_ordinal(txt, season="winter") == 5    # winter-named title wins
+
+
+def test_parse_estimate_ordinal_season_falls_back_when_no_season_word():
+    # Modern single-season reports name no crop-season next to the ordinal ("EIGHTH PRODUCTION
+    # FORECAST: 2025"); a season hint must NOT suppress them -- the fallback keeps the printed number.
+    assert P.parse_estimate_ordinal("EIGHTH PRODUCTION FORECAST: 2025", season="summer") == 8
+    assert P.parse_estimate_ordinal("EIGHTH PRODUCTION FORECAST: 2025", season=None) == 8
+
+
+# --------------------------------------------------------------------------- #
+# _resolve_estimate_ordinal -- title-anchored attribution + transition quarantine (cec-w23)
+# --------------------------------------------------------------------------- #
+def _resolve(text, season="summer", py=2020, era=P.ERA_MODERN_DOC):
+    return P._resolve_estimate_ordinal(era, "k", text, season, py)
+
+
+def test_resolve_prefers_season_named_year_matching_title():
+    # the Feb combined release: winter-final "fifth" prints EARLIER than the summer "first".
+    txt = ("Fifth production estimate of winter crops for the 1999/2000 season, tons. "
+           "First production estimate of summer crops: 1999/2000 season.")
+    assert _resolve(txt, "summer", 2000) == 1
+    assert _resolve(txt, "winter", 2000) == 5
+
+
+def test_resolve_quarantines_summer_title_year_conflict():
+    # the October combined intentions+final matrix: the only summer title prints the CLOSING season
+    # (2019) while the derived production_year is the intentions season (2020) -> quarantine, never
+    # stamp the 9th-final ordinal onto next season's series (the printed-9-at-rank-1 signature).
+    txt = "Ninth production forecast for summer crops for 2019 is hereby released."
+    with pytest.raises(P.CecNotImplementedEra):
+        _resolve(txt, "summer", 2020)
+    assert _resolve(txt, "summer", 2019) == 9      # same title, right year -> clean
+
+
+def test_resolve_quarantines_other_season_ordinal_only():
+    # the Oct/Nov area-revision layout: emitted summer matrix has NO ordinal of its own; only the
+    # winter-cereal data title is numbered. Inheriting the winter ordinal was the original defect.
+    txt = ("Revised area planted of summer crops: 2020/21 season. "
+           "Fourth production forecast for winter cereals for the 2020 season is hereby released.")
+    with pytest.raises(P.CecNotImplementedEra):
+        _resolve(txt, "summer", 2021)
+
+
+def test_resolve_notice_never_rescues_transition_release():
+    # a future-schedule NOTICE ("the first production forecast ... WILL BE RELEASED on ...") is not
+    # a data title: the Jan area-revision doc must still quarantine, not borrow the notice's "1".
+    txt = ("Revised area planted of summer crops: 2012/13 season. "
+           "Sixth production forecast for winter cereals for the 2012 season is hereby released. "
+           "The first production forecast for summer crops for 2013 will be released on 29 January.")
+    with pytest.raises(P.CecNotImplementedEra):
+        _resolve(txt, "summer", 2013)
+
+
+def test_resolve_unnamed_pair_year_headers_rescue():
+    # the Sep 2004/05-FINAL: cover title is the unnumbered "FINALE", but the matrix's own column
+    # headers print "seventh estimate 2004/05" -- the PAIR-form year matching production_year is
+    # positive evidence and beats the other-season quarantine.
+    txt = ("Finale produksieskatting van somergewasse. "
+           "Sewende skatting/ seventh estimate 2004/05 tons. "
+           "Second production forecast of winter crops is hereby released.")
+    assert _resolve(txt, "summer", 2005) == 7
+
+
+def test_resolve_bare_year_headers_do_not_rescue():
+    # a winter title's BARE calendar year ("second ... forecast: 2010 production season") collides
+    # with the summer production_year -- bare-year evidence must NOT rescue (the Sep-2010 signature;
+    # the un-season-named variant of the winter title must not be mistaken for summer evidence).
+    txt = ("Revised area planted of summer crops. "
+           "Second production forecast: 2010 production season, wheat and barley tables. "
+           "Second production forecast of winter cereals for the 2010 season is hereby released.")
+    with pytest.raises(P.CecNotImplementedEra):
+        _resolve(txt, "summer", 2010)
+
+
+def test_resolve_early_pdf_dual_summer_years_quarantines():
+    # the January dual-summer layout under the EARLY-PDF reader (per-crop province tables): titles
+    # for TWO summer season-years -- the reader cannot prove which season's table it walked.
+    txt = ("Sixth production estimate of summer crops: 2007/08 season. "
+           "First production forecast of summer crops: 2008/09 season.")
+    with pytest.raises(P.CecNotImplementedEra):
+        _resolve(txt, "summer", 2009, era=P.ERA_EARLY_PDF)
+    # the modern readers take the FIRST summary matrix (the current-season release) -- no quarantine.
+    assert _resolve(txt, "summer", 2009, era=P.ERA_MODERN_DOC) == 1
+
+
+def test_crop_season_mismatch_guard():
+    # a wheat row inside a summer-attributed matrix belongs to the OTHER season's section of a
+    # transition release: quarantined per-row, never emitted under the summer meta.
+    assert P._crop_season_mismatch("wheat", "summer")
+    assert P._crop_season_mismatch("total_maize", "winter")
+    assert not P._crop_season_mismatch("wheat", "winter")
+    assert not P._crop_season_mismatch("total_maize", "summer")
+    assert not P._crop_season_mismatch("wheat", None)
+
+
+def test_emit_summary_rows_quarantines_cross_season_row():
+    rows = [
+        ("Kommersieel / Commercial:", []),
+        ("Witmielies/White Maize", [985_000.0, 3_615_650.0]),
+        ("Koring/Wheat", [700_000.0, 2_000_000.0]),   # winter cereal in a summer matrix
+    ]
+    result = P.CecParseResult()
+    P._emit_summary_rows(rows, _meta(), result)      # _meta() is season_type="summer"
+    assert [(o.crop, o.scope) for o in result.observations] == [("white_maize", "commercial")]
+    assert [q.reason for q in result.quarantined] == ["crop_season_mismatch"]
+
+
 @pytest.mark.parametrize("text,expected", [
     ("20 October 1999", "1999-10-20"),
     ("30 September 2025", "2025-09-30"),
@@ -283,6 +400,26 @@ def test_reconcile_printed_contradiction_fails_closed():
     grp = [_obs(2022, "2022-02-20", "a", 5), _obs(2022, "2022-05-20", "b", 3)]
     with pytest.raises(P.CecEstimateError):
         P.reconcile_estimate_numbers(grp)
+
+
+def test_reconcile_reports_all_contradictions_not_just_first():
+    # collect-and-report-all: two INDEPENDENT groups each invert; the single raised error must name
+    # BOTH (so a corpus dry-run surfaces the full defect set in one pass), and still fail closed.
+    grp = [
+        _obs(2022, "2022-02-20", "a", 5, crop="white_maize"),
+        _obs(2022, "2022-05-20", "b", 3, crop="white_maize"),
+        _obs(2022, "2022-02-20", "c", 4, crop="yellow_maize"),
+        _obs(2022, "2022-05-20", "d", 2, crop="yellow_maize"),
+    ]
+    with pytest.raises(P.CecEstimateError) as ei:
+        P.reconcile_estimate_numbers(grp)
+    msg = str(ei.value)
+    assert "2 estimate_number contradiction" in msg
+    assert "white_maize" in msg and "yellow_maize" in msg
+    # deterministic order (sorted by group key) regardless of input order.
+    with pytest.raises(P.CecEstimateError) as ei2:
+        P.reconcile_estimate_numbers(list(reversed(grp)))
+    assert str(ei2.value) == msg
 
 
 def test_reconcile_tiebreak_is_deterministic_on_source_key():

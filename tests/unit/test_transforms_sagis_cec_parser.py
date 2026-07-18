@@ -55,6 +55,7 @@ _DOC_OLD = "CEC-2006-05-b-S.doc"       # era B: .doc 2005-2006, 8-bit cp1252 (2-
 _DOC_MODERN = "CEC-2024-05-b.doc"      # era C: .doc 2007-2024, UTF-16LE fast-save (mixed-encoding CLX)
 _XLS = "CEC_2002_-_2005S.xls"          # era X: .xls 2002-2004 (developing-sector recovery)
 _PDF_EARLY = "CEC-1999-10-20.pdf"      # era A: PDF 1999-2004 (winter cereals, total-only)
+_DOC_COMBINED = "CEC-2000-02.doc"      # era B: COMBINED winter-final + summer-1st report (cec-w23)
 
 def _parse(fixture: str) -> list[CecObservation]:
     """Call the W1 parser on a committed fixture."""
@@ -81,6 +82,7 @@ def _one(obs: list[CecObservation], *, crop: str, scope: str) -> CecObservation:
     (_PDF_EARLY, b"%PDF"),
     (_DOC_OLD, b"\xd0\xcf\x11\xe0"),   # OLE compound file (.doc)
     (_DOC_MODERN, b"\xd0\xcf\x11\xe0"),  # OLE compound file (.doc, UTF-16LE fast-save)
+    (_DOC_COMBINED, b"\xd0\xcf\x11\xe0"),  # OLE compound file (.doc, combined winter+summer)
     (_XLS, b"\xd0\xcf\x11\xe0"),       # OLE compound file (.xls)
 ])
 def test_era_fixtures_present_and_valid_magic(fixture: str, magic: bytes) -> None:
@@ -228,6 +230,46 @@ def test_early_pdf_winter_cereals_total_only() -> None:
     assert all(o.estimate_number != 99 for o in obs)
     # F5: the source PRINTS 'as at 20 October 1999' -> exact, no imputation.
     assert wheat.release_date == "1999-10-20"
+
+
+def test_old_doc_combined_winter_summer_reads_summer_ordinal() -> None:
+    """era B (CEC-2000-02.doc): the cec-w23 defect. The Feb release is a COMBINED report -- the WINTER
+    crops' FINAL production estimate AND the SUMMER crops' revised-area FIRST estimate on one page. The
+    winter section prints a higher ordinal ("fifth") EARLIER in the document than the summer title, and
+    the report-level ``parse_estimate_ordinal`` (earliest estimate-adjacent) had stamped that winter 5
+    onto the emitted SUMMER maize rows -- which are the summer 1st estimate. In the corpus reconcile
+    that made the earliest-dated report in (2000, white_maize, commercial) carry estimate 5 while the
+    NEXT month carried 2, i.e. a release-date-vs-printed inversion that fail-closed the whole dry-run.
+
+    The emitted matrix is the summer crop x sector matrix ("REVISED AREA AND FIRST PRODUCTION ESTIMATE
+    OF SUMMER CROPS: 1999/2000 SEASON"), so estimate_number MUST be 1 (summer 1st), never 5 (winter
+    final). Values source-hard (olefile cp1252 summary matrix); the source's structural identities
+    hold (white + yellow == total maize; commercial + developing == total)."""
+    obs = _parse(_DOC_COMBINED)
+
+    commercial = _one(obs, crop="white_maize", scope="commercial")
+    developing = _one(obs, crop="white_maize", scope="developing")
+
+    # the fix: the summer 1st estimate is read, NOT the winter final (5) that printed earlier.
+    assert commercial.estimate_number == 1
+    assert all(o.estimate_number == 1 for o in obs)
+    assert all(o.season_type == "summer" for o in obs)   # the emitted matrix is the summer section
+    assert all(o.estimate_number != 5 for o in obs)      # the winter-final ordinal must not bleed in
+    assert commercial.production_year == 2000
+    # F5: source prints "21 Februarie/February 2000" -> exact, no early imputation.
+    assert commercial.release_date == "2000-02-21"
+
+    # source-hard values (summary matrix) + the identities the source guarantees.
+    assert commercial.area_planted_ha == 2_030_000
+    assert commercial.current_estimate_t == 5_427_800
+    assert developing.current_estimate_t == 221_594
+    tm_comm = _one(obs, crop="total_maize", scope="commercial")
+    tm_dev = _one(obs, crop="total_maize", scope="developing")
+    tm_total = _one(obs, crop="total_maize", scope="total")
+    assert (commercial.current_estimate_t
+            + _one(obs, crop="yellow_maize", scope="commercial").current_estimate_t
+            == tm_comm.current_estimate_t)
+    assert tm_comm.current_estimate_t + tm_dev.current_estimate_t == tm_total.current_estimate_t
 
 
 def test_only_canonical_scopes_emitted_strict_vocabulary() -> None:
