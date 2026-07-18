@@ -48,6 +48,13 @@ Design notes
 * **Sorghum excluded** — no Leviathan contract YAML exists; dropped at the
   commodity-filter step.
 
+* **Palm marketing year = Oct** — ``_PSD_COMMODITY_TO_MYS[4243000] = 10``.  USDA
+  GAIN PSD tables print "Market Year Begins Oct" for both dominant producers
+  (Indonesia, Malaysia); the prior value 11 (Nov) drove ``release_date`` one
+  month later than USDA's own calendar.  The direction was PIT-conservative
+  (data appeared later than truth, so no leakage) but the dates were wrong; a
+  silver rebuild shifts every palm ``release_date`` one month earlier.
+
 No S3 or AWS dependencies — pure data transformation.
 """
 from __future__ import annotations
@@ -78,7 +85,10 @@ _PSD_COMMODITY_TO_MYS: dict[int, int] = {
     2226000: 8,   # canola / rapeseed: Aug 1
     4239100: 10,  # rapeseed oil: Oct 1
     813600:  10,  # rapeseed meal: Oct 1
-    4243000: 11,  # palm oil: Nov 1
+    4243000: 10,  # palm oil: Oct 1 (USDA GAIN prints "Market Year Begins Oct" for BOTH
+                  #                  Indonesia and Malaysia; was 11=Nov, which stamped every
+                  #                  palm release_date one month LATE -- PIT-conservative but
+                  #                  wrong; corrected 2026-07-18 per the reroute-v2 World probe)
     612000:  10,  # raw sugar / white sugar: Oct 1
     711100:  10,  # coffee (arabica + robusta): Oct 1
     2631000: 8,   # cotton: Aug 1

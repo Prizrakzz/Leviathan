@@ -187,6 +187,94 @@ def _check_region_map(reg) -> list[str]:
     return errs
 
 
+def check_complex_map() -> list[str]:
+    """RV-W0: reroute-v2 complex_map integrity (mirrors check_cascade_map). Validates EVERY authored
+    pair (material or not -- iter_all_pairs, so the loader's inert-drop can't hide a malformed row):
+
+      1. both `pair` slugs are LOADED contracts (graph.contracts), and each `sideX.contract` matches
+         its ordered slot -- a shorthand/typo fails closed here rather than silently never firing.
+      2. each `sideX.ref` names a real (non-deferred) cascade_map ref -> table/metric/scale/period
+         inherit and the metric-in-registry lint covers a v2 leg for free.
+      3. SAME-PSD-CODE ban (B1): code(legA) != code(legB) across the 13 PSD commodity_code sheets
+         (inverted usda_psd._PSD_COMMODITY_TO_SLUGS) -- two slugs under one code resolve to a
+         byte-identical su_ratio row => a vacuous fork. HARD error. A leg with NO PSD sheet is also an
+         error (it can never carry a su_ratio-World row).
+      4. `materiality_tier` in {material, contextual, excluded}; `direction` in {opposing, co_moving}.
+      5. `country_rule` == "world" on BOTH sides -- the only accepted v1 value (Recipe-B World total-use).
+      6. `shared_event` corresponds to a real driver id present in the DAG OR a real inter_commodity
+         relation between the two contracts (resolved BARE->slug, engine F2) -- so the mechanism stays
+         curated in the causal YAML. A naive slug==slug edge match is unsatisfiable for 6 of 7 pairs
+         (edge targets are bare names), hence the resolver on both sides of the join.
+    """
+    from leviathan.graphrag import complex_map as xcm
+    from leviathan.graphrag.graph import CausalGraph
+    from leviathan.graphrag.numbers.cascade import load_map
+    from leviathan.transforms.bronze_to_silver.usda_psd import _PSD_COMMODITY_TO_SLUGS
+
+    errs: list[str] = []
+    try:
+        pairs = xcm.iter_all_pairs()
+    except Exception as exc:  # noqa: BLE001 — a malformed pair shape must fail the build, not crash lint silently
+        return [f"complex_map: failed to parse ({exc})"]
+    graph = CausalGraph.load()
+    loaded = frozenset(graph.contracts.keys())
+    refs = load_map() or {}
+    slug_to_code = {s: code for code, slugs in _PSD_COMMODITY_TO_SLUGS.items() for s in slugs}
+    all_driver_ids = {d.id for c in graph.contracts.values() for d in c.drivers}
+
+    def _edge_between(a: str, b: str) -> bool:
+        for src, dst in ((a, b), (b, a)):
+            c = graph.contracts.get(src)
+            if not c:
+                continue
+            for e in c.inter_commodity:
+                if resolve := xcm.resolve_bare_commodity(e.driver_commodity, loaded):
+                    if resolve == dst:
+                        return True
+        return False
+
+    for p in pairs:
+        pid = p.id or "<no-id>"
+        a, b = p.pair
+        # 1. both loaded + side/slot consistency
+        for slug in (a, b):
+            if slug not in loaded:
+                errs.append(f"complex_map {pid!r}: pair slug {slug!r} is not a loaded contract")
+        if (p.side_a.get("contract") or a) != a:
+            errs.append(f"complex_map {pid!r}: sideA.contract {p.side_a.get('contract')!r} != pair[0] {a!r}")
+        if (p.side_b.get("contract") or b) != b:
+            errs.append(f"complex_map {pid!r}: sideB.contract {p.side_b.get('contract')!r} != pair[1] {b!r}")
+        # 2. refs resolve by name
+        for side, sd in (("sideA", p.side_a), ("sideB", p.side_b)):
+            ref = sd.get("ref")
+            if ref not in refs:
+                errs.append(f"complex_map {pid!r}: {side}.ref {ref!r} is not a live cascade_map ref")
+        # 3. same-PSD-code ban (B1)
+        ca, cb = slug_to_code.get(a), slug_to_code.get(b)
+        if ca is None:
+            errs.append(f"complex_map {pid!r}: leg {a!r} maps to no PSD commodity_code (no su_ratio sheet)")
+        if cb is None:
+            errs.append(f"complex_map {pid!r}: leg {b!r} maps to no PSD commodity_code (no su_ratio sheet)")
+        if ca is not None and cb is not None and ca == cb:
+            errs.append(f"complex_map {pid!r}: same-PSD-code ban (B1) -- {a!r} and {b!r} both map to "
+                        f"code {ca} => byte-identical su_ratio row, vacuous fork")
+        # 4. enums
+        if p.materiality_tier not in ("material", "contextual", "excluded"):
+            errs.append(f"complex_map {pid!r}: bad materiality_tier {p.materiality_tier!r}")
+        if p.direction not in ("opposing", "co_moving"):
+            errs.append(f"complex_map {pid!r}: bad direction {p.direction!r} (opposing|co_moving)")
+        # 5. country_rule world-only (v1)
+        for side, sd in (("sideA", p.side_a), ("sideB", p.side_b)):
+            if sd.get("country_rule") != "world":
+                errs.append(f"complex_map {pid!r}: {side}.country_rule {sd.get('country_rule')!r} "
+                            f"-- only 'world' is accepted for v1")
+        # 6. shared_event resolvable (driver id OR curated inter_commodity edge between the two contracts)
+        if p.shared_event not in all_driver_ids and not _edge_between(a, b):
+            errs.append(f"complex_map {pid!r}: shared_event {p.shared_event!r} is neither a DAG driver id "
+                        f"nor a curated inter_commodity relation between {a!r} and {b!r}")
+    return errs
+
+
 def check_pin_realizability() -> list[str]:
     """P9-W2.3: PER-QUERY (never per-contract) cascade-pin lint. Every v4 eval query pinning
     `cascade_fired` asserts an OUTCOME; this proves the pin matches the query's own realizability BEFORE an
@@ -269,6 +357,7 @@ def main() -> int:
                         ("display_names", check_display_names()),
                         ("display_vocab", check_display_vocab()),
                         ("cascade_map", check_cascade_map()),
+                        ("complex_map", check_complex_map()),
                         ("pin_realizability", check_pin_realizability()),
                         ("driver_slices", check_driver_slices()),
                         ("edge_blurbs", check_edge_blurbs())):
