@@ -419,6 +419,28 @@ def transform_psd_bronze_to_silver(
             wide[col] = np.nan
 
     # -----------------------------------------------------------------------
+    # 11.5 Latest-only vintage dedup ACROSS source releases
+    # Semi-annual sheets (coffee 711100, sugar 612000) re-print the SAME
+    # (market_year, month_code) row in consecutive monthly bulk snapshots, so
+    # once bronze holds two overlapping releases the pivot emits TWO rows for
+    # one logical vintage slot (first observed 2026-07-18: the 2026-07-17
+    # snapshot re-printed the 2026-05-20 coffee/sugar rows -- 381 duplicate
+    # keys). The registry contract is vintage_retention: latest-only, and the
+    # step-13/14 groupby-diff comments assume (MY, month) -> ONE release_date;
+    # keep the newest release per key (it may carry revisions) BEFORE any
+    # derived metric is computed.
+    # -----------------------------------------------------------------------
+    vintage_key = ["leviathan_slug", "country", "market_year", "wasde_release_month"]
+    n_reprints = int(wide.duplicated(subset=vintage_key).sum())
+    if n_reprints:
+        logger.warning(
+            "PSD transform: %d re-printed vintage rows across source releases; keeping latest release_date",
+            n_reprints,
+        )
+        wide = (wide.sort_values(vintage_key + ["release_date"])
+                    .drop_duplicates(subset=vintage_key, keep="last"))
+
+    # -----------------------------------------------------------------------
     # 12. Compute su_ratio
     # -----------------------------------------------------------------------
     with np.errstate(divide="ignore", invalid="ignore"):

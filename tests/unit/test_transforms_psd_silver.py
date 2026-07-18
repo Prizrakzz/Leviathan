@@ -549,3 +549,35 @@ class TestReleaseDateClamp:
         assert historical["release_date"].dtype == object
         # And the values remain plain ISO date strings, not Timestamps.
         assert all(isinstance(v, str) for v in future["release_date"])
+
+
+# ---------------------------------------------------------------------------
+# TestReprintDedup (2026-07-18): semi-annual sheets re-print the SAME
+# (market_year, month_code) row in consecutive monthly bulk snapshots; the
+# latest release must win, exactly once, before derived metrics are computed.
+# ---------------------------------------------------------------------------
+
+class TestReprintDedup:
+    def test_reprinted_vintage_keeps_latest_release_only(self) -> None:
+        may = _make_bronze(commodity_code=440000, market_year=2025, month_code=12,
+                           release_date="2026-05-20")
+        july = _make_bronze(commodity_code=440000, market_year=2025, month_code=12,
+                            release_date="2026-07-17")
+        # the re-print carries a revision: bump production in the July snapshot
+        july.loc[july.attribute_desc == "Production", "value"] = (
+            july.loc[july.attribute_desc == "Production", "value"] * 2)
+
+        silver = transform_psd_bronze_to_silver([may, july])
+        key = ["leviathan_slug", "country", "market_year", "wasde_release_month"]
+        assert not silver.duplicated(subset=key).any(), "re-printed vintage rows survived dedup"
+        one = silver[silver.leviathan_slug == "corn_cbot"]
+        assert len(one) == 1
+        assert one.release_date.iloc[0] > "2026-06-01", "latest release did not win"
+
+    def test_distinct_months_are_never_collapsed(self) -> None:
+        m5 = _make_bronze(commodity_code=440000, market_year=2025, month_code=5,
+                          release_date="2026-01-10")
+        m6 = _make_bronze(commodity_code=440000, market_year=2025, month_code=6,
+                          release_date="2026-02-10")
+        silver = transform_psd_bronze_to_silver([m5, m6])
+        assert len(silver[silver.leviathan_slug == "corn_cbot"]) == 2
