@@ -1,0 +1,179 @@
+{
+  "analysis_complete": true,
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "artifacts": {
+    "_machine/coverage_catalog.json": {
+      "bytes": 864,
+      "sha256": "8fdbb6189d1380c014bb40cc4d582fd0d727dbeb82204f57dc8fde5576f24e3a",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/coverage_catalog.json"
+    },
+    "_machine/feature_candidates.json": {
+      "bytes": 32835,
+      "sha256": "c070c3de320e0f7ca625d518b91055b311c7c81163d6361cde3425a6bbaf157d",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/feature_candidates.json"
+    },
+    "_machine/profile.json": {
+      "bytes": 72677,
+      "sha256": "63c4df2b53f1c552632a3ca612e89cbf181a6ac0cd21f5c3f99e65b3f0833e36",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/profile.json"
+    },
+    "_machine/reader_evidence.json": {
+      "bytes": 66999,
+      "sha256": "f693543177e00a403622f2dedf03555ea9ddf79cc2a90a80a223ba9e673e3e8c",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/reader_evidence.json"
+    },
+    "_machine/sampling_evidence.json": {
+      "bytes": 343,
+      "sha256": "21541278919b16bfa7b7fdaa2951211e8be2f3d82dbc6b869c1abf5075b49cca",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/sampling_evidence.json"
+    },
+    "_machine/source_inventory.json": {
+      "bytes": 2980,
+      "sha256": "8eedae8b0877dae65f7a8f6d4c11466e95733be16e3ce699ef04deb5e444e1a4",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_inventory.json"
+    },
+    "feature_candidates.yaml": {
+      "bytes": 26653,
+      "sha256": "ab866320c2b2059d57e91e882fcce7dd9657af1ded5aae84b64173e21e5cc1b2",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/feature_candidates.yaml"
+    },
+    "silver_sagis_weekly_deliveries_eda.ipynb": {
+      "bytes": 882953,
+      "sha256": "6ba950239a42c8f7375ec8783991d896becdba1956b74326d228ece637c9292a",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/silver_sagis_weekly_deliveries_eda.ipynb"
+    },
+    "spec.yaml": {
+      "bytes": 13225,
+      "sha256": "3b07bd2928660f6db7eb84fff1b5ace0354fb826a104594a7cfb1b1616229690",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/spec.yaml"
+    },
+    "summary.json": {
+      "bytes": 186611,
+      "sha256": "5d2af8141ee15ef2fcd1ede52b35f8169947b627a770dbc52d364143c40d46e1",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/summary.json"
+    }
+  },
+  "campaign_id": "readerfirst-final-20260718-a176abf1",
+  "contract_sha256": "b82108cd5203515fe933b1e50c66d9588795770b007485acebb1d666a6bf30c6",
+  "coverage_summary": {
+    "analysis_strata_complete": false,
+    "analysis_strata_sampled_row_count": null,
+    "analysis_strata_source_row_count": null,
+    "analysis_stratum_count": 0,
+    "exactness": "footer-derived",
+    "footer_complete": true,
+    "object_count": 1,
+    "partition_stratum_count": 1,
+    "represented_analysis_stratum_count": 0,
+    "source_compressed_bytes": 112114,
+    "source_row_count": 2991,
+    "unrepresented_analysis_stratum_count": 0
+  },
+  "detailed_evidence": {
+    "coverage_catalog": {
+      "bytes": 864,
+      "relative_key": "_machine/coverage_catalog.json",
+      "sha256": "8fdbb6189d1380c014bb40cc4d582fd0d727dbeb82204f57dc8fde5576f24e3a",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/coverage_catalog.json"
+    },
+    "reader_evidence": {
+      "bytes": 66999,
+      "relative_key": "_machine/reader_evidence.json",
+      "sha256": "f693543177e00a403622f2dedf03555ea9ddf79cc2a90a80a223ba9e673e3e8c",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/reader_evidence.json"
+    },
+    "sampling_evidence": {
+      "bytes": 343,
+      "relative_key": "_machine/sampling_evidence.json",
+      "sha256": "21541278919b16bfa7b7fdaa2951211e8be2f3d82dbc6b869c1abf5075b49cca",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/sampling_evidence.json"
+    },
+    "source_inventory": {
+      "bytes": 2980,
+      "relative_key": "_machine/source_inventory.json",
+      "sha256": "8eedae8b0877dae65f7a8f6d4c11466e95733be16e3ce699ef04deb5e444e1a4",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_inventory.json"
+    }
+  },
+  "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+  "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+  "evidence_valid": true,
+  "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+  "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+  "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+  "results": {
+    "analysis_exactness": "exact",
+    "blocker_count": 0,
+    "candidate_count": 13,
+    "disposition": "needs_contract_or_data_fix",
+    "finding_count": 1
+  },
+  "sampled_row_group_count": 0,
+  "sampling_strata": [],
+  "sampling_strategy": null,
+  "schema_version": "leviathan.silver-eda-campaign/v2",
+  "snapshot": {
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "decision": {
+      "exactness": "exact",
+      "identity_columns": [
+        "source",
+        "season",
+        "crop",
+        "week_number",
+        "week_ending",
+        "prog_total_mt",
+        "prior_prog_total_mt",
+        "pct_of_prior_yr"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 7769596263771151946,
+      "snapshot_row_count": 2991,
+      "source_compressed_bytes": 112114,
+      "source_row_count": 2991,
+      "stratum_columns": [
+        "source",
+        "season"
+      ]
+    },
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/snapshot",
+    "frame_sha256": "c5772c2b0203d8bb189a7dc42f52d430e9b42195c3af73b4477a1808088cfae5",
+    "manifest_sha256": "1c5ee7d8a8d5873f592f7c416cc2eff0d370dd335bd7a5b57bdfd8b7ac5989dc",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/snapshot/manifest.json",
+    "parquet_bytes": 88651,
+    "parquet_sha256": "bbaa27ee3a6b949993e8d8a1620925bc8161befb8cc8c4aca9e59eaf287759e3",
+    "parquet_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/snapshot/part-000.parquet",
+    "table_name": "silver_sagis_weekly_deliveries"
+  },
+  "source_inventory_summary": {
+    "footer_complete": true,
+    "fragment_count": 1,
+    "inventory_manifest_sha256": "64342b9b6cdb911c0850755d32ad01c7c16f0368de36618531e81ea945818158",
+    "partition_keys": [],
+    "partition_mode": "flat",
+    "rejected_key_count": 1,
+    "root_uri": "s3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries",
+    "row_group_count": 1,
+    "source_mode": "s3",
+    "total_bytes": 112114,
+    "total_rows": 2991
+  },
+  "source_layer": "silver",
+  "source_replica": {
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica/manifest.json",
+    "object_count": 1,
+    "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica/objects",
+    "replica_manifest_sha256": "fb326b0852adc6055f1088ce060856962c0e2f4dd0382acacf1305c2efbdcc28",
+    "source_manifest_sha256": "64342b9b6cdb911c0850755d32ad01c7c16f0368de36618531e81ea945818158",
+    "total_bytes": 112114
+  },
+  "spec_sha256": "b4edbd2f2e97f7c64ff4159e28c018e34dc9194da6d230d989a7ccf42c27ef65",
+  "table_name": "silver_sagis_weekly_deliveries"
+}

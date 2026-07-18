@@ -1,0 +1,242 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_icco_cocoa
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 5
+no_candidate_reason: null
+candidates:
+- aggregation_window: one prior observed cocoa season
+  applicable_commodities:
+  - cocoa
+  applicable_geographies:
+  - world
+  candidate_id: eda:silver_icco_cocoa:prior_stock_use
+  classification: new
+  clipping_policy: None; retain and flag historical extremes.
+  computation_primitive: lag
+  counter_evidence:
+  - Latest-only hybrid-release history does not prove historical cutoff availability.
+  - Only 15 observed seasons are present, with a three-season gap after 2007/08.
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:feature-opportunity
+  - cell:pit-leakage
+  expected_range: null
+  feature_family: null
+  feature_policy: Review-only; never auto-promote to production feature configuration.
+  future_target_compatibility: Eligible only for later PIT-safe evaluation against a new immutable Gold
+    target.
+  knowledge_time_rule: Use only the prior season row after proving its source release was available by
+    the prediction cutoff; the current contract does not yet govern that proof.
+  lag: 1
+  mechanism: Prior stock-to-use represents the inventory cushion entering a season.
+  missingness_policy: Preserve missing values; do not bridge missing cocoa seasons.
+  normalization_policy: None until PIT-safe prototype review.
+  observation_time_rule: Parse cocoa_year chronologically; never treat lexicographic order or a missing
+    season as a normal one-year step.
+  output_grain: cocoa_year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: World ICCO balance sheet; lagged source-only proposal.
+  source_columns:
+  - su_ratio
+  - cocoa_year
+  - latest_release_date
+  source_table: silver_icco_cocoa
+  transformation:
+    availability_check: prior latest_release_date <= prediction cutoff
+    column: su_ratio
+    gap_policy: require consecutive cocoa seasons or mark missing
+    lag_observations: 1
+    operation: lag
+    order_by: cocoa_year
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: one prior observed cocoa season
+  applicable_commodities:
+  - cocoa
+  applicable_geographies:
+  - world
+  candidate_id: eda:silver_icco_cocoa:prior_published_balance
+  classification: new
+  clipping_policy: None; retain and flag historical extremes.
+  computation_primitive: lag
+  counter_evidence:
+  - Latest-only hybrid-release history does not prove historical cutoff availability.
+  - Only 15 observed seasons are present, with a three-season gap after 2007/08.
+  evidence:
+  - metric:distributions.numeric_distributions.surplus_deficit_kt
+  - cell:feature-opportunity
+  - cell:pit-leakage
+  expected_range: null
+  feature_family: null
+  feature_policy: Review-only; never auto-promote to production feature configuration.
+  future_target_compatibility: Eligible only for later PIT-safe evaluation against a new immutable Gold
+    target.
+  knowledge_time_rule: Use only the prior season row after proving its source release was available by
+    the prediction cutoff; the current contract does not yet govern that proof.
+  lag: 1
+  mechanism: The prior published surplus or deficit represents the inherited balance regime.
+  missingness_policy: Preserve missing values; do not bridge missing cocoa seasons.
+  normalization_policy: None until PIT-safe prototype review.
+  observation_time_rule: Parse cocoa_year chronologically; never treat lexicographic order or a missing
+    season as a normal one-year step.
+  output_grain: cocoa_year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: World ICCO balance sheet; lagged source-only proposal.
+  source_columns:
+  - surplus_deficit_kt
+  - cocoa_year
+  - latest_release_date
+  source_table: silver_icco_cocoa
+  transformation:
+    availability_check: prior latest_release_date <= prediction cutoff
+    column: surplus_deficit_kt
+    gap_policy: require consecutive cocoa seasons or mark missing
+    lag_observations: 1
+    operation: lag
+    order_by: cocoa_year
+  unit: kilotonnes
+  visibility_class: review_required
+- aggregation_window: one prior observed cocoa season
+  applicable_commodities:
+  - cocoa
+  applicable_geographies:
+  - world
+  candidate_id: eda:silver_icco_cocoa:lagged_production_growth
+  classification: new
+  clipping_policy: None; retain and flag historical extremes.
+  computation_primitive: pct_change_then_lag
+  counter_evidence:
+  - Latest-only hybrid-release history does not prove historical cutoff availability.
+  - Only 15 observed seasons are present, with a three-season gap after 2007/08.
+  evidence:
+  - metric:distributions.numeric_distributions.production_kt
+  - cell:feature-opportunity
+  - cell:pit-leakage
+  expected_range: null
+  feature_family: null
+  feature_policy: Review-only; never auto-promote to production feature configuration.
+  future_target_compatibility: Eligible only for later PIT-safe evaluation against a new immutable Gold
+    target.
+  knowledge_time_rule: Use only the prior season row after proving its source release was available by
+    the prediction cutoff; the current contract does not yet govern that proof.
+  lag: 1
+  mechanism: Lagged production growth represents world supply momentum.
+  missingness_policy: Preserve missing values; do not bridge missing cocoa seasons.
+  normalization_policy: None until PIT-safe prototype review.
+  observation_time_rule: Parse cocoa_year chronologically; never treat lexicographic order or a missing
+    season as a normal one-year step.
+  output_grain: cocoa_year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: World ICCO balance sheet; lagged source-only proposal.
+  source_columns:
+  - production_kt
+  - cocoa_year
+  - latest_release_date
+  source_table: silver_icco_cocoa
+  transformation:
+    availability_check: prior latest_release_date <= prediction cutoff
+    column: production_kt
+    gap_policy: require consecutive cocoa seasons or mark missing
+    lag_observations: 1
+    operation: pct_change_then_lag
+    order_by: cocoa_year
+  unit: fraction
+  visibility_class: review_required
+- aggregation_window: one prior observed cocoa season
+  applicable_commodities:
+  - cocoa
+  applicable_geographies:
+  - world
+  candidate_id: eda:silver_icco_cocoa:lagged_grindings_growth
+  classification: new
+  clipping_policy: None; retain and flag historical extremes.
+  computation_primitive: pct_change_then_lag
+  counter_evidence:
+  - Latest-only hybrid-release history does not prove historical cutoff availability.
+  - Only 15 observed seasons are present, with a three-season gap after 2007/08.
+  evidence:
+  - metric:distributions.numeric_distributions.grindings_kt
+  - cell:feature-opportunity
+  - cell:pit-leakage
+  expected_range: null
+  feature_family: null
+  feature_policy: Review-only; never auto-promote to production feature configuration.
+  future_target_compatibility: Eligible only for later PIT-safe evaluation against a new immutable Gold
+    target.
+  knowledge_time_rule: Use only the prior season row after proving its source release was available by
+    the prediction cutoff; the current contract does not yet govern that proof.
+  lag: 1
+  mechanism: Lagged grindings growth represents processing-demand momentum.
+  missingness_policy: Preserve missing values; do not bridge missing cocoa seasons.
+  normalization_policy: None until PIT-safe prototype review.
+  observation_time_rule: Parse cocoa_year chronologically; never treat lexicographic order or a missing
+    season as a normal one-year step.
+  output_grain: cocoa_year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: World ICCO balance sheet; lagged source-only proposal.
+  source_columns:
+  - grindings_kt
+  - cocoa_year
+  - latest_release_date
+  source_table: silver_icco_cocoa
+  transformation:
+    availability_check: prior latest_release_date <= prediction cutoff
+    column: grindings_kt
+    gap_policy: require consecutive cocoa seasons or mark missing
+    lag_observations: 1
+    operation: pct_change_then_lag
+    order_by: cocoa_year
+  unit: fraction
+  visibility_class: review_required
+- aggregation_window: one prior observed cocoa season
+  applicable_commodities:
+  - cocoa
+  applicable_geographies:
+  - world
+  candidate_id: eda:silver_icco_cocoa:lagged_stock_change
+  classification: new
+  clipping_policy: None; retain and flag historical extremes.
+  computation_primitive: difference_then_lag
+  counter_evidence:
+  - Latest-only hybrid-release history does not prove historical cutoff availability.
+  - Only 15 observed seasons are present, with a three-season gap after 2007/08.
+  evidence:
+  - metric:distributions.numeric_distributions.end_stocks_kt
+  - cell:feature-opportunity
+  - cell:pit-leakage
+  expected_range: null
+  feature_family: null
+  feature_policy: Review-only; never auto-promote to production feature configuration.
+  future_target_compatibility: Eligible only for later PIT-safe evaluation against a new immutable Gold
+    target.
+  knowledge_time_rule: Use only the prior season row after proving its source release was available by
+    the prediction cutoff; the current contract does not yet govern that proof.
+  lag: 1
+  mechanism: Lagged stock change distinguishes inventory rebuilding from drawdown.
+  missingness_policy: Preserve missing values; do not bridge missing cocoa seasons.
+  normalization_policy: None until PIT-safe prototype review.
+  observation_time_rule: Parse cocoa_year chronologically; never treat lexicographic order or a missing
+    season as a normal one-year step.
+  output_grain: cocoa_year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: World ICCO balance sheet; lagged source-only proposal.
+  source_columns:
+  - end_stocks_kt
+  - cocoa_year
+  - latest_release_date
+  source_table: silver_icco_cocoa
+  transformation:
+    availability_check: prior latest_release_date <= prediction cutoff
+    column: end_stocks_kt
+    gap_policy: require consecutive cocoa seasons or mark missing
+    lag_observations: 1
+    operation: difference_then_lag
+    order_by: cocoa_year
+  unit: kilotonnes
+  visibility_class: review_required

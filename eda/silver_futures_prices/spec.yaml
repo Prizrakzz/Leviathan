@@ -1,0 +1,453 @@
+schema_version: 1
+table_name: silver_futures_prices
+title: Futures Prices
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- wide_time_series
+observation_time_candidates:
+- date
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- leviathan_slug
+categorical_columns:
+- leviathan_slug
+- source
+numeric_columns:
+- close
+- log_return
+- price_z_2yr
+- realized_vol_30d
+- momentum_60d
+- momentum_1yr
+- vol_regime
+units:
+  close: contract-native quote unit (varies by contract)
+  log_return: dimensionless daily log return
+  price_z_2yr: standard deviations from the trailing two-year price mean
+  realized_vol_30d: annualized return volatility (dimensionless fraction)
+  vol_regime: binary indicator (1=elevated volatility, 0=normal)
+meaningful_groupings:
+- leviathan_slug
+- date
+declared_relationships: []
+source_keys:
+- futures_prices
+existing_table_feature_families: &id001
+- crush_margin_z
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  crush_margin_z: prior_history
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - leviathan_slug
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-FUTURES_PRICES
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+- id: EDA-FEATURE-COVERAGE-FUTURES_PRICES
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: rolling_change
+  mechanism: Lagged change, momentum, and rolling dispersion.
+- family: relative_spread
+  mechanism: Relative movement across economically linked measures.
+known_hazards:
+- Show raw duplicates and the deterministic consumer-view delta; never hide deduplication.
+- Consumer extraction applies deterministic natural-key deduplication.
+no_candidate_reason: null
+archetype: continuous_market_macro_climate
+row_meaning: One row is one daily continuous-futures observation for a mapped commodity.
+column_descriptions:
+  close: Governed numeric close measure used for source-level analytical comparisons.
+  date: Calendar observation date; not automatically a publication timestamp.
+  leviathan_slug: Leviathan's governed commodity identifier.
+  log_return: Governed numeric log return measure used for source-level analytical comparisons.
+  momentum_1yr: Directional price change over the 1-year lookback window.
+  momentum_60d: Directional price change over the 60-day lookback window.
+  price_z_2yr: Standardized z-score of price against its trailing 2-year history.
+  realized_vol_30d: Realized return volatility over the realized vol 30-day window.
+  source: Source-system label retained for provenance.
+  vol_regime: Categorical vol state derived or reported for this row.
+why_it_matters:
+  close: Carries a primary analytical measure.
+  date: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  leviathan_slug: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  log_return: Carries a primary analytical measure.
+  momentum_1yr: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  momentum_60d: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  price_z_2yr: Carries a primary analytical measure.
+  realized_vol_30d: Carries a primary analytical measure.
+  source: Supports provenance or reproducibility.
+  vol_regime: Provides explanatory context or a candidate diagnostic at the declared row grain.
+primary_measures:
+- close
+- log_return
+- price_z_2yr
+- realized_vol_30d
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - date
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - leviathan_slug
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - close
+  - log_return
+  - price_z_2yr
+  - realized_vol_30d
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - leviathan_slug
+  - date
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - close
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - leviathan_slug
+  - date
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - date
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - date
+  - close
+  - log_return
+  - price_z_2yr
+  - realized_vol_30d
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - close
+  - log_return
+  - price_z_2yr
+  - realized_vol_30d
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  - leviathan_slug
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  - leviathan_slug
+  - close
+  - log_return
+  - price_z_2yr
+  - realized_vol_30d
+  - momentum_60d
+  - momentum_1yr
+  - vol_regime
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - date
+  detail: Report both raw rows and the documented consumer selection; never mutate raw evidence.
+  id: consumer_view_delta
+  kind: consumer_view_delta
+  label: Raw versus consumer-view delta
+  rule_id: consumer_view_delta
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: history
+  chart_type: line
+  columns:
+  - date
+  - close
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: history
+  intentional_points: false
+  max_series: 1
+  measure_columns:
+  - close
+  measure_units:
+    close: contract-native quote unit (varies by contract)
+  minimum_rows: 8
+  purpose: Show one clearly named, most-complete contract in its native quote scale; never pool raw closes
+    across contracts.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by:
+  - leviathan_slug
+  time_components: []
+  title: Representative futures close
+  type: line
+  unit_column: null
+- chart_id: return_distribution
+  chart_type: distribution
+  columns:
+  - log_return
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: return_distribution
+  intentional_points: false
+  max_series: 4
+  measure_columns:
+  - log_return
+  measure_units:
+    log_return: dimensionless daily log return
+  minimum_rows: 20
+  purpose: Compare up to four readable contract-specific, dimensionless return distributions.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by:
+  - leviathan_slug
+  time_components: []
+  title: Daily return distribution
+  type: distribution
+  unit_column: null
+- chart_id: volatility
+  chart_type: line
+  columns:
+  - date
+  - realized_vol_30d
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: volatility
+  intentional_points: false
+  max_series: 4
+  measure_columns:
+  - realized_vol_30d
+  measure_units:
+    realized_vol_30d: annualized return volatility (dimensionless fraction)
+  minimum_rows: 8
+  purpose: Compare at most four contracts on the common annualized-return-volatility scale.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: 30-day realized volatility
+  type: line
+  unit_column: null
+- chart_id: standardized_price
+  chart_type: line
+  columns:
+  - date
+  - price_z_2yr
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: standardized_price
+  intentional_points: false
+  max_series: 4
+  measure_columns:
+  - price_z_2yr
+  measure_units:
+    price_z_2yr: standard deviations from the trailing two-year price mean
+  minimum_rows: 8
+  purpose: Compare at most four contracts against each contract's own trailing price baseline; raw price
+    levels are not compared.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Two-year standardized price
+  type: line
+  unit_column: null
+- chart_id: seasonality
+  chart_type: seasonal_profile
+  columns:
+  - date
+  - log_return
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: seasonality
+  intentional_points: false
+  max_series: 4
+  measure_columns:
+  - log_return
+  measure_units:
+    log_return: dimensionless daily log return
+  minimum_rows: 12
+  purpose: Show up to four contract-specific calendar profiles from dimensionless returns, never raw closes.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by:
+  - leviathan_slug
+  time_components: []
+  title: Daily-return calendar pattern
+  type: seasonal_profile
+  unit_column: null
+insight_rules:
+- columns:
+  - date
+  - leviathan_slug
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - close
+  - log_return
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - date
+  - close
+  - log_return
+  - leviathan_slug
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - date
+  - close
+  - log_return
+  - leviathan_slug
+  id: latest_change
+  insight_id: latest_change
+  kind: latest_change
+  minimum_rows: 2
+  purpose: Explain the latest comparable movement.
+preview_strata:
+- date
+- leviathan_slug
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not use raw close levels across contracts or across an unverified quote/unit regime break; verify
+  contract quote units and continuity first.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not silently replace raw duplicate evidence with the consumer view.
+feature_quarantined: false

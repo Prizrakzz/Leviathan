@@ -1,0 +1,389 @@
+schema_version: 1
+table_name: silver_icco_cocoa
+title: Icco Cocoa
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- annual_seasonal_panel
+observation_time_candidates: []
+knowledge_time: null
+knowledge_semantics: null
+entity_columns: []
+categorical_columns:
+- cocoa_year
+- latest_release_date
+- source
+numeric_columns:
+- production_kt
+- grindings_kt
+- end_stocks_kt
+- surplus_deficit_kt
+- su_ratio
+- grindings_3yr_trend
+- grindings_trend_dev
+units:
+  end_stocks_kt: kilotonnes
+  grindings_kt: kilotonnes
+  production_kt: kilotonnes
+  su_ratio: ratio
+meaningful_groupings: []
+declared_relationships: []
+source_keys:
+- icco_cocoa
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_required
+  reason: No commodity/geography join axis is declared by this Silver contract.
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders: []
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders: []
+feature_hypothesis_templates:
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards: []
+no_candidate_reason: null
+archetype: annual_geographic_production
+row_meaning: One row is ICCO's latest assembled world cocoa balance for one cocoa season.
+column_descriptions:
+  cocoa_year: Cocoa year locating the observation on its source reporting calendar.
+  end_stocks_kt: End stocks reported in kilotonnes at the declared row grain.
+  grindings_3yr_trend: Trailing mean of the latest three observed season rows, including the current row;
+    gaps mean it is not necessarily three consecutive calendar seasons.
+  grindings_kt: Grindings reported in kilotonnes at the declared row grain.
+  grindings_trend_dev: Current grindings minus the stored three-row trend.
+  latest_release_date: Latest release date across the values assembled into the season row; it does not
+    prove every metric came from one release.
+  production_kt: Production reported in kilotonnes at the declared row grain.
+  source: Source-system label retained for provenance.
+  su_ratio: End stocks divided by grindings, expressed as a ratio.
+  surplus_deficit_kt: ICCO-published market balance in kilotonnes; do not reconstruct it as simple production
+    minus grindings.
+why_it_matters:
+  cocoa_year: Defines row uniqueness; is required by the source contract.
+  end_stocks_kt: Carries a primary analytical measure.
+  grindings_3yr_trend: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  grindings_kt: Carries a primary analytical measure.
+  grindings_trend_dev: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  latest_release_date: Anchors temporal coverage.
+  production_kt: Carries a primary analytical measure.
+  source: Supports provenance or reproducibility.
+  su_ratio: Carries a primary analytical measure.
+  surplus_deficit_kt: Carries a primary analytical measure.
+primary_measures:
+- production_kt
+- grindings_kt
+- end_stocks_kt
+- surplus_deficit_kt
+- su_ratio
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - latest_release_date
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns: []
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - production_kt
+  - grindings_kt
+  - end_stocks_kt
+  - surplus_deficit_kt
+  - su_ratio
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - cocoa_year
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - production_kt
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - cocoa_year
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - cocoa_year
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - cocoa_year
+  - production_kt
+  - grindings_kt
+  - end_stocks_kt
+  - surplus_deficit_kt
+  - su_ratio
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_kt
+  - grindings_kt
+  - end_stocks_kt
+  - surplus_deficit_kt
+  - su_ratio
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - latest_release_date
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - latest_release_date
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - cocoa_year
+  - latest_release_date
+  - production_kt
+  - grindings_kt
+  - end_stocks_kt
+  - surplus_deficit_kt
+  - su_ratio
+  - grindings_3yr_trend
+  - grindings_trend_dev
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - end_stocks_kt
+  - grindings_kt
+  - su_ratio
+  detail: Validate su_ratio=end_stocks_kt/grindings_kt; do not reconstruct the published balance.
+  id: identity
+  kind: ratio_identity
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: supply_demand
+  chart_type: line
+  columns:
+  - cocoa_year
+  - production_kt
+  - grindings_kt
+  coverage_grain: null
+  cutoff_mode: null
+  id: supply_demand
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_kt
+  - grindings_kt
+  measure_units:
+    grindings_kt: kilotonnes
+    production_kt: kilotonnes
+  minimum_rows: 8
+  purpose: Compare global supply with grindings.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: World production and grindings
+  type: line
+  unit_column: null
+- chart_id: market_balance
+  chart_type: signed_bar
+  columns:
+  - cocoa_year
+  - surplus_deficit_kt
+  coverage_grain: null
+  cutoff_mode: null
+  id: market_balance
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - surplus_deficit_kt
+  measure_units: {}
+  minimum_rows: 8
+  purpose: Show the published market-balance regime.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Published surplus or deficit
+  type: signed_bar
+  unit_column: null
+- chart_id: stocks
+  chart_type: dual_axis
+  columns:
+  - cocoa_year
+  - end_stocks_kt
+  - su_ratio
+  coverage_grain: null
+  cutoff_mode: null
+  id: stocks
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - end_stocks_kt
+  - su_ratio
+  measure_units:
+    end_stocks_kt: kilotonnes
+    su_ratio: ratio
+  minimum_rows: 8
+  purpose: Show physical inventory and relative tightness together.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Stocks and stock-to-use
+  type: dual_axis
+  unit_column: null
+- chart_id: grindings_trend
+  chart_type: line
+  columns:
+  - cocoa_year
+  - grindings_kt
+  - grindings_3yr_trend
+  - grindings_trend_dev
+  coverage_grain: null
+  cutoff_mode: null
+  id: grindings_trend
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - grindings_kt
+  measure_units:
+    grindings_kt: kilotonnes
+  minimum_rows: 8
+  purpose: Explain demand momentum and the stored derivation.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Grindings versus stored trend
+  type: line
+  unit_column: null
+insight_rules:
+- columns:
+  - latest_release_date
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - production_kt
+  - grindings_kt
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - latest_release_date
+  - production_kt
+  - grindings_kt
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - latest_release_date
+  - production_kt
+  - grindings_kt
+  id: latest_change
+  insight_id: latest_change
+  kind: latest_change
+  minimum_rows: 2
+  purpose: Explain the latest comparable movement.
+preview_strata:
+- latest_release_date
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+- latest_release_date is a row-level maximum and does not prove a single coherent metric vintage.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not reconstruct ICCO surplus/deficit as production minus grindings.
+feature_quarantined: false

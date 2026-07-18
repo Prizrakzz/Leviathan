@@ -1,0 +1,397 @@
+schema_version: 1
+table_name: silver_fred_fx
+title: Fred Fx
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- wide_time_series
+observation_time_candidates:
+- date
+knowledge_time: null
+knowledge_semantics: data_date
+entity_columns: []
+categorical_columns:
+- source
+numeric_columns:
+- brl_usd
+- brl_usd_pct_change_90d
+- ars_usd
+- ars_usd_pct_change_90d
+- cny_usd
+- cny_usd_pct_change_90d
+units:
+  ars_usd: Argentine peso per U.S. dollar
+  ars_usd_pct_change_90d: source-native / verify
+  brl_usd: Brazilian real per U.S. dollar
+  brl_usd_pct_change_90d: source-native / verify
+  cny_usd: Chinese yuan per U.S. dollar
+  cny_usd_pct_change_90d: source-native / verify
+meaningful_groupings:
+- date
+declared_relationships: []
+source_keys:
+- fred_fx
+existing_table_feature_families: &id001
+- fred_fx_macro
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  fred_fx_macro: prior_history
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_required
+  reason: No commodity/geography join axis is declared by this Silver contract.
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders: []
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- id: EDA-FEATURE-COVERAGE-FRED_FX
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: rolling_change
+  mechanism: Lagged change, momentum, and rolling dispersion.
+- family: relative_spread
+  mechanism: Relative movement across economically linked measures.
+known_hazards:
+- Show raw duplicates and the deterministic consumer-view delta; never hide deduplication.
+- Consumer extraction applies deterministic natural-key deduplication.
+no_candidate_reason: null
+archetype: continuous_market_macro_climate
+row_meaning: One row is the observed daily FX state for the tracked currencies.
+column_descriptions:
+  ars_usd: Argentine peso exchange rate quoted against one U.S. dollar.
+  ars_usd_pct_change_90d: Percentage change in ars usd over the preceding 90 days.
+  brl_usd: Brazilian real exchange rate quoted against one U.S. dollar.
+  brl_usd_pct_change_90d: Percentage change in brl usd over the preceding 90 days.
+  cny_usd: Chinese yuan exchange rate quoted against one U.S. dollar.
+  cny_usd_pct_change_90d: Percentage change in cny usd over the preceding 90 days.
+  date: Calendar observation date; not automatically a publication timestamp.
+  source: Source-system label retained for provenance.
+why_it_matters:
+  ars_usd: Carries a primary analytical measure.
+  ars_usd_pct_change_90d: Carries a primary analytical measure.
+  brl_usd: Carries a primary analytical measure.
+  brl_usd_pct_change_90d: Carries a primary analytical measure.
+  cny_usd: Carries a primary analytical measure.
+  cny_usd_pct_change_90d: Carries a primary analytical measure.
+  date: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  source: Supports provenance or reproducibility.
+primary_measures:
+- brl_usd
+- ars_usd
+- cny_usd
+- brl_usd_pct_change_90d
+- ars_usd_pct_change_90d
+- cny_usd_pct_change_90d
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - date
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns: []
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - brl_usd
+  - ars_usd
+  - cny_usd
+  - brl_usd_pct_change_90d
+  - ars_usd_pct_change_90d
+  - cny_usd_pct_change_90d
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - date
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - brl_usd
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - date
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  - brl_usd
+  - ars_usd
+  - cny_usd
+  - brl_usd_pct_change_90d
+  - ars_usd_pct_change_90d
+  - cny_usd_pct_change_90d
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - brl_usd
+  - ars_usd
+  - cny_usd
+  - brl_usd_pct_change_90d
+  - ars_usd_pct_change_90d
+  - cny_usd_pct_change_90d
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  - brl_usd
+  - brl_usd_pct_change_90d
+  - ars_usd
+  - ars_usd_pct_change_90d
+  - cny_usd
+  - cny_usd_pct_change_90d
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  detail: Report both raw rows and the documented consumer selection; never mutate raw evidence.
+  id: consumer_view_delta
+  kind: consumer_view_delta
+  label: Raw versus consumer-view delta
+  rule_id: consumer_view_delta
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: history
+  chart_type: line
+  columns:
+  - date
+  - brl_usd
+  - ars_usd
+  coverage_grain: null
+  cutoff_mode: null
+  id: history
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - brl_usd
+  - ars_usd
+  measure_units:
+    ars_usd: Argentine peso per U.S. dollar
+    brl_usd: Brazilian real per U.S. dollar
+  minimum_rows: 8
+  purpose: Show the full observed time path.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Historical levels
+  type: line
+  unit_column: null
+- chart_id: changes
+  chart_type: change_distribution
+  columns:
+  - date
+  - brl_usd
+  coverage_grain: null
+  cutoff_mode: null
+  id: changes
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - brl_usd
+  measure_units:
+    brl_usd: Brazilian real per U.S. dollar
+  minimum_rows: 8
+  purpose: Show changes, volatility, and regime behavior.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Changes and regimes
+  type: change_distribution
+  unit_column: null
+- chart_id: seasonality
+  chart_type: calendar_heatmap
+  columns:
+  - date
+  - brl_usd
+  coverage_grain: null
+  cutoff_mode: null
+  id: seasonality
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - brl_usd
+  measure_units:
+    brl_usd: Brazilian real per U.S. dollar
+  minimum_rows: 12
+  purpose: Reveal recurring calendar patterns and gaps.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Calendar structure
+  type: calendar_heatmap
+  unit_column: null
+- chart_id: measure_distribution
+  chart_type: distribution
+  columns:
+  - brl_usd
+  - ars_usd
+  coverage_grain: null
+  cutoff_mode: null
+  id: measure_distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - brl_usd
+  - ars_usd
+  measure_units:
+    ars_usd: Argentine peso per U.S. dollar
+    brl_usd: Brazilian real per U.S. dollar
+  minimum_rows: 1
+  purpose: Summarize center, spread, skew, and tails.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Measure distributions
+  type: distribution
+  unit_column: null
+insight_rules:
+- columns:
+  - date
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - brl_usd
+  - ars_usd
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - date
+  - brl_usd
+  - ars_usd
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - date
+  - brl_usd
+  - ars_usd
+  id: latest_change
+  insight_id: latest_change
+  kind: latest_change
+  minimum_rows: 2
+  purpose: Explain the latest comparable movement.
+preview_strata:
+- date
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not silently replace raw duplicate evidence with the consumer view.
+feature_quarantined: false

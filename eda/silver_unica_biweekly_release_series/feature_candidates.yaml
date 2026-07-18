@@ -1,0 +1,8 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_unica_biweekly_release_series
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 0
+no_candidate_reason: The registry lacks a complete natural-key/value-column contract; inferred grain is
+  evidence only until a reviewed contract repair is merged.
+candidates: []

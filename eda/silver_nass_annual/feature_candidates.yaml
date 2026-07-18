@@ -1,0 +1,1459 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_nass_annual
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 28
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_harvested_ha:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_harvested_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_harvested_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_harvested_ha
+    group_by:
+    - commodity
+    - state
+    operation: difference
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_harvested_ha:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_harvested_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_harvested_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_harvested_ha
+    group_by:
+    - commodity
+    - state
+    operation: lag
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_harvested_ha:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_harvested_ha
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 44876804.92492032]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed production level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_harvested_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_harvested_ha
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_harvested_ha:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_ha
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_harvested_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_harvested_ha
+    operation: log1p
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_harvested_ha:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.area_harvested_ha
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_harvested_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_harvested_ha
+    operation: is_null
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_harvested_ha:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_ha
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_harvested_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    center: past_only_median
+    column: area_harvested_ha
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_harvested_ha:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_harvested_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_harvested_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    closed: left
+    column: area_harvested_ha
+    group_by:
+    - commodity
+    - state
+    min_periods: 2
+    operation: rolling_mean
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+    window: 3
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_planted_ha:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_planted_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_planted_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_planted_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_planted_ha
+    group_by:
+    - commodity
+    - state
+    operation: difference
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_planted_ha:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_planted_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_planted_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_planted_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_planted_ha
+    group_by:
+    - commodity
+    - state
+    operation: lag
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_planted_ha:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_planted_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_planted_ha
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 45739190.02853376]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed production level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_planted_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_planted_ha
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_planted_ha:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_planted_ha
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_planted_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_planted_ha
+    operation: log1p
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_planted_ha:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.area_planted_ha
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_planted_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: area_planted_ha
+    operation: is_null
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_planted_ha:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_planted_ha
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_planted_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    center: past_only_median
+    column: area_planted_ha
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:area_planted_ha:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_planted_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_planted_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - area_planted_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    closed: left
+    column: area_planted_ha
+    group_by:
+    - commodity
+    - state
+    min_periods: 2
+    operation: rolling_mean
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+    window: 3
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:production_mt:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - production_mt
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: production_mt
+    group_by:
+    - commodity
+    - state
+    operation: difference
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:production_mt:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - production_mt
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: production_mt
+    group_by:
+    - commodity
+    - state
+    operation: lag
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:production_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_mt
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 432341904.93822324]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed production level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - production_mt
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: production_mt
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:production_mt:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - production_mt
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: production_mt
+    operation: log1p
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:production_mt:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.production_mt
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - production_mt
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: production_mt
+    operation: is_null
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:production_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - production_mt
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    center: past_only_median
+    column: production_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:production_mt:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - production_mt
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    closed: left
+    column: production_mt
+    group_by:
+    - commodity
+    - state
+    min_periods: 2
+    operation: rolling_mean
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+    window: 3
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:yield_t_ha:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.yield_t_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.yield_t_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - yield_t_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: yield_t_ha
+    group_by:
+    - commodity
+    - state
+    operation: difference
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:yield_t_ha:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.yield_t_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.yield_t_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - yield_t_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: yield_t_ha
+    group_by:
+    - commodity
+    - state
+    operation: lag
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:yield_t_ha:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.yield_t_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.yield_t_ha
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 15.754683851469274]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed production level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - yield_t_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: yield_t_ha
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:yield_t_ha:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.yield_t_ha
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - yield_t_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: yield_t_ha
+    operation: log1p
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:yield_t_ha:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.yield_t_ha
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - yield_t_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    column: yield_t_ha
+    operation: is_null
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:yield_t_ha:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.yield_t_ha
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - yield_t_ha
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    center: past_only_median
+    column: yield_t_ha
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - canola_ice
+  - corn_cbot
+  - cotton
+  - rough_rice_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - united_states
+  candidate_id: eda:silver_nass_annual:yield_t_ha:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.yield_t_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.yield_t_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.marketing_year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: commodity x state x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_annual'
+  source_columns:
+  - yield_t_ha
+  - commodity
+  - state
+  - marketing_year
+  source_table: silver_nass_annual
+  transformation:
+    closed: left
+    column: yield_t_ha
+    group_by:
+    - commodity
+    - state
+    min_periods: 2
+    operation: rolling_mean
+    order_by: marketing_year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - nass_annual
+    window: 3
+  unit: metric tonnes per hectare
+  visibility_class: review_required

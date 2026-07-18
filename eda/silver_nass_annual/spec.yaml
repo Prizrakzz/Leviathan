@@ -1,0 +1,460 @@
+schema_version: 1
+table_name: silver_nass_annual
+title: Nass Annual
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- annual_seasonal_panel
+observation_time_candidates:
+- year
+- marketing_year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- leviathan_slug
+- country
+- state
+- commodity
+categorical_columns:
+- leviathan_slug
+- country
+- state
+- source
+- commodity
+numeric_columns:
+- area_planted_ha
+- area_harvested_ha
+- yield_t_ha
+- production_mt
+- area_planted_cv_pct
+- area_harvested_cv_pct
+- yield_cv_pct
+- production_cv_pct
+units:
+  area_harvested_ha: hectares
+  area_planted_ha: hectares
+  production_mt: metric tonnes
+  yield_t_ha: metric tonnes per hectare
+meaningful_groupings:
+- leviathan_slug
+- country
+- state
+- commodity
+- year
+- marketing_year
+declared_relationships: []
+source_keys:
+- nass_annual
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - commodity
+  - country
+  - leviathan_slug
+  - state
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-NASS_ANNUAL
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+feature_hypothesis_templates:
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards:
+- Projection domains are declarations, not physical truth; enumerate canonical Parquet directly and never
+  use unconstrained Athena.
+no_candidate_reason: null
+archetype: annual_geographic_production
+row_meaning: One row is one U.S. commodity-state-year production and area observation.
+column_descriptions:
+  area_harvested_cv_pct: Area harvested cv reported in percent at the declared row grain.
+  area_harvested_ha: Area harvested reported in hectares at the declared row grain.
+  area_planted_cv_pct: Area planted cv reported in percent at the declared row grain.
+  area_planted_ha: Area planted reported in hectares at the declared row grain.
+  commodity: Governed or source-normalized commodity identifier.
+  country: Country represented by the observation.
+  leviathan_slug: Leviathan's governed commodity identifier.
+  marketing_year: Source-defined commodity marketing year.
+  production_cv_pct: Production cv reported in percent at the declared row grain.
+  production_mt: Production reported in metric tonnes at the declared row grain.
+  source: Source-system label retained for provenance.
+  state: State represented by the observation.
+  year: Calendar year associated with the observation.
+  yield_cv_pct: Yield cv reported in percent at the declared row grain.
+  yield_t_ha: Yield reported in tonnes per hectare at the declared row grain.
+why_it_matters:
+  area_harvested_cv_pct: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  area_harvested_ha: Carries a primary analytical measure.
+  area_planted_cv_pct: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  area_planted_ha: Carries a primary analytical measure.
+  commodity: Defines row uniqueness; supports entity segmentation; controls physical coverage; is required
+    by the source contract.
+  country: Supports entity segmentation.
+  leviathan_slug: Supports entity segmentation.
+  marketing_year: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  production_cv_pct: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  production_mt: Carries a primary analytical measure.
+  source: Supports provenance or reproducibility.
+  state: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  year: Defines row uniqueness; anchors temporal coverage; controls physical coverage; is required by
+    the source contract.
+  yield_cv_pct: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  yield_t_ha: Carries a primary analytical measure.
+primary_measures:
+- area_planted_ha
+- area_harvested_ha
+- yield_t_ha
+- production_mt
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - commodity
+  - leviathan_slug
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - area_planted_ha
+  - area_harvested_ha
+  - yield_t_ha
+  - production_mt
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - commodity
+  - state
+  - year
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - area_planted_ha
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - commodity
+  - state
+  - year
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - commodity
+  - state
+  - year
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - commodity
+  - state
+  - year
+  - area_planted_ha
+  - area_harvested_ha
+  - yield_t_ha
+  - production_mt
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - area_planted_ha
+  - area_harvested_ha
+  - yield_t_ha
+  - production_mt
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  - commodity
+  - leviathan_slug
+  - country
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - country
+  - state
+  - marketing_year
+  - area_planted_ha
+  - area_harvested_ha
+  - yield_t_ha
+  - production_mt
+  - area_planted_cv_pct
+  - area_harvested_cv_pct
+  - yield_cv_pct
+  - production_cv_pct
+  - source
+  - commodity
+  - year
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: state_production_history
+  chart_type: line
+  columns:
+  - year
+  - production_mt
+  - state
+  - commodity
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: state_production_history
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_mt
+  measure_units:
+    production_mt: metric tonnes
+  minimum_rows: 8
+  purpose: Use concise state labels; commodity and country define separate scope panels rather than repeating
+    inside every series label.
+  series_dimensions:
+  - state
+  series_selection: most_complete
+  split_by:
+  - commodity
+  - country
+  time_components: []
+  title: State production history within commodity and country
+  type: line
+  unit_column: null
+- chart_id: latest_state_production
+  chart_type: ranked_bar
+  columns:
+  - year
+  - production_mt
+  - state
+  - commodity
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: latest_state_production
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_mt
+  measure_units:
+    production_mt: metric tonnes
+  minimum_rows: 1
+  purpose: Rank states only inside one commodity/country scope at the latest comparable year.
+  series_dimensions:
+  - state
+  series_selection: most_complete
+  split_by:
+  - commodity
+  - country
+  time_components: []
+  title: Latest state production within commodity and country
+  type: ranked_bar
+  unit_column: null
+- chart_id: state_yield_distribution
+  chart_type: distribution
+  columns:
+  - yield_t_ha
+  - state
+  - commodity
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: state_yield_distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - yield_t_ha
+  measure_units:
+    yield_t_ha: metric tonnes per hectare
+  minimum_rows: 1
+  purpose: Describe state yield dispersion without pooling commodities or countries.
+  series_dimensions:
+  - state
+  series_selection: most_complete
+  split_by:
+  - commodity
+  - country
+  time_components: []
+  title: State yield distribution within commodity and country
+  type: distribution
+  unit_column: null
+- chart_id: state_year_coverage
+  chart_type: coverage_heatmap
+  columns:
+  - year
+  - state
+  - commodity
+  - country
+  coverage_grain: year
+  cutoff_mode: null
+  id: state_year_coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose panel gaps with state as the concise row label and commodity/country in chart scope.
+  series_dimensions:
+  - state
+  series_selection: most_complete
+  split_by:
+  - commodity
+  - country
+  time_components: []
+  title: State-year coverage within commodity and country
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - year
+  - commodity
+  - leviathan_slug
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - area_planted_ha
+  - area_harvested_ha
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - year
+  - area_planted_ha
+  - area_harvested_ha
+  - commodity
+  - leviathan_slug
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - year
+  - area_planted_ha
+  - area_harvested_ha
+  - commodity
+  - leviathan_slug
+  id: latest_change
+  insight_id: latest_change
+  kind: latest_change
+  minimum_rows: 2
+  purpose: Explain the latest comparable movement.
+preview_strata:
+- year
+- commodity
+- leviathan_slug
+- country
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+feature_quarantined: false

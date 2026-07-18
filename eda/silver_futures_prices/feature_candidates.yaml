@@ -1,0 +1,1334 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_futures_prices
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 27
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:close:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.close
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.close
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - close
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: close
+    group_by:
+    - leviathan_slug
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: contract-native quote unit (varies by contract)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:close:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.close
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.close
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - close
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: close
+    group_by:
+    - leviathan_slug
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: contract-native quote unit (varies by contract)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:close:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.close
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.close
+  - cell:missingness-validity-output
+  expected_range: observed [4.960000038146973, 12565.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - close
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: close
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: contract-native quote unit (varies by contract)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:close:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.close
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - close
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: close
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: contract-native quote unit (varies by contract)
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:close:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.close
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - close
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    center: past_only_median
+    column: close
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: contract-native quote unit (varies by contract)
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:close:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.close
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.close
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - close
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    closed: left
+    column: close
+    group_by:
+    - leviathan_slug
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+    window: 3
+  unit: contract-native quote unit (varies by contract)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:log_return:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.log_return
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.log_return
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - log_return
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: log_return
+    group_by:
+    - leviathan_slug
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: dimensionless daily log return
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:log_return:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.log_return
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.log_return
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - log_return
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: log_return
+    group_by:
+    - leviathan_slug
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: dimensionless daily log return
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:log_return:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.log_return
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.log_return
+  - cell:missingness-validity-output
+  expected_range: observed [-0.05126563459634781, 0.04879011958837509]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - log_return
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: log_return
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: dimensionless daily log return
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:log_return:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.log_return
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - log_return
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: log_return
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: dimensionless daily log return
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:log_return:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.log_return
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - log_return
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    center: past_only_median
+    column: log_return
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: dimensionless daily log return
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:log_return:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.log_return
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.log_return
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - log_return
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    closed: left
+    column: log_return
+    group_by:
+    - leviathan_slug
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+    window: 3
+  unit: dimensionless daily log return
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:price_z_2yr:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.price_z_2yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.price_z_2yr
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - price_z_2yr
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: price_z_2yr
+    group_by:
+    - leviathan_slug
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: standard deviations from the trailing two-year price mean
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:price_z_2yr:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.price_z_2yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.price_z_2yr
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - price_z_2yr
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: price_z_2yr
+    group_by:
+    - leviathan_slug
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: standard deviations from the trailing two-year price mean
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:price_z_2yr:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.price_z_2yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.price_z_2yr
+  - cell:missingness-validity-output
+  expected_range: observed [-14.66409969329834, 6.7307000160217285]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - price_z_2yr
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: price_z_2yr
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: standard deviations from the trailing two-year price mean
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:price_z_2yr:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.price_z_2yr
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - price_z_2yr
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: price_z_2yr
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: standard deviations from the trailing two-year price mean
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:price_z_2yr:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.price_z_2yr
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - price_z_2yr
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    center: past_only_median
+    column: price_z_2yr
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: standard deviations from the trailing two-year price mean
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:price_z_2yr:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.price_z_2yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.price_z_2yr
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - price_z_2yr
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    closed: left
+    column: price_z_2yr
+    group_by:
+    - leviathan_slug
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+    window: 3
+  unit: standard deviations from the trailing two-year price mean
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:realized_vol_30d:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.realized_vol_30d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.realized_vol_30d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - realized_vol_30d
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: realized_vol_30d
+    group_by:
+    - leviathan_slug
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: annualized return volatility (dimensionless fraction)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:realized_vol_30d:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.realized_vol_30d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.realized_vol_30d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - realized_vol_30d
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: realized_vol_30d
+    group_by:
+    - leviathan_slug
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: annualized return volatility (dimensionless fraction)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:realized_vol_30d:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.realized_vol_30d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.realized_vol_30d
+  - cell:missingness-validity-output
+  expected_range: observed [0.03840000182390213, 0.5382999777793884]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - realized_vol_30d
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: realized_vol_30d
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: annualized return volatility (dimensionless fraction)
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:realized_vol_30d:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.realized_vol_30d
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - realized_vol_30d
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    center: past_only_median
+    column: realized_vol_30d
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: annualized return volatility (dimensionless fraction)
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:realized_vol_30d:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.realized_vol_30d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.realized_vol_30d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - realized_vol_30d
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    closed: left
+    column: realized_vol_30d
+    group_by:
+    - leviathan_slug
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+    window: 3
+  unit: annualized return volatility (dimensionless fraction)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:vol_regime:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.vol_regime
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.vol_regime
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - vol_regime
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: vol_regime
+    group_by:
+    - leviathan_slug
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: binary indicator (1=elevated volatility, 0=normal)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:vol_regime:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.vol_regime
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.vol_regime
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - vol_regime
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: vol_regime
+    group_by:
+    - leviathan_slug
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: binary indicator (1=elevated volatility, 0=normal)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:vol_regime:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.vol_regime
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.vol_regime
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 1.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - vol_regime
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    column: vol_regime
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+  unit: binary indicator (1=elevated volatility, 0=normal)
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_futures_prices:vol_regime:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.vol_regime
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.vol_regime
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: leviathan_slug x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: futures_prices'
+  source_columns:
+  - vol_regime
+  - leviathan_slug
+  - date
+  source_table: silver_futures_prices
+  transformation:
+    closed: left
+    column: vol_regime
+    group_by:
+    - leviathan_slug
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - crush_margin_z
+      source_keys:
+      - futures_prices
+    window: 3
+  unit: binary indicator (1=elevated volatility, 0=normal)
+  visibility_class: review_required

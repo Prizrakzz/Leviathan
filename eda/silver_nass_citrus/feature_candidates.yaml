@@ -1,0 +1,217 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_nass_citrus
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 4
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - arizona
+  - california
+  - florida
+  - texas
+  - united_states
+  candidate_id: eda:silver_nass_citrus:forecast_1000_boxes:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.forecast_1000_boxes
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.forecast_1000_boxes
+  - cell:missingness-validity-output
+  expected_range: observed [3.0, 214916.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed production level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by report_month within entity grain
+  output_grain: season x release_date x crop x state
+  readiness: ready_for_prototype
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_citrus'
+  source_columns:
+  - forecast_1000_boxes
+  - report_month
+  - release_date
+  source_table: silver_nass_citrus
+  transformation:
+    column: forecast_1000_boxes
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - nass_citrus_revisions
+      source_keys:
+      - nass_citrus
+  unit: thousand boxes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - arizona
+  - california
+  - florida
+  - texas
+  - united_states
+  candidate_id: eda:silver_nass_citrus:forecast_1000_boxes:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.forecast_1000_boxes
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by report_month within entity grain
+  output_grain: season x release_date x crop x state
+  readiness: ready_for_prototype
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_citrus'
+  source_columns:
+  - forecast_1000_boxes
+  - report_month
+  - release_date
+  source_table: silver_nass_citrus
+  transformation:
+    column: forecast_1000_boxes
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - nass_citrus_revisions
+      source_keys:
+      - nass_citrus
+  unit: thousand boxes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - arizona
+  - california
+  - florida
+  - texas
+  - united_states
+  candidate_id: eda:silver_nass_citrus:forecast_1000_boxes:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.forecast_1000_boxes
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.forecast_1000_boxes
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by report_month within entity grain
+  output_grain: season x release_date x crop x state
+  readiness: ready_for_prototype
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_citrus'
+  source_columns:
+  - forecast_1000_boxes
+  - season
+  - crop
+  - state
+  - release_date
+  - report_month
+  source_table: silver_nass_citrus
+  transformation:
+    column: forecast_1000_boxes
+    genuine_vintage_only: true
+    group_by:
+    - season
+    - crop
+    - state
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - nass_citrus_revisions
+      source_keys:
+      - nass_citrus
+  unit: thousand boxes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - arizona
+  - california
+  - florida
+  - texas
+  - united_states
+  candidate_id: eda:silver_nass_citrus:forecast_1000_boxes:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.forecast_1000_boxes
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by report_month within entity grain
+  output_grain: season x release_date x crop x state
+  readiness: ready_for_prototype
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: nass_citrus'
+  source_columns:
+  - forecast_1000_boxes
+  - report_month
+  - release_date
+  source_table: silver_nass_citrus
+  transformation:
+    center: past_only_median
+    column: forecast_1000_boxes
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - nass_citrus_revisions
+      source_keys:
+      - nass_citrus
+  unit: thousand boxes
+  visibility_class: review_required

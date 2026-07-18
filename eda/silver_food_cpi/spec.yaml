@@ -1,0 +1,403 @@
+schema_version: 1
+table_name: silver_food_cpi
+title: Food Cpi
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- wide_time_series
+- annual_seasonal_panel
+observation_time_candidates:
+- year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- country_iso
+- country_name
+categorical_columns:
+- country_iso
+- country_name
+- source
+numeric_columns:
+- cpi_yoy_pct
+- cpi_yoy_z_5yr
+- cpi_yoy_z_10yr
+- cpi_available
+units:
+  cpi_available: source-native / verify
+  cpi_yoy_pct: percent
+  cpi_yoy_z_5yr: source-native / verify
+meaningful_groupings:
+- country_iso
+- country_name
+- year
+declared_relationships: []
+source_keys:
+- food_cpi
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - country_iso
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-FOOD_CPI
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+feature_hypothesis_templates:
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+- family: rolling_change
+  mechanism: Lagged change, momentum, and rolling dispersion.
+- family: relative_spread
+  mechanism: Relative movement across economically linked measures.
+known_hazards: []
+no_candidate_reason: null
+archetype: annual_geographic_production
+row_meaning: One row is annual food-price inflation for one country.
+column_descriptions:
+  country_iso: ISO country code used to identify the reported country.
+  country_name: Human-readable country name attached to the country identifier.
+  cpi_available: Boolean indicator showing whether consumer price inflation applies to this row.
+  cpi_yoy_pct: Consumer price inflation year-over-year reported in percent at the declared row grain.
+  cpi_yoy_z_10yr: Standardized z-score of consumer price inflation year-over-year against its trailing
+    10-year history.
+  cpi_yoy_z_5yr: Standardized z-score of consumer price inflation year-over-year against its trailing
+    5-year history.
+  source: Source-system label retained for provenance.
+  year: Calendar year associated with the observation.
+why_it_matters:
+  country_iso: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  country_name: Supports entity segmentation.
+  cpi_available: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  cpi_yoy_pct: Carries a primary analytical measure.
+  cpi_yoy_z_10yr: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  cpi_yoy_z_5yr: Carries a primary analytical measure.
+  source: Supports provenance or reproducibility.
+  year: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+primary_measures:
+- cpi_yoy_pct
+- cpi_yoy_z_5yr
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - country_iso
+  - country_name
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - cpi_yoy_pct
+  - cpi_yoy_z_5yr
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - country_iso
+  - year
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - cpi_yoy_pct
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - country_iso
+  - year
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - country_iso
+  - year
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - country_iso
+  - year
+  - cpi_yoy_pct
+  - cpi_yoy_z_5yr
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - cpi_yoy_pct
+  - cpi_yoy_z_5yr
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  - country_iso
+  - country_name
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - country_iso
+  - country_name
+  - year
+  - cpi_yoy_pct
+  - cpi_yoy_z_5yr
+  - cpi_yoy_z_10yr
+  - cpi_available
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: country_history
+  chart_type: line
+  columns:
+  - year
+  - cpi_yoy_pct
+  - country_iso
+  - country_name
+  coverage_grain: null
+  cutoff_mode: null
+  id: country_history
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - cpi_yoy_pct
+  measure_units:
+    cpi_yoy_pct: percent
+  minimum_rows: 8
+  purpose: Preserve the governed country identity and select at most 12 most-complete histories.
+  series_dimensions:
+  - country_iso
+  - country_name
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Annual food-price inflation by country
+  type: line
+  unit_column: null
+- chart_id: latest_country_ranking
+  chart_type: ranked_bar
+  columns:
+  - year
+  - cpi_yoy_pct
+  - country_iso
+  - country_name
+  coverage_grain: null
+  cutoff_mode: null
+  id: latest_country_ranking
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - cpi_yoy_pct
+  measure_units:
+    cpi_yoy_pct: percent
+  minimum_rows: 1
+  purpose: Rank countries only at the latest comparable year.
+  series_dimensions:
+  - country_iso
+  - country_name
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Latest food-inflation country ranking
+  type: ranked_bar
+  unit_column: null
+- chart_id: country_distribution
+  chart_type: distribution
+  columns:
+  - cpi_yoy_pct
+  - country_iso
+  - country_name
+  coverage_grain: null
+  cutoff_mode: null
+  id: country_distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - cpi_yoy_pct
+  measure_units:
+    cpi_yoy_pct: percent
+  minimum_rows: 1
+  purpose: Keep country labels bound to every displayed distribution; do not pool countries.
+  series_dimensions:
+  - country_iso
+  - country_name
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Country food-inflation distributions
+  type: distribution
+  unit_column: null
+- chart_id: country_coverage
+  chart_type: coverage_heatmap
+  columns:
+  - year
+  - country_iso
+  - country_name
+  coverage_grain: year
+  cutoff_mode: null
+  id: country_coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Show bounded country-year coverage for the most-complete governed country series.
+  series_dimensions:
+  - country_iso
+  - country_name
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Country-year CPI coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - year
+  - country_iso
+  - country_name
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - cpi_yoy_pct
+  - cpi_yoy_z_5yr
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - year
+  - cpi_yoy_pct
+  - cpi_yoy_z_5yr
+  - country_iso
+  - country_name
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - year
+  - cpi_yoy_pct
+  - cpi_yoy_z_5yr
+  - country_iso
+  - country_name
+  id: latest_change
+  insight_id: latest_change
+  kind: latest_change
+  minimum_rows: 2
+  purpose: Explain the latest comparable movement.
+preview_strata:
+- year
+- country_iso
+- country_name
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+feature_quarantined: false

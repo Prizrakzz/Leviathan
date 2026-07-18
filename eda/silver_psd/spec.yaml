@@ -1,0 +1,512 @@
+schema_version: 1
+table_name: silver_psd
+title: Psd
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- vintage_revision
+- annual_seasonal_panel
+observation_time_candidates:
+- market_year
+knowledge_time: release_date
+knowledge_semantics: vintage
+entity_columns:
+- leviathan_slug
+- country
+- imports_mt
+- exports_mt
+categorical_columns:
+- leviathan_slug
+- country
+numeric_columns:
+- wasde_release_month
+- beginning_stocks_mt
+- production_mt
+- imports_mt
+- exports_mt
+- ending_stocks_mt
+- consumption_mt
+- area_harvested_1000ha
+- yield_mt_ha
+- su_ratio
+- su_ratio_yoy_delta
+- production_mt_revision
+- ending_stocks_mt_revision
+- consumption_mt_revision
+units:
+  area_harvested_1000ha: thousand hectares
+  beginning_stocks_mt: metric tonnes
+  consumption_mt: metric tonnes
+  ending_stocks_mt: metric tonnes
+  exports_mt: metric tonnes
+  imports_mt: metric tonnes
+  production_mt: metric tonnes
+  su_ratio: ratio
+  yield_mt_ha: metric tonnes per hectare
+meaningful_groupings:
+- leviathan_slug
+- country
+- imports_mt
+- exports_mt
+- release_date
+- market_year
+declared_relationships: []
+source_keys:
+- psd
+existing_table_feature_families: &id001
+- psd_available
+- psd_ending_stock_su_ratio
+- psd_monthly_vintage_features
+- psd_su_ratio_yoy_delta
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  psd_available: prior_marketing_year
+  psd_ending_stock_su_ratio: prior_marketing_year
+  psd_monthly_vintage_features: psd_vintage_snapshot
+  psd_su_ratio_yoy_delta: prior_marketing_year
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - country
+  - leviathan_slug
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-PSD
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+- id: EDA-FEATURE-COVERAGE-PSD
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: official_revision
+  mechanism: New information revealed between genuine releases.
+- family: forecast_horizon
+  mechanism: Forecast level and uncertainty by time-to-outcome.
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards: []
+no_candidate_reason: null
+archetype: vintage_revision
+row_meaning: One row is one PSD balance-sheet release vintage for a commodity, country, and market year.
+column_descriptions:
+  area_harvested_1000ha: Area harvested reported in thousand hectares at the declared row grain.
+  beginning_stocks_mt: Beginning stocks reported in metric tonnes at the declared row grain.
+  consumption_mt: Consumption reported in metric tonnes at the declared row grain.
+  consumption_mt_revision: Change in consumption mt from the prior comparable source release.
+  country: Country represented by the observation.
+  ending_stocks_mt: Ending stocks reported in metric tonnes at the declared row grain.
+  ending_stocks_mt_revision: Change in ending stocks mt from the prior comparable source release.
+  exports_mt: Exports reported in metric tonnes at the declared row grain.
+  imports_mt: Imports reported in metric tonnes at the declared row grain.
+  leviathan_slug: Leviathan's governed commodity identifier.
+  market_year: Source-defined commodity marketing year.
+  production_mt: Production reported in metric tonnes at the declared row grain.
+  production_mt_revision: Change in production mt from the prior comparable source release.
+  release_date: Date on which this source release became available.
+  su_ratio: Stock-to-use ratio comparing ending inventories with the governed use measure.
+  su_ratio_yoy_delta: Signed change in stock-to-use ratio year-over-year from its governed comparison
+    period.
+  wasde_release_month: Wasde release month locating the observation on its source reporting calendar.
+  yield_mt_ha: Yield reported in metric tonnes per hectare at the declared row grain.
+why_it_matters:
+  area_harvested_1000ha: Carries a primary analytical measure.
+  beginning_stocks_mt: Carries a primary analytical measure.
+  consumption_mt: Carries a primary analytical measure.
+  consumption_mt_revision: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  country: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  ending_stocks_mt: Carries a primary analytical measure.
+  ending_stocks_mt_revision: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  exports_mt: Carries a primary analytical measure.
+  imports_mt: Carries a primary analytical measure.
+  leviathan_slug: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  market_year: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  production_mt: Carries a primary analytical measure.
+  production_mt_revision: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  release_date: Defines row uniqueness; is required by the source contract.
+  su_ratio: Carries a primary analytical measure.
+  su_ratio_yoy_delta: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  wasde_release_month: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  yield_mt_ha: Carries a primary analytical measure.
+primary_measures:
+- production_mt
+- exports_mt
+- imports_mt
+- beginning_stocks_mt
+- ending_stocks_mt
+- consumption_mt
+- area_harvested_1000ha
+- yield_mt_ha
+- su_ratio
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - market_year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - leviathan_slug
+  - country
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - production_mt
+  - exports_mt
+  - imports_mt
+  - beginning_stocks_mt
+  - ending_stocks_mt
+  - consumption_mt
+  - area_harvested_1000ha
+  - yield_mt_ha
+  - su_ratio
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - production_mt
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  - production_mt
+  - exports_mt
+  - imports_mt
+  - beginning_stocks_mt
+  - ending_stocks_mt
+  - consumption_mt
+  - area_harvested_1000ha
+  - yield_mt_ha
+  - su_ratio
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_mt
+  - exports_mt
+  - imports_mt
+  - beginning_stocks_mt
+  - ending_stocks_mt
+  - consumption_mt
+  - area_harvested_1000ha
+  - yield_mt_ha
+  - su_ratio
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - market_year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - market_year
+  - leviathan_slug
+  - country
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - country
+  - market_year
+  - wasde_release_month
+  - release_date
+  - beginning_stocks_mt
+  - production_mt
+  - imports_mt
+  - exports_mt
+  - ending_stocks_mt
+  - consumption_mt
+  - area_harvested_1000ha
+  - yield_mt_ha
+  - su_ratio
+  - su_ratio_yoy_delta
+  - production_mt_revision
+  - ending_stocks_mt_revision
+  - consumption_mt_revision
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: vintage_trajectory
+  chart_type: vintage_line
+  columns:
+  - release_date
+  - production_mt
+  - market_year
+  - leviathan_slug
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: vintage_trajectory
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_mt
+  measure_units:
+    production_mt: metric tonnes
+  minimum_rows: 2
+  purpose: Track production within one commodity/country/market-year series.
+  series_dimensions:
+  - market_year
+  - leviathan_slug
+  - country
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: PSD production across releases
+  type: vintage_line
+  unit_column: null
+- chart_id: stored_revisions
+  chart_type: revision_distribution
+  columns:
+  - release_date
+  - production_mt
+  - production_mt_revision
+  - market_year
+  - leviathan_slug
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: stored_revisions
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_mt
+  measure_units:
+    production_mt: metric tonnes
+  minimum_rows: 1
+  purpose: Describe stored revisions directly without second-differencing them.
+  series_dimensions:
+  - market_year
+  - leviathan_slug
+  - country
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Stored PSD production revisions
+  type: revision_distribution
+  unit_column: null
+- chart_id: release_depth
+  chart_type: release_depth
+  columns:
+  - release_date
+  - market_year
+  - leviathan_slug
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: release_depth
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Show publication depth at the full outcome-season grain.
+  series_dimensions:
+  - market_year
+  - leviathan_slug
+  - country
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: PSD release depth
+  type: release_depth
+  unit_column: null
+- chart_id: first_latest
+  chart_type: first_latest
+  columns:
+  - release_date
+  - production_mt
+  - market_year
+  - leviathan_slug
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: first_latest
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_mt
+  measure_units:
+    production_mt: metric tonnes
+  minimum_rows: 1
+  purpose: Compare genuine releases within one market year.
+  series_dimensions:
+  - market_year
+  - leviathan_slug
+  - country
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: First-to-latest PSD production
+  type: first_latest
+  unit_column: null
+insight_rules:
+- columns:
+  - market_year
+  - leviathan_slug
+  - country
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - production_mt
+  - exports_mt
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - market_year
+  - production_mt
+  - exports_mt
+  - leviathan_slug
+  - country
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - market_year
+  - production_mt
+  - exports_mt
+  - leviathan_slug
+  - country
+  id: revision_depth
+  insight_id: revision_depth
+  kind: revision_depth
+  minimum_rows: 2
+  purpose: Explain first-to-latest movement and release depth.
+preview_strata:
+- market_year
+- leviathan_slug
+- country
+pit_notes:
+- Use release_date as the governed knowledge-time boundary (vintage semantics).
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+feature_quarantined: false

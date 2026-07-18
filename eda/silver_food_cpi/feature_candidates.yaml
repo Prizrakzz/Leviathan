@@ -1,0 +1,623 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_food_cpi
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 12
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_pct:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_pct
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_pct
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_pct
+  - country_iso
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_pct
+    group_by:
+    - country_iso
+    operation: difference
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_pct:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_pct
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_pct
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_pct
+  - country_iso
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_pct
+    group_by:
+    - country_iso
+    operation: lag
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_pct:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_pct
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_pct
+  - cell:missingness-validity-output
+  expected_range: observed [-7.633947849273682, 4734.91455078125]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_pct
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_pct
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_pct:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.cpi_yoy_pct
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_pct
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_pct
+    operation: is_null
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_pct:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_pct
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_pct
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    center: past_only_median
+    column: cpi_yoy_pct
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_pct:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_pct
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_pct
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_pct
+  - country_iso
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    closed: left
+    column: cpi_yoy_pct
+    group_by:
+    - country_iso
+    min_periods: 2
+    operation: rolling_mean
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+    window: 3
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_z_5yr:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_z_5yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_z_5yr
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_z_5yr
+  - country_iso
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_z_5yr
+    group_by:
+    - country_iso
+    operation: difference
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_z_5yr:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_z_5yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_z_5yr
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_z_5yr
+  - country_iso
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_z_5yr
+    group_by:
+    - country_iso
+    operation: lag
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_z_5yr:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_z_5yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_z_5yr
+  - cell:missingness-validity-output
+  expected_range: observed [-2.9653000831604004, 36.38990020751953]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_z_5yr
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_z_5yr
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_z_5yr:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:missingness_validity.column_missingness.cpi_yoy_z_5yr
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_z_5yr
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    column: cpi_yoy_z_5yr
+    operation: is_null
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_z_5yr:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_z_5yr
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_z_5yr
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    center: past_only_median
+    column: cpi_yoy_z_5yr
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - IDN
+  - IND
+  - RUS
+  - UKR
+  candidate_id: eda:silver_food_cpi:cpi_yoy_z_5yr:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cpi_yoy_z_5yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cpi_yoy_z_5yr
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country_iso x year
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: food_cpi'
+  source_columns:
+  - cpi_yoy_z_5yr
+  - country_iso
+  - year
+  source_table: silver_food_cpi
+  transformation:
+    closed: left
+    column: cpi_yoy_z_5yr
+    group_by:
+    - country_iso
+    min_periods: 2
+    operation: rolling_mean
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - food_cpi
+    window: 3
+  unit: source-native / verify
+  visibility_class: review_required

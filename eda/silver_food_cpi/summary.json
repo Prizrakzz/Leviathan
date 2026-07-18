@@ -1,0 +1,4449 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 12
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 2
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "year"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 264,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 264
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 12,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "food_cpi"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_pct:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_pct",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_pct",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_pct",
+        "country_iso",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_pct",
+        "group_by": [
+          "country_iso"
+        ],
+        "operation": "difference",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_pct:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_pct",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_pct",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_pct",
+        "country_iso",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_pct",
+        "group_by": [
+          "country_iso"
+        ],
+        "operation": "lag",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_pct:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_pct",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_pct",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [-7.633947849273682, 4734.91455078125]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed macro level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_pct",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_pct",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_pct:missing_indicator",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "missing_indicator",
+      "counter_evidence": [
+        "Missingness may be a pipeline artifact and can drift after repairs.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:missingness_validity.column_missingness.cpi_yoy_pct",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "{0, 1}",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Availability itself may encode source coverage or reporting cadence; review for operational rather than economic signal before use.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_pct",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_pct",
+        "operation": "is_null",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_pct:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_pct",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_pct",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "cpi_yoy_pct",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_pct:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_pct",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_pct",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_pct",
+        "country_iso",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "closed": "left",
+        "column": "cpi_yoy_pct",
+        "group_by": [
+          "country_iso"
+        ],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_z_5yr:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_z_5yr",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_z_5yr",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_z_5yr",
+        "country_iso",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_z_5yr",
+        "group_by": [
+          "country_iso"
+        ],
+        "operation": "difference",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_z_5yr:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_z_5yr",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_z_5yr",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_z_5yr",
+        "country_iso",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_z_5yr",
+        "group_by": [
+          "country_iso"
+        ],
+        "operation": "lag",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_z_5yr:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_z_5yr",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_z_5yr",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [-2.9653000831604004, 36.38990020751953]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed macro level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_z_5yr",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_z_5yr",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_z_5yr:missing_indicator",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "missing_indicator",
+      "counter_evidence": [
+        "Missingness may be a pipeline artifact and can drift after repairs.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:missingness_validity.column_missingness.cpi_yoy_z_5yr",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "{0, 1}",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Availability itself may encode source coverage or reporting cadence; review for operational rather than economic signal before use.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_z_5yr",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "column": "cpi_yoy_z_5yr",
+        "operation": "is_null",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_z_5yr:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_z_5yr",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_z_5yr",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "cpi_yoy_z_5yr",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "IDN",
+        "IND",
+        "RUS",
+        "UKR"
+      ],
+      "candidate_id": "eda:silver_food_cpi:cpi_yoy_z_5yr:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.cpi_yoy_z_5yr",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.cpi_yoy_z_5yr",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "country_iso x year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only macro evidence; registered source keys: food_cpi",
+      "source_columns": [
+        "cpi_yoy_z_5yr",
+        "country_iso",
+        "year"
+      ],
+      "source_table": "silver_food_cpi",
+      "transformation": {
+        "closed": "left",
+        "column": "cpi_yoy_z_5yr",
+        "group_by": [
+          "country_iso"
+        ],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "food_cpi"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 12
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": []
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 12
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "food_cpi"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "time_series",
+      "annual_or_seasonal_panel"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      },
+      {
+        "code": "EDA-SEMANTIC-UNIT-001",
+        "confidence": "high",
+        "evidence": [
+          "overlay.units",
+          "schema_contract.column_contract"
+        ],
+        "message": "No governed unit or row-level unit column is available for: cpi_yoy_z_5yr, cpi_available.",
+        "remediation": "Govern source units and conversion policy for every feature-bearing value column before prototype promotion.",
+        "risk": "Feature magnitudes and cross-era comparisons may mix incompatible units.",
+        "severity": "high",
+        "title": "Feature-bearing units are not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "year"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "cpi_yoy_z_10yr",
+              "year"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "One stable governed entity/vocabulary axis, its 20 most frequent groups, and at most six governed numeric value columns; all analyzed rows contribute.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": [
+              {
+                "group": "IDN",
+                "group_column": "country_iso",
+                "median": 9.278654098510742,
+                "n": 65,
+                "q25": 5.822665691375732,
+                "q75": 15.479877471923828,
+                "value_column": "cpi_yoy_pct"
+              },
+              {
+                "group": "IND",
+                "group_column": "country_iso",
+                "median": 6.62343692779541,
+                "n": 65,
+                "q25": 4.246343612670898,
+                "q75": 9.478997230529785,
+                "value_column": "cpi_yoy_pct"
+              },
+              {
+                "group": "RUS",
+                "group_column": "country_iso",
+                "median": 11.267972946166992,
+                "n": 32,
+                "q25": 6.825711369514465,
+                "q75": 17.04123830795288,
+                "value_column": "cpi_yoy_pct"
+              },
+              {
+                "group": "UKR",
+                "group_column": "country_iso",
+                "median": 12.455318450927734,
+                "n": 32,
+                "q25": 8.774982213973999,
+                "q75": 20.808644771575928,
+                "value_column": "cpi_yoy_pct"
+              },
+              {
+                "group": "IDN",
+                "group_column": "country_iso",
+                "median": -0.5058000087738037,
+                "n": 62,
+                "q25": -0.9148499816656113,
+                "q75": 0.5368750244379044,
+                "value_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "group": "IND",
+                "group_column": "country_iso",
+                "median": 0.029249999672174454,
+                "n": 62,
+                "q25": -0.7785249948501587,
+                "q75": 1.0687250196933746,
+                "value_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "group": "RUS",
+                "group_column": "country_iso",
+                "median": -0.6599000096321106,
+                "n": 29,
+                "q25": -0.9473000168800354,
+                "q75": -0.0828000009059906,
+                "value_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "group": "UKR",
+                "group_column": "country_iso",
+                "median": -0.4666999876499176,
+                "n": 29,
+                "q25": -0.8064000010490417,
+                "q75": 0.24230000376701355,
+                "value_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "group": "IDN",
+                "group_column": "country_iso",
+                "median": 1.0,
+                "n": 66,
+                "q25": 1.0,
+                "q75": 1.0,
+                "value_column": "cpi_available"
+              },
+              {
+                "group": "IND",
+                "group_column": "country_iso",
+                "median": 1.0,
+                "n": 66,
+                "q25": 1.0,
+                "q75": 1.0,
+                "value_column": "cpi_available"
+              },
+              {
+                "group": "RUS",
+                "group_column": "country_iso",
+                "median": 0.0,
+                "n": 66,
+                "q25": 0.0,
+                "q75": 1.0,
+                "value_column": "cpi_available"
+              },
+              {
+                "group": "UKR",
+                "group_column": "country_iso",
+                "median": 0.0,
+                "n": 66,
+                "q25": 0.0,
+                "q75": 1.0,
+                "value_column": "cpi_available"
+              }
+            ]
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 3
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "cpi_available": {
+                "count": 264,
+                "distinct_count": 2,
+                "iqr": 1.0,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 0.0,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 1.0,
+                "mean": 0.7348484848484849,
+                "min": 0.0,
+                "quantiles": {
+                  "0.01": 0.0,
+                  "0.05": 0.0,
+                  "0.25": 0.0,
+                  "0.5": 1.0,
+                  "0.75": 1.0,
+                  "0.95": 1.0,
+                  "0.99": 1.0
+                },
+                "skew": -1.0701640226795452,
+                "std": 0.44225224612116615
+              },
+              "cpi_yoy_pct": {
+                "count": 194,
+                "distinct_count": 194,
+                "iqr": 8.292226791381836,
+                "iqr_outlier_count": 25,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.12886597938144329,
+                "mad": 3.99088716506958,
+                "mad_outlier_count": 21,
+                "mad_outlier_rate": 0.10824742268041238,
+                "max": 4734.91455078125,
+                "mean": 58.79910659790039,
+                "min": -7.633947849273682,
+                "quantiles": {
+                  "0.01": -0.26311178565025334,
+                  "0.05": 2.403511106967926,
+                  "0.25": 5.223770618438721,
+                  "0.5": 8.941513061523438,
+                  "0.75": 13.515997409820557,
+                  "0.95": 129.73722610473632,
+                  "0.99": 908.3423925781233
+                },
+                "skew": 11.68936538696289,
+                "std": 360.563232421875
+              },
+              "cpi_yoy_z_5yr": {
+                "count": 182,
+                "distinct_count": 181,
+                "iqr": 1.4211000055074692,
+                "iqr_outlier_count": 15,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.08241758241758242,
+                "mad": 0.6722999811172485,
+                "mad_outlier_count": 13,
+                "mad_outlier_rate": 0.07142857142857142,
+                "max": 36.38990020751953,
+                "mean": 0.3307681381702423,
+                "min": -2.9653000831604004,
+                "quantiles": {
+                  "0.01": -2.5836270570755007,
+                  "0.05": -2.160070037841797,
+                  "0.25": -0.8842249810695648,
+                  "0.5": -0.44289998710155487,
+                  "0.75": 0.5368750244379044,
+                  "0.95": 4.479394996166221,
+                  "0.99": 9.80585007667541
+                },
+                "skew": 7.3045334815979,
+                "std": 3.376316547393799
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 3
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "country_iso": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "IDN"
+                  },
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "IND"
+                  },
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "RUS"
+                  },
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "UKR"
+                  }
+                ]
+              },
+              "country_name": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "Indonesia"
+                  },
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "India"
+                  },
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "Russian Federation"
+                  },
+                  {
+                    "count": 66,
+                    "rate": 0.25,
+                    "value": "Ukraine"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 264,
+                    "rate": 1.0,
+                    "value": "wb_food_cpi"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 2
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "country_iso",
+              "year"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 264,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "year"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "year": {
+                "distinct_count": 66,
+                "non_null_count": 264,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "country x year"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 264,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": [
+              {
+                "both_missing_count": 82,
+                "both_missing_rate": 0.3106060606060606,
+                "left": "cpi_yoy_z_10yr",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 2.9333333333333336,
+                "phi": 0.9333071686547099,
+                "right": "cpi_yoy_z_5yr",
+                "right_missing_given_left_missing": 0.9111111111111111
+              },
+              {
+                "both_missing_count": 70,
+                "both_missing_rate": 0.26515151515151514,
+                "left": "cpi_yoy_z_5yr",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.219512195121951,
+                "phi": 0.8949049758302009,
+                "right": "cpi_yoy_pct",
+                "right_missing_given_left_missing": 0.8536585365853658
+              },
+              {
+                "both_missing_count": 70,
+                "both_missing_rate": 0.26515151515151514,
+                "left": "cpi_yoy_z_10yr",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 2.9333333333333336,
+                "phi": 0.8352212292070964,
+                "right": "cpi_yoy_pct",
+                "right_missing_given_left_missing": 0.7777777777777778
+              }
+            ]
+          },
+          "column_missingness": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "country_iso": {
+                "empty_string_count": 0,
+                "non_null_count": 264,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "country_name": {
+                "empty_string_count": 0,
+                "non_null_count": 264,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "cpi_available": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 264,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 70,
+                "zero_rate": 0.26515151515151514
+              },
+              "cpi_yoy_pct": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 3,
+                "negative_rate": 0.011363636363636364,
+                "non_null_count": 194,
+                "non_null_rate": 0.7348484848484849,
+                "null_count": 70,
+                "null_rate": 0.26515151515151514,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "cpi_yoy_z_10yr": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 126,
+                "negative_rate": 0.4772727272727273,
+                "non_null_count": 174,
+                "non_null_rate": 0.6590909090909091,
+                "null_count": 90,
+                "null_rate": 0.3409090909090909,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "cpi_yoy_z_5yr": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 111,
+                "negative_rate": 0.42045454545454547,
+                "non_null_count": 182,
+                "non_null_rate": 0.6893939393939394,
+                "null_count": 82,
+                "null_rate": 0.3106060606060606,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 264,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "year": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 264,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 264,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": [
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_iso",
+                "condition_value": "IDN",
+                "missing_count": 1,
+                "missing_rate": 0.015151515151515152,
+                "missingness_lift": 0.05714285714285715,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_iso",
+                "condition_value": "IND",
+                "missing_count": 1,
+                "missing_rate": 0.015151515151515152,
+                "missingness_lift": 0.05714285714285715,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_iso",
+                "condition_value": "RUS",
+                "missing_count": 34,
+                "missing_rate": 0.5151515151515151,
+                "missingness_lift": 1.9428571428571428,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_iso",
+                "condition_value": "UKR",
+                "missing_count": 34,
+                "missing_rate": 0.5151515151515151,
+                "missingness_lift": 1.9428571428571428,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_iso",
+                "condition_value": "RUS",
+                "missing_count": 39,
+                "missing_rate": 0.5909090909090909,
+                "missingness_lift": 1.7333333333333336,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_iso",
+                "condition_value": "UKR",
+                "missing_count": 39,
+                "missing_rate": 0.5909090909090909,
+                "missingness_lift": 1.7333333333333336,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_iso",
+                "condition_value": "IDN",
+                "missing_count": 6,
+                "missing_rate": 0.09090909090909091,
+                "missingness_lift": 0.2666666666666667,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_iso",
+                "condition_value": "IND",
+                "missing_count": 6,
+                "missing_rate": 0.09090909090909091,
+                "missingness_lift": 0.2666666666666667,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_iso",
+                "condition_value": "IDN",
+                "missing_count": 4,
+                "missing_rate": 0.06060606060606061,
+                "missingness_lift": 0.1951219512195122,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_iso",
+                "condition_value": "IND",
+                "missing_count": 4,
+                "missing_rate": 0.06060606060606061,
+                "missingness_lift": 0.1951219512195122,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_iso",
+                "condition_value": "RUS",
+                "missing_count": 37,
+                "missing_rate": 0.5606060606060606,
+                "missingness_lift": 1.8048780487804876,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_iso",
+                "condition_value": "UKR",
+                "missing_count": 37,
+                "missing_rate": 0.5606060606060606,
+                "missingness_lift": 1.8048780487804876,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_name",
+                "condition_value": "India",
+                "missing_count": 1,
+                "missing_rate": 0.015151515151515152,
+                "missingness_lift": 0.05714285714285715,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_name",
+                "condition_value": "Indonesia",
+                "missing_count": 1,
+                "missing_rate": 0.015151515151515152,
+                "missingness_lift": 0.05714285714285715,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_name",
+                "condition_value": "Russian Federation",
+                "missing_count": 34,
+                "missing_rate": 0.5151515151515151,
+                "missingness_lift": 1.9428571428571428,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.26515151515151514,
+                "condition_column": "country_name",
+                "condition_value": "Ukraine",
+                "missing_count": 34,
+                "missing_rate": 0.5151515151515151,
+                "missingness_lift": 1.9428571428571428,
+                "n": 66,
+                "target_column": "cpi_yoy_pct"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_name",
+                "condition_value": "Russian Federation",
+                "missing_count": 39,
+                "missing_rate": 0.5909090909090909,
+                "missingness_lift": 1.7333333333333336,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_name",
+                "condition_value": "Ukraine",
+                "missing_count": 39,
+                "missing_rate": 0.5909090909090909,
+                "missingness_lift": 1.7333333333333336,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_name",
+                "condition_value": "India",
+                "missing_count": 6,
+                "missing_rate": 0.09090909090909091,
+                "missingness_lift": 0.2666666666666667,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3409090909090909,
+                "condition_column": "country_name",
+                "condition_value": "Indonesia",
+                "missing_count": 6,
+                "missing_rate": 0.09090909090909091,
+                "missingness_lift": 0.2666666666666667,
+                "n": 66,
+                "target_column": "cpi_yoy_z_10yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_name",
+                "condition_value": "India",
+                "missing_count": 4,
+                "missing_rate": 0.06060606060606061,
+                "missingness_lift": 0.1951219512195122,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_name",
+                "condition_value": "Indonesia",
+                "missing_count": 4,
+                "missing_rate": 0.06060606060606061,
+                "missingness_lift": 0.1951219512195122,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_name",
+                "condition_value": "Russian Federation",
+                "missing_count": 37,
+                "missing_rate": 0.5606060606060606,
+                "missingness_lift": 1.8048780487804876,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              },
+              {
+                "baseline_missing_rate": 0.3106060606060606,
+                "condition_column": "country_name",
+                "condition_value": "Ukraine",
+                "missing_count": 37,
+                "missing_rate": 0.5606060606060606,
+                "missingness_lift": 1.8048780487804876,
+                "n": 66,
+                "target_column": "cpi_yoy_z_5yr"
+              }
+            ]
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 3,
+                "pair_count": 3,
+                "reason": "All frame rows were evaluated for the deterministically selected columns.",
+                "selected_column_count": 3,
+                "status": "supported"
+              },
+              "conditional_missingness": {
+                "condition_columns": [
+                  "country_iso",
+                  "country_name"
+                ],
+                "reason": "Missingness is conditioned on bounded low-cardinality source segments.",
+                "record_count": 24,
+                "status": "supported",
+                "target_columns": [
+                  "cpi_yoy_z_10yr",
+                  "cpi_yoy_z_5yr",
+                  "cpi_yoy_pct"
+                ]
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 264
+          },
+          "required_complete_row_rate": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 1320,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 792
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [
+                  "cpi_yoy_pct",
+                  "cpi_yoy_z_10yr",
+                  "cpi_yoy_z_5yr"
+                ],
+                "negative_count": [
+                  "cpi_yoy_pct",
+                  "cpi_yoy_z_10yr",
+                  "cpi_yoy_z_5yr"
+                ],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": [
+                  "cpi_available"
+                ]
+              },
+              "finite_count": 1078,
+              "infinite_count": 0,
+              "nan_or_null_count": 242,
+              "negative_count": 240,
+              "numeric_cell_count": 1320,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.18333333333333332,
+                "negative_count": 0.18181818181818182,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.05303030303030303
+              },
+              "string_cell_count": 792,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 70
+            }
+          },
+          "value_column_population": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "cpi_available": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 264,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              },
+              "cpi_yoy_pct": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 194,
+                "non_null_rate": 0.7348484848484849,
+                "passes_floor": true
+              },
+              "cpi_yoy_z_5yr": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 182,
+                "non_null_rate": 0.6893939393939394,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "year",
+                "resolution": "annual_proxy"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "country_iso": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "country_name": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "cpi_available": {
+                "declared_nullable": true,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int8",
+                "partition": false,
+                "status": "matched"
+              },
+              "cpi_yoy_pct": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float32",
+                "partition": false,
+                "status": "matched"
+              },
+              "cpi_yoy_z_10yr": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float32",
+                "partition": false,
+                "status": "matched"
+              },
+              "cpi_yoy_z_5yr": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float32",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "year": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 8
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 8
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "country_iso",
+              "country_name",
+              "year",
+              "cpi_yoy_pct",
+              "cpi_yoy_z_5yr",
+              "cpi_yoy_z_10yr",
+              "cpi_available",
+              "source"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 264
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 1,
+              "partition_stratum_count": 1,
+              "source_compressed_bytes": 8522,
+              "source_row_count": 264
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {},
+                "row_count": 264,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "6171138a2143dbb44d4e91efa80c9c11b839407493960e6b9214231eab14bb44": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "cpi_yoy_pct",
+                "lag_1_autocorrelation": 0.31198010187148545,
+                "n_effective_pairs": 64,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "cpi_yoy_z_5yr",
+                "lag_1_autocorrelation": 0.3526495184244386,
+                "n_effective_pairs": 61,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "cpi_available",
+                "lag_1_autocorrelation": 0.8567570736512381,
+                "n_effective_pairs": 65,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "annual",
+              "declared_matches_inferred": true,
+              "distinct_timestamp_count": 66,
+              "gap_count": 65,
+              "gap_days_max": 366.0,
+              "gap_days_median": 365.0,
+              "gap_days_mode": 365.0,
+              "gap_days_p95": 366.0,
+              "inferred_cadence": "annual",
+              "large_gap_count": 0,
+              "large_gap_rate": 0.0
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "annual"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": [
+              {
+                "column": "cpi_yoy_pct",
+                "early_n": 28,
+                "early_quantiles": {
+                  "0.1": 2.5962762594223023,
+                  "0.5": 12.730835437774658,
+                  "0.9": 135.75172424316406
+                },
+                "late_n": 52,
+                "late_quantiles": {
+                  "0.1": 2.7470743656158447,
+                  "0.5": 5.757431268692017,
+                  "0.9": 13.654214191436767
+                },
+                "median_shift": -6.973404169082642,
+                "robust_median_shift_iqr": -0.8409567592061212
+              },
+              {
+                "column": "cpi_yoy_z_5yr",
+                "early_n": 22,
+                "early_quantiles": {
+                  "0.1": -0.7902700006961823,
+                  "0.5": 0.14124999940395355,
+                  "0.9": 4.955399966239932
+                },
+                "late_n": 52,
+                "late_quantiles": {
+                  "0.1": -1.7068699955940245,
+                  "0.5": -0.46059998869895935,
+                  "0.9": 1.6103199481964112
+                },
+                "median_shift": -0.6018499881029129,
+                "robust_median_shift_iqr": -0.42350994706244804
+              },
+              {
+                "column": "cpi_available",
+                "early_n": 56,
+                "early_quantiles": {
+                  "0.1": 0.0,
+                  "0.5": 0.5,
+                  "0.9": 1.0
+                },
+                "late_n": 56,
+                "late_quantiles": {
+                  "0.1": 1.0,
+                  "0.5": 1.0,
+                  "0.9": 1.0
+                },
+                "median_shift": 0.5,
+                "robust_median_shift_iqr": 0.5
+              }
+            ]
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {
+              "analysis_frame_exactness": "exact",
+              "complete_entity_count": 4,
+              "complete_entity_rate": 1.0,
+              "entity_columns": [
+                "country_iso"
+              ],
+              "entity_count": 4,
+              "full_source_balance_claimed": true,
+              "global_distinct_period_count": 66,
+              "observed_period_count": {
+                "max": 66,
+                "median": 66.0,
+                "min": 66,
+                "p10": 66.0,
+                "p90": 66.0
+              },
+              "period_coverage_ratio": {
+                "median": 1.0,
+                "p10": 1.0,
+                "p90": 1.0
+              },
+              "sampling_artifact_caveat": null,
+              "scope": "full_analysis_frame"
+            }
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 9.200240135192871,
+                "after_timestamp_count": 52,
+                "before_median": 59.53110122680664,
+                "before_timestamp_count": 13,
+                "column": "cpi_yoy_pct",
+                "median_shift": -50.33086109161377,
+                "robust_shift_score": 16.393945305401523,
+                "split_timestamp": "1973-01-01T00:00:00+00:00"
+              },
+              {
+                "after_median": -0.4652999937534332,
+                "after_timestamp_count": 49,
+                "before_median": 0.25315001606941223,
+                "before_timestamp_count": 13,
+                "column": "cpi_yoy_z_5yr",
+                "median_shift": -0.7184500098228455,
+                "robust_shift_score": 1.207681955473157,
+                "split_timestamp": "1976-01-01T00:00:00+00:00"
+              },
+              {
+                "after_median": 1.0,
+                "after_timestamp_count": 52,
+                "before_median": 0.5,
+                "before_timestamp_count": 14,
+                "column": "cpi_available",
+                "median_shift": 0.5,
+                "robust_shift_score": 2.0,
+                "split_timestamp": "1974-01-01T00:00:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 3,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "configured_window_fraction": 0.2,
+                "early_cutoff": "1973-01-01T00:00:00+00:00",
+                "late_cutoff": "2012-01-01T00:00:00+00:00",
+                "reason": "Earliest and latest timestamp quartiles are compared descriptively; composition changes can mimic distribution drift.",
+                "series_count": 3,
+                "status": "supported"
+              },
+              "panel_balance": {
+                "entity_count": 4,
+                "full_source_balance_claimed": true,
+                "reason": "Entity coverage is measured against the global observed timestamp set; staggered entry can lower this descriptive ratio without implying a defect.",
+                "scope": "full_analysis_frame",
+                "status": "supported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 3,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "year": {
+                "coverage_month_counts": {
+                  "1960-01": 4,
+                  "1961-01": 4,
+                  "1962-01": 4,
+                  "1963-01": 4,
+                  "1964-01": 4,
+                  "1965-01": 4,
+                  "1966-01": 4,
+                  "1967-01": 4,
+                  "1968-01": 4,
+                  "1969-01": 4,
+                  "1970-01": 4,
+                  "1971-01": 4,
+                  "1972-01": 4,
+                  "1973-01": 4,
+                  "1974-01": 4,
+                  "1975-01": 4,
+                  "1976-01": 4,
+                  "1977-01": 4,
+                  "1978-01": 4,
+                  "1979-01": 4,
+                  "1980-01": 4,
+                  "1981-01": 4,
+                  "1982-01": 4,
+                  "1983-01": 4,
+                  "1984-01": 4,
+                  "1985-01": 4,
+                  "1986-01": 4,
+                  "1987-01": 4,
+                  "1988-01": 4,
+                  "1989-01": 4,
+                  "1990-01": 4,
+                  "1991-01": 4,
+                  "1992-01": 4,
+                  "1993-01": 4,
+                  "1994-01": 4,
+                  "1995-01": 4,
+                  "1996-01": 4,
+                  "1997-01": 4,
+                  "1998-01": 4,
+                  "1999-01": 4,
+                  "2000-01": 4,
+                  "2001-01": 4,
+                  "2002-01": 4,
+                  "2003-01": 4,
+                  "2004-01": 4,
+                  "2005-01": 4,
+                  "2006-01": 4,
+                  "2007-01": 4,
+                  "2008-01": 4,
+                  "2009-01": 4,
+                  "2010-01": 4,
+                  "2011-01": 4,
+                  "2012-01": 4,
+                  "2013-01": 4,
+                  "2014-01": 4,
+                  "2015-01": 4,
+                  "2016-01": 4,
+                  "2017-01": 4,
+                  "2018-01": 4,
+                  "2019-01": 4,
+                  "2020-01": 4,
+                  "2021-01": 4,
+                  "2022-01": 4,
+                  "2023-01": 4,
+                  "2024-01": 4,
+                  "2025-01": 4
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 66,
+                "first": "1960-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 366.0,
+                "last": "2025-01-01T00:00:00+00:00",
+                "parseable_count": 264,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "year",
+              "resolution": "annual_proxy"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "year"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 264,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": [
+              "country_iso",
+              "country_name"
+            ]
+          },
+          "categorical_associations": {
+            "denominator": 264,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": [
+              {
+                "cramers_v": 1.0,
+                "cramers_v_bias_corrected": 1.0,
+                "left": "country_iso",
+                "left_levels": 4,
+                "n": 264,
+                "right": "country_name",
+                "right_levels": 4
+              }
+            ]
+          },
+          "correlation_columns": {
+            "detail": "At most 20 non-constant governed numeric value columns in contract order; calendar/time identifiers are excluded.",
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "cpi_yoy_pct",
+              "cpi_yoy_z_5yr",
+              "cpi_available"
+            ]
+          },
+          "correlation_pairs": {
+            "detail": "Pearson and Spearman are paired with effective pairwise sample size.",
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": [
+              {
+                "abs_max_correlation": 0.49661177798430706,
+                "left": "cpi_yoy_pct",
+                "n": 182,
+                "pearson": 0.2562261732864692,
+                "right": "cpi_yoy_z_5yr",
+                "spearman": 0.49661177798430706
+              }
+            ]
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {
+              "cpi_available": {
+                "cpi_available": 1.0,
+                "cpi_yoy_pct": null,
+                "cpi_yoy_z_5yr": null
+              },
+              "cpi_yoy_pct": {
+                "cpi_available": null,
+                "cpi_yoy_pct": 1.0,
+                "cpi_yoy_z_5yr": 0.2562261732864692
+              },
+              "cpi_yoy_z_5yr": {
+                "cpi_available": null,
+                "cpi_yoy_pct": 0.2562261732864692,
+                "cpi_yoy_z_5yr": 1.0
+              }
+            }
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "eligible_column_count": 2,
+                "pair_count": 1,
+                "reason": "Bias-corrected Cramer's V is descriptive; rare levels and structural mappings can produce strong associations without redundancy.",
+                "selected_columns": [
+                  "country_iso",
+                  "country_name"
+                ],
+                "status": "supported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {
+              "cpi_available": {
+                "cpi_available": 1.0,
+                "cpi_yoy_pct": null,
+                "cpi_yoy_z_5yr": null
+              },
+              "cpi_yoy_pct": {
+                "cpi_available": null,
+                "cpi_yoy_pct": 1.0,
+                "cpi_yoy_z_5yr": 0.49661177798430706
+              },
+              "cpi_yoy_z_5yr": {
+                "cpi_available": null,
+                "cpi_yoy_pct": 0.49661177798430706,
+                "cpi_yoy_z_5yr": 1.0
+              }
+            }
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_food_cpi"
+  },
+  "provenance": {
+    "analysis_rows": 264,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/food_cpi",
+    "contract_sha256": "c84a20ed7005c0467ff51011066a1cd15e2f2e001dda96f6c33cc2b83cba6653",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 1,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {},
+          "row_count": 264,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 1,
+      "schema_sha256_object_counts": {
+        "6171138a2143dbb44d4e91efa80c9c11b839407493960e6b9214231eab14bb44": 1
+      },
+      "source_compressed_bytes": 8522,
+      "source_row_count": 264
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "ddf8753b61db74d9b6f8e8a2b365ddb164f6ff1860f11817201cf850a994ad94",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 1,
+    "object_sample": [
+      {
+        "etag": "b554454e1e65a3ad61d59413ce57c5d1",
+        "last_modified": "2026-06-05T15:38:38Z",
+        "partition_values": {},
+        "size": 8522,
+        "uri": "s3://leviathan-dev-shahem-001/silver/food_cpi/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": false,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 0,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "source",
+        "year",
+        "country_iso",
+        "country_name",
+        "cpi_yoy_pct",
+        "cpi_yoy_z_5yr",
+        "cpi_yoy_z_10yr",
+        "cpi_available"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 5401372185723896995,
+      "snapshot_row_count": 264,
+      "source_compressed_bytes": 8522,
+      "source_row_count": 264,
+      "stratum_columns": [
+        "source",
+        "year"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "3fdbfa76a4f99d357ce83fa55ece6cb57c679946f404304986c6f42c6aa612b6",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica/manifest.json",
+      "object_count": 1,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica/objects",
+      "replica_manifest_sha256": "2a7a59f38f56ff6d00d267d062aa4af35191cce5abf3d929aa71fd145241e482",
+      "source_manifest_sha256": "3fdbfa76a4f99d357ce83fa55ece6cb57c679946f404304986c6f42c6aa612b6",
+      "total_bytes": 8522
+    },
+    "source_rows": 264,
+    "source_specific_checks": [],
+    "source_total_bytes": 8522,
+    "source_total_rows": 264,
+    "spec_sha256": "097c21727de15b4ab8aa761435eeb92308c0ca7d77e71e6f75bb8d8aa118e49a"
+  },
+  "reader": {
+    "analysis_rows": 264,
+    "anti_feature_summary": {
+      "analysis_rows": 264,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 264
+    },
+    "archetype": "annual_geographic_production",
+    "chart_execution": {
+      "omission_reasons": [],
+      "omitted_chart_count": 0,
+      "plotted_rows": 656,
+      "ready_chart_count": 4,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": "median only within duplicate x/series/measure rows; semantic series remain separate",
+        "analysis_rows": 264,
+        "chart_id": "country_history",
+        "exactness": "exact",
+        "plotted_rows": 194,
+        "reason": null,
+        "scope": "selected 4 of 4 complete semantic series by distinct-position count, contributing rows, then label; excluded series=0 (complete but outside cap=0, underpowered=0); label dimensions=country_iso, country_name; no pooling; time=year; measures=cpi_yoy_pct",
+        "source_rows": 264,
+        "status": "ready",
+        "title": "Annual food-price inflation by country",
+        "unit": "percent"
+      },
+      {
+        "aggregation": "latest comparable period only; median only within duplicate entity-period rows",
+        "analysis_rows": 264,
+        "chart_id": "latest_country_ranking",
+        "exactness": "exact",
+        "plotted_rows": 4,
+        "reason": null,
+        "scope": "all 4 semantic series; label dimensions=country_iso, country_name; time=year; latest comparable period=2024-01-01; measure=cpi_yoy_pct",
+        "source_rows": 264,
+        "status": "ready",
+        "title": "Latest food-inflation country ranking",
+        "unit": "percent"
+      },
+      {
+        "aggregation": "raw finite observations; no cross-series pooling; all finite values",
+        "analysis_rows": 264,
+        "chart_id": "country_distribution",
+        "exactness": "exact",
+        "plotted_rows": 194,
+        "reason": null,
+        "scope": "all 4 semantic series; label dimensions=country_iso, country_name; measures=cpi_yoy_pct",
+        "source_rows": 264,
+        "status": "ready",
+        "title": "Country food-inflation distributions",
+        "unit": "percent"
+      },
+      {
+        "aggregation": "exact contributing-row count by displayed time bucket and entity",
+        "analysis_rows": 264,
+        "chart_id": "country_coverage",
+        "exactness": "exact",
+        "plotted_rows": 264,
+        "reason": null,
+        "scope": "all 4 semantic series; label dimensions=country_iso, country_name; time=year; calendar-year buckets; 264 populated cells",
+        "source_rows": 264,
+        "status": "ready",
+        "title": "Country-year CPI coverage",
+        "unit": "rows"
+      }
+    ],
+    "chart_omission_reasons": [],
+    "chart_plan": {
+      "analysis_rows": 264,
+      "charts": [
+        {
+          "analysis_rows": 264,
+          "chart_id": "country_history",
+          "chart_type": "line",
+          "columns": [
+            "year",
+            "cpi_yoy_pct",
+            "country_iso",
+            "country_name"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 194,
+          "exactness": "exact",
+          "id": "country_history",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "cpi_yoy_pct"
+          ],
+          "measure_units": {
+            "cpi_yoy_pct": "percent"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Preserve the governed country identity and select at most 12 most-complete histories.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country_iso",
+            "country_name"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 264,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Annual food-price inflation by country",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 264,
+          "chart_id": "latest_country_ranking",
+          "chart_type": "ranked_bar",
+          "columns": [
+            "year",
+            "cpi_yoy_pct",
+            "country_iso",
+            "country_name"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 194,
+          "exactness": "exact",
+          "id": "latest_country_ranking",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "cpi_yoy_pct"
+          ],
+          "measure_units": {
+            "cpi_yoy_pct": "percent"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Rank countries only at the latest comparable year.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country_iso",
+            "country_name"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 264,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Latest food-inflation country ranking",
+          "type": "ranked_bar",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 264,
+          "chart_id": "country_distribution",
+          "chart_type": "distribution",
+          "columns": [
+            "cpi_yoy_pct",
+            "country_iso",
+            "country_name"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 194,
+          "exactness": "exact",
+          "id": "country_distribution",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "cpi_yoy_pct"
+          ],
+          "measure_units": {
+            "cpi_yoy_pct": "percent"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Keep country labels bound to every displayed distribution; do not pool countries.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country_iso",
+            "country_name"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 264,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Country food-inflation distributions",
+          "type": "distribution",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 264,
+          "chart_id": "country_coverage",
+          "chart_type": "coverage_heatmap",
+          "columns": [
+            "year",
+            "country_iso",
+            "country_name"
+          ],
+          "coverage_grain": "year",
+          "cutoff_mode": null,
+          "eligible_rows": 264,
+          "exactness": "exact",
+          "id": "country_coverage",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show bounded country-year coverage for the most-complete governed country series.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country_iso",
+            "country_name"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 264,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Country-year CPI coverage",
+          "type": "coverage_heatmap",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 846,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 0,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 4,
+      "ready_chart_count": 4,
+      "source_rows": 264
+    },
+    "column_dictionary": [
+      {
+        "column": "country_iso",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 4,
+        "example": "IDN",
+        "meaning": "ISO country code used to identify the reported country.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; supports entity segmentation; is required by the source contract."
+      },
+      {
+        "column": "country_name",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 4,
+        "example": "India",
+        "meaning": "Human-readable country name attached to the country identifier.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports entity segmentation."
+      },
+      {
+        "column": "year",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 66,
+        "example": 1960,
+        "meaning": "Calendar year associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; anchors temporal coverage; is required by the source contract."
+      },
+      {
+        "column": "cpi_yoy_pct",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 194,
+        "example": -0.23894862830638885,
+        "meaning": "Consumer price inflation year-over-year reported in percent at the declared row grain.",
+        "null_count": 70,
+        "null_rate": 0.26515151515151514,
+        "observed_dtype": "float32",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "percent",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "cpi_yoy_z_5yr",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 181,
+        "example": -0.00559999980032444,
+        "meaning": "Standardized z-score of consumer price inflation year-over-year against its trailing 5-year history.",
+        "null_count": 82,
+        "null_rate": 0.3106060606060606,
+        "observed_dtype": "float32",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "source-native / verify",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "cpi_yoy_z_10yr",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 174,
+        "example": -0.01360000018030405,
+        "meaning": "Standardized z-score of consumer price inflation year-over-year against its trailing 10-year history.",
+        "null_count": 90,
+        "null_rate": 0.3409090909090909,
+        "observed_dtype": "float32",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "cpi_available",
+        "declared_nullable": true,
+        "declared_type": "int64",
+        "distinct_count": 2,
+        "example": 0,
+        "meaning": "Boolean indicator showing whether consumer price inflation applies to this row.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int8",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "source-native / verify",
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "wb_food_cpi",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 264,
+        "columns": [],
+        "detail": "264 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 264,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264
+        },
+        "source_rows": 264,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 264
+      },
+      {
+        "analysis_rows": 264,
+        "columns": [],
+        "detail": "The analysis frame exposes 8 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 264,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264
+        },
+        "source_rows": 264,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 8
+      },
+      {
+        "analysis_rows": 264,
+        "columns": [
+          "year"
+        ],
+        "detail": "Coverage spans 1960-01-01 through 2025-01-01 across 66 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 264,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264
+        },
+        "source_rows": 264,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 66,
+          "end": "2025-01-01T00:00:00",
+          "start": "1960-01-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 264,
+        "columns": [
+          "country_iso",
+          "country_name"
+        ],
+        "detail": "Distinct entity counts were computed for country_iso, country_name.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 264,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264
+        },
+        "source_rows": 264,
+        "status": "evaluated",
+        "value": {
+          "country_iso": 4,
+          "country_name": 4
+        }
+      },
+      {
+        "analysis_rows": 264,
+        "columns": [
+          "cpi_yoy_pct",
+          "cpi_yoy_z_5yr"
+        ],
+        "detail": "Minimum completeness across 2 assessed columns is 68.9%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 264,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264
+        },
+        "source_rows": 264,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.6893939393939394
+      },
+      {
+        "analysis_rows": 264,
+        "columns": [
+          "country_iso",
+          "year"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 264 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 264,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264
+        },
+        "source_rows": 264,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 264,
+        "columns": [
+          "cpi_yoy_pct"
+        ],
+        "detail": "The latest time has multiple rows and no reviewed entity selection or aggregation.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 264,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264
+        },
+        "source_rows": 264,
+        "status": "not_assessed",
+        "value": null
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 264 entries, 0 to 263\nData columns (total 8 columns):\n #   Column          Non-Null Count  Dtype  \n---  ------          --------------  -----  \n 0   country_iso     264 non-null    str    \n 1   country_name    264 non-null    str    \n 2   year            264 non-null    int64  \n 3   cpi_yoy_pct     194 non-null    float32\n 4   cpi_yoy_z_5yr   182 non-null    float32\n 5   cpi_yoy_z_10yr  174 non-null    float32\n 6   cpi_available   264 non-null    int8   \n 7   source          264 non-null    str    \ndtypes: float32(3), int64(1), int8(1), str(3)\nmemory usage: 17.9 KB\n",
+    "display_policy": {
+      "analysis_rows": 264,
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "deterministic_preview",
+      "plotted_rows": 656,
+      "preview_max_rows": 40,
+      "source_rows": 264
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 264,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "latest year",
+            "most missing fields"
+          ],
+          "row": {
+            "country_iso": "IDN",
+            "country_name": "Indonesia",
+            "cpi_available": 0,
+            "cpi_yoy_pct": null,
+            "cpi_yoy_z_10yr": null,
+            "cpi_yoy_z_5yr": null,
+            "source": "wb_food_cpi",
+            "year": 2025
+          }
+        },
+        {
+          "reasons": [
+            "earliest year"
+          ],
+          "row": {
+            "country_iso": "IDN",
+            "country_name": "Indonesia",
+            "cpi_available": 1,
+            "cpi_yoy_pct": 39.5904426574707,
+            "cpi_yoy_z_10yr": null,
+            "cpi_yoy_z_5yr": null,
+            "source": "wb_food_cpi",
+            "year": 1960
+          }
+        },
+        {
+          "reasons": [
+            "maximum cpi_yoy_z_5yr"
+          ],
+          "row": {
+            "country_iso": "IDN",
+            "country_name": "Indonesia",
+            "cpi_available": 1,
+            "cpi_yoy_pct": 58.45104217529297,
+            "cpi_yoy_z_10yr": 42.02119827270508,
+            "cpi_yoy_z_5yr": 36.38990020751953,
+            "source": "wb_food_cpi",
+            "year": 1998
+          }
+        },
+        {
+          "reasons": [
+            "minimum cpi_yoy_pct"
+          ],
+          "row": {
+            "country_iso": "IND",
+            "country_name": "India",
+            "cpi_available": 1,
+            "cpi_yoy_pct": -7.633947849273682,
+            "cpi_yoy_z_10yr": -1.9723999500274658,
+            "cpi_yoy_z_5yr": -1.867799997329712,
+            "source": "wb_food_cpi",
+            "year": 1976
+          }
+        },
+        {
+          "reasons": [
+            "minimum cpi_yoy_z_5yr"
+          ],
+          "row": {
+            "country_iso": "IND",
+            "country_name": "India",
+            "cpi_available": 1,
+            "cpi_yoy_pct": 6.665656566619873,
+            "cpi_yoy_z_10yr": -0.46860000491142273,
+            "cpi_yoy_z_5yr": -2.9653000831604004,
+            "source": "wb_food_cpi",
+            "year": 2014
+          }
+        },
+        {
+          "reasons": [
+            "maximum cpi_yoy_pct"
+          ],
+          "row": {
+            "country_iso": "UKR",
+            "country_name": "Ukraine",
+            "cpi_available": 1,
+            "cpi_yoy_pct": 4734.91455078125,
+            "cpi_yoy_z_10yr": null,
+            "cpi_yoy_z_5yr": null,
+            "source": "wb_food_cpi",
+            "year": 1993
+          }
+        }
+      ],
+      "source_rows": 264,
+      "status": "available"
+    },
+    "omitted_chart_count": 0,
+    "ordinary_statistics": {
+      "analysis_rows": 264,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "country_iso",
+            "count": 264,
+            "freq": 66,
+            "top": "IDN",
+            "unique": 4
+          },
+          {
+            "column": "country_name",
+            "count": 264,
+            "freq": 66,
+            "top": "Indonesia",
+            "unique": 4
+          },
+          {
+            "column": "source",
+            "count": 264,
+            "freq": 264,
+            "top": "wb_food_cpi",
+            "unique": 1
+          }
+        ],
+        "row_count": 3
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 1976.0,
+            "50%": 1992.5,
+            "75%": 2009.0,
+            "column": "year",
+            "count": 264.0,
+            "max": 2025.0,
+            "mean": 1992.5,
+            "min": 1960.0,
+            "std": 19.08655489989663
+          },
+          {
+            "25%": 5.223770618438721,
+            "50%": 8.941513061523438,
+            "75%": 13.515996932983398,
+            "column": "cpi_yoy_pct",
+            "count": 194.0,
+            "max": 4734.91455078125,
+            "mean": 58.799110412597656,
+            "min": -7.633947849273682,
+            "std": 360.563232421875
+          },
+          {
+            "25%": -0.8842250108718872,
+            "50%": -0.44290000200271606,
+            "75%": 0.5368750095367432,
+            "column": "cpi_yoy_z_5yr",
+            "count": 182.0,
+            "max": 36.38990020751953,
+            "mean": 0.3307681679725647,
+            "min": -2.9653000831604004,
+            "std": 3.376316547393799
+          },
+          {
+            "25%": -0.7501000165939331,
+            "50%": -0.4490000009536743,
+            "75%": 0.04389999806880951,
+            "column": "cpi_yoy_z_10yr",
+            "count": 174.0,
+            "max": 42.02119827270508,
+            "mean": 0.032316647469997406,
+            "min": -2.1960999965667725,
+            "std": 3.469407558441162
+          },
+          {
+            "25%": 0.0,
+            "50%": 1.0,
+            "75%": 1.0,
+            "column": "cpi_available",
+            "count": 264.0,
+            "max": 1.0,
+            "mean": 0.7348484848484849,
+            "min": 0.0,
+            "std": 0.44225224612116615
+          }
+        ],
+        "row_count": 5
+      },
+      "plotted_rows": null,
+      "source_rows": 264,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "year",
+            "count": 264,
+            "distinct": 66,
+            "max": "2025-01-01T00:00:00",
+            "min": "1960-01-01T00:00:00"
+          }
+        ],
+        "row_count": 1
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 264,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 264,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 656,
+    "preview": {
+      "analysis_rows": 264,
+      "columns": [
+        "country_iso",
+        "country_name",
+        "year",
+        "cpi_yoy_pct",
+        "cpi_yoy_z_5yr",
+        "cpi_yoy_z_10yr",
+        "cpi_available",
+        "source"
+      ],
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "mode": "deterministic_preview",
+      "plotted_rows": null,
+      "records": [
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 2025
+        },
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 108.99470520019531,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": 0.4004000127315521,
+          "source": "wb_food_cpi",
+          "year": 1964
+        },
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 12.399468421936035,
+          "cpi_yoy_z_10yr": -0.5995000004768372,
+          "cpi_yoy_z_5yr": -0.7121000289916992,
+          "source": "wb_food_cpi",
+          "year": 1970
+        },
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 13.69193172454834,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1961
+        },
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 2.1815128326416016,
+          "cpi_yoy_z_10yr": -0.9911999702453613,
+          "cpi_yoy_z_5yr": -0.6180999875068665,
+          "source": "wb_food_cpi",
+          "year": 2024
+        },
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 306.76312255859375,
+          "cpi_yoy_z_10yr": 3.7611000537872314,
+          "cpi_yoy_z_5yr": 3.7611000537872314,
+          "source": "wb_food_cpi",
+          "year": 1965
+        },
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 39.5904426574707,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1960
+        },
+        {
+          "country_iso": "IDN",
+          "country_name": "Indonesia",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 9.671911239624023,
+          "cpi_yoy_z_10yr": 0.7120000123977661,
+          "cpi_yoy_z_5yr": 1.6921000480651855,
+          "source": "wb_food_cpi",
+          "year": 1993
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 2025
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 1.695212960243225,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1961
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 1.7798779010772705,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1960
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 10.24793529510498,
+          "cpi_yoy_z_10yr": 0.553600013256073,
+          "cpi_yoy_z_5yr": 0.20170000195503235,
+          "source": "wb_food_cpi",
+          "year": 1994
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 11.346073150634766,
+          "cpi_yoy_z_10yr": 0.39910000562667847,
+          "cpi_yoy_z_5yr": 1.3136999607086182,
+          "source": "wb_food_cpi",
+          "year": 1980
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 3.0799386501312256,
+          "cpi_yoy_z_10yr": -0.6402000188827515,
+          "cpi_yoy_z_5yr": -0.5817999839782715,
+          "source": "wb_food_cpi",
+          "year": 1971
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 4.246343612670898,
+          "cpi_yoy_z_10yr": -0.6370000243186951,
+          "cpi_yoy_z_5yr": 1.3869999647140503,
+          "source": "wb_food_cpi",
+          "year": 2005
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 4.953035354614258,
+          "cpi_yoy_z_10yr": -0.16750000417232513,
+          "cpi_yoy_z_5yr": -0.5020999908447266,
+          "source": "wb_food_cpi",
+          "year": 2024
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 6.275683403015137,
+          "cpi_yoy_z_10yr": -0.05820000171661377,
+          "cpi_yoy_z_5yr": -0.09300000220537186,
+          "source": "wb_food_cpi",
+          "year": 1979
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 6.62343692779541,
+          "cpi_yoy_z_10yr": -0.054499998688697815,
+          "cpi_yoy_z_5yr": 3.381700038909912,
+          "source": "wb_food_cpi",
+          "year": 2020
+        },
+        {
+          "country_iso": "IND",
+          "country_name": "India",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 8.971232414245605,
+          "cpi_yoy_z_10yr": -0.10289999842643738,
+          "cpi_yoy_z_5yr": 0.6761000156402588,
+          "source": "wb_food_cpi",
+          "year": 1990
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1960
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1961
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1975
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1979
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1980
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1987
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1989
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1990
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 2025
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 15.78873062133789,
+          "cpi_yoy_z_10yr": -0.5781999826431274,
+          "cpi_yoy_z_5yr": -0.6261000037193298,
+          "source": "wb_food_cpi",
+          "year": 2002
+        },
+        {
+          "country_iso": "RUS",
+          "country_name": "Russian Federation",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 8.434864044189453,
+          "cpi_yoy_z_10yr": 0.30649998784065247,
+          "cpi_yoy_z_5yr": 0.39410001039505005,
+          "source": "wb_food_cpi",
+          "year": 2024
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1960
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1961
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1971
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1974
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1978
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 1992
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 0,
+          "cpi_yoy_pct": null,
+          "cpi_yoy_z_10yr": null,
+          "cpi_yoy_z_5yr": null,
+          "source": "wb_food_cpi",
+          "year": 2025
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 10.951855659484863,
+          "cpi_yoy_z_10yr": -0.2734000086784363,
+          "cpi_yoy_z_5yr": -0.37299999594688416,
+          "source": "wb_food_cpi",
+          "year": 2018
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 2.732492208480835,
+          "cpi_yoy_z_10yr": -0.7204999923706055,
+          "cpi_yoy_z_5yr": -0.9842000007629395,
+          "source": "wb_food_cpi",
+          "year": 2020
+        },
+        {
+          "country_iso": "UKR",
+          "country_name": "Ukraine",
+          "cpi_available": 1,
+          "cpi_yoy_pct": 6.501984596252441,
+          "cpi_yoy_z_10yr": -0.6998000144958496,
+          "cpi_yoy_z_5yr": -0.633400022983551,
+          "source": "wb_food_cpi",
+          "year": 2024
+        }
+      ],
+      "selection_reasons": [
+        "latest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "earliest coverage; stratified by country_iso, country_name; deterministic coverage fill",
+        "latest coverage",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "latest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage",
+        "deterministic coverage fill",
+        "stratified by country_iso, country_name; deterministic coverage fill",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "stratified by country_iso, country_name; deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage",
+        "deterministic coverage fill",
+        "latest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "stratified by country_iso, country_name; deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage"
+      ],
+      "source_rows": 264,
+      "strata_columns": [
+        "country_iso",
+        "country_name"
+      ],
+      "time_column": "year"
+    },
+    "provenance": {
+      "analysis_rows": 264,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/food_cpi",
+      "contract_sha256": "c84a20ed7005c0467ff51011066a1cd15e2f2e001dda96f6c33cc2b83cba6653",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 1,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {},
+            "row_count": 264,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 1,
+        "schema_sha256_object_counts": {
+          "6171138a2143dbb44d4e91efa80c9c11b839407493960e6b9214231eab14bb44": 1
+        },
+        "source_compressed_bytes": 8522,
+        "source_row_count": 264
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "ddf8753b61db74d9b6f8e8a2b365ddb164f6ff1860f11817201cf850a994ad94",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 1,
+      "object_sample": [
+        {
+          "etag": "b554454e1e65a3ad61d59413ce57c5d1",
+          "last_modified": "2026-06-05T15:38:38Z",
+          "partition_values": {},
+          "size": 8522,
+          "uri": "s3://leviathan-dev-shahem-001/silver/food_cpi/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": false,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 0,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "source",
+          "year",
+          "country_iso",
+          "country_name",
+          "cpi_yoy_pct",
+          "cpi_yoy_z_5yr",
+          "cpi_yoy_z_10yr",
+          "cpi_available"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 5401372185723896995,
+        "snapshot_row_count": 264,
+        "source_compressed_bytes": 8522,
+        "source_row_count": 264,
+        "stratum_columns": [
+          "source",
+          "year"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "3fdbfa76a4f99d357ce83fa55ece6cb57c679946f404304986c6f42c6aa612b6",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica/manifest.json",
+        "object_count": 1,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica/objects",
+        "replica_manifest_sha256": "2a7a59f38f56ff6d00d267d062aa4af35191cce5abf3d929aa71fd145241e482",
+        "source_manifest_sha256": "3fdbfa76a4f99d357ce83fa55ece6cb57c679946f404304986c6f42c6aa612b6",
+        "total_bytes": 8522
+      },
+      "source_rows": 264,
+      "source_specific_checks": [],
+      "source_total_bytes": 8522,
+      "source_total_rows": 264,
+      "spec_sha256": "097c21727de15b4ab8aa761435eeb92308c0ca7d77e71e6f75bb8d8aa118e49a"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 264,
+      "checks": [
+        {
+          "analysis_rows": 264,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 264,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "country_iso",
+              "year"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 264 rows."
+        },
+        {
+          "analysis_rows": 264,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.3409090909090909,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "CAVEAT",
+          "summary": "The highest column null rate is 34.1%."
+        },
+        {
+          "analysis_rows": 264,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 264,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 366.0,
+            "median_gap_days": 365.0,
+            "time_column": "year",
+            "usable_time_points": 66
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "PASS",
+          "summary": "Observed gaps are consistent with a median cadence of 365 days."
+        },
+        {
+          "analysis_rows": 264,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "year",
+            "distinct_points": 66,
+            "max": "2025-01-01T00:00:00",
+            "min": "1960-01-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "PASS",
+          "summary": "Coverage runs from 1960-01-01 through 2025-01-01."
+        },
+        {
+          "analysis_rows": 264,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 1,
+            "footer_complete": true,
+            "object_count": 1,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "6171138a2143dbb44d4e91efa80c9c11b839407493960e6b9214231eab14bb44": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "PASS",
+          "summary": "All 1 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 264,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 264,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "CAVEAT",
+      "plotted_rows": null,
+      "source_rows": 264
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 264,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "country_iso",
+          "country_name"
+        ],
+        "evidence": {
+          "distinct_time_points": 66,
+          "end": "2025-01-01T00:00:00",
+          "entity_distinct_counts": {
+            "country_iso": 4,
+            "country_name": 4
+          },
+          "start": "1960-01-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "country_history",
+            "country_coverage"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 264,
+        "statement": "Coverage spans 1960-01-01 through 2025-01-01 across 66 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 264,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "cpi_yoy_pct",
+          "cpi_yoy_z_5yr"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "cpi_yoy_pct": 0.26515151515151514,
+            "cpi_yoy_z_5yr": 0.3106060606060606
+          },
+          "highest_null_column": "cpi_yoy_z_5yr",
+          "highest_null_rate": 0.3106060606060606
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 264,
+        "statement": "cpi_yoy_z_5yr has the highest assessed null rate at 31.1%.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 264,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "cpi_yoy_pct",
+          "cpi_yoy_z_5yr",
+          "country_iso",
+          "country_name"
+        ],
+        "evidence": {
+          "measures": {
+            "cpi_yoy_pct": {
+              "count": 194,
+              "iqr": 8.292226791381836,
+              "iqr_outlier_count": 25,
+              "maximum": 4734.91455078125,
+              "median": 8.941513061523438,
+              "minimum": -7.633947849273682
+            },
+            "cpi_yoy_z_5yr": {
+              "count": 182,
+              "iqr": 1.4211000055074692,
+              "iqr_outlier_count": 15,
+              "maximum": 36.38990020751953,
+              "median": -0.44289998710155487,
+              "minimum": -2.9653000831604004
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "latest_country_ranking",
+            "country_distribution"
+          ],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 264,
+        "statement": "Robust IQR screening retains 40 notable observations across 2 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 264,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "cpi_yoy_pct",
+          "cpi_yoy_z_5yr",
+          "country_iso",
+          "country_name"
+        ],
+        "evidence": {
+          "comparable_group_count": 4,
+          "delta": -1.4878737926483154,
+          "entity": {
+            "country_iso": "IDN",
+            "country_name": "Indonesia"
+          },
+          "latest_period": "2024",
+          "latest_time": "2024-01-01T00:00:00",
+          "latest_value": 2.1815128326416016,
+          "measure": "cpi_yoy_pct",
+          "percent_change": -0.4054829715663334,
+          "prior_period": "2023",
+          "prior_time": "2023-01-01T00:00:00",
+          "prior_value": 3.669386625289917,
+          "time_column": "year",
+          "unit": "percent"
+        },
+        "exactness": "exact",
+        "insight_id": "latest_change",
+        "kind": "latest_change",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "country_history"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 264,
+        "statement": "For country_iso=IDN, country_name=Indonesia, cpi_yoy_pct (percent) changed by -1.488 from 2023 to 2024.",
+        "status": "evaluated",
+        "title": "Explain the latest comparable movement."
+      }
+    ],
+    "ready_chart_count": 4,
+    "row_meaning": "One row is annual food-price inflation for one country.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 264,
+    "source_shape": {
+      "analysis_rows": 264,
+      "analysis_shape": [
+        264,
+        8
+      ],
+      "column_count": 8,
+      "exactness": "exact",
+      "plotted_rows": 656,
+      "source_rows": 264,
+      "source_shape": [
+        264,
+        8
+      ]
+    },
+    "table_name": "silver_food_cpi"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [],
+  "table_name": "silver_food_cpi"
+}

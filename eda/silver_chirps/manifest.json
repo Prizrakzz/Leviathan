@@ -1,0 +1,239 @@
+{
+  "analysis_complete": true,
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "artifacts": {
+    "_machine/coverage_catalog.json": {
+      "bytes": 80973714,
+      "sha256": "c5e6f4df2462d1f0f4818da3f1639bd72938c87bf51359f358f64b4c70a7c48c",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/coverage_catalog.json"
+    },
+    "_machine/feature_candidates.json": {
+      "bytes": 13793,
+      "sha256": "a47b3b43a4658584b3dfb497b7ce09f473e6971f7b79e35ab6390ac72dd84790",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/feature_candidates.json"
+    },
+    "_machine/profile.json": {
+      "bytes": 80387,
+      "sha256": "6dc98acaa67498641ec588d642e67449703d94e9604118ea781776b188e7ea09",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/profile.json"
+    },
+    "_machine/reader_evidence.json": {
+      "bytes": 871591,
+      "sha256": "86a430b4b7f07b0c8723c4f169fad2d153f7568c6ea717c2199c0f4d513c9d82",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/reader_evidence.json"
+    },
+    "_machine/sampling_evidence.json": {
+      "bytes": 299079,
+      "sha256": "a9c7e7e596cafb6ae93d39e0ff8f2fe8c321bcb68d60a40196c8de4ea214bfd8",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/sampling_evidence.json"
+    },
+    "_machine/source_inventory.json": {
+      "bytes": 3013237,
+      "sha256": "6e62236d3e36535563dd6e7ad552d63d10563fb981e92eb26eedea2a8ea4880d",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/source_inventory.json"
+    },
+    "feature_candidates.yaml": {
+      "bytes": 11040,
+      "sha256": "eafb6466302946a9aae1063355a5526e0ff3552478b4e186f91b601c39d63042",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/feature_candidates.yaml"
+    },
+    "silver_chirps_eda.ipynb": {
+      "bytes": 656271,
+      "sha256": "b18468cdbcd56e27fc86e3ee854d734b9b562d5a046cdcc33eab34c822f7c86b",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/silver_chirps_eda.ipynb"
+    },
+    "spec.yaml": {
+      "bytes": 14246,
+      "sha256": "138b48ccbe6f558c22ce187262002b98807d5a668351c3d198ac926e76f8c68f",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/spec.yaml"
+    },
+    "summary.json": {
+      "bytes": 1046407,
+      "sha256": "0d060d2f42053d6b3f55e8e1426a83eb5e175a0bd07b750a26bb791df4501a35",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/summary.json"
+    }
+  },
+  "campaign_id": "readerfirst-final-20260718-a176abf1",
+  "contract_sha256": "8046b9d2a423104874d903dc4ebb2fa749283d6a87ad4ce5b0376506a4d44e31",
+  "coverage_summary": {
+    "analysis_strata_complete": true,
+    "analysis_strata_sampled_row_count": 1000000,
+    "analysis_strata_source_row_count": 6496437,
+    "analysis_stratum_count": 213459,
+    "exactness": "footer-derived",
+    "footer_complete": true,
+    "object_count": 1426,
+    "partition_stratum_count": 1426,
+    "represented_analysis_stratum_count": 213459,
+    "source_compressed_bytes": 30012480,
+    "source_row_count": 6496437,
+    "unrepresented_analysis_stratum_count": 0
+  },
+  "detailed_evidence": {
+    "coverage_catalog": {
+      "bytes": 80973714,
+      "relative_key": "_machine/coverage_catalog.json",
+      "sha256": "c5e6f4df2462d1f0f4818da3f1639bd72938c87bf51359f358f64b4c70a7c48c",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/coverage_catalog.json"
+    },
+    "reader_evidence": {
+      "bytes": 871591,
+      "relative_key": "_machine/reader_evidence.json",
+      "sha256": "86a430b4b7f07b0c8723c4f169fad2d153f7568c6ea717c2199c0f4d513c9d82",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/reader_evidence.json"
+    },
+    "sampling_evidence": {
+      "bytes": 299079,
+      "relative_key": "_machine/sampling_evidence.json",
+      "sha256": "a9c7e7e596cafb6ae93d39e0ff8f2fe8c321bcb68d60a40196c8de4ea214bfd8",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/sampling_evidence.json"
+    },
+    "source_inventory": {
+      "bytes": 3013237,
+      "relative_key": "_machine/source_inventory.json",
+      "sha256": "6e62236d3e36535563dd6e7ad552d63d10563fb981e92eb26eedea2a8ea4880d",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/source_inventory.json"
+    }
+  },
+  "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+  "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+  "evidence_valid": true,
+  "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+  "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+  "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+  "results": {
+    "analysis_exactness": "sampled",
+    "blocker_count": 0,
+    "candidate_count": 5,
+    "disposition": "needs_contract_or_data_fix",
+    "finding_count": 2
+  },
+  "sampled_row_group_count": 1426,
+  "sampling_strata": [
+    {
+      "column": "commodity",
+      "roles": [
+        "partition",
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "country",
+      "roles": [
+        "partition",
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "region",
+      "roles": [
+        "partition",
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "year",
+      "roles": [
+        "partition",
+        "time"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "month",
+      "roles": [
+        "partition"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "source",
+      "roles": [
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "date",
+      "roles": [
+        "time"
+      ],
+      "transform": "calendar_month"
+    }
+  ],
+  "sampling_strategy": "deterministic canonical-source partition/entity/time stratified bottom-k by immutable row location",
+  "schema_version": "leviathan.silver-eda-campaign/v2",
+  "snapshot": {
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "decision": {
+      "exactness": "sampled",
+      "identity_columns": [
+        "manifest_object_key",
+        "row_group",
+        "row_offset"
+      ],
+      "reason": "deterministic canonical-source partition/entity/time stratified bottom-k by immutable row location",
+      "seed": 14504392435385839135,
+      "snapshot_row_count": 1000000,
+      "source_compressed_bytes": 30012480,
+      "source_row_count": 6496437,
+      "stratum_columns": [
+        "commodity",
+        "country",
+        "region",
+        "year",
+        "month",
+        "source",
+        "date"
+      ]
+    },
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/snapshot",
+    "frame_sha256": "569051ba77e3370b93166f9b5ab939086e353eb0496d86098b7d75d972f6ea20",
+    "manifest_sha256": "76b2a69da22dd521c708d6d93f28d2668e14369f4f85acfdbefaa9698c16991c",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/snapshot/manifest.json",
+    "parquet_bytes": 4346836,
+    "parquet_sha256": "db8e9d3e40257abfcbd15dc624337fb61cb1db509b25b28040b526ede306c3f3",
+    "parquet_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/snapshot/part-000.parquet",
+    "table_name": "silver_chirps"
+  },
+  "source_inventory_summary": {
+    "footer_complete": true,
+    "fragment_count": 1426,
+    "inventory_manifest_sha256": "8b485fd1329f1beb231bf13be495f795fd9f4e06fec12bfd52e9f53cb77a960f",
+    "partition_keys": [
+      "commodity",
+      "country",
+      "region",
+      "year",
+      "month"
+    ],
+    "partition_mode": "projected",
+    "rejected_key_count": 1426,
+    "root_uri": "s3://leviathan-dev-shahem-001/silver/weather/source=chirps",
+    "row_group_count": 1426,
+    "source_mode": "s3",
+    "total_bytes": 30012480,
+    "total_rows": 6496437
+  },
+  "source_layer": "silver",
+  "source_replica": {
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/source_replica",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/source_replica/manifest.json",
+    "object_count": 1426,
+    "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_chirps/_machine/source_replica/objects",
+    "replica_manifest_sha256": "57aaf3c1fa66846822369467c7cc6e64ce075a33c116571525c9a51c7e038757",
+    "source_manifest_sha256": "8b485fd1329f1beb231bf13be495f795fd9f4e06fec12bfd52e9f53cb77a960f",
+    "total_bytes": 30012480
+  },
+  "spec_sha256": "6981392d427fe9fc831176452abbe4516f51585ad4b126e4c1a17a5732757a0d",
+  "table_name": "silver_chirps"
+}

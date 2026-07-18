@@ -1,0 +1,1560 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_pink_sheet
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 32
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:brent_crude_usd_bbl:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brent_crude_usd_bbl
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brent_crude_usd_bbl
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - brent_crude_usd_bbl
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: brent_crude_usd_bbl
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per barrel
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:brent_crude_usd_bbl:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brent_crude_usd_bbl
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brent_crude_usd_bbl
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - brent_crude_usd_bbl
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: brent_crude_usd_bbl
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per barrel
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:brent_crude_usd_bbl:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brent_crude_usd_bbl
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brent_crude_usd_bbl
+  - cell:missingness-validity-output
+  expected_range: observed [1.2, 133.9]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - brent_crude_usd_bbl
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: brent_crude_usd_bbl
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per barrel
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:brent_crude_usd_bbl:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brent_crude_usd_bbl
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - brent_crude_usd_bbl
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    center: past_only_median
+    column: brent_crude_usd_bbl
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per barrel
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:brent_crude_usd_bbl:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brent_crude_usd_bbl
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brent_crude_usd_bbl
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - brent_crude_usd_bbl
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    closed: left
+    column: brent_crude_usd_bbl
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+    window: 3
+  unit: USD per barrel
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:natural_gas_us_usd_mmbtu:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.natural_gas_us_usd_mmbtu
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.natural_gas_us_usd_mmbtu
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - natural_gas_us_usd_mmbtu
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: natural_gas_us_usd_mmbtu
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per MMBtu
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:natural_gas_us_usd_mmbtu:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.natural_gas_us_usd_mmbtu
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.natural_gas_us_usd_mmbtu
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - natural_gas_us_usd_mmbtu
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: natural_gas_us_usd_mmbtu
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per MMBtu
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:natural_gas_us_usd_mmbtu:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.natural_gas_us_usd_mmbtu
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.natural_gas_us_usd_mmbtu
+  - cell:missingness-validity-output
+  expected_range: observed [0.14, 13.52]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - natural_gas_us_usd_mmbtu
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: natural_gas_us_usd_mmbtu
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per MMBtu
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:natural_gas_us_usd_mmbtu:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.natural_gas_us_usd_mmbtu
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - natural_gas_us_usd_mmbtu
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: natural_gas_us_usd_mmbtu
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per MMBtu
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:natural_gas_us_usd_mmbtu:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.natural_gas_us_usd_mmbtu
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - natural_gas_us_usd_mmbtu
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    center: past_only_median
+    column: natural_gas_us_usd_mmbtu
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per MMBtu
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:natural_gas_us_usd_mmbtu:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.natural_gas_us_usd_mmbtu
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.natural_gas_us_usd_mmbtu
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - natural_gas_us_usd_mmbtu
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    closed: left
+    column: natural_gas_us_usd_mmbtu
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+    window: 3
+  unit: USD per MMBtu
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:palm_oil_cpo_usd_t:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.palm_oil_cpo_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.palm_oil_cpo_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - palm_oil_cpo_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: palm_oil_cpo_usd_t
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:palm_oil_cpo_usd_t:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.palm_oil_cpo_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.palm_oil_cpo_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - palm_oil_cpo_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: palm_oil_cpo_usd_t
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:palm_oil_cpo_usd_t:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.palm_oil_cpo_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.palm_oil_cpo_usd_t
+  - cell:missingness-validity-output
+  expected_range: observed [142.0, 1777.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - palm_oil_cpo_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: palm_oil_cpo_usd_t
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:palm_oil_cpo_usd_t:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.palm_oil_cpo_usd_t
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - palm_oil_cpo_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    center: past_only_median
+    column: palm_oil_cpo_usd_t
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:palm_oil_cpo_usd_t:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.palm_oil_cpo_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.palm_oil_cpo_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - palm_oil_cpo_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    closed: left
+    column: palm_oil_cpo_usd_t
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+    window: 3
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybean_oil_usd_t:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybean_oil_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybean_oil_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybean_oil_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: soybean_oil_usd_t
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybean_oil_usd_t:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybean_oil_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybean_oil_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybean_oil_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: soybean_oil_usd_t
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybean_oil_usd_t:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybean_oil_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybean_oil_usd_t
+  - cell:missingness-validity-output
+  expected_range: observed [157.0, 1963.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybean_oil_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: soybean_oil_usd_t
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybean_oil_usd_t:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybean_oil_usd_t
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybean_oil_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    center: past_only_median
+    column: soybean_oil_usd_t
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybean_oil_usd_t:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybean_oil_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybean_oil_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybean_oil_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    closed: left
+    column: soybean_oil_usd_t
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+    window: 3
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybeans_usd_t:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybeans_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybeans_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybeans_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: soybeans_usd_t
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybeans_usd_t:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybeans_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybeans_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybeans_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: soybeans_usd_t
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybeans_usd_t:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybeans_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybeans_usd_t
+  - cell:missingness-validity-output
+  expected_range: observed [88.0, 737.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybeans_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: soybeans_usd_t
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybeans_usd_t:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybeans_usd_t
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybeans_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    center: past_only_median
+    column: soybeans_usd_t
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:soybeans_usd_t:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.soybeans_usd_t
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.soybeans_usd_t
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - soybeans_usd_t
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    closed: left
+    column: soybeans_usd_t
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+    window: 3
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:urea_usd_mt:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.urea_usd_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.urea_usd_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - urea_usd_mt
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: urea_usd_mt
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per metric tonne
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:urea_usd_mt:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.urea_usd_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.urea_usd_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - urea_usd_mt
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: urea_usd_mt
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per metric tonne
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:urea_usd_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.urea_usd_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.urea_usd_mt
+  - cell:missingness-validity-output
+  expected_range: observed [16.0, 925.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed prices level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - urea_usd_mt
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: urea_usd_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per metric tonne
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:urea_usd_mt:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.urea_usd_mt
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - urea_usd_mt
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    column: urea_usd_mt
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per metric tonne
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:urea_usd_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.urea_usd_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - urea_usd_mt
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    center: past_only_median
+    column: urea_usd_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+  unit: USD per metric tonne
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_pink_sheet:urea_usd_mt:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.urea_usd_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.urea_usd_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only prices evidence; registered source keys: pink_sheet'
+  source_columns:
+  - urea_usd_mt
+  - date
+  source_table: silver_pink_sheet
+  transformation:
+    closed: left
+    column: urea_usd_mt
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - pink_sheet_input_costs
+      source_keys:
+      - pink_sheet
+    window: 3
+  unit: USD per metric tonne
+  visibility_class: review_required

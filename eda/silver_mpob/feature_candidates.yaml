@@ -1,0 +1,999 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_mpob
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 20
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:closing_stocks_palm_oil_mt:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.closing_stocks_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.closing_stocks_palm_oil_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - closing_stocks_palm_oil_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: closing_stocks_palm_oil_mt
+    group_by:
+    - commodity
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:closing_stocks_palm_oil_mt:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.closing_stocks_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.closing_stocks_palm_oil_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - closing_stocks_palm_oil_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: closing_stocks_palm_oil_mt
+    group_by:
+    - commodity
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:closing_stocks_palm_oil_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.closing_stocks_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.closing_stocks_palm_oil_mt
+  - cell:missingness-validity-output
+  expected_range: observed [1265698.0, 3216476.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - closing_stocks_palm_oil_mt
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: closing_stocks_palm_oil_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:closing_stocks_palm_oil_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.closing_stocks_palm_oil_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - closing_stocks_palm_oil_mt
+  - date
+  source_table: silver_mpob
+  transformation:
+    center: past_only_median
+    column: closing_stocks_palm_oil_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:closing_stocks_palm_oil_mt:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.closing_stocks_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.closing_stocks_palm_oil_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - closing_stocks_palm_oil_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    closed: left
+    column: closing_stocks_palm_oil_mt
+    group_by:
+    - commodity
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+    window: 3
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:exports_palm_oil_mt:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_palm_oil_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - exports_palm_oil_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: exports_palm_oil_mt
+    group_by:
+    - commodity
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:exports_palm_oil_mt:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_palm_oil_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - exports_palm_oil_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: exports_palm_oil_mt
+    group_by:
+    - commodity
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:exports_palm_oil_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_palm_oil_mt
+  - cell:missingness-validity-output
+  expected_range: observed [900558.0, 1783284.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - exports_palm_oil_mt
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: exports_palm_oil_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:exports_palm_oil_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_palm_oil_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - exports_palm_oil_mt
+  - date
+  source_table: silver_mpob
+  transformation:
+    center: past_only_median
+    column: exports_palm_oil_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:exports_palm_oil_mt:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_palm_oil_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_palm_oil_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - exports_palm_oil_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    closed: left
+    column: exports_palm_oil_mt
+    group_by:
+    - commodity
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+    window: 3
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:production_cpo_mt:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_cpo_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_cpo_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - production_cpo_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: production_cpo_mt
+    group_by:
+    - commodity
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:production_cpo_mt:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_cpo_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_cpo_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - production_cpo_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: production_cpo_mt
+    group_by:
+    - commodity
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:production_cpo_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_cpo_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_cpo_mt
+  - cell:missingness-validity-output
+  expected_range: observed [1108236.0, 2043886.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - production_cpo_mt
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: production_cpo_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:production_cpo_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_cpo_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - production_cpo_mt
+  - date
+  source_table: silver_mpob
+  transformation:
+    center: past_only_median
+    column: production_cpo_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:production_cpo_mt:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_cpo_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_cpo_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - production_cpo_mt
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    closed: left
+    column: production_cpo_mt
+    group_by:
+    - commodity
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+    window: 3
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:su_ratio:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.su_ratio
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - su_ratio
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: su_ratio
+    group_by:
+    - commodity
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:su_ratio:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.su_ratio
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - su_ratio
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: su_ratio
+    group_by:
+    - commodity
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:su_ratio:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.su_ratio
+  - cell:missingness-validity-output
+  expected_range: observed [0.7704047720494248, 2.443090044361146]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - su_ratio
+  - date
+  source_table: silver_mpob
+  transformation:
+    column: su_ratio
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:su_ratio:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - su_ratio
+  - date
+  source_table: silver_mpob
+  transformation:
+    center: past_only_median
+    column: su_ratio
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - malaysian_crude_palm_oil_cme
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_mpob:su_ratio:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.su_ratio
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpob'
+  source_columns:
+  - su_ratio
+  - commodity
+  - date
+  source_table: silver_mpob
+  transformation:
+    closed: left
+    column: su_ratio
+    group_by:
+    - commodity
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - mpob_fundamentals
+      source_keys:
+      - mpob
+    window: 3
+  unit: ratio
+  visibility_class: review_required

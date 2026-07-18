@@ -1,0 +1,601 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_fnc_colombia_exports_port_type
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 12
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_bags_60kg:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_bags_60kg
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_bags_60kg
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_bags_60kg
+  - commodity
+  - port
+  - coffee_type
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_bags_60kg
+    group_by:
+    - commodity
+    - port
+    - coffee_type
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: 60 kg bags
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_bags_60kg:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_bags_60kg
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_bags_60kg
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_bags_60kg
+  - commodity
+  - port
+  - coffee_type
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_bags_60kg
+    group_by:
+    - commodity
+    - port
+    - coffee_type
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: 60 kg bags
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_bags_60kg:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_bags_60kg
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_bags_60kg
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 928310.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_bags_60kg
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_bags_60kg
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: 60 kg bags
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_bags_60kg:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_bags_60kg
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_bags_60kg
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_bags_60kg
+    operation: log1p
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: 60 kg bags
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_bags_60kg:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_bags_60kg
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_bags_60kg
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    center: past_only_median
+    column: exports_bags_60kg
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: 60 kg bags
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_bags_60kg:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_bags_60kg
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_bags_60kg
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_bags_60kg
+  - commodity
+  - port
+  - coffee_type
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    closed: left
+    column: exports_bags_60kg
+    group_by:
+    - commodity
+    - port
+    - coffee_type
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+    window: 3
+  unit: 60 kg bags
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_value_usd:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_value_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_value_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_value_usd
+  - commodity
+  - port
+  - coffee_type
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_value_usd
+    group_by:
+    - commodity
+    - port
+    - coffee_type
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: USD
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_value_usd:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_value_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_value_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_value_usd
+  - commodity
+  - port
+  - coffee_type
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_value_usd
+    group_by:
+    - commodity
+    - port
+    - coffee_type
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: USD
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_value_usd:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_value_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_value_usd
+  - cell:missingness-validity-output
+  expected_range: observed [0.47, 312865354.54000014]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_value_usd
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_value_usd
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: USD
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_value_usd:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_value_usd
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_value_usd
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    column: exports_value_usd
+    operation: log1p
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: USD
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_value_usd:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_value_usd
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_value_usd
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    center: past_only_median
+    column: exports_value_usd
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+  unit: USD
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_exports_port_type:exports_value_usd:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_value_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_value_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x year x month x port x coffee_type
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: fnc_colombia_exports_port_type'
+  source_columns:
+  - exports_value_usd
+  - commodity
+  - port
+  - coffee_type
+  - date
+  source_table: silver_fnc_colombia_exports_port_type
+  transformation:
+    closed: left
+    column: exports_value_usd
+    group_by:
+    - commodity
+    - port
+    - coffee_type
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_exports_port_type
+    window: 3
+  unit: USD
+  visibility_class: review_required

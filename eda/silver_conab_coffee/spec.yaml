@@ -1,0 +1,494 @@
+schema_version: 1
+table_name: silver_conab_coffee
+title: Conab Coffee
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- annual_seasonal_panel
+observation_time_candidates:
+- safra_year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- commodity
+- country
+- region
+- region_raw
+categorical_columns:
+- commodity
+- country
+- region
+- source
+- region_raw
+- is_repeated_survey
+- survey_content_fingerprint
+- source_raw_key
+- source_file_etag
+- worksheet
+- parser_version
+numeric_columns:
+- survey_number
+- area_in_production_ha
+- yield_bags_per_ha
+- production_thousand_bags
+- production_revision_thousand_bags
+- area_revision_ha
+- yield_revision_bags_per_ha
+- production_revision_pct
+- production_revision_streak
+- repeated_from_survey_number
+units:
+  production_revision_thousand_bags: thousand bags
+  production_thousand_bags: thousand bags
+meaningful_groupings:
+- commodity
+- country
+- region
+- region_raw
+- safra_year
+declared_relationships: []
+source_keys:
+- conab
+existing_table_feature_families: &id001
+- conab_production_revision
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  conab_production_revision: prior_marketing_year
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - commodity
+  - country
+  - region
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-CONAB_COFFEE
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+- id: EDA-FEATURE-COVERAGE-CONAB_COFFEE
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards: []
+no_candidate_reason: null
+archetype: vintage_revision
+row_meaning: One row is one CONAB coffee estimate for a crop year, survey round, and region.
+column_descriptions:
+  area_in_production_ha: Area in production reported in hectares at the declared row grain.
+  area_revision_ha: Change in area from the prior comparable source release, measured in hectares.
+  commodity: Governed or source-normalized commodity identifier.
+  country: Country represented by the observation.
+  is_repeated_survey: Boolean indicator showing whether repeated survey applies to this row.
+  parser_version: Version of the parser that converted the source document into this row.
+  production_revision_pct: Change in production from the prior comparable source release, measured in
+    percent.
+  production_revision_streak: Change in production streak from the prior comparable source release.
+  production_revision_thousand_bags: Change in production from the prior comparable source release, measured
+    in thousand bags.
+  production_thousand_bags: Production reported in thousand bags at the declared row grain.
+  region: Subnational or crop-growing region represented by the observation.
+  region_raw: Original source-reported region retained before normalization for lineage and mapping review.
+  repeated_from_survey_number: Ordinal repeated from survey position used to order comparable source records.
+  safra_year: Safra year locating the observation on its source reporting calendar.
+  source: Source-system label retained for provenance.
+  source_file_etag: Source-object identity used for lineage and reproducibility checks.
+  source_raw_key: Immutable or traceable key for the upstream source object.
+  survey_content_fingerprint: Stable content fingerprint used to identify and reproduce the originating
+    artifact.
+  survey_number: Governed survey number component that helps uniquely identify the row.
+  worksheet: Workbook worksheet from which the row was extracted.
+  yield_bags_per_ha: Yield reported in bags per hectare at the declared row grain.
+  yield_revision_bags_per_ha: Change in yield from the prior comparable source release, measured in bags
+    per hectare.
+why_it_matters:
+  area_in_production_ha: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  area_revision_ha: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  commodity: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  country: Supports entity segmentation.
+  is_repeated_survey: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  parser_version: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  production_revision_pct: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  production_revision_streak: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  production_revision_thousand_bags: Provides explanatory context or a candidate diagnostic at the declared
+    row grain.
+  production_thousand_bags: Carries a primary analytical measure.
+  region: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  region_raw: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  repeated_from_survey_number: Provides explanatory context or a candidate diagnostic at the declared
+    row grain.
+  safra_year: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  source: Supports provenance or reproducibility.
+  source_file_etag: Supports provenance or reproducibility.
+  source_raw_key: Supports provenance or reproducibility.
+  survey_content_fingerprint: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  survey_number: Defines row uniqueness; is required by the source contract.
+  worksheet: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  yield_bags_per_ha: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  yield_revision_bags_per_ha: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+primary_measures:
+- production_thousand_bags
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - safra_year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - commodity
+  - country
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - production_thousand_bags
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - commodity
+  - safra_year
+  - survey_number
+  - region
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - production_thousand_bags
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - commodity
+  - safra_year
+  - survey_number
+  - region
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - commodity
+  - safra_year
+  - survey_number
+  - region
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - commodity
+  - safra_year
+  - survey_number
+  - region
+  - production_thousand_bags
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_thousand_bags
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - safra_year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - safra_year
+  - commodity
+  - country
+  - region
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - commodity
+  - country
+  - safra_year
+  - survey_number
+  - region
+  - area_in_production_ha
+  - yield_bags_per_ha
+  - production_thousand_bags
+  - production_revision_thousand_bags
+  - source
+  - region_raw
+  - area_revision_ha
+  - yield_revision_bags_per_ha
+  - production_revision_pct
+  - production_revision_streak
+  - is_repeated_survey
+  - repeated_from_survey_number
+  - survey_content_fingerprint
+  - source_raw_key
+  - source_file_etag
+  - worksheet
+  - parser_version
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: survey_sequence
+  chart_type: line
+  columns:
+  - survey_number
+  - production_thousand_bags
+  - safra_year
+  - commodity
+  - country
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: survey_sequence
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_thousand_bags
+  measure_units:
+    production_thousand_bags: thousand bags
+  minimum_rows: 2
+  purpose: Show the source survey sequence; safra_year remains the outcome season, not a release timestamp.
+  series_dimensions:
+  - safra_year
+  - commodity
+  - country
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - survey_number
+  title: Production across survey numbers
+  type: line
+  unit_column: null
+- chart_id: regional_ranking
+  chart_type: ranked_bar
+  columns:
+  - survey_number
+  - production_thousand_bags
+  - safra_year
+  - commodity
+  - country
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: regional_ranking
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_thousand_bags
+  measure_units:
+    production_thousand_bags: thousand bags
+  minimum_rows: 1
+  purpose: Compare regions within the same safra year and survey number.
+  series_dimensions:
+  - safra_year
+  - commodity
+  - country
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Regional production by survey
+  type: ranked_bar
+  unit_column: null
+- chart_id: production_distribution
+  chart_type: distribution
+  columns:
+  - production_thousand_bags
+  - safra_year
+  - commodity
+  - country
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: production_distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - production_thousand_bags
+  measure_units:
+    production_thousand_bags: thousand bags
+  minimum_rows: 1
+  purpose: Describe reported production levels without making a revision-vintage claim.
+  series_dimensions:
+  - safra_year
+  - commodity
+  - country
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Survey production distribution
+  type: distribution
+  unit_column: null
+- chart_id: survey_coverage
+  chart_type: coverage_heatmap
+  columns:
+  - survey_number
+  - safra_year
+  - commodity
+  - country
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: survey_coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose repeated or missing survey numbers by season and region.
+  series_dimensions:
+  - safra_year
+  - commodity
+  - country
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Safra-year survey coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - safra_year
+  - commodity
+  - country
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - production_thousand_bags
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - safra_year
+  - production_thousand_bags
+  - commodity
+  - country
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - safra_year
+  - production_thousand_bags
+  - commodity
+  - country
+  id: revision_depth
+  insight_id: revision_depth
+  kind: revision_depth
+  minimum_rows: 2
+  purpose: Explain first-to-latest movement and release depth.
+preview_strata:
+- safra_year
+- commodity
+- country
+- region
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+feature_quarantined: false

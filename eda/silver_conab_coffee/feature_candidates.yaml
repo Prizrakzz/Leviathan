@@ -1,0 +1,191 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_conab_coffee
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 4
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  - robusta_coffee
+  applicable_geographies:
+  - brazil
+  candidate_id: eda:silver_conab_coffee:production_thousand_bags:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_thousand_bags
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_thousand_bags
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 39598.4]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed production level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by safra_year within entity grain
+  output_grain: commodity x safra_year x survey_number x region
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: conab'
+  source_columns:
+  - production_thousand_bags
+  - safra_year
+  source_table: silver_conab_coffee
+  transformation:
+    column: production_thousand_bags
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - conab_production_revision
+      source_keys:
+      - conab
+  unit: thousand bags
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  - robusta_coffee
+  applicable_geographies:
+  - brazil
+  candidate_id: eda:silver_conab_coffee:production_thousand_bags:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_thousand_bags
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by safra_year within entity grain
+  output_grain: commodity x safra_year x survey_number x region
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: conab'
+  source_columns:
+  - production_thousand_bags
+  - safra_year
+  source_table: silver_conab_coffee
+  transformation:
+    column: production_thousand_bags
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - conab_production_revision
+      source_keys:
+      - conab
+  unit: thousand bags
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  - robusta_coffee
+  applicable_geographies:
+  - brazil
+  candidate_id: eda:silver_conab_coffee:production_thousand_bags:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.production_thousand_bags
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by safra_year within entity grain
+  output_grain: commodity x safra_year x survey_number x region
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: conab'
+  source_columns:
+  - production_thousand_bags
+  - safra_year
+  source_table: silver_conab_coffee
+  transformation:
+    column: production_thousand_bags
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - conab_production_revision
+      source_keys:
+      - conab
+  unit: thousand bags
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - arabica_coffee
+  - robusta_coffee
+  applicable_geographies:
+  - brazil
+  candidate_id: eda:silver_conab_coffee:production_thousand_bags:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.production_thousand_bags
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by safra_year within entity grain
+  output_grain: commodity x safra_year x survey_number x region
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: conab'
+  source_columns:
+  - production_thousand_bags
+  - safra_year
+  source_table: silver_conab_coffee
+  transformation:
+    center: past_only_median
+    column: production_thousand_bags
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - conab_production_revision
+      source_keys:
+      - conab
+  unit: thousand bags
+  visibility_class: review_required

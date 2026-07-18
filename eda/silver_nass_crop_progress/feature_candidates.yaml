@@ -1,0 +1,521 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_nass_crop_progress
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 9
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_good_excellent:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_good_excellent
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.pct_good_excellent
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 100.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: The observed crop_condition level may represent contemporaneous source
+    state; economic interpretation must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_good_excellent
+  - date
+  source_table: silver_nass_crop_progress
+  transformation:
+    column: pct_good_excellent
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_good_excellent:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.pct_good_excellent
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence;
+    review for operational rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_good_excellent
+  - date
+  source_table: silver_nass_crop_progress
+  transformation:
+    column: pct_good_excellent
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_good_excellent:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_good_excellent
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions
+    without deleting legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_good_excellent
+  - date
+  source_table: silver_nass_crop_progress
+  transformation:
+    center: past_only_median
+    column: pct_good_excellent
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: same-cutoff prior-season history
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_good_excellent:season_pace
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: seasonal_pace
+  counter_evidence:
+  - A governed season and within-season period mapping is required.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_good_excellent
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.pct_good_excellent
+  - cell:missingness-validity-output
+  - metric:temporal_structure.progressive_curve_evidence
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: The source value at the same governed within-season cutoff relative to
+    prior seasons can measure pace.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: past-only prior-season median or percentile
+  observation_time_rule: order observations by week_of_year within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_good_excellent
+  - commodity
+  - state
+  - week_of_year
+  - year
+  source_table: silver_nass_crop_progress
+  transformation:
+    column: pct_good_excellent
+    cutoff_alignment: same governed period within season
+    group_by:
+    - commodity
+    - state
+    history: prior seasons available at prediction_as_of only
+    operation: seasonal_pace
+    order_by: week_of_year
+    season_by: year
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_harvested:curve_increment
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: cumulative_curve_increment
+  counter_evidence:
+  - Source corrections must be distinguished from genuine season resets.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_harvested
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.pct_harvested
+  - cell:missingness-validity-output
+  - metric:temporal_structure.progressive_curve_evidence
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: 1
+  mechanism: Within-season increments separate current flow from cumulative level
+    while preserving resets.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_of_year within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_harvested
+  - commodity
+  - state
+  - year
+  - week_of_year
+  source_table: silver_nass_crop_progress
+  transformation:
+    column: pct_harvested
+    group_by:
+    - commodity
+    - state
+    - year
+    operation: cumulative_curve_increment
+    order_by: week_of_year
+    reset_detection: season boundary or reviewed negative correction
+    season_by: year
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_harvested:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_harvested
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.pct_harvested
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 100.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: The observed crop_condition level may represent contemporaneous source
+    state; economic interpretation must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_harvested
+  - date
+  source_table: silver_nass_crop_progress
+  transformation:
+    column: pct_harvested
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_harvested:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.pct_harvested
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence;
+    review for operational rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_harvested
+  - date
+  source_table: silver_nass_crop_progress
+  transformation:
+    column: pct_harvested
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_harvested:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_harvested
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions
+    without deleting legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_harvested
+  - date
+  source_table: silver_nass_crop_progress
+  transformation:
+    center: past_only_median
+    column: pct_harvested
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required
+- aggregation_window: same-cutoff prior-season history
+  applicable_commodities:
+  - corn_cbot
+  - cotton
+  - hard_red_spring_wheat_mgex
+  - rough_rice_cbot
+  - soft_red_winter_wheat_cbot
+  - soybeans_cbot
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_nass_crop_progress:pct_harvested:season_pace
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: seasonal_pace
+  counter_evidence:
+  - A governed season and within-season period mapping is required.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication
+    lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_harvested
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.pct_harvested
+  - cell:missingness-validity-output
+  - metric:temporal_structure.progressive_curve_evidence
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: derive availability from documented publication cadence/lag
+    before use
+  lag: null
+  mechanism: The source value at the same governed within-season cutoff relative to
+    prior seasons can measure pace.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: past-only prior-season median or percentile
+  observation_time_rule: order observations by week_of_year within entity grain
+  output_grain: commodity x state x year x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only crop_condition evidence; registered source keys: nass_crop_progress'
+  source_columns:
+  - pct_harvested
+  - commodity
+  - state
+  - week_of_year
+  - year
+  source_table: silver_nass_crop_progress
+  transformation:
+    column: pct_harvested
+    cutoff_alignment: same governed period within season
+    group_by:
+    - commodity
+    - state
+    history: prior seasons available at prediction_as_of only
+    operation: seasonal_pace
+    order_by: week_of_year
+    season_by: year
+    source_context:
+      existing_feature_families:
+      - nass_crop_progress_ge_z
+      source_keys:
+      - nass_crop_progress
+  unit: percent
+  visibility_class: review_required

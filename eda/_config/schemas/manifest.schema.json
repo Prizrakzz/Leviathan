@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "leviathan/silver-eda/manifest/2",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["uri", "bytes", "sha256"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "pattern": "^s3://[^/]+/eda/silver/campaign_id=[^/]+/table=silver_[^/]+/"
+        },
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "detailedArtifact": {
+      "type": "object",
+      "required": ["relative_key", "uri", "bytes", "sha256"],
+      "properties": {
+        "relative_key": {"type": "string", "minLength": 1},
+        "uri": {
+          "type": "string",
+          "pattern": "^s3://[^/]+/eda/silver/campaign_id=[^/]+/table=silver_[^/]+/"
+        },
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "sourceInventorySummary": {
+      "type": "object",
+      "required": [
+        "root_uri",
+        "partition_mode",
+        "partition_keys",
+        "source_mode",
+        "fragment_count",
+        "total_bytes",
+        "total_rows",
+        "row_group_count",
+        "footer_complete",
+        "rejected_key_count",
+        "inventory_manifest_sha256"
+      ],
+      "properties": {
+        "root_uri": {"type": "string", "pattern": "^s3://[^/]+/silver/"},
+        "partition_mode": {"type": "string"},
+        "partition_keys": {"type": "array", "items": {"type": "string"}},
+        "source_mode": {"type": "string"},
+        "fragment_count": {"type": "integer", "minimum": 1},
+        "total_bytes": {"type": "integer", "minimum": 1},
+        "total_rows": {"type": ["integer", "null"], "minimum": 0},
+        "row_group_count": {"type": "integer", "minimum": 0},
+        "footer_complete": {"type": "boolean"},
+        "rejected_key_count": {"type": "integer", "minimum": 0},
+        "inventory_manifest_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "coverageSummary": {
+      "type": "object",
+      "required": [
+        "exactness",
+        "footer_complete",
+        "object_count",
+        "source_row_count",
+        "source_compressed_bytes",
+        "partition_stratum_count",
+        "analysis_strata_complete",
+        "analysis_stratum_count",
+        "analysis_strata_source_row_count",
+        "analysis_strata_sampled_row_count",
+        "represented_analysis_stratum_count",
+        "unrepresented_analysis_stratum_count"
+      ],
+      "properties": {
+        "exactness": {"const": "footer-derived"},
+        "footer_complete": {"type": "boolean"},
+        "object_count": {"type": "integer", "minimum": 1},
+        "source_row_count": {"type": ["integer", "null"], "minimum": 0},
+        "source_compressed_bytes": {"type": "integer", "minimum": 1},
+        "partition_stratum_count": {"type": "integer", "minimum": 0},
+        "analysis_strata_complete": {"type": "boolean"},
+        "analysis_stratum_count": {"type": "integer", "minimum": 0},
+        "analysis_strata_source_row_count": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "analysis_strata_sampled_row_count": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "represented_analysis_stratum_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unrepresented_analysis_stratum_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "resultSummary": {
+      "type": "object",
+      "required": [
+        "disposition",
+        "analysis_exactness",
+        "candidate_count",
+        "blocker_count",
+        "finding_count"
+      ],
+      "properties": {
+        "disposition": {"type": "string", "minLength": 1},
+        "analysis_exactness": {
+          "enum": ["exact", "sampled", "footer-derived"]
+        },
+        "candidate_count": {"type": "integer", "minimum": 0},
+        "blocker_count": {"type": "integer", "minimum": 0},
+        "finding_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": [
+    "schema_version",
+    "campaign_id",
+    "table_name",
+    "source_layer",
+    "analysis_complete",
+    "contract_sha256",
+    "spec_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "enum": [
+        "leviathan.silver-eda-campaign/v1",
+        "leviathan.silver-eda-campaign/v2"
+      ]
+    },
+    "campaign_id": {"type": ["string", "null"]},
+    "table_name": {"type": "string", "pattern": "^silver_"},
+    "source_layer": {"const": "silver"},
+    "analysis_complete": {"type": "boolean"},
+    "evidence_valid": {"type": "boolean"},
+    "status": {"type": "string"},
+    "analysis_scope": {"type": "object"},
+    "git_sha": {"type": "string", "minLength": 1},
+    "registry_sha256": {"$ref": "#/$defs/sha256"},
+    "contract_sha256": {"$ref": "#/$defs/sha256"},
+    "spec_sha256": {"$ref": "#/$defs/sha256"},
+    "image_digest": {"type": "string", "minLength": 1},
+    "eda_source_sha256": {"$ref": "#/$defs/sha256"},
+    "eda_config_sha256": {"$ref": "#/$defs/sha256"},
+    "source_inventory_summary": {"$ref": "#/$defs/sourceInventorySummary"},
+    "source_replica": {
+      "type": "object",
+      "required": [
+        "destination",
+        "objects_prefix_uri",
+        "manifest_uri",
+        "source_manifest_sha256",
+        "replica_manifest_sha256",
+        "object_count",
+        "total_bytes"
+      ],
+      "properties": {
+        "destination": {"type": "string", "pattern": "^s3://.+/eda/silver/"},
+        "objects_prefix_uri": {"type": "string", "pattern": "^s3://.+/eda/silver/"},
+        "manifest_uri": {"type": "string", "pattern": "^s3://.+/eda/silver/"},
+        "source_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "replica_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "object_count": {"type": "integer", "minimum": 1},
+        "total_bytes": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "coverage_summary": {"$ref": "#/$defs/coverageSummary"},
+    "sampling_strategy": {"type": ["string", "null"]},
+    "sampling_strata": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {"type": "object"}
+    },
+    "sampled_row_group_count": {"type": "integer", "minimum": 0},
+    "snapshot": {"type": "object"},
+    "results": {"$ref": "#/$defs/resultSummary"},
+    "detailed_evidence": {
+      "type": "object",
+      "required": ["source_inventory", "coverage_catalog", "sampling_evidence", "reader_evidence"],
+      "properties": {
+        "source_inventory": {
+          "allOf": [
+            {"$ref": "#/$defs/detailedArtifact"},
+            {
+              "type": "object",
+              "required": ["relative_key"],
+              "properties": {
+                "relative_key": {"const": "_machine/source_inventory.json"}
+              }
+            }
+          ]
+        },
+        "coverage_catalog": {
+          "allOf": [
+            {"$ref": "#/$defs/detailedArtifact"},
+            {
+              "type": "object",
+              "required": ["relative_key"],
+              "properties": {
+                "relative_key": {"const": "_machine/coverage_catalog.json"}
+              }
+            }
+          ]
+        },
+        "sampling_evidence": {
+          "allOf": [
+            {"$ref": "#/$defs/detailedArtifact"},
+            {
+              "type": "object",
+              "required": ["relative_key"],
+              "properties": {
+                "relative_key": {"const": "_machine/sampling_evidence.json"}
+              }
+            }
+          ]
+        },
+        "reader_evidence": {
+          "allOf": [
+            {"$ref": "#/$defs/detailedArtifact"},
+            {
+              "type": "object",
+              "required": ["relative_key"],
+              "properties": {
+                "relative_key": {"const": "_machine/reader_evidence.json"}
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "spec.yaml",
+        "summary.json",
+        "feature_candidates.yaml",
+        "_machine/profile.json",
+        "_machine/feature_candidates.json",
+        "_machine/source_inventory.json",
+        "_machine/coverage_catalog.json",
+        "_machine/sampling_evidence.json",
+        "_machine/reader_evidence.json"
+      ],
+      "additionalProperties": {"$ref": "#/$defs/artifact"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"analysis_complete": {"const": true}},
+        "required": ["analysis_complete"]
+      },
+      "then": {
+        "properties": {
+          "schema_version": {"const": "leviathan.silver-eda-campaign/v2"}
+        },
+        "required": [
+          "evidence_valid",
+          "analysis_scope",
+          "git_sha",
+          "registry_sha256",
+          "image_digest",
+          "eda_source_sha256",
+          "eda_config_sha256",
+          "source_inventory_summary",
+          "source_replica",
+          "coverage_summary",
+          "sampling_strategy",
+          "sampling_strata",
+          "sampled_row_group_count",
+          "snapshot",
+          "results",
+          "detailed_evidence",
+          "artifacts"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

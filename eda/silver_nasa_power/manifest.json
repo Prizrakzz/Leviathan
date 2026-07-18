@@ -1,0 +1,239 @@
+{
+  "analysis_complete": true,
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "artifacts": {
+    "_machine/coverage_catalog.json": {
+      "bytes": 88216614,
+      "sha256": "acb92af1f45696288ce5f8b873e800c39eef918713a988540c14aa470abaf0bb",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/coverage_catalog.json"
+    },
+    "_machine/feature_candidates.json": {
+      "bytes": 74204,
+      "sha256": "9d77ef222f2e5c704651ff849a29ffafcb5854f30d61d8cd99e4a9c35b76cec0",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/feature_candidates.json"
+    },
+    "_machine/profile.json": {
+      "bytes": 156086,
+      "sha256": "fbc3749bf0617e8e43615cb8a8c173624f3f62502b22b4d1799d58131977ab19",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/profile.json"
+    },
+    "_machine/reader_evidence.json": {
+      "bytes": 3362356,
+      "sha256": "fafe446913679a070ecd9d22e75a7aaf6e914accf40373a9b500308dbb8f78b3",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/reader_evidence.json"
+    },
+    "_machine/sampling_evidence.json": {
+      "bytes": 304749,
+      "sha256": "1dccec34edd836b05ac90ef9bf64d119e389c70034ab233162883e73902dabf8",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/sampling_evidence.json"
+    },
+    "_machine/source_inventory.json": {
+      "bytes": 3681435,
+      "sha256": "42ee6ae6431ee2af4e5b3d443a0a91c1acf08d0c0046ca32791cbf43820f90bf",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/source_inventory.json"
+    },
+    "feature_candidates.yaml": {
+      "bytes": 59880,
+      "sha256": "f13a27f95ea17ba1ffc0be46e9ca135a2e2de9d35e8179bfa2c7e0daa571ddfe",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/feature_candidates.yaml"
+    },
+    "silver_nasa_power_eda.ipynb": {
+      "bytes": 895422,
+      "sha256": "df624704a97199239df2bda6994e432ce2b400b4371f1f0091bef447722d0ea3",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/silver_nasa_power_eda.ipynb"
+    },
+    "spec.yaml": {
+      "bytes": 16750,
+      "sha256": "2fbf621fd89ba57aba61b294e2bcdba97ec7a9f7ee46730158fbb276109f736b",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/spec.yaml"
+    },
+    "summary.json": {
+      "bytes": 3678387,
+      "sha256": "c5453b2a2674ff714d54ccca0222af459385602fad8dc66cf89c561d1e4a8cb7",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/summary.json"
+    }
+  },
+  "campaign_id": "readerfirst-final-20260718-a176abf1",
+  "contract_sha256": "8d40f558ebd0799a945372a7e919abf914f99208bcadce2f60c01de5f0ce5452",
+  "coverage_summary": {
+    "analysis_strata_complete": true,
+    "analysis_strata_sampled_row_count": 1000000,
+    "analysis_strata_source_row_count": 6992403,
+    "analysis_stratum_count": 230011,
+    "exactness": "footer-derived",
+    "footer_complete": true,
+    "object_count": 1426,
+    "partition_stratum_count": 1426,
+    "represented_analysis_stratum_count": 230011,
+    "source_compressed_bytes": 149865211,
+    "source_row_count": 6992403,
+    "unrepresented_analysis_stratum_count": 0
+  },
+  "detailed_evidence": {
+    "coverage_catalog": {
+      "bytes": 88216614,
+      "relative_key": "_machine/coverage_catalog.json",
+      "sha256": "acb92af1f45696288ce5f8b873e800c39eef918713a988540c14aa470abaf0bb",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/coverage_catalog.json"
+    },
+    "reader_evidence": {
+      "bytes": 3362356,
+      "relative_key": "_machine/reader_evidence.json",
+      "sha256": "fafe446913679a070ecd9d22e75a7aaf6e914accf40373a9b500308dbb8f78b3",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/reader_evidence.json"
+    },
+    "sampling_evidence": {
+      "bytes": 304749,
+      "relative_key": "_machine/sampling_evidence.json",
+      "sha256": "1dccec34edd836b05ac90ef9bf64d119e389c70034ab233162883e73902dabf8",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/sampling_evidence.json"
+    },
+    "source_inventory": {
+      "bytes": 3681435,
+      "relative_key": "_machine/source_inventory.json",
+      "sha256": "42ee6ae6431ee2af4e5b3d443a0a91c1acf08d0c0046ca32791cbf43820f90bf",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/source_inventory.json"
+    }
+  },
+  "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+  "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+  "evidence_valid": true,
+  "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+  "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+  "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+  "results": {
+    "analysis_exactness": "sampled",
+    "blocker_count": 0,
+    "candidate_count": 25,
+    "disposition": "needs_contract_or_data_fix",
+    "finding_count": 2
+  },
+  "sampled_row_group_count": 1426,
+  "sampling_strata": [
+    {
+      "column": "commodity",
+      "roles": [
+        "partition",
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "country",
+      "roles": [
+        "partition",
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "region",
+      "roles": [
+        "partition",
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "year",
+      "roles": [
+        "partition",
+        "time"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "month",
+      "roles": [
+        "partition"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "source",
+      "roles": [
+        "entity"
+      ],
+      "transform": "identity"
+    },
+    {
+      "column": "date",
+      "roles": [
+        "time"
+      ],
+      "transform": "calendar_month"
+    }
+  ],
+  "sampling_strategy": "deterministic canonical-source partition/entity/time stratified bottom-k by immutable row location",
+  "schema_version": "leviathan.silver-eda-campaign/v2",
+  "snapshot": {
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "decision": {
+      "exactness": "sampled",
+      "identity_columns": [
+        "manifest_object_key",
+        "row_group",
+        "row_offset"
+      ],
+      "reason": "deterministic canonical-source partition/entity/time stratified bottom-k by immutable row location",
+      "seed": 3492281926181087310,
+      "snapshot_row_count": 1000000,
+      "source_compressed_bytes": 149865211,
+      "source_row_count": 6992403,
+      "stratum_columns": [
+        "commodity",
+        "country",
+        "region",
+        "year",
+        "month",
+        "source",
+        "date"
+      ]
+    },
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/snapshot",
+    "frame_sha256": "e6a9f2956410c92fe7903e29af1884c0a1864d6cc57c2087320e490122c3d415",
+    "manifest_sha256": "43026dbd50f49abbfbcf8ff4bb5cf49f8edae340ba95b60dd95b863283fe0acc",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/snapshot/manifest.json",
+    "parquet_bytes": 13401473,
+    "parquet_sha256": "9ecb04ca8b29f9256ceb0e7cd93501772178f4db428c0fd148189f362303231d",
+    "parquet_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/snapshot/part-000.parquet",
+    "table_name": "silver_nasa_power"
+  },
+  "source_inventory_summary": {
+    "footer_complete": true,
+    "fragment_count": 1426,
+    "inventory_manifest_sha256": "0b5ed3b89557ba2e6761ab452cd83a5c227d01a206019ec7302daaa92f65a912",
+    "partition_keys": [
+      "commodity",
+      "country",
+      "region",
+      "year",
+      "month"
+    ],
+    "partition_mode": "projected",
+    "rejected_key_count": 1426,
+    "root_uri": "s3://leviathan-dev-shahem-001/silver/weather/source=nasa_power",
+    "row_group_count": 1426,
+    "source_mode": "s3",
+    "total_bytes": 149865211,
+    "total_rows": 6992403
+  },
+  "source_layer": "silver",
+  "source_replica": {
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/source_replica",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/source_replica/manifest.json",
+    "object_count": 1426,
+    "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/source_replica/objects",
+    "replica_manifest_sha256": "920b62f445eb966732c6fc26f80baff81c6baabf24ca961a8d98f655b4f6fe08",
+    "source_manifest_sha256": "0b5ed3b89557ba2e6761ab452cd83a5c227d01a206019ec7302daaa92f65a912",
+    "total_bytes": 149865211
+  },
+  "spec_sha256": "31fa244a3dd3858ae7c125fa0c5e9c3a6558b92cee822969dcea797bdf7579c5",
+  "table_name": "silver_nasa_power"
+}

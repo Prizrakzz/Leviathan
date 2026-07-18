@@ -1,0 +1,4382 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 10
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 2
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "season"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 27,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 27
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 10,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [
+      "ams_cotton_quality"
+    ],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "ams_cotton_quality"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:percent_tenderable:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.percent_tenderable",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.percent_tenderable",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.season",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "percent_tenderable",
+        "commodity",
+        "geography",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "column": "percent_tenderable",
+        "group_by": [
+          "commodity",
+          "geography"
+        ],
+        "operation": "difference",
+        "order_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:percent_tenderable:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.percent_tenderable",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.percent_tenderable",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.season",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "percent_tenderable",
+        "commodity",
+        "geography",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "column": "percent_tenderable",
+        "group_by": [
+          "commodity",
+          "geography"
+        ],
+        "operation": "lag",
+        "order_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:percent_tenderable:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.percent_tenderable",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.percent_tenderable",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [44.1, 86.2]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed quality level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "percent_tenderable",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "column": "percent_tenderable",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:percent_tenderable:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.percent_tenderable",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "percent_tenderable",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "percent_tenderable",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:percent_tenderable:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.percent_tenderable",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.percent_tenderable",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.season",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "percent_tenderable",
+        "commodity",
+        "geography",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "closed": "left",
+        "column": "percent_tenderable",
+        "group_by": [
+          "commodity",
+          "geography"
+        ],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "percent",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:samples_classed:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.samples_classed",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.samples_classed",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.season",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "samples_classed",
+        "commodity",
+        "geography",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "column": "samples_classed",
+        "group_by": [
+          "commodity",
+          "geography"
+        ],
+        "operation": "difference",
+        "order_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:samples_classed:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.samples_classed",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.samples_classed",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.season",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "samples_classed",
+        "commodity",
+        "geography",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "column": "samples_classed",
+        "group_by": [
+          "commodity",
+          "geography"
+        ],
+        "operation": "lag",
+        "order_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:samples_classed:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.samples_classed",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.samples_classed",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [11438300.0, 19693882.0]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed quality level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "samples_classed",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "column": "samples_classed",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:samples_classed:missing_indicator",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "missing_indicator",
+      "counter_evidence": [
+        "Missingness may be a pipeline artifact and can drift after repairs.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:missingness_validity.column_missingness.samples_classed",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "{0, 1}",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Availability itself may encode source coverage or reporting cadence; review for operational rather than economic signal before use.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "samples_classed",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "column": "samples_classed",
+        "operation": "is_null",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "cotton"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_ams_cotton_quality:samples_classed:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.samples_classed",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.samples_classed",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.season",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by season within entity grain",
+      "output_grain": "commodity x geography x season",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only quality evidence; registered source keys: ams_cotton_quality",
+      "source_columns": [
+        "samples_classed",
+        "commodity",
+        "geography",
+        "season"
+      ],
+      "source_table": "silver_ams_cotton_quality",
+      "transformation": {
+        "closed": "left",
+        "column": "samples_classed",
+        "group_by": [
+          "commodity",
+          "geography"
+        ],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "ams_cotton_quality"
+          ],
+          "source_keys": [
+            "ams_cotton_quality"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 10
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": [
+        "ams_cotton_quality"
+      ]
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 10
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "ams_cotton_quality"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "annual_or_seasonal_panel"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      },
+      {
+        "code": "EDA-SEMANTIC-UNIT-001",
+        "confidence": "high",
+        "evidence": [
+          "overlay.units",
+          "schema_contract.column_contract"
+        ],
+        "message": "No governed unit or row-level unit column is available for: samples_classed.",
+        "remediation": "Govern source units and conversion policy for every feature-bearing value column before prototype promotion.",
+        "risk": "Feature magnitudes and cross-era comparisons may mix incompatible units.",
+        "severity": "high",
+        "title": "Feature-bearing units are not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "season"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "avg_micronaire",
+              "avg_staple",
+              "avg_strength",
+              "season"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "One stable governed entity/vocabulary axis, its 20 most frequent groups, and at most six governed numeric value columns; all analyzed rows contribute.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": [
+              {
+                "group": "0376ceea6311a4254c7c2650194894e6",
+                "group_column": "source_file_etag",
+                "median": 58.2,
+                "n": 1,
+                "q25": 58.2,
+                "q75": 58.2,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "27729bde7ceb4ef71d235516b08317c0",
+                "group_column": "source_file_etag",
+                "median": 62.6,
+                "n": 1,
+                "q25": 62.6,
+                "q75": 62.6,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "2b1a9bd0c1b68915d1a24f8ec5aa227d",
+                "group_column": "source_file_etag",
+                "median": 80.6,
+                "n": 1,
+                "q25": 80.6,
+                "q75": 80.6,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "2e929e1397ce54770d3ccd6c6c47b39d",
+                "group_column": "source_file_etag",
+                "median": 70.7,
+                "n": 1,
+                "q25": 70.7,
+                "q75": 70.7,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "387caf197836317aed4bd5c5315cb6bb",
+                "group_column": "source_file_etag",
+                "median": 55.5,
+                "n": 1,
+                "q25": 55.5,
+                "q75": 55.5,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "3ef71b8945989f3593bea64e38c02c45",
+                "group_column": "source_file_etag",
+                "median": 86.2,
+                "n": 1,
+                "q25": 86.2,
+                "q75": 86.2,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "4286a2a33b0e3ae7f0a941c78e90392a",
+                "group_column": "source_file_etag",
+                "median": 61.7,
+                "n": 1,
+                "q25": 61.7,
+                "q75": 61.7,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "47e3c93b3f32304ac4e9c0e5badedf9a",
+                "group_column": "source_file_etag",
+                "median": 72.0,
+                "n": 1,
+                "q25": 72.0,
+                "q75": 72.0,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "6a71314e1e22debda6545b4deda61cd3",
+                "group_column": "source_file_etag",
+                "median": 64.7,
+                "n": 1,
+                "q25": 64.7,
+                "q75": 64.7,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "7417ac8ae6d33f22a8af08a989401885",
+                "group_column": "source_file_etag",
+                "median": 62.6,
+                "n": 1,
+                "q25": 62.6,
+                "q75": 62.6,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "7bd1ac2d0ce7159f6554748b28a6821e",
+                "group_column": "source_file_etag",
+                "median": 70.1,
+                "n": 1,
+                "q25": 70.1,
+                "q75": 70.1,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "8aad4aa3a69244bca098c37cc3a4f896",
+                "group_column": "source_file_etag",
+                "median": 57.3,
+                "n": 1,
+                "q25": 57.3,
+                "q75": 57.3,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "a17df9abfb2c7905f609721c0fd727df",
+                "group_column": "source_file_etag",
+                "median": 63.1,
+                "n": 1,
+                "q25": 63.1,
+                "q75": 63.1,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "a698ae6463ceeda64dcaa3b31142f962",
+                "group_column": "source_file_etag",
+                "median": 60.0,
+                "n": 1,
+                "q25": 60.0,
+                "q75": 60.0,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "a92bf0229e393606df8b1f6eb918c866",
+                "group_column": "source_file_etag",
+                "median": 79.3,
+                "n": 2,
+                "q25": 79.3,
+                "q75": 79.3,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "b6f2ee4850343e8f9b1a77809e32ac5a",
+                "group_column": "source_file_etag",
+                "median": 75.7,
+                "n": 1,
+                "q25": 75.7,
+                "q75": 75.7,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "c8db11c12d9ed4c4ee605dce766cc9e6",
+                "group_column": "source_file_etag",
+                "median": 67.0,
+                "n": 1,
+                "q25": 67.0,
+                "q75": 67.0,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "cec20142f1200d9fb03668182e769e59",
+                "group_column": "source_file_etag",
+                "median": 44.1,
+                "n": 1,
+                "q25": 44.1,
+                "q75": 44.1,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "f3c60e5f6bf27d744cf239556a50bda4",
+                "group_column": "source_file_etag",
+                "median": 67.2,
+                "n": 1,
+                "q25": 67.2,
+                "q75": 67.2,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "f7bd9e9db8b9d2fb9fa82e52f7271cff",
+                "group_column": "source_file_etag",
+                "median": 56.7,
+                "n": 1,
+                "q25": 56.7,
+                "q75": 56.7,
+                "value_column": "percent_tenderable"
+              },
+              {
+                "group": "a92bf0229e393606df8b1f6eb918c866",
+                "group_column": "source_file_etag",
+                "median": 11438300.0,
+                "n": 2,
+                "q25": 11438300.0,
+                "q75": 11438300.0,
+                "value_column": "samples_classed"
+              }
+            ]
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "percent_tenderable": {
+                "count": 27,
+                "distinct_count": 24,
+                "iqr": 16.89999999999999,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 9.099999999999994,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 86.2,
+                "mean": 68.99629629629628,
+                "min": 44.1,
+                "quantiles": {
+                  "0.01": 47.064,
+                  "0.05": 55.86,
+                  "0.25": 62.150000000000006,
+                  "0.5": 69.1,
+                  "0.75": 79.05,
+                  "0.95": 82.58,
+                  "0.99": 85.28999999999999
+                },
+                "skew": -0.28567776080928503,
+                "std": 10.401977677400561
+              },
+              "samples_classed": {
+                "count": 8,
+                "distinct_count": 7,
+                "iqr": 4214932.0,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 2205000.5,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 19693882.0,
+                "mean": 14867673.125,
+                "min": 11438300.0,
+                "quantiles": {
+                  "0.01": 11438300.0,
+                  "0.05": 11438300.0,
+                  "0.25": 13046725.25,
+                  "0.5": 13643300.5,
+                  "0.75": 17261657.25,
+                  "0.95": 19356116.599999998,
+                  "0.99": 19626328.919999998
+                },
+                "skew": 0.5447317703497548,
+                "std": 3162272.0289982483
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 6
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "commodity": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 27,
+                    "rate": 1.0,
+                    "value": "cotton"
+                  }
+                ]
+              },
+              "geography": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 27,
+                    "rate": 1.0,
+                    "value": "us_total"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 27,
+                    "rate": 1.0,
+                    "value": "usda_ams_cotton_classing_annual"
+                  }
+                ]
+              },
+              "source_file_etag": {
+                "distinct_count": 26,
+                "normalisation_collisions": {},
+                "rare_category_count": 26,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 27,
+                "rare_row_rate": 1.0,
+                "top_values": [
+                  {
+                    "count": 2,
+                    "rate": 0.07407407407407407,
+                    "value": "a92bf0229e393606df8b1f6eb918c866"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "cec20142f1200d9fb03668182e769e59"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "c8db11c12d9ed4c4ee605dce766cc9e6"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "f7bd9e9db8b9d2fb9fa82e52f7271cff"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "a698ae6463ceeda64dcaa3b31142f962"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "387caf197836317aed4bd5c5315cb6bb"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "0376ceea6311a4254c7c2650194894e6"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "b6f2ee4850343e8f9b1a77809e32ac5a"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "4286a2a33b0e3ae7f0a941c78e90392a"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "6a71314e1e22debda6545b4deda61cd3"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "27729bde7ceb4ef71d235516b08317c0"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "7417ac8ae6d33f22a8af08a989401885"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "2b1a9bd0c1b68915d1a24f8ec5aa227d"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "3ef71b8945989f3593bea64e38c02c45"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "2e929e1397ce54770d3ccd6c6c47b39d"
+                  }
+                ]
+              },
+              "source_pages": {
+                "distinct_count": 8,
+                "normalisation_collisions": {},
+                "rare_category_count": 5,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 6,
+                "rare_row_rate": 0.2222222222222222,
+                "top_values": [
+                  {
+                    "count": 12,
+                    "rate": 0.4444444444444444,
+                    "value": "5"
+                  },
+                  {
+                    "count": 6,
+                    "rate": 0.2222222222222222,
+                    "value": "6"
+                  },
+                  {
+                    "count": 3,
+                    "rate": 0.1111111111111111,
+                    "value": "7"
+                  },
+                  {
+                    "count": 2,
+                    "rate": 0.07407407407407407,
+                    "value": "3"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "1,2"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "2"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "14,20"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "19"
+                  }
+                ]
+              },
+              "source_raw_key": {
+                "distinct_count": 27,
+                "normalisation_collisions": {},
+                "rare_category_count": 27,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 27,
+                "rare_row_rate": 1.0,
+                "top_values": [
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1986/1986ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1987/1987ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1988/1988ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1989/1989ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1990/1990ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1991/1991ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1992/1992ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1993/1993ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1994/1994ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1995/1995ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1996/1996ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1997/1997ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1998/1998ACQ.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2008/cnaacq_2008.pdf"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.037037037037037035,
+                    "value": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2009/cnaacq_2009.pdf"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 2
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "commodity",
+              "geography",
+              "season"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 27,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "commodity",
+              "season"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "commodity": {
+                "distinct_count": 1,
+                "non_null_count": 27,
+                "non_null_rate": 1.0
+              },
+              "season": {
+                "distinct_count": 27,
+                "non_null_count": 27,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "commodity x geography x season"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 27,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": []
+          },
+          "column_missingness": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "avg_micronaire": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 0,
+                "non_null_rate": 0.0,
+                "null_count": 27,
+                "null_rate": 1.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "avg_staple": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "avg_strength": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 0,
+                "non_null_rate": 0.0,
+                "null_count": 27,
+                "null_rate": 1.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "commodity": {
+                "empty_string_count": 0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "geography": {
+                "empty_string_count": 0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "percent_tenderable": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "samples_classed": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 8,
+                "non_null_rate": 0.2962962962962963,
+                "null_count": 19,
+                "null_rate": 0.7037037037037037,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "season": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "source_file_etag": {
+                "empty_string_count": 0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "source_pages": {
+                "empty_string_count": 0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "source_raw_key": {
+                "empty_string_count": 0,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 27,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": [
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "5",
+                "missing_count": 4,
+                "missing_rate": 0.3333333333333333,
+                "missingness_lift": 0.47368421052631576,
+                "n": 12,
+                "target_column": "samples_classed"
+              },
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "1,2",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.4210526315789473,
+                "n": 1,
+                "target_column": "samples_classed"
+              },
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "14,20",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.4210526315789473,
+                "n": 1,
+                "target_column": "samples_classed"
+              },
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "19",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.4210526315789473,
+                "n": 1,
+                "target_column": "samples_classed"
+              },
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "2",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.4210526315789473,
+                "n": 1,
+                "target_column": "samples_classed"
+              },
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "3",
+                "missing_count": 2,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.4210526315789473,
+                "n": 2,
+                "target_column": "samples_classed"
+              },
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "6",
+                "missing_count": 6,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.4210526315789473,
+                "n": 6,
+                "target_column": "samples_classed"
+              },
+              {
+                "baseline_missing_rate": 0.7037037037037037,
+                "condition_column": "source_pages",
+                "condition_value": "7",
+                "missing_count": 3,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.4210526315789473,
+                "n": 3,
+                "target_column": "samples_classed"
+              }
+            ]
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 1,
+                "reason": "Fewer than two partially missing columns are available for co-missingness.",
+                "selected_column_count": 1,
+                "status": "no_evidence"
+              },
+              "conditional_missingness": {
+                "condition_columns": [
+                  "source_pages"
+                ],
+                "reason": "Missingness is conditioned on bounded low-cardinality source segments.",
+                "record_count": 8,
+                "status": "supported",
+                "target_columns": [
+                  "samples_classed"
+                ]
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 27
+          },
+          "required_complete_row_rate": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 162,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 162
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [
+                  "avg_micronaire",
+                  "avg_strength",
+                  "samples_classed"
+                ],
+                "negative_count": [],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": []
+              },
+              "finite_count": 89,
+              "infinite_count": 0,
+              "nan_or_null_count": 73,
+              "negative_count": 0,
+              "numeric_cell_count": 162,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.4506172839506173,
+                "negative_count": 0.0,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.0
+              },
+              "string_cell_count": 162,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 0
+            }
+          },
+          "value_column_population": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "percent_tenderable": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 27,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              },
+              "samples_classed": {
+                "available": true,
+                "floor": 0.25,
+                "non_null_count": 8,
+                "non_null_rate": 0.2962962962962963,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "season",
+                "resolution": "annual_proxy"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "avg_micronaire": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "avg_staple": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "avg_strength": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "commodity": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "geography": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "percent_tenderable": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "samples_classed": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "season": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "source_file_etag": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "source_pages": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "source_raw_key": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 12
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 12
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "commodity",
+              "season",
+              "geography",
+              "percent_tenderable",
+              "samples_classed",
+              "avg_staple",
+              "avg_micronaire",
+              "avg_strength",
+              "source_pages",
+              "source_raw_key",
+              "source_file_etag",
+              "source"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 27
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 1,
+              "partition_stratum_count": 1,
+              "source_compressed_bytes": 9798,
+              "source_row_count": 27
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {},
+                "row_count": 27,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "4867d5bb0da2248ff88cb3db1af46328237f03fd359b78cec186b1e60457928f": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "percent_tenderable",
+                "lag_1_autocorrelation": 0.5105871788870242,
+                "n_effective_pairs": 26,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "samples_classed",
+                "lag_1_autocorrelation": 0.5614705320682634,
+                "n_effective_pairs": 7,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "annual",
+              "declared_matches_inferred": true,
+              "distinct_timestamp_count": 27,
+              "gap_count": 26,
+              "gap_days_max": 3652.0,
+              "gap_days_median": 365.0,
+              "gap_days_mode": 365.0,
+              "gap_days_p95": 1278.25,
+              "inferred_cadence": "annual",
+              "large_gap_count": 3,
+              "large_gap_rate": 0.11538461538461539
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "annual"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": []
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {
+              "analysis_frame_exactness": "exact",
+              "complete_entity_count": 1,
+              "complete_entity_rate": 1.0,
+              "entity_columns": [
+                "commodity",
+                "geography"
+              ],
+              "entity_count": 1,
+              "full_source_balance_claimed": true,
+              "global_distinct_period_count": 27,
+              "observed_period_count": {
+                "max": 27,
+                "median": 27.0,
+                "min": 27,
+                "p10": 27.0,
+                "p90": 27.0
+              },
+              "period_coverage_ratio": {
+                "median": 1.0,
+                "p10": 1.0,
+                "p90": 1.0
+              },
+              "sampling_artifact_caveat": null,
+              "scope": "full_analysis_frame"
+            }
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 79.3,
+                "after_timestamp_count": 9,
+                "before_median": 62.85,
+                "before_timestamp_count": 18,
+                "column": "percent_tenderable",
+                "median_shift": 16.449999999999996,
+                "robust_shift_score": 1.8076923076923084,
+                "split_timestamp": "2017-01-01T00:00:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 2,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "reason": "Selected series lack 20 finite rows in both temporal edge quartiles.",
+                "status": "no_evidence"
+              },
+              "panel_balance": {
+                "entity_count": 1,
+                "full_source_balance_claimed": true,
+                "reason": "Entity coverage is measured against the global observed timestamp set; staggered entry can lower this descriptive ratio without implying a defect.",
+                "scope": "full_analysis_frame",
+                "status": "supported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 1,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "season": {
+                "coverage_month_counts": {
+                  "1986-01": 1,
+                  "1987-01": 1,
+                  "1988-01": 1,
+                  "1989-01": 1,
+                  "1990-01": 1,
+                  "1991-01": 1,
+                  "1992-01": 1,
+                  "1993-01": 1,
+                  "1994-01": 1,
+                  "1995-01": 1,
+                  "1996-01": 1,
+                  "1997-01": 1,
+                  "1998-01": 1,
+                  "2008-01": 1,
+                  "2009-01": 1,
+                  "2011-01": 1,
+                  "2015-01": 1,
+                  "2016-01": 1,
+                  "2017-01": 1,
+                  "2018-01": 1,
+                  "2019-01": 1,
+                  "2020-01": 1,
+                  "2021-01": 1,
+                  "2022-01": 1,
+                  "2023-01": 1,
+                  "2024-01": 1,
+                  "2025-01": 1
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 27,
+                "first": "1986-01-01T00:00:00+00:00",
+                "gap_days_max": 3652.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 1278.25,
+                "last": "2025-01-01T00:00:00+00:00",
+                "parseable_count": 27,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "season",
+              "resolution": "annual_proxy"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "season"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 27,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": [
+              "source_pages",
+              "source_file_etag",
+              "source_raw_key"
+            ]
+          },
+          "categorical_associations": {
+            "denominator": 27,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": [
+              {
+                "cramers_v": 1.0,
+                "cramers_v_bias_corrected": 0.5291502622129203,
+                "left": "source_pages",
+                "left_levels": 8,
+                "n": 27,
+                "right": "source_file_etag",
+                "right_levels": 26
+              },
+              {
+                "cramers_v": 1.0,
+                "cramers_v_bias_corrected": null,
+                "left": "source_file_etag",
+                "left_levels": 26,
+                "n": 27,
+                "right": "source_raw_key",
+                "right_levels": 27
+              },
+              {
+                "cramers_v": 1.0,
+                "cramers_v_bias_corrected": null,
+                "left": "source_pages",
+                "left_levels": 8,
+                "n": 27,
+                "right": "source_raw_key",
+                "right_levels": 27
+              }
+            ]
+          },
+          "correlation_columns": {
+            "detail": "At most 20 non-constant governed numeric value columns in contract order; calendar/time identifiers are excluded.",
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "percent_tenderable",
+              "samples_classed"
+            ]
+          },
+          "correlation_pairs": {
+            "detail": "Pearson and Spearman are paired with effective pairwise sample size.",
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": [
+              {
+                "abs_max_correlation": 0.4503298299534753,
+                "left": "percent_tenderable",
+                "n": 8,
+                "pearson": -0.4503298299534753,
+                "right": "samples_classed",
+                "spearman": -0.37349397590361444
+              }
+            ]
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {
+              "percent_tenderable": {
+                "percent_tenderable": 1.0,
+                "samples_classed": -0.4503298299534753
+              },
+              "samples_classed": {
+                "percent_tenderable": -0.4503298299534753,
+                "samples_classed": 1.0
+              }
+            }
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "eligible_column_count": 3,
+                "pair_count": 3,
+                "reason": "Bias-corrected Cramer's V is descriptive; rare levels and structural mappings can produce strong associations without redundancy.",
+                "selected_columns": [
+                  "source_pages",
+                  "source_file_etag",
+                  "source_raw_key"
+                ],
+                "status": "supported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {
+              "percent_tenderable": {
+                "percent_tenderable": 1.0,
+                "samples_classed": -0.37349397590361444
+              },
+              "samples_classed": {
+                "percent_tenderable": -0.37349397590361444,
+                "samples_classed": 1.0
+              }
+            }
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_ams_cotton_quality"
+  },
+  "provenance": {
+    "analysis_rows": 27,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/ams_cotton_quality",
+    "contract_sha256": "cdf1392e5d0e64d50f3ba6f1b7ae13af731a60fd13a6070fff686c0c3eb33f21",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 1,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {},
+          "row_count": 27,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 1,
+      "schema_sha256_object_counts": {
+        "4867d5bb0da2248ff88cb3db1af46328237f03fd359b78cec186b1e60457928f": 1
+      },
+      "source_compressed_bytes": 9798,
+      "source_row_count": 27
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "85724c0ae5f449866fcbf7591e6d9b4d899704ee8a9572c1747717f5ed61c46d",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 1,
+    "object_sample": [
+      {
+        "etag": "3b7e13ba2aadaf8efb050d3dd1fe1ac0",
+        "last_modified": "2026-07-16T20:56:20Z",
+        "partition_values": {},
+        "size": 9798,
+        "uri": "s3://leviathan-dev-shahem-001/silver/ams_cotton_quality/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": false,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 1,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "commodity",
+        "geography",
+        "source",
+        "season",
+        "percent_tenderable",
+        "samples_classed",
+        "avg_staple",
+        "avg_micronaire"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 14934160814750065397,
+      "snapshot_row_count": 27,
+      "source_compressed_bytes": 9798,
+      "source_row_count": 27,
+      "stratum_columns": [
+        "commodity",
+        "geography",
+        "source",
+        "season"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "567833361c835ab52d6dc596e25250f2d650e471573c19c1c0274192bf73094b",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/source_replica/manifest.json",
+      "object_count": 1,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/source_replica/objects",
+      "replica_manifest_sha256": "733c4b69fe8fd19c5afe4012c0895c999091d371e06435299d3912c734dbde18",
+      "source_manifest_sha256": "567833361c835ab52d6dc596e25250f2d650e471573c19c1c0274192bf73094b",
+      "total_bytes": 9798
+    },
+    "source_rows": 27,
+    "source_specific_checks": [],
+    "source_total_bytes": 9798,
+    "source_total_rows": 27,
+    "spec_sha256": "dc1721ef07f51bba7c0dd969adc008546e22d1cefded17a978f27a49620717a1"
+  },
+  "reader": {
+    "analysis_rows": 27,
+    "anti_feature_summary": {
+      "analysis_rows": 27,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 27
+    },
+    "archetype": "annual_geographic_production",
+    "chart_execution": {
+      "omission_reasons": [
+        "No complete rows support this chart.",
+        "No complete rows support this chart.",
+        "No complete rows support this chart."
+      ],
+      "omitted_chart_count": 3,
+      "plotted_rows": 27,
+      "ready_chart_count": 1,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": null,
+        "analysis_rows": 27,
+        "chart_id": "history",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "No complete rows support this chart.",
+        "scope": "frozen analysis frame",
+        "source_rows": 27,
+        "status": "omitted",
+        "title": "Historical measures",
+        "unit": null
+      },
+      {
+        "aggregation": null,
+        "analysis_rows": 27,
+        "chart_id": "latest_ranking",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "No complete rows support this chart.",
+        "scope": "frozen analysis frame",
+        "source_rows": 27,
+        "status": "omitted",
+        "title": "Latest entity comparison",
+        "unit": null
+      },
+      {
+        "aggregation": null,
+        "analysis_rows": 27,
+        "chart_id": "distribution",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "No complete rows support this chart.",
+        "scope": "frozen analysis frame",
+        "source_rows": 27,
+        "status": "omitted",
+        "title": "Cross-sectional distributions",
+        "unit": null
+      },
+      {
+        "aggregation": "exact contributing-row count by displayed time bucket and entity",
+        "analysis_rows": 27,
+        "chart_id": "coverage",
+        "exactness": "exact",
+        "plotted_rows": 27,
+        "reason": null,
+        "scope": "all 1 semantic series; label dimensions=commodity, geography; time=season; calendar-year buckets; 27 populated cells",
+        "source_rows": 27,
+        "status": "ready",
+        "title": "Entity-time coverage",
+        "unit": "rows"
+      }
+    ],
+    "chart_omission_reasons": [
+      "No complete rows support this chart.",
+      "No complete rows support this chart.",
+      "No complete rows support this chart."
+    ],
+    "chart_plan": {
+      "analysis_rows": 27,
+      "charts": [
+        {
+          "analysis_rows": 27,
+          "chart_id": "history",
+          "chart_type": "line",
+          "columns": [
+            "season",
+            "avg_micronaire",
+            "avg_staple",
+            "commodity",
+            "geography"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 0,
+          "exactness": "exact",
+          "id": "history",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "avg_micronaire",
+            "avg_staple"
+          ],
+          "measure_units": {},
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "skipped",
+          "purpose": "Show long-run level and direction.",
+          "reason": "No complete rows support this chart.",
+          "series_dimensions": [
+            "commodity",
+            "geography"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 27,
+          "split_by": [],
+          "status": "skipped",
+          "time_components": [],
+          "title": "Historical measures",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 27,
+          "chart_id": "latest_ranking",
+          "chart_type": "ranked_bar",
+          "columns": [
+            "season",
+            "avg_micronaire",
+            "commodity",
+            "geography"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 0,
+          "exactness": "exact",
+          "id": "latest_ranking",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "avg_micronaire"
+          ],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "skipped",
+          "purpose": "Compare entities at the latest comparable period.",
+          "reason": "No complete rows support this chart.",
+          "series_dimensions": [
+            "commodity",
+            "geography"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 27,
+          "split_by": [],
+          "status": "skipped",
+          "time_components": [],
+          "title": "Latest entity comparison",
+          "type": "ranked_bar",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 27,
+          "chart_id": "distribution",
+          "chart_type": "distribution",
+          "columns": [
+            "avg_micronaire",
+            "commodity",
+            "geography"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 0,
+          "exactness": "exact",
+          "id": "distribution",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "avg_micronaire"
+          ],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "skipped",
+          "purpose": "Show dispersion and outlying entities.",
+          "reason": "No complete rows support this chart.",
+          "series_dimensions": [
+            "commodity",
+            "geography"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 27,
+          "split_by": [],
+          "status": "skipped",
+          "time_components": [],
+          "title": "Cross-sectional distributions",
+          "type": "distribution",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 27,
+          "chart_id": "coverage",
+          "chart_type": "coverage_heatmap",
+          "columns": [
+            "season",
+            "commodity",
+            "geography"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 27,
+          "exactness": "exact",
+          "id": "coverage",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Expose panel gaps and changing coverage.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity",
+            "geography"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 27,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Entity-time coverage",
+          "type": "coverage_heatmap",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 27,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 3,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 1,
+      "ready_chart_count": 1,
+      "source_rows": 27
+    },
+    "column_dictionary": [
+      {
+        "column": "commodity",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "cotton",
+        "meaning": "Governed or source-normalized commodity identifier.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; supports entity segmentation; is required by the source contract."
+      },
+      {
+        "column": "season",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 27,
+        "example": 1986,
+        "meaning": "Source-defined crop or reporting season.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; anchors temporal coverage; is required by the source contract."
+      },
+      {
+        "column": "geography",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "us_total",
+        "meaning": "Geographic reporting area represented by the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; supports entity segmentation; is required by the source contract."
+      },
+      {
+        "column": "percent_tenderable",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 24,
+        "example": 44.1,
+        "meaning": "Governed numeric percent tenderable measure used for source-level analytical comparisons.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "percent",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "samples_classed",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 7,
+        "example": 11438300.0,
+        "meaning": "Number of cotton samples supporting the reported classing-quality averages.",
+        "null_count": 19,
+        "null_rate": 0.7037037037037037,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "source-native / verify",
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "avg_staple",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 21,
+        "example": 34.0,
+        "meaning": "Governed numeric average staple measure used for source-level analytical comparisons.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "avg_micronaire",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 0,
+        "example": null,
+        "meaning": "Governed numeric average micronaire measure used for source-level analytical comparisons.",
+        "null_count": 27,
+        "null_rate": 1.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "avg_strength",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 0,
+        "example": null,
+        "meaning": "Governed numeric average strength measure used for source-level analytical comparisons.",
+        "null_count": 27,
+        "null_rate": 1.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "source_pages",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 8,
+        "example": "1,2",
+        "meaning": "Source provenance value identifying the pages used to produce this row.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "source_raw_key",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 27,
+        "example": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1986/1986ACQ.pdf",
+        "meaning": "Immutable or traceable key for the upstream source object.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      },
+      {
+        "column": "source_file_etag",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 26,
+        "example": "0376ceea6311a4254c7c2650194894e6",
+        "meaning": "Source-object identity used for lineage and reproducibility checks.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "usda_ams_cotton_classing_annual",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 27,
+        "columns": [],
+        "detail": "27 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 27,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27
+        },
+        "source_rows": 27,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 27
+      },
+      {
+        "analysis_rows": 27,
+        "columns": [],
+        "detail": "The analysis frame exposes 12 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 27,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27
+        },
+        "source_rows": 27,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 12
+      },
+      {
+        "analysis_rows": 27,
+        "columns": [
+          "season"
+        ],
+        "detail": "Coverage spans 1986-01-01 through 2025-01-01 across 27 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 27,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27
+        },
+        "source_rows": 27,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 27,
+          "end": "2025-01-01T00:00:00",
+          "start": "1986-01-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 27,
+        "columns": [
+          "commodity",
+          "geography"
+        ],
+        "detail": "Distinct entity counts were computed for commodity, geography.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 27,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27
+        },
+        "source_rows": 27,
+        "status": "evaluated",
+        "value": {
+          "commodity": 1,
+          "geography": 1
+        }
+      },
+      {
+        "analysis_rows": 27,
+        "columns": [
+          "avg_micronaire",
+          "avg_staple",
+          "avg_strength",
+          "percent_tenderable"
+        ],
+        "detail": "Minimum completeness across 4 assessed columns is 0.0%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 27,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27
+        },
+        "source_rows": 27,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 27,
+        "columns": [
+          "commodity",
+          "geography",
+          "season"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 27 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 27,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27
+        },
+        "source_rows": 27,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 27,
+        "columns": [
+          "avg_micronaire"
+        ],
+        "detail": "No finite value is available on the time axis.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 27,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27
+        },
+        "source_rows": 27,
+        "status": "not_assessed",
+        "value": null
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 27 entries, 0 to 26\nData columns (total 12 columns):\n #   Column              Non-Null Count  Dtype  \n---  ------              --------------  -----  \n 0   commodity           27 non-null     str    \n 1   season              27 non-null     int64  \n 2   geography           27 non-null     str    \n 3   percent_tenderable  27 non-null     float64\n 4   samples_classed     8 non-null      float64\n 5   avg_staple          27 non-null     float64\n 6   avg_micronaire      0 non-null      float64\n 7   avg_strength        0 non-null      float64\n 8   source_pages        27 non-null     str    \n 9   source_raw_key      27 non-null     str    \n 10  source_file_etag    27 non-null     str    \n 11  source              27 non-null     str    \ndtypes: float64(5), int64(1), str(6)\nmemory usage: 7.4 KB\n",
+    "display_policy": {
+      "analysis_rows": 27,
+      "displayed_rows": 27,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "full_dataframe",
+      "plotted_rows": 27,
+      "preview_max_rows": 40,
+      "source_rows": 27
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 27,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "minimum avg_staple"
+          ],
+          "row": {
+            "avg_micronaire": null,
+            "avg_staple": 34.0,
+            "avg_strength": null,
+            "commodity": "cotton",
+            "geography": "us_total",
+            "percent_tenderable": 60.0,
+            "samples_classed": null,
+            "season": 1989,
+            "source": "usda_ams_cotton_classing_annual",
+            "source_file_etag": "a698ae6463ceeda64dcaa3b31142f962",
+            "source_pages": "3",
+            "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1989/1989ACQ.pdf"
+          }
+        },
+        {
+          "reasons": [
+            "earliest season",
+            "most missing fields"
+          ],
+          "row": {
+            "avg_micronaire": null,
+            "avg_staple": 34.6,
+            "avg_strength": null,
+            "commodity": "cotton",
+            "geography": "us_total",
+            "percent_tenderable": 44.1,
+            "samples_classed": null,
+            "season": 1986,
+            "source": "usda_ams_cotton_classing_annual",
+            "source_file_etag": "cec20142f1200d9fb03668182e769e59",
+            "source_pages": "1,2",
+            "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1986/1986ACQ.pdf"
+          }
+        },
+        {
+          "reasons": [
+            "latest season"
+          ],
+          "row": {
+            "avg_micronaire": null,
+            "avg_staple": 36.29,
+            "avg_strength": null,
+            "commodity": "cotton",
+            "geography": "us_total",
+            "percent_tenderable": 80.6,
+            "samples_classed": 13582867.0,
+            "season": 2025,
+            "source": "usda_ams_cotton_classing_annual",
+            "source_file_etag": "572dc0a130b27c87ba4cf255fe5b5eca",
+            "source_pages": "5",
+            "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2025/cnaacq_2025.pdf"
+          }
+        },
+        {
+          "reasons": [
+            "maximum avg_staple"
+          ],
+          "row": {
+            "avg_micronaire": null,
+            "avg_staple": 37.09,
+            "avg_strength": null,
+            "commodity": "cotton",
+            "geography": "us_total",
+            "percent_tenderable": 74.8,
+            "samples_classed": 13646902.0,
+            "season": 2020,
+            "source": "usda_ams_cotton_classing_annual",
+            "source_file_etag": "b811c58c1675b3606e597f5ec5e359af",
+            "source_pages": "5",
+            "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2020/ams_1658_00005.pdf"
+          }
+        }
+      ],
+      "source_rows": 27,
+      "status": "available"
+    },
+    "omitted_chart_count": 3,
+    "ordinary_statistics": {
+      "analysis_rows": 27,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "commodity",
+            "count": 27,
+            "freq": 27,
+            "top": "cotton",
+            "unique": 1
+          },
+          {
+            "column": "geography",
+            "count": 27,
+            "freq": 27,
+            "top": "us_total",
+            "unique": 1
+          },
+          {
+            "column": "source_pages",
+            "count": 27,
+            "freq": 12,
+            "top": "5",
+            "unique": 8
+          },
+          {
+            "column": "source_raw_key",
+            "count": 27,
+            "freq": 1,
+            "top": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1986/1986ACQ.pdf",
+            "unique": 27
+          },
+          {
+            "column": "source_file_etag",
+            "count": 27,
+            "freq": 2,
+            "top": "a92bf0229e393606df8b1f6eb918c866",
+            "unique": 26
+          },
+          {
+            "column": "source",
+            "count": 27,
+            "freq": 27,
+            "top": "usda_ams_cotton_classing_annual",
+            "unique": 1
+          }
+        ],
+        "row_count": 6
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 1992.5,
+            "50%": 2008.0,
+            "75%": 2018.5,
+            "column": "season",
+            "count": 27.0,
+            "max": 2025.0,
+            "mean": 2005.3333333333333,
+            "min": 1986.0,
+            "std": 13.897979930689429
+          },
+          {
+            "25%": 62.150000000000006,
+            "50%": 69.1,
+            "75%": 79.05,
+            "column": "percent_tenderable",
+            "count": 27.0,
+            "max": 86.2,
+            "mean": 68.99629629629628,
+            "min": 44.1,
+            "std": 10.401977677400561
+          },
+          {
+            "25%": 13046725.25,
+            "50%": 13643300.5,
+            "75%": 17261657.25,
+            "column": "samples_classed",
+            "count": 8.0,
+            "max": 19693882.0,
+            "mean": 14867673.125,
+            "min": 11438300.0,
+            "std": 3162272.0289982483
+          },
+          {
+            "25%": 35.0,
+            "50%": 35.5,
+            "75%": 36.37,
+            "column": "avg_staple",
+            "count": 27.0,
+            "max": 37.09,
+            "mean": 35.62259259259259,
+            "min": 34.0,
+            "std": 0.8603961189367842
+          },
+          {
+            "25%": null,
+            "50%": null,
+            "75%": null,
+            "column": "avg_micronaire",
+            "count": 0.0,
+            "max": null,
+            "mean": null,
+            "min": null,
+            "std": null
+          },
+          {
+            "25%": null,
+            "50%": null,
+            "75%": null,
+            "column": "avg_strength",
+            "count": 0.0,
+            "max": null,
+            "mean": null,
+            "min": null,
+            "std": null
+          }
+        ],
+        "row_count": 6
+      },
+      "plotted_rows": null,
+      "source_rows": 27,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "season",
+            "count": 27,
+            "distinct": 27,
+            "max": "2025-01-01T00:00:00",
+            "min": "1986-01-01T00:00:00"
+          }
+        ],
+        "row_count": 1
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 27,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 27,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 27,
+    "preview": {
+      "analysis_rows": 27,
+      "columns": [
+        "commodity",
+        "season",
+        "geography",
+        "percent_tenderable",
+        "samples_classed",
+        "avg_staple",
+        "avg_micronaire",
+        "avg_strength",
+        "source_pages",
+        "source_raw_key",
+        "source_file_etag",
+        "source"
+      ],
+      "displayed_rows": 27,
+      "exactness": "exact",
+      "mode": "full_dataframe",
+      "plotted_rows": null,
+      "records": [
+        {
+          "avg_micronaire": null,
+          "avg_staple": 34.6,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 44.1,
+          "samples_classed": null,
+          "season": 1986,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "cec20142f1200d9fb03668182e769e59",
+          "source_pages": "1,2",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1986/1986ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 34.3,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 67.0,
+          "samples_classed": null,
+          "season": 1987,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "c8db11c12d9ed4c4ee605dce766cc9e6",
+          "source_pages": "7",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1987/1987ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 34.9,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 56.7,
+          "samples_classed": null,
+          "season": 1988,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "f7bd9e9db8b9d2fb9fa82e52f7271cff",
+          "source_pages": "7",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1988/1988ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 34.0,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 60.0,
+          "samples_classed": null,
+          "season": 1989,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "a698ae6463ceeda64dcaa3b31142f962",
+          "source_pages": "3",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1989/1989ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 34.4,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 55.5,
+          "samples_classed": null,
+          "season": 1990,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "387caf197836317aed4bd5c5315cb6bb",
+          "source_pages": "2",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1990/1990ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.2,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 58.2,
+          "samples_classed": null,
+          "season": 1991,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "0376ceea6311a4254c7c2650194894e6",
+          "source_pages": "3",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1991/1991ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.3,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 75.7,
+          "samples_classed": null,
+          "season": 1992,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "b6f2ee4850343e8f9b1a77809e32ac5a",
+          "source_pages": "7",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1992/1992ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.0,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 61.7,
+          "samples_classed": null,
+          "season": 1993,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "4286a2a33b0e3ae7f0a941c78e90392a",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1993/1993ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.2,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 64.7,
+          "samples_classed": null,
+          "season": 1994,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "6a71314e1e22debda6545b4deda61cd3",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1994/1994ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.0,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 62.6,
+          "samples_classed": null,
+          "season": 1995,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "27729bde7ceb4ef71d235516b08317c0",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1995/1995ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.0,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 62.6,
+          "samples_classed": null,
+          "season": 1996,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "7417ac8ae6d33f22a8af08a989401885",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1996/1996ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.1,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 80.6,
+          "samples_classed": null,
+          "season": 1997,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "2b1a9bd0c1b68915d1a24f8ec5aa227d",
+          "source_pages": "14,20",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1997/1997ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.8,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 86.2,
+          "samples_classed": null,
+          "season": 1998,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "3ef71b8945989f3593bea64e38c02c45",
+          "source_pages": "19",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=1998/1998ACQ.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.3,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 70.7,
+          "samples_classed": null,
+          "season": 2008,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "2e929e1397ce54770d3ccd6c6c47b39d",
+          "source_pages": "6",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2008/cnaacq_2008.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.7,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 63.1,
+          "samples_classed": null,
+          "season": 2009,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "a17df9abfb2c7905f609721c0fd727df",
+          "source_pages": "6",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2009/cnaacq_2009.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.5,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 67.2,
+          "samples_classed": null,
+          "season": 2011,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "f3c60e5f6bf27d744cf239556a50bda4",
+          "source_pages": "6",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2011/cnaacq_2011.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.7,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 70.1,
+          "samples_classed": null,
+          "season": 2015,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "7bd1ac2d0ce7159f6554748b28a6821e",
+          "source_pages": "6",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2015/cnaacq_2015.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 35.9,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 57.3,
+          "samples_classed": null,
+          "season": 2016,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "8aad4aa3a69244bca098c37cc3a4f896",
+          "source_pages": "6",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2016/cnaacq_2016.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.3,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 72.0,
+          "samples_classed": null,
+          "season": 2017,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "47e3c93b3f32304ac4e9c0e5badedf9a",
+          "source_pages": "6",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2017/cnaacq_2017.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.45,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 69.1,
+          "samples_classed": 19693882.0,
+          "season": 2018,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "dd5a4835f4cee95927119665aaf69fb1",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2018/2017 MARS Report.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.47,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 78.8,
+          "samples_classed": 18728838.0,
+          "season": 2019,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "601bc1e5d8ae98d93b97063ae945f4bb",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2019/ams_1658_00003.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 37.09,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 74.8,
+          "samples_classed": 13646902.0,
+          "season": 2020,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "b811c58c1675b3606e597f5ec5e359af",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2020/ams_1658_00005.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.66,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 82.7,
+          "samples_classed": 16772597.0,
+          "season": 2021,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "618ebb2834ad0902bb630e87e0820a92",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2021/ams_1658_00006.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.91,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 82.3,
+          "samples_classed": 13639699.0,
+          "season": 2022,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "c1b805f75452f17760d859d40ca114c3",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2022/ams_1658_00007.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.37,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 79.3,
+          "samples_classed": 11438300.0,
+          "season": 2023,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "a92bf0229e393606df8b1f6eb918c866",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2023/ams_1658_00008.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.37,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 79.3,
+          "samples_classed": 11438300.0,
+          "season": 2024,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "a92bf0229e393606df8b1f6eb918c866",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2024/cnaacq_2024.pdf"
+        },
+        {
+          "avg_micronaire": null,
+          "avg_staple": 36.29,
+          "avg_strength": null,
+          "commodity": "cotton",
+          "geography": "us_total",
+          "percent_tenderable": 80.6,
+          "samples_classed": 13582867.0,
+          "season": 2025,
+          "source": "usda_ams_cotton_classing_annual",
+          "source_file_etag": "572dc0a130b27c87ba4cf255fe5b5eca",
+          "source_pages": "5",
+          "source_raw_key": "raw/production/source=usda_ams_cotton_classing/report_type=annual_quality/season=2025/cnaacq_2025.pdf"
+        }
+      ],
+      "selection_reasons": [
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row"
+      ],
+      "source_rows": 27
+    },
+    "provenance": {
+      "analysis_rows": 27,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/ams_cotton_quality",
+      "contract_sha256": "cdf1392e5d0e64d50f3ba6f1b7ae13af731a60fd13a6070fff686c0c3eb33f21",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 1,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {},
+            "row_count": 27,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 1,
+        "schema_sha256_object_counts": {
+          "4867d5bb0da2248ff88cb3db1af46328237f03fd359b78cec186b1e60457928f": 1
+        },
+        "source_compressed_bytes": 9798,
+        "source_row_count": 27
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "85724c0ae5f449866fcbf7591e6d9b4d899704ee8a9572c1747717f5ed61c46d",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 1,
+      "object_sample": [
+        {
+          "etag": "3b7e13ba2aadaf8efb050d3dd1fe1ac0",
+          "last_modified": "2026-07-16T20:56:20Z",
+          "partition_values": {},
+          "size": 9798,
+          "uri": "s3://leviathan-dev-shahem-001/silver/ams_cotton_quality/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": false,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 1,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "commodity",
+          "geography",
+          "source",
+          "season",
+          "percent_tenderable",
+          "samples_classed",
+          "avg_staple",
+          "avg_micronaire"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 14934160814750065397,
+        "snapshot_row_count": 27,
+        "source_compressed_bytes": 9798,
+        "source_row_count": 27,
+        "stratum_columns": [
+          "commodity",
+          "geography",
+          "source",
+          "season"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "567833361c835ab52d6dc596e25250f2d650e471573c19c1c0274192bf73094b",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/source_replica/manifest.json",
+        "object_count": 1,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_ams_cotton_quality/_machine/source_replica/objects",
+        "replica_manifest_sha256": "733c4b69fe8fd19c5afe4012c0895c999091d371e06435299d3912c734dbde18",
+        "source_manifest_sha256": "567833361c835ab52d6dc596e25250f2d650e471573c19c1c0274192bf73094b",
+        "total_bytes": 9798
+      },
+      "source_rows": 27,
+      "source_specific_checks": [],
+      "source_total_bytes": 9798,
+      "source_total_rows": 27,
+      "spec_sha256": "dc1721ef07f51bba7c0dd969adc008546e22d1cefded17a978f27a49620717a1"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 27,
+      "checks": [
+        {
+          "analysis_rows": 27,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 27,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "commodity",
+              "geography",
+              "season"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 27 rows."
+        },
+        {
+          "analysis_rows": 27,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 1.0,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "CAVEAT",
+          "summary": "The highest column null rate is 100.0%."
+        },
+        {
+          "analysis_rows": 27,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 27,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 3652.0,
+            "median_gap_days": 365.0,
+            "time_column": "season",
+            "usable_time_points": 27
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "CAVEAT",
+          "summary": "Largest gap (3652 days) materially exceeds the median cadence (365 days)."
+        },
+        {
+          "analysis_rows": 27,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "season",
+            "distinct_points": 27,
+            "max": "2025-01-01T00:00:00",
+            "min": "1986-01-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "PASS",
+          "summary": "Coverage runs from 1986-01-01 through 2025-01-01."
+        },
+        {
+          "analysis_rows": 27,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 1,
+            "footer_complete": true,
+            "object_count": 1,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "4867d5bb0da2248ff88cb3db1af46328237f03fd359b78cec186b1e60457928f": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "PASS",
+          "summary": "All 1 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 27,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 27,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "CAVEAT",
+      "plotted_rows": null,
+      "source_rows": 27
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 27,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "season",
+          "commodity",
+          "geography"
+        ],
+        "evidence": {
+          "distinct_time_points": 27,
+          "end": "2025-01-01T00:00:00",
+          "entity_distinct_counts": {
+            "commodity": 1,
+            "geography": 1
+          },
+          "start": "1986-01-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history",
+            "coverage"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 27,
+        "statement": "Coverage spans 1986-01-01 through 2025-01-01 across 27 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 27,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "avg_micronaire",
+          "avg_staple"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "avg_micronaire": 1.0,
+            "avg_staple": 0.0
+          },
+          "highest_null_column": "avg_micronaire",
+          "highest_null_rate": 1.0
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 27,
+        "statement": "avg_micronaire has the highest assessed null rate at 100.0%.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 27,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "season",
+          "avg_micronaire",
+          "avg_staple",
+          "commodity",
+          "geography"
+        ],
+        "evidence": {
+          "measures": {
+            "avg_staple": {
+              "count": 27,
+              "iqr": 1.3699999999999974,
+              "iqr_outlier_count": 0,
+              "maximum": 37.09,
+              "median": 35.5,
+              "minimum": 34.0
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "latest_ranking",
+            "distribution"
+          ],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 27,
+        "statement": "Robust IQR screening retains 0 notable observations across 1 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 27,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "season",
+          "avg_micronaire",
+          "avg_staple",
+          "commodity",
+          "geography"
+        ],
+        "evidence": {},
+        "exactness": "exact",
+        "insight_id": "latest_change",
+        "kind": "latest_change",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 27,
+        "statement": "No entity has two unambiguous comparable time points for the primary measure.",
+        "status": "not_assessed",
+        "title": "Explain the latest comparable movement."
+      }
+    ],
+    "ready_chart_count": 1,
+    "row_meaning": "One row is a cotton quality summary for one commodity, geography, and season.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 27,
+    "source_shape": {
+      "analysis_rows": 27,
+      "analysis_shape": [
+        27,
+        12
+      ],
+      "column_count": 12,
+      "exactness": "exact",
+      "plotted_rows": 27,
+      "source_rows": 27,
+      "source_shape": [
+        27,
+        12
+      ]
+    },
+    "table_name": "silver_ams_cotton_quality"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [],
+  "table_name": "silver_ams_cotton_quality"
+}

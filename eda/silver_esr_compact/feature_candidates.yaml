@@ -1,0 +1,434 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_esr_compact
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 7
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_wheat
+  - corn_cbot
+  - grain_sorghum
+  - hard_red_spring_wheat_mgex
+  - hard_red_winter_wheat_kcbt
+  - soft_red_winter_wheat_cbot
+  - soybean_meal_cbot
+  - soybean_oil_cbot
+  - soybeans_cbot
+  - white_wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_esr_compact:gross_new_sales_1000mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.gross_new_sales_1000mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.gross_new_sales_1000mt
+  - cell:missingness-validity-output
+  expected_range: observed [-50.0, 5860.52587890625]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null as_of_date <= prediction_as_of
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending_date within entity grain
+  output_grain: commodity_code x market_year x as_of_date x country_code x week_ending_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: esr'
+  source_columns:
+  - gross_new_sales_1000mt
+  - week_ending_date
+  - as_of_date
+  source_table: silver_esr_compact
+  transformation:
+    column: gross_new_sales_1000mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - esr_exports
+      source_keys:
+      - esr
+  unit: thousand metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_wheat
+  - corn_cbot
+  - grain_sorghum
+  - hard_red_spring_wheat_mgex
+  - hard_red_winter_wheat_kcbt
+  - soft_red_winter_wheat_cbot
+  - soybean_meal_cbot
+  - soybean_oil_cbot
+  - soybeans_cbot
+  - white_wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_esr_compact:gross_new_sales_1000mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.gross_new_sales_1000mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.gross_new_sales_1000mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null as_of_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by week_ending_date within entity grain
+  output_grain: commodity_code x market_year x as_of_date x country_code x week_ending_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: esr'
+  source_columns:
+  - gross_new_sales_1000mt
+  - commodity_code
+  - market_year
+  - country_code
+  - week_ending_date
+  - as_of_date
+  source_table: silver_esr_compact
+  transformation:
+    column: gross_new_sales_1000mt
+    genuine_vintage_only: true
+    group_by:
+    - commodity_code
+    - market_year
+    - country_code
+    - week_ending_date
+    knowledge_by: as_of_date
+    operation: vintage_difference
+    order_by: as_of_date
+    source_context:
+      existing_feature_families:
+      - esr_exports
+      source_keys:
+      - esr
+  unit: thousand metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_wheat
+  - corn_cbot
+  - grain_sorghum
+  - hard_red_spring_wheat_mgex
+  - hard_red_winter_wheat_kcbt
+  - soft_red_winter_wheat_cbot
+  - soybean_meal_cbot
+  - soybean_oil_cbot
+  - soybeans_cbot
+  - white_wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_esr_compact:outstanding_sales_1000mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.outstanding_sales_1000mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.outstanding_sales_1000mt
+  - cell:missingness-validity-output
+  expected_range: observed [-286.12200927734375, 17569.16796875]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null as_of_date <= prediction_as_of
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending_date within entity grain
+  output_grain: commodity_code x market_year x as_of_date x country_code x week_ending_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: esr'
+  source_columns:
+  - outstanding_sales_1000mt
+  - week_ending_date
+  - as_of_date
+  source_table: silver_esr_compact
+  transformation:
+    column: outstanding_sales_1000mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - esr_exports
+      source_keys:
+      - esr
+  unit: thousand metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_wheat
+  - corn_cbot
+  - grain_sorghum
+  - hard_red_spring_wheat_mgex
+  - hard_red_winter_wheat_kcbt
+  - soft_red_winter_wheat_cbot
+  - soybean_meal_cbot
+  - soybean_oil_cbot
+  - soybeans_cbot
+  - white_wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_esr_compact:outstanding_sales_1000mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.outstanding_sales_1000mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.outstanding_sales_1000mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null as_of_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by week_ending_date within entity grain
+  output_grain: commodity_code x market_year x as_of_date x country_code x week_ending_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: esr'
+  source_columns:
+  - outstanding_sales_1000mt
+  - commodity_code
+  - market_year
+  - country_code
+  - week_ending_date
+  - as_of_date
+  source_table: silver_esr_compact
+  transformation:
+    column: outstanding_sales_1000mt
+    genuine_vintage_only: true
+    group_by:
+    - commodity_code
+    - market_year
+    - country_code
+    - week_ending_date
+    knowledge_by: as_of_date
+    operation: vintage_difference
+    order_by: as_of_date
+    source_context:
+      existing_feature_families:
+      - esr_exports
+      source_keys:
+      - esr
+  unit: thousand metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_wheat
+  - corn_cbot
+  - grain_sorghum
+  - hard_red_spring_wheat_mgex
+  - hard_red_winter_wheat_kcbt
+  - soft_red_winter_wheat_cbot
+  - soybean_meal_cbot
+  - soybean_oil_cbot
+  - soybeans_cbot
+  - white_wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_esr_compact:outstanding_sales_1000mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.outstanding_sales_1000mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null as_of_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by week_ending_date within entity grain
+  output_grain: commodity_code x market_year x as_of_date x country_code x week_ending_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: esr'
+  source_columns:
+  - outstanding_sales_1000mt
+  - week_ending_date
+  - as_of_date
+  source_table: silver_esr_compact
+  transformation:
+    center: past_only_median
+    column: outstanding_sales_1000mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - esr_exports
+      source_keys:
+      - esr
+  unit: thousand metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_wheat
+  - corn_cbot
+  - grain_sorghum
+  - hard_red_spring_wheat_mgex
+  - hard_red_winter_wheat_kcbt
+  - soft_red_winter_wheat_cbot
+  - soybean_meal_cbot
+  - soybean_oil_cbot
+  - soybeans_cbot
+  - white_wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_esr_compact:weekly_exports_1000mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.weekly_exports_1000mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.weekly_exports_1000mt
+  - cell:missingness-validity-output
+  expected_range: observed [-383.5150146484375, 3821.342041015625]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null as_of_date <= prediction_as_of
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending_date within entity grain
+  output_grain: commodity_code x market_year x as_of_date x country_code x week_ending_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: esr'
+  source_columns:
+  - weekly_exports_1000mt
+  - week_ending_date
+  - as_of_date
+  source_table: silver_esr_compact
+  transformation:
+    column: weekly_exports_1000mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - esr_exports
+      source_keys:
+      - esr
+  unit: thousand metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_wheat
+  - corn_cbot
+  - grain_sorghum
+  - hard_red_spring_wheat_mgex
+  - hard_red_winter_wheat_kcbt
+  - soft_red_winter_wheat_cbot
+  - soybean_meal_cbot
+  - soybean_oil_cbot
+  - soybeans_cbot
+  - white_wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_esr_compact:weekly_exports_1000mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.weekly_exports_1000mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.weekly_exports_1000mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null as_of_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by week_ending_date within entity grain
+  output_grain: commodity_code x market_year x as_of_date x country_code x week_ending_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: esr'
+  source_columns:
+  - weekly_exports_1000mt
+  - commodity_code
+  - market_year
+  - country_code
+  - week_ending_date
+  - as_of_date
+  source_table: silver_esr_compact
+  transformation:
+    column: weekly_exports_1000mt
+    genuine_vintage_only: true
+    group_by:
+    - commodity_code
+    - market_year
+    - country_code
+    - week_ending_date
+    knowledge_by: as_of_date
+    operation: vintage_difference
+    order_by: as_of_date
+    source_context:
+      existing_feature_families:
+      - esr_exports
+      source_keys:
+      - esr
+  unit: thousand metric tonnes
+  visibility_class: review_required

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "leviathan/silver-eda/readiness-index/1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "campaign_id",
+    "expected_tables",
+    "table_count",
+    "rows",
+    "work_orders",
+    "analysis_scope"
+  ],
+  "properties": {
+    "schema_version": {"const": "leviathan.feature-readiness-index/v1"},
+    "campaign_id": {"type": "string"},
+    "expected_tables": {
+      "type": "array",
+      "minItems": 42,
+      "maxItems": 42,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^silver_"}
+    },
+    "table_count": {"const": 42},
+    "rows": {"type": "array", "minItems": 42, "maxItems": 42},
+    "work_orders": {"type": "array"},
+    "analysis_scope": {
+      "type": "object",
+      "required": ["legacy_gold_read", "model_ready_read", "target_aware_analysis", "gold_contracts_included"],
+      "properties": {
+        "legacy_gold_read": {"const": false},
+        "model_ready_read": {"const": false},
+        "target_aware_analysis": {"const": false},
+        "gold_contracts_included": {"const": 0},
+        "production_feature_config_mutated": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

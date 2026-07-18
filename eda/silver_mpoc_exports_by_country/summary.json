@@ -1,0 +1,3750 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 5
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 1
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "year"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 121,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 121
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 5,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "mpoc_exports_by_country"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "china",
+        "egypt",
+        "eu",
+        "india",
+        "iran",
+        "italy",
+        "japan",
+        "kenya",
+        "netherlands",
+        "pakistan",
+        "philippines",
+        "saudi_arabia",
+        "south_korea",
+        "turkey",
+        "ukraine",
+        "usa",
+        "vietnam"
+      ],
+      "candidate_id": "eda:silver_mpoc_exports_by_country:exports_mt:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x country",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_exports_by_country",
+      "source_columns": [
+        "exports_mt",
+        "country",
+        "year"
+      ],
+      "source_table": "silver_mpoc_exports_by_country",
+      "transformation": {
+        "column": "exports_mt",
+        "group_by": [
+          "country"
+        ],
+        "operation": "difference",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_exports_by_country"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "china",
+        "egypt",
+        "eu",
+        "india",
+        "iran",
+        "italy",
+        "japan",
+        "kenya",
+        "netherlands",
+        "pakistan",
+        "philippines",
+        "saudi_arabia",
+        "south_korea",
+        "turkey",
+        "ukraine",
+        "usa",
+        "vietnam"
+      ],
+      "candidate_id": "eda:silver_mpoc_exports_by_country:exports_mt:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x country",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_exports_by_country",
+      "source_columns": [
+        "exports_mt",
+        "country",
+        "year"
+      ],
+      "source_table": "silver_mpoc_exports_by_country",
+      "transformation": {
+        "column": "exports_mt",
+        "group_by": [
+          "country"
+        ],
+        "operation": "lag",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_exports_by_country"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "china",
+        "egypt",
+        "eu",
+        "india",
+        "iran",
+        "italy",
+        "japan",
+        "kenya",
+        "netherlands",
+        "pakistan",
+        "philippines",
+        "saudi_arabia",
+        "south_korea",
+        "turkey",
+        "ukraine",
+        "usa",
+        "vietnam"
+      ],
+      "candidate_id": "eda:silver_mpoc_exports_by_country:exports_mt:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [206839.0, 4409511.0]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed trade_flows level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x country",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_exports_by_country",
+      "source_columns": [
+        "exports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_exports_by_country",
+      "transformation": {
+        "column": "exports_mt",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_exports_by_country"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "china",
+        "egypt",
+        "eu",
+        "india",
+        "iran",
+        "italy",
+        "japan",
+        "kenya",
+        "netherlands",
+        "pakistan",
+        "philippines",
+        "saudi_arabia",
+        "south_korea",
+        "turkey",
+        "ukraine",
+        "usa",
+        "vietnam"
+      ],
+      "candidate_id": "eda:silver_mpoc_exports_by_country:exports_mt:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x country",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_exports_by_country",
+      "source_columns": [
+        "exports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_exports_by_country",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "exports_mt",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_exports_by_country"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "china",
+        "egypt",
+        "eu",
+        "india",
+        "iran",
+        "italy",
+        "japan",
+        "kenya",
+        "netherlands",
+        "pakistan",
+        "philippines",
+        "saudi_arabia",
+        "south_korea",
+        "turkey",
+        "ukraine",
+        "usa",
+        "vietnam"
+      ],
+      "candidate_id": "eda:silver_mpoc_exports_by_country:exports_mt:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x country",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_exports_by_country",
+      "source_columns": [
+        "exports_mt",
+        "country",
+        "year"
+      ],
+      "source_table": "silver_mpoc_exports_by_country",
+      "transformation": {
+        "closed": "left",
+        "column": "exports_mt",
+        "group_by": [
+          "country"
+        ],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_exports_by_country"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 5
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": []
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 5
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "mpoc_exports_by_country"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "annual_or_seasonal_panel"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "year"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "year"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "One stable governed entity/vocabulary axis, its 20 most frequent groups, and at most six governed numeric value columns; all analyzed rows contribute.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": [
+              {
+                "group": "china",
+                "group_column": "country",
+                "median": 2784971.5,
+                "n": 12,
+                "q25": 1869585.75,
+                "q75": 3551167.25,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "egypt",
+                "group_column": "country",
+                "median": 529922.0,
+                "n": 6,
+                "q25": 436151.5,
+                "q75": 685118.25,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "eu",
+                "group_column": "country",
+                "median": 2220794.0,
+                "n": 7,
+                "q25": 2033685.0,
+                "q75": 2373781.5,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "india",
+                "group_column": "country",
+                "median": 2726956.0,
+                "n": 15,
+                "q25": 2175103.0,
+                "q75": 3064367.5,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "iran",
+                "group_column": "country",
+                "median": 473346.5,
+                "n": 4,
+                "q25": 445157.5,
+                "q75": 496359.5,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "italy",
+                "group_column": "country",
+                "median": 439053.0,
+                "n": 1,
+                "q25": 439053.0,
+                "q75": 439053.0,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "japan",
+                "group_column": "country",
+                "median": 541439.0,
+                "n": 11,
+                "q25": 507317.5,
+                "q75": 550332.0,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "kenya",
+                "group_column": "country",
+                "median": 717887.5,
+                "n": 4,
+                "q25": 634725.75,
+                "q75": 801128.75,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "netherlands",
+                "group_column": "country",
+                "median": 951280.0,
+                "n": 8,
+                "q25": 864546.25,
+                "q75": 1008458.75,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "pakistan",
+                "group_column": "country",
+                "median": 1016977.0,
+                "n": 15,
+                "q25": 759563.0,
+                "q75": 1385429.5,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "philippines",
+                "group_column": "country",
+                "median": 624986.0,
+                "n": 13,
+                "q25": 493742.0,
+                "q75": 648364.0,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "saudi_arabia",
+                "group_column": "country",
+                "median": 511754.0,
+                "n": 1,
+                "q25": 511754.0,
+                "q75": 511754.0,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "south_korea",
+                "group_column": "country",
+                "median": 453278.0,
+                "n": 3,
+                "q25": 400400.0,
+                "q75": 461776.0,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "turkey",
+                "group_column": "country",
+                "median": 691627.5,
+                "n": 8,
+                "q25": 650722.5,
+                "q75": 738139.25,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "ukraine",
+                "group_column": "country",
+                "median": 404259.5,
+                "n": 2,
+                "q25": 334317.75,
+                "q75": 474201.25,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "usa",
+                "group_column": "country",
+                "median": 1020091.5,
+                "n": 6,
+                "q25": 897584.5,
+                "q75": 1029094.25,
+                "value_column": "exports_mt"
+              },
+              {
+                "group": "vietnam",
+                "group_column": "country",
+                "median": 583737.0,
+                "n": 5,
+                "q25": 556342.0,
+                "q75": 595265.0,
+                "value_column": "exports_mt"
+              }
+            ]
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "exports_mt": {
+                "count": 121,
+                "distinct_count": 121,
+                "iqr": 1271881.0,
+                "iqr_outlier_count": 3,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.024793388429752067,
+                "mad": 300437.0,
+                "mad_outlier_count": 20,
+                "mad_outlier_rate": 0.1652892561983471,
+                "max": 4409511.0,
+                "mean": 1252466.6363636365,
+                "min": 206839.0,
+                "quantiles": {
+                  "0.01": 268531.8,
+                  "0.05": 421193.0,
+                  "0.25": 549050.0,
+                  "0.5": 812191.0,
+                  "0.75": 1820931.0,
+                  "0.95": 3501677.0,
+                  "0.99": 4022368.8
+                },
+                "skew": 1.3727144217476566,
+                "std": 998125.5680400721
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "country": {
+                "distinct_count": 17,
+                "normalisation_collisions": {},
+                "rare_category_count": 3,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 4,
+                "rare_row_rate": 0.03305785123966942,
+                "top_values": [
+                  {
+                    "count": 15,
+                    "rate": 0.12396694214876033,
+                    "value": "india"
+                  },
+                  {
+                    "count": 15,
+                    "rate": 0.12396694214876033,
+                    "value": "pakistan"
+                  },
+                  {
+                    "count": 13,
+                    "rate": 0.10743801652892562,
+                    "value": "philippines"
+                  },
+                  {
+                    "count": 12,
+                    "rate": 0.09917355371900827,
+                    "value": "china"
+                  },
+                  {
+                    "count": 11,
+                    "rate": 0.09090909090909091,
+                    "value": "japan"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.06611570247933884,
+                    "value": "netherlands"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.06611570247933884,
+                    "value": "turkey"
+                  },
+                  {
+                    "count": 7,
+                    "rate": 0.05785123966942149,
+                    "value": "eu"
+                  },
+                  {
+                    "count": 6,
+                    "rate": 0.049586776859504134,
+                    "value": "egypt"
+                  },
+                  {
+                    "count": 6,
+                    "rate": 0.049586776859504134,
+                    "value": "usa"
+                  },
+                  {
+                    "count": 5,
+                    "rate": 0.04132231404958678,
+                    "value": "vietnam"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.03305785123966942,
+                    "value": "iran"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.03305785123966942,
+                    "value": "kenya"
+                  },
+                  {
+                    "count": 3,
+                    "rate": 0.024793388429752067,
+                    "value": "south_korea"
+                  },
+                  {
+                    "count": 2,
+                    "rate": 0.01652892561983471,
+                    "value": "ukraine"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 121,
+                    "rate": 1.0,
+                    "value": "mpoc"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 1
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "year",
+              "country"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 121,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "country",
+              "year"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "country": {
+                "distinct_count": 17,
+                "non_null_count": 121,
+                "non_null_rate": 1.0
+              },
+              "year": {
+                "distinct_count": 15,
+                "non_null_count": 121,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "year x country"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 121,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": []
+          },
+          "column_missingness": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "country": {
+                "empty_string_count": 0,
+                "non_null_count": 121,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "exports_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 121,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 121,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "year": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 121,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 121,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": []
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 0,
+                "reason": "Fewer than two partially missing columns are available for co-missingness.",
+                "selected_column_count": 0,
+                "status": "no_evidence"
+              },
+              "conditional_missingness": {
+                "reason": "No partially missing column is available as an analysis target.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 121
+          },
+          "required_complete_row_rate": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 242,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 242
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [],
+                "negative_count": [],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": []
+              },
+              "finite_count": 242,
+              "infinite_count": 0,
+              "nan_or_null_count": 0,
+              "negative_count": 0,
+              "numeric_cell_count": 242,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.0,
+                "negative_count": 0.0,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.0
+              },
+              "string_cell_count": 242,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 0
+            }
+          },
+          "value_column_population": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "exports_mt": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 121,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "year",
+                "resolution": "annual_proxy"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "country": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "exports_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "year": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 4
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 4
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "year",
+              "country",
+              "exports_mt",
+              "source"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 121
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 1,
+              "partition_stratum_count": 1,
+              "source_compressed_bytes": 3934,
+              "source_row_count": 121
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {},
+                "row_count": 121,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "0e41ef2c3688813c78f74476daa022bdf66b7cabf5d022242308e0611f7512f2": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "exports_mt",
+                "lag_1_autocorrelation": 0.765896944432674,
+                "n_effective_pairs": 14,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "annual",
+              "declared_matches_inferred": true,
+              "distinct_timestamp_count": 15,
+              "gap_count": 14,
+              "gap_days_max": 366.0,
+              "gap_days_median": 365.0,
+              "gap_days_mode": 365.0,
+              "gap_days_p95": 366.0,
+              "inferred_cadence": "annual",
+              "large_gap_count": 0,
+              "large_gap_rate": 0.0
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "annual"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": [
+              {
+                "column": "exports_mt",
+                "early_n": 24,
+                "early_quantiles": {
+                  "0.1": 539646.3,
+                  "0.5": 1112452.5,
+                  "0.9": 3079026.499999999
+                },
+                "late_n": 30,
+                "late_quantiles": {
+                  "0.1": 439868.0,
+                  "0.5": 624262.5,
+                  "0.9": 1966574.1000000013
+                },
+                "median_shift": -488190.0,
+                "robust_median_shift_iqr": -0.3838330787235598
+              }
+            ]
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {
+              "analysis_frame_exactness": "exact",
+              "complete_entity_count": 2,
+              "complete_entity_rate": 0.11764705882352941,
+              "entity_columns": [
+                "country"
+              ],
+              "entity_count": 17,
+              "full_source_balance_claimed": true,
+              "global_distinct_period_count": 15,
+              "observed_period_count": {
+                "max": 15,
+                "median": 6.0,
+                "min": 1,
+                "p10": 1.6,
+                "p90": 13.8
+              },
+              "period_coverage_ratio": {
+                "median": 0.4,
+                "p10": 0.10666666666666667,
+                "p90": 0.92
+              },
+              "sampling_artifact_caveat": null,
+              "scope": "full_analysis_frame"
+            }
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 705075.5,
+                "after_timestamp_count": 10,
+                "before_median": 1186348.5,
+                "before_timestamp_count": 5,
+                "column": "exports_mt",
+                "median_shift": -481273.0,
+                "robust_shift_score": 4.010658466564165,
+                "split_timestamp": "2014-01-01T00:00:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 1,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "configured_window_fraction": 0.2,
+                "early_cutoff": "2011-01-01T00:00:00+00:00",
+                "late_cutoff": "2021-01-01T00:00:00+00:00",
+                "reason": "Earliest and latest timestamp quartiles are compared descriptively; composition changes can mimic distribution drift.",
+                "series_count": 1,
+                "status": "supported"
+              },
+              "panel_balance": {
+                "entity_count": 17,
+                "full_source_balance_claimed": true,
+                "reason": "Entity coverage is measured against the global observed timestamp set; staggered entry can lower this descriptive ratio without implying a defect.",
+                "scope": "full_analysis_frame",
+                "status": "supported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 1,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "year": {
+                "coverage_month_counts": {
+                  "2009-01": 8,
+                  "2010-01": 8,
+                  "2011-01": 8,
+                  "2012-01": 8,
+                  "2013-01": 8,
+                  "2014-01": 8,
+                  "2015-01": 6,
+                  "2016-01": 6,
+                  "2017-01": 6,
+                  "2018-01": 7,
+                  "2019-01": 9,
+                  "2020-01": 9,
+                  "2021-01": 10,
+                  "2022-01": 10,
+                  "2023-01": 10
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 15,
+                "first": "2009-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 366.0,
+                "last": "2023-01-01T00:00:00+00:00",
+                "parseable_count": 121,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "year",
+              "resolution": "annual_proxy"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "year"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 121,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": [
+              "country"
+            ]
+          },
+          "categorical_associations": {
+            "denominator": 121,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": []
+          },
+          "correlation_columns": {
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "exports_mt"
+            ]
+          },
+          "correlation_pairs": {
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": []
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {}
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "reason": "Fewer than two categorical columns have between 2 and 30 observed levels.",
+                "selected_columns": [
+                  "country"
+                ],
+                "status": "unsupported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {}
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_mpoc_exports_by_country"
+  },
+  "provenance": {
+    "analysis_rows": 121,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/mpoc_exports_by_country",
+    "contract_sha256": "31e49e8362b6c0257589bd6c7e133942f98394381a2d96aee030d759fcd45348",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 1,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {},
+          "row_count": 121,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 1,
+      "schema_sha256_object_counts": {
+        "0e41ef2c3688813c78f74476daa022bdf66b7cabf5d022242308e0611f7512f2": 1
+      },
+      "source_compressed_bytes": 3934,
+      "source_row_count": 121
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "1f5b8d898052a5d97fdb4c573475496331c5c50541e3631c570b9c26c703505c",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 1,
+    "object_sample": [
+      {
+        "etag": "bb919d1ba8360b787148af35f276c05e",
+        "last_modified": "2026-07-16T21:31:23Z",
+        "partition_values": {},
+        "size": 3934,
+        "uri": "s3://leviathan-dev-shahem-001/silver/mpoc_exports_by_country/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": false,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 1,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "country",
+        "source",
+        "year",
+        "exports_mt"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 15497422808418707139,
+      "snapshot_row_count": 121,
+      "source_compressed_bytes": 3934,
+      "source_row_count": 121,
+      "stratum_columns": [
+        "country",
+        "source",
+        "year"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "ebe93c11b76e31af05a84e6bab4e370b642df7c069a8113c45411d94dfecfd0b",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/source_replica/manifest.json",
+      "object_count": 1,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/source_replica/objects",
+      "replica_manifest_sha256": "575ccde0c28d774330db9cbc4372018e8becc31ac1a4928888f2ec50f8fa5888",
+      "source_manifest_sha256": "ebe93c11b76e31af05a84e6bab4e370b642df7c069a8113c45411d94dfecfd0b",
+      "total_bytes": 3934
+    },
+    "source_rows": 121,
+    "source_specific_checks": [],
+    "source_total_bytes": 3934,
+    "source_total_rows": 121,
+    "spec_sha256": "55d5161422e1535f86bb8ad55f3c81fff13b1a205d6ca7f29212038a3c26d5db"
+  },
+  "reader": {
+    "analysis_rows": 121,
+    "anti_feature_summary": {
+      "analysis_rows": 121,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 121
+    },
+    "archetype": "annual_geographic_production",
+    "chart_execution": {
+      "omission_reasons": [],
+      "omitted_chart_count": 0,
+      "plotted_rows": 255,
+      "ready_chart_count": 4,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": "median only within duplicate x/series/measure rows; semantic series remain separate",
+        "analysis_rows": 121,
+        "chart_id": "history",
+        "exactness": "exact",
+        "plotted_rows": 82,
+        "reason": null,
+        "scope": "selected 7 of 7 complete semantic series by distinct-position count, contributing rows, then label; excluded series=10 (complete but outside cap=0, underpowered=10); label dimensions=country; no pooling; time=year; measures=exports_mt",
+        "source_rows": 121,
+        "status": "ready",
+        "title": "Historical measures",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "latest comparable period only; median only within duplicate entity-period rows",
+        "analysis_rows": 121,
+        "chart_id": "latest_ranking",
+        "exactness": "exact",
+        "plotted_rows": 8,
+        "reason": null,
+        "scope": "top 12 of 17 semantic series by contributing-row count; excluded series=5; label dimensions=country; no pooling; time=year; latest comparable period=2023-01-01; measure=exports_mt",
+        "source_rows": 121,
+        "status": "ready",
+        "title": "Latest entity comparison",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "raw finite observations; no cross-series pooling; all finite values",
+        "analysis_rows": 121,
+        "chart_id": "distribution",
+        "exactness": "exact",
+        "plotted_rows": 55,
+        "reason": null,
+        "scope": "top 4 of 17 semantic series by contributing-row count; excluded series=13; label dimensions=country; no pooling; measures=exports_mt",
+        "source_rows": 121,
+        "status": "ready",
+        "title": "Cross-sectional distributions",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "exact contributing-row count by displayed time bucket and entity",
+        "analysis_rows": 121,
+        "chart_id": "coverage",
+        "exactness": "exact",
+        "plotted_rows": 110,
+        "reason": null,
+        "scope": "top 12 of 17 semantic series by contributing-row count; excluded series=5; label dimensions=country; no pooling; time=year; calendar-year buckets; 110 populated cells",
+        "source_rows": 121,
+        "status": "ready",
+        "title": "Entity-time coverage",
+        "unit": "rows"
+      }
+    ],
+    "chart_omission_reasons": [],
+    "chart_plan": {
+      "analysis_rows": 121,
+      "charts": [
+        {
+          "analysis_rows": 121,
+          "chart_id": "history",
+          "chart_type": "line",
+          "columns": [
+            "year",
+            "exports_mt",
+            "country"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 121,
+          "exactness": "exact",
+          "id": "history",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "exports_mt"
+          ],
+          "measure_units": {
+            "exports_mt": "metric tonnes"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show long-run level and direction.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 121,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Historical measures",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 121,
+          "chart_id": "latest_ranking",
+          "chart_type": "ranked_bar",
+          "columns": [
+            "year",
+            "exports_mt",
+            "country"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 121,
+          "exactness": "exact",
+          "id": "latest_ranking",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "exports_mt"
+          ],
+          "measure_units": {
+            "exports_mt": "metric tonnes"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Compare entities at the latest comparable period.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 121,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Latest entity comparison",
+          "type": "ranked_bar",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 121,
+          "chart_id": "distribution",
+          "chart_type": "distribution",
+          "columns": [
+            "exports_mt",
+            "country"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 121,
+          "exactness": "exact",
+          "id": "distribution",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "exports_mt"
+          ],
+          "measure_units": {
+            "exports_mt": "metric tonnes"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show dispersion and outlying entities.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 121,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Cross-sectional distributions",
+          "type": "distribution",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 121,
+          "chart_id": "coverage",
+          "chart_type": "coverage_heatmap",
+          "columns": [
+            "year",
+            "country"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 121,
+          "exactness": "exact",
+          "id": "coverage",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Expose panel gaps and changing coverage.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "country"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 121,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Entity-time coverage",
+          "type": "coverage_heatmap",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 484,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 0,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 4,
+      "ready_chart_count": 4,
+      "source_rows": 121
+    },
+    "column_dictionary": [
+      {
+        "column": "year",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 15,
+        "example": 2009,
+        "meaning": "Calendar year associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; anchors temporal coverage; is required by the source contract."
+      },
+      {
+        "column": "country",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 17,
+        "example": "china",
+        "meaning": "Country represented by the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; supports entity segmentation; is required by the source contract."
+      },
+      {
+        "column": "exports_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 121,
+        "example": 1003723.0,
+        "meaning": "Exports reported in metric tonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "mpoc",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 121,
+        "columns": [],
+        "detail": "121 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 121,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121
+        },
+        "source_rows": 121,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 121
+      },
+      {
+        "analysis_rows": 121,
+        "columns": [],
+        "detail": "The analysis frame exposes 4 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 121,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121
+        },
+        "source_rows": 121,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 4
+      },
+      {
+        "analysis_rows": 121,
+        "columns": [
+          "year"
+        ],
+        "detail": "Coverage spans 2009-01-01 through 2023-01-01 across 15 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 121,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121
+        },
+        "source_rows": 121,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 15,
+          "end": "2023-01-01T00:00:00",
+          "start": "2009-01-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 121,
+        "columns": [
+          "country"
+        ],
+        "detail": "Distinct entity counts were computed for country.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 121,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121
+        },
+        "source_rows": 121,
+        "status": "evaluated",
+        "value": {
+          "country": 17
+        }
+      },
+      {
+        "analysis_rows": 121,
+        "columns": [
+          "exports_mt"
+        ],
+        "detail": "Minimum completeness across 1 assessed columns is 100.0%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 121,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121
+        },
+        "source_rows": 121,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 1.0
+      },
+      {
+        "analysis_rows": 121,
+        "columns": [
+          "year",
+          "country"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 121 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 121,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121
+        },
+        "source_rows": 121,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 121,
+        "columns": [
+          "exports_mt"
+        ],
+        "detail": "The latest time has multiple rows and no reviewed entity selection or aggregation.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 121,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121
+        },
+        "source_rows": 121,
+        "status": "not_assessed",
+        "value": null
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 121 entries, 0 to 120\nData columns (total 4 columns):\n #   Column      Non-Null Count  Dtype  \n---  ------      --------------  -----  \n 0   year        121 non-null    int64  \n 1   country     121 non-null    str    \n 2   exports_mt  121 non-null    float64\n 3   source      121 non-null    str    \ndtypes: float64(1), int64(1), str(2)\nmemory usage: 5.2 KB\n",
+    "display_policy": {
+      "analysis_rows": 121,
+      "displayed_rows": 121,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "full_dataframe",
+      "plotted_rows": 255,
+      "preview_max_rows": 40,
+      "source_rows": 121
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 121,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "latest year"
+          ],
+          "row": {
+            "country": "china",
+            "exports_mt": 1466864.0,
+            "source": "mpoc",
+            "year": 2023
+          }
+        },
+        {
+          "reasons": [
+            "earliest year"
+          ],
+          "row": {
+            "country": "china",
+            "exports_mt": 4032429.0,
+            "source": "mpoc",
+            "year": 2009
+          }
+        },
+        {
+          "reasons": [
+            "maximum exports_mt"
+          ],
+          "row": {
+            "country": "india",
+            "exports_mt": 4409511.0,
+            "source": "mpoc",
+            "year": 2019
+          }
+        },
+        {
+          "reasons": [
+            "minimum exports_mt"
+          ],
+          "row": {
+            "country": "philippines",
+            "exports_mt": 206839.0,
+            "source": "mpoc",
+            "year": 2013
+          }
+        }
+      ],
+      "source_rows": 121,
+      "status": "available"
+    },
+    "omitted_chart_count": 0,
+    "ordinary_statistics": {
+      "analysis_rows": 121,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "country",
+            "count": 121,
+            "freq": 15,
+            "top": "india",
+            "unique": 17
+          },
+          {
+            "column": "source",
+            "count": 121,
+            "freq": 121,
+            "top": "mpoc",
+            "unique": 1
+          }
+        ],
+        "row_count": 2
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 2012.0,
+            "50%": 2017.0,
+            "75%": 2020.0,
+            "column": "year",
+            "count": 121.0,
+            "max": 2023.0,
+            "mean": 2016.3388429752067,
+            "min": 2009.0,
+            "std": 4.530551325920986
+          },
+          {
+            "25%": 549050.0,
+            "50%": 812191.0,
+            "75%": 1820931.0,
+            "column": "exports_mt",
+            "count": 121.0,
+            "max": 4409511.0,
+            "mean": 1252466.6363636365,
+            "min": 206839.0,
+            "std": 998125.5680400721
+          }
+        ],
+        "row_count": 2
+      },
+      "plotted_rows": null,
+      "source_rows": 121,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "year",
+            "count": 121,
+            "distinct": 15,
+            "max": "2023-01-01T00:00:00",
+            "min": "2009-01-01T00:00:00"
+          }
+        ],
+        "row_count": 1
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 121,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 121,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 255,
+    "preview": {
+      "analysis_rows": 121,
+      "columns": [
+        "year",
+        "country",
+        "exports_mt",
+        "source"
+      ],
+      "displayed_rows": 121,
+      "exactness": "exact",
+      "mode": "full_dataframe",
+      "plotted_rows": null,
+      "records": [
+        {
+          "country": "china",
+          "exports_mt": 4032429.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "egypt",
+          "exports_mt": 609210.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "eu",
+          "exports_mt": 1894099.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "india",
+          "exports_mt": 1346430.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "japan",
+          "exports_mt": 538878.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1758185.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "ukraine",
+          "exports_mt": 544143.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "usa",
+          "exports_mt": 859401.0,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "country": "china",
+          "exports_mt": 3483779.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "egypt",
+          "exports_mt": 938722.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "eu",
+          "exports_mt": 2061277.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "india",
+          "exports_mt": 1169908.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "japan",
+          "exports_mt": 551614.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 2134604.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "ukraine",
+          "exports_mt": 264376.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "usa",
+          "exports_mt": 1028048.0,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "country": "china",
+          "exports_mt": 3982128.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "egypt",
+          "exports_mt": 710421.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "eu",
+          "exports_mt": 2006093.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "india",
+          "exports_mt": 1667908.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "japan",
+          "exports_mt": 541439.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1820931.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 512069.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "usa",
+          "exports_mt": 1054997.0,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "country": "china",
+          "exports_mt": 3501677.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "egypt",
+          "exports_mt": 431324.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "eu",
+          "exports_mt": 2220794.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "india",
+          "exports_mt": 2631406.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "japan",
+          "exports_mt": 559467.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1343254.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 285155.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "usa",
+          "exports_mt": 1029443.0,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "country": "china",
+          "exports_mt": 3699638.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "egypt",
+          "exports_mt": 450634.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "eu",
+          "exports_mt": 2336737.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "india",
+          "exports_mt": 2325363.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "japan",
+          "exports_mt": 501152.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1427605.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 206839.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "usa",
+          "exports_mt": 1012135.0,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "country": "china",
+          "exports_mt": 2839283.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "egypt",
+          "exports_mt": 349172.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "eu",
+          "exports_mt": 2410826.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "india",
+          "exports_mt": 3229965.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "japan",
+          "exports_mt": 513483.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 812191.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 493742.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "usa",
+          "exports_mt": 783105.0,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "country": "eu",
+          "exports_mt": 2432424.0,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "country": "india",
+          "exports_mt": 3694295.0,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "country": "japan",
+          "exports_mt": 544739.0,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 706935.0,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 648364.0,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "country": "vietnam",
+          "exports_mt": 583737.0,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "country": "india",
+          "exports_mt": 2825840.0,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 1022060.0,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 880455.0,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 624986.0,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 657001.0,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "country": "vietnam",
+          "exports_mt": 556342.0,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "country": "india",
+          "exports_mt": 2024843.0,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 1003925.0,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1016977.0,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 751688.0,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 679667.0,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "country": "vietnam",
+          "exports_mt": 633136.0,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "country": "china",
+          "exports_mt": 1859748.0,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "country": "india",
+          "exports_mt": 2514008.0,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "country": "iran",
+          "exports_mt": 487923.0,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 912593.0,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1161260.0,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 689238.0,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 631887.0,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "country": "china",
+          "exports_mt": 2490503.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "india",
+          "exports_mt": 4409511.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "iran",
+          "exports_mt": 521669.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "japan",
+          "exports_mt": 498359.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 880813.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1085546.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 629086.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 709262.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "vietnam",
+          "exports_mt": 595265.0,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "country": "china",
+          "exports_mt": 2730660.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "india",
+          "exports_mt": 2726956.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "italy",
+          "exports_mt": 439053.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "kenya",
+          "exports_mt": 520758.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 1072952.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 1003723.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 693026.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "south_korea",
+          "exports_mt": 453278.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 615872.0,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "country": "china",
+          "exports_mt": 1872865.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "india",
+          "exports_mt": 3592811.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "iran",
+          "exports_mt": 404320.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "japan",
+          "exports_mt": 421193.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "kenya",
+          "exports_mt": 672715.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 989967.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 609807.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 579752.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "south_korea",
+          "exports_mt": 347522.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 703588.0,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "country": "china",
+          "exports_mt": 1763640.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "india",
+          "exports_mt": 2898770.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "iran",
+          "exports_mt": 458770.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "japan",
+          "exports_mt": 564082.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "kenya",
+          "exports_mt": 763060.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 815746.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 569961.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 638718.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "saudi_arabia",
+          "exports_mt": 511754.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 824771.0,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "country": "china",
+          "exports_mt": 1466864.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "india",
+          "exports_mt": 2809956.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "japan",
+          "exports_mt": 549050.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "kenya",
+          "exports_mt": 915335.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "netherlands",
+          "exports_mt": 521138.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "pakistan",
+          "exports_mt": 503502.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "philippines",
+          "exports_mt": 441943.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "south_korea",
+          "exports_mt": 470274.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "turkey",
+          "exports_mt": 881518.0,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "country": "vietnam",
+          "exports_mt": 459229.0,
+          "source": "mpoc",
+          "year": 2023
+        }
+      ],
+      "selection_reasons": [
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row"
+      ],
+      "source_rows": 121
+    },
+    "provenance": {
+      "analysis_rows": 121,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/mpoc_exports_by_country",
+      "contract_sha256": "31e49e8362b6c0257589bd6c7e133942f98394381a2d96aee030d759fcd45348",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 1,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {},
+            "row_count": 121,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 1,
+        "schema_sha256_object_counts": {
+          "0e41ef2c3688813c78f74476daa022bdf66b7cabf5d022242308e0611f7512f2": 1
+        },
+        "source_compressed_bytes": 3934,
+        "source_row_count": 121
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "1f5b8d898052a5d97fdb4c573475496331c5c50541e3631c570b9c26c703505c",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 1,
+      "object_sample": [
+        {
+          "etag": "bb919d1ba8360b787148af35f276c05e",
+          "last_modified": "2026-07-16T21:31:23Z",
+          "partition_values": {},
+          "size": 3934,
+          "uri": "s3://leviathan-dev-shahem-001/silver/mpoc_exports_by_country/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": false,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 1,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "country",
+          "source",
+          "year",
+          "exports_mt"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 15497422808418707139,
+        "snapshot_row_count": 121,
+        "source_compressed_bytes": 3934,
+        "source_row_count": 121,
+        "stratum_columns": [
+          "country",
+          "source",
+          "year"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "ebe93c11b76e31af05a84e6bab4e370b642df7c069a8113c45411d94dfecfd0b",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/source_replica/manifest.json",
+        "object_count": 1,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_exports_by_country/_machine/source_replica/objects",
+        "replica_manifest_sha256": "575ccde0c28d774330db9cbc4372018e8becc31ac1a4928888f2ec50f8fa5888",
+        "source_manifest_sha256": "ebe93c11b76e31af05a84e6bab4e370b642df7c069a8113c45411d94dfecfd0b",
+        "total_bytes": 3934
+      },
+      "source_rows": 121,
+      "source_specific_checks": [],
+      "source_total_bytes": 3934,
+      "source_total_rows": 121,
+      "spec_sha256": "55d5161422e1535f86bb8ad55f3c81fff13b1a205d6ca7f29212038a3c26d5db"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 121,
+      "checks": [
+        {
+          "analysis_rows": 121,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 121,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "year",
+              "country"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 121 rows."
+        },
+        {
+          "analysis_rows": 121,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.0,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "PASS",
+          "summary": "No null values are present in the analysis frame."
+        },
+        {
+          "analysis_rows": 121,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 121,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 366.0,
+            "median_gap_days": 365.0,
+            "time_column": "year",
+            "usable_time_points": 15
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "PASS",
+          "summary": "Observed gaps are consistent with a median cadence of 365 days."
+        },
+        {
+          "analysis_rows": 121,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "year",
+            "distinct_points": 15,
+            "max": "2023-01-01T00:00:00",
+            "min": "2009-01-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "PASS",
+          "summary": "Coverage runs from 2009-01-01 through 2023-01-01."
+        },
+        {
+          "analysis_rows": 121,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 1,
+            "footer_complete": true,
+            "object_count": 1,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "0e41ef2c3688813c78f74476daa022bdf66b7cabf5d022242308e0611f7512f2": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "PASS",
+          "summary": "All 1 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 121,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 121,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "PASS",
+      "plotted_rows": null,
+      "source_rows": 121
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 121,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "country"
+        ],
+        "evidence": {
+          "distinct_time_points": 15,
+          "end": "2023-01-01T00:00:00",
+          "entity_distinct_counts": {
+            "country": 17
+          },
+          "start": "2009-01-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history",
+            "coverage"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 121,
+        "statement": "Coverage spans 2009-01-01 through 2023-01-01 across 15 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 121,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "exports_mt"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "exports_mt": 0.0
+          },
+          "highest_null_column": "exports_mt",
+          "highest_null_rate": 0.0
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 121,
+        "statement": "All 1 assessed measure columns are complete.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 121,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "exports_mt",
+          "country"
+        ],
+        "evidence": {
+          "measures": {
+            "exports_mt": {
+              "count": 121,
+              "iqr": 1271881.0,
+              "iqr_outlier_count": 3,
+              "maximum": 4409511.0,
+              "median": 812191.0,
+              "minimum": 206839.0
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "latest_ranking",
+            "distribution"
+          ],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 121,
+        "statement": "Robust IQR screening retains 3 notable observations across 1 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 121,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "exports_mt",
+          "country"
+        ],
+        "evidence": {
+          "comparable_group_count": 15,
+          "delta": -296776.0,
+          "entity": {
+            "country": "china"
+          },
+          "latest_period": "2023",
+          "latest_time": "2023-01-01T00:00:00",
+          "latest_value": 1466864.0,
+          "measure": "exports_mt",
+          "percent_change": -0.16827470458823796,
+          "prior_period": "2022",
+          "prior_time": "2022-01-01T00:00:00",
+          "prior_value": 1763640.0,
+          "time_column": "year",
+          "unit": "metric tonnes"
+        },
+        "exactness": "exact",
+        "insight_id": "latest_change",
+        "kind": "latest_change",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 121,
+        "statement": "For country=china, exports_mt (metric tonnes) changed by -2.968e+05 from 2022 to 2023.",
+        "status": "evaluated",
+        "title": "Explain the latest comparable movement."
+      }
+    ],
+    "ready_chart_count": 4,
+    "row_meaning": "One row is annual Malaysian palm-oil exports to one destination country.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 121,
+    "source_shape": {
+      "analysis_rows": 121,
+      "analysis_shape": [
+        121,
+        4
+      ],
+      "column_count": 4,
+      "exactness": "exact",
+      "plotted_rows": 255,
+      "source_rows": 121,
+      "source_shape": [
+        121,
+        4
+      ]
+    },
+    "table_name": "silver_mpoc_exports_by_country"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [],
+  "table_name": "silver_mpoc_exports_by_country"
+}

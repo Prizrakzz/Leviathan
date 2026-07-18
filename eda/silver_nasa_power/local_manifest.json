@@ -1,0 +1,46 @@
+{
+  "analysis_scope": {
+    "gold_read": false,
+    "live_silver_read": false,
+    "producer_execution": false,
+    "s3_write": false,
+    "target_analysis": false,
+    "training": false
+  },
+  "artifacts": {
+    "feature_candidates": {
+      "bytes": 59880,
+      "sha256": "f13a27f95ea17ba1ffc0be46e9ca135a2e2de9d35e8179bfa2c7e0daa571ddfe"
+    },
+    "notebook": {
+      "bytes": 408583,
+      "sha256": "999c8b1e334f493b882499a7685e7cffc46a678cde7a80153da047d651657cd2"
+    },
+    "spec": {
+      "bytes": 16880,
+      "sha256": "d28b4313f2ba12a4f1b277a7853aca8e303863fe619fad3452544c8c43a16c04"
+    },
+    "summary": {
+      "bytes": 3684330,
+      "sha256": "8b48bd6a7365453ba91559119dade90abff7ccf21fa424e7bf637ba9cfc759dc"
+    }
+  },
+  "candidate_count": 25,
+  "local_eda_source_sha256": "ef4c58cb52d33940d46fb323c30d8151388dee05c040beddeed2e83f350488b1",
+  "notebook_execution": {
+    "outputs_cleared": true,
+    "runtime_chart_manifest_bound": false,
+    "status": "prepared_not_executed"
+  },
+  "profile_mode": "reused_validated_prior_profile",
+  "reviewed_candidate_yaml_reused": true,
+  "schema_version": "leviathan.silver-eda-local-notebook/v1",
+  "source_campaign_id": "readerfirst-final-20260718-a176abf1",
+  "source_campaign_manifest": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/manifest.json",
+  "source_fingerprint_version": "leviathan.eda-source/v1",
+  "source_layer": "silver",
+  "source_snapshot_sha256": "9ecb04ca8b29f9256ceb0e7cd93501772178f4db428c0fd148189f362303231d",
+  "source_snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nasa_power/_machine/snapshot/part-000.parquet",
+  "status": "prepared_local_from_immutable_campaign_snapshot",
+  "table_name": "silver_nasa_power"
+}

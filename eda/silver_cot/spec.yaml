@@ -1,0 +1,412 @@
+schema_version: 1
+table_name: silver_cot
+title: Cot
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- wide_time_series
+observation_time_candidates: []
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- report_date
+- leviathan_slug
+categorical_columns:
+- report_date
+- leviathan_slug
+- source
+numeric_columns:
+- open_interest
+- mm_long
+- mm_short
+- mm_spread
+- mm_net
+- mm_pct_oi
+- mm_net_z_3yr
+- mm_pct_oi_z_3yr
+units:
+  mm_net: source-native / verify
+  mm_net_z_3yr: source-native / verify
+  open_interest: source-native / verify
+meaningful_groupings:
+- report_date
+- leviathan_slug
+declared_relationships: []
+source_keys:
+- cot
+existing_table_feature_families: &id001
+- cot_mm_positioning
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  cot_mm_positioning: prior_history
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - leviathan_slug
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-COT
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+- id: EDA-FEATURE-COVERAGE-COT
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: rolling_change
+  mechanism: Lagged change, momentum, and rolling dispersion.
+- family: relative_spread
+  mechanism: Relative movement across economically linked measures.
+known_hazards: []
+no_candidate_reason: null
+archetype: continuous_market_macro_climate
+row_meaning: One row is one weekly trader-positioning report for a mapped commodity contract.
+column_descriptions:
+  leviathan_slug: Leviathan's governed commodity identifier.
+  mm_long: CFTC managed-money long position measure for the reporting date.
+  mm_net: Governed numeric managed-money net measure used for source-level analytical comparisons.
+  mm_net_z_3yr: Standardized z-score of managed-money net against its trailing 3-year history.
+  mm_pct_oi: CFTC managed-money percent open interest position measure for the reporting date.
+  mm_pct_oi_z_3yr: Standardized z-score of managed-money percent open interest against its trailing 3-year
+    history.
+  mm_short: CFTC managed-money short position measure for the reporting date.
+  mm_spread: CFTC managed-money spread position measure for the reporting date.
+  open_interest: Governed numeric open interest measure used for source-level analytical comparisons.
+  report_date: Reporting date assigned by the source publication.
+  source: Source-system label retained for provenance.
+why_it_matters:
+  leviathan_slug: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  mm_long: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  mm_net: Carries a primary analytical measure.
+  mm_net_z_3yr: Carries a primary analytical measure.
+  mm_pct_oi: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  mm_pct_oi_z_3yr: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  mm_short: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  mm_spread: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  open_interest: Carries a primary analytical measure.
+  report_date: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  source: Supports provenance or reproducibility.
+primary_measures:
+- open_interest
+- mm_net
+- mm_net_z_3yr
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - report_date
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - leviathan_slug
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - open_interest
+  - mm_net
+  - mm_net_z_3yr
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - leviathan_slug
+  - report_date
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - open_interest
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - leviathan_slug
+  - report_date
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - report_date
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - leviathan_slug
+  - report_date
+  - open_interest
+  - mm_net
+  - mm_net_z_3yr
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - open_interest
+  - mm_net
+  - mm_net_z_3yr
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - report_date
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - report_date
+  - leviathan_slug
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - report_date
+  - leviathan_slug
+  - open_interest
+  - mm_long
+  - mm_short
+  - mm_spread
+  - mm_net
+  - mm_pct_oi
+  - mm_net_z_3yr
+  - mm_pct_oi_z_3yr
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: history
+  chart_type: line
+  columns:
+  - report_date
+  - open_interest
+  - mm_net
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: history
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - open_interest
+  - mm_net
+  measure_units:
+    mm_net: source-native / verify
+    open_interest: source-native / verify
+  minimum_rows: 8
+  purpose: Show the full observed time path.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Historical levels
+  type: line
+  unit_column: null
+- chart_id: changes
+  chart_type: change_distribution
+  columns:
+  - report_date
+  - open_interest
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: changes
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - open_interest
+  measure_units:
+    open_interest: source-native / verify
+  minimum_rows: 8
+  purpose: Show changes, volatility, and regime behavior.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Changes and regimes
+  type: change_distribution
+  unit_column: null
+- chart_id: seasonality
+  chart_type: calendar_heatmap
+  columns:
+  - report_date
+  - open_interest
+  - leviathan_slug
+  coverage_grain: null
+  cutoff_mode: null
+  id: seasonality
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - open_interest
+  measure_units:
+    open_interest: source-native / verify
+  minimum_rows: 12
+  purpose: Reveal recurring calendar patterns and gaps.
+  series_dimensions:
+  - leviathan_slug
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Calendar structure
+  type: calendar_heatmap
+  unit_column: null
+- chart_id: measure_distribution
+  chart_type: distribution
+  columns:
+  - open_interest
+  - mm_net
+  coverage_grain: null
+  cutoff_mode: null
+  id: measure_distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - open_interest
+  - mm_net
+  measure_units:
+    mm_net: source-native / verify
+    open_interest: source-native / verify
+  minimum_rows: 1
+  purpose: Summarize center, spread, skew, and tails.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Measure distributions
+  type: distribution
+  unit_column: null
+insight_rules:
+- columns:
+  - report_date
+  - leviathan_slug
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - open_interest
+  - mm_net
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - report_date
+  - open_interest
+  - mm_net
+  - leviathan_slug
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - report_date
+  - open_interest
+  - mm_net
+  - leviathan_slug
+  id: latest_change
+  insight_id: latest_change
+  kind: latest_change
+  minimum_rows: 2
+  purpose: Explain the latest comparable movement.
+preview_strata:
+- report_date
+- leviathan_slug
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+feature_quarantined: false

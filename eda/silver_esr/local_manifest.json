@@ -1,0 +1,46 @@
+{
+  "analysis_scope": {
+    "gold_read": false,
+    "live_silver_read": false,
+    "producer_execution": false,
+    "s3_write": false,
+    "target_analysis": false,
+    "training": false
+  },
+  "artifacts": {
+    "feature_candidates": {
+      "bytes": 14381,
+      "sha256": "6d2fcfc82037fbfa481494e4a615b6e14abf25f47338e5ee4eac5941eac18520"
+    },
+    "notebook": {
+      "bytes": 159771,
+      "sha256": "f8fa4bde6c97104c67f6167e40fad20d574fb82132ed7782a4b88ced5429b2f7"
+    },
+    "spec": {
+      "bytes": 14097,
+      "sha256": "4866f2a0b35899d79471ffa8bf61d0f946ab6ed5e85b7682ec51ebc81623c7f7"
+    },
+    "summary": {
+      "bytes": 256117,
+      "sha256": "c5e543d3649f93e4dbaf5c1eb1d2e00908a6a385ee80ecb521031837cfa756b9"
+    }
+  },
+  "candidate_count": 7,
+  "local_eda_source_sha256": "ef4c58cb52d33940d46fb323c30d8151388dee05c040beddeed2e83f350488b1",
+  "notebook_execution": {
+    "outputs_cleared": true,
+    "runtime_chart_manifest_bound": false,
+    "status": "prepared_not_executed"
+  },
+  "profile_mode": "reused_validated_prior_profile",
+  "reviewed_candidate_yaml_reused": true,
+  "schema_version": "leviathan.silver-eda-local-notebook/v1",
+  "source_campaign_id": "readerfirst-final-20260718-a176abf1",
+  "source_campaign_manifest": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_esr/manifest.json",
+  "source_fingerprint_version": "leviathan.eda-source/v1",
+  "source_layer": "silver",
+  "source_snapshot_sha256": "ca1981aa010cecd1c8e49dd65edb776bb7c6a0656b021c0ade239ed6457ebdbf",
+  "source_snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_esr/_machine/snapshot/part-000.parquet",
+  "status": "prepared_local_from_immutable_campaign_snapshot",
+  "table_name": "silver_esr"
+}

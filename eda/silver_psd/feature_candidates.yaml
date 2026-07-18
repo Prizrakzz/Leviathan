@@ -1,0 +1,1763 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_psd
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 34
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:area_harvested_1000ha:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_1000ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_harvested_1000ha
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 70205.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - area_harvested_1000ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: area_harvested_1000ha
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: thousand hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:area_harvested_1000ha:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_1000ha
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - area_harvested_1000ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: area_harvested_1000ha
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: thousand hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:area_harvested_1000ha:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  evidence:
+  - metric:missingness_validity.column_missingness.area_harvested_1000ha
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - area_harvested_1000ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: area_harvested_1000ha
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: thousand hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:area_harvested_1000ha:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_1000ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_harvested_1000ha
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - area_harvested_1000ha
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: area_harvested_1000ha
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: thousand hectares
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:area_harvested_1000ha:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.area_harvested_1000ha
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - area_harvested_1000ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: area_harvested_1000ha
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: thousand hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:beginning_stocks_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.beginning_stocks_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.beginning_stocks_mt
+  - cell:missingness-validity-output
+  expected_range: observed [-1135000.0, 223033000.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - beginning_stocks_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: beginning_stocks_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:beginning_stocks_mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.beginning_stocks_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.beginning_stocks_mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - beginning_stocks_mt
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: beginning_stocks_mt
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:beginning_stocks_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.beginning_stocks_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - beginning_stocks_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: beginning_stocks_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:consumption_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.consumption_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.consumption_mt
+  - cell:missingness-validity-output
+  expected_range: observed [-66000.0, 334152000.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - consumption_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: consumption_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:consumption_mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.consumption_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.consumption_mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - consumption_mt
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: consumption_mt
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:consumption_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.consumption_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - consumption_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: consumption_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:ending_stocks_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.ending_stocks_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ending_stocks_mt
+  - cell:missingness-validity-output
+  expected_range: observed [-1135000.0, 223033000.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - ending_stocks_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: ending_stocks_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:ending_stocks_mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.ending_stocks_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ending_stocks_mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - ending_stocks_mt
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: ending_stocks_mt
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:ending_stocks_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.ending_stocks_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - ending_stocks_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: ending_stocks_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:exports_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.exports_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_mt
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 117500000.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - exports_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: exports_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:exports_mt:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.exports_mt
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - exports_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: exports_mt
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:exports_mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.exports_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.exports_mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - exports_mt
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: exports_mt
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:imports_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.imports_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.imports_mt
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 114000000.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - imports_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: imports_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:imports_mt:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.imports_mt
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - imports_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: imports_mt
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:imports_mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.imports_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.imports_mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - imports_mt
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: imports_mt
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:imports_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.imports_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - imports_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: imports_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:production_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_mt
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 432342000.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - production_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: production_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:production_mt:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - production_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: production_mt
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:production_mt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.production_mt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - production_mt
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: production_mt
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:production_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.production_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - production_mt
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: production_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:su_ratio:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.su_ratio
+  - cell:missingness-validity-output
+  expected_range: observed [-0.5714285714285714, 674.5]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - su_ratio
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: su_ratio
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:su_ratio:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  evidence:
+  - metric:missingness_validity.column_missingness.su_ratio
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - su_ratio
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: su_ratio
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:su_ratio:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.su_ratio
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - su_ratio
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: su_ratio
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:su_ratio:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.su_ratio
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - su_ratio
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: su_ratio
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: ratio
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:yield_mt_ha:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.yield_mt_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.yield_mt_ha
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 20.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - yield_mt_ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: yield_mt_ha
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:yield_mt_ha:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.yield_mt_ha
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - yield_mt_ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: yield_mt_ha
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:yield_mt_ha:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  evidence:
+  - metric:missingness_validity.column_missingness.yield_mt_ha
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - yield_mt_ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: yield_mt_ha
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:yield_mt_ha:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.yield_mt_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.yield_mt_ha
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - yield_mt_ha
+  - leviathan_slug
+  - country
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    column: yield_mt_ha
+    genuine_vintage_only: true
+    group_by:
+    - leviathan_slug
+    - country
+    - market_year
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes per hectare
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_psd:yield_mt_ha:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.yield_mt_ha
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by market_year within entity grain
+  output_grain: leviathan_slug x country x market_year x release_date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: psd'
+  source_columns:
+  - yield_mt_ha
+  - market_year
+  - release_date
+  source_table: silver_psd
+  transformation:
+    center: past_only_median
+    column: yield_mt_ha
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - psd_available
+      - psd_ending_stock_su_ratio
+      - psd_monthly_vintage_features
+      - psd_su_ratio_yoy_delta
+      source_keys:
+      - psd
+  unit: metric tonnes per hectare
+  visibility_class: review_required

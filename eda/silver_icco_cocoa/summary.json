@@ -1,0 +1,3815 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 5
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 1
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "cocoa_year",
+          "latest_release_date"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 15,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 15
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 5,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "icco_cocoa"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": "one prior observed cocoa season",
+      "applicable_commodities": [
+        "cocoa"
+      ],
+      "applicable_geographies": [
+        "world"
+      ],
+      "candidate_id": "eda:silver_icco_cocoa:lagged_grindings_growth",
+      "classification": "new",
+      "clipping_policy": "None; retain and flag historical extremes.",
+      "computation_primitive": "pct_change_then_lag",
+      "counter_evidence": [
+        "Latest-only hybrid-release history does not prove historical cutoff availability.",
+        "Only 15 observed seasons are present, with a three-season gap after 2007/08."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.grindings_kt",
+        "cell:feature-opportunity",
+        "cell:pit-leakage"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "Review-only; never auto-promote to production feature configuration.",
+      "future_target_compatibility": "Eligible only for later PIT-safe evaluation against a new immutable Gold target.",
+      "knowledge_time_rule": "Use only the prior season row after proving its source release was available by the prediction cutoff; the current contract does not yet govern that proof.",
+      "lag": 1,
+      "mechanism": "Lagged grindings growth represents processing-demand momentum.",
+      "missingness_policy": "Preserve missing values; do not bridge missing cocoa seasons.",
+      "normalization_policy": "None until PIT-safe prototype review.",
+      "observation_time_rule": "Parse cocoa_year chronologically; never treat lexicographic order or a missing season as a normal one-year step.",
+      "output_grain": "cocoa_year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "World ICCO balance sheet; lagged source-only proposal.",
+      "source_columns": [
+        "grindings_kt",
+        "cocoa_year",
+        "latest_release_date"
+      ],
+      "source_table": "silver_icco_cocoa",
+      "transformation": {
+        "availability_check": "prior latest_release_date <= prediction cutoff",
+        "column": "grindings_kt",
+        "gap_policy": "require consecutive cocoa seasons or mark missing",
+        "lag_observations": 1,
+        "operation": "pct_change_then_lag",
+        "order_by": "cocoa_year"
+      },
+      "unit": "fraction",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "one prior observed cocoa season",
+      "applicable_commodities": [
+        "cocoa"
+      ],
+      "applicable_geographies": [
+        "world"
+      ],
+      "candidate_id": "eda:silver_icco_cocoa:lagged_production_growth",
+      "classification": "new",
+      "clipping_policy": "None; retain and flag historical extremes.",
+      "computation_primitive": "pct_change_then_lag",
+      "counter_evidence": [
+        "Latest-only hybrid-release history does not prove historical cutoff availability.",
+        "Only 15 observed seasons are present, with a three-season gap after 2007/08."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.production_kt",
+        "cell:feature-opportunity",
+        "cell:pit-leakage"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "Review-only; never auto-promote to production feature configuration.",
+      "future_target_compatibility": "Eligible only for later PIT-safe evaluation against a new immutable Gold target.",
+      "knowledge_time_rule": "Use only the prior season row after proving its source release was available by the prediction cutoff; the current contract does not yet govern that proof.",
+      "lag": 1,
+      "mechanism": "Lagged production growth represents world supply momentum.",
+      "missingness_policy": "Preserve missing values; do not bridge missing cocoa seasons.",
+      "normalization_policy": "None until PIT-safe prototype review.",
+      "observation_time_rule": "Parse cocoa_year chronologically; never treat lexicographic order or a missing season as a normal one-year step.",
+      "output_grain": "cocoa_year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "World ICCO balance sheet; lagged source-only proposal.",
+      "source_columns": [
+        "production_kt",
+        "cocoa_year",
+        "latest_release_date"
+      ],
+      "source_table": "silver_icco_cocoa",
+      "transformation": {
+        "availability_check": "prior latest_release_date <= prediction cutoff",
+        "column": "production_kt",
+        "gap_policy": "require consecutive cocoa seasons or mark missing",
+        "lag_observations": 1,
+        "operation": "pct_change_then_lag",
+        "order_by": "cocoa_year"
+      },
+      "unit": "fraction",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "one prior observed cocoa season",
+      "applicable_commodities": [
+        "cocoa"
+      ],
+      "applicable_geographies": [
+        "world"
+      ],
+      "candidate_id": "eda:silver_icco_cocoa:lagged_stock_change",
+      "classification": "new",
+      "clipping_policy": "None; retain and flag historical extremes.",
+      "computation_primitive": "difference_then_lag",
+      "counter_evidence": [
+        "Latest-only hybrid-release history does not prove historical cutoff availability.",
+        "Only 15 observed seasons are present, with a three-season gap after 2007/08."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.end_stocks_kt",
+        "cell:feature-opportunity",
+        "cell:pit-leakage"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "Review-only; never auto-promote to production feature configuration.",
+      "future_target_compatibility": "Eligible only for later PIT-safe evaluation against a new immutable Gold target.",
+      "knowledge_time_rule": "Use only the prior season row after proving its source release was available by the prediction cutoff; the current contract does not yet govern that proof.",
+      "lag": 1,
+      "mechanism": "Lagged stock change distinguishes inventory rebuilding from drawdown.",
+      "missingness_policy": "Preserve missing values; do not bridge missing cocoa seasons.",
+      "normalization_policy": "None until PIT-safe prototype review.",
+      "observation_time_rule": "Parse cocoa_year chronologically; never treat lexicographic order or a missing season as a normal one-year step.",
+      "output_grain": "cocoa_year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "World ICCO balance sheet; lagged source-only proposal.",
+      "source_columns": [
+        "end_stocks_kt",
+        "cocoa_year",
+        "latest_release_date"
+      ],
+      "source_table": "silver_icco_cocoa",
+      "transformation": {
+        "availability_check": "prior latest_release_date <= prediction cutoff",
+        "column": "end_stocks_kt",
+        "gap_policy": "require consecutive cocoa seasons or mark missing",
+        "lag_observations": 1,
+        "operation": "difference_then_lag",
+        "order_by": "cocoa_year"
+      },
+      "unit": "kilotonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "one prior observed cocoa season",
+      "applicable_commodities": [
+        "cocoa"
+      ],
+      "applicable_geographies": [
+        "world"
+      ],
+      "candidate_id": "eda:silver_icco_cocoa:prior_published_balance",
+      "classification": "new",
+      "clipping_policy": "None; retain and flag historical extremes.",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "Latest-only hybrid-release history does not prove historical cutoff availability.",
+        "Only 15 observed seasons are present, with a three-season gap after 2007/08."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.surplus_deficit_kt",
+        "cell:feature-opportunity",
+        "cell:pit-leakage"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "Review-only; never auto-promote to production feature configuration.",
+      "future_target_compatibility": "Eligible only for later PIT-safe evaluation against a new immutable Gold target.",
+      "knowledge_time_rule": "Use only the prior season row after proving its source release was available by the prediction cutoff; the current contract does not yet govern that proof.",
+      "lag": 1,
+      "mechanism": "The prior published surplus or deficit represents the inherited balance regime.",
+      "missingness_policy": "Preserve missing values; do not bridge missing cocoa seasons.",
+      "normalization_policy": "None until PIT-safe prototype review.",
+      "observation_time_rule": "Parse cocoa_year chronologically; never treat lexicographic order or a missing season as a normal one-year step.",
+      "output_grain": "cocoa_year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "World ICCO balance sheet; lagged source-only proposal.",
+      "source_columns": [
+        "surplus_deficit_kt",
+        "cocoa_year",
+        "latest_release_date"
+      ],
+      "source_table": "silver_icco_cocoa",
+      "transformation": {
+        "availability_check": "prior latest_release_date <= prediction cutoff",
+        "column": "surplus_deficit_kt",
+        "gap_policy": "require consecutive cocoa seasons or mark missing",
+        "lag_observations": 1,
+        "operation": "lag",
+        "order_by": "cocoa_year"
+      },
+      "unit": "kilotonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "one prior observed cocoa season",
+      "applicable_commodities": [
+        "cocoa"
+      ],
+      "applicable_geographies": [
+        "world"
+      ],
+      "candidate_id": "eda:silver_icco_cocoa:prior_stock_use",
+      "classification": "new",
+      "clipping_policy": "None; retain and flag historical extremes.",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "Latest-only hybrid-release history does not prove historical cutoff availability.",
+        "Only 15 observed seasons are present, with a three-season gap after 2007/08."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.su_ratio",
+        "cell:feature-opportunity",
+        "cell:pit-leakage"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "Review-only; never auto-promote to production feature configuration.",
+      "future_target_compatibility": "Eligible only for later PIT-safe evaluation against a new immutable Gold target.",
+      "knowledge_time_rule": "Use only the prior season row after proving its source release was available by the prediction cutoff; the current contract does not yet govern that proof.",
+      "lag": 1,
+      "mechanism": "Prior stock-to-use represents the inventory cushion entering a season.",
+      "missingness_policy": "Preserve missing values; do not bridge missing cocoa seasons.",
+      "normalization_policy": "None until PIT-safe prototype review.",
+      "observation_time_rule": "Parse cocoa_year chronologically; never treat lexicographic order or a missing season as a normal one-year step.",
+      "output_grain": "cocoa_year",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "World ICCO balance sheet; lagged source-only proposal.",
+      "source_columns": [
+        "su_ratio",
+        "cocoa_year",
+        "latest_release_date"
+      ],
+      "source_table": "silver_icco_cocoa",
+      "transformation": {
+        "availability_check": "prior latest_release_date <= prediction cutoff",
+        "column": "su_ratio",
+        "gap_policy": "require consecutive cocoa seasons or mark missing",
+        "lag_observations": 1,
+        "operation": "lag",
+        "order_by": "cocoa_year"
+      },
+      "unit": "ratio",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 5
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": []
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 5
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "icco_cocoa"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "grindings_3yr_trend",
+              "grindings_trend_dev",
+              "surplus_deficit_kt"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "Unsupported: no stable grouping axis and governed numeric signal coexist.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": []
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 4
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "end_stocks_kt": {
+                "count": 15,
+                "distinct_count": 15,
+                "iqr": 197.5,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 102.0,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 1963.0,
+                "mean": 1645.4,
+                "min": 1270.0,
+                "quantiles": {
+                  "0.01": 1277.0,
+                  "0.05": 1305.0,
+                  "0.25": 1553.0,
+                  "0.5": 1672.0,
+                  "0.75": 1750.5,
+                  "0.95": 1893.6999999999998,
+                  "0.99": 1949.1399999999999
+                },
+                "skew": -0.5754904812511936,
+                "std": 192.4250503442834
+              },
+              "grindings_kt": {
+                "count": 15,
+                "distinct_count": 15,
+                "iqr": 629.0,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 300.0,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 5072.0,
+                "mean": 4463.666666666667,
+                "min": 3727.0,
+                "quantiles": {
+                  "0.01": 3754.16,
+                  "0.05": 3862.8,
+                  "0.25": 4171.5,
+                  "0.5": 4568.0,
+                  "0.75": 4800.5,
+                  "0.95": 5023.0,
+                  "0.99": 5062.2
+                },
+                "skew": -0.1931482774659077,
+                "std": 410.49859346664664
+              },
+              "production_kt": {
+                "count": 15,
+                "distinct_count": 15,
+                "iqr": 676.0,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 308.0,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 5141.0,
+                "mean": 4488.266666666666,
+                "min": 3713.0,
+                "quantiles": {
+                  "0.01": 3743.52,
+                  "0.05": 3865.6,
+                  "0.25": 4110.0,
+                  "0.5": 4645.0,
+                  "0.75": 4786.0,
+                  "0.95": 5028.3,
+                  "0.99": 5118.46
+                },
+                "skew": -0.2746794253273102,
+                "std": 432.4363647102422
+              },
+              "su_ratio": {
+                "count": 15,
+                "distinct_count": 15,
+                "iqr": 0.06235546819860244,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 0.03437559693623876,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 0.4753889313950523,
+                "mean": 0.371467357655574,
+                "min": 0.2635948526359485,
+                "quantiles": {
+                  "0.01": 0.26662242892810845,
+                  "0.05": 0.27873273409674826,
+                  "0.25": 0.34566312264278304,
+                  "0.5": 0.3770413064361191,
+                  "0.75": 0.4080185908413855,
+                  "0.95": 0.43376567521487247,
+                  "0.99": 0.4670642801590163
+                },
+                "skew": -0.3512041844110572,
+                "std": 0.053886398647644045
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 3
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "cocoa_year": {
+                "distinct_count": 15,
+                "normalisation_collisions": {},
+                "rare_category_count": 15,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 15,
+                "rare_row_rate": 1.0,
+                "top_values": [
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2007/08"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2011/12"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2012/13"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2013/14"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2014/15"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2015/16"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2016/17"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2017/18"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2018/19"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2019/20"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2020/21"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2021/22"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2022/23"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2023/24"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2024/25"
+                  }
+                ]
+              },
+              "latest_release_date": {
+                "distinct_count": 15,
+                "normalisation_collisions": {},
+                "rare_category_count": 15,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 15,
+                "rare_row_rate": 1.0,
+                "top_values": [
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2008-02-28"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2012-11-30"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2013-11-29"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2014-11-28"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2015-05-29"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2016-05-31"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2017-08-31"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2018-08-31"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2019-08-30"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2020-12-02"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2021-08-31"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2023-05-31"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2023-11-30"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2025-05-30"
+                  },
+                  {
+                    "count": 1,
+                    "rate": 0.06666666666666667,
+                    "value": "2026-05-29"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 15,
+                    "rate": 1.0,
+                    "value": "icco_qbcs"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 1
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "cocoa_year"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 15,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": []
+          },
+          "candidate_join_coverage": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {}
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "cocoa_year"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 15,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": [
+              {
+                "both_missing_count": 1,
+                "both_missing_rate": 0.06666666666666667,
+                "left": "grindings_3yr_trend",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 15.0,
+                "phi": 1.0,
+                "right": "grindings_trend_dev",
+                "right_missing_given_left_missing": 1.0
+              }
+            ]
+          },
+          "column_missingness": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "cocoa_year": {
+                "empty_string_count": 0,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "end_stocks_kt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "grindings_3yr_trend": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 14,
+                "non_null_rate": 0.9333333333333333,
+                "null_count": 1,
+                "null_rate": 0.06666666666666667,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "grindings_kt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "grindings_trend_dev": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 4,
+                "negative_rate": 0.26666666666666666,
+                "non_null_count": 14,
+                "non_null_rate": 0.9333333333333333,
+                "null_count": 1,
+                "null_rate": 0.06666666666666667,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "latest_release_date": {
+                "empty_string_count": 0,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "production_kt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "su_ratio": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "surplus_deficit_kt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 7,
+                "negative_rate": 0.4666666666666667,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 15,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": [
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2007/08",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 15.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2011/12",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2012/13",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2013/14",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2014/15",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2015/16",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2016/17",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2017/18",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2018/19",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2019/20",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2020/21",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2021/22",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2022/23",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2023/24",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2024/25",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2007/08",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 15.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2011/12",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2012/13",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2013/14",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2014/15",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2015/16",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2016/17",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2017/18",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2018/19",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2019/20",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2020/21",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2021/22",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2022/23",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2023/24",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "cocoa_year",
+                "condition_value": "2024/25",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2008-02-28",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 15.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2012-11-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2013-11-29",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2014-11-28",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2015-05-29",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2016-05-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2017-08-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2018-08-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2019-08-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2020-12-02",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2021-08-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2023-05-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2023-11-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2025-05-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2026-05-29",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_3yr_trend"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2008-02-28",
+                "missing_count": 1,
+                "missing_rate": 1.0,
+                "missingness_lift": 15.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2012-11-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2013-11-29",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2014-11-28",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2015-05-29",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2016-05-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2017-08-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2018-08-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2019-08-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2020-12-02",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2021-08-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2023-05-31",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2023-11-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2025-05-30",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              },
+              {
+                "baseline_missing_rate": 0.06666666666666667,
+                "condition_column": "latest_release_date",
+                "condition_value": "2026-05-29",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1,
+                "target_column": "grindings_trend_dev"
+              }
+            ]
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 2,
+                "pair_count": 1,
+                "reason": "All frame rows were evaluated for the deterministically selected columns.",
+                "selected_column_count": 2,
+                "status": "supported"
+              },
+              "conditional_missingness": {
+                "condition_columns": [
+                  "cocoa_year",
+                  "latest_release_date"
+                ],
+                "reason": "Missingness is conditioned on bounded low-cardinality source segments.",
+                "record_count": 60,
+                "status": "supported",
+                "target_columns": [
+                  "grindings_3yr_trend",
+                  "grindings_trend_dev"
+                ]
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 15
+          },
+          "required_complete_row_rate": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 105,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 45
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [
+                  "grindings_3yr_trend",
+                  "grindings_trend_dev"
+                ],
+                "negative_count": [
+                  "grindings_trend_dev",
+                  "surplus_deficit_kt"
+                ],
+                "numeric_sentinel_candidate_count": [
+                  "surplus_deficit_kt"
+                ],
+                "zero_count": []
+              },
+              "finite_count": 103,
+              "infinite_count": 0,
+              "nan_or_null_count": 2,
+              "negative_count": 11,
+              "numeric_cell_count": 105,
+              "numeric_sentinel_candidate_count": 1,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.01904761904761905,
+                "negative_count": 0.10476190476190476,
+                "numeric_sentinel_candidate_count": 0.009523809523809525,
+                "zero_count": 0.0
+              },
+              "string_cell_count": 45,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 0
+            }
+          },
+          "value_column_population": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "end_stocks_kt": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              },
+              "grindings_kt": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              },
+              "production_kt": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              },
+              "su_ratio": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 15,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "cocoa_year",
+                "resolution": "annual_proxy"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "cocoa_year": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "object",
+                "partition": false,
+                "status": "matched"
+              },
+              "end_stocks_kt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "grindings_3yr_trend": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "grindings_kt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "grindings_trend_dev": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "latest_release_date": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "object",
+                "partition": false,
+                "status": "matched"
+              },
+              "production_kt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "object",
+                "partition": false,
+                "status": "matched"
+              },
+              "su_ratio": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "surplus_deficit_kt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 10
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 10
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "cocoa_year",
+              "latest_release_date",
+              "production_kt",
+              "grindings_kt",
+              "end_stocks_kt",
+              "surplus_deficit_kt",
+              "su_ratio",
+              "grindings_3yr_trend",
+              "grindings_trend_dev",
+              "source"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 15
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "production_kt",
+                "lag_1_autocorrelation": 0.675358095853875,
+                "n_effective_pairs": 14,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "grindings_kt",
+                "lag_1_autocorrelation": 0.913732179379499,
+                "n_effective_pairs": 14,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "end_stocks_kt",
+                "lag_1_autocorrelation": 0.24423662545641675,
+                "n_effective_pairs": 14,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "su_ratio",
+                "lag_1_autocorrelation": 0.5610271646746398,
+                "n_effective_pairs": 14,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "annual",
+              "declared_matches_inferred": true,
+              "distinct_timestamp_count": 15,
+              "gap_count": 14,
+              "gap_days_max": 1461.0,
+              "gap_days_median": 365.0,
+              "gap_days_mode": 365.0,
+              "gap_days_p95": 749.2499999999995,
+              "inferred_cadence": "annual",
+              "large_gap_count": 1,
+              "large_gap_rate": 0.07142857142857142
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "annual"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": []
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {}
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 4849.0,
+                "after_timestamp_count": 7,
+                "before_median": 4110.0,
+                "before_timestamp_count": 8,
+                "column": "production_kt",
+                "median_shift": 739.0,
+                "robust_shift_score": 2.3993506493506493,
+                "split_timestamp": "2018-01-01T00:00:00+00:00"
+              },
+              {
+                "after_median": 4783.0,
+                "after_timestamp_count": 9,
+                "before_median": 4108.0,
+                "before_timestamp_count": 6,
+                "column": "grindings_kt",
+                "median_shift": 675.0,
+                "robust_shift_score": 2.25,
+                "split_timestamp": "2016-01-01T00:00:00+00:00"
+              },
+              {
+                "after_median": 1476.0,
+                "after_timestamp_count": 4,
+                "before_median": 1740.0,
+                "before_timestamp_count": 11,
+                "column": "end_stocks_kt",
+                "median_shift": -264.0,
+                "robust_shift_score": 2.588235294117647,
+                "split_timestamp": "2021-01-01T00:00:00+00:00"
+              },
+              {
+                "after_median": 0.30349347954707184,
+                "after_timestamp_count": 4,
+                "before_median": 0.3887066541705717,
+                "before_timestamp_count": 11,
+                "column": "su_ratio",
+                "median_shift": -0.08521317462349987,
+                "robust_shift_score": 2.478885669434532,
+                "split_timestamp": "2021-01-01T00:00:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 4,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "reason": "Selected series lack 20 finite rows in both temporal edge quartiles.",
+                "status": "no_evidence"
+              },
+              "panel_balance": {
+                "reason": "No governed or semantic entity columns are available for a panel.",
+                "status": "unsupported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 4,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "cocoa_year": {
+                "coverage_month_counts": {
+                  "2007-01": 1,
+                  "2011-01": 1,
+                  "2012-01": 1,
+                  "2013-01": 1,
+                  "2014-01": 1,
+                  "2015-01": 1,
+                  "2016-01": 1,
+                  "2017-01": 1,
+                  "2018-01": 1,
+                  "2019-01": 1,
+                  "2020-01": 1,
+                  "2021-01": 1,
+                  "2022-01": 1,
+                  "2023-01": 1,
+                  "2024-01": 1
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 15,
+                "first": "2007-01-01T00:00:00+00:00",
+                "gap_days_max": 1461.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 749.2499999999995,
+                "last": "2024-01-01T00:00:00+00:00",
+                "parseable_count": 15,
+                "parseable_rate": 1.0
+              },
+              "latest_release_date": {
+                "coverage_month_counts": {
+                  "2008-02": 1,
+                  "2012-11": 1,
+                  "2013-11": 1,
+                  "2014-11": 1,
+                  "2015-05": 1,
+                  "2016-05": 1,
+                  "2017-08": 1,
+                  "2018-08": 1,
+                  "2019-08": 1,
+                  "2020-12": 1,
+                  "2021-08": 1,
+                  "2023-05": 1,
+                  "2023-11": 1,
+                  "2025-05": 1,
+                  "2026-05": 1
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 15,
+                "first": "2008-02-28T00:00:00+00:00",
+                "gap_days_max": 1737.0,
+                "gap_days_median": 364.5,
+                "gap_days_p95": 1022.6499999999996,
+                "last": "2026-05-29T00:00:00+00:00",
+                "parseable_count": 15,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "cocoa_year",
+              "resolution": "annual_proxy"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "cocoa_year",
+              "latest_release_date"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 15,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": [
+              "cocoa_year",
+              "latest_release_date"
+            ]
+          },
+          "categorical_associations": {
+            "denominator": 15,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": [
+              {
+                "cramers_v": 0.9999999999999999,
+                "cramers_v_bias_corrected": null,
+                "left": "cocoa_year",
+                "left_levels": 15,
+                "n": 15,
+                "right": "latest_release_date",
+                "right_levels": 15
+              }
+            ]
+          },
+          "correlation_columns": {
+            "detail": "At most 20 non-constant governed numeric value columns in contract order; calendar/time identifiers are excluded.",
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "production_kt",
+              "grindings_kt",
+              "end_stocks_kt",
+              "su_ratio"
+            ]
+          },
+          "correlation_pairs": {
+            "detail": "Pearson and Spearman are paired with effective pairwise sample size.",
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": [
+              {
+                "abs_max_correlation": 0.9,
+                "left": "production_kt",
+                "n": 15,
+                "pearson": 0.8921770535652339,
+                "right": "grindings_kt",
+                "spearman": 0.9
+              },
+              {
+                "abs_max_correlation": 0.7564034364840703,
+                "left": "end_stocks_kt",
+                "n": 15,
+                "pearson": 0.7564034364840703,
+                "right": "su_ratio",
+                "spearman": 0.6464285714285715
+              },
+              {
+                "abs_max_correlation": 0.6178571428571429,
+                "left": "grindings_kt",
+                "n": 15,
+                "pearson": -0.6154560376441927,
+                "right": "su_ratio",
+                "spearman": -0.6178571428571429
+              },
+              {
+                "abs_max_correlation": 0.36428571428571427,
+                "left": "production_kt",
+                "n": 15,
+                "pearson": -0.3134714934830419,
+                "right": "su_ratio",
+                "spearman": -0.36428571428571427
+              },
+              {
+                "abs_max_correlation": 0.35070526978451216,
+                "left": "production_kt",
+                "n": 15,
+                "pearson": 0.35070526978451216,
+                "right": "end_stocks_kt",
+                "spearman": 0.3464285714285714
+              },
+              {
+                "abs_max_correlation": 0.1,
+                "left": "grindings_kt",
+                "n": 15,
+                "pearson": 0.04451184378537256,
+                "right": "end_stocks_kt",
+                "spearman": 0.1
+              }
+            ]
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": [
+              {
+                "abs_max_correlation": 0.9,
+                "left": "production_kt",
+                "n": 15,
+                "pearson": 0.8921770535652339,
+                "right": "grindings_kt",
+                "spearman": 0.9
+              }
+            ]
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {
+              "end_stocks_kt": {
+                "end_stocks_kt": 1.0,
+                "grindings_kt": 0.04451184378537256,
+                "production_kt": 0.35070526978451216,
+                "su_ratio": 0.7564034364840703
+              },
+              "grindings_kt": {
+                "end_stocks_kt": 0.04451184378537256,
+                "grindings_kt": 1.0,
+                "production_kt": 0.8921770535652339,
+                "su_ratio": -0.6154560376441927
+              },
+              "production_kt": {
+                "end_stocks_kt": 0.35070526978451216,
+                "grindings_kt": 0.8921770535652339,
+                "production_kt": 1.0,
+                "su_ratio": -0.3134714934830419
+              },
+              "su_ratio": {
+                "end_stocks_kt": 0.7564034364840703,
+                "grindings_kt": -0.6154560376441927,
+                "production_kt": -0.3134714934830419,
+                "su_ratio": 1.0
+              }
+            }
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "eligible_column_count": 2,
+                "pair_count": 1,
+                "reason": "Bias-corrected Cramer's V is descriptive; rare levels and structural mappings can produce strong associations without redundancy.",
+                "selected_columns": [
+                  "cocoa_year",
+                  "latest_release_date"
+                ],
+                "status": "supported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {
+              "end_stocks_kt": {
+                "end_stocks_kt": 1.0,
+                "grindings_kt": 0.1,
+                "production_kt": 0.3464285714285714,
+                "su_ratio": 0.6464285714285715
+              },
+              "grindings_kt": {
+                "end_stocks_kt": 0.1,
+                "grindings_kt": 1.0,
+                "production_kt": 0.9,
+                "su_ratio": -0.6178571428571429
+              },
+              "production_kt": {
+                "end_stocks_kt": 0.3464285714285714,
+                "grindings_kt": 0.9,
+                "production_kt": 1.0,
+                "su_ratio": -0.36428571428571427
+              },
+              "su_ratio": {
+                "end_stocks_kt": 0.6464285714285715,
+                "grindings_kt": -0.6178571428571429,
+                "production_kt": -0.36428571428571427,
+                "su_ratio": 1.0
+              }
+            }
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_icco_cocoa"
+  },
+  "provenance": {
+    "analysis_exactness": "exact",
+    "analysis_rows": 15,
+    "campaign_id": null,
+    "frozen_frame_sha256": "00f45c9aeffe65f5fd6f5eef3360a698b3171999133f4960af3cd661a9011409",
+    "legacy_gold_read": false,
+    "logical_source_uri": "s3://leviathan-dev-shahem-001/silver/icco_cocoa/part-000.parquet",
+    "producer_invoked": false,
+    "reference_notebook": true,
+    "reference_status": "executed_reference_not_campaign",
+    "snapshot_bytes": 7503,
+    "snapshot_uri": "embedded-parquet://sha256/00f45c9aeffe65f5fd6f5eef3360a698b3171999133f4960af3cd661a9011409",
+    "source_etag": "aa6686e343ac9e3ddab9bf5ff9774140",
+    "source_last_modified": "2026-07-16T20:57:55Z",
+    "source_rows": 15,
+    "source_version_id": null
+  },
+  "reader": {
+    "analysis_rows": 15,
+    "anti_feature_summary": {
+      "analysis_rows": 15,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "reviewed-4",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not reconstruct ICCO surplus/deficit as production minus grindings."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 15
+    },
+    "archetype": "annual_geographic_production",
+    "chart_plan": {
+      "analysis_rows": 15,
+      "charts": [
+        {
+          "analysis_rows": 15,
+          "chart_id": "supply_demand",
+          "chart_type": "line",
+          "columns": [
+            "cocoa_year",
+            "production_kt",
+            "grindings_kt"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 15,
+          "exactness": "exact",
+          "id": "supply_demand",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "production_kt",
+            "grindings_kt"
+          ],
+          "measure_units": {
+            "grindings_kt": "kilotonnes",
+            "production_kt": "kilotonnes"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Compare global supply with grindings.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 15,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "World production and grindings",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 15,
+          "chart_id": "market_balance",
+          "chart_type": "signed_bar",
+          "columns": [
+            "cocoa_year",
+            "surplus_deficit_kt"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 15,
+          "exactness": "exact",
+          "id": "market_balance",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "surplus_deficit_kt"
+          ],
+          "measure_units": {},
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show the published market-balance regime.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 15,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Published surplus or deficit",
+          "type": "signed_bar",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 15,
+          "chart_id": "stocks",
+          "chart_type": "dual_axis",
+          "columns": [
+            "cocoa_year",
+            "end_stocks_kt",
+            "su_ratio"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 15,
+          "exactness": "exact",
+          "id": "stocks",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "end_stocks_kt",
+            "su_ratio"
+          ],
+          "measure_units": {
+            "end_stocks_kt": "kilotonnes",
+            "su_ratio": "ratio"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show physical inventory and relative tightness together.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 15,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Stocks and stock-to-use",
+          "type": "dual_axis",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 15,
+          "chart_id": "grindings_trend",
+          "chart_type": "line",
+          "columns": [
+            "cocoa_year",
+            "grindings_kt",
+            "grindings_3yr_trend",
+            "grindings_trend_dev"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 14,
+          "exactness": "exact",
+          "id": "grindings_trend",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "grindings_kt"
+          ],
+          "measure_units": {
+            "grindings_kt": "kilotonnes"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Explain demand momentum and the stored derivation.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 15,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Grindings versus stored trend",
+          "type": "line",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 59,
+      "exactness": "exact",
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "ready_chart_count": 4,
+      "source_rows": 15
+    },
+    "column_dictionary": [
+      {
+        "column": "cocoa_year",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 15,
+        "example": "2007/08",
+        "meaning": "Cocoa year locating the observation on its source reporting calendar.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "object",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; is required by the source contract."
+      },
+      {
+        "column": "latest_release_date",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 15,
+        "example": "2008-02-28",
+        "meaning": "Latest release date across the values assembled into the season row; it does not prove every metric came from one release.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "object",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Anchors temporal coverage."
+      },
+      {
+        "column": "production_kt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 15,
+        "example": 3713.0,
+        "meaning": "Production reported in kilotonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "kilotonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "grindings_kt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 15,
+        "example": 3727.0,
+        "meaning": "Grindings reported in kilotonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "kilotonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "end_stocks_kt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 15,
+        "example": 1270.0,
+        "meaning": "End stocks reported in kilotonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "kilotonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "surplus_deficit_kt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 15,
+        "example": -142.0,
+        "meaning": "ICCO-published market balance in kilotonnes; do not reconstruct it as simple production minus grindings.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "su_ratio",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 15,
+        "example": 0.2635948526359485,
+        "meaning": "End stocks divided by grindings, expressed as a ratio.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "ratio",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "grindings_3yr_trend",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 14,
+        "example": 3824.0,
+        "meaning": "Trailing mean of the latest three observed season rows, including the current row; gaps mean it is not necessarily three consecutive calendar seasons.",
+        "null_count": 1,
+        "null_rate": 0.06666666666666667,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "grindings_trend_dev",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 14,
+        "example": -146.0,
+        "meaning": "Current grindings minus the stored three-row trend.",
+        "null_count": 1,
+        "null_rate": 0.06666666666666667,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "icco_qbcs",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "object",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 15,
+        "columns": [],
+        "detail": "15 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 15,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15
+        },
+        "source_rows": 15,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 15
+      },
+      {
+        "analysis_rows": 15,
+        "columns": [],
+        "detail": "The analysis frame exposes 10 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 15,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15
+        },
+        "source_rows": 15,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 10
+      },
+      {
+        "analysis_rows": 15,
+        "columns": [
+          "latest_release_date"
+        ],
+        "detail": "Coverage spans 2008-02-28 through 2026-05-29 across 15 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 15,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15
+        },
+        "source_rows": 15,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 15,
+          "end": "2026-05-29T00:00:00",
+          "start": "2008-02-28T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 15,
+        "columns": [],
+        "detail": "Distinct entity counts were computed for source.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 15,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15
+        },
+        "source_rows": 15,
+        "status": "evaluated",
+        "value": {
+          "source": 1
+        }
+      },
+      {
+        "analysis_rows": 15,
+        "columns": [
+          "production_kt",
+          "grindings_kt",
+          "end_stocks_kt",
+          "surplus_deficit_kt",
+          "su_ratio"
+        ],
+        "detail": "Minimum completeness across 5 assessed columns is 100.0%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 15,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15
+        },
+        "source_rows": 15,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 1.0
+      },
+      {
+        "analysis_rows": 15,
+        "columns": [
+          "cocoa_year"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 15 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 15,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15
+        },
+        "source_rows": 15,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 15,
+        "columns": [
+          "production_kt"
+        ],
+        "detail": "No finite value is available on the time axis.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 15,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15
+        },
+        "source_rows": 15,
+        "status": "not_assessed",
+        "value": null
+      }
+    ],
+    "df_info_text": "<class 'pandas.core.frame.DataFrame'>\nRangeIndex: 15 entries, 0 to 14\nData columns (total 10 columns):\n #   Column               Non-Null Count  Dtype  \n---  ------               --------------  -----  \n 0   cocoa_year           15 non-null     object \n 1   latest_release_date  15 non-null     object \n 2   production_kt        15 non-null     float64\n 3   grindings_kt         15 non-null     float64\n 4   end_stocks_kt        15 non-null     float64\n 5   surplus_deficit_kt   15 non-null     float64\n 6   su_ratio             15 non-null     float64\n 7   grindings_3yr_trend  14 non-null     float64\n 8   grindings_trend_dev  14 non-null     float64\n 9   source               15 non-null     object \ndtypes: float64(7), object(3)\nmemory usage: 3.5 KB\n",
+    "display_policy": {
+      "analysis_rows": 15,
+      "displayed_rows": 15,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "full_dataframe",
+      "plotted_rows": null,
+      "preview_max_rows": 40,
+      "source_rows": 15
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 15,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "minimum grindings_kt",
+            "minimum production_kt",
+            "most missing fields"
+          ],
+          "row": {
+            "cocoa_year": "2007/08",
+            "end_stocks_kt": 1536.0,
+            "grindings_3yr_trend": null,
+            "grindings_kt": 3727.0,
+            "grindings_trend_dev": null,
+            "latest_release_date": "2008-02-28",
+            "production_kt": 3713.0,
+            "source": "icco_qbcs",
+            "su_ratio": 0.4121277166621948,
+            "surplus_deficit_kt": -51.0
+          }
+        },
+        {
+          "reasons": [
+            "maximum end_stocks_kt",
+            "maximum production_kt"
+          ],
+          "row": {
+            "cocoa_year": "2020/21",
+            "end_stocks_kt": 1963.0,
+            "grindings_3yr_trend": 4758.0,
+            "grindings_kt": 4860.0,
+            "grindings_trend_dev": 102.0,
+            "latest_release_date": "2021-08-31",
+            "production_kt": 5141.0,
+            "source": "icco_qbcs",
+            "su_ratio": 0.4039094650205761,
+            "surplus_deficit_kt": 230.0
+          }
+        },
+        {
+          "reasons": [
+            "maximum grindings_kt"
+          ],
+          "row": {
+            "cocoa_year": "2021/22",
+            "end_stocks_kt": 1632.0,
+            "grindings_3yr_trend": 4854.333333333333,
+            "grindings_kt": 5072.0,
+            "grindings_trend_dev": 217.66666666666697,
+            "latest_release_date": "2023-05-31",
+            "production_kt": 4980.0,
+            "source": "icco_qbcs",
+            "su_ratio": 0.3217665615141956,
+            "surplus_deficit_kt": -142.0
+          }
+        },
+        {
+          "reasons": [
+            "minimum end_stocks_kt"
+          ],
+          "row": {
+            "cocoa_year": "2023/24",
+            "end_stocks_kt": 1270.0,
+            "grindings_3yr_trend": 4964.0,
+            "grindings_kt": 4818.0,
+            "grindings_trend_dev": -146.0,
+            "latest_release_date": "2025-05-30",
+            "production_kt": 4368.0,
+            "source": "icco_qbcs",
+            "su_ratio": 0.2635948526359485,
+            "surplus_deficit_kt": -494.0
+          }
+        }
+      ],
+      "source_rows": 15,
+      "status": "available"
+    },
+    "ordinary_statistics": {
+      "analysis_rows": 15,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "cocoa_year",
+            "count": 15,
+            "freq": 1,
+            "top": "2007/08",
+            "unique": 15
+          },
+          {
+            "column": "latest_release_date",
+            "count": 15,
+            "freq": 1,
+            "top": "2008-02-28",
+            "unique": 15
+          },
+          {
+            "column": "source",
+            "count": 15,
+            "freq": 15,
+            "top": "icco_qbcs",
+            "unique": 1
+          }
+        ],
+        "row_count": 3
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 4110.0,
+            "50%": 4645.0,
+            "75%": 4786.0,
+            "column": "production_kt",
+            "count": 15.0,
+            "max": 5141.0,
+            "mean": 4488.266666666666,
+            "min": 3713.0,
+            "std": 432.4363647102422
+          },
+          {
+            "25%": 4171.5,
+            "50%": 4568.0,
+            "75%": 4800.5,
+            "column": "grindings_kt",
+            "count": 15.0,
+            "max": 5072.0,
+            "mean": 4463.666666666667,
+            "min": 3727.0,
+            "std": 410.49859346664664
+          },
+          {
+            "25%": 1553.0,
+            "50%": 1672.0,
+            "75%": 1750.5,
+            "column": "end_stocks_kt",
+            "count": 15.0,
+            "max": 1963.0,
+            "mean": 1645.4,
+            "min": 1270.0,
+            "std": 192.4250503442834
+          },
+          {
+            "25%": -120.5,
+            "50%": 18.0,
+            "75%": 50.5,
+            "column": "surplus_deficit_kt",
+            "count": 15.0,
+            "max": 371.0,
+            "mean": -18.866666666666667,
+            "min": -494.0,
+            "std": 195.47592715021995
+          },
+          {
+            "25%": 0.34566312264278304,
+            "50%": 0.3770413064361191,
+            "75%": 0.4080185908413855,
+            "column": "su_ratio",
+            "count": 15.0,
+            "max": 0.4753889313950523,
+            "mean": 0.371467357655574,
+            "min": 0.2635948526359485,
+            "std": 0.053886398647644045
+          },
+          {
+            "25%": 4171.916666666666,
+            "50%": 4443.666666666666,
+            "75%": 4801.5,
+            "column": "grindings_3yr_trend",
+            "count": 14.0,
+            "max": 4978.0,
+            "mean": 4449.714285714285,
+            "min": 3824.0,
+            "std": 395.4990325367241
+          },
+          {
+            "25%": -17.833333333333485,
+            "50%": 85.33333333333348,
+            "75%": 178.7499999999999,
+            "column": "grindings_trend_dev",
+            "count": 14.0,
+            "max": 238.66666666666697,
+            "mean": 66.5714285714286,
+            "min": -188.0,
+            "std": 134.51199727711065
+          }
+        ],
+        "row_count": 7
+      },
+      "plotted_rows": null,
+      "source_rows": 15,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "cocoa_year",
+            "count": 0,
+            "distinct": 0,
+            "max": null,
+            "min": null
+          },
+          {
+            "column": "latest_release_date",
+            "count": 15,
+            "distinct": 15,
+            "max": "2026-05-29T00:00:00",
+            "min": "2008-02-28T00:00:00"
+          }
+        ],
+        "row_count": 2
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 15,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule.",
+        "latest_release_date is a row-level maximum and does not prove a single coherent metric vintage."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 15,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": null,
+    "preview": {
+      "analysis_rows": 15,
+      "columns": [
+        "cocoa_year",
+        "latest_release_date",
+        "production_kt",
+        "grindings_kt",
+        "end_stocks_kt",
+        "surplus_deficit_kt",
+        "su_ratio",
+        "grindings_3yr_trend",
+        "grindings_trend_dev",
+        "source"
+      ],
+      "displayed_rows": 15,
+      "exactness": "exact",
+      "mode": "full_dataframe",
+      "plotted_rows": null,
+      "records": [
+        {
+          "cocoa_year": "2007/08",
+          "end_stocks_kt": 1536.0,
+          "grindings_3yr_trend": null,
+          "grindings_kt": 3727.0,
+          "grindings_trend_dev": null,
+          "latest_release_date": "2008-02-28",
+          "production_kt": 3713.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.4121277166621948,
+          "surplus_deficit_kt": -51.0
+        },
+        {
+          "cocoa_year": "2011/12",
+          "end_stocks_kt": 1864.0,
+          "grindings_3yr_trend": 3824.0,
+          "grindings_kt": 3921.0,
+          "grindings_trend_dev": 97.0,
+          "latest_release_date": "2012-11-30",
+          "production_kt": 4052.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.4753889313950523,
+          "surplus_deficit_kt": 90.0
+        },
+        {
+          "cocoa_year": "2012/13",
+          "end_stocks_kt": 1672.0,
+          "grindings_3yr_trend": 3900.0,
+          "grindings_kt": 4052.0,
+          "grindings_trend_dev": 152.0,
+          "latest_release_date": "2013-11-29",
+          "production_kt": 3931.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.4126357354392892,
+          "surplus_deficit_kt": -160.0
+        },
+        {
+          "cocoa_year": "2013/14",
+          "end_stocks_kt": 1659.0,
+          "grindings_3yr_trend": 4080.3333333333335,
+          "grindings_kt": 4268.0,
+          "grindings_trend_dev": 187.66666666666652,
+          "latest_release_date": "2014-11-28",
+          "production_kt": 4365.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.3887066541705717,
+          "surplus_deficit_kt": 53.0
+        },
+        {
+          "cocoa_year": "2014/15",
+          "end_stocks_kt": 1570.0,
+          "grindings_3yr_trend": 4161.333333333333,
+          "grindings_kt": 4164.0,
+          "grindings_trend_dev": 2.66666666666697,
+          "latest_release_date": "2015-05-29",
+          "production_kt": 4168.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.3770413064361191,
+          "surplus_deficit_kt": -17.0
+        },
+        {
+          "cocoa_year": "2015/16",
+          "end_stocks_kt": 1432.0,
+          "grindings_3yr_trend": 4203.666666666667,
+          "grindings_kt": 4179.0,
+          "grindings_trend_dev": -24.66666666666697,
+          "latest_release_date": "2016-05-31",
+          "production_kt": 4039.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.34266570949988034,
+          "surplus_deficit_kt": -180.0
+        },
+        {
+          "cocoa_year": "2016/17",
+          "end_stocks_kt": 1781.0,
+          "grindings_3yr_trend": 4208.333333333333,
+          "grindings_kt": 4282.0,
+          "grindings_trend_dev": 73.66666666666697,
+          "latest_release_date": "2017-08-31",
+          "production_kt": 4700.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.41592713685193833,
+          "surplus_deficit_kt": 371.0
+        },
+        {
+          "cocoa_year": "2017/18",
+          "end_stocks_kt": 1757.0,
+          "grindings_3yr_trend": 4343.0,
+          "grindings_kt": 4568.0,
+          "grindings_trend_dev": 225.0,
+          "latest_release_date": "2018-08-31",
+          "production_kt": 4645.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.3846322241681261,
+          "surplus_deficit_kt": 31.0
+        },
+        {
+          "cocoa_year": "2018/19",
+          "end_stocks_kt": 1740.0,
+          "grindings_3yr_trend": 4544.333333333333,
+          "grindings_kt": 4783.0,
+          "grindings_trend_dev": 238.66666666666697,
+          "latest_release_date": "2019-08-30",
+          "production_kt": 4849.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.3637884173113109,
+          "surplus_deficit_kt": 18.0
+        },
+        {
+          "cocoa_year": "2019/20",
+          "end_stocks_kt": 1741.0,
+          "grindings_3yr_trend": 4660.666666666667,
+          "grindings_kt": 4631.0,
+          "grindings_trend_dev": -29.66666666666697,
+          "latest_release_date": "2020-12-02",
+          "production_kt": 4697.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.3759447203627726,
+          "surplus_deficit_kt": 19.0
+        },
+        {
+          "cocoa_year": "2020/21",
+          "end_stocks_kt": 1963.0,
+          "grindings_3yr_trend": 4758.0,
+          "grindings_kt": 4860.0,
+          "grindings_trend_dev": 102.0,
+          "latest_release_date": "2021-08-31",
+          "production_kt": 5141.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.4039094650205761,
+          "surplus_deficit_kt": 230.0
+        },
+        {
+          "cocoa_year": "2021/22",
+          "end_stocks_kt": 1632.0,
+          "grindings_3yr_trend": 4854.333333333333,
+          "grindings_kt": 5072.0,
+          "grindings_trend_dev": 217.66666666666697,
+          "latest_release_date": "2023-05-31",
+          "production_kt": 4980.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.3217665615141956,
+          "surplus_deficit_kt": -142.0
+        },
+        {
+          "cocoa_year": "2022/23",
+          "end_stocks_kt": 1744.0,
+          "grindings_3yr_trend": 4978.0,
+          "grindings_kt": 5002.0,
+          "grindings_trend_dev": 24.0,
+          "latest_release_date": "2023-11-30",
+          "production_kt": 4953.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.34866053578568573,
+          "surplus_deficit_kt": -99.0
+        },
+        {
+          "cocoa_year": "2023/24",
+          "end_stocks_kt": 1270.0,
+          "grindings_3yr_trend": 4964.0,
+          "grindings_kt": 4818.0,
+          "grindings_trend_dev": -146.0,
+          "latest_release_date": "2025-05-30",
+          "production_kt": 4368.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.2635948526359485,
+          "surplus_deficit_kt": -494.0
+        },
+        {
+          "cocoa_year": "2024/25",
+          "end_stocks_kt": 1320.0,
+          "grindings_3yr_trend": 4816.0,
+          "grindings_kt": 4628.0,
+          "grindings_trend_dev": -188.0,
+          "latest_release_date": "2026-05-29",
+          "production_kt": 4723.0,
+          "source": "icco_qbcs",
+          "su_ratio": 0.28522039757994816,
+          "surplus_deficit_kt": 48.0
+        }
+      ],
+      "selection_reasons": [
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row"
+      ],
+      "source_rows": 15
+    },
+    "provenance": {
+      "analysis_exactness": "exact",
+      "analysis_rows": 15,
+      "campaign_id": null,
+      "frozen_frame_sha256": "00f45c9aeffe65f5fd6f5eef3360a698b3171999133f4960af3cd661a9011409",
+      "legacy_gold_read": false,
+      "logical_source_uri": "s3://leviathan-dev-shahem-001/silver/icco_cocoa/part-000.parquet",
+      "producer_invoked": false,
+      "reference_notebook": true,
+      "reference_status": "executed_reference_not_campaign",
+      "snapshot_bytes": 7503,
+      "snapshot_uri": "embedded-parquet://sha256/00f45c9aeffe65f5fd6f5eef3360a698b3171999133f4960af3cd661a9011409",
+      "source_etag": "aa6686e343ac9e3ddab9bf5ff9774140",
+      "source_last_modified": "2026-07-16T20:57:55Z",
+      "source_rows": 15,
+      "source_version_id": null
+    },
+    "quality_scorecard": {
+      "analysis_rows": 15,
+      "checks": [
+        {
+          "analysis_rows": 15,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 15,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "cocoa_year"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 15 rows."
+        },
+        {
+          "analysis_rows": 15,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.06666666666666667,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "CAVEAT",
+          "summary": "The highest column null rate is 6.7%."
+        },
+        {
+          "analysis_rows": 15,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 15,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "time_column": "cocoa_year",
+            "usable_time_points": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "not_assessed",
+          "summary": "Fewer than two usable time points are available."
+        },
+        {
+          "analysis_rows": 15,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "cocoa_year",
+            "max": null,
+            "min": null
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "BLOCKER",
+          "summary": "The temporal coverage axis has no parseable values."
+        },
+        {
+          "analysis_rows": 15,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 0,
+            "footer_complete": null,
+            "object_count": null,
+            "schema_hash_count": 0,
+            "schema_sha256_object_counts": {}
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "not_assessed",
+          "summary": "No object-level Parquet footer evidence was supplied."
+        },
+        {
+          "analysis_rows": 15,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "ratio_identity",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 15,
+          "status": "not_assessed",
+          "summary": "Validate su_ratio=end_stocks_kt/grindings_kt; do not reconstruct the published balance."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "BLOCKER",
+      "plotted_rows": null,
+      "source_rows": 15
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 15,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "latest_release_date"
+        ],
+        "evidence": {
+          "distinct_time_points": 15,
+          "end": "2026-05-29T00:00:00",
+          "entity_distinct_counts": {},
+          "start": "2008-02-28T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "supply_demand",
+            "grindings_trend"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 15,
+        "statement": "Coverage spans 2008-02-28 through 2026-05-29 across 15 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 15,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "production_kt",
+          "grindings_kt"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "grindings_kt": 0.0,
+            "production_kt": 0.0
+          },
+          "highest_null_column": "production_kt",
+          "highest_null_rate": 0.0
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 15,
+        "statement": "All 2 assessed measure columns are complete.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 15,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "latest_release_date",
+          "production_kt",
+          "grindings_kt"
+        ],
+        "evidence": {
+          "measures": {
+            "grindings_kt": {
+              "count": 15,
+              "iqr": 629.0,
+              "iqr_outlier_count": 0,
+              "maximum": 5072.0,
+              "median": 4568.0,
+              "minimum": 3727.0
+            },
+            "production_kt": {
+              "count": 15,
+              "iqr": 676.0,
+              "iqr_outlier_count": 0,
+              "maximum": 5141.0,
+              "median": 4645.0,
+              "minimum": 3713.0
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 15,
+        "statement": "Robust IQR screening retains 0 notable observations across 2 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 15,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "latest_release_date",
+          "production_kt",
+          "grindings_kt"
+        ],
+        "evidence": {},
+        "exactness": "exact",
+        "insight_id": "latest_change",
+        "kind": "latest_change",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "supply_demand",
+            "grindings_trend"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 15,
+        "statement": "No entity has two unambiguous comparable time points for the primary measure.",
+        "status": "not_assessed",
+        "title": "Explain the latest comparable movement."
+      }
+    ],
+    "row_meaning": "One row is ICCO's latest assembled world cocoa balance for one cocoa season.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 15,
+    "source_shape": {
+      "analysis_rows": 15,
+      "analysis_shape": [
+        15,
+        10
+      ],
+      "column_count": 10,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "source_rows": 15,
+      "source_shape": [
+        15,
+        10
+      ]
+    },
+    "table_name": "silver_icco_cocoa"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [],
+  "table_name": "silver_icco_cocoa"
+}

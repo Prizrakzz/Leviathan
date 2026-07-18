@@ -1,0 +1,402 @@
+schema_version: 1
+table_name: silver_unica_monthly_ethanol_sales
+title: Unica Monthly Ethanol Sales
+analysis_role: derived
+feature_disposition: blocked
+adapters:
+- derived_lineage
+- annual_seasonal_panel
+observation_time_candidates:
+- harvest_year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns: []
+categorical_columns:
+- month_label
+- month_date
+- is_partial
+- source_idm
+- source_position_date
+numeric_columns:
+- month_num
+- total_current_m3
+- total_prior_m3
+- external_current_m3
+- external_prior_m3
+- internal_current_m3
+- internal_prior_m3
+units:
+  external_current_m3: cubic metres
+  external_prior_m3: cubic metres
+  internal_current_m3: cubic metres
+  internal_prior_m3: cubic metres
+  month_num: source-native / verify
+  total_current_m3: cubic metres
+  total_prior_m3: cubic metres
+meaningful_groupings:
+- harvest_year
+declared_relationships: []
+source_keys: []
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_required
+  reason: No commodity/geography join axis is declared by this Silver contract.
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders: []
+lineage_status:
+  status: lineage_not_assessed
+  lineage_status: lineage_not_assessed
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: true
+  evidence: No governed Silver-to-Silver peer relationship and parity key/value contract is registered
+    for this derived or serving-copy table.
+  work_orders:
+  - &id002
+    id: EDA-LINEAGE-UNICA_MONTHLY_ETHANOL_SALES
+    priority: high
+    title: Register and validate derived-table lineage
+    required_evidence: Declare the canonical Silver upstream, transformation, parity grain, value tolerances,
+      and frozen-frame comparison before claiming parity.
+semantic_work_orders:
+- *id002
+feature_hypothesis_templates:
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards:
+- Registry key/value contract is incomplete; inferred grain is evidence only.
+- Registry lacks a complete natural-key/value-column contract; inferred grain is evidence only and cannot
+  be promoted automatically.
+no_candidate_reason: The registry lacks a complete natural-key/value-column contract; inferred grain is
+  evidence only until a reviewed contract repair is merged.
+archetype: small_derived_contract_incomplete
+row_meaning: One row is one derived monthly ethanol-sales comparison within a harvest year.
+column_descriptions:
+  external_current_m3: Current-release external value, measured in cubic metres.
+  external_prior_m3: Prior comparable external value, measured in cubic metres.
+  harvest_year: Source-defined harvest season or harvest year.
+  internal_current_m3: Current-release internal value, measured in cubic metres.
+  internal_prior_m3: Prior comparable internal value, measured in cubic metres.
+  is_partial: Boolean indicator showing whether partial applies to this row.
+  month_date: Month date locating the observation on its source reporting calendar.
+  month_label: Human-readable month label used for display.
+  month_num: Ordinal month position within the reporting cycle.
+  source_idm: Source provenance value identifying the source document used to produce this row.
+  source_position_date: Source provenance value identifying the position date used to produce this row.
+  total_current_m3: Current-release total value, measured in cubic metres.
+  total_prior_m3: Prior comparable total value, measured in cubic metres.
+why_it_matters:
+  external_current_m3: Carries a primary analytical measure.
+  external_prior_m3: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  harvest_year: Anchors temporal coverage.
+  internal_current_m3: Carries a primary analytical measure.
+  internal_prior_m3: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  is_partial: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  month_date: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  month_label: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  month_num: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  source_idm: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  source_position_date: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  total_current_m3: Carries a primary analytical measure.
+  total_prior_m3: Provides explanatory context or a candidate diagnostic at the declared row grain.
+primary_measures:
+- total_current_m3
+- external_current_m3
+- internal_current_m3
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - harvest_year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns: []
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - total_current_m3
+  - external_current_m3
+  - internal_current_m3
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns: []
+  id: grain_integrity
+  kind: inferred_grain
+  kpi_id: grain_integrity
+  label: Candidate-grain status
+- columns:
+  - total_current_m3
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns: []
+  detail: Infer grain for evidence only; do not repair the registry contract.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: blocker
+  unsupported_result: not_assessed
+- columns: []
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - total_current_m3
+  - external_current_m3
+  - internal_current_m3
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - total_current_m3
+  - external_current_m3
+  - internal_current_m3
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  - month_num
+  - month_label
+  - month_date
+  - is_partial
+  - total_current_m3
+  - total_prior_m3
+  - external_current_m3
+  - external_prior_m3
+  - internal_current_m3
+  - internal_prior_m3
+  - source_idm
+  - source_position_date
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - total_current_m3
+  - external_current_m3
+  - internal_current_m3
+  components:
+    external_current_m3: 1.0
+    internal_current_m3: 1.0
+  detail: Validate total current sales against external plus internal sales.
+  id: identity
+  kind: arithmetic_identity
+  label: Domain arithmetic identity
+  result_column: total_current_m3
+  rule_id: identity
+  severity: caveat
+  tolerance: 1.0e-06
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: total_sales
+  chart_type: line
+  columns:
+  - month_date
+  - month_num
+  - total_current_m3
+  - total_prior_m3
+  - harvest_year
+  coverage_grain: null
+  cutoff_mode: null
+  id: total_sales
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - total_current_m3
+  measure_units:
+    total_current_m3: cubic metres
+  minimum_rows: 2
+  purpose: Display each governed harvest-year month as an intentional discrete comparison.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: 'Total ethanol sales: current versus prior'
+  type: line
+  unit_column: null
+- chart_id: external_sales
+  chart_type: line
+  columns:
+  - month_date
+  - month_num
+  - external_current_m3
+  - external_prior_m3
+  - harvest_year
+  coverage_grain: null
+  cutoff_mode: null
+  id: external_sales
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - external_current_m3
+  measure_units:
+    external_current_m3: cubic metres
+  minimum_rows: 2
+  purpose: Compare each observed external-sales month without an underpowered trend claim.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: External ethanol sales
+  type: line
+  unit_column: null
+- chart_id: internal_sales
+  chart_type: line
+  columns:
+  - month_date
+  - month_num
+  - internal_current_m3
+  - internal_prior_m3
+  - harvest_year
+  coverage_grain: null
+  cutoff_mode: null
+  id: internal_sales
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - internal_current_m3
+  measure_units:
+    internal_current_m3: cubic metres
+  minimum_rows: 2
+  purpose: Compare each observed internal-sales month without an underpowered trend claim.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Internal ethanol sales
+  type: line
+  unit_column: null
+- chart_id: coverage
+  chart_type: coverage_heatmap
+  columns:
+  - month_date
+  - month_num
+  - harvest_year
+  coverage_grain: month
+  cutoff_mode: null
+  id: coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose partial months and partial seasons.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Harvest-year month coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - harvest_year
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - total_current_m3
+  - external_current_m3
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - harvest_year
+  - total_current_m3
+  - external_current_m3
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+preview_strata:
+- harvest_year
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not promote inferred grain or value roles until the registry contract is repaired.
+feature_quarantined: false

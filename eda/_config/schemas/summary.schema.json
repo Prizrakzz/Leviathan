@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "leviathan/silver-eda/summary/1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "table_name",
+    "analysis_scope",
+    "decision_capsule",
+    "profile",
+    "feature_candidates",
+    "feature_opportunity_map",
+    "provenance",
+    "reader"
+  ],
+  "properties": {
+    "schema_version": {"const": "leviathan.silver-eda-summary/v1"},
+    "table_name": {"type": "string", "pattern": "^silver_"},
+    "analysis_scope": {
+      "type": "object",
+      "required": [
+        "source_layer",
+        "legacy_gold_read",
+        "model_ready_read",
+        "target_aware_analysis",
+        "production_feature_config_mutated"
+      ],
+      "properties": {
+        "source_layer": {"const": "silver"},
+        "legacy_gold_read": {"const": false},
+        "model_ready_read": {"const": false},
+        "target_aware_analysis": {"const": false},
+        "production_feature_config_mutated": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "decision_capsule": {"type": "object"},
+    "profile": {
+      "type": "object",
+      "required": ["table_name", "analysis_exactness", "disposition", "sections", "findings", "blockers"]
+    },
+    "feature_candidates": {"type": "array", "items": {"$ref": "feature_candidate.schema.json"}},
+    "feature_candidate_generation": {"type": "object"},
+    "feature_opportunity_map": {"type": "object"},
+    "provenance": {"type": "object"},
+    "reader": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "table_name",
+        "archetype",
+        "row_meaning",
+        "source_rows",
+        "analysis_rows",
+        "exactness",
+        "source_shape",
+        "display_policy",
+        "preview",
+        "df_info_text",
+        "column_dictionary",
+        "dashboard_kpis",
+        "ordinary_statistics",
+        "quality_scorecard",
+        "reader_insights",
+        "notable_rows",
+        "chart_plan",
+        "pit_summary",
+        "anti_feature_summary",
+        "feature_quarantined",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": {"const": "leviathan.silver-eda-reader-evidence/v1"},
+        "table_name": {"type": "string", "pattern": "^silver_"},
+        "archetype": {"type": "string", "minLength": 1},
+        "row_meaning": {"type": "string", "minLength": 1},
+        "source_rows": {"type": ["integer", "null"], "minimum": 0},
+        "analysis_rows": {"type": "integer", "minimum": 0},
+        "plotted_rows": {"type": ["integer", "null"], "minimum": 0},
+        "exactness": {"enum": ["exact", "sampled", "footer-derived"]},
+        "source_shape": {"type": "object"},
+        "display_policy": {"type": "object"},
+        "preview": {"type": "object"},
+        "df_info_text": {"type": "string"},
+        "column_dictionary": {"type": "array"},
+        "dashboard_kpis": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 8,
+          "items": {"type": "object"}
+        },
+        "ordinary_statistics": {"type": "object"},
+        "quality_scorecard": {"type": "object"},
+        "reader_insights": {"type": "array", "minItems": 3, "maxItems": 10},
+        "notable_rows": {"type": "object"},
+        "chart_plan": {"type": "object"},
+        "pit_summary": {"type": "object"},
+        "anti_feature_summary": {"type": "object"},
+        "feature_quarantined": {"type": "boolean"},
+        "provenance": {"type": "object"},
+        "source_aggregates": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "source_specific_checks": {"type": "array"},
+    "relationship_checks": {"type": "array"},
+    "scaffold_only": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

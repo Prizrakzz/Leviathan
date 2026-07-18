@@ -1,0 +1,4452 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 11
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 1
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "year"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 180,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 180
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 11,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "mpoc_trade_stats_monthly"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:exports_mt:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "exports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "column": "exports_mt",
+        "group_by": [],
+        "operation": "difference",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:exports_mt:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "exports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "column": "exports_mt",
+        "group_by": [],
+        "operation": "lag",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:exports_mt:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [900558.0, 1843602.0]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed trade_flows level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "exports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "column": "exports_mt",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:exports_mt:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "exports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "exports_mt",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:exports_mt:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.exports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.exports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "exports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "closed": "left",
+        "column": "exports_mt",
+        "group_by": [],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:imports_mt:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.imports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.imports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "imports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "column": "imports_mt",
+        "group_by": [],
+        "operation": "difference",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:imports_mt:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.imports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.imports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "imports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "column": "imports_mt",
+        "group_by": [],
+        "operation": "lag",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:imports_mt:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.imports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.imports_mt",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [1792.0, 1783284.0]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed trade_flows level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "imports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "column": "imports_mt",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:imports_mt:log1p",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "log1p",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.imports_mt",
+        "cell:distributions-output"
+      ],
+      "expected_range": "non-negative before transform",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A non-negative heavy-tailed measure may be more stable on a log scale.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "log1p only; fit no target-dependent parameters",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "imports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "column": "imports_mt",
+        "operation": "log1p",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:imports_mt:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.imports_mt",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "imports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "imports_mt",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_mpoc_trade_stats_monthly:imports_mt:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.imports_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.imports_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: mpoc_trade_stats_monthly",
+      "source_columns": [
+        "imports_mt",
+        "year"
+      ],
+      "source_table": "silver_mpoc_trade_stats_monthly",
+      "transformation": {
+        "closed": "left",
+        "column": "imports_mt",
+        "group_by": [],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "mpoc_trade_stats_monthly"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 11
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": []
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 11
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "mpoc_trade_stats_monthly"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "annual_or_seasonal_panel"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "month",
+              "year"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "month",
+              "year"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "Unsupported: no stable grouping axis and governed numeric signal coexist.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": []
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "exports_mt": {
+                "count": 180,
+                "distinct_count": 180,
+                "iqr": 251402.0,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 124339.0,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 1843602.0,
+                "mean": 1401146.5166666666,
+                "min": 900558.0,
+                "quantiles": {
+                  "0.01": 967342.66,
+                  "0.05": 1106654.05,
+                  "0.25": 1268592.0,
+                  "0.5": 1406050.0,
+                  "0.75": 1519994.0,
+                  "0.95": 1697640.4,
+                  "0.99": 1791926.1300000004
+                },
+                "skew": -0.029788027902332256,
+                "std": 184926.48207758644
+              },
+              "imports_mt": {
+                "count": 180,
+                "distinct_count": 180,
+                "iqr": 93650.75,
+                "iqr_outlier_count": 36,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.2,
+                "mad": 43602.5,
+                "mad_outlier_count": 36,
+                "mad_outlier_rate": 0.2,
+                "max": 1783284.0,
+                "mean": 343805.6388888889,
+                "min": 1792.0,
+                "quantiles": {
+                  "0.01": 7749.46,
+                  "0.05": 14984.4,
+                  "0.25": 45209.5,
+                  "0.5": 84976.0,
+                  "0.75": 138860.25,
+                  "0.95": 1621813.0499999996,
+                  "0.99": 1720041.0100000002
+                },
+                "skew": 1.605629778353267,
+                "std": 554026.4949599287
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 180,
+                    "rate": 1.0,
+                    "value": "mpoc"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 1
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "year",
+              "month"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 180,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "month",
+              "year"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "month": {
+                "distinct_count": 12,
+                "non_null_count": 180,
+                "non_null_rate": 1.0
+              },
+              "year": {
+                "distinct_count": 15,
+                "non_null_count": 180,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "year x month"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 180,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": []
+          },
+          "column_missingness": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "exports_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 180,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "imports_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 180,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "month": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 180,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 180,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "year": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 180,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 180,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": []
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 0,
+                "reason": "Fewer than two partially missing columns are available for co-missingness.",
+                "selected_column_count": 0,
+                "status": "no_evidence"
+              },
+              "conditional_missingness": {
+                "reason": "No partially missing column is available as an analysis target.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 180
+          },
+          "required_complete_row_rate": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 720,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 180
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [],
+                "negative_count": [],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": []
+              },
+              "finite_count": 720,
+              "infinite_count": 0,
+              "nan_or_null_count": 0,
+              "negative_count": 0,
+              "numeric_cell_count": 720,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.0,
+                "negative_count": 0.0,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.0
+              },
+              "string_cell_count": 180,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 0
+            }
+          },
+          "value_column_population": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "exports_mt": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 180,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              },
+              "imports_mt": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 180,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "year",
+                "resolution": "annual_proxy"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "exports_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "imports_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "month": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "year": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 5
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 5
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "year",
+              "month",
+              "exports_mt",
+              "imports_mt",
+              "source"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 180
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 1,
+              "partition_stratum_count": 1,
+              "source_compressed_bytes": 5828,
+              "source_row_count": 180
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {},
+                "row_count": 180,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "159262853bfb6cccef6d1d2b924676f769c41cd9a2a41bc7272420d0b0a5b5b7": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "exports_mt",
+                "lag_1_autocorrelation": 0.17183478569193542,
+                "n_effective_pairs": 14,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "imports_mt",
+                "lag_1_autocorrelation": 0.5744134380874522,
+                "n_effective_pairs": 14,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "monthly",
+              "declared_matches_inferred": false,
+              "distinct_timestamp_count": 15,
+              "gap_count": 14,
+              "gap_days_max": 366.0,
+              "gap_days_median": 365.0,
+              "gap_days_mode": 365.0,
+              "gap_days_p95": 366.0,
+              "inferred_cadence": "annual",
+              "large_gap_count": 0,
+              "large_gap_rate": 0.0
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "monthly"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": [
+              {
+                "column": "exports_mt",
+                "early_n": 36,
+                "early_quantiles": {
+                  "0.1": 1216703.5,
+                  "0.5": 1381293.0,
+                  "0.9": 1627237.0
+                },
+                "late_n": 36,
+                "late_quantiles": {
+                  "0.1": 1083388.0,
+                  "0.5": 1312636.0,
+                  "0.9": 1484261.0
+                },
+                "median_shift": -68657.0,
+                "robust_median_shift_iqr": -0.27309647496837736
+              },
+              {
+                "column": "imports_mt",
+                "early_n": 36,
+                "early_quantiles": {
+                  "0.1": 44028.5,
+                  "0.5": 89829.5,
+                  "0.9": 151237.5
+                },
+                "late_n": 36,
+                "late_quantiles": {
+                  "0.1": 43664.5,
+                  "0.5": 1201714.0,
+                  "0.9": 1627495.0
+                },
+                "median_shift": 1111884.5,
+                "robust_median_shift_iqr": 11.87267053387186
+              }
+            ]
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {}
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 1344591.0,
+                "after_timestamp_count": 4,
+                "before_median": 1424941.5,
+                "before_timestamp_count": 11,
+                "column": "exports_mt",
+                "median_shift": -80350.5,
+                "robust_shift_score": 0.8325312002984039,
+                "split_timestamp": "2020-01-01T00:00:00+00:00"
+              },
+              {
+                "after_median": 1425129.5,
+                "after_timestamp_count": 4,
+                "before_median": 78080.5,
+                "before_timestamp_count": 11,
+                "column": "imports_mt",
+                "median_shift": 1347049.0,
+                "robust_shift_score": 47.19119269911892,
+                "split_timestamp": "2020-01-01T00:00:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 2,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "configured_window_fraction": 0.2,
+                "early_cutoff": "2011-01-01T00:00:00+00:00",
+                "late_cutoff": "2021-01-01T00:00:00+00:00",
+                "reason": "Earliest and latest timestamp quartiles are compared descriptively; composition changes can mimic distribution drift.",
+                "series_count": 2,
+                "status": "supported"
+              },
+              "panel_balance": {
+                "reason": "No governed or semantic entity columns are available for a panel.",
+                "status": "unsupported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 2,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "month": {
+                "parseable_count": 0,
+                "parseable_rate": 0.0
+              },
+              "year": {
+                "coverage_month_counts": {
+                  "2009-01": 12,
+                  "2010-01": 12,
+                  "2011-01": 12,
+                  "2012-01": 12,
+                  "2013-01": 12,
+                  "2014-01": 12,
+                  "2015-01": 12,
+                  "2016-01": 12,
+                  "2017-01": 12,
+                  "2018-01": 12,
+                  "2019-01": 12,
+                  "2020-01": 12,
+                  "2021-01": 12,
+                  "2022-01": 12,
+                  "2023-01": 12
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 15,
+                "first": "2009-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 366.0,
+                "last": "2023-01-01T00:00:00+00:00",
+                "parseable_count": 180,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "year",
+              "resolution": "annual_proxy"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "year"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 180,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": []
+          },
+          "categorical_associations": {
+            "denominator": 180,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": []
+          },
+          "correlation_columns": {
+            "detail": "At most 20 non-constant governed numeric value columns in contract order; calendar/time identifiers are excluded.",
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "exports_mt",
+              "imports_mt"
+            ]
+          },
+          "correlation_pairs": {
+            "detail": "Pearson and Spearman are paired with effective pairwise sample size.",
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": [
+              {
+                "abs_max_correlation": 0.10014506620574709,
+                "left": "exports_mt",
+                "n": 180,
+                "pearson": -0.09813516052339544,
+                "right": "imports_mt",
+                "spearman": -0.10014506620574709
+              }
+            ]
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {
+              "exports_mt": {
+                "exports_mt": 1.0,
+                "imports_mt": -0.09813516052339544
+              },
+              "imports_mt": {
+                "exports_mt": -0.09813516052339544,
+                "imports_mt": 1.0
+              }
+            }
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "reason": "Fewer than two categorical columns have between 2 and 30 observed levels.",
+                "selected_columns": [],
+                "status": "unsupported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {
+              "exports_mt": {
+                "exports_mt": 1.0,
+                "imports_mt": -0.10014506620574709
+              },
+              "imports_mt": {
+                "exports_mt": -0.10014506620574709,
+                "imports_mt": 1.0
+              }
+            }
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_mpoc_trade_stats_monthly"
+  },
+  "provenance": {
+    "analysis_rows": 180,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/mpoc_trade_stats_monthly",
+    "contract_sha256": "9b76252eeb77f6262384d6fcfa290f615996cc32cf203cc80dfe57873206684f",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 1,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {},
+          "row_count": 180,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 1,
+      "schema_sha256_object_counts": {
+        "159262853bfb6cccef6d1d2b924676f769c41cd9a2a41bc7272420d0b0a5b5b7": 1
+      },
+      "source_compressed_bytes": 5828,
+      "source_row_count": 180
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "de356c969f430e7774fec5a174e064d2141907231ae1fac4b2b4ab0465623e16",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 1,
+    "object_sample": [
+      {
+        "etag": "0c2dd65ea0f328475722328b3592d401",
+        "last_modified": "2026-07-16T21:31:23Z",
+        "partition_values": {},
+        "size": 5828,
+        "uri": "s3://leviathan-dev-shahem-001/silver/mpoc_trade_stats_monthly/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": false,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 1,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "source",
+        "year",
+        "month",
+        "exports_mt",
+        "imports_mt"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 2497297813851957307,
+      "snapshot_row_count": 180,
+      "source_compressed_bytes": 5828,
+      "source_row_count": 180,
+      "stratum_columns": [
+        "source",
+        "year"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "99f581bed4a22b3aaa09497a2f10a2e0c14b2b9ac8bb3fde47dbd4389351dc39",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/source_replica/manifest.json",
+      "object_count": 1,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/source_replica/objects",
+      "replica_manifest_sha256": "c61379d0ae9425e738359df28dd9fe693c9739d3027c66420ebfb53121e94ad0",
+      "source_manifest_sha256": "99f581bed4a22b3aaa09497a2f10a2e0c14b2b9ac8bb3fde47dbd4389351dc39",
+      "total_bytes": 5828
+    },
+    "source_rows": 180,
+    "source_specific_checks": [],
+    "source_total_bytes": 5828,
+    "source_total_rows": 180,
+    "spec_sha256": "d4f90ad9c88ba0372a322b95e8031eef310b37e5f3432ce19bc69c178d80fe76"
+  },
+  "reader": {
+    "analysis_rows": 180,
+    "anti_feature_summary": {
+      "analysis_rows": 180,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 180
+    },
+    "archetype": "monthly_domain",
+    "chart_execution": {
+      "omission_reasons": [],
+      "omitted_chart_count": 0,
+      "plotted_rows": 900,
+      "ready_chart_count": 3,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": "median only within duplicate x/series/measure rows",
+        "analysis_rows": 180,
+        "chart_id": "trade_observations",
+        "exactness": "exact",
+        "plotted_rows": 360,
+        "reason": null,
+        "scope": "selected 1 of 1 complete semantic series by distinct-position count, contributing rows, then label; excluded series=0 (complete but outside cap=0, underpowered=0); label dimensions=none; no pooling; time=year+month; measures=exports_mt, imports_mt",
+        "source_rows": 180,
+        "status": "ready",
+        "title": "Observed monthly exports and imports",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "raw finite observations; no cross-series pooling; all finite values",
+        "analysis_rows": 180,
+        "chart_id": "trade_distribution",
+        "exactness": "exact",
+        "plotted_rows": 360,
+        "reason": null,
+        "scope": "all 1 semantic series; label dimensions=none; measures=exports_mt, imports_mt",
+        "source_rows": 180,
+        "status": "ready",
+        "title": "Observed monthly trade-flow distribution",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "exact contributing-row count by displayed time bucket and entity",
+        "analysis_rows": 180,
+        "chart_id": "coverage",
+        "exactness": "exact",
+        "plotted_rows": 180,
+        "reason": null,
+        "scope": "all 1 semantic series; label dimensions=none; time=year+month; calendar-month buckets; 180 populated cells",
+        "source_rows": 180,
+        "status": "ready",
+        "title": "Monthly trade coverage",
+        "unit": "rows"
+      }
+    ],
+    "chart_omission_reasons": [],
+    "chart_plan": {
+      "analysis_rows": 180,
+      "charts": [
+        {
+          "analysis_rows": 180,
+          "chart_id": "trade_observations",
+          "chart_type": "line",
+          "columns": [
+            "year",
+            "month",
+            "exports_mt",
+            "imports_mt"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 180,
+          "exactness": "exact",
+          "id": "trade_observations",
+          "intentional_points": true,
+          "max_series": 12,
+          "measure_columns": [
+            "exports_mt",
+            "imports_mt"
+          ],
+          "measure_units": {
+            "exports_mt": "metric tonnes",
+            "imports_mt": "metric tonnes"
+          },
+          "minimum_rows": 2,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Display each reviewed monthly flow as an intentional discrete observation, not an underpowered trend.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 180,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [
+            "year",
+            "month"
+          ],
+          "title": "Observed monthly exports and imports",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 180,
+          "chart_id": "trade_distribution",
+          "chart_type": "distribution",
+          "columns": [
+            "exports_mt",
+            "imports_mt"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 180,
+          "exactness": "exact",
+          "id": "trade_distribution",
+          "intentional_points": true,
+          "max_series": 12,
+          "measure_columns": [
+            "exports_mt",
+            "imports_mt"
+          ],
+          "measure_units": {
+            "exports_mt": "metric tonnes",
+            "imports_mt": "metric tonnes"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Describe the compatible metric-tonne observations without claiming composition.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 180,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Observed monthly trade-flow distribution",
+          "type": "distribution",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 180,
+          "chart_id": "coverage",
+          "chart_type": "coverage_heatmap",
+          "columns": [
+            "year",
+            "month"
+          ],
+          "coverage_grain": "month",
+          "cutoff_mode": null,
+          "eligible_rows": 180,
+          "exactness": "exact",
+          "id": "coverage",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Expose missing calendar months.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 180,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [
+            "year",
+            "month"
+          ],
+          "title": "Monthly trade coverage",
+          "type": "coverage_heatmap",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 540,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 0,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 3,
+      "ready_chart_count": 3,
+      "source_rows": 180
+    },
+    "column_dictionary": [
+      {
+        "column": "year",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 15,
+        "example": 2009,
+        "meaning": "Calendar year associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; anchors temporal coverage; is required by the source contract."
+      },
+      {
+        "column": "month",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 12,
+        "example": 1,
+        "meaning": "Calendar month associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; is required by the source contract."
+      },
+      {
+        "column": "exports_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 180,
+        "example": 1068238.0,
+        "meaning": "Exports reported in metric tonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "imports_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 180,
+        "example": 100521.0,
+        "meaning": "Imports reported in metric tonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "mpoc",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 180,
+        "columns": [],
+        "detail": "180 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 180,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180
+        },
+        "source_rows": 180,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 180
+      },
+      {
+        "analysis_rows": 180,
+        "columns": [],
+        "detail": "The analysis frame exposes 5 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 180,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180
+        },
+        "source_rows": 180,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 5
+      },
+      {
+        "analysis_rows": 180,
+        "columns": [
+          "year"
+        ],
+        "detail": "Coverage spans 2009-01-01 through 2023-01-01 across 15 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 180,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180
+        },
+        "source_rows": 180,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 15,
+          "end": "2023-01-01T00:00:00",
+          "start": "2009-01-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 180,
+        "columns": [],
+        "detail": "Distinct entity counts were computed for source.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 180,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180
+        },
+        "source_rows": 180,
+        "status": "evaluated",
+        "value": {
+          "source": 1
+        }
+      },
+      {
+        "analysis_rows": 180,
+        "columns": [
+          "exports_mt",
+          "imports_mt"
+        ],
+        "detail": "Minimum completeness across 2 assessed columns is 100.0%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 180,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180
+        },
+        "source_rows": 180,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 1.0
+      },
+      {
+        "analysis_rows": 180,
+        "columns": [
+          "year",
+          "month"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 180 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 180,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180
+        },
+        "source_rows": 180,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 180,
+        "columns": [
+          "exports_mt"
+        ],
+        "detail": "The latest time has multiple rows and no reviewed entity selection or aggregation.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 180,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180
+        },
+        "source_rows": 180,
+        "status": "not_assessed",
+        "value": null
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 180 entries, 0 to 179\nData columns (total 5 columns):\n #   Column      Non-Null Count  Dtype  \n---  ------      --------------  -----  \n 0   year        180 non-null    int64  \n 1   month       180 non-null    int64  \n 2   exports_mt  180 non-null    float64\n 3   imports_mt  180 non-null    float64\n 4   source      180 non-null    str    \ndtypes: float64(2), int64(2), str(1)\nmemory usage: 7.9 KB\n",
+    "display_policy": {
+      "analysis_rows": 180,
+      "displayed_rows": 180,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "full_dataframe",
+      "plotted_rows": 900,
+      "preview_max_rows": 40,
+      "source_rows": 180
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 180,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "latest year"
+          ],
+          "row": {
+            "exports_mt": 1136027.0,
+            "imports_mt": 144937.0,
+            "month": 1,
+            "source": "mpoc",
+            "year": 2023
+          }
+        },
+        {
+          "reasons": [
+            "earliest year"
+          ],
+          "row": {
+            "exports_mt": 1353686.0,
+            "imports_mt": 29863.0,
+            "month": 1,
+            "source": "mpoc",
+            "year": 2009
+          }
+        },
+        {
+          "reasons": [
+            "maximum imports_mt"
+          ],
+          "row": {
+            "exports_mt": 1402315.0,
+            "imports_mt": 1783284.0,
+            "month": 7,
+            "source": "mpoc",
+            "year": 2021
+          }
+        },
+        {
+          "reasons": [
+            "minimum imports_mt"
+          ],
+          "row": {
+            "exports_mt": 1461173.0,
+            "imports_mt": 1792.0,
+            "month": 9,
+            "source": "mpoc",
+            "year": 2016
+          }
+        },
+        {
+          "reasons": [
+            "maximum exports_mt"
+          ],
+          "row": {
+            "exports_mt": 1843602.0,
+            "imports_mt": 45478.0,
+            "month": 10,
+            "source": "mpoc",
+            "year": 2011
+          }
+        },
+        {
+          "reasons": [
+            "minimum exports_mt"
+          ],
+          "row": {
+            "exports_mt": 900558.0,
+            "imports_mt": 1089529.0,
+            "month": 2,
+            "source": "mpoc",
+            "year": 2021
+          }
+        }
+      ],
+      "source_rows": 180,
+      "status": "available"
+    },
+    "omitted_chart_count": 0,
+    "ordinary_statistics": {
+      "analysis_rows": 180,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "source",
+            "count": 180,
+            "freq": 180,
+            "top": "mpoc",
+            "unique": 1
+          }
+        ],
+        "row_count": 1
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 2012.0,
+            "50%": 2016.0,
+            "75%": 2020.0,
+            "column": "year",
+            "count": 180.0,
+            "max": 2023.0,
+            "mean": 2016.0,
+            "min": 2009.0,
+            "std": 4.332545408956539
+          },
+          {
+            "25%": 3.75,
+            "50%": 6.5,
+            "75%": 9.25,
+            "column": "month",
+            "count": 180.0,
+            "max": 12.0,
+            "mean": 6.5,
+            "min": 1.0,
+            "std": 3.4616817045279724
+          },
+          {
+            "25%": 1268592.0,
+            "50%": 1406050.0,
+            "75%": 1519994.0,
+            "column": "exports_mt",
+            "count": 180.0,
+            "max": 1843602.0,
+            "mean": 1401146.5166666666,
+            "min": 900558.0,
+            "std": 184926.48207758644
+          },
+          {
+            "25%": 45209.5,
+            "50%": 84976.0,
+            "75%": 138860.25,
+            "column": "imports_mt",
+            "count": 180.0,
+            "max": 1783284.0,
+            "mean": 343805.6388888889,
+            "min": 1792.0,
+            "std": 554026.4949599287
+          }
+        ],
+        "row_count": 4
+      },
+      "plotted_rows": null,
+      "source_rows": 180,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "year",
+            "count": 180,
+            "distinct": 15,
+            "max": "2023-01-01T00:00:00",
+            "min": "2009-01-01T00:00:00"
+          },
+          {
+            "column": "month",
+            "count": 0,
+            "distinct": 0,
+            "max": null,
+            "min": null
+          }
+        ],
+        "row_count": 2
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 180,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 180,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 900,
+    "preview": {
+      "analysis_rows": 180,
+      "columns": [
+        "year",
+        "month",
+        "exports_mt",
+        "imports_mt",
+        "source"
+      ],
+      "displayed_rows": 180,
+      "exactness": "exact",
+      "mode": "full_dataframe",
+      "plotted_rows": null,
+      "records": [
+        {
+          "exports_mt": 1353686.0,
+          "imports_mt": 29863.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1257482.0,
+          "imports_mt": 27423.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1260797.0,
+          "imports_mt": 15693.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1193524.0,
+          "imports_mt": 42579.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1230449.0,
+          "imports_mt": 114681.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1279701.0,
+          "imports_mt": 87078.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1454541.0,
+          "imports_mt": 93288.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1317093.0,
+          "imports_mt": 97796.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1322900.0,
+          "imports_mt": 118328.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1478462.0,
+          "imports_mt": 75486.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1501504.0,
+          "imports_mt": 56384.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1209140.0,
+          "imports_mt": 165237.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2009
+        },
+        {
+          "exports_mt": 1461727.0,
+          "imports_mt": 155803.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1294915.0,
+          "imports_mt": 64091.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1396949.0,
+          "imports_mt": 50138.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1285467.0,
+          "imports_mt": 110456.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1365637.0,
+          "imports_mt": 114397.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1443972.0,
+          "imports_mt": 61028.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1469989.0,
+          "imports_mt": 100521.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1211340.0,
+          "imports_mt": 85139.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1469005.0,
+          "imports_mt": 85526.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1461075.0,
+          "imports_mt": 70295.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1506308.0,
+          "imports_mt": 91394.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1285939.0,
+          "imports_mt": 121272.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2010
+        },
+        {
+          "exports_mt": 1222067.0,
+          "imports_mt": 164938.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1114593.0,
+          "imports_mt": 189411.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1235261.0,
+          "imports_mt": 133505.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1349739.0,
+          "imports_mt": 63391.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1411314.0,
+          "imports_mt": 105976.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1585039.0,
+          "imports_mt": 109568.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1735891.0,
+          "imports_mt": 109958.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1693110.0,
+          "imports_mt": 73768.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1546196.0,
+          "imports_mt": 74746.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1843602.0,
+          "imports_mt": 45478.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1664591.0,
+          "imports_mt": 88265.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1589883.0,
+          "imports_mt": 146672.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2011
+        },
+        {
+          "exports_mt": 1386860.0,
+          "imports_mt": 209408.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1223516.0,
+          "imports_mt": 246419.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1329564.0,
+          "imports_mt": 131581.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1333817.0,
+          "imports_mt": 124075.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1408514.0,
+          "imports_mt": 129441.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1547218.0,
+          "imports_mt": 137532.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1291583.0,
+          "imports_mt": 86476.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1441369.0,
+          "imports_mt": 65171.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1513882.0,
+          "imports_mt": 32830.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1775218.0,
+          "imports_mt": 55937.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1661514.0,
+          "imports_mt": 84918.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1649803.0,
+          "imports_mt": 87224.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2012
+        },
+        {
+          "exports_mt": 1625000.0,
+          "imports_mt": 103816.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1398727.0,
+          "imports_mt": 97542.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1536975.0,
+          "imports_mt": 90204.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1455955.0,
+          "imports_mt": 45362.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1407784.0,
+          "imports_mt": 47741.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1411218.0,
+          "imports_mt": 31987.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1453937.0,
+          "imports_mt": 50173.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1526394.0,
+          "imports_mt": 7533.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1605567.0,
+          "imports_mt": 19483.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1664743.0,
+          "imports_mt": 22503.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1528281.0,
+          "imports_mt": 14859.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1507554.0,
+          "imports_mt": 24574.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2013
+        },
+        {
+          "exports_mt": 1367847.0,
+          "imports_mt": 15782.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1351441.0,
+          "imports_mt": 8259.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1245766.0,
+          "imports_mt": 15140.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1268648.0,
+          "imports_mt": 43059.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1406918.0,
+          "imports_mt": 50698.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1481750.0,
+          "imports_mt": 10993.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1446060.0,
+          "imports_mt": 13308.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1437512.0,
+          "imports_mt": 17574.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1628103.0,
+          "imports_mt": 38491.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1605401.0,
+          "imports_mt": 82917.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1512951.0,
+          "imports_mt": 98940.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1519549.0,
+          "imports_mt": 90353.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2014
+        },
+        {
+          "exports_mt": 1191776.0,
+          "imports_mt": 89908.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 972646.0,
+          "imports_mt": 63515.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1182209.0,
+          "imports_mt": 41574.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1177822.0,
+          "imports_mt": 65007.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1625592.0,
+          "imports_mt": 101108.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1697169.0,
+          "imports_mt": 103496.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1609902.0,
+          "imports_mt": 142845.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1608232.0,
+          "imports_mt": 66006.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1680649.0,
+          "imports_mt": 75962.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1711891.0,
+          "imports_mt": 73434.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1499517.0,
+          "imports_mt": 121819.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1483214.0,
+          "imports_mt": 82493.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2015
+        },
+        {
+          "exports_mt": 1279187.0,
+          "imports_mt": 34400.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1088864.0,
+          "imports_mt": 67583.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1335934.0,
+          "imports_mt": 74452.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1172915.0,
+          "imports_mt": 41798.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1282453.0,
+          "imports_mt": 20024.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1141832.0,
+          "imports_mt": 19636.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1384720.0,
+          "imports_mt": 12823.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1824437.0,
+          "imports_mt": 7807.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1461173.0,
+          "imports_mt": 1792.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1436070.0,
+          "imports_mt": 26857.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1370411.0,
+          "imports_mt": 63491.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1267941.0,
+          "imports_mt": 44752.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2016
+        },
+        {
+          "exports_mt": 1286800.0,
+          "imports_mt": 71591.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1107018.0,
+          "imports_mt": 40331.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1265791.0,
+          "imports_mt": 101961.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1283601.0,
+          "imports_mt": 54475.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1506145.0,
+          "imports_mt": 47450.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1379888.0,
+          "imports_mt": 45828.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1399107.0,
+          "imports_mt": 52962.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1488211.0,
+          "imports_mt": 41661.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1519284.0,
+          "imports_mt": 41173.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1538050.0,
+          "imports_mt": 13479.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1356378.0,
+          "imports_mt": 30191.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1422928.0,
+          "imports_mt": 14991.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2017
+        },
+        {
+          "exports_mt": 1472219.0,
+          "imports_mt": 34825.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1243187.0,
+          "imports_mt": 67165.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1565746.0,
+          "imports_mt": 39626.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1530139.0,
+          "imports_mt": 35624.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1291424.0,
+          "imports_mt": 32260.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1129515.0,
+          "imports_mt": 85889.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1196653.0,
+          "imports_mt": 44030.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1099739.0,
+          "imports_mt": 80191.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1619317.0,
+          "imports_mt": 61599.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1578263.0,
+          "imports_mt": 117269.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1375406.0,
+          "imports_mt": 134352.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1383307.0,
+          "imports_mt": 108621.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2018
+        },
+        {
+          "exports_mt": 1680891.0,
+          "imports_mt": 81477.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1324615.0,
+          "imports_mt": 94278.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1620752.0,
+          "imports_mt": 131242.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1654499.0,
+          "imports_mt": 62112.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1715719.0,
+          "imports_mt": 61789.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1397140.0,
+          "imports_mt": 101250.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1486485.0,
+          "imports_mt": 40069.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1736300.0,
+          "imports_mt": 51055.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1409089.0,
+          "imports_mt": 71112.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1641973.0,
+          "imports_mt": 85034.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1405638.0,
+          "imports_mt": 74684.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1396157.0,
+          "imports_mt": 123029.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2019
+        },
+        {
+          "exports_mt": 1213539.0,
+          "imports_mt": 1680891.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1082417.0,
+          "imports_mt": 1324615.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1184702.0,
+          "imports_mt": 1620752.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1236478.0,
+          "imports_mt": 1654499.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1369351.0,
+          "imports_mt": 1715719.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1706597.0,
+          "imports_mt": 1397140.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1783284.0,
+          "imports_mt": 1486485.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1578075.0,
+          "imports_mt": 1736300.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1612155.0,
+          "imports_mt": 1409089.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1674304.0,
+          "imports_mt": 1641973.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1303271.0,
+          "imports_mt": 1405638.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 1624692.0,
+          "imports_mt": 1396157.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2020
+        },
+        {
+          "exports_mt": 947392.0,
+          "imports_mt": 1213569.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 900558.0,
+          "imports_mt": 1089529.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1189859.0,
+          "imports_mt": 1184973.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1350777.0,
+          "imports_mt": 1236478.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1268424.0,
+          "imports_mt": 1369351.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1418494.0,
+          "imports_mt": 1706635.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1402315.0,
+          "imports_mt": 1783284.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1167188.0,
+          "imports_mt": 1578075.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1611518.0,
+          "imports_mt": 1612155.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1420574.0,
+          "imports_mt": 1674380.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1465518.0,
+          "imports_mt": 1303807.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1414566.0,
+          "imports_mt": 1642835.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2021
+        },
+        {
+          "exports_mt": 1159826.0,
+          "imports_mt": 947392.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1111826.0,
+          "imports_mt": 900558.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1281461.0,
+          "imports_mt": 1189859.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1068238.0,
+          "imports_mt": 1350777.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1369714.0,
+          "imports_mt": 1268424.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1193917.0,
+          "imports_mt": 1418494.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1325342.0,
+          "imports_mt": 1402315.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1299930.0,
+          "imports_mt": 1167188.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1423196.0,
+          "imports_mt": 1611518.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1505769.0,
+          "imports_mt": 1420574.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1521329.0,
+          "imports_mt": 1465518.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1468448.0,
+          "imports_mt": 1414566.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2022
+        },
+        {
+          "exports_mt": 1136027.0,
+          "imports_mt": 144937.0,
+          "month": 1,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1126127.0,
+          "imports_mt": 52446.0,
+          "month": 2,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1487836.0,
+          "imports_mt": 39772.0,
+          "month": 3,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1087541.0,
+          "imports_mt": 33678.0,
+          "month": 4,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1079235.0,
+          "imports_mt": 80926.0,
+          "month": 5,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1171739.0,
+          "imports_mt": 135271.0,
+          "month": 6,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1354336.0,
+          "imports_mt": 103840.0,
+          "month": 7,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1221848.0,
+          "imports_mt": 110621.0,
+          "month": 8,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1211294.0,
+          "imports_mt": 49054.0,
+          "month": 9,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1480686.0,
+          "imports_mt": 47557.0,
+          "month": 10,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1406462.0,
+          "imports_mt": 39696.0,
+          "month": 11,
+          "source": "mpoc",
+          "year": 2023
+        },
+        {
+          "exports_mt": 1334441.0,
+          "imports_mt": 36573.0,
+          "month": 12,
+          "source": "mpoc",
+          "year": 2023
+        }
+      ],
+      "selection_reasons": [
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row"
+      ],
+      "source_rows": 180
+    },
+    "provenance": {
+      "analysis_rows": 180,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/mpoc_trade_stats_monthly",
+      "contract_sha256": "9b76252eeb77f6262384d6fcfa290f615996cc32cf203cc80dfe57873206684f",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 1,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {},
+            "row_count": 180,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 1,
+        "schema_sha256_object_counts": {
+          "159262853bfb6cccef6d1d2b924676f769c41cd9a2a41bc7272420d0b0a5b5b7": 1
+        },
+        "source_compressed_bytes": 5828,
+        "source_row_count": 180
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "de356c969f430e7774fec5a174e064d2141907231ae1fac4b2b4ab0465623e16",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 1,
+      "object_sample": [
+        {
+          "etag": "0c2dd65ea0f328475722328b3592d401",
+          "last_modified": "2026-07-16T21:31:23Z",
+          "partition_values": {},
+          "size": 5828,
+          "uri": "s3://leviathan-dev-shahem-001/silver/mpoc_trade_stats_monthly/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": false,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 1,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "source",
+          "year",
+          "month",
+          "exports_mt",
+          "imports_mt"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 2497297813851957307,
+        "snapshot_row_count": 180,
+        "source_compressed_bytes": 5828,
+        "source_row_count": 180,
+        "stratum_columns": [
+          "source",
+          "year"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "99f581bed4a22b3aaa09497a2f10a2e0c14b2b9ac8bb3fde47dbd4389351dc39",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/source_replica/manifest.json",
+        "object_count": 1,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpoc_trade_stats_monthly/_machine/source_replica/objects",
+        "replica_manifest_sha256": "c61379d0ae9425e738359df28dd9fe693c9739d3027c66420ebfb53121e94ad0",
+        "source_manifest_sha256": "99f581bed4a22b3aaa09497a2f10a2e0c14b2b9ac8bb3fde47dbd4389351dc39",
+        "total_bytes": 5828
+      },
+      "source_rows": 180,
+      "source_specific_checks": [],
+      "source_total_bytes": 5828,
+      "source_total_rows": 180,
+      "spec_sha256": "d4f90ad9c88ba0372a322b95e8031eef310b37e5f3432ce19bc69c178d80fe76"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 180,
+      "checks": [
+        {
+          "analysis_rows": 180,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 180,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "year",
+              "month"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 180 rows."
+        },
+        {
+          "analysis_rows": 180,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.0,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "PASS",
+          "summary": "No null values are present in the analysis frame."
+        },
+        {
+          "analysis_rows": 180,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 180,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 366.0,
+            "median_gap_days": 365.0,
+            "time_column": "year",
+            "usable_time_points": 15
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "PASS",
+          "summary": "Observed gaps are consistent with a median cadence of 365 days."
+        },
+        {
+          "analysis_rows": 180,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "year",
+            "distinct_points": 15,
+            "max": "2023-01-01T00:00:00",
+            "min": "2009-01-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "PASS",
+          "summary": "Coverage runs from 2009-01-01 through 2023-01-01."
+        },
+        {
+          "analysis_rows": 180,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 1,
+            "footer_complete": true,
+            "object_count": 1,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "159262853bfb6cccef6d1d2b924676f769c41cd9a2a41bc7272420d0b0a5b5b7": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "PASS",
+          "summary": "All 1 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 180,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 180,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "PASS",
+      "plotted_rows": null,
+      "source_rows": 180
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 180,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year"
+        ],
+        "evidence": {
+          "distinct_time_points": 15,
+          "end": "2023-01-01T00:00:00",
+          "entity_distinct_counts": {},
+          "start": "2009-01-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "trade_observations",
+            "coverage"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 180,
+        "statement": "Coverage spans 2009-01-01 through 2023-01-01 across 15 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 180,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "exports_mt",
+          "imports_mt"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "exports_mt": 0.0,
+            "imports_mt": 0.0
+          },
+          "highest_null_column": "exports_mt",
+          "highest_null_rate": 0.0
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 180,
+        "statement": "All 2 assessed measure columns are complete.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 180,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "exports_mt",
+          "imports_mt"
+        ],
+        "evidence": {
+          "measures": {
+            "exports_mt": {
+              "count": 180,
+              "iqr": 251402.0,
+              "iqr_outlier_count": 0,
+              "maximum": 1843602.0,
+              "median": 1406050.0,
+              "minimum": 900558.0
+            },
+            "imports_mt": {
+              "count": 180,
+              "iqr": 93650.75,
+              "iqr_outlier_count": 36,
+              "maximum": 1783284.0,
+              "median": 84976.0,
+              "minimum": 1792.0
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "trade_distribution"
+          ],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 180,
+        "statement": "Robust IQR screening retains 36 notable observations across 2 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 180,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "exports_mt",
+          "imports_mt"
+        ],
+        "evidence": {},
+        "exactness": "exact",
+        "insight_id": "latest_change",
+        "kind": "latest_change",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "trade_observations"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 180,
+        "statement": "No entity has two unambiguous comparable time points for the primary measure.",
+        "status": "not_assessed",
+        "title": "Explain the latest comparable movement."
+      }
+    ],
+    "ready_chart_count": 3,
+    "row_meaning": "One row is aggregate palm-oil exports and imports for one calendar month.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 180,
+    "source_shape": {
+      "analysis_rows": 180,
+      "analysis_shape": [
+        180,
+        5
+      ],
+      "column_count": 5,
+      "exactness": "exact",
+      "plotted_rows": 900,
+      "source_rows": 180,
+      "source_shape": [
+        180,
+        5
+      ]
+    },
+    "table_name": "silver_mpoc_trade_stats_monthly"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [],
+  "table_name": "silver_mpoc_trade_stats_monthly"
+}

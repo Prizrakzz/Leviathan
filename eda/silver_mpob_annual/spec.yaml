@@ -1,0 +1,387 @@
+schema_version: 1
+table_name: silver_mpob_annual
+title: Mpob Annual
+analysis_role: derived
+feature_disposition: blocked
+adapters:
+- derived_lineage
+- annual_seasonal_panel
+observation_time_candidates:
+- year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- exports_palm_oil_mt
+- imports_palm_oil_mt
+- commodity
+categorical_columns:
+- source
+- commodity
+numeric_columns:
+- production_cpo_mt
+- closing_stocks_palm_oil_mt
+- exports_palm_oil_mt
+- imports_palm_oil_mt
+- ffb_price_myr_per_mt
+- su_ratio
+units:
+  closing_stocks_palm_oil_mt: metric tonnes
+  exports_palm_oil_mt: metric tonnes
+  ffb_price_myr_per_mt: Malaysian ringgit per metric tonne
+  imports_palm_oil_mt: metric tonnes
+  production_cpo_mt: metric tonnes
+  su_ratio: ratio
+meaningful_groupings:
+- exports_palm_oil_mt
+- imports_palm_oil_mt
+- commodity
+- year
+declared_relationships: []
+source_keys: []
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - commodity
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-MPOB_ANNUAL
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: lineage_not_assessed
+  lineage_status: lineage_not_assessed
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: true
+  evidence: No governed Silver-to-Silver peer relationship and parity key/value contract is registered
+    for this derived or serving-copy table.
+  work_orders:
+  - &id003
+    id: EDA-LINEAGE-MPOB_ANNUAL
+    priority: high
+    title: Register and validate derived-table lineage
+    required_evidence: Declare the canonical Silver upstream, transformation, parity grain, value tolerances,
+      and frozen-frame comparison before claiming parity.
+semantic_work_orders:
+- *id002
+- *id003
+feature_hypothesis_templates:
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards:
+- Registry key/value contract is incomplete; inferred grain is evidence only.
+- Registry lacks a complete natural-key/value-column contract; inferred grain is evidence only and cannot
+  be promoted automatically.
+no_candidate_reason: The registry lacks a complete natural-key/value-column contract; inferred grain is
+  evidence only until a reviewed contract repair is merged.
+archetype: small_derived_contract_incomplete
+row_meaning: One row is a derived annual Malaysia palm-oil balance summary for one year.
+column_descriptions:
+  closing_stocks_palm_oil_mt: Closing stocks palm oil reported in metric tonnes at the declared row grain.
+  commodity: Governed or source-normalized commodity identifier.
+  exports_palm_oil_mt: Exports palm oil reported in metric tonnes at the declared row grain.
+  ffb_price_myr_per_mt: Fresh fruit bunch price reported in Malaysian ringgit per metric tonne at the
+    declared row grain.
+  imports_palm_oil_mt: Imports palm oil reported in metric tonnes at the declared row grain.
+  production_cpo_mt: Production cpo reported in metric tonnes at the declared row grain.
+  source: Source-system label retained for provenance.
+  su_ratio: Stock-to-use ratio comparing ending inventories with the governed use measure.
+  year: Calendar year associated with the observation.
+why_it_matters:
+  closing_stocks_palm_oil_mt: Carries a primary analytical measure.
+  commodity: Supports entity segmentation.
+  exports_palm_oil_mt: Carries a primary analytical measure.
+  ffb_price_myr_per_mt: Carries a primary analytical measure.
+  imports_palm_oil_mt: Carries a primary analytical measure.
+  production_cpo_mt: Carries a primary analytical measure.
+  source: Supports provenance or reproducibility.
+  su_ratio: Carries a primary analytical measure.
+  year: Anchors temporal coverage.
+primary_measures:
+- production_cpo_mt
+- closing_stocks_palm_oil_mt
+- exports_palm_oil_mt
+- imports_palm_oil_mt
+- ffb_price_myr_per_mt
+- su_ratio
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - commodity
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - production_cpo_mt
+  - closing_stocks_palm_oil_mt
+  - exports_palm_oil_mt
+  - imports_palm_oil_mt
+  - ffb_price_myr_per_mt
+  - su_ratio
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns: []
+  id: grain_integrity
+  kind: inferred_grain
+  kpi_id: grain_integrity
+  label: Candidate-grain status
+- columns:
+  - production_cpo_mt
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns: []
+  detail: Infer grain for evidence only; do not repair the registry contract.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: blocker
+  unsupported_result: not_assessed
+- columns: []
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_cpo_mt
+  - closing_stocks_palm_oil_mt
+  - exports_palm_oil_mt
+  - imports_palm_oil_mt
+  - ffb_price_myr_per_mt
+  - su_ratio
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_cpo_mt
+  - closing_stocks_palm_oil_mt
+  - exports_palm_oil_mt
+  - imports_palm_oil_mt
+  - ffb_price_myr_per_mt
+  - su_ratio
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  - commodity
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  - production_cpo_mt
+  - closing_stocks_palm_oil_mt
+  - exports_palm_oil_mt
+  - imports_palm_oil_mt
+  - ffb_price_myr_per_mt
+  - su_ratio
+  - source
+  - commodity
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: annual_production
+  chart_type: line
+  columns:
+  - year
+  - production_cpo_mt
+  - commodity
+  coverage_grain: null
+  cutoff_mode: null
+  id: annual_production
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - production_cpo_mt
+  measure_units:
+    production_cpo_mt: metric tonnes
+  minimum_rows: 2
+  purpose: Show every complete annual production point in this tiny exact derived table.
+  series_dimensions:
+  - commodity
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Annual crude palm-oil production
+  type: line
+  unit_column: null
+- chart_id: annual_stocks
+  chart_type: line
+  columns:
+  - year
+  - closing_stocks_palm_oil_mt
+  - commodity
+  coverage_grain: null
+  cutoff_mode: null
+  id: annual_stocks
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - closing_stocks_palm_oil_mt
+  measure_units:
+    closing_stocks_palm_oil_mt: metric tonnes
+  minimum_rows: 2
+  purpose: Show every complete annual closing-stock point without imposing the general eight-point trend
+    rule.
+  series_dimensions:
+  - commodity
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Annual closing palm-oil stocks
+  type: line
+  unit_column: null
+- chart_id: annual_trade
+  chart_type: line
+  columns:
+  - year
+  - exports_palm_oil_mt
+  - imports_palm_oil_mt
+  - commodity
+  coverage_grain: null
+  cutoff_mode: null
+  id: annual_trade
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - exports_palm_oil_mt
+  - imports_palm_oil_mt
+  measure_units:
+    exports_palm_oil_mt: metric tonnes
+    imports_palm_oil_mt: metric tonnes
+  minimum_rows: 2
+  purpose: Show the six intentionally meaningful annual trade observations on compatible metric-tonne
+    scales.
+  series_dimensions:
+  - commodity
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Annual palm-oil exports and imports
+  type: line
+  unit_column: null
+insight_rules:
+- columns:
+  - year
+  - commodity
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - production_cpo_mt
+  - closing_stocks_palm_oil_mt
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - year
+  - production_cpo_mt
+  - closing_stocks_palm_oil_mt
+  - commodity
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+preview_strata:
+- year
+- commodity
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not promote inferred grain or value roles until the registry contract is repaired.
+feature_quarantined: false

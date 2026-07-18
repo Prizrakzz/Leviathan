@@ -1,0 +1,2591 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 2
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 0
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "blocked"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 4
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "year"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 6,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 0.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 6
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 0,
+    "effective_disposition": "blocked",
+    "existing_feature_families": [],
+    "no_candidate_rationale": "The registry lacks a complete natural-key/value-column contract; inferred grain is evidence only until a reviewed contract repair is merged.",
+    "review_only": true,
+    "source_keys": []
+  },
+  "feature_candidates": [],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {}
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": []
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": "The registry lacks a complete natural-key/value-column contract; inferred grain is evidence only until a reviewed contract repair is merged."
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {}
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": []
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "annual_or_seasonal_panel",
+      "derived_lineage"
+    ],
+    "blockers": [
+      "registry natural_key is incomplete",
+      "registry value_columns is incomplete"
+    ],
+    "disposition": "blocked",
+    "findings": [
+      {
+        "code": "EDA-CONTRACT-001",
+        "confidence": "high",
+        "evidence": [
+          "grain_integrity.inferred_candidate_key",
+          "grain_integrity.inferred_candidate_key_unique_rate"
+        ],
+        "message": "The registry does not declare a natural key; the inferred key is evidence only.",
+        "remediation": "Review the inferred grain and repair the registry before prototyping.",
+        "risk": "Feature aggregation or joins may silently mix row grains.",
+        "severity": "high",
+        "title": "Natural key is not governed"
+      },
+      {
+        "code": "EDA-CONTRACT-002",
+        "confidence": "high",
+        "evidence": [
+          "missingness_validity.value_column_population"
+        ],
+        "message": "The registry does not identify feature-bearing value columns.",
+        "remediation": "Declare value_columns and calibrated non-null floors in the registry.",
+        "risk": "Automated candidate generation cannot distinguish measures from identifiers.",
+        "severity": "high",
+        "title": "Value columns are not governed"
+      },
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      },
+      {
+        "code": "EDA-SEMANTIC-LINEAGE-001",
+        "confidence": "high",
+        "evidence": [
+          "source_specific_checks.derived_lineage"
+        ],
+        "message": "No governed Silver-to-Silver peer relationship and parity key/value contract is registered for this derived or serving-copy table.",
+        "remediation": "Register the canonical Silver upstream, transformation, parity key/value contract, and tolerances; rerun frozen-frame parity evidence.",
+        "risk": "A derived or serving-copy source can drift from its upstream without a declared parity grain and tolerance.",
+        "severity": "high",
+        "title": "Derived-table lineage/parity is not assessed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "year"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "closing_stocks_palm_oil_mt",
+              "exports_palm_oil_mt",
+              "ffb_price_myr_per_mt",
+              "imports_palm_oil_mt",
+              "production_cpo_mt",
+              "su_ratio",
+              "year"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "Unsupported: no stable grouping axis and governed numeric signal coexist.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": []
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 0
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {}
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "commodity": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 6,
+                    "rate": 1.0,
+                    "value": "malaysian_crude_palm_oil_cme"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 6,
+                    "rate": 1.0,
+                    "value": "mpob"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": [
+              "registry natural_key is incomplete",
+              "registry value_columns is incomplete"
+            ]
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "blocked"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": false
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 4
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": []
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": [
+              "commodity",
+              "year"
+            ]
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 6,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "commodity",
+              "year"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "commodity": {
+                "distinct_count": 1,
+                "non_null_count": 6,
+                "non_null_rate": 1.0
+              },
+              "year": {
+                "distinct_count": 6,
+                "non_null_count": 6,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": null
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 6,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": []
+          },
+          "column_missingness": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "closing_stocks_palm_oil_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "commodity": {
+                "empty_string_count": 0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "exports_palm_oil_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "ffb_price_myr_per_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "imports_palm_oil_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "production_cpo_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "su_ratio": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "year": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 6,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 6,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": []
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 0,
+                "reason": "Fewer than two partially missing columns are available for co-missingness.",
+                "selected_column_count": 0,
+                "status": "no_evidence"
+              },
+              "conditional_missingness": {
+                "reason": "No partially missing column is available as an analysis target.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 0
+          },
+          "required_complete_row_rate": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 42,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 12
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [],
+                "negative_count": [],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": []
+              },
+              "finite_count": 42,
+              "infinite_count": 0,
+              "nan_or_null_count": 0,
+              "negative_count": 0,
+              "numeric_cell_count": 42,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.0,
+                "negative_count": 0.0,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.0
+              },
+              "string_cell_count": 12,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 0
+            }
+          },
+          "value_column_population": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {}
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "year",
+                "resolution": "annual_proxy"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "closing_stocks_palm_oil_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "commodity": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "exports_palm_oil_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "ffb_price_myr_per_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "imports_palm_oil_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "production_cpo_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "su_ratio": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "year": {
+                "declared_nullable": true,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 9
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 9
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "year",
+              "production_cpo_mt",
+              "closing_stocks_palm_oil_mt",
+              "exports_palm_oil_mt",
+              "imports_palm_oil_mt",
+              "ffb_price_myr_per_mt",
+              "su_ratio",
+              "source",
+              "commodity"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 6
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 1,
+              "partition_stratum_count": 1,
+              "source_compressed_bytes": 6448,
+              "source_row_count": 6
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {},
+                "row_count": 6,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "3cc72bd37e1bad33cd875bc0a91720745cdc981fe6f761828d7d03f9845095bb": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": []
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": null,
+              "declared_matches_inferred": null,
+              "distinct_timestamp_count": 6,
+              "gap_count": 5,
+              "gap_days_max": 366.0,
+              "gap_days_median": 365.0,
+              "gap_days_mode": 365.0,
+              "gap_days_p95": 365.8,
+              "inferred_cadence": "annual",
+              "large_gap_count": 0,
+              "large_gap_rate": 0.0
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": null
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": []
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {
+              "analysis_frame_exactness": "exact",
+              "complete_entity_count": 1,
+              "complete_entity_rate": 1.0,
+              "entity_columns": [
+                "commodity"
+              ],
+              "entity_count": 1,
+              "full_source_balance_claimed": true,
+              "global_distinct_period_count": 6,
+              "observed_period_count": {
+                "max": 6,
+                "median": 6.0,
+                "min": 6,
+                "p10": 6.0,
+                "p90": 6.0
+              },
+              "period_coverage_ratio": {
+                "median": 1.0,
+                "p10": 1.0,
+                "p90": 1.0
+              },
+              "sampling_artifact_caveat": null,
+              "scope": "full_analysis_frame"
+            }
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": []
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "configured_minimum_points": 8,
+                "reason": "No governed non-constant value series meets the configured minimum trend points.",
+                "status": "no_evidence"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "reason": "Selected series lack 20 finite rows in both temporal edge quartiles.",
+                "status": "no_evidence"
+              },
+              "panel_balance": {
+                "entity_count": 1,
+                "full_source_balance_claimed": true,
+                "reason": "Entity coverage is measured against the global observed timestamp set; staggered entry can lower this descriptive ratio without implying a defect.",
+                "scope": "full_analysis_frame",
+                "status": "supported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "reason": "Selected numeric series have fewer than 12 timestamp aggregates or no finite values.",
+                "status": "no_evidence"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "year": {
+                "coverage_month_counts": {
+                  "2011-01": 1,
+                  "2012-01": 1,
+                  "2013-01": 1,
+                  "2014-01": 1,
+                  "2015-01": 1,
+                  "2016-01": 1
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 6,
+                "first": "2011-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 365.8,
+                "last": "2016-01-01T00:00:00+00:00",
+                "parseable_count": 6,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "year",
+              "resolution": "annual_proxy"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "year"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 6,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": []
+          },
+          "categorical_associations": {
+            "denominator": 6,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": []
+          },
+          "correlation_columns": {
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": []
+          },
+          "correlation_pairs": {
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": []
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {}
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "reason": "Fewer than two categorical columns have between 2 and 30 observed levels.",
+                "selected_columns": [],
+                "status": "unsupported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {}
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_mpob_annual"
+  },
+  "provenance": {
+    "analysis_rows": 6,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/mpob_annual",
+    "contract_sha256": "c66ecdba7d1eea06deea8693500394ca92bbb4626fef74670cced0f1b9fba73e",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 1,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {},
+          "row_count": 6,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 1,
+      "schema_sha256_object_counts": {
+        "3cc72bd37e1bad33cd875bc0a91720745cdc981fe6f761828d7d03f9845095bb": 1
+      },
+      "source_compressed_bytes": 6448,
+      "source_row_count": 6
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "8261a2f3eb69a9344d6cbff0d035411deacb36f1b47afafb7d125022c2d29ee2",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 1,
+    "object_sample": [
+      {
+        "etag": "38404c1e3aa5c9ebd2899804d9039840",
+        "last_modified": "2026-07-16T21:19:53Z",
+        "partition_values": {},
+        "size": 6448,
+        "uri": "s3://leviathan-dev-shahem-001/silver/mpob_annual/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": false,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 1,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "commodity",
+        "source",
+        "year",
+        "production_cpo_mt",
+        "closing_stocks_palm_oil_mt",
+        "exports_palm_oil_mt",
+        "imports_palm_oil_mt",
+        "ffb_price_myr_per_mt"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 8379164488882201515,
+      "snapshot_row_count": 6,
+      "source_compressed_bytes": 6448,
+      "source_row_count": 6,
+      "stratum_columns": [
+        "commodity",
+        "source",
+        "year"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "f0ffa552f4bdd719fdfa1593c0f9a1410e39b686a7fa94ec18052b719d7b55f0",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/source_replica/manifest.json",
+      "object_count": 1,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/source_replica/objects",
+      "replica_manifest_sha256": "809cdb716b5004cf1f275f36e38dfae6aaee616273da887682b875a21234798a",
+      "source_manifest_sha256": "f0ffa552f4bdd719fdfa1593c0f9a1410e39b686a7fa94ec18052b719d7b55f0",
+      "total_bytes": 6448
+    },
+    "source_rows": 6,
+    "source_specific_checks": [
+      {
+        "check": "derived_lineage",
+        "evidence": "No governed Silver-to-Silver peer relationship and parity key/value contract is registered for this derived or serving-copy table.",
+        "exactness": "exact",
+        "lineage_status": "lineage_not_assessed",
+        "parity_assessed": false,
+        "parity_claimed": false,
+        "peer_table": null,
+        "repair_required": true,
+        "status": "lineage_not_assessed",
+        "work_orders": [
+          {
+            "id": "EDA-LINEAGE-MPOB_ANNUAL",
+            "priority": "high",
+            "required_evidence": "Declare the canonical Silver upstream, transformation, parity grain, value tolerances, and frozen-frame comparison before claiming parity.",
+            "title": "Register and validate derived-table lineage"
+          }
+        ]
+      }
+    ],
+    "source_total_bytes": 6448,
+    "source_total_rows": 6,
+    "spec_sha256": "5964adb28f00104cd97cc3b883096356fae768de360136e04eb5e4fedde3da3c"
+  },
+  "reader": {
+    "analysis_rows": 6,
+    "anti_feature_summary": {
+      "analysis_rows": 6,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "reviewed-4",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not promote inferred grain or value roles until the registry contract is repaired."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 6
+    },
+    "archetype": "small_derived_contract_incomplete",
+    "chart_execution": {
+      "omission_reasons": [],
+      "omitted_chart_count": 0,
+      "plotted_rows": 24,
+      "ready_chart_count": 3,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": "median only within duplicate x/series/measure rows; semantic series remain separate",
+        "analysis_rows": 6,
+        "chart_id": "annual_production",
+        "exactness": "exact",
+        "plotted_rows": 6,
+        "reason": null,
+        "scope": "selected 1 of 1 complete semantic series by distinct-position count, contributing rows, then label; excluded series=0 (complete but outside cap=0, underpowered=0); label dimensions=commodity; no pooling; time=year; measures=production_cpo_mt",
+        "source_rows": 6,
+        "status": "ready",
+        "title": "Annual crude palm-oil production",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "median only within duplicate x/series/measure rows; semantic series remain separate",
+        "analysis_rows": 6,
+        "chart_id": "annual_stocks",
+        "exactness": "exact",
+        "plotted_rows": 6,
+        "reason": null,
+        "scope": "selected 1 of 1 complete semantic series by distinct-position count, contributing rows, then label; excluded series=0 (complete but outside cap=0, underpowered=0); label dimensions=commodity; no pooling; time=year; measures=closing_stocks_palm_oil_mt",
+        "source_rows": 6,
+        "status": "ready",
+        "title": "Annual closing palm-oil stocks",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "median only within duplicate x/series/measure rows; semantic series remain separate",
+        "analysis_rows": 6,
+        "chart_id": "annual_trade",
+        "exactness": "exact",
+        "plotted_rows": 12,
+        "reason": null,
+        "scope": "selected 1 of 1 complete semantic series by distinct-position count, contributing rows, then label; excluded series=0 (complete but outside cap=0, underpowered=0); label dimensions=commodity; no pooling; time=year; measures=exports_palm_oil_mt, imports_palm_oil_mt",
+        "source_rows": 6,
+        "status": "ready",
+        "title": "Annual palm-oil exports and imports",
+        "unit": "metric tonnes"
+      }
+    ],
+    "chart_omission_reasons": [],
+    "chart_plan": {
+      "analysis_rows": 6,
+      "charts": [
+        {
+          "analysis_rows": 6,
+          "chart_id": "annual_production",
+          "chart_type": "line",
+          "columns": [
+            "year",
+            "production_cpo_mt",
+            "commodity"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 6,
+          "exactness": "exact",
+          "id": "annual_production",
+          "intentional_points": true,
+          "max_series": 12,
+          "measure_columns": [
+            "production_cpo_mt"
+          ],
+          "measure_units": {
+            "production_cpo_mt": "metric tonnes"
+          },
+          "minimum_rows": 2,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show every complete annual production point in this tiny exact derived table.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 6,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Annual crude palm-oil production",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 6,
+          "chart_id": "annual_stocks",
+          "chart_type": "line",
+          "columns": [
+            "year",
+            "closing_stocks_palm_oil_mt",
+            "commodity"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 6,
+          "exactness": "exact",
+          "id": "annual_stocks",
+          "intentional_points": true,
+          "max_series": 12,
+          "measure_columns": [
+            "closing_stocks_palm_oil_mt"
+          ],
+          "measure_units": {
+            "closing_stocks_palm_oil_mt": "metric tonnes"
+          },
+          "minimum_rows": 2,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show every complete annual closing-stock point without imposing the general eight-point trend rule.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 6,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Annual closing palm-oil stocks",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 6,
+          "chart_id": "annual_trade",
+          "chart_type": "line",
+          "columns": [
+            "year",
+            "exports_palm_oil_mt",
+            "imports_palm_oil_mt",
+            "commodity"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 6,
+          "exactness": "exact",
+          "id": "annual_trade",
+          "intentional_points": true,
+          "max_series": 12,
+          "measure_columns": [
+            "exports_palm_oil_mt",
+            "imports_palm_oil_mt"
+          ],
+          "measure_units": {
+            "exports_palm_oil_mt": "metric tonnes",
+            "imports_palm_oil_mt": "metric tonnes"
+          },
+          "minimum_rows": 2,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show the six intentionally meaningful annual trade observations on compatible metric-tonne scales.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 6,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Annual palm-oil exports and imports",
+          "type": "line",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 18,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 0,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 3,
+      "ready_chart_count": 3,
+      "source_rows": 6
+    },
+    "column_dictionary": [
+      {
+        "column": "year",
+        "declared_nullable": true,
+        "declared_type": "int64",
+        "distinct_count": 6,
+        "example": 2011,
+        "meaning": "Calendar year associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Anchors temporal coverage."
+      },
+      {
+        "column": "production_cpo_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 6,
+        "example": 17319177.0,
+        "meaning": "Production cpo reported in metric tonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "closing_stocks_palm_oil_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 6,
+        "example": 1666673.0,
+        "meaning": "Closing stocks palm oil reported in metric tonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "exports_palm_oil_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 6,
+        "example": 16045957.0,
+        "meaning": "Exports palm oil reported in metric tonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "imports_palm_oil_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 6,
+        "example": 1028158.0,
+        "meaning": "Imports palm oil reported in metric tonnes at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "ffb_price_myr_per_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 6,
+        "example": 459.0,
+        "meaning": "Fresh fruit bunch price reported in Malaysian ringgit per metric tonne at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "Malaysian ringgit per metric tonne",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "su_ratio",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 6,
+        "example": 0.10386871907982802,
+        "meaning": "Stock-to-use ratio comparing ending inventories with the governed use measure.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "ratio",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "mpob",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      },
+      {
+        "column": "commodity",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "malaysian_crude_palm_oil_cme",
+        "meaning": "Governed or source-normalized commodity identifier.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports entity segmentation."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 6,
+        "columns": [],
+        "detail": "6 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 6,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6
+        },
+        "source_rows": 6,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 6
+      },
+      {
+        "analysis_rows": 6,
+        "columns": [],
+        "detail": "The analysis frame exposes 9 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 6,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6
+        },
+        "source_rows": 6,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 9
+      },
+      {
+        "analysis_rows": 6,
+        "columns": [
+          "year"
+        ],
+        "detail": "Coverage spans 2011-01-01 through 2016-01-01 across 6 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 6,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6
+        },
+        "source_rows": 6,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 6,
+          "end": "2016-01-01T00:00:00",
+          "start": "2011-01-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 6,
+        "columns": [
+          "commodity"
+        ],
+        "detail": "Distinct entity counts were computed for commodity.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 6,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6
+        },
+        "source_rows": 6,
+        "status": "evaluated",
+        "value": {
+          "commodity": 1
+        }
+      },
+      {
+        "analysis_rows": 6,
+        "columns": [
+          "production_cpo_mt",
+          "closing_stocks_palm_oil_mt",
+          "exports_palm_oil_mt",
+          "imports_palm_oil_mt",
+          "ffb_price_myr_per_mt",
+          "su_ratio"
+        ],
+        "detail": "Minimum completeness across 6 assessed columns is 100.0%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 6,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6
+        },
+        "source_rows": 6,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 1.0
+      },
+      {
+        "analysis_rows": 6,
+        "columns": [],
+        "detail": "Inferred-key duplicate participation is 0 of 6 rows.",
+        "exactness": "exact",
+        "kind": "inferred_grain",
+        "kpi_id": "grain_integrity",
+        "label": "Candidate-grain status",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 6,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6
+        },
+        "source_rows": 6,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 6,
+        "columns": [
+          "production_cpo_mt"
+        ],
+        "detail": "Latest unambiguous production_cpo_mt value at 2016-01-01.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 6,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6
+        },
+        "source_rows": 6,
+        "status": "evaluated",
+        "value": 17319177.0
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 6 entries, 0 to 5\nData columns (total 9 columns):\n #   Column                      Non-Null Count  Dtype  \n---  ------                      --------------  -----  \n 0   year                        6 non-null      int64  \n 1   production_cpo_mt           6 non-null      float64\n 2   closing_stocks_palm_oil_mt  6 non-null      float64\n 3   exports_palm_oil_mt         6 non-null      float64\n 4   imports_palm_oil_mt         6 non-null      float64\n 5   ffb_price_myr_per_mt        6 non-null      float64\n 6   su_ratio                    6 non-null      float64\n 7   source                      6 non-null      str    \n 8   commodity                   6 non-null      str    \ndtypes: float64(6), int64(1), str(2)\nmemory usage: 756.0 bytes\n",
+    "display_policy": {
+      "analysis_rows": 6,
+      "displayed_rows": 6,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "full_dataframe",
+      "plotted_rows": 24,
+      "preview_max_rows": 40,
+      "source_rows": 6
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 6,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "latest year",
+            "minimum closing_stocks_palm_oil_mt",
+            "minimum exports_palm_oil_mt",
+            "minimum production_cpo_mt"
+          ],
+          "row": {
+            "closing_stocks_palm_oil_mt": 1666673.0,
+            "commodity": "malaysian_crude_palm_oil_cme",
+            "exports_palm_oil_mt": 16045957.0,
+            "ffb_price_myr_per_mt": 594.0,
+            "imports_palm_oil_mt": 415414.0,
+            "production_cpo_mt": 17319177.0,
+            "source": "mpob",
+            "su_ratio": 0.10386871907982802,
+            "year": 2016
+          }
+        },
+        {
+          "reasons": [
+            "maximum exports_palm_oil_mt"
+          ],
+          "row": {
+            "closing_stocks_palm_oil_mt": 1987111.0,
+            "commodity": "malaysian_crude_palm_oil_cme",
+            "exports_palm_oil_mt": 18146823.0,
+            "ffb_price_myr_per_mt": 485.0,
+            "imports_palm_oil_mt": 555776.0,
+            "production_cpo_mt": 19216459.0,
+            "source": "mpob",
+            "su_ratio": 0.10950186707612677,
+            "year": 2013
+          }
+        },
+        {
+          "reasons": [
+            "earliest year"
+          ],
+          "row": {
+            "closing_stocks_palm_oil_mt": 2058400.0,
+            "commodity": "malaysian_crude_palm_oil_cme",
+            "exports_palm_oil_mt": 17993265.0,
+            "ffb_price_myr_per_mt": 732.0,
+            "imports_palm_oil_mt": 1305676.0,
+            "production_cpo_mt": 18911520.0,
+            "source": "mpob",
+            "su_ratio": 0.11439835960844238,
+            "year": 2011
+          }
+        },
+        {
+          "reasons": [
+            "maximum closing_stocks_palm_oil_mt",
+            "maximum production_cpo_mt"
+          ],
+          "row": {
+            "closing_stocks_palm_oil_mt": 2633940.0,
+            "commodity": "malaysian_crude_palm_oil_cme",
+            "exports_palm_oil_mt": 17454213.0,
+            "ffb_price_myr_per_mt": 459.0,
+            "imports_palm_oil_mt": 1028158.0,
+            "production_cpo_mt": 19961581.0,
+            "source": "mpob",
+            "su_ratio": 0.15090568678175292,
+            "year": 2015
+          }
+        }
+      ],
+      "source_rows": 6,
+      "status": "available"
+    },
+    "omitted_chart_count": 0,
+    "ordinary_statistics": {
+      "analysis_rows": 6,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "source",
+            "count": 6,
+            "freq": 6,
+            "top": "mpob",
+            "unique": 1
+          },
+          {
+            "column": "commodity",
+            "count": 6,
+            "freq": 6,
+            "top": "malaysian_crude_palm_oil_cme",
+            "unique": 1
+          }
+        ],
+        "row_count": 2
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 2012.25,
+            "50%": 2013.5,
+            "75%": 2014.75,
+            "column": "year",
+            "count": 6.0,
+            "max": 2016.0,
+            "mean": 2013.5,
+            "min": 2011.0,
+            "std": 1.8708286933869707
+          },
+          {
+            "25%": 18816734.25,
+            "50%": 19063989.5,
+            "75%": 19554329.5,
+            "column": "production_cpo_mt",
+            "count": 6.0,
+            "max": 19961581.0,
+            "mean": 18976804.833333332,
+            "min": 17319177.0,
+            "std": 926525.8382755263
+          },
+          {
+            "25%": 1993664.75,
+            "50%": 2035863.0,
+            "75%": 2485247.5,
+            "column": "closing_stocks_palm_oil_mt",
+            "count": 6.0,
+            "max": 2633940.0,
+            "mean": 2164496.6666666665,
+            "min": 1666673.0,
+            "std": 386828.143226248
+          },
+          {
+            "25%": 17343238.5,
+            "50%": 17508527.0,
+            "75%": 17885659.0,
+            "column": "exports_palm_oil_mt",
+            "count": 6.0,
+            "max": 18146823.0,
+            "mean": 17418224.333333332,
+            "min": 16045957.0,
+            "std": 745572.7338240494
+          },
+          {
+            "25%": 503119.25,
+            "50%": 791967.0,
+            "75%": 1236296.5,
+            "column": "imports_palm_oil_mt",
+            "count": 6.0,
+            "max": 1391013.0,
+            "mean": 863600.6666666666,
+            "min": 415414.0,
+            "std": 433407.48779118556
+          },
+          {
+            "25%": 494.0,
+            "50%": 557.5,
+            "75%": 609.75,
+            "column": "ffb_price_myr_per_mt",
+            "count": 6.0,
+            "max": 732.0,
+            "mean": 567.6666666666666,
+            "min": 459.0,
+            "std": 100.7564720832695
+          },
+          {
+            "25%": 0.11072599020920568,
+            "50%": 0.11536678829842563,
+            "75%": 0.14128931245616702,
+            "column": "su_ratio",
+            "count": 6.0,
+            "max": 0.15090568678175292,
+            "mean": 0.12410286563555199,
+            "min": 0.10386871907982802,
+            "std": 0.020717110323417505
+          }
+        ],
+        "row_count": 7
+      },
+      "plotted_rows": null,
+      "source_rows": 6,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "year",
+            "count": 6,
+            "distinct": 6,
+            "max": "2016-01-01T00:00:00",
+            "min": "2011-01-01T00:00:00"
+          }
+        ],
+        "row_count": 1
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 6,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 6,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 24,
+    "preview": {
+      "analysis_rows": 6,
+      "columns": [
+        "year",
+        "production_cpo_mt",
+        "closing_stocks_palm_oil_mt",
+        "exports_palm_oil_mt",
+        "imports_palm_oil_mt",
+        "ffb_price_myr_per_mt",
+        "su_ratio",
+        "source",
+        "commodity"
+      ],
+      "displayed_rows": 6,
+      "exactness": "exact",
+      "mode": "full_dataframe",
+      "plotted_rows": null,
+      "records": [
+        {
+          "closing_stocks_palm_oil_mt": 2058400.0,
+          "commodity": "malaysian_crude_palm_oil_cme",
+          "exports_palm_oil_mt": 17993265.0,
+          "ffb_price_myr_per_mt": 732.0,
+          "imports_palm_oil_mt": 1305676.0,
+          "production_cpo_mt": 18911520.0,
+          "source": "mpob",
+          "su_ratio": 0.11439835960844238,
+          "year": 2011
+        },
+        {
+          "closing_stocks_palm_oil_mt": 2627530.0,
+          "commodity": "malaysian_crude_palm_oil_cme",
+          "exports_palm_oil_mt": 17562841.0,
+          "ffb_price_myr_per_mt": 615.0,
+          "imports_palm_oil_mt": 1391013.0,
+          "production_cpo_mt": 18785139.0,
+          "source": "mpob",
+          "su_ratio": 0.14960734427875308,
+          "year": 2012
+        },
+        {
+          "closing_stocks_palm_oil_mt": 1987111.0,
+          "commodity": "malaysian_crude_palm_oil_cme",
+          "exports_palm_oil_mt": 18146823.0,
+          "ffb_price_myr_per_mt": 485.0,
+          "imports_palm_oil_mt": 555776.0,
+          "production_cpo_mt": 19216459.0,
+          "source": "mpob",
+          "su_ratio": 0.10950186707612677,
+          "year": 2013
+        },
+        {
+          "closing_stocks_palm_oil_mt": 2013326.0,
+          "commodity": "malaysian_crude_palm_oil_cme",
+          "exports_palm_oil_mt": 17306247.0,
+          "ffb_price_myr_per_mt": 521.0,
+          "imports_palm_oil_mt": 485567.0,
+          "production_cpo_mt": 19666953.0,
+          "source": "mpob",
+          "su_ratio": 0.11633521698840887,
+          "year": 2014
+        },
+        {
+          "closing_stocks_palm_oil_mt": 2633940.0,
+          "commodity": "malaysian_crude_palm_oil_cme",
+          "exports_palm_oil_mt": 17454213.0,
+          "ffb_price_myr_per_mt": 459.0,
+          "imports_palm_oil_mt": 1028158.0,
+          "production_cpo_mt": 19961581.0,
+          "source": "mpob",
+          "su_ratio": 0.15090568678175292,
+          "year": 2015
+        },
+        {
+          "closing_stocks_palm_oil_mt": 1666673.0,
+          "commodity": "malaysian_crude_palm_oil_cme",
+          "exports_palm_oil_mt": 16045957.0,
+          "ffb_price_myr_per_mt": 594.0,
+          "imports_palm_oil_mt": 415414.0,
+          "production_cpo_mt": 17319177.0,
+          "source": "mpob",
+          "su_ratio": 0.10386871907982802,
+          "year": 2016
+        }
+      ],
+      "selection_reasons": [
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row",
+        "complete source row"
+      ],
+      "source_rows": 6
+    },
+    "provenance": {
+      "analysis_rows": 6,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/mpob_annual",
+      "contract_sha256": "c66ecdba7d1eea06deea8693500394ca92bbb4626fef74670cced0f1b9fba73e",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 1,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {},
+            "row_count": 6,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 1,
+        "schema_sha256_object_counts": {
+          "3cc72bd37e1bad33cd875bc0a91720745cdc981fe6f761828d7d03f9845095bb": 1
+        },
+        "source_compressed_bytes": 6448,
+        "source_row_count": 6
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "8261a2f3eb69a9344d6cbff0d035411deacb36f1b47afafb7d125022c2d29ee2",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 1,
+      "object_sample": [
+        {
+          "etag": "38404c1e3aa5c9ebd2899804d9039840",
+          "last_modified": "2026-07-16T21:19:53Z",
+          "partition_values": {},
+          "size": 6448,
+          "uri": "s3://leviathan-dev-shahem-001/silver/mpob_annual/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": false,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 1,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "commodity",
+          "source",
+          "year",
+          "production_cpo_mt",
+          "closing_stocks_palm_oil_mt",
+          "exports_palm_oil_mt",
+          "imports_palm_oil_mt",
+          "ffb_price_myr_per_mt"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 8379164488882201515,
+        "snapshot_row_count": 6,
+        "source_compressed_bytes": 6448,
+        "source_row_count": 6,
+        "stratum_columns": [
+          "commodity",
+          "source",
+          "year"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "f0ffa552f4bdd719fdfa1593c0f9a1410e39b686a7fa94ec18052b719d7b55f0",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/source_replica/manifest.json",
+        "object_count": 1,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_mpob_annual/_machine/source_replica/objects",
+        "replica_manifest_sha256": "809cdb716b5004cf1f275f36e38dfae6aaee616273da887682b875a21234798a",
+        "source_manifest_sha256": "f0ffa552f4bdd719fdfa1593c0f9a1410e39b686a7fa94ec18052b719d7b55f0",
+        "total_bytes": 6448
+      },
+      "source_rows": 6,
+      "source_specific_checks": [
+        {
+          "check": "derived_lineage",
+          "evidence": "No governed Silver-to-Silver peer relationship and parity key/value contract is registered for this derived or serving-copy table.",
+          "exactness": "exact",
+          "lineage_status": "lineage_not_assessed",
+          "parity_assessed": false,
+          "parity_claimed": false,
+          "peer_table": null,
+          "repair_required": true,
+          "status": "lineage_not_assessed",
+          "work_orders": [
+            {
+              "id": "EDA-LINEAGE-MPOB_ANNUAL",
+              "priority": "high",
+              "required_evidence": "Declare the canonical Silver upstream, transformation, parity grain, value tolerances, and frozen-frame comparison before claiming parity.",
+              "title": "Register and validate derived-table lineage"
+            }
+          ]
+        }
+      ],
+      "source_total_bytes": 6448,
+      "source_total_rows": 6,
+      "spec_sha256": "5964adb28f00104cd97cc3b883096356fae768de360136e04eb5e4fedde3da3c"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 6,
+      "checks": [
+        {
+          "analysis_rows": 6,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 6,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": null,
+            "natural_key": [],
+            "null_key_rows": null
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "BLOCKER",
+          "summary": "The registry does not declare a natural key."
+        },
+        {
+          "analysis_rows": 6,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.0,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "PASS",
+          "summary": "No null values are present in the analysis frame."
+        },
+        {
+          "analysis_rows": 6,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 6,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 366.0,
+            "median_gap_days": 365.0,
+            "time_column": "year",
+            "usable_time_points": 6
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "PASS",
+          "summary": "Observed gaps are consistent with a median cadence of 365 days."
+        },
+        {
+          "analysis_rows": 6,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "year",
+            "distinct_points": 6,
+            "max": "2016-01-01T00:00:00",
+            "min": "2011-01-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "PASS",
+          "summary": "Coverage runs from 2011-01-01 through 2016-01-01."
+        },
+        {
+          "analysis_rows": 6,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 1,
+            "footer_complete": true,
+            "object_count": 1,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "3cc72bd37e1bad33cd875bc0a91720745cdc981fe6f761828d7d03f9845095bb": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "PASS",
+          "summary": "All 1 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 6,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 6,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "BLOCKER",
+      "plotted_rows": null,
+      "source_rows": 6
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 6,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "commodity"
+        ],
+        "evidence": {
+          "distinct_time_points": 6,
+          "end": "2016-01-01T00:00:00",
+          "entity_distinct_counts": {
+            "commodity": 1
+          },
+          "start": "2011-01-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "annual_production",
+            "annual_stocks",
+            "annual_trade"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 6,
+        "statement": "Coverage spans 2011-01-01 through 2016-01-01 across 6 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 6,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "production_cpo_mt",
+          "closing_stocks_palm_oil_mt"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "closing_stocks_palm_oil_mt": 0.0,
+            "production_cpo_mt": 0.0
+          },
+          "highest_null_column": "production_cpo_mt",
+          "highest_null_rate": 0.0
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 6,
+        "statement": "All 2 assessed measure columns are complete.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 6,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "production_cpo_mt",
+          "closing_stocks_palm_oil_mt",
+          "commodity"
+        ],
+        "evidence": {
+          "measures": {
+            "closing_stocks_palm_oil_mt": {
+              "count": 6,
+              "iqr": 491582.75,
+              "iqr_outlier_count": 0,
+              "maximum": 2633940.0,
+              "median": 2035863.0,
+              "minimum": 1666673.0
+            },
+            "production_cpo_mt": {
+              "count": 6,
+              "iqr": 737595.25,
+              "iqr_outlier_count": 1,
+              "maximum": 19961581.0,
+              "median": 19063989.5,
+              "minimum": 17319177.0
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 6,
+        "statement": "Robust IQR screening retains 1 notable observations across 2 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      }
+    ],
+    "ready_chart_count": 3,
+    "row_meaning": "One row is a derived annual Malaysia palm-oil balance summary for one year.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 6,
+    "source_shape": {
+      "analysis_rows": 6,
+      "analysis_shape": [
+        6,
+        9
+      ],
+      "column_count": 9,
+      "exactness": "exact",
+      "plotted_rows": 24,
+      "source_rows": 6,
+      "source_shape": [
+        6,
+        9
+      ]
+    },
+    "table_name": "silver_mpob_annual"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [
+    {
+      "check": "derived_lineage",
+      "evidence": "No governed Silver-to-Silver peer relationship and parity key/value contract is registered for this derived or serving-copy table.",
+      "exactness": "exact",
+      "lineage_status": "lineage_not_assessed",
+      "parity_assessed": false,
+      "parity_claimed": false,
+      "peer_table": null,
+      "repair_required": true,
+      "status": "lineage_not_assessed",
+      "work_orders": [
+        {
+          "id": "EDA-LINEAGE-MPOB_ANNUAL",
+          "priority": "high",
+          "required_evidence": "Declare the canonical Silver upstream, transformation, parity grain, value tolerances, and frozen-frame comparison before claiming parity.",
+          "title": "Register and validate derived-table lineage"
+        }
+      ]
+    }
+  ],
+  "table_name": "silver_mpob_annual"
+}

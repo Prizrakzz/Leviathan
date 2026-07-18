@@ -1,0 +1,394 @@
+schema_version: 1
+table_name: silver_mpoc_stock_comparison
+title: Mpoc Stock Comparison
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- generic_panel
+observation_time_candidates:
+- year
+- month
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- country
+categorical_columns:
+- country
+- oil_type
+- source
+numeric_columns:
+- ending_stocks_mt
+units:
+  ending_stocks_mt: metric tonnes
+meaningful_groupings:
+- country
+- year
+- month
+declared_relationships: []
+source_keys:
+- mpoc_stock_comparison
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - country
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-MPOC_STOCK_COMPARISON
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+feature_hypothesis_templates:
+- family: lagged_robust_transform
+  mechanism: Lagged level, delta, ratio, and robust trailing normalization.
+known_hazards: []
+no_candidate_reason: null
+archetype: monthly_domain
+row_meaning: One row is reported ending stocks for one country, oil type, and month.
+column_descriptions:
+  country: Country represented by the observation.
+  ending_stocks_mt: Ending stocks reported in metric tonnes at the declared row grain.
+  month: Calendar month associated with the observation.
+  oil_type: Source category identifying the oil type represented by the row.
+  source: Source-system label retained for provenance.
+  year: Calendar year associated with the observation.
+why_it_matters:
+  country: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  ending_stocks_mt: Carries a primary analytical measure.
+  month: Defines row uniqueness; is required by the source contract.
+  oil_type: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  source: Supports provenance or reproducibility.
+  year: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+primary_measures:
+- ending_stocks_mt
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - country
+  - oil_type
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - ending_stocks_mt
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - country
+  - oil_type
+  - year
+  - month
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - ending_stocks_mt
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - country
+  - oil_type
+  - year
+  - month
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - country
+  - oil_type
+  - year
+  - month
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - country
+  - oil_type
+  - year
+  - month
+  - ending_stocks_mt
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - ending_stocks_mt
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - year
+  - country
+  - oil_type
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - country
+  - oil_type
+  - year
+  - month
+  - ending_stocks_mt
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: stock_observations
+  chart_type: line
+  columns:
+  - year
+  - month
+  - ending_stocks_mt
+  - country
+  - oil_type
+  coverage_grain: null
+  cutoff_mode: null
+  id: stock_observations
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - ending_stocks_mt
+  measure_units:
+    ending_stocks_mt: metric tonnes
+  minimum_rows: 2
+  purpose: Display each reviewed stock observation as an intentional discrete point; make no underpowered
+    trend claim.
+  series_dimensions:
+  - country
+  - oil_type
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - year
+  - month
+  title: Observed monthly ending stocks
+  type: line
+  unit_column: null
+- chart_id: latest_stock_ranking
+  chart_type: ranked_bar
+  columns:
+  - year
+  - month
+  - ending_stocks_mt
+  - country
+  - oil_type
+  coverage_grain: null
+  cutoff_mode: null
+  id: latest_stock_ranking
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - ending_stocks_mt
+  measure_units:
+    ending_stocks_mt: metric tonnes
+  minimum_rows: 1
+  purpose: Compare the latest observed country/oil-type stock values without additive pooling.
+  series_dimensions:
+  - country
+  - oil_type
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - year
+  - month
+  title: Latest ending-stock comparison
+  type: ranked_bar
+  unit_column: null
+- chart_id: stock_distribution
+  chart_type: distribution
+  columns:
+  - ending_stocks_mt
+  - country
+  - oil_type
+  coverage_grain: null
+  cutoff_mode: null
+  id: stock_distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - ending_stocks_mt
+  measure_units:
+    ending_stocks_mt: metric tonnes
+  minimum_rows: 1
+  purpose: Show the finite observed values at their governed country/oil-type grain.
+  series_dimensions:
+  - country
+  - oil_type
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Observed ending-stock distribution
+  type: distribution
+  unit_column: null
+- chart_id: coverage
+  chart_type: coverage_heatmap
+  columns:
+  - year
+  - month
+  - country
+  - oil_type
+  coverage_grain: month
+  cutoff_mode: null
+  id: coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose panel gaps on the composite calendar.
+  series_dimensions:
+  - country
+  - oil_type
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - year
+  - month
+  title: Country/oil-type month coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - year
+  - country
+  - oil_type
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - ending_stocks_mt
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - year
+  - ending_stocks_mt
+  - country
+  - oil_type
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - year
+  - ending_stocks_mt
+  - country
+  - oil_type
+  id: latest_change
+  insight_id: latest_change
+  kind: latest_change
+  minimum_rows: 2
+  purpose: Explain the latest comparable movement.
+preview_strata:
+- year
+- country
+- oil_type
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+feature_quarantined: false

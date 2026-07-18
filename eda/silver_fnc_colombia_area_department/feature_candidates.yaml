@@ -1,0 +1,256 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_fnc_colombia_area_department
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 5
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_area_department:area_ha:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: commodity x year x department
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: fnc_colombia_area_department'
+  source_columns:
+  - area_ha
+  - commodity
+  - department
+  - year
+  source_table: silver_fnc_colombia_area_department
+  transformation:
+    column: area_ha
+    group_by:
+    - commodity
+    - department
+    operation: difference
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_area_department
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_area_department:area_ha:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: commodity x year x department
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: fnc_colombia_area_department'
+  source_columns:
+  - area_ha
+  - commodity
+  - department
+  - year
+  source_table: silver_fnc_colombia_area_department
+  transformation:
+    column: area_ha
+    group_by:
+    - commodity
+    - department
+    operation: lag
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_area_department
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_area_department:area_ha:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_ha
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 154982.92999999993]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed production level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by year within entity grain
+  output_grain: commodity x year x department
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: fnc_colombia_area_department'
+  source_columns:
+  - area_ha
+  - year
+  source_table: silver_fnc_colombia_area_department
+  transformation:
+    column: area_ha
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_area_department
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_area_department:area_ha:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_ha
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by year within entity grain
+  output_grain: commodity x year x department
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: fnc_colombia_area_department'
+  source_columns:
+  - area_ha
+  - year
+  source_table: silver_fnc_colombia_area_department
+  transformation:
+    center: past_only_median
+    column: area_ha
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_area_department
+  unit: hectares
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - arabica_coffee
+  applicable_geographies:
+  - colombia
+  candidate_id: eda:silver_fnc_colombia_area_department:area_ha:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.area_ha
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.area_ha
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.year
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by year within entity grain
+  output_grain: commodity x year x department
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only production evidence; registered source keys: fnc_colombia_area_department'
+  source_columns:
+  - area_ha
+  - commodity
+  - department
+  - year
+  source_table: silver_fnc_colombia_area_department
+  transformation:
+    closed: left
+    column: area_ha
+    group_by:
+    - commodity
+    - department
+    min_periods: 2
+    operation: rolling_mean
+    order_by: year
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - fnc_colombia_area_department
+    window: 3
+  unit: hectares
+  visibility_class: review_required

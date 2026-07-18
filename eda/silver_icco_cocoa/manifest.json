@@ -1,0 +1,11 @@
+{
+  "analysis_complete": false,
+  "campaign_id": null,
+  "contract_sha256": "161c073974c288da66b1781982600c4b44a9c8fea05793146e21dd06f35cc4d3",
+  "evidence_valid": true,
+  "schema_version": "leviathan.silver-eda-campaign/v2",
+  "source_layer": "silver",
+  "spec_sha256": "9d84ec48cb42d5f04bd74115aa1829864b04f3ec5bc2c3e6db65b616bc8f8732",
+  "status": "executed_reference_not_campaign",
+  "table_name": "silver_icco_cocoa"
+}

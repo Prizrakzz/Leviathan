@@ -1,0 +1,437 @@
+schema_version: 1
+table_name: silver_unica_biweekly_release_series
+title: Unica Biweekly Release Series
+analysis_role: derived
+feature_disposition: blocked
+adapters:
+- derived_lineage
+- progressive_cumulative
+- annual_seasonal_panel
+observation_time_candidates:
+- harvest_year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- region
+categorical_columns:
+- position_date
+- region
+numeric_columns:
+- cane_crushed_current_t
+- cane_crushed_prior_t
+- sugar_produced_current_t
+- sugar_produced_prior_t
+- ethanol_total_current_m3
+- ethanol_total_prior_m3
+- ethanol_anhydrous_current_m3
+- ethanol_anhydrous_prior_m3
+- ethanol_hydrous_current_m3
+- ethanol_hydrous_prior_m3
+units:
+  cane_crushed_current_t: source-native / verify
+  cane_crushed_prior_t: source-native / verify
+  ethanol_anhydrous_current_m3: cubic metres
+  ethanol_anhydrous_prior_m3: cubic metres
+  ethanol_hydrous_current_m3: cubic metres
+  ethanol_hydrous_prior_m3: cubic metres
+  ethanol_total_current_m3: cubic metres
+  ethanol_total_prior_m3: cubic metres
+  sugar_produced_current_t: source-native / verify
+  sugar_produced_prior_t: source-native / verify
+meaningful_groupings:
+- region
+- harvest_year
+declared_relationships: []
+source_keys: []
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - region
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-UNICA_BIWEEKLY_RELEASE_SERIES
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: lineage_not_assessed
+  lineage_status: lineage_not_assessed
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: true
+  evidence: No governed Silver-to-Silver peer relationship and parity key/value contract is registered
+    for this derived or serving-copy table.
+  work_orders:
+  - &id003
+    id: EDA-LINEAGE-UNICA_BIWEEKLY_RELEASE_SERIES
+    priority: high
+    title: Register and validate derived-table lineage
+    required_evidence: Declare the canonical Silver upstream, transformation, parity grain, value tolerances,
+      and frozen-frame comparison before claiming parity.
+semantic_work_orders:
+- *id002
+- *id003
+feature_hypothesis_templates:
+- family: season_pace
+  mechanism: Progress relative to the same season cutoff in prior years.
+- family: trajectory_change
+  mechanism: Acceleration, deceleration, and completion timing.
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards:
+- Registry key/value contract is incomplete; inferred grain is evidence only.
+- Registry lacks a complete natural-key/value-column contract; inferred grain is evidence only and cannot
+  be promoted automatically.
+no_candidate_reason: The registry lacks a complete natural-key/value-column contract; inferred grain is
+  evidence only until a reviewed contract repair is merged.
+archetype: progressive_cumulative
+row_meaning: One row is one UNICA release-date comparison for a harvest year and region.
+column_descriptions:
+  cane_crushed_current_t: Current-release cane crushed value, measured in tonnes.
+  cane_crushed_prior_t: Prior comparable cane crushed value, measured in tonnes.
+  ethanol_anhydrous_current_m3: Current-release ethanol anhydrous value, measured in cubic metres.
+  ethanol_anhydrous_prior_m3: Prior comparable ethanol anhydrous value, measured in cubic metres.
+  ethanol_hydrous_current_m3: Current-release ethanol hydrous value, measured in cubic metres.
+  ethanol_hydrous_prior_m3: Prior comparable ethanol hydrous value, measured in cubic metres.
+  ethanol_total_current_m3: Current-release ethanol total value, measured in cubic metres.
+  ethanol_total_prior_m3: Prior comparable ethanol total value, measured in cubic metres.
+  harvest_year: Source-defined harvest season or harvest year.
+  position_date: Position date locating the observation on its source reporting calendar.
+  region: Subnational or crop-growing region represented by the observation.
+  sugar_produced_current_t: Current-release sugar produced value, measured in tonnes.
+  sugar_produced_prior_t: Prior comparable sugar produced value, measured in tonnes.
+why_it_matters:
+  cane_crushed_current_t: Carries a primary analytical measure.
+  cane_crushed_prior_t: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  ethanol_anhydrous_current_m3: Provides explanatory context or a candidate diagnostic at the declared
+    row grain.
+  ethanol_anhydrous_prior_m3: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  ethanol_hydrous_current_m3: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  ethanol_hydrous_prior_m3: Provides explanatory context or a candidate diagnostic at the declared row
+    grain.
+  ethanol_total_current_m3: Carries a primary analytical measure.
+  ethanol_total_prior_m3: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  harvest_year: Anchors temporal coverage.
+  position_date: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  region: Supports entity segmentation.
+  sugar_produced_current_t: Carries a primary analytical measure.
+  sugar_produced_prior_t: Provides explanatory context or a candidate diagnostic at the declared row grain.
+primary_measures:
+- cane_crushed_current_t
+- sugar_produced_current_t
+- ethanol_total_current_m3
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - harvest_year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - region
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - cane_crushed_current_t
+  - sugar_produced_current_t
+  - ethanol_total_current_m3
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns: []
+  id: grain_integrity
+  kind: inferred_grain
+  kpi_id: grain_integrity
+  label: Candidate-grain status
+- columns:
+  - cane_crushed_current_t
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns: []
+  detail: Infer grain for evidence only; do not repair the registry contract.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: blocker
+  unsupported_result: not_assessed
+- columns: []
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - cane_crushed_current_t
+  - sugar_produced_current_t
+  - ethanol_total_current_m3
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - cane_crushed_current_t
+  - sugar_produced_current_t
+  - ethanol_total_current_m3
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  - region
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  - position_date
+  - region
+  - cane_crushed_current_t
+  - cane_crushed_prior_t
+  - sugar_produced_current_t
+  - sugar_produced_prior_t
+  - ethanol_total_current_m3
+  - ethanol_total_prior_m3
+  - ethanol_anhydrous_current_m3
+  - ethanol_anhydrous_prior_m3
+  - ethanol_hydrous_current_m3
+  - ethanol_hydrous_prior_m3
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: cane_release_path
+  chart_type: line
+  columns:
+  - position_date
+  - cane_crushed_current_t
+  - cane_crushed_prior_t
+  - harvest_year
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: cane_release_path
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - cane_crushed_current_t
+  measure_units:
+    cane_crushed_current_t: source-native / verify
+  minimum_rows: 8
+  purpose: Compare published current/prior release values on the actual position date.
+  series_dimensions:
+  - harvest_year
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: 'Cane crushed: current versus prior season'
+  type: line
+  unit_column: null
+- chart_id: sugar_release_path
+  chart_type: line
+  columns:
+  - position_date
+  - sugar_produced_current_t
+  - sugar_produced_prior_t
+  - harvest_year
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: sugar_release_path
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - sugar_produced_current_t
+  measure_units:
+    sugar_produced_current_t: source-native / verify
+  minimum_rows: 8
+  purpose: Compare published sugar values without inventing an increment identity.
+  series_dimensions:
+  - harvest_year
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: 'Sugar produced: current versus prior season'
+  type: line
+  unit_column: null
+- chart_id: ethanol_release_path
+  chart_type: line
+  columns:
+  - position_date
+  - ethanol_total_current_m3
+  - ethanol_total_prior_m3
+  - harvest_year
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: ethanol_release_path
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - ethanol_total_current_m3
+  measure_units:
+    ethanol_total_current_m3: cubic metres
+  minimum_rows: 8
+  purpose: Compare published ethanol values on the source position-date axis.
+  series_dimensions:
+  - harvest_year
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: 'Total ethanol: current versus prior season'
+  type: line
+  unit_column: null
+- chart_id: coverage
+  chart_type: coverage_heatmap
+  columns:
+  - position_date
+  - harvest_year
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose partial release histories by harvest year and region.
+  series_dimensions:
+  - harvest_year
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Position-date coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - harvest_year
+  - region
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - cane_crushed_current_t
+  - sugar_produced_current_t
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - harvest_year
+  - cane_crushed_current_t
+  - sugar_produced_current_t
+  - region
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - harvest_year
+  - cane_crushed_current_t
+  - sugar_produced_current_t
+  - region
+  id: same_cutoff_pace
+  insight_id: same_cutoff_pace
+  kind: same_cutoff_pace
+  minimum_rows: 4
+  purpose: Compare seasons only at matching cutoffs.
+preview_strata:
+- harvest_year
+- region
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not promote inferred grain or value roles until the registry contract is repaired.
+feature_quarantined: false

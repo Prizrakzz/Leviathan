@@ -1,0 +1,513 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_modis_ndvi
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 9
+no_candidate_reason: null
+candidates:
+- aggregation_window: reviewed crop stage or past-only climatology window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi:climatology_anomaly
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: past_only_climatology_anomaly
+  counter_evidence:
+  - Promotion requires governed crop calendars, units, thresholds, and spatial mappings.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the trailing local seasonal norm can separate expected seasonality from unusual
+    conditions.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: fit baselines on rows available at prediction_as_of only
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi
+  - commodity
+  - country
+  - region
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    baseline: prior years available at prediction_as_of only
+    calendar_key: day_or_composite_period_of_year
+    column: ndvi
+    group_by:
+    - commodity
+    - country
+    - region
+    operation: past_only_climatology_anomaly
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi
+  - cell:missingness-validity-output
+  expected_range: observed [-0.19539999961853027, 0.9975000023841858]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed weather level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    column: ndvi
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: reviewed crop stage or past-only climatology window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi:stage_aggregate
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: crop_stage_aggregate
+  counter_evidence:
+  - Promotion requires governed crop calendars, units, thresholds, and spatial mappings.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Crop-stage exposure can connect weather conditions to governed agronomic windows.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: fit baselines on rows available at prediction_as_of only
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi
+  - commodity
+  - country
+  - region
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    aggregations:
+    - sum
+    - mean
+    - min
+    - max
+    calendar: governed PIT-safe crop calendar required
+    column: ndvi
+    group_by:
+    - commodity
+    - country
+    - region
+    operation: crop_stage_aggregate
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: reviewed crop stage or past-only climatology window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi:threshold_duration
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: agronomic_threshold_duration
+  counter_evidence:
+  - Promotion requires governed crop calendars, units, thresholds, and spatial mappings.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Counts and durations of reviewed physical threshold breaches can represent crop stress exposure.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: fit baselines on rows available at prediction_as_of only
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi
+  - commodity
+  - country
+  - region
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    column: ndvi
+    group_by:
+    - commodity
+    - country
+    - region
+    operation: agronomic_threshold_duration
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+    thresholds: commodity/variable-specific review required
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: reviewed crop stage or past-only climatology window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi_z_score:climatology_anomaly
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: past_only_climatology_anomaly
+  counter_evidence:
+  - Promotion requires governed crop calendars, units, thresholds, and spatial mappings.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi_z_score
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi_z_score
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the trailing local seasonal norm can separate expected seasonality from unusual
+    conditions.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: fit baselines on rows available at prediction_as_of only
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi_z_score
+  - commodity
+  - country
+  - region
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    baseline: prior years available at prediction_as_of only
+    calendar_key: day_or_composite_period_of_year
+    column: ndvi_z_score
+    group_by:
+    - commodity
+    - country
+    - region
+    operation: past_only_climatology_anomaly
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+  unit: standard deviations
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi_z_score:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi_z_score
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi_z_score
+  - cell:missingness-validity-output
+  expected_range: observed [-12.866414070129395, 12.762988090515137]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed weather level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi_z_score
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    column: ndvi_z_score
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+  unit: standard deviations
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi_z_score:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.ndvi_z_score
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi_z_score
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    column: ndvi_z_score
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+  unit: standard deviations
+  visibility_class: review_required
+- aggregation_window: reviewed crop stage or past-only climatology window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi_z_score:stage_aggregate
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: crop_stage_aggregate
+  counter_evidence:
+  - Promotion requires governed crop calendars, units, thresholds, and spatial mappings.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi_z_score
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi_z_score
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Crop-stage exposure can connect weather conditions to governed agronomic windows.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: fit baselines on rows available at prediction_as_of only
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi_z_score
+  - commodity
+  - country
+  - region
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    aggregations:
+    - sum
+    - mean
+    - min
+    - max
+    calendar: governed PIT-safe crop calendar required
+    column: ndvi_z_score
+    group_by:
+    - commodity
+    - country
+    - region
+    operation: crop_stage_aggregate
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+  unit: standard deviations
+  visibility_class: review_required
+- aggregation_window: reviewed crop stage or past-only climatology window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_modis_ndvi:ndvi_z_score:threshold_duration
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: agronomic_threshold_duration
+  counter_evidence:
+  - Promotion requires governed crop calendars, units, thresholds, and spatial mappings.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ndvi_z_score
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ndvi_z_score
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Counts and durations of reviewed physical threshold breaches can represent crop stress exposure.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: fit baselines on rows available at prediction_as_of only
+  observation_time_rule: order observations by date within entity grain
+  output_grain: commodity x country x region x date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only weather evidence; registered source keys: weather:modis_ndvi'
+  source_columns:
+  - ndvi_z_score
+  - commodity
+  - country
+  - region
+  - date
+  source_table: silver_modis_ndvi
+  transformation:
+    column: ndvi_z_score
+    group_by:
+    - commodity
+    - country
+    - region
+    operation: agronomic_threshold_duration
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - inseason_weather_dense
+      - modis_ndvi_z
+      source_keys:
+      - weather:modis_ndvi
+    thresholds: commodity/variable-specific review required
+  unit: standard deviations
+  visibility_class: review_required

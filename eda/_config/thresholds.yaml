@@ -1,0 +1,59 @@
+schema_version: 1
+
+inventory:
+  fragment_cap: 25000
+  full_frame_max_rows: 5000000
+  full_frame_max_compressed_bytes: 2147483648
+  sample_max_rows: 1000000
+  sample_seed_namespace: leviathan-silver-eda-v1
+
+notebook:
+  max_bytes: 8388608
+  preview_rows: 20
+  top_categories: 25
+  max_numeric_charts: 12
+  max_categorical_charts: 8
+  figure_dpi: 120
+  chart_max_points: 200000
+
+reader:
+  full_dataframe_max_rows: 200
+  preview_max_rows: 40
+  # Keep the report focused on feature-engineering understanding rather than
+  # exhaustive visualization.  Archetype routing selects the four most useful
+  # supported views; the underlying descriptive evidence remains available.
+  max_charts: 4
+  min_trend_points: 8
+  min_scatter_points: 20
+  min_insights: 3
+  max_insights: 10
+  embedded_replica_max_bytes: 524288
+
+artifacts:
+  portable_manifest_max_bytes: 524288
+
+statistics:
+  min_trend_points: 8
+  min_scatter_points: 12
+  robust_outlier_iqr_multiplier: 1.5
+  high_correlation_abs: 0.85
+  recent_window_fraction: 0.2
+  categorical_rare_rate: 0.01
+
+candidates:
+  missing_indicator_min_rate: 0.01
+  missing_indicator_max_rate: 0.80
+  log1p_min_abs_skew: 1.5
+
+safety:
+  allowed_input_layer: silver
+  allowed_input_prefix: silver/
+  allowed_output_prefix: eda/silver/
+  forbidden_input_prefixes:
+    - gold/
+    - model_ready/
+  excluded_path_segments:
+    - _shadow
+    - _staging
+    - _tasks
+    - _manifests

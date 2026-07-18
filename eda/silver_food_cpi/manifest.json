@@ -1,0 +1,179 @@
+{
+  "analysis_complete": true,
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "artifacts": {
+    "_machine/coverage_catalog.json": {
+      "bytes": 829,
+      "sha256": "a734ecf9e9c1aac9519151c4a50238f92c93573747ef0157449d7acdf967e4d9",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/coverage_catalog.json"
+    },
+    "_machine/feature_candidates.json": {
+      "bytes": 29122,
+      "sha256": "52585ba57b034f2c22e24fa7e06d1f4c34b178b0e44cab1cb3e31b7ca12c0e58",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/feature_candidates.json"
+    },
+    "_machine/profile.json": {
+      "bytes": 58952,
+      "sha256": "97422a226731a5982d6a85ba55bb53a926d11fea793ce9f1d701a6cb2660508b",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/profile.json"
+    },
+    "_machine/reader_evidence.json": {
+      "bytes": 56645,
+      "sha256": "84da920294253b9216f5d4641d3076226fe798021c78364532fbce2df8eae953",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/reader_evidence.json"
+    },
+    "_machine/sampling_evidence.json": {
+      "bytes": 328,
+      "sha256": "5b0ef99ae1f119edfd0378bccde7940d5a522f345a37bcbf1726074c067b6ebb",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/sampling_evidence.json"
+    },
+    "_machine/source_inventory.json": {
+      "bytes": 2743,
+      "sha256": "8902ec372a0a7285cb9f458a846f125c48ebf33a7ccbf4350440df4c6ceba710",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_inventory.json"
+    },
+    "feature_candidates.yaml": {
+      "bytes": 23317,
+      "sha256": "0c16702dcf726da01aa173d9cab98043e61b8ce01b0d4dd430e1f40a938fac0f",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/feature_candidates.yaml"
+    },
+    "silver_food_cpi_eda.ipynb": {
+      "bytes": 499090,
+      "sha256": "971ecc5ea70d7104c71f252e407c799f8dc961cb90c62444156662dfcc826fd1",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/silver_food_cpi_eda.ipynb"
+    },
+    "spec.yaml": {
+      "bytes": 10769,
+      "sha256": "290cbce75fb797def01b6c17798e36c44b62f4b3dd5ee155e7be944474d6e410",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/spec.yaml"
+    },
+    "summary.json": {
+      "bytes": 155202,
+      "sha256": "3e8a9ff609f4a39964e4e3448ecef810eb82383d2a151d6275f11498251d92d2",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/summary.json"
+    }
+  },
+  "campaign_id": "readerfirst-final-20260718-a176abf1",
+  "contract_sha256": "c84a20ed7005c0467ff51011066a1cd15e2f2e001dda96f6c33cc2b83cba6653",
+  "coverage_summary": {
+    "analysis_strata_complete": false,
+    "analysis_strata_sampled_row_count": null,
+    "analysis_strata_source_row_count": null,
+    "analysis_stratum_count": 0,
+    "exactness": "footer-derived",
+    "footer_complete": true,
+    "object_count": 1,
+    "partition_stratum_count": 1,
+    "represented_analysis_stratum_count": 0,
+    "source_compressed_bytes": 8522,
+    "source_row_count": 264,
+    "unrepresented_analysis_stratum_count": 0
+  },
+  "detailed_evidence": {
+    "coverage_catalog": {
+      "bytes": 829,
+      "relative_key": "_machine/coverage_catalog.json",
+      "sha256": "a734ecf9e9c1aac9519151c4a50238f92c93573747ef0157449d7acdf967e4d9",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/coverage_catalog.json"
+    },
+    "reader_evidence": {
+      "bytes": 56645,
+      "relative_key": "_machine/reader_evidence.json",
+      "sha256": "84da920294253b9216f5d4641d3076226fe798021c78364532fbce2df8eae953",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/reader_evidence.json"
+    },
+    "sampling_evidence": {
+      "bytes": 328,
+      "relative_key": "_machine/sampling_evidence.json",
+      "sha256": "5b0ef99ae1f119edfd0378bccde7940d5a522f345a37bcbf1726074c067b6ebb",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/sampling_evidence.json"
+    },
+    "source_inventory": {
+      "bytes": 2743,
+      "relative_key": "_machine/source_inventory.json",
+      "sha256": "8902ec372a0a7285cb9f458a846f125c48ebf33a7ccbf4350440df4c6ceba710",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_inventory.json"
+    }
+  },
+  "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+  "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+  "evidence_valid": true,
+  "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+  "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+  "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+  "results": {
+    "analysis_exactness": "exact",
+    "blocker_count": 0,
+    "candidate_count": 12,
+    "disposition": "needs_contract_or_data_fix",
+    "finding_count": 2
+  },
+  "sampled_row_group_count": 0,
+  "sampling_strata": [],
+  "sampling_strategy": null,
+  "schema_version": "leviathan.silver-eda-campaign/v2",
+  "snapshot": {
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "decision": {
+      "exactness": "exact",
+      "identity_columns": [
+        "source",
+        "year",
+        "country_iso",
+        "country_name",
+        "cpi_yoy_pct",
+        "cpi_yoy_z_5yr",
+        "cpi_yoy_z_10yr",
+        "cpi_available"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 5401372185723896995,
+      "snapshot_row_count": 264,
+      "source_compressed_bytes": 8522,
+      "source_row_count": 264,
+      "stratum_columns": [
+        "source",
+        "year"
+      ]
+    },
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/snapshot",
+    "frame_sha256": "ddf8753b61db74d9b6f8e8a2b365ddb164f6ff1860f11817201cf850a994ad94",
+    "manifest_sha256": "40b46e23bfdc63baac79725186488661024c3825872182a980fd3b9149021cf0",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/snapshot/manifest.json",
+    "parquet_bytes": 5819,
+    "parquet_sha256": "28687407ddf94d32ecf9f6dd7c7650dd1c8c66b5c2b08f1f3751b13343a131a1",
+    "parquet_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/snapshot/part-000.parquet",
+    "table_name": "silver_food_cpi"
+  },
+  "source_inventory_summary": {
+    "footer_complete": true,
+    "fragment_count": 1,
+    "inventory_manifest_sha256": "3fdbfa76a4f99d357ce83fa55ece6cb57c679946f404304986c6f42c6aa612b6",
+    "partition_keys": [],
+    "partition_mode": "flat",
+    "rejected_key_count": 0,
+    "root_uri": "s3://leviathan-dev-shahem-001/silver/food_cpi",
+    "row_group_count": 1,
+    "source_mode": "s3",
+    "total_bytes": 8522,
+    "total_rows": 264
+  },
+  "source_layer": "silver",
+  "source_replica": {
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica/manifest.json",
+    "object_count": 1,
+    "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_food_cpi/_machine/source_replica/objects",
+    "replica_manifest_sha256": "2a7a59f38f56ff6d00d267d062aa4af35191cce5abf3d929aa71fd145241e482",
+    "source_manifest_sha256": "3fdbfa76a4f99d357ce83fa55ece6cb57c679946f404304986c6f42c6aa612b6",
+    "total_bytes": 8522
+  },
+  "spec_sha256": "097c21727de15b4ab8aa761435eeb92308c0ca7d77e71e6f75bb8d8aa118e49a",
+  "table_name": "silver_food_cpi"
+}

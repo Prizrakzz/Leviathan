@@ -1,0 +1,489 @@
+schema_version: 1
+table_name: silver_sagis_weekly_deliveries
+title: Sagis Weekly Deliveries
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- progressive_cumulative
+observation_time_candidates:
+- season
+- week_number
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- crop
+categorical_columns:
+- crop
+- week_ending
+- source
+numeric_columns:
+- prog_total_mt
+- prior_prog_total_mt
+- pct_of_prior_yr
+- z_vs_3yr_avg
+units:
+  pct_of_prior_yr: ratio to prior year (1.0 = 100%)
+  prog_total_mt: metric tonnes
+  z_vs_3yr_avg: standard deviations from the three-year average
+meaningful_groupings:
+- crop
+- season
+- week_number
+declared_relationships: []
+source_keys:
+- sagis_deliveries
+existing_table_feature_families: &id001
+- sagis_deliveries_z
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  sagis_deliveries_z: prior_history
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - crop
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-SAGIS_WEEKLY_DELIVERIES
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+- id: EDA-FEATURE-COVERAGE-SAGIS_WEEKLY_DELIVERIES
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: season_pace
+  mechanism: Progress relative to the same season cutoff in prior years.
+- family: trajectory_change
+  mechanism: Acceleration, deceleration, and completion timing.
+known_hazards:
+- Show raw duplicates and the deterministic consumer-view delta; never hide deduplication.
+- Consumer extraction applies deterministic natural-key deduplication; show both raw and consumer-view
+  results.
+no_candidate_reason: null
+archetype: progressive_cumulative
+row_meaning: One row is one cumulative delivery point for a South African crop season and week.
+column_descriptions:
+  crop: Crop or agricultural product represented by the observation.
+  pct_of_prior_yr: Governed numeric percent of prior yr measure used for source-level analytical comparisons.
+  prior_prog_total_mt: Prior comparable progressive cumulative total value, measured in metric tonnes.
+  prog_total_mt: Cumulative progressive cumulative total through the row's reporting cutoff, measured
+    in metric tonnes.
+  season: Source-defined crop or reporting season.
+  source: Source-system label retained for provenance.
+  week_ending: Last calendar date covered by the reported week.
+  week_number: Ordinal week position within the reporting cycle.
+  z_vs_3yr_avg: Governed numeric z vs 3-year average measure used for source-level analytical comparisons.
+why_it_matters:
+  crop: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  pct_of_prior_yr: Carries a primary analytical measure.
+  prior_prog_total_mt: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  prog_total_mt: Carries a primary analytical measure.
+  season: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  source: Supports provenance or reproducibility.
+  week_ending: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  week_number: Defines row uniqueness; is required by the source contract.
+  z_vs_3yr_avg: Carries a primary analytical measure.
+primary_measures:
+- prog_total_mt
+- pct_of_prior_yr
+- z_vs_3yr_avg
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - season
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - crop
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - prog_total_mt
+  - pct_of_prior_yr
+  - z_vs_3yr_avg
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - season
+  - crop
+  - week_number
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - prog_total_mt
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - season
+  - crop
+  - week_number
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - season
+  - crop
+  - week_number
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - season
+  - crop
+  - week_number
+  - prog_total_mt
+  - pct_of_prior_yr
+  - z_vs_3yr_avg
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - prog_total_mt
+  - pct_of_prior_yr
+  - z_vs_3yr_avg
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - season
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - season
+  - crop
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - season
+  - crop
+  - week_number
+  - week_ending
+  - prog_total_mt
+  - prior_prog_total_mt
+  - pct_of_prior_yr
+  - z_vs_3yr_avg
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - season
+  - crop
+  - week_number
+  detail: Report both raw rows and the documented consumer selection; never mutate raw evidence.
+  id: consumer_view_delta
+  kind: consumer_view_delta
+  label: Raw versus consumer-view delta
+  rule_id: consumer_view_delta
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: cumulative_curve
+  chart_type: season_curve
+  columns:
+  - week_number
+  - prog_total_mt
+  - season
+  - crop
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: cumulative_curve
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - prog_total_mt
+  measure_units:
+    prog_total_mt: metric tonnes
+  minimum_rows: 8
+  purpose: Compare the true cumulative curve at the same declared week_number cutoff; week_ending is not
+    the cross-season x-axis.
+  series_dimensions:
+  - season
+  - crop
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - week_number
+  title: Progressive deliveries by season week
+  type: season_curve
+  unit_column: null
+- chart_id: cumulative_increment
+  chart_type: increment
+  columns:
+  - week_number
+  - prog_total_mt
+  - season
+  - crop
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: cumulative_increment
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - prog_total_mt
+  measure_units:
+    prog_total_mt: metric tonnes
+  minimum_rows: 1
+  purpose: Difference only the progressive cumulative tonnage field within series ordered by declared
+    week_number.
+  series_dimensions:
+  - season
+  - crop
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - week_number
+  title: Weekly increments in deliveries
+  type: increment
+  unit_column: null
+- chart_id: milestones
+  chart_type: milestone
+  columns:
+  - week_number
+  - prog_total_mt
+  - season
+  - crop
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: milestones
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - prog_total_mt
+  measure_units:
+    prog_total_mt: metric tonnes
+  minimum_rows: 1
+  purpose: Compare cumulative milestone timing on the declared week_number axis.
+  series_dimensions:
+  - season
+  - crop
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - week_number
+  title: Deliveries milestone season week
+  type: milestone
+  unit_column: null
+- chart_id: prior_year_pace
+  chart_type: line
+  columns:
+  - week_number
+  - pct_of_prior_yr
+  - season
+  - crop
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: prior_year_pace
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - pct_of_prior_yr
+  measure_units:
+    pct_of_prior_yr: ratio to prior year (1.0 = 100%)
+  minimum_rows: 8
+  purpose: Show the stored ratio as a level (1.10 means 110% of prior year); never label it as percentage
+    points or cumulative data.
+  series_dimensions:
+  - season
+  - crop
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - week_number
+  title: Ratio to prior-year pace
+  type: line
+  unit_column: null
+- chart_id: historical_z
+  chart_type: line
+  columns:
+  - week_number
+  - z_vs_3yr_avg
+  - season
+  - crop
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: historical_z
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - z_vs_3yr_avg
+  measure_units:
+    z_vs_3yr_avg: standard deviations from the three-year average
+  minimum_rows: 8
+  purpose: Show the stored standardized comparison in standard-deviation units without redifferencing
+    it.
+  series_dimensions:
+  - season
+  - crop
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - week_number
+  title: Deviation from three-year average
+  type: line
+  unit_column: null
+- chart_id: coverage
+  chart_type: coverage_heatmap
+  columns:
+  - week_number
+  - season
+  - crop
+  coverage_grain: ordered
+  cutoff_mode: governed_axis
+  id: coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose partial seasons and missing reports on declared week_number.
+  series_dimensions:
+  - season
+  - crop
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - week_number
+  title: Season-week coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - season
+  - crop
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - prog_total_mt
+  - pct_of_prior_yr
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - season
+  - prog_total_mt
+  - pct_of_prior_yr
+  - crop
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - season
+  - prog_total_mt
+  - pct_of_prior_yr
+  - crop
+  id: same_cutoff_pace
+  insight_id: same_cutoff_pace
+  kind: same_cutoff_pace
+  minimum_rows: 4
+  purpose: Compare seasons only at matching cutoffs.
+preview_strata:
+- season
+- crop
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not silently replace raw duplicate evidence with the consumer view.
+feature_quarantined: false

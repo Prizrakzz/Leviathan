@@ -1,0 +1,5275 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 13
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 1
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "season",
+          "week_ending",
+          "week_number"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 2991,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 2991
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 13,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [
+      "sagis_deliveries_z"
+    ],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "sagis_deliveries"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.pct_of_prior_yr",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.pct_of_prior_yr",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [0.0, 173.625]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed trade_flows level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "pct_of_prior_yr",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "pct_of_prior_yr",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "ratio to prior year (1.0 = 100%)",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:log1p",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "log1p",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.pct_of_prior_yr",
+        "cell:distributions-output"
+      ],
+      "expected_range": "non-negative before transform",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A non-negative heavy-tailed measure may be more stable on a log scale.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "log1p only; fit no target-dependent parameters",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "pct_of_prior_yr",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "pct_of_prior_yr",
+        "operation": "log1p",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "ratio to prior year (1.0 = 100%)",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:missing_indicator",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "missing_indicator",
+      "counter_evidence": [
+        "Missingness may be a pipeline artifact and can drift after repairs.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:missingness_validity.column_missingness.pct_of_prior_yr",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "{0, 1}",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Availability itself may encode source coverage or reporting cadence; review for operational rather than economic signal before use.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "pct_of_prior_yr",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "pct_of_prior_yr",
+        "operation": "is_null",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "ratio to prior year (1.0 = 100%)",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.pct_of_prior_yr",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "pct_of_prior_yr",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "pct_of_prior_yr",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "ratio to prior year (1.0 = 100%)",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "same-cutoff prior-season history",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:season_pace",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "seasonal_pace",
+      "counter_evidence": [
+        "A governed season and within-season period mapping is required.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.pct_of_prior_yr",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.pct_of_prior_yr",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.progressive_curve_evidence",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The source value at the same governed within-season cutoff relative to prior seasons can measure pace.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "past-only prior-season median or percentile",
+      "observation_time_rule": "order observations by week_number within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "pct_of_prior_yr",
+        "crop",
+        "week_number",
+        "season"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "pct_of_prior_yr",
+        "cutoff_alignment": "same governed period within season",
+        "group_by": [
+          "crop"
+        ],
+        "history": "prior seasons available at prediction_as_of only",
+        "operation": "seasonal_pace",
+        "order_by": "week_number",
+        "season_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "ratio to prior year (1.0 = 100%)",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:prog_total_mt:curve_increment",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "cumulative_curve_increment",
+      "counter_evidence": [
+        "Source corrections must be distinguished from genuine season resets.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.prog_total_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.prog_total_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.progressive_curve_evidence",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "Within-season increments separate current flow from cumulative level while preserving resets.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by week_number within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "prog_total_mt",
+        "crop",
+        "season",
+        "week_number"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "prog_total_mt",
+        "group_by": [
+          "crop",
+          "season"
+        ],
+        "operation": "cumulative_curve_increment",
+        "order_by": "week_number",
+        "reset_detection": "season boundary or reviewed negative correction",
+        "season_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:prog_total_mt:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.prog_total_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.prog_total_mt",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [0.0, 16402967.0]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed trade_flows level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "prog_total_mt",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "prog_total_mt",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:prog_total_mt:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.prog_total_mt",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "prog_total_mt",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "prog_total_mt",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "same-cutoff prior-season history",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:prog_total_mt:season_pace",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "seasonal_pace",
+      "counter_evidence": [
+        "A governed season and within-season period mapping is required.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.prog_total_mt",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.prog_total_mt",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.progressive_curve_evidence",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The source value at the same governed within-season cutoff relative to prior seasons can measure pace.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "past-only prior-season median or percentile",
+      "observation_time_rule": "order observations by week_number within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "prog_total_mt",
+        "crop",
+        "week_number",
+        "season"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "prog_total_mt",
+        "cutoff_alignment": "same governed period within season",
+        "group_by": [
+          "crop"
+        ],
+        "history": "prior seasons available at prediction_as_of only",
+        "operation": "seasonal_pace",
+        "order_by": "week_number",
+        "season_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "metric tonnes",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.z_vs_3yr_avg",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.z_vs_3yr_avg",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [-19.58905776637681, 500.9615842446294]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed trade_flows level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "z_vs_3yr_avg",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "z_vs_3yr_avg",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "standard deviations from the three-year average",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:missing_indicator",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "missing_indicator",
+      "counter_evidence": [
+        "Missingness may be a pipeline artifact and can drift after repairs.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:missingness_validity.column_missingness.z_vs_3yr_avg",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "{0, 1}",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Availability itself may encode source coverage or reporting cadence; review for operational rather than economic signal before use.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "z_vs_3yr_avg",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "z_vs_3yr_avg",
+        "operation": "is_null",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "standard deviations from the three-year average",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.z_vs_3yr_avg",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by week_ending within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "z_vs_3yr_avg",
+        "week_ending"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "z_vs_3yr_avg",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "standard deviations from the three-year average",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "same-cutoff prior-season history",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:season_pace",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "seasonal_pace",
+      "counter_evidence": [
+        "A governed season and within-season period mapping is required.",
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.z_vs_3yr_avg",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.z_vs_3yr_avg",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.progressive_curve_evidence",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The source value at the same governed within-season cutoff relative to prior seasons can measure pace.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "past-only prior-season median or percentile",
+      "observation_time_rule": "order observations by week_number within entity grain",
+      "output_grain": "season x crop x week_number",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only trade_flows evidence; registered source keys: sagis_deliveries",
+      "source_columns": [
+        "z_vs_3yr_avg",
+        "crop",
+        "week_number",
+        "season"
+      ],
+      "source_table": "silver_sagis_weekly_deliveries",
+      "transformation": {
+        "column": "z_vs_3yr_avg",
+        "cutoff_alignment": "same governed period within season",
+        "group_by": [
+          "crop"
+        ],
+        "history": "prior seasons available at prediction_as_of only",
+        "operation": "seasonal_pace",
+        "order_by": "week_number",
+        "season_by": "season",
+        "source_context": {
+          "existing_feature_families": [
+            "sagis_deliveries_z"
+          ],
+          "source_keys": [
+            "sagis_deliveries"
+          ]
+        }
+      },
+      "unit": "standard deviations from the three-year average",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 13
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": [
+        "sagis_deliveries_z"
+      ]
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 13
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "sagis_deliveries"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "annual_or_seasonal_panel",
+      "progressive_curve"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "week_number"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "prior_prog_total_mt",
+              "week_number"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "One stable governed entity/vocabulary axis, its 20 most frequent groups, and at most six governed numeric value columns; all analyzed rows contribute.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": [
+              {
+                "group": "maize",
+                "group_column": "crop",
+                "median": 10274273.0,
+                "n": 1047,
+                "q25": 6106000.0,
+                "q75": 12520789.5,
+                "value_column": "prog_total_mt"
+              },
+              {
+                "group": "soybeans",
+                "group_column": "crop",
+                "median": 1500001.0,
+                "n": 437,
+                "q25": 1117743.0,
+                "q75": 2131956.0,
+                "value_column": "prog_total_mt"
+              },
+              {
+                "group": "sunflower",
+                "group_column": "crop",
+                "median": 670051.0,
+                "n": 437,
+                "q25": 374986.0,
+                "q75": 716506.0,
+                "value_column": "prog_total_mt"
+              },
+              {
+                "group": "wheat",
+                "group_column": "crop",
+                "median": 1782729.5,
+                "n": 1070,
+                "q25": 1379035.0,
+                "q75": 1890659.75,
+                "value_column": "prog_total_mt"
+              },
+              {
+                "group": "maize",
+                "group_column": "crop",
+                "median": 1.0119267596169998,
+                "n": 987,
+                "q25": 0.7961958058396064,
+                "q75": 1.2699523500072378,
+                "value_column": "pct_of_prior_yr"
+              },
+              {
+                "group": "soybeans",
+                "group_column": "crop",
+                "median": 1.1689848647355057,
+                "n": 379,
+                "q25": 0.7565421934656134,
+                "q75": 1.519006924123194,
+                "value_column": "pct_of_prior_yr"
+              },
+              {
+                "group": "sunflower",
+                "group_column": "crop",
+                "median": 1.028834417431858,
+                "n": 379,
+                "q25": 0.855460862819014,
+                "q75": 1.2410974611296606,
+                "value_column": "pct_of_prior_yr"
+              },
+              {
+                "group": "wheat",
+                "group_column": "crop",
+                "median": 0.9502856008144747,
+                "n": 1012,
+                "q25": 0.848073195222439,
+                "q75": 1.1421209969358026,
+                "value_column": "pct_of_prior_yr"
+              },
+              {
+                "group": "maize",
+                "group_column": "crop",
+                "median": 0.4776931850852314,
+                "n": 936,
+                "q25": -0.619380059648965,
+                "q75": 1.2982540452961302,
+                "value_column": "z_vs_3yr_avg"
+              },
+              {
+                "group": "soybeans",
+                "group_column": "crop",
+                "median": 1.052596736560627,
+                "n": 331,
+                "q25": -0.3712710266036844,
+                "q75": 1.9786698147980157,
+                "value_column": "z_vs_3yr_avg"
+              },
+              {
+                "group": "sunflower",
+                "group_column": "crop",
+                "median": 0.02059225468990395,
+                "n": 331,
+                "q25": -0.6510366710639047,
+                "q75": 1.5964999178198247,
+                "value_column": "z_vs_3yr_avg"
+              },
+              {
+                "group": "wheat",
+                "group_column": "crop",
+                "median": -0.4158215440566957,
+                "n": 962,
+                "q25": -1.3216122519210032,
+                "q75": 0.9624907241719762,
+                "value_column": "z_vs_3yr_avg"
+              }
+            ]
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 3
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "pct_of_prior_yr": {
+                "count": 2757,
+                "distinct_count": 2735,
+                "iqr": 0.42397662400383507,
+                "iqr_outlier_count": 202,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.07326804497642365,
+                "mad": 0.18951585690352923,
+                "mad_outlier_count": 169,
+                "mad_outlier_rate": 0.06129851287631483,
+                "max": 173.625,
+                "mean": 1.3480839155942774,
+                "min": 0.0,
+                "quantiles": {
+                  "0.01": 0.259880621464451,
+                  "0.05": 0.6231784979742497,
+                  "0.25": 0.8253378250056039,
+                  "0.5": 0.9925161280447304,
+                  "0.75": 1.249314449009439,
+                  "0.95": 2.3072803010035163,
+                  "0.99": 5.917123683477159
+                },
+                "skew": 30.00124330195945,
+                "std": 4.645926704518
+              },
+              "prog_total_mt": {
+                "count": 2991,
+                "distinct_count": 2905,
+                "iqr": 5565993.0,
+                "iqr_outlier_count": 82,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.027415580073553995,
+                "mad": 1142879.0,
+                "mad_outlier_count": 702,
+                "mad_outlier_rate": 0.23470411233701102,
+                "max": 16402967.0,
+                "mean": 4092964.2006018055,
+                "min": 0.0,
+                "quantiles": {
+                  "0.01": 1075.5000000000002,
+                  "0.05": 46109.5,
+                  "0.25": 862351.0,
+                  "0.5": 1837727.0,
+                  "0.75": 6428344.0,
+                  "0.95": 14223826.5,
+                  "0.99": 15294510.2
+                },
+                "skew": 1.1937878826026969,
+                "std": 4633221.960693126
+              },
+              "z_vs_3yr_avg": {
+                "count": 2560,
+                "distinct_count": 2546,
+                "iqr": 2.219786826530858,
+                "iqr_outlier_count": 256,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.1,
+                "mad": 1.1208541859201533,
+                "mad_outlier_count": 173,
+                "mad_outlier_rate": 0.067578125,
+                "max": 500.9615842446294,
+                "mean": 2.1318270945053124,
+                "min": -19.58905776637681,
+                "quantiles": {
+                  "0.01": -11.940499829741878,
+                  "0.05": -4.7161926254940445,
+                  "0.25": -1.0268369298484892,
+                  "0.5": 0.2309776493264138,
+                  "0.75": 1.1929498966823686,
+                  "0.95": 4.0847077242719,
+                  "0.99": 101.18009540071465
+                },
+                "skew": 14.584676894466133,
+                "std": 21.68447683234977
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 4
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": [
+              "week_ending"
+            ]
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "crop": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1070,
+                    "rate": 0.3577398863256436,
+                    "value": "wheat"
+                  },
+                  {
+                    "count": 1047,
+                    "rate": 0.35005015045135407,
+                    "value": "maize"
+                  },
+                  {
+                    "count": 437,
+                    "rate": 0.14610498161150118,
+                    "value": "soybeans"
+                  },
+                  {
+                    "count": 437,
+                    "rate": 0.14610498161150118,
+                    "value": "sunflower"
+                  }
+                ]
+              },
+              "season": {
+                "distinct_count": 22,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 210,
+                    "rate": 0.07021063189568706,
+                    "value": "2019-20"
+                  },
+                  {
+                    "count": 210,
+                    "rate": 0.07021063189568706,
+                    "value": "2024-25"
+                  },
+                  {
+                    "count": 209,
+                    "rate": 0.06987629555332665,
+                    "value": "2020-21"
+                  },
+                  {
+                    "count": 209,
+                    "rate": 0.06987629555332665,
+                    "value": "2021-22"
+                  },
+                  {
+                    "count": 208,
+                    "rate": 0.06954195921096623,
+                    "value": "2018-19"
+                  },
+                  {
+                    "count": 208,
+                    "rate": 0.06954195921096623,
+                    "value": "2022-23"
+                  },
+                  {
+                    "count": 208,
+                    "rate": 0.06954195921096623,
+                    "value": "2023-24"
+                  },
+                  {
+                    "count": 197,
+                    "rate": 0.06586425944500167,
+                    "value": "2025-26"
+                  },
+                  {
+                    "count": 106,
+                    "rate": 0.035439652290203946,
+                    "value": "2015-16"
+                  },
+                  {
+                    "count": 104,
+                    "rate": 0.034770979605483116,
+                    "value": "2012-13"
+                  },
+                  {
+                    "count": 104,
+                    "rate": 0.034770979605483116,
+                    "value": "2013-14"
+                  },
+                  {
+                    "count": 104,
+                    "rate": 0.034770979605483116,
+                    "value": "2014-15"
+                  },
+                  {
+                    "count": 104,
+                    "rate": 0.034770979605483116,
+                    "value": "2017-18"
+                  },
+                  {
+                    "count": 103,
+                    "rate": 0.0344366432631227,
+                    "value": "2006-07"
+                  },
+                  {
+                    "count": 103,
+                    "rate": 0.0344366432631227,
+                    "value": "2007-08"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 2991,
+                    "rate": 1.0,
+                    "value": "sagis_weekly"
+                  }
+                ]
+              },
+              "week_ending": {
+                "distinct_count": 1396,
+                "normalisation_collisions": {
+                  "10 - 16 apr": [
+                    "10 - 16  Apr",
+                    "10 - 16 Apr"
+                  ],
+                  "11 - 17 apr": [
+                    "11 - 17  Apr",
+                    "11 - 17 Apr"
+                  ],
+                  "24 - 30 apr": [
+                    "24  - 30 Apr",
+                    "24 - 30 Apr"
+                  ],
+                  "24 - 30 nov": [
+                    "24 - 30  Nov",
+                    "24 - 30 Nov"
+                  ],
+                  "3 - 9 sep": [
+                    "3 - 9  Sep",
+                    "3 - 9 Sep"
+                  ],
+                  "7 - 13 apr": [
+                    "7 - 13  Apr",
+                    "7 - 13 Apr"
+                  ],
+                  "9 - 15 apr": [
+                    "9 - 15  Apr",
+                    "9 - 15 Apr"
+                  ]
+                },
+                "rare_category_count": 1396,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 2991,
+                "rare_row_rate": 1.0,
+                "top_values": [
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "10 - 16 Mar/Mrt"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "17 - 23 Mar/Mrt"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "24 - 30 Mar/Mrt"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "31 Mar/Mrt - 6 Apr"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "14 - 20 Apr"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "21 - 27 Apr"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "2 - 8 Jun"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "9 - 15 Jun"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "16 - 22 Jun"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "23 - 29 Jun"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "30 Jun - 6 Jul"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "7 - 13 Jul"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "14 - 20 Jul"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "21 - 27 Jul"
+                  },
+                  {
+                    "count": 4,
+                    "rate": 0.0013373453694416582,
+                    "value": "28 Jul - 3 Aug"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 1
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "season",
+              "crop",
+              "week_number"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 2991,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "season"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "season": {
+                "distinct_count": 22,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "season x crop x week_number"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 2991,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": [
+              {
+                "both_missing_count": 225,
+                "both_missing_rate": 0.07522567703109329,
+                "left": "pct_of_prior_yr",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 12.782051282051281,
+                "phi": 0.9789840710893553,
+                "right": "prior_prog_total_mt",
+                "right_missing_given_left_missing": 0.9615384615384616
+              },
+              {
+                "both_missing_count": 228,
+                "both_missing_rate": 0.07622868605817452,
+                "left": "z_vs_3yr_avg",
+                "left_missing_given_right_missing": 0.9743589743589743,
+                "missingness_lift": 6.761734784936641,
+                "phi": 0.68874976189934,
+                "right": "pct_of_prior_yr",
+                "right_missing_given_left_missing": 0.5290023201856149
+              },
+              {
+                "both_missing_count": 220,
+                "both_missing_rate": 0.0735539953192912,
+                "left": "z_vs_3yr_avg",
+                "left_missing_given_right_missing": 0.9777777777777777,
+                "missingness_lift": 6.785460170146945,
+                "phi": 0.6770515421467592,
+                "right": "prior_prog_total_mt",
+                "right_missing_given_left_missing": 0.5104408352668214
+              }
+            ]
+          },
+          "column_missingness": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "crop": {
+                "empty_string_count": 0,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "pct_of_prior_yr": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 2757,
+                "non_null_rate": 0.921765295887663,
+                "null_count": 234,
+                "null_rate": 0.07823470411233702,
+                "zero_count": 1,
+                "zero_rate": 0.00033433634236041456
+              },
+              "prior_prog_total_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 2766,
+                "non_null_rate": 0.9247743229689067,
+                "null_count": 225,
+                "null_rate": 0.07522567703109329,
+                "zero_count": 9,
+                "zero_rate": 0.003009027081243731
+              },
+              "prog_total_mt": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 9,
+                "zero_rate": 0.003009027081243731
+              },
+              "season": {
+                "empty_string_count": 0,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "week_ending": {
+                "empty_string_count": 0,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "week_number": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "z_vs_3yr_avg": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 1167,
+                "negative_rate": 0.3901705115346038,
+                "non_null_count": 2560,
+                "non_null_rate": 0.8559010364426614,
+                "null_count": 431,
+                "null_rate": 0.14409896355733867,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 2991,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": [
+              {
+                "baseline_missing_rate": 0.07823470411233702,
+                "condition_column": "crop",
+                "condition_value": "soybeans",
+                "missing_count": 58,
+                "missing_rate": 0.13272311212814644,
+                "missingness_lift": 1.6964736255354103,
+                "n": 437,
+                "target_column": "pct_of_prior_yr"
+              },
+              {
+                "baseline_missing_rate": 0.07823470411233702,
+                "condition_column": "crop",
+                "condition_value": "sunflower",
+                "missing_count": 58,
+                "missing_rate": 0.13272311212814644,
+                "missingness_lift": 1.6964736255354103,
+                "n": 437,
+                "target_column": "pct_of_prior_yr"
+              },
+              {
+                "baseline_missing_rate": 0.07823470411233702,
+                "condition_column": "crop",
+                "condition_value": "wheat",
+                "missing_count": 58,
+                "missing_rate": 0.05420560747663551,
+                "missingness_lift": 0.6928588545410974,
+                "n": 1070,
+                "target_column": "pct_of_prior_yr"
+              },
+              {
+                "baseline_missing_rate": 0.07823470411233702,
+                "condition_column": "crop",
+                "condition_value": "maize",
+                "missing_count": 60,
+                "missing_rate": 0.05730659025787966,
+                "missingness_lift": 0.7324957754757182,
+                "n": 1047,
+                "target_column": "pct_of_prior_yr"
+              },
+              {
+                "baseline_missing_rate": 0.07522567703109329,
+                "condition_column": "crop",
+                "condition_value": "soybeans",
+                "missing_count": 54,
+                "missing_rate": 0.12356979405034325,
+                "missingness_lift": 1.642654462242563,
+                "n": 437,
+                "target_column": "prior_prog_total_mt"
+              },
+              {
+                "baseline_missing_rate": 0.07522567703109329,
+                "condition_column": "crop",
+                "condition_value": "sunflower",
+                "missing_count": 54,
+                "missing_rate": 0.12356979405034325,
+                "missingness_lift": 1.642654462242563,
+                "n": 437,
+                "target_column": "prior_prog_total_mt"
+              },
+              {
+                "baseline_missing_rate": 0.07522567703109329,
+                "condition_column": "crop",
+                "condition_value": "wheat",
+                "missing_count": 57,
+                "missing_rate": 0.05327102803738318,
+                "missingness_lift": 0.7081495327102804,
+                "n": 1070,
+                "target_column": "prior_prog_total_mt"
+              },
+              {
+                "baseline_missing_rate": 0.07522567703109329,
+                "condition_column": "crop",
+                "condition_value": "maize",
+                "missing_count": 60,
+                "missing_rate": 0.05730659025787966,
+                "missingness_lift": 0.7617956064947469,
+                "n": 1047,
+                "target_column": "prior_prog_total_mt"
+              },
+              {
+                "baseline_missing_rate": 0.14409896355733867,
+                "condition_column": "crop",
+                "condition_value": "soybeans",
+                "missing_count": 106,
+                "missing_rate": 0.2425629290617849,
+                "missingness_lift": 1.6833079369461685,
+                "n": 437,
+                "target_column": "z_vs_3yr_avg"
+              },
+              {
+                "baseline_missing_rate": 0.14409896355733867,
+                "condition_column": "crop",
+                "condition_value": "sunflower",
+                "missing_count": 106,
+                "missing_rate": 0.2425629290617849,
+                "missingness_lift": 1.6833079369461685,
+                "n": 437,
+                "target_column": "z_vs_3yr_avg"
+              },
+              {
+                "baseline_missing_rate": 0.14409896355733867,
+                "condition_column": "crop",
+                "condition_value": "wheat",
+                "missing_count": 108,
+                "missing_rate": 0.10093457943925234,
+                "missingness_lift": 0.7004531951341155,
+                "n": 1070,
+                "target_column": "z_vs_3yr_avg"
+              },
+              {
+                "baseline_missing_rate": 0.14409896355733867,
+                "condition_column": "crop",
+                "condition_value": "maize",
+                "missing_count": 111,
+                "missing_rate": 0.10601719197707736,
+                "missingness_lift": 0.7357248751819917,
+                "n": 1047,
+                "target_column": "z_vs_3yr_avg"
+              }
+            ]
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 3,
+                "pair_count": 3,
+                "reason": "All frame rows were evaluated for the deterministically selected columns.",
+                "selected_column_count": 3,
+                "status": "supported"
+              },
+              "conditional_missingness": {
+                "condition_columns": [
+                  "crop"
+                ],
+                "reason": "Missingness is conditioned on bounded low-cardinality source segments.",
+                "record_count": 12,
+                "status": "supported",
+                "target_columns": [
+                  "z_vs_3yr_avg",
+                  "pct_of_prior_yr",
+                  "prior_prog_total_mt"
+                ]
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 2991
+          },
+          "required_complete_row_rate": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 14955,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 11964
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [
+                  "pct_of_prior_yr",
+                  "prior_prog_total_mt",
+                  "z_vs_3yr_avg"
+                ],
+                "negative_count": [
+                  "z_vs_3yr_avg"
+                ],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": [
+                  "pct_of_prior_yr",
+                  "prior_prog_total_mt",
+                  "prog_total_mt"
+                ]
+              },
+              "finite_count": 14065,
+              "infinite_count": 0,
+              "nan_or_null_count": 890,
+              "negative_count": 1167,
+              "numeric_cell_count": 14955,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.0595118689401538,
+                "negative_count": 0.07803410230692076,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.0012704781009695754
+              },
+              "string_cell_count": 11964,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 19
+            }
+          },
+          "value_column_population": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "pct_of_prior_yr": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 2757,
+                "non_null_rate": 0.921765295887663,
+                "passes_floor": true
+              },
+              "prog_total_mt": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 2991,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              },
+              "z_vs_3yr_avg": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 2560,
+                "non_null_rate": 0.8559010364426614,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "week_ending",
+                "resolution": "day"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "crop": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "pct_of_prior_yr": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "prior_prog_total_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "prog_total_mt": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "season": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "week_ending": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "week_number": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              },
+              "z_vs_3yr_avg": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 9
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 9
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "season",
+              "crop",
+              "week_number",
+              "week_ending",
+              "prog_total_mt",
+              "prior_prog_total_mt",
+              "pct_of_prior_yr",
+              "z_vs_3yr_avg",
+              "source"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 2991
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 1,
+              "partition_stratum_count": 1,
+              "source_compressed_bytes": 112114,
+              "source_row_count": 2991
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {},
+                "row_count": 2991,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "619b14497d5abe8585cd1d995814ef1ee03e5ca76bb1ad0be4c5431e4562d558": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "prog_total_mt",
+                "lag_1_autocorrelation": 0.06838398850188021,
+                "n_effective_pairs": 243,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "pct_of_prior_yr",
+                "lag_1_autocorrelation": -0.041779334581695145,
+                "n_effective_pairs": 218,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "z_vs_3yr_avg",
+                "lag_1_autocorrelation": -0.03577674678993446,
+                "n_effective_pairs": 193,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "weekly",
+              "declared_matches_inferred": false,
+              "distinct_timestamp_count": 244,
+              "gap_count": 243,
+              "gap_days_max": 730160.8409722223,
+              "gap_days_median": 31.0,
+              "gap_days_mode": 31.0,
+              "gap_days_p95": 62.0,
+              "inferred_cadence": "monthly",
+              "large_gap_count": 50,
+              "large_gap_rate": 0.205761316872428
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "weekly"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": [
+              {
+                "column": "prog_total_mt",
+                "early_n": 92,
+                "early_quantiles": {
+                  "0.1": 434143.29999999993,
+                  "0.5": 2000943.0,
+                  "0.9": 10951791.200000001
+                },
+                "late_n": 89,
+                "late_quantiles": {
+                  "0.1": 1366600.0,
+                  "0.5": 2115000.0,
+                  "0.9": 11301600.0
+                },
+                "median_shift": 114057.0,
+                "robust_median_shift_iqr": 0.020491761308359533
+              },
+              {
+                "column": "pct_of_prior_yr",
+                "early_n": 79,
+                "early_quantiles": {
+                  "0.1": 0.7297416457952571,
+                  "0.5": 1.0114219500082768,
+                  "0.9": 1.8393196664804559
+                },
+                "late_n": 77,
+                "late_quantiles": {
+                  "0.1": 0.7957468105422834,
+                  "0.5": 1.0353302611367128,
+                  "0.9": 1.8795058371090265
+                },
+                "median_shift": 0.023908311128435944,
+                "robust_median_shift_iqr": 0.0563906351785557
+              },
+              {
+                "column": "z_vs_3yr_avg",
+                "early_n": 65,
+                "early_quantiles": {
+                  "0.1": -4.0510816527059745,
+                  "0.5": 0.22008766634342533,
+                  "0.9": 2.42522053783497
+                },
+                "late_n": 66,
+                "late_quantiles": {
+                  "0.1": -4.50232036938846,
+                  "0.5": 0.43622430992064803,
+                  "0.9": 62.51672344679116
+                },
+                "median_shift": 0.2161366435772227,
+                "robust_median_shift_iqr": 0.0973681981503633
+              }
+            ]
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {
+              "analysis_frame_exactness": "exact",
+              "complete_entity_count": 0,
+              "complete_entity_rate": 0.0,
+              "entity_columns": [
+                "crop"
+              ],
+              "entity_count": 2,
+              "full_source_balance_claimed": true,
+              "global_distinct_period_count": 244,
+              "observed_period_count": {
+                "max": 209,
+                "median": 199.5,
+                "min": 190,
+                "p10": 191.9,
+                "p90": 207.1
+              },
+              "period_coverage_ratio": {
+                "median": 0.8176229508196722,
+                "p10": 0.7864754098360656,
+                "p90": 0.8487704918032787
+              },
+              "sampling_artifact_caveat": null,
+              "scope": "full_analysis_frame"
+            }
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": [
+              {
+                "ambiguous_duplicate_sequence_rows_excluded": 0,
+                "column": "prog_total_mt",
+                "decrease_or_reset_count": 43,
+                "decrease_or_reset_rate": 0.014670760832480383,
+                "group_columns": [
+                  "season",
+                  "crop"
+                ],
+                "groups_with_decrease_or_reset": 17,
+                "monotonicity_expected_by_name": false,
+                "sequence_column": "week_number",
+                "transition_count": 2931
+              },
+              {
+                "ambiguous_duplicate_sequence_rows_excluded": 0,
+                "column": "pct_of_prior_yr",
+                "decrease_or_reset_count": 1309,
+                "decrease_or_reset_rate": 0.4846353202517586,
+                "group_columns": [
+                  "season",
+                  "crop"
+                ],
+                "groups_with_decrease_or_reset": 56,
+                "monotonicity_expected_by_name": false,
+                "sequence_column": "week_number",
+                "transition_count": 2701
+              },
+              {
+                "ambiguous_duplicate_sequence_rows_excluded": 0,
+                "column": "z_vs_3yr_avg",
+                "decrease_or_reset_count": 1166,
+                "decrease_or_reset_rate": 0.4649122807017544,
+                "group_columns": [
+                  "season",
+                  "crop"
+                ],
+                "groups_with_decrease_or_reset": 52,
+                "monotonicity_expected_by_name": false,
+                "sequence_column": "week_number",
+                "transition_count": 2508
+              }
+            ]
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 5372750.0,
+                "after_timestamp_count": 64,
+                "before_median": 4242015.75,
+                "before_timestamp_count": 180,
+                "column": "prog_total_mt",
+                "median_shift": 1130734.25,
+                "robust_shift_score": 0.5358458372681173,
+                "split_timestamp": "2018-10-24T00:00:00+00:00"
+              },
+              {
+                "after_median": 1.0080835298080162,
+                "after_timestamp_count": 165,
+                "before_median": 0.9843219836520032,
+                "before_timestamp_count": 54,
+                "column": "pct_of_prior_yr",
+                "median_shift": 0.023761546156013003,
+                "robust_shift_score": 0.27963523276674285,
+                "split_timestamp": "2006-11-12T00:00:00+00:00"
+              },
+              {
+                "after_median": 0.2900139796581172,
+                "after_timestamp_count": 48,
+                "before_median": 0.21322519232152803,
+                "before_timestamp_count": 146,
+                "column": "z_vs_3yr_avg",
+                "median_shift": 0.07678878733658917,
+                "robust_shift_score": 0.0747527395600882,
+                "split_timestamp": "2019-01-25T20:13:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": [
+              {
+                "column": "prog_total_mt",
+                "eta_squared_month_of_year": 0.567413798069577,
+                "month_counts": {
+                  "1": 24,
+                  "10": 11,
+                  "11": 25,
+                  "12": 10,
+                  "2": 21,
+                  "3": 10,
+                  "4": 26,
+                  "5": 18,
+                  "6": 25,
+                  "7": 25,
+                  "8": 25,
+                  "9": 24
+                },
+                "month_medians": {
+                  "1": 6248750.0,
+                  "10": 10963000.0,
+                  "11": 5730500.0,
+                  "12": 11188000.0,
+                  "2": 6129000.0,
+                  "3": 11349000.0,
+                  "4": 6615500.0,
+                  "5": 440000.0,
+                  "6": 2100276.0,
+                  "7": 3602000.0,
+                  "8": 4790500.0,
+                  "9": 5111500.0
+                },
+                "n_timestamps": 244,
+                "year_count": 26
+              },
+              {
+                "column": "pct_of_prior_yr",
+                "eta_squared_month_of_year": 0.13731369513248684,
+                "month_counts": {
+                  "1": 24,
+                  "10": 11,
+                  "11": 24,
+                  "12": 10,
+                  "2": 21,
+                  "3": 10,
+                  "4": 22,
+                  "5": 15,
+                  "6": 20,
+                  "7": 21,
+                  "8": 22,
+                  "9": 19
+                },
+                "month_medians": {
+                  "1": 1.0075527383836669,
+                  "10": 1.0025632262474369,
+                  "11": 0.9890478951219918,
+                  "12": 1.010923864086287,
+                  "2": 1.0114219500082768,
+                  "3": 1.0100607791985614,
+                  "4": 0.9599974080929217,
+                  "5": 0.8636363636363636,
+                  "6": 1.0101802983764434,
+                  "7": 0.9921801864915962,
+                  "8": 1.0406451278584508,
+                  "9": 1.0528133099206272
+                },
+                "n_timestamps": 219,
+                "year_count": 25
+              },
+              {
+                "column": "z_vs_3yr_avg",
+                "eta_squared_month_of_year": 0.418007749570486,
+                "month_counts": {
+                  "1": 21,
+                  "10": 8,
+                  "11": 21,
+                  "12": 6,
+                  "2": 18,
+                  "3": 6,
+                  "4": 21,
+                  "5": 12,
+                  "6": 20,
+                  "7": 21,
+                  "8": 22,
+                  "9": 18
+                },
+                "month_medians": {
+                  "1": 0.1449804674344094,
+                  "10": 140.49903877928412,
+                  "11": 0.531178769824027,
+                  "12": 52.92446888484442,
+                  "2": -0.27995603406960345,
+                  "3": 50.20474694029126,
+                  "4": 0.12236913224588214,
+                  "5": -0.015786497604890495,
+                  "6": 0.24276183539320917,
+                  "7": 0.21921541337811948,
+                  "8": 0.2304662045363191,
+                  "9": 0.10522225484935414
+                },
+                "n_timestamps": 194,
+                "year_count": 25
+              }
+            ]
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 3,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "configured_window_fraction": 0.2,
+                "early_cutoff": "2005-11-11T00:00:00+00:00",
+                "late_cutoff": "2020-03-26T00:00:00+00:00",
+                "reason": "Earliest and latest timestamp quartiles are compared descriptively; composition changes can mimic distribution drift.",
+                "series_count": 3,
+                "status": "supported"
+              },
+              "panel_balance": {
+                "entity_count": 2,
+                "full_source_balance_claimed": true,
+                "reason": "Entity coverage is measured against the global observed timestamp set; staggered entry can lower this descriptive ratio without implying a defect.",
+                "scope": "full_analysis_frame",
+                "status": "supported"
+              },
+              "progressive_curve": {
+                "reason": "Negative within-curve steps are reset/revision evidence, not automatically invalid rows; ambiguous duplicate sequence positions are reported and excluded.",
+                "series_count": 3,
+                "status": "supported",
+                "transition_count": 8140
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 3,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "Month-of-year effect size uses timestamp-level cross-sectional medians; it is descriptive and not a causal seasonality test.",
+                "series_count": 3,
+                "status": "supported"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 3
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "season": {
+                "coverage_month_counts": {
+                  "2005-01": 51,
+                  "2006-01": 103,
+                  "2007-01": 103,
+                  "2008-01": 102,
+                  "2009-01": 102,
+                  "2010-01": 98,
+                  "2011-01": 100,
+                  "2012-01": 104,
+                  "2013-01": 104,
+                  "2014-01": 104,
+                  "2015-01": 106,
+                  "2016-01": 102,
+                  "2017-01": 104,
+                  "2018-01": 208,
+                  "2019-01": 210,
+                  "2020-01": 209,
+                  "2021-01": 209,
+                  "2022-01": 208,
+                  "2023-01": 208,
+                  "2024-01": 210,
+                  "2025-01": 197,
+                  "2026-01": 49
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 22,
+                "first": "2005-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 366.0,
+                "last": "2026-01-01T00:00:00+00:00",
+                "parseable_count": 2991,
+                "parseable_rate": 1.0
+              },
+              "week_ending": {
+                "coverage_month_counts": {
+                  "1-11": 1,
+                  "2001-01": 2,
+                  "2001-03": 1,
+                  "2001-04": 1,
+                  "2001-05": 1,
+                  "2001-06": 1,
+                  "2001-07": 2,
+                  "2001-08": 2,
+                  "2001-09": 4,
+                  "2001-11": 2,
+                  "2001-12": 1,
+                  "2002-01": 2,
+                  "2002-02": 4,
+                  "2002-04": 2,
+                  "2002-05": 1,
+                  "2002-06": 4,
+                  "2002-07": 2,
+                  "2002-08": 2,
+                  "2002-09": 2,
+                  "2003-01": 2,
+                  "2003-02": 2,
+                  "2003-04": 2,
+                  "2003-05": 1,
+                  "2003-06": 2,
+                  "2003-07": 2,
+                  "2003-08": 1,
+                  "2003-09": 2,
+                  "2003-10": 1,
+                  "2003-11": 3,
+                  "2004-02": 3,
+                  "2004-04": 2,
+                  "2004-06": 2,
+                  "2004-07": 2,
+                  "2004-08": 4,
+                  "2004-09": 2,
+                  "2004-10": 1,
+                  "2004-11": 1,
+                  "2005-01": 4,
+                  "2005-02": 2,
+                  "2005-04": 2,
+                  "2005-05": 1,
+                  "2005-06": 2,
+                  "2005-07": 2,
+                  "2005-08": 2,
+                  "2005-09": 2,
+                  "2005-11": 3,
+                  "2005-12": 1,
+                  "2006-01": 2,
+                  "2006-02": 2,
+                  "2006-03": 1,
+                  "2006-04": 2,
+                  "2006-05": 1,
+                  "2006-06": 2,
+                  "2006-07": 1,
+                  "2006-08": 2,
+                  "2006-09": 2,
+                  "2006-10": 1,
+                  "2006-11": 2,
+                  "2006-12": 1,
+                  "2007-01": 3,
+                  "2007-02": 2,
+                  "2007-03": 1,
+                  "2007-04": 4,
+                  "2007-06": 2,
+                  "2007-07": 4,
+                  "2007-08": 2,
+                  "2007-09": 1,
+                  "2007-11": 2,
+                  "2008-01": 2,
+                  "2008-03": 1,
+                  "2008-04": 1,
+                  "2008-05": 1,
+                  "2008-06": 1,
+                  "2008-07": 2,
+                  "2008-08": 2,
+                  "2008-09": 4,
+                  "2008-11": 2,
+                  "2008-12": 1,
+                  "2009-01": 2,
+                  "2009-02": 4,
+                  "2009-04": 2,
+                  "2009-05": 1,
+                  "2009-06": 4,
+                  "2009-07": 2,
+                  "2009-08": 2,
+                  "2009-09": 2,
+                  "2010-01": 2,
+                  "2010-02": 2,
+                  "2010-04": 2,
+                  "2010-05": 1,
+                  "2010-06": 2,
+                  "2010-07": 2,
+                  "2010-08": 1,
+                  "2010-09": 2,
+                  "2010-10": 1,
+                  "2010-11": 4,
+                  "2011-02": 3,
+                  "2011-04": 2,
+                  "2011-06": 2,
+                  "2011-07": 2,
+                  "2011-08": 4,
+                  "2011-09": 2,
+                  "2011-10": 1,
+                  "2011-11": 2,
+                  "2012-01": 4,
+                  "2012-02": 2,
+                  "2012-04": 2,
+                  "2012-05": 1,
+                  "2012-06": 2,
+                  "2012-07": 2,
+                  "2012-08": 2,
+                  "2012-09": 2,
+                  "2012-11": 3,
+                  "2012-12": 1,
+                  "2013-01": 2,
+                  "2013-02": 2,
+                  "2013-03": 1,
+                  "2013-04": 2,
+                  "2013-05": 1,
+                  "2013-06": 2,
+                  "2013-07": 1,
+                  "2013-08": 2,
+                  "2013-09": 2,
+                  "2013-10": 1,
+                  "2013-11": 2,
+                  "2013-12": 1,
+                  "2014-01": 3,
+                  "2014-02": 2,
+                  "2014-03": 1,
+                  "2014-04": 4,
+                  "2014-06": 2,
+                  "2014-07": 4,
+                  "2014-08": 2,
+                  "2014-09": 1,
+                  "2014-11": 2,
+                  "2015-01": 2,
+                  "2015-03": 1,
+                  "2015-04": 1,
+                  "2015-05": 1,
+                  "2015-06": 1,
+                  "2015-07": 2,
+                  "2015-08": 2,
+                  "2015-09": 4,
+                  "2015-11": 2,
+                  "2015-12": 1,
+                  "2016-01": 2,
+                  "2016-02": 4,
+                  "2016-04": 2,
+                  "2016-05": 1,
+                  "2016-06": 4,
+                  "2016-07": 2,
+                  "2016-08": 2,
+                  "2016-09": 2,
+                  "2017-01": 2,
+                  "2017-02": 2,
+                  "2017-04": 2,
+                  "2017-05": 1,
+                  "2017-06": 2,
+                  "2017-07": 2,
+                  "2017-08": 1,
+                  "2017-09": 2,
+                  "2017-10": 1,
+                  "2017-11": 4,
+                  "2018-02": 3,
+                  "2018-04": 2,
+                  "2018-06": 2,
+                  "2018-07": 2,
+                  "2018-08": 4,
+                  "2018-09": 2,
+                  "2018-10": 1,
+                  "2018-11": 2,
+                  "2019-01": 4,
+                  "2019-02": 2,
+                  "2019-04": 1,
+                  "2019-05": 1,
+                  "2019-06": 2,
+                  "2019-07": 2,
+                  "2019-08": 2,
+                  "2019-09": 2,
+                  "2019-11": 3,
+                  "2019-12": 1,
+                  "2020-01": 2,
+                  "2020-02": 2,
+                  "2020-03": 1,
+                  "2020-04": 2,
+                  "2020-05": 1,
+                  "2020-06": 2,
+                  "2020-07": 1,
+                  "2020-08": 2,
+                  "2020-09": 2,
+                  "2020-10": 1,
+                  "2020-11": 2,
+                  "2020-12": 1,
+                  "2021-01": 3,
+                  "2021-02": 2,
+                  "2021-03": 1,
+                  "2021-04": 4,
+                  "2021-06": 2,
+                  "2021-07": 4,
+                  "2021-08": 2,
+                  "2021-09": 1,
+                  "2021-11": 2,
+                  "2022-01": 2,
+                  "2022-03": 1,
+                  "2022-04": 1,
+                  "2022-05": 1,
+                  "2022-06": 1,
+                  "2022-07": 2,
+                  "2022-08": 2,
+                  "2022-09": 4,
+                  "2022-11": 2,
+                  "2022-12": 1,
+                  "2023-01": 2,
+                  "2023-05": 1,
+                  "2023-06": 4,
+                  "2023-07": 2,
+                  "2023-08": 2,
+                  "2023-09": 2,
+                  "2024-01": 2,
+                  "2024-04": 2,
+                  "2024-05": 1,
+                  "2024-06": 1,
+                  "2024-07": 2,
+                  "2024-08": 1,
+                  "2024-09": 2,
+                  "2024-10": 1,
+                  "2024-11": 4,
+                  "2025-07": 2,
+                  "2025-08": 4,
+                  "2025-10": 1
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 244,
+                "first": "0001-11-28T00:00:00+00:00",
+                "gap_days_max": 730160.8409722223,
+                "gap_days_median": 31.0,
+                "gap_days_p95": 62.0,
+                "last": "2025-10-31T00:00:00+00:00",
+                "parseable_count": 453,
+                "parseable_rate": 0.1514543630892678
+              },
+              "week_number": {
+                "coverage_month_counts": {
+                  "1970-01": 2991
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 53,
+                "first": "1970-01-01T00:00:00.000000001+00:00",
+                "gap_days_max": 1.1574074074074075e-14,
+                "gap_days_median": 1.1574074074074075e-14,
+                "gap_days_p95": 1.1574074074074075e-14,
+                "last": "1970-01-01T00:00:00.000000053+00:00",
+                "parseable_count": 2991,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "week_ending",
+              "resolution": "day"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "season",
+              "week_ending",
+              "week_number"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 2991,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": [
+              "crop",
+              "season"
+            ]
+          },
+          "categorical_associations": {
+            "denominator": 2991,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": [
+              {
+                "cramers_v": 0.3373370889661522,
+                "cramers_v_bias_corrected": 0.32692527864543075,
+                "left": "crop",
+                "left_levels": 4,
+                "n": 2991,
+                "right": "season",
+                "right_levels": 22
+              }
+            ]
+          },
+          "correlation_columns": {
+            "detail": "At most 20 non-constant governed numeric value columns in contract order; calendar/time identifiers are excluded.",
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "prog_total_mt",
+              "pct_of_prior_yr",
+              "z_vs_3yr_avg"
+            ]
+          },
+          "correlation_pairs": {
+            "detail": "Pearson and Spearman are paired with effective pairwise sample size.",
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": [
+              {
+                "abs_max_correlation": 0.7815596141393281,
+                "left": "pct_of_prior_yr",
+                "n": 2554,
+                "pearson": 0.03666840178330074,
+                "right": "z_vs_3yr_avg",
+                "spearman": 0.7815596141393281
+              },
+              {
+                "abs_max_correlation": 0.2346090093775759,
+                "left": "prog_total_mt",
+                "n": 2560,
+                "pearson": 0.13622334040228345,
+                "right": "z_vs_3yr_avg",
+                "spearman": 0.2346090093775759
+              },
+              {
+                "abs_max_correlation": 0.17845730199339144,
+                "left": "prog_total_mt",
+                "n": 2757,
+                "pearson": -0.034368851332645625,
+                "right": "pct_of_prior_yr",
+                "spearman": 0.17845730199339144
+              }
+            ]
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {
+              "pct_of_prior_yr": {
+                "pct_of_prior_yr": 1.0,
+                "prog_total_mt": -0.034368851332645625,
+                "z_vs_3yr_avg": 0.03666840178330074
+              },
+              "prog_total_mt": {
+                "pct_of_prior_yr": -0.034368851332645625,
+                "prog_total_mt": 1.0,
+                "z_vs_3yr_avg": 0.13622334040228345
+              },
+              "z_vs_3yr_avg": {
+                "pct_of_prior_yr": 0.03666840178330074,
+                "prog_total_mt": 0.13622334040228345,
+                "z_vs_3yr_avg": 1.0
+              }
+            }
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "eligible_column_count": 2,
+                "pair_count": 1,
+                "reason": "Bias-corrected Cramer's V is descriptive; rare levels and structural mappings can produce strong associations without redundancy.",
+                "selected_columns": [
+                  "crop",
+                  "season"
+                ],
+                "status": "supported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {
+              "pct_of_prior_yr": {
+                "pct_of_prior_yr": 1.0,
+                "prog_total_mt": 0.17845730199339144,
+                "z_vs_3yr_avg": 0.7815596141393281
+              },
+              "prog_total_mt": {
+                "pct_of_prior_yr": 0.17845730199339144,
+                "prog_total_mt": 1.0,
+                "z_vs_3yr_avg": 0.2346090093775759
+              },
+              "z_vs_3yr_avg": {
+                "pct_of_prior_yr": 0.7815596141393281,
+                "prog_total_mt": 0.2346090093775759,
+                "z_vs_3yr_avg": 1.0
+              }
+            }
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_sagis_weekly_deliveries"
+  },
+  "provenance": {
+    "analysis_rows": 2991,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries",
+    "contract_sha256": "b82108cd5203515fe933b1e50c66d9588795770b007485acebb1d666a6bf30c6",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 1,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {},
+          "row_count": 2991,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 1,
+      "schema_sha256_object_counts": {
+        "619b14497d5abe8585cd1d995814ef1ee03e5ca76bb1ad0be4c5431e4562d558": 1
+      },
+      "source_compressed_bytes": 112114,
+      "source_row_count": 2991
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "c5772c2b0203d8bb189a7dc42f52d430e9b42195c3af73b4477a1808088cfae5",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 1,
+    "object_sample": [
+      {
+        "etag": "66b5938a3276d2b6f34090cc8b0ed2a6",
+        "last_modified": "2026-07-18T15:41:22Z",
+        "partition_values": {},
+        "size": 112114,
+        "uri": "s3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": false,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 1,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "source",
+        "season",
+        "crop",
+        "week_number",
+        "week_ending",
+        "prog_total_mt",
+        "prior_prog_total_mt",
+        "pct_of_prior_yr"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 7769596263771151946,
+      "snapshot_row_count": 2991,
+      "source_compressed_bytes": 112114,
+      "source_row_count": 2991,
+      "stratum_columns": [
+        "source",
+        "season"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "64342b9b6cdb911c0850755d32ad01c7c16f0368de36618531e81ea945818158",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica/manifest.json",
+      "object_count": 1,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica/objects",
+      "replica_manifest_sha256": "fb326b0852adc6055f1088ce060856962c0e2f4dd0382acacf1305c2efbdcc28",
+      "source_manifest_sha256": "64342b9b6cdb911c0850755d32ad01c7c16f0368de36618531e81ea945818158",
+      "total_bytes": 112114
+    },
+    "source_rows": 2991,
+    "source_specific_checks": [
+      {
+        "consumer_rows": 2991,
+        "duplicate_affected_rows": 0,
+        "duplicate_group_count": 0,
+        "exactness": "exact",
+        "key": [
+          "season",
+          "crop",
+          "week_number"
+        ],
+        "numeric_aggregate_delta": {
+          "pct_of_prior_yr": {
+            "consumer_non_null_count": 2757,
+            "consumer_sum": 3716.667355293423,
+            "raw_non_null_count": 2757,
+            "raw_sum": 3716.667355293423,
+            "sum_delta": 0.0
+          },
+          "prog_total_mt": {
+            "consumer_non_null_count": 2991,
+            "consumer_sum": 12242055924.0,
+            "raw_non_null_count": 2991,
+            "raw_sum": 12242055924.0,
+            "sum_delta": 0.0
+          },
+          "z_vs_3yr_avg": {
+            "consumer_non_null_count": 2560,
+            "consumer_sum": 5457.477361933601,
+            "raw_non_null_count": 2560,
+            "raw_sum": 5457.477361933601,
+            "sum_delta": 0.0
+          }
+        },
+        "raw_profile_preserved": true,
+        "raw_rows": 2991,
+        "removed_row_rate": 0.0,
+        "removed_rows": 0,
+        "status": "complete",
+        "table_name": "silver_sagis_weekly_deliveries",
+        "view": "raw_vs_documented_consumer_dedup"
+      }
+    ],
+    "source_total_bytes": 112114,
+    "source_total_rows": 2991,
+    "spec_sha256": "b4edbd2f2e97f7c64ff4159e28c018e34dc9194da6d230d989a7ccf42c27ef65"
+  },
+  "reader": {
+    "analysis_rows": 2991,
+    "anti_feature_summary": {
+      "analysis_rows": 2991,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "reviewed-4",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently replace raw duplicate evidence with the consumer view."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 2991
+    },
+    "archetype": "progressive_cumulative",
+    "chart_execution": {
+      "omission_reasons": [
+        "Chart exceeds the configured notebook maximum.",
+        "Chart exceeds the configured notebook maximum."
+      ],
+      "omitted_chart_count": 2,
+      "plotted_rows": 1891,
+      "ready_chart_count": 4,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": "median only within duplicate season/entity/cutoff rows; series remain separate",
+        "analysis_rows": 2991,
+        "chart_id": "cumulative_curve",
+        "exactness": "exact",
+        "plotted_rows": 633,
+        "reason": null,
+        "scope": "selected 12 of 60 complete semantic series by distinct-position count, contributing rows, then label; excluded series=48 (complete but outside cap=48, underpowered=0); label dimensions=season, crop; no pooling; time=week_number; measure=prog_total_mt; contributing source rows=2,991",
+        "source_rows": 2991,
+        "status": "ready",
+        "title": "Progressive deliveries by season week",
+        "unit": "metric tonnes"
+      },
+      {
+        "aggregation": "first difference between consecutive cutoffs within each preserved season/entity series",
+        "analysis_rows": 2991,
+        "chart_id": "cumulative_increment",
+        "exactness": "exact",
+        "plotted_rows": 621,
+        "reason": null,
+        "scope": "selected 12 of 60 complete semantic series by distinct-position count, contributing rows, then label; excluded series=48 (complete but outside cap=48, underpowered=0); label dimensions=season, crop; no pooling; time=week_number; measure=prog_total_mt; contributing source rows=2,991",
+        "source_rows": 2991,
+        "status": "ready",
+        "title": "Weekly increments in deliveries",
+        "unit": "change in metric tonnes"
+      },
+      {
+        "aggregation": "earliest within-series cutoff reaching each stated threshold",
+        "analysis_rows": 2991,
+        "chart_id": "milestones",
+        "exactness": "exact",
+        "plotted_rows": 13,
+        "reason": null,
+        "scope": "selected 12 of 60 complete semantic series by distinct-position count, contributing rows, then label; excluded series=48 (complete but outside cap=48, underpowered=0); label dimensions=season, crop; no pooling; time=week_number; measure=prog_total_mt; contributing source rows=2,991",
+        "source_rows": 2991,
+        "status": "ready",
+        "title": "Deliveries milestone season week",
+        "unit": "season cutoff"
+      },
+      {
+        "aggregation": "median only within duplicate x/series/measure rows; semantic series remain separate",
+        "analysis_rows": 2991,
+        "chart_id": "prior_year_pace",
+        "exactness": "exact",
+        "plotted_rows": 624,
+        "reason": null,
+        "scope": "selected 12 of 56 complete semantic series by distinct-position count, contributing rows, then label; excluded series=44 (complete but outside cap=44, underpowered=0); label dimensions=season, crop; no pooling; time=week_number; measures=pct_of_prior_yr",
+        "source_rows": 2991,
+        "status": "ready",
+        "title": "Ratio to prior-year pace",
+        "unit": "ratio to prior year (1.0 = 100%)"
+      },
+      {
+        "aggregation": null,
+        "analysis_rows": 2991,
+        "chart_id": "historical_z",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "Chart exceeds the configured notebook maximum.",
+        "scope": "frozen analysis frame",
+        "source_rows": 2991,
+        "status": "omitted",
+        "title": "Deviation from three-year average",
+        "unit": null
+      },
+      {
+        "aggregation": null,
+        "analysis_rows": 2991,
+        "chart_id": "coverage",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "Chart exceeds the configured notebook maximum.",
+        "scope": "frozen analysis frame",
+        "source_rows": 2991,
+        "status": "omitted",
+        "title": "Season-week coverage",
+        "unit": null
+      }
+    ],
+    "chart_omission_reasons": [
+      "Chart exceeds the configured notebook maximum.",
+      "Chart exceeds the configured notebook maximum."
+    ],
+    "chart_plan": {
+      "analysis_rows": 2991,
+      "charts": [
+        {
+          "analysis_rows": 2991,
+          "chart_id": "cumulative_curve",
+          "chart_type": "season_curve",
+          "columns": [
+            "week_number",
+            "prog_total_mt",
+            "season",
+            "crop"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": "governed_axis",
+          "eligible_rows": 2991,
+          "exactness": "exact",
+          "id": "cumulative_curve",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "prog_total_mt"
+          ],
+          "measure_units": {
+            "prog_total_mt": "metric tonnes"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Compare the true cumulative curve at the same declared week_number cutoff; week_ending is not the cross-season x-axis.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "season",
+            "crop"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 2991,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [
+            "week_number"
+          ],
+          "title": "Progressive deliveries by season week",
+          "type": "season_curve",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 2991,
+          "chart_id": "cumulative_increment",
+          "chart_type": "increment",
+          "columns": [
+            "week_number",
+            "prog_total_mt",
+            "season",
+            "crop"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": "governed_axis",
+          "eligible_rows": 2991,
+          "exactness": "exact",
+          "id": "cumulative_increment",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "prog_total_mt"
+          ],
+          "measure_units": {
+            "prog_total_mt": "metric tonnes"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Difference only the progressive cumulative tonnage field within series ordered by declared week_number.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "season",
+            "crop"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 2991,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [
+            "week_number"
+          ],
+          "title": "Weekly increments in deliveries",
+          "type": "increment",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 2991,
+          "chart_id": "milestones",
+          "chart_type": "milestone",
+          "columns": [
+            "week_number",
+            "prog_total_mt",
+            "season",
+            "crop"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": "governed_axis",
+          "eligible_rows": 2991,
+          "exactness": "exact",
+          "id": "milestones",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "prog_total_mt"
+          ],
+          "measure_units": {
+            "prog_total_mt": "metric tonnes"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Compare cumulative milestone timing on the declared week_number axis.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "season",
+            "crop"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 2991,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [
+            "week_number"
+          ],
+          "title": "Deliveries milestone season week",
+          "type": "milestone",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 2991,
+          "chart_id": "prior_year_pace",
+          "chart_type": "line",
+          "columns": [
+            "week_number",
+            "pct_of_prior_yr",
+            "season",
+            "crop"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": "governed_axis",
+          "eligible_rows": 2757,
+          "exactness": "exact",
+          "id": "prior_year_pace",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "pct_of_prior_yr"
+          ],
+          "measure_units": {
+            "pct_of_prior_yr": "ratio to prior year (1.0 = 100%)"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show the stored ratio as a level (1.10 means 110% of prior year); never label it as percentage points or cumulative data.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "season",
+            "crop"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 2991,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [
+            "week_number"
+          ],
+          "title": "Ratio to prior-year pace",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 2991,
+          "chart_id": "historical_z",
+          "chart_type": "line",
+          "columns": [
+            "week_number",
+            "z_vs_3yr_avg",
+            "season",
+            "crop"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": "governed_axis",
+          "eligible_rows": 0,
+          "exactness": "exact",
+          "id": "historical_z",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "z_vs_3yr_avg"
+          ],
+          "measure_units": {
+            "z_vs_3yr_avg": "standard deviations from the three-year average"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "skipped",
+          "purpose": "Show the stored standardized comparison in standard-deviation units without redifferencing it.",
+          "reason": "Chart exceeds the configured notebook maximum.",
+          "series_dimensions": [
+            "season",
+            "crop"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 2991,
+          "split_by": [],
+          "status": "skipped",
+          "time_components": [
+            "week_number"
+          ],
+          "title": "Deviation from three-year average",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 2991,
+          "chart_id": "coverage",
+          "chart_type": "coverage_heatmap",
+          "columns": [
+            "week_number",
+            "season",
+            "crop"
+          ],
+          "coverage_grain": "ordered",
+          "cutoff_mode": "governed_axis",
+          "eligible_rows": 0,
+          "exactness": "exact",
+          "id": "coverage",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "skipped",
+          "purpose": "Expose partial seasons and missing reports on declared week_number.",
+          "reason": "Chart exceeds the configured notebook maximum.",
+          "series_dimensions": [
+            "season",
+            "crop"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 2991,
+          "split_by": [],
+          "status": "skipped",
+          "time_components": [
+            "week_number"
+          ],
+          "title": "Season-week coverage",
+          "type": "coverage_heatmap",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 11730,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 2,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 4,
+      "ready_chart_count": 4,
+      "source_rows": 2991
+    },
+    "column_dictionary": [
+      {
+        "column": "season",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 22,
+        "example": "2005-06",
+        "meaning": "Source-defined crop or reporting season.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; anchors temporal coverage; is required by the source contract."
+      },
+      {
+        "column": "crop",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 4,
+        "example": "maize",
+        "meaning": "Crop or agricultural product represented by the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; supports entity segmentation; is required by the source contract."
+      },
+      {
+        "column": "week_number",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 53,
+        "example": 1,
+        "meaning": "Ordinal week position within the reporting cycle.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; is required by the source contract."
+      },
+      {
+        "column": "week_ending",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1396,
+        "example": "01/01 - 07/01/2022",
+        "meaning": "Last calendar date covered by the reported week.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "prog_total_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 2905,
+        "example": 0.0,
+        "meaning": "Cumulative progressive cumulative total through the row's reporting cutoff, measured in metric tonnes.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "metric tonnes",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "prior_prog_total_mt",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 2683,
+        "example": 0.0,
+        "meaning": "Prior comparable progressive cumulative total value, measured in metric tonnes.",
+        "null_count": 225,
+        "null_rate": 0.07522567703109329,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "pct_of_prior_yr",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 2735,
+        "example": 0.0,
+        "meaning": "Governed numeric percent of prior yr measure used for source-level analytical comparisons.",
+        "null_count": 234,
+        "null_rate": 0.07823470411233702,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "ratio to prior year (1.0 = 100%)",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "z_vs_3yr_avg",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 2546,
+        "example": -0.00018792161762755315,
+        "meaning": "Governed numeric z vs 3-year average measure used for source-level analytical comparisons.",
+        "null_count": 431,
+        "null_rate": 0.14409896355733867,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "standard deviations from the three-year average",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "sagis_weekly",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 2991,
+        "columns": [],
+        "detail": "2,991 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 2991,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991
+        },
+        "source_rows": 2991,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 2991
+      },
+      {
+        "analysis_rows": 2991,
+        "columns": [],
+        "detail": "The analysis frame exposes 9 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 2991,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991
+        },
+        "source_rows": 2991,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 9
+      },
+      {
+        "analysis_rows": 2991,
+        "columns": [
+          "season"
+        ],
+        "detail": "Coverage spans 2005-06-01 through 2011-12-01 across 7 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 2991,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991
+        },
+        "source_rows": 2991,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 7,
+          "end": "2011-12-01T00:00:00",
+          "start": "2005-06-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 2991,
+        "columns": [
+          "crop"
+        ],
+        "detail": "Distinct entity counts were computed for crop.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 2991,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991
+        },
+        "source_rows": 2991,
+        "status": "evaluated",
+        "value": {
+          "crop": 4
+        }
+      },
+      {
+        "analysis_rows": 2991,
+        "columns": [
+          "prog_total_mt",
+          "pct_of_prior_yr",
+          "z_vs_3yr_avg"
+        ],
+        "detail": "Minimum completeness across 3 assessed columns is 85.6%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 2991,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991
+        },
+        "source_rows": 2991,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.8559010364426614
+      },
+      {
+        "analysis_rows": 2991,
+        "columns": [
+          "season",
+          "crop",
+          "week_number"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 2,991 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 2991,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991
+        },
+        "source_rows": 2991,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 2991,
+        "columns": [
+          "prog_total_mt"
+        ],
+        "detail": "No finite value is available on the time axis.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 2991,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991
+        },
+        "source_rows": 2991,
+        "status": "not_assessed",
+        "value": null
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 2991 entries, 0 to 2990\nData columns (total 9 columns):\n #   Column               Non-Null Count  Dtype  \n---  ------               --------------  -----  \n 0   season               2991 non-null   str    \n 1   crop                 2991 non-null   str    \n 2   week_number          2991 non-null   int64  \n 3   week_ending          2991 non-null   str    \n 4   prog_total_mt        2991 non-null   float64\n 5   prior_prog_total_mt  2766 non-null   float64\n 6   pct_of_prior_yr      2757 non-null   float64\n 7   z_vs_3yr_avg         2560 non-null   float64\n 8   source               2991 non-null   str    \ndtypes: float64(4), int64(1), str(4)\nmemory usage: 332.9 KB\n",
+    "display_policy": {
+      "analysis_rows": 2991,
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "deterministic_preview",
+      "plotted_rows": 1891,
+      "preview_max_rows": 40,
+      "source_rows": 2991
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 2991,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "maximum prog_total_mt"
+          ],
+          "row": {
+            "crop": "maize",
+            "pct_of_prior_yr": 1.4066893474304991,
+            "prior_prog_total_mt": 11660689.0,
+            "prog_total_mt": 16402967.0,
+            "season": "2025-26",
+            "source": "sagis_weekly",
+            "week_ending": "18/04 - 24/04/2026",
+            "week_number": 52,
+            "z_vs_3yr_avg": 0.8550187692163691
+          }
+        },
+        {
+          "reasons": [
+            "maximum z_vs_3yr_avg"
+          ],
+          "row": {
+            "crop": "maize",
+            "pct_of_prior_yr": 1.9043804329299472,
+            "prior_prog_total_mt": 5867000.0,
+            "prog_total_mt": 11173000.0,
+            "season": "2008-09",
+            "source": "sagis_weekly",
+            "week_ending": "18 - 24 Oct",
+            "week_number": 25,
+            "z_vs_3yr_avg": 500.9615842446294
+          }
+        },
+        {
+          "reasons": [
+            "minimum pct_of_prior_yr",
+            "minimum prog_total_mt"
+          ],
+          "row": {
+            "crop": "wheat",
+            "pct_of_prior_yr": 0.0,
+            "prior_prog_total_mt": 624.0,
+            "prog_total_mt": 0.0,
+            "season": "2015-16",
+            "source": "sagis_weekly",
+            "week_ending": "26/09/2015 - 02/10/2015",
+            "week_number": 1,
+            "z_vs_3yr_avg": -2.80228019584275
+          }
+        },
+        {
+          "reasons": [
+            "minimum z_vs_3yr_avg"
+          ],
+          "row": {
+            "crop": "wheat",
+            "pct_of_prior_yr": 0.5982772094439297,
+            "prior_prog_total_mt": 1129911.0,
+            "prog_total_mt": 676000.0,
+            "season": "2007-08",
+            "source": "sagis_weekly",
+            "week_ending": "24 - 30  Nov",
+            "week_number": 9,
+            "z_vs_3yr_avg": -19.58905776637681
+          }
+        },
+        {
+          "reasons": [
+            "maximum pct_of_prior_yr"
+          ],
+          "row": {
+            "crop": "wheat",
+            "pct_of_prior_yr": 173.625,
+            "prior_prog_total_mt": 16.0,
+            "prog_total_mt": 2778.0,
+            "season": "2022-23",
+            "source": "sagis_weekly",
+            "week_ending": "01/10 - 07/10/2022",
+            "week_number": 1,
+            "z_vs_3yr_avg": 5.5613278590273225
+          }
+        },
+        {
+          "reasons": [
+            "most missing fields"
+          ],
+          "row": {
+            "crop": "wheat",
+            "pct_of_prior_yr": null,
+            "prior_prog_total_mt": null,
+            "prog_total_mt": 22791.0,
+            "season": "2005-06",
+            "source": "sagis_weekly",
+            "week_ending": "1 - 7 Oct/Okt",
+            "week_number": 1,
+            "z_vs_3yr_avg": null
+          }
+        }
+      ],
+      "source_rows": 2991,
+      "status": "available"
+    },
+    "omitted_chart_count": 2,
+    "ordinary_statistics": {
+      "analysis_rows": 2991,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "season",
+            "count": 2991,
+            "freq": 210,
+            "top": "2019-20",
+            "unique": 22
+          },
+          {
+            "column": "crop",
+            "count": 2991,
+            "freq": 1070,
+            "top": "wheat",
+            "unique": 4
+          },
+          {
+            "column": "week_ending",
+            "count": 2991,
+            "freq": 4,
+            "top": "10 - 16 Mar/Mrt",
+            "unique": 1396
+          },
+          {
+            "column": "source",
+            "count": 2991,
+            "freq": 2991,
+            "top": "sagis_weekly",
+            "unique": 1
+          }
+        ],
+        "row_count": 4
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 13.0,
+            "50%": 26.0,
+            "75%": 39.0,
+            "column": "week_number",
+            "count": 2991.0,
+            "max": 53.0,
+            "mean": 26.099297893681044,
+            "min": 1.0,
+            "std": 15.039051824315267
+          },
+          {
+            "25%": 862351.0,
+            "50%": 1837727.0,
+            "75%": 6428344.0,
+            "column": "prog_total_mt",
+            "count": 2991.0,
+            "max": 16402967.0,
+            "mean": 4092964.2006018055,
+            "min": 0.0,
+            "std": 4633221.960693126
+          },
+          {
+            "25%": 948472.25,
+            "50%": 1837868.5,
+            "75%": 6518068.0,
+            "column": "prior_prog_total_mt",
+            "count": 2766.0,
+            "max": 16222935.0,
+            "mean": 4081561.727042661,
+            "min": 0.0,
+            "std": 4573504.530892671
+          },
+          {
+            "25%": 0.8253378250056039,
+            "50%": 0.9925161280447304,
+            "75%": 1.249314449009439,
+            "column": "pct_of_prior_yr",
+            "count": 2757.0,
+            "max": 173.625,
+            "mean": 1.3480839155942774,
+            "min": 0.0,
+            "std": 4.645926704518
+          },
+          {
+            "25%": -1.0268369298484892,
+            "50%": 0.2309776493264138,
+            "75%": 1.1929498966823686,
+            "column": "z_vs_3yr_avg",
+            "count": 2560.0,
+            "max": 500.9615842446294,
+            "mean": 2.131827094505313,
+            "min": -19.58905776637681,
+            "std": 21.68447683234977
+          }
+        ],
+        "row_count": 5
+      },
+      "plotted_rows": null,
+      "source_rows": 2991,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "season",
+            "count": 659,
+            "distinct": 7,
+            "max": "2011-12-01T00:00:00",
+            "min": "2005-06-01T00:00:00"
+          },
+          {
+            "column": "week_number",
+            "count": 0,
+            "distinct": 0,
+            "max": null,
+            "min": null
+          },
+          {
+            "column": "week_ending",
+            "count": 0,
+            "distinct": 0,
+            "max": null,
+            "min": null
+          }
+        ],
+        "row_count": 3
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 2991,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 2991,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 1891,
+    "preview": {
+      "analysis_rows": 2991,
+      "columns": [
+        "season",
+        "crop",
+        "week_number",
+        "week_ending",
+        "prog_total_mt",
+        "prior_prog_total_mt",
+        "pct_of_prior_yr",
+        "z_vs_3yr_avg",
+        "source"
+      ],
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "mode": "deterministic_preview",
+      "plotted_rows": null,
+      "records": [
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 0.37006053655420706,
+          "prior_prog_total_mt": 826608.0,
+          "prog_total_mt": 305895.0,
+          "season": "2018-19",
+          "source": "sagis_weekly",
+          "week_ending": "12/05 - 18/05/2018",
+          "week_number": 3,
+          "z_vs_3yr_avg": -2.545650408892779
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 0.39064959767269875,
+          "prior_prog_total_mt": 7427659.0,
+          "prog_total_mt": 2901612.0,
+          "season": "2022-23",
+          "source": "sagis_weekly",
+          "week_ending": "11/06 - 17/06/2022",
+          "week_number": 7,
+          "z_vs_3yr_avg": -0.5821550905790419
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 0.6647468558048171,
+          "prior_prog_total_mt": 12461297.0,
+          "prog_total_mt": 8283608.0,
+          "season": "2015-16",
+          "source": "sagis_weekly",
+          "week_ending": "29/08-04/09/2015",
+          "week_number": 19,
+          "z_vs_3yr_avg": -1.769090935593878
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 0.8303518938439574,
+          "prior_prog_total_mt": 11907000.0,
+          "prog_total_mt": 9887000.0,
+          "season": "2011-12",
+          "source": "sagis_weekly",
+          "week_ending": "24 - 30 Mar/Mrt",
+          "week_number": 48,
+          "z_vs_3yr_avg": -6.654952641547629
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 0.8494757983450874,
+          "prior_prog_total_mt": 2511915.0,
+          "prog_total_mt": 2133811.0,
+          "season": "2026-27",
+          "source": "sagis_weekly",
+          "week_ending": "30/05 - 05/06/2026",
+          "week_number": 6,
+          "z_vs_3yr_avg": -1.1413563535732167
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 0.8621460957983271,
+          "prior_prog_total_mt": 10270576.0,
+          "prog_total_mt": 8854737.0,
+          "season": "2019-20",
+          "source": "sagis_weekly",
+          "week_ending": "17/08 - 23/08/2019",
+          "week_number": 17,
+          "z_vs_3yr_avg": -0.3213905659692226
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 0.944633730834753,
+          "prior_prog_total_mt": 9392000.0,
+          "prog_total_mt": 8872000.0,
+          "season": "2009-10",
+          "source": "sagis_weekly",
+          "week_ending": "25 - 31 Jul",
+          "week_number": 13,
+          "z_vs_3yr_avg": 0.9503853050605952
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 1.0082507275451913,
+          "prior_prog_total_mt": 1438055.0,
+          "prog_total_mt": 1449920.0,
+          "season": "2020-21",
+          "source": "sagis_weekly",
+          "week_ending": "23/05 - 29/05/2020",
+          "week_number": 5,
+          "z_vs_3yr_avg": -0.3693924362548147
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 1.0281144963825706,
+          "prior_prog_total_mt": 13924667.0,
+          "prog_total_mt": 14316152.0,
+          "season": "2021-22",
+          "source": "sagis_weekly",
+          "week_ending": "06/11 - 12/11/2021",
+          "week_number": 28,
+          "z_vs_3yr_avg": 1.2961957384142502
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 1.0421545667447307,
+          "prior_prog_total_mt": 11529000.0,
+          "prog_total_mt": 12015000.0,
+          "season": "2010-11",
+          "source": "sagis_weekly",
+          "week_ending": "16 - 29 Apr",
+          "week_number": 51,
+          "z_vs_3yr_avg": 0.6921324558475618
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 1.1397820866141732,
+          "prior_prog_total_mt": 10160000.0,
+          "prog_total_mt": 11580186.0,
+          "season": "2012-13",
+          "source": "sagis_weekly",
+          "week_ending": "13 - 19 Apr",
+          "week_number": 51,
+          "z_vs_3yr_avg": 0.3592091756989759
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 1.2659863246696879,
+          "prior_prog_total_mt": 10346953.0,
+          "prog_total_mt": 13099101.0,
+          "season": "2014-15",
+          "source": "sagis_weekly",
+          "week_ending": "24/01-30/01/2015",
+          "week_number": 40,
+          "z_vs_3yr_avg": 4.7062287297552805
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 1.308713711322722,
+          "prior_prog_total_mt": 9528592.0,
+          "prog_total_mt": 12470199.0,
+          "season": "2023-24",
+          "source": "sagis_weekly",
+          "week_ending": "22/07 - 28/07/2023",
+          "week_number": 13,
+          "z_vs_3yr_avg": 0.8365097769215903
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 1.8791500664010625,
+          "prior_prog_total_mt": 6024000.0,
+          "prog_total_mt": 11320000.0,
+          "season": "2008-09",
+          "source": "sagis_weekly",
+          "week_ending": "13 - 19 Dec",
+          "week_number": 33,
+          "z_vs_3yr_avg": 104.73037103574087
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 2.374996536812205,
+          "prior_prog_total_mt": 6244247.0,
+          "prog_total_mt": 14830065.0,
+          "season": "2017-18",
+          "source": "sagis_weekly",
+          "week_ending": "07/10 - 13/10/2017",
+          "week_number": 24,
+          "z_vs_3yr_avg": 1.7482812483511034
+        },
+        {
+          "crop": "maize",
+          "pct_of_prior_yr": 4.347245409015025,
+          "prior_prog_total_mt": 599000.0,
+          "prog_total_mt": 2604000.0,
+          "season": "2007-08",
+          "source": "sagis_weekly",
+          "week_ending": "9 - 15 Jun",
+          "week_number": 7,
+          "z_vs_3yr_avg": null
+        },
+        {
+          "crop": "soybeans",
+          "pct_of_prior_yr": 0.6644501960454237,
+          "prior_prog_total_mt": 2708811.0,
+          "prog_total_mt": 1799870.0,
+          "season": "2024-25",
+          "source": "sagis_weekly",
+          "week_ending": "18/01 - 24/01/2025",
+          "week_number": 48,
+          "z_vs_3yr_avg": -1.0409749401824955
+        },
+        {
+          "crop": "soybeans",
+          "pct_of_prior_yr": 0.7447762849995966,
+          "prior_prog_total_mt": 991440.0,
+          "prog_total_mt": 738401.0,
+          "season": "2026-27",
+          "source": "sagis_weekly",
+          "week_ending": "02/05 - 08/05/2026",
+          "week_number": 10,
+          "z_vs_3yr_avg": -1.3991005685685554
+        },
+        {
+          "crop": "soybeans",
+          "pct_of_prior_yr": 1.5283211019943228,
+          "prior_prog_total_mt": 1209734.0,
+          "prog_total_mt": 1848862.0,
+          "season": "2021-22",
+          "source": "sagis_weekly",
+          "week_ending": "25/12 - 31/12/2021",
+          "week_number": 44,
+          "z_vs_3yr_avg": 2.994035964813536
+        },
+        {
+          "crop": "soybeans",
+          "pct_of_prior_yr": 1.5299481997973212,
+          "prior_prog_total_mt": 1733777.0,
+          "prog_total_mt": 2652589.0,
+          "season": "2025-26",
+          "source": "sagis_weekly",
+          "week_ending": "13/09 - 19/09/2025",
+          "week_number": 29,
+          "z_vs_3yr_avg": 1.0294096503855272
+        },
+        {
+          "crop": "sunflower",
+          "pct_of_prior_yr": 0.7901461340848527,
+          "prior_prog_total_mt": 834576.0,
+          "prog_total_mt": 659437.0,
+          "season": "2019-20",
+          "source": "sagis_weekly",
+          "week_ending": "10/08 - 16/08/2019",
+          "week_number": 25,
+          "z_vs_3yr_avg": null
+        },
+        {
+          "crop": "sunflower",
+          "pct_of_prior_yr": 0.8794715677791805,
+          "prior_prog_total_mt": 564008.0,
+          "prog_total_mt": 496029.0,
+          "season": "2021-22",
+          "source": "sagis_weekly",
+          "week_ending": "12/06 - 18/06/2021",
+          "week_number": 16,
+          "z_vs_3yr_avg": 0.4702929534036882
+        },
+        {
+          "crop": "sunflower",
+          "pct_of_prior_yr": 0.9811659081915315,
+          "prior_prog_total_mt": 80864.0,
+          "prog_total_mt": 79341.0,
+          "season": "2024-25",
+          "source": "sagis_weekly",
+          "week_ending": "30/03 - 05/04/2024",
+          "week_number": 6,
+          "z_vs_3yr_avg": -0.6495746289079072
+        },
+        {
+          "crop": "sunflower",
+          "pct_of_prior_yr": 1.17623684012572,
+          "prior_prog_total_mt": 305759.0,
+          "prog_total_mt": 359645.0,
+          "season": "2023-24",
+          "source": "sagis_weekly",
+          "week_ending": "06/05 - 12/05/2023",
+          "week_number": 11,
+          "z_vs_3yr_avg": 1.074758970073764
+        },
+        {
+          "crop": "sunflower",
+          "pct_of_prior_yr": 1.2520094135918098,
+          "prior_prog_total_mt": 587236.0,
+          "prog_total_mt": 735225.0,
+          "season": "2020-21",
+          "source": "sagis_weekly",
+          "week_ending": "18/07 - 24/07/2020",
+          "week_number": 21,
+          "z_vs_3yr_avg": 0.5243181222121672
+        },
+        {
+          "crop": "sunflower",
+          "pct_of_prior_yr": null,
+          "prior_prog_total_mt": null,
+          "prog_total_mt": 858923.0,
+          "season": "2018-19",
+          "source": "sagis_weekly",
+          "week_ending": "15/12 - 21/12/2018",
+          "week_number": 43,
+          "z_vs_3yr_avg": null
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.732589048378522,
+          "prior_prog_total_mt": 1881000.0,
+          "prog_total_mt": 1378000.0,
+          "season": "2010-11",
+          "source": "sagis_weekly",
+          "week_ending": "14 - 20 May/Mei",
+          "week_number": 30,
+          "z_vs_3yr_avg": -4.277530071272321
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.8248408870094462,
+          "prior_prog_total_mt": 1869112.0,
+          "prog_total_mt": 1541720.0,
+          "season": "2017-18",
+          "source": "sagis_weekly",
+          "week_ending": "08/09 - 14/09/2018",
+          "week_number": 50,
+          "z_vs_3yr_avg": -0.484196313147451
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.9091750607158499,
+          "prior_prog_total_mt": 2210296.0,
+          "prog_total_mt": 2009546.0,
+          "season": "2022-23",
+          "source": "sagis_weekly",
+          "week_ending": "06/05 - 12/05/2023",
+          "week_number": 32,
+          "z_vs_3yr_avg": 0.27231168525521215
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.9096622097847712,
+          "prior_prog_total_mt": 2016133.0,
+          "prog_total_mt": 1834000.0,
+          "season": "2007-08",
+          "source": "sagis_weekly",
+          "week_ending": "12 - 18 Apr",
+          "week_number": 27,
+          "z_vs_3yr_avg": -0.8100659067891549
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.9304549195211245,
+          "prior_prog_total_mt": 1966106.0,
+          "prog_total_mt": 1829373.0,
+          "season": "2012-13",
+          "source": "sagis_weekly",
+          "week_ending": "10 - 16 Aug 2013",
+          "week_number": 46,
+          "z_vs_3yr_avg": 0.20696149391034246
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.9577393798049597,
+          "prior_prog_total_mt": 1585211.0,
+          "prog_total_mt": 1518219.0,
+          "season": "2014-15",
+          "source": "sagis_weekly",
+          "week_ending": "20/12/2014 - 26/12/2014",
+          "week_number": 13,
+          "z_vs_3yr_avg": -0.9159379180748004
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.9838139105613497,
+          "prior_prog_total_mt": 1867962.0,
+          "prog_total_mt": 1837727.0,
+          "season": "2025-26",
+          "source": "sagis_weekly",
+          "week_ending": "27/06 - 03/07/2026",
+          "week_number": 40,
+          "z_vs_3yr_avg": -1.445416157890383
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 0.9886750816149813,
+          "prior_prog_total_mt": 1823501.0,
+          "prog_total_mt": 1802850.0,
+          "season": "2013-14",
+          "source": "sagis_weekly",
+          "week_ending": "24/05/2014 - 30/05/2014",
+          "week_number": 35,
+          "z_vs_3yr_avg": 0.2580181820152622
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 1.1007906015575295,
+          "prior_prog_total_mt": 1824813.0,
+          "prog_total_mt": 2008737.0,
+          "season": "2006-07",
+          "source": "sagis_weekly",
+          "week_ending": "17 - 23 Feb",
+          "week_number": 20,
+          "z_vs_3yr_avg": null
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 1.2177632068641184,
+          "prior_prog_total_mt": 1477830.0,
+          "prog_total_mt": 1799647.0,
+          "season": "2018-19",
+          "source": "sagis_weekly",
+          "week_ending": "13/04 - 19/04/2019",
+          "week_number": 29,
+          "z_vs_3yr_avg": 0.960492827523569
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 1.2635090060040026,
+          "prior_prog_total_mt": 1499000.0,
+          "prog_total_mt": 1894000.0,
+          "season": "2008-09",
+          "source": "sagis_weekly",
+          "week_ending": "3 - 9 Jan",
+          "week_number": 12,
+          "z_vs_3yr_avg": 2.4590702620474905
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 1.3534981339425436,
+          "prior_prog_total_mt": 1329809.0,
+          "prog_total_mt": 1799894.0,
+          "season": "2016-17",
+          "source": "sagis_weekly",
+          "week_ending": "18/02/2017 - 24/02/2017",
+          "week_number": 21,
+          "z_vs_3yr_avg": 1.078071940550252
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": 1.443265306122449,
+          "prior_prog_total_mt": 1176000.0,
+          "prog_total_mt": 1697280.0,
+          "season": "2011-12",
+          "source": "sagis_weekly",
+          "week_ending": "10 - 30 Dec/Des",
+          "week_number": 11,
+          "z_vs_3yr_avg": 0.661760228770133
+        },
+        {
+          "crop": "wheat",
+          "pct_of_prior_yr": null,
+          "prior_prog_total_mt": null,
+          "prog_total_mt": 1849254.0,
+          "season": "2005-06",
+          "source": "sagis_weekly",
+          "week_ending": "22 - 28 Apr",
+          "week_number": 29,
+          "z_vs_3yr_avg": null
+        }
+      ],
+      "selection_reasons": [
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop",
+        "stratified by season, crop"
+      ],
+      "source_rows": 2991,
+      "strata_columns": [
+        "season",
+        "crop"
+      ],
+      "time_column": "week_ending"
+    },
+    "provenance": {
+      "analysis_rows": 2991,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries",
+      "contract_sha256": "b82108cd5203515fe933b1e50c66d9588795770b007485acebb1d666a6bf30c6",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 1,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {},
+            "row_count": 2991,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 1,
+        "schema_sha256_object_counts": {
+          "619b14497d5abe8585cd1d995814ef1ee03e5ca76bb1ad0be4c5431e4562d558": 1
+        },
+        "source_compressed_bytes": 112114,
+        "source_row_count": 2991
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "c5772c2b0203d8bb189a7dc42f52d430e9b42195c3af73b4477a1808088cfae5",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 1,
+      "object_sample": [
+        {
+          "etag": "66b5938a3276d2b6f34090cc8b0ed2a6",
+          "last_modified": "2026-07-18T15:41:22Z",
+          "partition_values": {},
+          "size": 112114,
+          "uri": "s3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": false,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 1,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "source",
+          "season",
+          "crop",
+          "week_number",
+          "week_ending",
+          "prog_total_mt",
+          "prior_prog_total_mt",
+          "pct_of_prior_yr"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 7769596263771151946,
+        "snapshot_row_count": 2991,
+        "source_compressed_bytes": 112114,
+        "source_row_count": 2991,
+        "stratum_columns": [
+          "source",
+          "season"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "64342b9b6cdb911c0850755d32ad01c7c16f0368de36618531e81ea945818158",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica/manifest.json",
+        "object_count": 1,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_sagis_weekly_deliveries/_machine/source_replica/objects",
+        "replica_manifest_sha256": "fb326b0852adc6055f1088ce060856962c0e2f4dd0382acacf1305c2efbdcc28",
+        "source_manifest_sha256": "64342b9b6cdb911c0850755d32ad01c7c16f0368de36618531e81ea945818158",
+        "total_bytes": 112114
+      },
+      "source_rows": 2991,
+      "source_specific_checks": [
+        {
+          "consumer_rows": 2991,
+          "duplicate_affected_rows": 0,
+          "duplicate_group_count": 0,
+          "exactness": "exact",
+          "key": [
+            "season",
+            "crop",
+            "week_number"
+          ],
+          "numeric_aggregate_delta": {
+            "pct_of_prior_yr": {
+              "consumer_non_null_count": 2757,
+              "consumer_sum": 3716.667355293423,
+              "raw_non_null_count": 2757,
+              "raw_sum": 3716.667355293423,
+              "sum_delta": 0.0
+            },
+            "prog_total_mt": {
+              "consumer_non_null_count": 2991,
+              "consumer_sum": 12242055924.0,
+              "raw_non_null_count": 2991,
+              "raw_sum": 12242055924.0,
+              "sum_delta": 0.0
+            },
+            "z_vs_3yr_avg": {
+              "consumer_non_null_count": 2560,
+              "consumer_sum": 5457.477361933601,
+              "raw_non_null_count": 2560,
+              "raw_sum": 5457.477361933601,
+              "sum_delta": 0.0
+            }
+          },
+          "raw_profile_preserved": true,
+          "raw_rows": 2991,
+          "removed_row_rate": 0.0,
+          "removed_rows": 0,
+          "status": "complete",
+          "table_name": "silver_sagis_weekly_deliveries",
+          "view": "raw_vs_documented_consumer_dedup"
+        }
+      ],
+      "source_total_bytes": 112114,
+      "source_total_rows": 2991,
+      "spec_sha256": "b4edbd2f2e97f7c64ff4159e28c018e34dc9194da6d230d989a7ccf42c27ef65"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 2991,
+      "checks": [
+        {
+          "analysis_rows": 2991,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "season",
+              "crop",
+              "week_number"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 2,991 rows."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.14409896355733867,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "CAVEAT",
+          "summary": "The highest column null rate is 14.4%."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "time_column": "week_ending",
+            "usable_time_points": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "not_assessed",
+          "summary": "Fewer than two usable time points are available."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "week_ending",
+            "max": null,
+            "min": null
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "BLOCKER",
+          "summary": "The temporal coverage axis has no parseable values."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 1,
+            "footer_complete": true,
+            "object_count": 1,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "619b14497d5abe8585cd1d995814ef1ee03e5ca76bb1ad0be4c5431e4562d558": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "PASS",
+          "summary": "All 1 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        },
+        {
+          "analysis_rows": 2991,
+          "check": "Raw versus consumer-view delta",
+          "check_id": "rule:consumer_view_delta",
+          "evidence": {
+            "consumer_view_rows": null,
+            "raw_rows": 2991
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2991,
+          "status": "not_assessed",
+          "summary": "Report both raw rows and the documented consumer selection; never mutate raw evidence."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "BLOCKER",
+      "plotted_rows": null,
+      "source_rows": 2991
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 2991,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "season",
+          "crop"
+        ],
+        "evidence": {
+          "distinct_time_points": 7,
+          "end": "2011-12-01T00:00:00",
+          "entity_distinct_counts": {
+            "crop": 4
+          },
+          "start": "2005-06-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "prior_year_pace",
+            "historical_z",
+            "coverage"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 2991,
+        "statement": "Coverage spans 2005-06-01 through 2011-12-01 across 7 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 2991,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "prog_total_mt",
+          "pct_of_prior_yr"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "pct_of_prior_yr": 0.07823470411233702,
+            "prog_total_mt": 0.0
+          },
+          "highest_null_column": "pct_of_prior_yr",
+          "highest_null_rate": 0.07823470411233702
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 2991,
+        "statement": "pct_of_prior_yr has the highest assessed null rate at 7.8%.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 2991,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "season",
+          "prog_total_mt",
+          "pct_of_prior_yr",
+          "crop"
+        ],
+        "evidence": {
+          "measures": {
+            "pct_of_prior_yr": {
+              "count": 2757,
+              "iqr": 0.42397662400383507,
+              "iqr_outlier_count": 202,
+              "maximum": 173.625,
+              "median": 0.9925161280447304,
+              "minimum": 0.0
+            },
+            "prog_total_mt": {
+              "count": 2991,
+              "iqr": 5565993.0,
+              "iqr_outlier_count": 82,
+              "maximum": 16402967.0,
+              "median": 1837727.0,
+              "minimum": 0.0
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 2991,
+        "statement": "Robust IQR screening retains 284 notable observations across 2 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 2991,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "season",
+          "prog_total_mt",
+          "pct_of_prior_yr",
+          "crop"
+        ],
+        "evidence": {
+          "comparable_group_count": 4,
+          "cutoff": 11,
+          "delta": -840056.0,
+          "entity": {
+            "crop": "maize"
+          },
+          "latest_season": "2026-27",
+          "latest_value": 7798518.0,
+          "percent_change": -0.097244753590118,
+          "prior_season": "2025-26",
+          "prior_value": 8638574.0
+        },
+        "exactness": "exact",
+        "insight_id": "same_cutoff_pace",
+        "kind": "same_cutoff_pace",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "cumulative_curve",
+            "cumulative_increment",
+            "milestones"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 2991,
+        "statement": "At cutoff 11, prog_total_mt is 8.401e+05 below the prior comparable season.",
+        "status": "evaluated",
+        "title": "Compare seasons only at matching cutoffs."
+      }
+    ],
+    "ready_chart_count": 4,
+    "row_meaning": "One row is one cumulative delivery point for a South African crop season and week.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 2991,
+    "source_shape": {
+      "analysis_rows": 2991,
+      "analysis_shape": [
+        2991,
+        9
+      ],
+      "column_count": 9,
+      "exactness": "exact",
+      "plotted_rows": 1891,
+      "source_rows": 2991,
+      "source_shape": [
+        2991,
+        9
+      ]
+    },
+    "table_name": "silver_sagis_weekly_deliveries"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [
+    {
+      "consumer_rows": 2991,
+      "duplicate_affected_rows": 0,
+      "duplicate_group_count": 0,
+      "exactness": "exact",
+      "key": [
+        "season",
+        "crop",
+        "week_number"
+      ],
+      "numeric_aggregate_delta": {
+        "pct_of_prior_yr": {
+          "consumer_non_null_count": 2757,
+          "consumer_sum": 3716.667355293423,
+          "raw_non_null_count": 2757,
+          "raw_sum": 3716.667355293423,
+          "sum_delta": 0.0
+        },
+        "prog_total_mt": {
+          "consumer_non_null_count": 2991,
+          "consumer_sum": 12242055924.0,
+          "raw_non_null_count": 2991,
+          "raw_sum": 12242055924.0,
+          "sum_delta": 0.0
+        },
+        "z_vs_3yr_avg": {
+          "consumer_non_null_count": 2560,
+          "consumer_sum": 5457.477361933601,
+          "raw_non_null_count": 2560,
+          "raw_sum": 5457.477361933601,
+          "sum_delta": 0.0
+        }
+      },
+      "raw_profile_preserved": true,
+      "raw_rows": 2991,
+      "removed_row_rate": 0.0,
+      "removed_rows": 0,
+      "status": "complete",
+      "table_name": "silver_sagis_weekly_deliveries",
+      "view": "raw_vs_documented_consumer_dedup"
+    }
+  ],
+  "table_name": "silver_sagis_weekly_deliveries"
+}

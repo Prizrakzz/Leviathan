@@ -1,0 +1,7 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_unica_biweekly_season_history
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 0
+no_candidate_reason: Final-only season history is unsafe for preseason derivation.
+candidates: []

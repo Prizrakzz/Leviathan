@@ -1,0 +1,1700 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_fred_fx
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 35
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Argentine peso per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Argentine peso per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd
+  - cell:missingness-validity-output
+  expected_range: observed [2.8493, 78.304]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Argentine peso per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Argentine peso per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.ars_usd
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Argentine peso per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    center: past_only_median
+    column: ars_usd
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Argentine peso per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    closed: left
+    column: ars_usd
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+    window: 3
+  unit: Argentine peso per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd_pct_change_90d:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd_pct_change_90d
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd_pct_change_90d:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd_pct_change_90d
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd_pct_change_90d:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd_pct_change_90d
+  - cell:missingness-validity-output
+  expected_range: observed [-12.10493, 63.402743]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd_pct_change_90d
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd_pct_change_90d:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:missingness_validity.column_missingness.ars_usd_pct_change_90d
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: ars_usd_pct_change_90d
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd_pct_change_90d:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd_pct_change_90d
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    center: past_only_median
+    column: ars_usd_pct_change_90d
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:ars_usd_pct_change_90d:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.ars_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ars_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - ars_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    closed: left
+    column: ars_usd_pct_change_90d
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+    window: 3
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: brl_usd
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Brazilian real per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: brl_usd
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Brazilian real per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd
+  - cell:missingness-validity-output
+  expected_range: observed [1.5347, 6.2852]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: brl_usd
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Brazilian real per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    center: past_only_median
+    column: brl_usd
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Brazilian real per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    closed: left
+    column: brl_usd
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+    window: 3
+  unit: Brazilian real per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd_pct_change_90d:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: brl_usd_pct_change_90d
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd_pct_change_90d:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: brl_usd_pct_change_90d
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd_pct_change_90d:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd_pct_change_90d
+  - cell:missingness-validity-output
+  expected_range: observed [-19.273427, 60.227057]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: brl_usd_pct_change_90d
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd_pct_change_90d:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:missingness_validity.column_missingness.brl_usd_pct_change_90d
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: brl_usd_pct_change_90d
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd_pct_change_90d:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd_pct_change_90d
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    center: past_only_median
+    column: brl_usd_pct_change_90d
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:brl_usd_pct_change_90d:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.brl_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.brl_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - brl_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    closed: left
+    column: brl_usd_pct_change_90d
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+    window: 3
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: cny_usd
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Chinese yuan per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: cny_usd
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Chinese yuan per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd
+  - cell:missingness-validity-output
+  expected_range: observed [6.0428, 8.277]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: cny_usd
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Chinese yuan per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    center: past_only_median
+    column: cny_usd
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: Chinese yuan per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    closed: left
+    column: cny_usd
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+    window: 3
+  unit: Chinese yuan per U.S. dollar
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd_pct_change_90d:change_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: difference
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The latest source change may capture direction and acceleration independent of level.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: cny_usd_pct_change_90d
+    group_by: []
+    operation: difference
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd_pct_change_90d:lag_1
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: lag
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: The prior reported source state may capture persistence at the same governed grain.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: cny_usd_pct_change_90d
+    group_by: []
+    operation: lag
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd_pct_change_90d:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd_pct_change_90d
+  - cell:missingness-validity-output
+  expected_range: observed [-7.857982, 8.608668]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed macro level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: cny_usd_pct_change_90d
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd_pct_change_90d:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:missingness_validity.column_missingness.cny_usd_pct_change_90d
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    column: cny_usd_pct_change_90d
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd_pct_change_90d:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd_pct_change_90d
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    center: past_only_median
+    column: cny_usd_pct_change_90d
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+  unit: source-native / verify
+  visibility_class: review_required
+- aggregation_window: 3 prior observations
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_fred_fx:cny_usd_pct_change_90d:rolling_mean_3
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_mean
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:distributions.numeric_distributions.cny_usd_pct_change_90d
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.cny_usd_pct_change_90d
+  - cell:missingness-validity-output
+  - metric:temporal_structure.temporal_columns.date
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A past-only short-window mean may reduce reporting noise while retaining local state.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compute strictly within past rows at the declared grain
+  observation_time_rule: order observations by date within entity grain
+  output_grain: date
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only macro evidence; registered source keys: fred_fx'
+  source_columns:
+  - cny_usd_pct_change_90d
+  - date
+  source_table: silver_fred_fx
+  transformation:
+    closed: left
+    column: cny_usd_pct_change_90d
+    group_by: []
+    min_periods: 2
+    operation: rolling_mean
+    order_by: date
+    source_context:
+      existing_feature_families:
+      - fred_fx_macro
+      source_keys:
+      - fred_fx
+    window: 3
+  unit: source-native / verify
+  visibility_class: review_required

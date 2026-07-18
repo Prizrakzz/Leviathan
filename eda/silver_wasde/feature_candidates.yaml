@@ -1,0 +1,376 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_wasde
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 6
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - barley
+  - corn
+  - cotton
+  - oats
+  - rice
+  - sorghum
+  - soybean_meal
+  - soybean_oil
+  - soybeans
+  - sugar
+  - wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_wasde:estimate:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.estimate
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.estimate
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 44450.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source
+    state; economic interpretation must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_date x source_table_id x commodity x region x marketing_year
+    x attribute x unit x estimate_role x projection_month
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wasde'
+  source_columns:
+  - estimate
+  - unit
+  - marketing_year
+  - release_date
+  source_table: silver_wasde
+  transformation:
+    column: estimate
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - wasde_direct_revisions
+      source_keys:
+      - wasde
+    unit_column: unit
+  unit: row-level `unit`
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - barley
+  - corn
+  - cotton
+  - oats
+  - rice
+  - sorghum
+  - soybean_meal
+  - soybean_oil
+  - soybeans
+  - sugar
+  - wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_wasde:estimate:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.estimate
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_date x source_table_id x commodity x region x marketing_year
+    x attribute x unit x estimate_role x projection_month
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wasde'
+  source_columns:
+  - estimate
+  - unit
+  - marketing_year
+  - release_date
+  source_table: silver_wasde
+  transformation:
+    column: estimate
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - wasde_direct_revisions
+      source_keys:
+      - wasde
+    unit_column: unit
+  unit: row-level `unit`
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - barley
+  - corn
+  - cotton
+  - oats
+  - rice
+  - sorghum
+  - soybean_meal
+  - soybean_oil
+  - soybeans
+  - sugar
+  - wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_wasde:estimate:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical
+    release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.estimate
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.estimate
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source
+    information without comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_date x source_table_id x commodity x region x marketing_year
+    x attribute x unit x estimate_role x projection_month
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wasde'
+  source_columns:
+  - estimate
+  - source_table_id
+  - commodity
+  - region
+  - marketing_year
+  - attribute
+  - unit
+  - estimate_role
+  - projection_month
+  - release_date
+  source_table: silver_wasde
+  transformation:
+    column: estimate
+    genuine_vintage_only: true
+    group_by:
+    - source_table_id
+    - commodity
+    - region
+    - marketing_year
+    - attribute
+    - unit
+    - estimate_role
+    - projection_month
+    knowledge_by: release_date
+    operation: vintage_difference
+    order_by: release_date
+    source_context:
+      existing_feature_families:
+      - wasde_direct_revisions
+      source_keys:
+      - wasde
+    unit_column: unit
+  unit: row-level `unit`
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - barley
+  - corn
+  - cotton
+  - oats
+  - rice
+  - sorghum
+  - soybean_meal
+  - soybean_oil
+  - soybeans
+  - sugar
+  - wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_wasde:estimate:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.estimate
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions
+    without deleting legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_date x source_table_id x commodity x region x marketing_year
+    x attribute x unit x estimate_role x projection_month
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wasde'
+  source_columns:
+  - estimate
+  - unit
+  - marketing_year
+  - release_date
+  source_table: silver_wasde
+  transformation:
+    center: past_only_median
+    column: estimate
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - wasde_direct_revisions
+      source_keys:
+      - wasde
+    unit_column: unit
+  unit: row-level `unit`
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - barley
+  - corn
+  - cotton
+  - oats
+  - rice
+  - sorghum
+  - soybean_meal
+  - soybean_oil
+  - soybeans
+  - sugar
+  - wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_wasde:is_final_or_latest:do_not_derive
+  classification: anti_feature
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: none
+  counter_evidence:
+  - No target-aware analysis was run; prohibition is semantic.
+  evidence:
+  - metric:pit_leakage.feature_eligible_source
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Post-outcome/final-state semantics create an unacceptable leakage risk.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_date x source_table_id x commodity x region x marketing_year
+    x attribute x unit x estimate_role x projection_month
+  readiness: blocked
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wasde'
+  source_columns:
+  - is_final_or_latest
+  - unit
+  - marketing_year
+  - release_date
+  source_table: silver_wasde
+  transformation:
+    column: is_final_or_latest
+    operation: prohibited
+    source_context:
+      existing_feature_families:
+      - wasde_direct_revisions
+      source_keys:
+      - wasde
+    unit_column: unit
+  unit: row-level `unit`
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - barley
+  - corn
+  - cotton
+  - oats
+  - rice
+  - sorghum
+  - soybean_meal
+  - soybean_oil
+  - soybeans
+  - sugar
+  - wheat
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_wasde:is_source_final:do_not_derive
+  classification: anti_feature
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: none
+  counter_evidence:
+  - No target-aware analysis was run; prohibition is semantic.
+  evidence:
+  - metric:pit_leakage.feature_eligible_source
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new
+    immutable gold target only
+  knowledge_time_rule: require non-null release_date <= prediction_as_of
+  lag: null
+  mechanism: Post-outcome/final-state semantics create an unacceptable leakage risk.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_date x source_table_id x commodity x region x marketing_year
+    x attribute x unit x estimate_role x projection_month
+  readiness: blocked
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wasde'
+  source_columns:
+  - is_source_final
+  - unit
+  - marketing_year
+  - release_date
+  source_table: silver_wasde
+  transformation:
+    column: is_source_final
+    operation: prohibited
+    source_context:
+      existing_feature_families:
+      - wasde_direct_revisions
+      source_keys:
+      - wasde
+    unit_column: unit
+  unit: row-level `unit`
+  visibility_class: review_required

@@ -1,0 +1,643 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_sagis_weekly_deliveries
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 13
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_of_prior_yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.pct_of_prior_yr
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 173.625]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - pct_of_prior_yr
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: pct_of_prior_yr
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: ratio to prior year (1.0 = 100%)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:log1p
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: log1p
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_of_prior_yr
+  - cell:distributions-output
+  expected_range: non-negative before transform
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: A non-negative heavy-tailed measure may be more stable on a log scale.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: log1p only; fit no target-dependent parameters
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - pct_of_prior_yr
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: pct_of_prior_yr
+    operation: log1p
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: ratio to prior year (1.0 = 100%)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.pct_of_prior_yr
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - pct_of_prior_yr
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: pct_of_prior_yr
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: ratio to prior year (1.0 = 100%)
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_of_prior_yr
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - pct_of_prior_yr
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    center: past_only_median
+    column: pct_of_prior_yr
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: ratio to prior year (1.0 = 100%)
+  visibility_class: review_required
+- aggregation_window: same-cutoff prior-season history
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:pct_of_prior_yr:season_pace
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: seasonal_pace
+  counter_evidence:
+  - A governed season and within-season period mapping is required.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.pct_of_prior_yr
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.pct_of_prior_yr
+  - cell:missingness-validity-output
+  - metric:temporal_structure.progressive_curve_evidence
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The source value at the same governed within-season cutoff relative to prior seasons can
+    measure pace.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: past-only prior-season median or percentile
+  observation_time_rule: order observations by week_number within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - pct_of_prior_yr
+  - crop
+  - week_number
+  - season
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: pct_of_prior_yr
+    cutoff_alignment: same governed period within season
+    group_by:
+    - crop
+    history: prior seasons available at prediction_as_of only
+    operation: seasonal_pace
+    order_by: week_number
+    season_by: season
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: ratio to prior year (1.0 = 100%)
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:prog_total_mt:curve_increment
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: cumulative_curve_increment
+  counter_evidence:
+  - Source corrections must be distinguished from genuine season resets.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.prog_total_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.prog_total_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.progressive_curve_evidence
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: 1
+  mechanism: Within-season increments separate current flow from cumulative level while preserving resets.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_number within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - prog_total_mt
+  - crop
+  - season
+  - week_number
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: prog_total_mt
+    group_by:
+    - crop
+    - season
+    operation: cumulative_curve_increment
+    order_by: week_number
+    reset_detection: season boundary or reviewed negative correction
+    season_by: season
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:prog_total_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.prog_total_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.prog_total_mt
+  - cell:missingness-validity-output
+  expected_range: observed [0.0, 16402967.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - prog_total_mt
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: prog_total_mt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:prog_total_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.prog_total_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - prog_total_mt
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    center: past_only_median
+    column: prog_total_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: same-cutoff prior-season history
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:prog_total_mt:season_pace
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: seasonal_pace
+  counter_evidence:
+  - A governed season and within-season period mapping is required.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.prog_total_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.prog_total_mt
+  - cell:missingness-validity-output
+  - metric:temporal_structure.progressive_curve_evidence
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The source value at the same governed within-season cutoff relative to prior seasons can
+    measure pace.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: past-only prior-season median or percentile
+  observation_time_rule: order observations by week_number within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - prog_total_mt
+  - crop
+  - week_number
+  - season
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: prog_total_mt
+    cutoff_alignment: same governed period within season
+    group_by:
+    - crop
+    history: prior seasons available at prediction_as_of only
+    operation: seasonal_pace
+    order_by: week_number
+    season_by: season
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.z_vs_3yr_avg
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.z_vs_3yr_avg
+  - cell:missingness-validity-output
+  expected_range: observed [-19.58905776637681, 500.9615842446294]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed trade_flows level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - z_vs_3yr_avg
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: z_vs_3yr_avg
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: standard deviations from the three-year average
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:missing_indicator
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: missing_indicator
+  counter_evidence:
+  - Missingness may be a pipeline artifact and can drift after repairs.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:missingness_validity.column_missingness.z_vs_3yr_avg
+  - cell:missingness-validity-output
+  expected_range: '{0, 1}'
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Availability itself may encode source coverage or reporting cadence; review for operational
+    rather than economic signal before use.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - z_vs_3yr_avg
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: z_vs_3yr_avg
+    operation: is_null
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: standard deviations from the three-year average
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.z_vs_3yr_avg
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by week_ending within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - z_vs_3yr_avg
+  - week_ending
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    center: past_only_median
+    column: z_vs_3yr_avg
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: standard deviations from the three-year average
+  visibility_class: review_required
+- aggregation_window: same-cutoff prior-season history
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - all_observed
+  candidate_id: eda:silver_sagis_weekly_deliveries:z_vs_3yr_avg:season_pace
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: seasonal_pace
+  counter_evidence:
+  - A governed season and within-season period mapping is required.
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.z_vs_3yr_avg
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.z_vs_3yr_avg
+  - cell:missingness-validity-output
+  - metric:temporal_structure.progressive_curve_evidence
+  - cell:temporal-structure-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The source value at the same governed within-season cutoff relative to prior seasons can
+    measure pace.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: past-only prior-season median or percentile
+  observation_time_rule: order observations by week_number within entity grain
+  output_grain: season x crop x week_number
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only trade_flows evidence; registered source keys: sagis_deliveries'
+  source_columns:
+  - z_vs_3yr_avg
+  - crop
+  - week_number
+  - season
+  source_table: silver_sagis_weekly_deliveries
+  transformation:
+    column: z_vs_3yr_avg
+    cutoff_alignment: same governed period within season
+    group_by:
+    - crop
+    history: prior seasons available at prediction_as_of only
+    operation: seasonal_pace
+    order_by: week_number
+    season_by: season
+    source_context:
+      existing_feature_families:
+      - sagis_deliveries_z
+      source_keys:
+      - sagis_deliveries
+  unit: standard deviations from the three-year average
+  visibility_class: review_required

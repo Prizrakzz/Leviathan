@@ -1,0 +1,4940 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 1
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 0
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "excluded_leakage"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 1
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "as_of_date",
+          "crop_year",
+          "prediction_as_of_date",
+          "prediction_date",
+          "prior_year_anomaly_baseline"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 2149,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 0.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 2149
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 0,
+    "effective_disposition": "excluded_leakage",
+    "existing_feature_families": [],
+    "no_candidate_rationale": "Model outputs are prohibited feature inputs.",
+    "review_only": true,
+    "source_keys": []
+  },
+  "feature_candidates": [],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {}
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": []
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": "Model outputs are prohibited feature inputs."
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {}
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": []
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "annual_or_seasonal_panel",
+      "output_plane_quarantine"
+    ],
+    "blockers": [
+      "generated model-output plane is excluded from feature extraction"
+    ],
+    "disposition": "excluded_leakage",
+    "findings": [
+      {
+        "code": "EDA-LEAK-001",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.feature_eligible_source"
+        ],
+        "message": "This table contains model outputs and is dossier-only.",
+        "remediation": "Keep candidate output empty and enforce the source boundary in readers.",
+        "risk": "Using it as a feature source would introduce direct outcome/model leakage.",
+        "severity": "critical",
+        "title": "Generated output plane"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "crop_year",
+              "prior_year_anomaly_baseline"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "crop_year",
+              "prior_year_anomaly_baseline",
+              "trailing_mean_anomaly_baseline",
+              "trailing_trend_anomaly_baseline",
+              "y_actual",
+              "y_pred",
+              "zero_anomaly_baseline"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "Quarantined: generated output-plane values are not analyzed.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": []
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 0
+          },
+          "numeric_distributions": {
+            "detail": "Output-plane numeric values are quarantined from distribution analysis.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {}
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 14
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "detail": "Column names are retained for boundary QA; output/target category values and frequencies are not profiled.",
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": [
+              "prediction_as_of_date",
+              "prediction_date",
+              "target",
+              "target_key",
+              "y_actual",
+              "y_pred"
+            ]
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "as_of_date": {
+                "distinct_count": 72,
+                "normalisation_collisions": {},
+                "rare_category_count": 68,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 544,
+                "rare_row_rate": 0.2531409958120056,
+                "top_values": [
+                  {
+                    "count": 1205,
+                    "rate": 0.560725919032108,
+                    "value": "2026-06-27"
+                  },
+                  {
+                    "count": 150,
+                    "rate": 0.06979990693345742,
+                    "value": "2026-06-17"
+                  },
+                  {
+                    "count": 135,
+                    "rate": 0.06281991624011168,
+                    "value": "2026-06-25"
+                  },
+                  {
+                    "count": 115,
+                    "rate": 0.05351326198231736,
+                    "value": "2026-06-26"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2010-06-15"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2010-09-13"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2010-07-30"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2010-05-01"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2011-06-15"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2011-09-13"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2011-07-30"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2011-05-01"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2012-06-15"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2012-09-13"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.0037226617031177293,
+                    "value": "2012-07-30"
+                  }
+                ]
+              },
+              "commodity": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 2149,
+                    "rate": 1.0,
+                    "value": "corn_cbot"
+                  }
+                ]
+              },
+              "country": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 541,
+                    "rate": 0.2517449976733364,
+                    "value": "argentina"
+                  },
+                  {
+                    "count": 541,
+                    "rate": 0.2517449976733364,
+                    "value": "brazil"
+                  },
+                  {
+                    "count": 541,
+                    "rate": 0.2517449976733364,
+                    "value": "united_states"
+                  },
+                  {
+                    "count": 526,
+                    "rate": 0.2447650069799907,
+                    "value": "ukraine"
+                  }
+                ]
+              },
+              "cv_policy": {
+                "distinct_count": 3,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 748,
+                    "rate": 0.5112781954887218,
+                    "value": "expanding_post_2000"
+                  },
+                  {
+                    "count": 429,
+                    "rate": 0.2932330827067669,
+                    "value": "expanding_full_history"
+                  },
+                  {
+                    "count": 286,
+                    "rate": 0.19548872180451127,
+                    "value": "rolling_25y"
+                  }
+                ]
+              },
+              "dataset_key": {
+                "distinct_count": 3,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1205,
+                    "rate": 0.6464592274678111,
+                    "value": "psd_snd_anomaly"
+                  },
+                  {
+                    "count": 544,
+                    "rate": 0.2918454935622318,
+                    "value": "psd_snd_anomaly_snapshot"
+                  },
+                  {
+                    "count": 115,
+                    "rate": 0.06169527896995708,
+                    "value": "annual_physical_anomaly"
+                  }
+                ]
+              },
+              "feature_set_id": {
+                "distinct_count": 3,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1455,
+                    "rate": 0.727863931965983,
+                    "value": "preseason_physical"
+                  },
+                  {
+                    "count": 272,
+                    "rate": 0.1360680340170085,
+                    "value": "preseason_physical_plus_psd_vintage"
+                  },
+                  {
+                    "count": 272,
+                    "rate": 0.1360680340170085,
+                    "value": "psd_monthly_vintage_features"
+                  }
+                ]
+              },
+              "feature_set_sha": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1455,
+                    "rate": 0.677059097254537,
+                    "value": "931e6651d7ac71ad3e0a837db15f7ec3694c67bd6b072edb4ec678d795c39992"
+                  },
+                  {
+                    "count": 272,
+                    "rate": 0.1265704979060028,
+                    "value": "8fdc0cf56310c5a051942907b542079ab16400375bf8009010bc359f2fb94085"
+                  },
+                  {
+                    "count": 272,
+                    "rate": 0.1265704979060028,
+                    "value": "7643f86e0f7c82a319eb8cd08e630c6e87073bf14a561d89aa889b4cef85fdd1"
+                  },
+                  {
+                    "count": 150,
+                    "rate": 0.06979990693345742,
+                    "value": "5e4b4db207211066b47848f1139da44e2472af122ac4035e91cebcce4e9e7883"
+                  }
+                ]
+              },
+              "model": {
+                "distinct_count": 2,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1184,
+                    "rate": 0.550953932061424,
+                    "value": "lightgbm"
+                  },
+                  {
+                    "count": 965,
+                    "rate": 0.4490460679385761,
+                    "value": "xgboost"
+                  }
+                ]
+              },
+              "model_dataset_version": {
+                "distinct_count": 3,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1205,
+                    "rate": 0.6464592274678111,
+                    "value": "20260627T121215Z_phase5_psd_smoke"
+                  },
+                  {
+                    "count": 544,
+                    "rate": 0.2918454935622318,
+                    "value": "20260627T190257Z_1a042698_phase9_psd_snapshot_corn"
+                  },
+                  {
+                    "count": 115,
+                    "rate": 0.06169527896995708,
+                    "value": "20260626T104732Z_a2576e84_phase8_model_ready"
+                  }
+                ]
+              },
+              "model_family": {
+                "distinct_count": 3,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 919,
+                    "rate": 0.42764076314564914,
+                    "value": "psd_production_anomaly"
+                  },
+                  {
+                    "count": 686,
+                    "rate": 0.31921824104234525,
+                    "value": "tier1_production"
+                  },
+                  {
+                    "count": 544,
+                    "rate": 0.2531409958120056,
+                    "value": "psd_snd_anomaly_snapshot"
+                  }
+                ]
+              },
+              "run_id": {
+                "distinct_count": 15,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 272,
+                    "rate": 0.1265704979060028,
+                    "value": "0e45564b0db4467ba80ec98aacf79dbd"
+                  },
+                  {
+                    "count": 272,
+                    "rate": 0.1265704979060028,
+                    "value": "b815611745df4098ad89e3ce9a2b8e4b"
+                  },
+                  {
+                    "count": 150,
+                    "rate": 0.06979990693345742,
+                    "value": "29dcc3c021bb42148296128c9b3b96da"
+                  },
+                  {
+                    "count": 143,
+                    "rate": 0.0665425779432294,
+                    "value": "1f7ddcaea5c44584998537f95a27fbb8"
+                  },
+                  {
+                    "count": 143,
+                    "rate": 0.0665425779432294,
+                    "value": "c9ef4189accd42fba6c94ada44a57a1e"
+                  },
+                  {
+                    "count": 143,
+                    "rate": 0.0665425779432294,
+                    "value": "5667994098cd42c6ac71112e363699c2"
+                  },
+                  {
+                    "count": 143,
+                    "rate": 0.0665425779432294,
+                    "value": "50a45a06366d4bbda524d5878c201e70"
+                  },
+                  {
+                    "count": 143,
+                    "rate": 0.0665425779432294,
+                    "value": "423526e0e6fa44b28a473e26c1904bbf"
+                  },
+                  {
+                    "count": 143,
+                    "rate": 0.0665425779432294,
+                    "value": "2c3da0d03f2f4f19b8c8d776859bd451"
+                  },
+                  {
+                    "count": 143,
+                    "rate": 0.0665425779432294,
+                    "value": "f44292df800c44aaa3e42098b4253e79"
+                  },
+                  {
+                    "count": 135,
+                    "rate": 0.06281991624011168,
+                    "value": "9b6f11ed40034e71a79cefc1e14d6387"
+                  },
+                  {
+                    "count": 115,
+                    "rate": 0.05351326198231736,
+                    "value": "c57a0563b725439ea96f7a96b668e8c0"
+                  },
+                  {
+                    "count": 68,
+                    "rate": 0.0316426244765007,
+                    "value": "37d6630c21694fc18605f8f819e5d6e3"
+                  },
+                  {
+                    "count": 68,
+                    "rate": 0.0316426244765007,
+                    "value": "579b8b5a5a324e4ba951e44b4fada5a8"
+                  },
+                  {
+                    "count": 68,
+                    "rate": 0.0316426244765007,
+                    "value": "b5d7f7e893194e33880db4658bd1f89c"
+                  }
+                ]
+              },
+              "snapshot_stage": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 136,
+                    "rate": 0.25,
+                    "value": "early_inseason"
+                  },
+                  {
+                    "count": 136,
+                    "rate": 0.25,
+                    "value": "late_inseason"
+                  },
+                  {
+                    "count": 136,
+                    "rate": 0.25,
+                    "value": "midseason"
+                  },
+                  {
+                    "count": 136,
+                    "rate": 0.25,
+                    "value": "preseason"
+                  }
+                ]
+              },
+              "source_dataset_version": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1864,
+                    "rate": 1.0,
+                    "value": "20260626T010217Z_6725de02_phase7_full"
+                  }
+                ]
+              },
+              "tier": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1455,
+                    "rate": 0.677059097254537,
+                    "value": "preseason_physical"
+                  },
+                  {
+                    "count": 272,
+                    "rate": 0.1265704979060028,
+                    "value": "preseason_physical_plus_psd_vintage"
+                  },
+                  {
+                    "count": 272,
+                    "rate": 0.1265704979060028,
+                    "value": "psd_monthly_vintage_features"
+                  },
+                  {
+                    "count": 150,
+                    "rate": 0.06979990693345742,
+                    "value": "climate"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": [
+              "generated model-output plane is excluded from feature extraction"
+            ]
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "excluded_leakage"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": false
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 1
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": []
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": [
+              "commodity",
+              "country",
+              "as_of_date",
+              "crop_year",
+              "run_id"
+            ]
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 2149,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "as_of_date",
+              "commodity",
+              "country",
+              "crop_year"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "as_of_date": {
+                "distinct_count": 72,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0
+              },
+              "commodity": {
+                "distinct_count": 1,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0
+              },
+              "country": {
+                "distinct_count": 4,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0
+              },
+              "crop_year": {
+                "distinct_count": 41,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": null
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 2149,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": [
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "model_dataset_version",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "prior_year_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "source_dataset_version",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "target_key",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "model_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "prior_year_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "model_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "source_dataset_version",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "model_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "target_key",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "model_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "model_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "model_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 1605,
+                "both_missing_rate": 0.7468590041879944,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "phi": 1.0,
+                "right": "snapshot_stage",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prior_year_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "source_dataset_version",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prior_year_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "target_key",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prior_year_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prior_year_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prior_year_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "source_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "target_key",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "source_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "source_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "source_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "target_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "target_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "target_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "trailing_mean_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "trailing_mean_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "trailing_trend_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 1.0,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 1.0
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "dataset_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "model_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "prior_year_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "source_dataset_version",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "target_key",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "trailing_mean_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "trailing_trend_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "zero_anomaly_baseline",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "phi": 0.7005509986005971,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.5263157894736842
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "dataset_key",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "model_dataset_version",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "prior_year_anomaly_baseline",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "source_dataset_version",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "target_key",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "phi": 0.5710308625188514,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 0.41545189504373176
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "cv_policy",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 3.1326530612244903,
+                "phi": 0.40003624096934165,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.21865889212827988
+              },
+              {
+                "both_missing_count": 686,
+                "both_missing_rate": 0.31921824104234525,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "phi": 0.39865923245518364,
+                "right": "cv_policy",
+                "right_missing_given_left_missing": 0.4274143302180685
+              },
+              {
+                "both_missing_count": 686,
+                "both_missing_rate": 0.31921824104234525,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "phi": 0.39865923245518364,
+                "right": "cv_policy",
+                "right_missing_given_left_missing": 0.4274143302180685
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "dataset_key",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "model_dataset_version",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "prior_year_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "source_dataset_version",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "target_key",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "dataset_key",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "model_dataset_version",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "prior_year_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "source_dataset_version",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "target_key",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "trailing_mean_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "trailing_trend_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 285,
+                "both_missing_rate": 0.1326198231735691,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688471,
+                "phi": 0.2276467253599868,
+                "right": "zero_anomaly_baseline",
+                "right_missing_given_left_missing": 0.17757009345794392
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "prediction_as_of_date",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "phi": 0.15947814077909464,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.09345794392523364
+              },
+              {
+                "both_missing_count": 150,
+                "both_missing_rate": 0.06979990693345742,
+                "left": "snapshot_stage",
+                "left_missing_given_right_missing": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "phi": 0.15947814077909464,
+                "right": "feature_set_id",
+                "right_missing_given_left_missing": 0.09345794392523364
+              }
+            ]
+          },
+          "column_missingness": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "as_of_date": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "commodity": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "country": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "crop_year": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "cv_policy": {
+                "empty_string_count": 0,
+                "non_null_count": 1463,
+                "non_null_rate": 0.6807817589576547,
+                "null_count": 686,
+                "null_rate": 0.31921824104234525,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "dataset_key": {
+                "empty_string_count": 0,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "feature_set_id": {
+                "empty_string_count": 0,
+                "non_null_count": 1999,
+                "non_null_rate": 0.9302000930665426,
+                "null_count": 150,
+                "null_rate": 0.06979990693345742,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "feature_set_sha": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "model": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "model_dataset_version": {
+                "empty_string_count": 0,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "model_family": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "prediction_as_of_date": {
+                "empty_string_count": 0,
+                "non_null_count": 544,
+                "non_null_rate": 0.2531409958120056,
+                "null_count": 1605,
+                "null_rate": 0.7468590041879944,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "prediction_date": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "prior_year_anomaly_baseline": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 296,
+                "negative_rate": 0.137738483015356,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "run_id": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "snapshot_stage": {
+                "empty_string_count": 0,
+                "non_null_count": 544,
+                "non_null_rate": 0.2531409958120056,
+                "null_count": 1605,
+                "null_rate": 0.7468590041879944,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "source_dataset_version": {
+                "empty_string_count": 0,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "target": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "target_key": {
+                "empty_string_count": 0,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "tier": {
+                "empty_string_count": 0,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "trailing_mean_anomaly_baseline": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 1748,
+                "negative_rate": 0.8134015821312238,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "trailing_trend_anomaly_baseline": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "zero_count": 1864,
+                "zero_rate": 0.8673801768264309
+              },
+              "y_actual": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 252,
+                "negative_rate": 0.11726384364820847,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "y_pred": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 235,
+                "negative_rate": 0.1093531875290833,
+                "non_null_count": 2149,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "zero_anomaly_baseline": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 1864,
+                "non_null_rate": 0.8673801768264309,
+                "null_count": 285,
+                "null_rate": 0.1326198231735691,
+                "zero_count": 1864,
+                "zero_rate": 0.8673801768264309
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 2149,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": [
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "country",
+                "condition_value": "ukraine",
+                "missing_count": 164,
+                "missing_rate": 0.311787072243346,
+                "missingness_lift": 0.9767207263133391,
+                "n": 526,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "country",
+                "condition_value": "argentina",
+                "missing_count": 174,
+                "missing_rate": 0.32162661737523107,
+                "missingness_lift": 1.0075446074917953,
+                "n": 541,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "country",
+                "condition_value": "brazil",
+                "missing_count": 174,
+                "missing_rate": 0.32162661737523107,
+                "missingness_lift": 1.0075446074917953,
+                "n": 541,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "country",
+                "condition_value": "united_states",
+                "missing_count": 174,
+                "missing_rate": 0.32162661737523107,
+                "missingness_lift": 1.0075446074917953,
+                "n": 541,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "ukraine",
+                "missing_count": 66,
+                "missing_rate": 0.12547528517110265,
+                "missingness_lift": 0.9461276766059635,
+                "n": 526,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "argentina",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "brazil",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "united_states",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "ukraine",
+                "missing_count": 66,
+                "missing_rate": 0.12547528517110265,
+                "missingness_lift": 0.9461276766059635,
+                "n": 526,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "argentina",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "brazil",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "united_states",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "ukraine",
+                "missing_count": 390,
+                "missing_rate": 0.7414448669201521,
+                "missingness_lift": 0.9927507906613127,
+                "n": 526,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "argentina",
+                "missing_count": 405,
+                "missing_rate": 0.7486136783733827,
+                "missingness_lift": 1.0023494048750152,
+                "n": 541,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "brazil",
+                "missing_count": 405,
+                "missing_rate": 0.7486136783733827,
+                "missingness_lift": 1.0023494048750152,
+                "n": 541,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "united_states",
+                "missing_count": 405,
+                "missing_rate": 0.7486136783733827,
+                "missingness_lift": 1.0023494048750152,
+                "n": 541,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "ukraine",
+                "missing_count": 66,
+                "missing_rate": 0.12547528517110265,
+                "missingness_lift": 0.9461276766059635,
+                "n": 526,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "argentina",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "brazil",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "country",
+                "condition_value": "united_states",
+                "missing_count": 73,
+                "missing_rate": 0.13493530499075784,
+                "missingness_lift": 1.0174595453513635,
+                "n": 541,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "ukraine",
+                "missing_count": 390,
+                "missing_rate": 0.7414448669201521,
+                "missingness_lift": 0.9927507906613127,
+                "n": 526,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "argentina",
+                "missing_count": 405,
+                "missing_rate": 0.7486136783733827,
+                "missingness_lift": 1.0023494048750152,
+                "n": 541,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "brazil",
+                "missing_count": 405,
+                "missing_rate": 0.7486136783733827,
+                "missingness_lift": 1.0023494048750152,
+                "n": 541,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "country",
+                "condition_value": "united_states",
+                "missing_count": 405,
+                "missing_rate": 0.7486136783733827,
+                "missingness_lift": 1.0023494048750152,
+                "n": 541,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "model",
+                "condition_value": "xgboost",
+                "missing_count": 543,
+                "missing_rate": 0.5626943005181347,
+                "missingness_lift": 1.762726023051708,
+                "n": 965,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "model",
+                "condition_value": "lightgbm",
+                "missing_count": 143,
+                "missing_rate": 0.12077702702702703,
+                "missingness_lift": 0.3783525234418092,
+                "n": 1184,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "model",
+                "condition_value": "xgboost",
+                "missing_count": 285,
+                "missing_rate": 0.29533678756476683,
+                "missingness_lift": 2.2269430051813472,
+                "n": 965,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "model",
+                "condition_value": "lightgbm",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1184,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "model",
+                "condition_value": "xgboost",
+                "missing_count": 285,
+                "missing_rate": 0.29533678756476683,
+                "missingness_lift": 2.2269430051813472,
+                "n": 965,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "model",
+                "condition_value": "lightgbm",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1184,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "model",
+                "condition_value": "xgboost",
+                "missing_count": 965,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "n": 965,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "model",
+                "condition_value": "lightgbm",
+                "missing_count": 640,
+                "missing_rate": 0.5405405405405406,
+                "missingness_lift": 0.72375178917235,
+                "n": 1184,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "model",
+                "condition_value": "xgboost",
+                "missing_count": 285,
+                "missing_rate": 0.29533678756476683,
+                "missingness_lift": 2.2269430051813472,
+                "n": 965,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "model",
+                "condition_value": "lightgbm",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1184,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "model",
+                "condition_value": "xgboost",
+                "missing_count": 965,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "n": 965,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "model",
+                "condition_value": "lightgbm",
+                "missing_count": 640,
+                "missing_rate": 0.5405405405405406,
+                "missingness_lift": 0.72375178917235,
+                "n": 1184,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "target_key",
+                "condition_value": "<NULL>",
+                "missing_count": 285,
+                "missing_rate": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "n": 285,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "target_key",
+                "condition_value": "production_anomaly_pct",
+                "missing_count": 115,
+                "missing_rate": 1.0,
+                "missingness_lift": 3.13265306122449,
+                "n": 115,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.31921824104234525,
+                "condition_column": "target_key",
+                "condition_value": "psd_production_anomaly_pct",
+                "missing_count": 286,
+                "missing_rate": 0.16352201257861634,
+                "missingness_lift": 0.5122577332819921,
+                "n": 1749,
+                "target_column": "cv_policy"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "<NULL>",
+                "missing_count": 285,
+                "missing_rate": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "n": 285,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "production_anomaly_pct",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 115,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "psd_production_anomaly_pct",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1749,
+                "target_column": "dataset_key"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "<NULL>",
+                "missing_count": 285,
+                "missing_rate": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "n": 285,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "production_anomaly_pct",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 115,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "psd_production_anomaly_pct",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1749,
+                "target_column": "model_dataset_version"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "target_key",
+                "condition_value": "<NULL>",
+                "missing_count": 285,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "n": 285,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "target_key",
+                "condition_value": "production_anomaly_pct",
+                "missing_count": 115,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "n": 115,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "target_key",
+                "condition_value": "psd_production_anomaly_pct",
+                "missing_count": 1205,
+                "missing_rate": 0.6889651229273871,
+                "missingness_lift": 0.9224835197326822,
+                "n": 1749,
+                "target_column": "prediction_as_of_date"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "<NULL>",
+                "missing_count": 285,
+                "missing_rate": 1.0,
+                "missingness_lift": 7.540350877192982,
+                "n": 285,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "production_anomaly_pct",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 115,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.1326198231735691,
+                "condition_column": "target_key",
+                "condition_value": "psd_production_anomaly_pct",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1749,
+                "target_column": "prior_year_anomaly_baseline"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "target_key",
+                "condition_value": "<NULL>",
+                "missing_count": 285,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "n": 285,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "target_key",
+                "condition_value": "production_anomaly_pct",
+                "missing_count": 115,
+                "missing_rate": 1.0,
+                "missingness_lift": 1.3389408099688473,
+                "n": 115,
+                "target_column": "snapshot_stage"
+              },
+              {
+                "baseline_missing_rate": 0.7468590041879944,
+                "condition_column": "target_key",
+                "condition_value": "psd_production_anomaly_pct",
+                "missing_count": 1205,
+                "missing_rate": 0.6889651229273871,
+                "missingness_lift": 0.9224835197326822,
+                "n": 1749,
+                "target_column": "snapshot_stage"
+              }
+            ]
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 12,
+                "pair_count": 66,
+                "reason": "All frame rows were evaluated for the deterministically selected columns.",
+                "selected_column_count": 12,
+                "status": "supported"
+              },
+              "conditional_missingness": {
+                "condition_columns": [
+                  "country",
+                  "model",
+                  "target_key"
+                ],
+                "reason": "Missingness is conditioned on bounded low-cardinality source segments.",
+                "record_count": 54,
+                "status": "supported",
+                "target_columns": [
+                  "prediction_as_of_date",
+                  "snapshot_stage",
+                  "cv_policy",
+                  "dataset_key",
+                  "model_dataset_version",
+                  "prior_year_anomaly_baseline"
+                ]
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 0
+          },
+          "required_complete_row_rate": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 15043,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 38682
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [
+                  "prior_year_anomaly_baseline",
+                  "trailing_mean_anomaly_baseline",
+                  "trailing_trend_anomaly_baseline",
+                  "zero_anomaly_baseline"
+                ],
+                "negative_count": [
+                  "prior_year_anomaly_baseline",
+                  "trailing_mean_anomaly_baseline",
+                  "y_actual",
+                  "y_pred"
+                ],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": [
+                  "trailing_trend_anomaly_baseline",
+                  "zero_anomaly_baseline"
+                ]
+              },
+              "finite_count": 13903,
+              "infinite_count": 0,
+              "nan_or_null_count": 1140,
+              "negative_count": 2531,
+              "numeric_cell_count": 15043,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.07578275609918235,
+                "negative_count": 0.16825101376055307,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.24782290766469453
+              },
+              "string_cell_count": 38682,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 3728
+            }
+          },
+          "value_column_population": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {}
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "detail": "Generated model-output plane; dossier only and zero feature candidates.",
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": false
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "prediction_date",
+                "resolution": "day"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "per-vintage"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "as_of_date": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "commodity": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "country": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "crop_year": {
+                "declared_nullable": true,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              },
+              "cv_policy": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "dataset_key": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "feature_set_id": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "feature_set_sha": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "model": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "model_dataset_version": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "model_family": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": true,
+                "status": "matched"
+              },
+              "prediction_as_of_date": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "prediction_date": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": true,
+                "status": "matched"
+              },
+              "prior_year_anomaly_baseline": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "run_id": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "snapshot_policy": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": null,
+                "partition": false,
+                "status": "missing"
+              },
+              "snapshot_stage": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "source_dataset_version": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "target": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "target_key": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "tier": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "trailing_mean_anomaly_baseline": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "trailing_trend_anomaly_baseline": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "y_actual": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "y_pred": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "zero_anomaly_baseline": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 25
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 26
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": [
+              "snapshot_policy"
+            ]
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "country",
+              "crop_year",
+              "snapshot_stage",
+              "y_actual",
+              "y_pred",
+              "zero_anomaly_baseline",
+              "prior_year_anomaly_baseline",
+              "trailing_mean_anomaly_baseline",
+              "trailing_trend_anomaly_baseline",
+              "commodity",
+              "tier",
+              "feature_set_id",
+              "target",
+              "dataset_key",
+              "target_key",
+              "model_dataset_version",
+              "source_dataset_version",
+              "model",
+              "cv_policy",
+              "feature_set_sha",
+              "run_id",
+              "as_of_date",
+              "prediction_as_of_date",
+              "model_family",
+              "prediction_date"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 2149
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 15,
+              "partition_stratum_count": 6,
+              "source_compressed_bytes": 256457,
+              "source_row_count": 2149
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 8,
+                "partition_values": {
+                  "model_family": "psd_production_anomaly",
+                  "prediction_date": "2026-06-27"
+                },
+                "row_count": 919,
+                "row_group_count": 8,
+                "rows_known": true
+              },
+              {
+                "object_count": 2,
+                "partition_values": {
+                  "model_family": "psd_snd_anomaly_snapshot",
+                  "prediction_date": "2026-06-27"
+                },
+                "row_count": 544,
+                "row_group_count": 2,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "model_family": "tier1_production",
+                  "prediction_date": "2026-06-17"
+                },
+                "row_count": 150,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "model_family": "tier1_production",
+                  "prediction_date": "2026-06-25"
+                },
+                "row_count": 135,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "model_family": "tier1_production",
+                  "prediction_date": "2026-06-26"
+                },
+                "row_count": 115,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 2,
+                "partition_values": {
+                  "model_family": "tier1_production",
+                  "prediction_date": "2026-06-27"
+                },
+                "row_count": 286,
+                "row_group_count": 2,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "336a23d97683b0e7b2ab06673c6da9156a24a3dbd579be89eedac49af6cd0bfa": 4,
+              "52f124121c02b175e045014e2387aac5c32ed8762ebfbd8d8dd89831f7b2ff4f": 1,
+              "63e4edd0721a139e56914c9d3aedd88ab2f1823915bf2235a99682d25c711716": 1,
+              "64efc1836adae3bd83c9aaa5f72a46f6dbcf914abf09e9d900f07d100f7a17ed": 4,
+              "6c8c9280f06a40108683572914ae925406cc97085406deeeadc188793699adff": 1,
+              "7faf824796cfac46a8c13a6ac1cbbd3a11328f4bc94a764b5a11be0b1050db5a": 2,
+              "aba424c959b35f182289767ee7b1e37f3d14691d7920f6e276c759c1504487aa": 1,
+              "d3040eb1059978090460c3e1aedecc0d9be28f43a12bb0055f907303570e1f7c": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": []
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": null,
+              "declared_matches_inferred": null,
+              "distinct_timestamp_count": 4,
+              "gap_count": 3,
+              "gap_days_max": 8.0,
+              "gap_days_median": 1.0,
+              "gap_days_mode": 1.0,
+              "gap_days_p95": 7.299999999999999,
+              "inferred_cadence": "daily",
+              "large_gap_count": 1,
+              "large_gap_rate": 0.3333333333333333
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": null
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": []
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {
+              "analysis_frame_exactness": "exact",
+              "complete_entity_count": 4,
+              "complete_entity_rate": 1.0,
+              "entity_columns": [
+                "commodity",
+                "country"
+              ],
+              "entity_count": 4,
+              "full_source_balance_claimed": true,
+              "global_distinct_period_count": 4,
+              "observed_period_count": {
+                "max": 4,
+                "median": 4.0,
+                "min": 4,
+                "p10": 4.0,
+                "p90": 4.0
+              },
+              "period_coverage_ratio": {
+                "median": 1.0,
+                "p10": 1.0,
+                "p90": 1.0
+              },
+              "sampling_artifact_caveat": null,
+              "scope": "full_analysis_frame"
+            }
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": []
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "configured_minimum_points": 8,
+                "reason": "No governed non-constant value series meets the configured minimum trend points.",
+                "status": "no_evidence"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "reason": "Selected series lack 20 finite rows in both temporal edge quartiles.",
+                "status": "no_evidence"
+              },
+              "panel_balance": {
+                "entity_count": 4,
+                "full_source_balance_claimed": true,
+                "reason": "Entity coverage is measured against the global observed timestamp set; staggered entry can lower this descriptive ratio without implying a defect.",
+                "scope": "full_analysis_frame",
+                "status": "supported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "reason": "Selected numeric series have fewer than 12 timestamp aggregates or no finite values.",
+                "status": "no_evidence"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 5
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "as_of_date": {
+                "coverage_month_counts": {
+                  "2010-05": 8,
+                  "2010-06": 8,
+                  "2010-07": 8,
+                  "2010-09": 8,
+                  "2011-05": 8,
+                  "2011-06": 8,
+                  "2011-07": 8,
+                  "2011-09": 8,
+                  "2012-05": 8,
+                  "2012-06": 8,
+                  "2012-07": 8,
+                  "2012-09": 8,
+                  "2013-05": 8,
+                  "2013-06": 8,
+                  "2013-07": 8,
+                  "2013-09": 8,
+                  "2014-05": 8,
+                  "2014-06": 8,
+                  "2014-07": 8,
+                  "2014-09": 8,
+                  "2015-05": 8,
+                  "2015-06": 8,
+                  "2015-07": 8,
+                  "2015-09": 8,
+                  "2016-05": 8,
+                  "2016-06": 8,
+                  "2016-07": 8,
+                  "2016-09": 8,
+                  "2017-05": 8,
+                  "2017-06": 8,
+                  "2017-07": 8,
+                  "2017-09": 8,
+                  "2018-05": 8,
+                  "2018-06": 8,
+                  "2018-07": 8,
+                  "2018-09": 8,
+                  "2019-05": 8,
+                  "2019-06": 8,
+                  "2019-07": 8,
+                  "2019-09": 8,
+                  "2020-05": 8,
+                  "2020-06": 8,
+                  "2020-07": 8,
+                  "2020-09": 8,
+                  "2021-05": 8,
+                  "2021-06": 8,
+                  "2021-07": 8,
+                  "2021-09": 8,
+                  "2022-05": 8,
+                  "2022-06": 8,
+                  "2022-07": 8,
+                  "2022-09": 8,
+                  "2023-05": 8,
+                  "2023-06": 8,
+                  "2023-07": 8,
+                  "2023-09": 8,
+                  "2024-05": 8,
+                  "2024-06": 8,
+                  "2024-07": 8,
+                  "2024-09": 8,
+                  "2025-05": 8,
+                  "2025-06": 8,
+                  "2025-07": 8,
+                  "2025-09": 8,
+                  "2026-05": 8,
+                  "2026-06": 1613,
+                  "2026-07": 8,
+                  "2026-09": 8
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 72,
+                "first": "2010-05-01T00:00:00+00:00",
+                "gap_days_max": 231.0,
+                "gap_days_median": 45.0,
+                "gap_days_p95": 230.5,
+                "last": "2026-09-13T00:00:00+00:00",
+                "parseable_count": 2149,
+                "parseable_rate": 1.0
+              },
+              "crop_year": {
+                "coverage_month_counts": {
+                  "1986-01": 3,
+                  "1987-01": 3,
+                  "1988-01": 3,
+                  "1989-01": 3,
+                  "1990-01": 3,
+                  "1991-01": 27,
+                  "1992-01": 36,
+                  "1993-01": 36,
+                  "1994-01": 36,
+                  "1995-01": 36,
+                  "1996-01": 39,
+                  "1997-01": 40,
+                  "1998-01": 40,
+                  "1999-01": 40,
+                  "2000-01": 40,
+                  "2001-01": 40,
+                  "2002-01": 40,
+                  "2003-01": 40,
+                  "2004-01": 40,
+                  "2005-01": 40,
+                  "2006-01": 40,
+                  "2007-01": 40,
+                  "2008-01": 40,
+                  "2009-01": 40,
+                  "2010-01": 84,
+                  "2011-01": 84,
+                  "2012-01": 84,
+                  "2013-01": 84,
+                  "2014-01": 84,
+                  "2015-01": 84,
+                  "2016-01": 84,
+                  "2017-01": 84,
+                  "2018-01": 84,
+                  "2019-01": 84,
+                  "2020-01": 84,
+                  "2021-01": 84,
+                  "2022-01": 84,
+                  "2023-01": 84,
+                  "2024-01": 84,
+                  "2025-01": 72,
+                  "2026-01": 72
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 41,
+                "first": "1986-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 366.0,
+                "last": "2026-01-01T00:00:00+00:00",
+                "parseable_count": 2149,
+                "parseable_rate": 1.0
+              },
+              "prediction_as_of_date": {
+                "coverage_month_counts": {
+                  "2026-06": 544
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 1,
+                "first": "2026-06-27T00:00:00+00:00",
+                "gap_days_max": null,
+                "gap_days_median": null,
+                "gap_days_p95": null,
+                "last": "2026-06-27T00:00:00+00:00",
+                "parseable_count": 544,
+                "parseable_rate": 0.2531409958120056
+              },
+              "prediction_date": {
+                "coverage_month_counts": {
+                  "2026-06": 2149
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 4,
+                "first": "2026-06-17T00:00:00+00:00",
+                "gap_days_max": 8.0,
+                "gap_days_median": 1.0,
+                "gap_days_p95": 7.299999999999999,
+                "last": "2026-06-27T00:00:00+00:00",
+                "parseable_count": 2149,
+                "parseable_rate": 1.0
+              },
+              "prior_year_anomaly_baseline": {
+                "coverage_month_counts": {
+                  "1970-01": 1864
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 4,
+                "first": "1970-01-01T00:00:00+00:00",
+                "gap_days_max": 1.1574074074074075e-14,
+                "gap_days_median": 1.1574074074074075e-14,
+                "gap_days_p95": 1.1574074074074075e-14,
+                "last": "1970-01-01T00:00:00.000000003+00:00",
+                "parseable_count": 1864,
+                "parseable_rate": 0.8673801768264309
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "prediction_date",
+              "resolution": "day"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "as_of_date",
+              "crop_year",
+              "prediction_as_of_date",
+              "prediction_date",
+              "prior_year_anomaly_baseline"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": []
+          },
+          "categorical_associations": {
+            "denominator": 2149,
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": []
+          },
+          "correlation_columns": {
+            "detail": "Generated output-plane numeric relationships are quarantined.",
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": []
+          },
+          "correlation_pairs": {
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": []
+          },
+          "multicollinearity_candidates": {
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {}
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "reason": "Generated model outputs, labels, targets, and their relationships are excluded from source-feature analysis.",
+              "status": "excluded_leakage"
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {}
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_model_predictions"
+  },
+  "provenance": {
+    "analysis_rows": 2149,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/model_predictions",
+    "contract_sha256": "eec4fdb101f19e8e9bcf6f3d1ee2b75e00f5dc1496dddd07b98253068f5afc4e",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 15,
+      "partition_strata_sample": [
+        {
+          "object_count": 8,
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "row_count": 919,
+          "row_group_count": 8,
+          "rows_known": true
+        },
+        {
+          "object_count": 2,
+          "partition_values": {
+            "model_family": "psd_snd_anomaly_snapshot",
+            "prediction_date": "2026-06-27"
+          },
+          "row_count": 544,
+          "row_group_count": 2,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "model_family": "tier1_production",
+            "prediction_date": "2026-06-17"
+          },
+          "row_count": 150,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "model_family": "tier1_production",
+            "prediction_date": "2026-06-25"
+          },
+          "row_count": 135,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "model_family": "tier1_production",
+            "prediction_date": "2026-06-26"
+          },
+          "row_count": 115,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 2,
+          "partition_values": {
+            "model_family": "tier1_production",
+            "prediction_date": "2026-06-27"
+          },
+          "row_count": 286,
+          "row_group_count": 2,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 6,
+      "schema_sha256_object_counts": {
+        "336a23d97683b0e7b2ab06673c6da9156a24a3dbd579be89eedac49af6cd0bfa": 4,
+        "52f124121c02b175e045014e2387aac5c32ed8762ebfbd8d8dd89831f7b2ff4f": 1,
+        "63e4edd0721a139e56914c9d3aedd88ab2f1823915bf2235a99682d25c711716": 1,
+        "64efc1836adae3bd83c9aaa5f72a46f6dbcf914abf09e9d900f07d100f7a17ed": 4,
+        "6c8c9280f06a40108683572914ae925406cc97085406deeeadc188793699adff": 1,
+        "7faf824796cfac46a8c13a6ac1cbbd3a11328f4bc94a764b5a11be0b1050db5a": 2,
+        "aba424c959b35f182289767ee7b1e37f3d14691d7920f6e276c759c1504487aa": 1,
+        "d3040eb1059978090460c3e1aedecc0d9be28f43a12bb0055f907303570e1f7c": 1
+      },
+      "source_compressed_bytes": 256457,
+      "source_row_count": 2149
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "7bcd0ab29e160c1b053f7698ea9afed45c5e0c351c59219ddc3c384756b4f5fe",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 15,
+    "object_sample": [
+      {
+        "etag": "0bfd7dd736ed969f5c36d649aa3a6dc0",
+        "last_modified": "2026-06-27T18:14:16Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 19365,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "692efa9bf596dfc27bd78e63e7628a6c",
+        "last_modified": "2026-06-27T18:31:44Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 19365,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm__expanding_full_history.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "3768c5b761f61edcf77269f4d057d3ac",
+        "last_modified": "2026-06-27T18:31:46Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 16533,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm__expanding_post_2000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "c90ac70ba6d622e06c155bf9adcc3559",
+        "last_modified": "2026-06-27T18:32:10Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 19310,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm__rolling_25y.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "bc390909c125ae998f0d180009ca9491",
+        "last_modified": "2026-06-27T18:14:20Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 16275,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "08064aa233a4248e734f3ec026ea05cb",
+        "last_modified": "2026-06-27T18:31:45Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 18860,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost__expanding_full_history.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "41c58d781fcfcaf229e4da9dbd5128b3",
+        "last_modified": "2026-06-27T18:31:42Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 16275,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost__expanding_post_2000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "377e989949ba209529fb047553cd4dfa",
+        "last_modified": "2026-06-27T18:31:45Z",
+        "partition_values": {
+          "model_family": "psd_production_anomaly",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 18805,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost__rolling_25y.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "b363cb3f87adc9d6b8702c16f1aa66d9",
+        "last_modified": "2026-06-27T19:16:14Z",
+        "partition_values": {
+          "model_family": "psd_snd_anomaly_snapshot",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 19310,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_snd_anomaly_snapshot/prediction_date=2026-06-27/corn_cbot__preseason_physical_plus_psd_vintage__psd_snd_anomaly_snapshot__psd_production_anomaly_pct__lightgbm__expanding_post_2000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "edc74861104ff9fc422347446d2bc0ec",
+        "last_modified": "2026-06-27T19:15:04Z",
+        "partition_values": {
+          "model_family": "psd_snd_anomaly_snapshot",
+          "prediction_date": "2026-06-27"
+        },
+        "size": 19225,
+        "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_snd_anomaly_snapshot/prediction_date=2026-06-27/corn_cbot__psd_monthly_vintage_features__psd_snd_anomaly_snapshot__psd_production_anomaly_pct__lightgbm__expanding_post_2000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": true,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 0,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "model_family",
+        "prediction_date",
+        "commodity",
+        "country",
+        "crop_year",
+        "snapshot_stage",
+        "y_actual",
+        "y_pred"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 15342271741552241405,
+      "snapshot_row_count": 2149,
+      "source_compressed_bytes": 256457,
+      "source_row_count": 2149,
+      "stratum_columns": [
+        "model_family",
+        "prediction_date",
+        "commodity",
+        "country"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "ba027f8527bf25f4dec7520918159b7d4a20b408c96e8105c6f086c8c520e7f1",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/source_replica/manifest.json",
+      "object_count": 15,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/source_replica/objects",
+      "replica_manifest_sha256": "406d37b87abf25abfcc51dcd2920b3554670db26d9eb9f231ed345a02b130d41",
+      "source_manifest_sha256": "ba027f8527bf25f4dec7520918159b7d4a20b408c96e8105c6f086c8c520e7f1",
+      "total_bytes": 256457
+    },
+    "source_rows": 2149,
+    "source_specific_checks": [],
+    "source_total_bytes": 256457,
+    "source_total_rows": 2149,
+    "spec_sha256": "45b2c8972f327e92a2908da5133132c9805dca499a33483fffbdd298c2c85bb3"
+  },
+  "reader": {
+    "analysis_rows": 2149,
+    "anti_feature_summary": {
+      "analysis_rows": 2149,
+      "entries": [
+        {
+          "anti_feature_id": "generated-output",
+          "reason": "Targets, predictions, actuals, residuals, and model metadata can leak outcomes.",
+          "statement": "Do not derive any feature from this generated-output table."
+        },
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Model predictions, actual outcomes, baselines, run identifiers, and output metadata are prohibited input features."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not compute target associations, performance charts, or feature candidates from this table."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not infer a production key from observed output rows and silently promote it."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": true,
+      "plotted_rows": null,
+      "source_rows": 2149
+    },
+    "archetype": "generated_output_quarantine",
+    "chart_execution": {
+      "omission_reasons": [
+        "Model predictions are an output plane; value charts and relationships are quarantined."
+      ],
+      "omitted_chart_count": 1,
+      "plotted_rows": 0,
+      "ready_chart_count": 0,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": null,
+        "analysis_rows": 2149,
+        "chart_id": "output_quarantine",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "Model predictions are an output plane; value charts and relationships are quarantined.",
+        "scope": "generated-output leakage quarantine",
+        "source_rows": 2149,
+        "status": "omitted",
+        "title": "Generated-output leakage quarantine",
+        "unit": null
+      }
+    ],
+    "chart_omission_reasons": [
+      "Model predictions are an output plane; value charts and relationships are quarantined."
+    ],
+    "chart_plan": {
+      "analysis_rows": 2149,
+      "charts": [
+        {
+          "analysis_rows": 2149,
+          "chart_id": "output_missingness",
+          "chart_type": "missingness_bar",
+          "columns": [],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 0,
+          "exactness": "exact",
+          "id": "output_missingness",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "skipped",
+          "purpose": "Assess storage quality without evaluating model performance.",
+          "reason": "Generated-output values are quarantined.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 2149,
+          "split_by": [],
+          "status": "skipped",
+          "time_components": [],
+          "title": "Output-plane field completeness",
+          "type": "missingness_bar",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 2149,
+          "chart_id": "output_coverage",
+          "chart_type": "coverage_heatmap",
+          "columns": [
+            "as_of_date",
+            "commodity",
+            "country"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 0,
+          "exactness": "exact",
+          "id": "output_coverage",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "skipped",
+          "purpose": "Expose partition and entity coverage without using actuals or predictions.",
+          "reason": "Generated-output values are quarantined.",
+          "series_dimensions": [
+            "commodity",
+            "country"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 2149,
+          "split_by": [],
+          "status": "skipped",
+          "time_components": [],
+          "title": "Output record coverage",
+          "type": "coverage_heatmap",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 0,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 1,
+      "overall_status": "quarantined",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 0,
+      "ready_chart_count": 0,
+      "source_rows": 2149
+    },
+    "column_dictionary": [
+      {
+        "column": "country",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Country represented by the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Supports entity segmentation."
+      },
+      {
+        "column": "crop_year",
+        "declared_nullable": true,
+        "declared_type": "int64",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Crop year locating the observation on its source reporting calendar.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "snapshot_stage",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Processing classification locating the row within the snapshot stage hierarchy.",
+        "null_count": 1605,
+        "null_rate": 0.7468590041879944,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "y_actual",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Persisted outcome used for output evaluation; prohibited as a feature.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "source-native / verify",
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "y_pred",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Persisted model prediction; prohibited as a feature.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "source-native / verify",
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "zero_anomaly_baseline",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Reference baseline for zero anomaly used to calculate anomalies.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "source-native / verify",
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "prior_year_anomaly_baseline",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Prior year anomaly baseline locating the observation on its source reporting calendar.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": "source-native / verify",
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "trailing_mean_anomaly_baseline",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Reference baseline for trailing mean anomaly used to calculate anomalies.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "source-native / verify",
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "trailing_trend_anomaly_baseline",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Reference baseline for trailing trend anomaly used to calculate anomalies.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": "source-native / verify",
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "commodity",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Governed or source-normalized commodity identifier.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Supports entity segmentation."
+      },
+      {
+        "column": "tier",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Processing classification locating the row within the tier hierarchy.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "feature_set_id",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Stable feature set identifier used for lineage and controlled joins.",
+        "null_count": 150,
+        "null_rate": 0.06979990693345742,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "target",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Generated-output target identifier retained only for storage and lineage QA; it is prohibited as feature evidence.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "dataset_key",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Stable dataset identifier used for lineage and controlled joins.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "target_key",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Stable target identifier used for lineage and controlled joins.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "model_dataset_version",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Version identifier for the model dataset artifact or logic.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "source_dataset_version",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Source provenance value identifying the dataset version used to produce this row.",
+        "null_count": 285,
+        "null_rate": 0.1326198231735691,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "model",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Generated-output model identifier retained only for storage and lineage QA; it is prohibited as feature evidence.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "cv_policy",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Named cv policy applied when producing the row.",
+        "null_count": 686,
+        "null_rate": 0.31921824104234525,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "feature_set_sha",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Stable content fingerprint used to identify and reproduce the originating artifact.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "run_id",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Stable run identifier used for lineage and controlled joins.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "as_of_date",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Snapshot date represented by the stored vintage.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Anchors temporal coverage."
+      },
+      {
+        "column": "prediction_as_of_date",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Prediction as of date locating the observation on its source reporting calendar.",
+        "null_count": 1605,
+        "null_rate": 0.7468590041879944,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "model_family",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Physical model family partition value used to establish source coverage.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "partition"
+        ],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Controls physical coverage."
+      },
+      {
+        "column": "prediction_date",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Date associated with the generated prediction record.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "partition",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Controls physical coverage."
+      },
+      {
+        "column": "snapshot_policy",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": null,
+        "example": null,
+        "meaning": "Named snapshot policy applied when producing the row.",
+        "null_count": null,
+        "null_rate": null,
+        "observed_dtype": null,
+        "present": false,
+        "roles": [],
+        "unit": null,
+        "value_access": "quarantined",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 2149,
+        "columns": [],
+        "detail": "2,149 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Output records",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 2149,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149
+        },
+        "source_rows": 2149,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 2149
+      },
+      {
+        "analysis_rows": 2149,
+        "columns": [],
+        "detail": "The analysis frame exposes 25 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 2149,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149
+        },
+        "source_rows": 2149,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 25
+      },
+      {
+        "analysis_rows": 2149,
+        "columns": [],
+        "detail": "25 of 26 declared columns are present.",
+        "exactness": "exact",
+        "kind": "schema_completeness",
+        "kpi_id": "schema_completeness",
+        "label": "Schema completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.schema",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 2149,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149
+        },
+        "source_rows": 2149,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.9615384615384616
+      },
+      {
+        "analysis_rows": 2149,
+        "columns": [],
+        "detail": "Distinct physical partition counts were computed without exposing values.",
+        "exactness": "exact",
+        "kind": "partition_coverage",
+        "kpi_id": "partition_coverage",
+        "label": "Partition coverage",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.coverage",
+          "provenance"
+        ],
+        "scope": {
+          "analysis_rows": 2149,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149
+        },
+        "source_rows": 2149,
+        "status": "evaluated",
+        "value": {
+          "model_family": 3,
+          "prediction_date": 4
+        }
+      },
+      {
+        "analysis_rows": 2149,
+        "columns": [],
+        "detail": "Minimum completeness across 25 assessed columns is 25.3%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "null_coverage",
+        "label": "Null coverage",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 2149,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149
+        },
+        "source_rows": 2149,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.25314099581200555
+      },
+      {
+        "analysis_rows": 2149,
+        "columns": [],
+        "detail": "Inferred-key duplicate participation is 0 of 2,149 rows.",
+        "exactness": "exact",
+        "kind": "inferred_duplicates",
+        "kpi_id": "inferred_grain_duplicates",
+        "label": "Candidate-grain duplicates",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 2149,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149
+        },
+        "source_rows": 2149,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 2149 entries, 0 to 2148\nData columns (total 25 columns):\n #   Column                           Non-Null Count  Dtype  \n---  ------                           --------------  -----  \n 0   country                          2149 non-null   str    \n 1   crop_year                        2149 non-null   int64  \n 2   snapshot_stage                   544 non-null    str    \n 3   y_actual                         2149 non-null   float64\n 4   y_pred                           2149 non-null   float64\n 5   zero_anomaly_baseline            1864 non-null   float64\n 6   prior_year_anomaly_baseline      1864 non-null   float64\n 7   trailing_mean_anomaly_baseline   1864 non-null   float64\n 8   trailing_trend_anomaly_baseline  1864 non-null   float64\n 9   commodity                        2149 non-null   str    \n 10  tier                             2149 non-null   str    \n 11  feature_set_id                   1999 non-null   str    \n 12  target                           2149 non-null   str    \n 13  dataset_key                      1864 non-null   str    \n 14  target_key                       1864 non-null   str    \n 15  model_dataset_version            1864 non-null   str    \n 16  source_dataset_version           1864 non-null   str    \n 17  model                            2149 non-null   str    \n 18  cv_policy                        1463 non-null   str    \n 19  feature_set_sha                  2149 non-null   str    \n 20  run_id                           2149 non-null   str    \n 21  as_of_date                       2149 non-null   str    \n 22  prediction_as_of_date            544 non-null    str    \n 23  model_family                     2149 non-null   str    \n 24  prediction_date                  2149 non-null   str    \ndtypes: float64(6), int64(1), str(18)\nmemory usage: 1.1 MB\n",
+    "display_policy": {
+      "analysis_rows": 2149,
+      "displayed_rows": 0,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "schema_only_quarantine",
+      "plotted_rows": 0,
+      "preview_max_rows": 40,
+      "source_rows": 2149
+    },
+    "exactness": "exact",
+    "feature_quarantined": true,
+    "notable_rows": {
+      "analysis_rows": 2149,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [],
+      "source_rows": 2149,
+      "status": "withheld_output_quarantine"
+    },
+    "omitted_chart_count": 1,
+    "ordinary_statistics": {
+      "analysis_rows": 2149,
+      "categorical": {
+        "columns": [],
+        "records": [],
+        "row_count": 0
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [],
+        "records": [],
+        "row_count": 0
+      },
+      "plotted_rows": null,
+      "source_rows": 2149,
+      "status": "withheld_output_quarantine",
+      "temporal": {
+        "columns": [],
+        "records": [],
+        "row_count": 0
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 2149,
+      "exactness": "exact",
+      "explanation": "Generated model outputs are never eligible feature sources.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule.",
+        "PIT feature analysis is prohibited because this is generated output, not an input source."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 2149,
+      "status": "excluded_leakage",
+      "use_rule": "Do not derive, correlate, join to targets, or propose features from this table."
+    },
+    "plotted_rows": 0,
+    "preview": {
+      "analysis_rows": 2149,
+      "columns": [
+        "country",
+        "crop_year",
+        "snapshot_stage",
+        "y_actual",
+        "y_pred",
+        "zero_anomaly_baseline",
+        "prior_year_anomaly_baseline",
+        "trailing_mean_anomaly_baseline",
+        "trailing_trend_anomaly_baseline",
+        "commodity",
+        "tier",
+        "feature_set_id",
+        "target",
+        "dataset_key",
+        "target_key",
+        "model_dataset_version",
+        "source_dataset_version",
+        "model",
+        "cv_policy",
+        "feature_set_sha",
+        "run_id",
+        "as_of_date",
+        "prediction_as_of_date",
+        "model_family",
+        "prediction_date"
+      ],
+      "displayed_rows": 0,
+      "exactness": "exact",
+      "mode": "schema_only_quarantine",
+      "plotted_rows": null,
+      "records": [],
+      "selection_reasons": [],
+      "source_rows": 2149
+    },
+    "provenance": {
+      "analysis_rows": 2149,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/model_predictions",
+      "contract_sha256": "eec4fdb101f19e8e9bcf6f3d1ee2b75e00f5dc1496dddd07b98253068f5afc4e",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 15,
+        "partition_strata_sample": [
+          {
+            "object_count": 8,
+            "partition_values": {
+              "model_family": "psd_production_anomaly",
+              "prediction_date": "2026-06-27"
+            },
+            "row_count": 919,
+            "row_group_count": 8,
+            "rows_known": true
+          },
+          {
+            "object_count": 2,
+            "partition_values": {
+              "model_family": "psd_snd_anomaly_snapshot",
+              "prediction_date": "2026-06-27"
+            },
+            "row_count": 544,
+            "row_group_count": 2,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "model_family": "tier1_production",
+              "prediction_date": "2026-06-17"
+            },
+            "row_count": 150,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "model_family": "tier1_production",
+              "prediction_date": "2026-06-25"
+            },
+            "row_count": 135,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "model_family": "tier1_production",
+              "prediction_date": "2026-06-26"
+            },
+            "row_count": 115,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 2,
+            "partition_values": {
+              "model_family": "tier1_production",
+              "prediction_date": "2026-06-27"
+            },
+            "row_count": 286,
+            "row_group_count": 2,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 6,
+        "schema_sha256_object_counts": {
+          "336a23d97683b0e7b2ab06673c6da9156a24a3dbd579be89eedac49af6cd0bfa": 4,
+          "52f124121c02b175e045014e2387aac5c32ed8762ebfbd8d8dd89831f7b2ff4f": 1,
+          "63e4edd0721a139e56914c9d3aedd88ab2f1823915bf2235a99682d25c711716": 1,
+          "64efc1836adae3bd83c9aaa5f72a46f6dbcf914abf09e9d900f07d100f7a17ed": 4,
+          "6c8c9280f06a40108683572914ae925406cc97085406deeeadc188793699adff": 1,
+          "7faf824796cfac46a8c13a6ac1cbbd3a11328f4bc94a764b5a11be0b1050db5a": 2,
+          "aba424c959b35f182289767ee7b1e37f3d14691d7920f6e276c759c1504487aa": 1,
+          "d3040eb1059978090460c3e1aedecc0d9be28f43a12bb0055f907303570e1f7c": 1
+        },
+        "source_compressed_bytes": 256457,
+        "source_row_count": 2149
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "7bcd0ab29e160c1b053f7698ea9afed45c5e0c351c59219ddc3c384756b4f5fe",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 15,
+      "object_sample": [
+        {
+          "etag": "0bfd7dd736ed969f5c36d649aa3a6dc0",
+          "last_modified": "2026-06-27T18:14:16Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 19365,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "692efa9bf596dfc27bd78e63e7628a6c",
+          "last_modified": "2026-06-27T18:31:44Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 19365,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm__expanding_full_history.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "3768c5b761f61edcf77269f4d057d3ac",
+          "last_modified": "2026-06-27T18:31:46Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 16533,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm__expanding_post_2000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "c90ac70ba6d622e06c155bf9adcc3559",
+          "last_modified": "2026-06-27T18:32:10Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 19310,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__lightgbm__rolling_25y.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "bc390909c125ae998f0d180009ca9491",
+          "last_modified": "2026-06-27T18:14:20Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 16275,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "08064aa233a4248e734f3ec026ea05cb",
+          "last_modified": "2026-06-27T18:31:45Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 18860,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost__expanding_full_history.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "41c58d781fcfcaf229e4da9dbd5128b3",
+          "last_modified": "2026-06-27T18:31:42Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 16275,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost__expanding_post_2000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "377e989949ba209529fb047553cd4dfa",
+          "last_modified": "2026-06-27T18:31:45Z",
+          "partition_values": {
+            "model_family": "psd_production_anomaly",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 18805,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_production_anomaly/prediction_date=2026-06-27/corn_cbot__preseason_physical__psd_snd_anomaly__psd_production_anomaly_pct__xgboost__rolling_25y.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "b363cb3f87adc9d6b8702c16f1aa66d9",
+          "last_modified": "2026-06-27T19:16:14Z",
+          "partition_values": {
+            "model_family": "psd_snd_anomaly_snapshot",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 19310,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_snd_anomaly_snapshot/prediction_date=2026-06-27/corn_cbot__preseason_physical_plus_psd_vintage__psd_snd_anomaly_snapshot__psd_production_anomaly_pct__lightgbm__expanding_post_2000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "edc74861104ff9fc422347446d2bc0ec",
+          "last_modified": "2026-06-27T19:15:04Z",
+          "partition_values": {
+            "model_family": "psd_snd_anomaly_snapshot",
+            "prediction_date": "2026-06-27"
+          },
+          "size": 19225,
+          "uri": "s3://leviathan-dev-shahem-001/silver/model_predictions/model_family=psd_snd_anomaly_snapshot/prediction_date=2026-06-27/corn_cbot__psd_monthly_vintage_features__psd_snd_anomaly_snapshot__psd_production_anomaly_pct__lightgbm__expanding_post_2000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": true,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 0,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "model_family",
+          "prediction_date",
+          "commodity",
+          "country",
+          "crop_year",
+          "snapshot_stage",
+          "y_actual",
+          "y_pred"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 15342271741552241405,
+        "snapshot_row_count": 2149,
+        "source_compressed_bytes": 256457,
+        "source_row_count": 2149,
+        "stratum_columns": [
+          "model_family",
+          "prediction_date",
+          "commodity",
+          "country"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "ba027f8527bf25f4dec7520918159b7d4a20b408c96e8105c6f086c8c520e7f1",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/source_replica/manifest.json",
+        "object_count": 15,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_model_predictions/_machine/source_replica/objects",
+        "replica_manifest_sha256": "406d37b87abf25abfcc51dcd2920b3554670db26d9eb9f231ed345a02b130d41",
+        "source_manifest_sha256": "ba027f8527bf25f4dec7520918159b7d4a20b408c96e8105c6f086c8c520e7f1",
+        "total_bytes": 256457
+      },
+      "source_rows": 2149,
+      "source_specific_checks": [],
+      "source_total_bytes": 256457,
+      "source_total_rows": 2149,
+      "spec_sha256": "45b2c8972f327e92a2908da5133132c9805dca499a33483fffbdd298c2c85bb3"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 2149,
+      "checks": [
+        {
+          "analysis_rows": 2149,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [
+              "snapshot_policy"
+            ],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "CAVEAT",
+          "summary": "Observed schema differs from the registry declaration."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": null,
+            "natural_key": [],
+            "null_key_rows": null
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "BLOCKER",
+          "summary": "The registry does not declare a natural key."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.7468590041879944,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "CAVEAT",
+          "summary": "The highest column null rate is 74.7%."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": null,
+            "explicit_sentinel_values": null,
+            "infinite_values": null,
+            "sentinel_values": null
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "not_assessed",
+          "summary": "Value validity is intentionally withheld for the generated-output quarantine."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 231.0,
+            "median_gap_days": 45.0,
+            "time_column": "as_of_date",
+            "usable_time_points": 72
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "CAVEAT",
+          "summary": "Largest gap (231 days) materially exceeds the median cadence (45 days)."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "as_of_date",
+            "distinct_points": 72,
+            "max": "2026-09-13T00:00:00",
+            "min": "2010-05-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "PASS",
+          "summary": "Coverage runs from 2010-05-01 through 2026-09-13."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 15,
+            "footer_complete": true,
+            "object_count": 15,
+            "schema_hash_count": 8,
+            "schema_sha256_object_counts": {
+              "336a23d97683b0e7b2ab06673c6da9156a24a3dbd579be89eedac49af6cd0bfa": 4,
+              "52f124121c02b175e045014e2387aac5c32ed8762ebfbd8d8dd89831f7b2ff4f": 1,
+              "63e4edd0721a139e56914c9d3aedd88ab2f1823915bf2235a99682d25c711716": 1,
+              "64efc1836adae3bd83c9aaa5f72a46f6dbcf914abf09e9d900f07d100f7a17ed": 4,
+              "6c8c9280f06a40108683572914ae925406cc97085406deeeadc188793699adff": 1,
+              "7faf824796cfac46a8c13a6ac1cbbd3a11328f4bc94a764b5a11be0b1050db5a": 2,
+              "aba424c959b35f182289767ee7b1e37f3d14691d7920f6e276c759c1504487aa": 1,
+              "d3040eb1059978090460c3e1aedecc0d9be28f43a12bb0055f907303570e1f7c": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "CAVEAT",
+          "summary": "Footer-derived schema stability needs review: 8 distinct schema fingerprints were observed."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        },
+        {
+          "analysis_rows": 2149,
+          "check": "Feature-plane boundary",
+          "check_id": "feature_boundary",
+          "evidence": {
+            "feature_quarantined": true
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 2149,
+          "status": "BLOCKER",
+          "summary": "Generated model output is excluded from feature evidence to prevent leakage."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "BLOCKER",
+      "plotted_rows": null,
+      "source_rows": 2149
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 2149,
+        "caveat": "Operational structure only; output values and model-performance evidence remain quarantined.",
+        "columns": [],
+        "evidence": {
+          "declared_columns": 26,
+          "missing_columns": [
+            "snapshot_policy"
+          ],
+          "present_columns": 25,
+          "schema_completeness": 0.9615384615384616
+        },
+        "exactness": "exact",
+        "insight_id": "schema_quality",
+        "kind": "schema_completeness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "output_missingness"
+          ],
+          "statistics": [
+            "quality_scorecard.checks.schema",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 2149,
+        "statement": "25 of 26 declared columns are present.",
+        "status": "evaluated",
+        "title": "Explain missing or unexpected output fields."
+      },
+      {
+        "analysis_rows": 2149,
+        "caveat": "Operational structure only; output values and model-performance evidence remain quarantined.",
+        "columns": [
+          "as_of_date",
+          "commodity",
+          "country"
+        ],
+        "evidence": {
+          "distinct_time_points": 72,
+          "end": "2026-09-13T00:00:00",
+          "entity_distinct_counts": {
+            "commodity": 1,
+            "country": 4
+          },
+          "start": "2010-05-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "record_coverage",
+        "kind": "coverage",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "output_coverage"
+          ],
+          "statistics": [
+            "source_shape",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 2149,
+        "statement": "Coverage spans 2010-05-01 through 2026-09-13 across 72 distinct time points.",
+        "status": "evaluated",
+        "title": "Explain where output records exist."
+      },
+      {
+        "analysis_rows": 2149,
+        "caveat": "Operational structure only; output values and model-performance evidence remain quarantined.",
+        "columns": [
+          "as_of_date",
+          "commodity",
+          "country"
+        ],
+        "evidence": {
+          "candidate_key": [
+            "commodity",
+            "country",
+            "as_of_date",
+            "crop_year",
+            "run_id"
+          ],
+          "candidate_key_unique_rate": 1.0
+        },
+        "exactness": "exact",
+        "insight_id": "candidate_grain",
+        "kind": "inferred_grain",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.grain"
+          ]
+        },
+        "source_rows": 2149,
+        "statement": "The evidence-only candidate grain uses 5 columns with 100.0% observed uniqueness.",
+        "status": "evaluated",
+        "title": "Report duplicate evidence without declaring a repaired key."
+      }
+    ],
+    "ready_chart_count": 0,
+    "row_meaning": "One row is a persisted model-output record; it is inspected only for output-plane quality and lineage, never as a feature source.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 2149,
+    "source_shape": {
+      "analysis_rows": 2149,
+      "analysis_shape": [
+        2149,
+        25
+      ],
+      "column_count": 25,
+      "exactness": "exact",
+      "plotted_rows": 0,
+      "source_rows": 2149,
+      "source_shape": [
+        2149,
+        25
+      ]
+    },
+    "table_name": "silver_model_predictions"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [],
+  "table_name": "silver_model_predictions"
+}

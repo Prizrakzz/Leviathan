@@ -1,0 +1,424 @@
+schema_version: 1
+table_name: silver_unica_corn_ethanol
+title: Unica Corn Ethanol
+analysis_role: derived
+feature_disposition: blocked
+adapters:
+- derived_lineage
+observation_time_candidates:
+- harvest_year
+- fortnight_seq
+knowledge_time: null
+knowledge_semantics: null
+entity_columns: []
+categorical_columns:
+- fortnight_label
+- source_idm
+- source_position_date
+numeric_columns:
+- anhydrous_quinzenal_kl
+- hydrous_quinzenal_kl
+- total_quinzenal_kl
+- anhydrous_accum_kl
+- hydrous_accum_kl
+- total_accum_kl
+units:
+  anhydrous_accum_kl: source-native / verify
+  anhydrous_quinzenal_kl: source-native / verify
+  hydrous_accum_kl: source-native / verify
+  hydrous_quinzenal_kl: source-native / verify
+  total_accum_kl: source-native / verify
+  total_quinzenal_kl: source-native / verify
+meaningful_groupings:
+- harvest_year
+- fortnight_seq
+declared_relationships: []
+source_keys: []
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_required
+  reason: No commodity/geography join axis is declared by this Silver contract.
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders: []
+lineage_status:
+  status: lineage_not_assessed
+  lineage_status: lineage_not_assessed
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: true
+  evidence: No governed Silver-to-Silver peer relationship and parity key/value contract is registered
+    for this derived or serving-copy table.
+  work_orders:
+  - &id002
+    id: EDA-LINEAGE-UNICA_CORN_ETHANOL
+    priority: high
+    title: Register and validate derived-table lineage
+    required_evidence: Declare the canonical Silver upstream, transformation, parity grain, value tolerances,
+      and frozen-frame comparison before claiming parity.
+semantic_work_orders:
+- *id002
+feature_hypothesis_templates:
+- family: lagged_robust_transform
+  mechanism: Lagged level, delta, ratio, and robust trailing normalization.
+known_hazards:
+- Registry key/value contract is incomplete; inferred grain is evidence only.
+- Registry lacks a complete natural-key/value-column contract; inferred grain is evidence only and cannot
+  be promoted automatically.
+no_candidate_reason: The registry lacks a complete natural-key/value-column contract; inferred grain is
+  evidence only until a reviewed contract repair is merged.
+archetype: progressive_cumulative
+row_meaning: One row is one fortnight of corn-ethanol production within a harvest year.
+column_descriptions:
+  anhydrous_accum_kl: Cumulative anhydrous cumulative through the row's reporting cutoff, measured in
+    kilolitres.
+  anhydrous_quinzenal_kl: Anhydrous quinzenal reported in kilolitres at the declared row grain.
+  fortnight_date: Fortnight date locating the observation on its source reporting calendar.
+  fortnight_label: Human-readable label naming the row's fortnight category.
+  fortnight_seq: Ordinal fortnight position used to order comparable source records.
+  harvest_year: Source-defined harvest season or harvest year.
+  hydrous_accum_kl: Cumulative hydrous cumulative through the row's reporting cutoff, measured in kilolitres.
+  hydrous_quinzenal_kl: Hydrous quinzenal reported in kilolitres at the declared row grain.
+  source_idm: Source provenance value identifying the source document used to produce this row.
+  source_position_date: Source provenance value identifying the position date used to produce this row.
+  total_accum_kl: Cumulative total cumulative through the row's reporting cutoff, measured in kilolitres.
+  total_quinzenal_kl: Total quinzenal reported in kilolitres at the declared row grain.
+why_it_matters:
+  anhydrous_accum_kl: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  anhydrous_quinzenal_kl: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  fortnight_date: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  fortnight_label: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  fortnight_seq: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  harvest_year: Anchors temporal coverage.
+  hydrous_accum_kl: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  hydrous_quinzenal_kl: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  source_idm: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  source_position_date: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  total_accum_kl: Carries a primary analytical measure.
+  total_quinzenal_kl: Carries a primary analytical measure.
+primary_measures:
+- total_quinzenal_kl
+- total_accum_kl
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - harvest_year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns: []
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - total_quinzenal_kl
+  - total_accum_kl
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns: []
+  id: grain_integrity
+  kind: inferred_grain
+  kpi_id: grain_integrity
+  label: Candidate-grain status
+- columns:
+  - total_quinzenal_kl
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns: []
+  detail: Infer grain for evidence only; do not repair the registry contract.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: blocker
+  unsupported_result: not_assessed
+- columns: []
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - total_quinzenal_kl
+  - total_accum_kl
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - total_quinzenal_kl
+  - total_accum_kl
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - harvest_year
+  - fortnight_seq
+  - fortnight_label
+  - fortnight_date
+  - anhydrous_quinzenal_kl
+  - hydrous_quinzenal_kl
+  - total_quinzenal_kl
+  - anhydrous_accum_kl
+  - hydrous_accum_kl
+  - total_accum_kl
+  - source_idm
+  - source_position_date
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - total_quinzenal_kl
+  - anhydrous_quinzenal_kl
+  - hydrous_quinzenal_kl
+  components:
+    anhydrous_quinzenal_kl: 1.0
+    hydrous_quinzenal_kl: 1.0
+  detail: Validate total fortnight output against hydrous plus anhydrous output.
+  id: identity
+  kind: arithmetic_identity
+  label: Domain arithmetic identity
+  result_column: total_quinzenal_kl
+  rule_id: identity
+  severity: caveat
+  tolerance: 1.0e-06
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: fortnight_flow
+  chart_type: season_curve
+  columns:
+  - fortnight_seq
+  - total_quinzenal_kl
+  - harvest_year
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: fortnight_flow
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - total_quinzenal_kl
+  measure_units:
+    total_quinzenal_kl: source-native / verify
+  minimum_rows: 8
+  purpose: Show the true fortnight flow on governed fortnight_seq without cumulative treatment.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - fortnight_seq
+  title: Corn-ethanol flow by within-harvest fortnight
+  type: season_curve
+  unit_column: null
+- chart_id: cumulative_curve
+  chart_type: season_curve
+  columns:
+  - fortnight_seq
+  - total_accum_kl
+  - harvest_year
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: cumulative_curve
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - total_accum_kl
+  measure_units:
+    total_accum_kl: source-native / verify
+  minimum_rows: 8
+  purpose: Compare the explicitly cumulative total across harvest years at the same governed fortnight_seq.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - fortnight_seq
+  title: Cumulative corn-ethanol by within-harvest fortnight
+  type: season_curve
+  unit_column: null
+- chart_id: cumulative_increment
+  chart_type: increment
+  columns:
+  - fortnight_seq
+  - total_accum_kl
+  - harvest_year
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: cumulative_increment
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - total_accum_kl
+  measure_units:
+    total_accum_kl: source-native / verify
+  minimum_rows: 1
+  purpose: Difference only total_accum_kl within harvest year ordered by fortnight_seq; never difference
+    total_quinzenal_kl as if cumulative.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - fortnight_seq
+  title: Implied cumulative fortnight increments
+  type: increment
+  unit_column: null
+- chart_id: milestones
+  chart_type: milestone
+  columns:
+  - fortnight_seq
+  - total_accum_kl
+  - harvest_year
+  coverage_grain: null
+  cutoff_mode: governed_axis
+  id: milestones
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - total_accum_kl
+  measure_units:
+    total_accum_kl: source-native / verify
+  minimum_rows: 1
+  purpose: Compare meaningful thresholds of the explicitly cumulative series on governed fortnight_seq.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - fortnight_seq
+  title: Cumulative ethanol milestone fortnight
+  type: milestone
+  unit_column: null
+- chart_id: coverage
+  chart_type: coverage_heatmap
+  columns:
+  - fortnight_seq
+  - harvest_year
+  coverage_grain: ordered
+  cutoff_mode: governed_axis
+  id: coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose partial harvest years on governed fortnight_seq.
+  series_dimensions:
+  - harvest_year
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - fortnight_seq
+  title: Within-harvest fortnight coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - harvest_year
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - total_quinzenal_kl
+  - total_accum_kl
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - harvest_year
+  - total_quinzenal_kl
+  - total_accum_kl
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - harvest_year
+  - total_quinzenal_kl
+  - total_accum_kl
+  id: same_cutoff_pace
+  insight_id: same_cutoff_pace
+  kind: same_cutoff_pace
+  minimum_rows: 4
+  purpose: Compare seasons only at matching cutoffs.
+preview_strata:
+- harvest_year
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+- Do not promote inferred grain or value roles until the registry contract is repaired.
+feature_quarantined: false

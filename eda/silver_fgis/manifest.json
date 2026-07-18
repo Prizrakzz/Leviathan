@@ -1,0 +1,183 @@
+{
+  "analysis_complete": true,
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "artifacts": {
+    "_machine/coverage_catalog.json": {
+      "bytes": 143648,
+      "sha256": "c4aecbca70d8552add7223fdad9f57daffbca4c51fee0ab497db3ca0e5e780b0",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/coverage_catalog.json"
+    },
+    "_machine/feature_candidates.json": {
+      "bytes": 23652,
+      "sha256": "02ba40b63c81a97b5b834c0aaf67d433eb23839df4dc803aa33b068b2c207c10",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/feature_candidates.json"
+    },
+    "_machine/profile.json": {
+      "bytes": 75838,
+      "sha256": "72a42aadbc19e70cba558544e778405354aa2ce36e762d5bf64dee0cc3dbf3ff",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/profile.json"
+    },
+    "_machine/reader_evidence.json": {
+      "bytes": 84342,
+      "sha256": "0bf3d3f5affe4593c21bc766dd6d58f1e12e41c0cc7512d95ce298ae4fe8e56e",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/reader_evidence.json"
+    },
+    "_machine/sampling_evidence.json": {
+      "bytes": 324,
+      "sha256": "a85134025c751c1d3591295353c87b49b4fee8b836571b98dd4f0f8ace3abe2a",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/sampling_evidence.json"
+    },
+    "_machine/source_inventory.json": {
+      "bytes": 406415,
+      "sha256": "29f828a74f42fd9ec5b5c691f18a87a7685f2c3ba9e5a8ebfad61fb6580bdbe9",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/source_inventory.json"
+    },
+    "feature_candidates.yaml": {
+      "bytes": 19231,
+      "sha256": "199969ee524521c6dad4e1ffc421a8654bd83881fff6741bce70a53243a05e4b",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/feature_candidates.yaml"
+    },
+    "silver_fgis_eda.ipynb": {
+      "bytes": 1496668,
+      "sha256": "40dde5b58ba6c671f1b24919956e62df0a7dc5ad06abe318f7e847c1be71dd78",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/silver_fgis_eda.ipynb"
+    },
+    "spec.yaml": {
+      "bytes": 13184,
+      "sha256": "4ae59cc427f6d68009e3cc6bb9206442d1992b75fcfc6d13e1d7699222ce5e1e",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/spec.yaml"
+    },
+    "summary.json": {
+      "bytes": 214662,
+      "sha256": "0b060a81e7a37431a5856c10dd82a5c8109c37caf46a3097ee6116a51e09e514",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/summary.json"
+    }
+  },
+  "campaign_id": "readerfirst-final-20260718-a176abf1",
+  "contract_sha256": "c7538713eb9bf2f0998e03af1b8f10b1104e058f0ed54ac3459fb61f1e791ed9",
+  "coverage_summary": {
+    "analysis_strata_complete": false,
+    "analysis_strata_sampled_row_count": null,
+    "analysis_strata_source_row_count": null,
+    "analysis_stratum_count": 0,
+    "exactness": "footer-derived",
+    "footer_complete": true,
+    "object_count": 220,
+    "partition_stratum_count": 220,
+    "represented_analysis_stratum_count": 0,
+    "source_compressed_bytes": 2984644,
+    "source_row_count": 111444,
+    "unrepresented_analysis_stratum_count": 0
+  },
+  "detailed_evidence": {
+    "coverage_catalog": {
+      "bytes": 143648,
+      "relative_key": "_machine/coverage_catalog.json",
+      "sha256": "c4aecbca70d8552add7223fdad9f57daffbca4c51fee0ab497db3ca0e5e780b0",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/coverage_catalog.json"
+    },
+    "reader_evidence": {
+      "bytes": 84342,
+      "relative_key": "_machine/reader_evidence.json",
+      "sha256": "0bf3d3f5affe4593c21bc766dd6d58f1e12e41c0cc7512d95ce298ae4fe8e56e",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/reader_evidence.json"
+    },
+    "sampling_evidence": {
+      "bytes": 324,
+      "relative_key": "_machine/sampling_evidence.json",
+      "sha256": "a85134025c751c1d3591295353c87b49b4fee8b836571b98dd4f0f8ace3abe2a",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/sampling_evidence.json"
+    },
+    "source_inventory": {
+      "bytes": 406415,
+      "relative_key": "_machine/source_inventory.json",
+      "sha256": "29f828a74f42fd9ec5b5c691f18a87a7685f2c3ba9e5a8ebfad61fb6580bdbe9",
+      "uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/source_inventory.json"
+    }
+  },
+  "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+  "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+  "evidence_valid": true,
+  "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+  "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+  "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+  "results": {
+    "analysis_exactness": "exact",
+    "blocker_count": 0,
+    "candidate_count": 9,
+    "disposition": "needs_contract_or_data_fix",
+    "finding_count": 3
+  },
+  "sampled_row_group_count": 0,
+  "sampling_strata": [],
+  "sampling_strategy": null,
+  "schema_version": "leviathan.silver-eda-campaign/v2",
+  "snapshot": {
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "decision": {
+      "exactness": "exact",
+      "identity_columns": [
+        "leviathan_slug",
+        "marketing_year",
+        "source",
+        "week_of_marketing_year",
+        "week_ending_date",
+        "destination_country",
+        "exports_mt_weekly",
+        "exports_mt_ctd"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 12301917666771096502,
+      "snapshot_row_count": 111444,
+      "source_compressed_bytes": 2984644,
+      "source_row_count": 111444,
+      "stratum_columns": [
+        "leviathan_slug",
+        "marketing_year",
+        "source"
+      ]
+    },
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/snapshot",
+    "frame_sha256": "db1bfe914cde066bbffe6aa0a733dd0962715700a0269167fb4b42eaeeab88b7",
+    "manifest_sha256": "3ab0a56c30f50c4457fc6fdca06fc2b6c72940b8f2433bd714f9f14792eedd60",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/snapshot/manifest.json",
+    "parquet_bytes": 1200588,
+    "parquet_sha256": "ed54f7168edf732297f20981cd6d33bf165dae582a1a8f9a81077168fbcf7b8d",
+    "parquet_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/snapshot/part-000.parquet",
+    "table_name": "silver_fgis"
+  },
+  "source_inventory_summary": {
+    "footer_complete": true,
+    "fragment_count": 220,
+    "inventory_manifest_sha256": "2afb412d335ddf886c8649cb2383b7faed1984cac1654464be4c4015f4b53756",
+    "partition_keys": [
+      "leviathan_slug",
+      "marketing_year"
+    ],
+    "partition_mode": "projected",
+    "rejected_key_count": 0,
+    "root_uri": "s3://leviathan-dev-shahem-001/silver/fgis",
+    "row_group_count": 220,
+    "source_mode": "s3",
+    "total_bytes": 2984644,
+    "total_rows": 111444
+  },
+  "source_layer": "silver",
+  "source_replica": {
+    "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/source_replica",
+    "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/source_replica/manifest.json",
+    "object_count": 220,
+    "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fgis/_machine/source_replica/objects",
+    "replica_manifest_sha256": "05bbf657664977f3f89bfa4ce14b3975b884161a10a9c76ab564fd9f4f951fc1",
+    "source_manifest_sha256": "2afb412d335ddf886c8649cb2383b7faed1984cac1654464be4c4015f4b53756",
+    "total_bytes": 2984644
+  },
+  "spec_sha256": "978dd0a7b09bbe061054324871236d904e088020a38b5074075b3c9c306e8963",
+  "table_name": "silver_fgis"
+}

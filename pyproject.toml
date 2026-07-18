@@ -48,6 +48,17 @@ batch = [
     "olefile>=0.47",       # legacy Word .doc (OLE) reader for the SAGIS CEC raw->silver parser (task #118, pure-python, no LibreOffice)
     "yfinance>=0.2",       # continuous-futures fetch for silver_futures_prices (yfinance_futures_task); 0.2.x uses the pinned curl-cffi
 ]
+eda = [
+    "jupyterlab>=4.2,<5",
+    "papermill>=2.6,<3",
+    "nbclient>=0.10,<1",
+    "nbformat>=5.10,<6",
+    "jsonschema>=4.22,<5",
+    "matplotlib>=3.8,<4",
+    "seaborn>=0.13,<1",
+    "scipy>=1.11,<2",
+    "statsmodels>=0.14,<1",
+]
 biweekly = [
     "playwright>=1.40",    # headless browser for JS-rendered listing page
     "pdfplumber>=0.11",    # PDF table extraction for bulletin parsing

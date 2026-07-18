@@ -1,0 +1,374 @@
+schema_version: 1
+table_name: silver_model_predictions
+title: Model Predictions
+analysis_role: generated
+feature_disposition: excluded_leakage
+adapters:
+- generated_output
+observation_time_candidates:
+- as_of_date
+- prediction_date
+- crop_year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- country
+- commodity
+categorical_columns:
+- country
+- snapshot_stage
+- snapshot_policy
+- commodity
+- tier
+- feature_set_id
+- target
+- dataset_key
+- target_key
+- model_dataset_version
+- source_dataset_version
+- model
+- cv_policy
+- feature_set_sha
+- run_id
+- prediction_as_of_date
+- model_family
+numeric_columns:
+- y_actual
+- y_pred
+- zero_anomaly_baseline
+- prior_year_anomaly_baseline
+- trailing_mean_anomaly_baseline
+- trailing_trend_anomaly_baseline
+units:
+  prior_year_anomaly_baseline: source-native / verify
+  trailing_mean_anomaly_baseline: source-native / verify
+  trailing_trend_anomaly_baseline: source-native / verify
+  y_actual: source-native / verify
+  y_pred: source-native / verify
+  zero_anomaly_baseline: source-native / verify
+meaningful_groupings:
+- country
+- commodity
+- as_of_date
+- prediction_date
+- crop_year
+declared_relationships: []
+source_keys: []
+existing_table_feature_families: &id001 []
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility: {}
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: no_table_level_source_reference
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_applicable
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_required
+  reason: Output-plane data is quarantined and cannot participate in feature joins.
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders: []
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders: []
+feature_hypothesis_templates:
+- family: lagged_robust_transform
+  mechanism: Lagged level, delta, ratio, and robust trailing normalization.
+known_hazards:
+- Generated model outputs are prohibited feature inputs and remain excluded_leakage.
+- Candidate grain may be inferred for quality evidence only, never promoted as contract.
+- 'Model-output plane: prohibited as a feature source and classified excluded_leakage.'
+- Placeholder/broken catalog partitions have existed historically; profile them as quality evidence only.
+- Registry lacks a complete natural-key/value-column contract; inferred grain is evidence only and cannot
+  be promoted automatically.
+no_candidate_reason: Model outputs are prohibited feature inputs.
+archetype: generated_output_quarantine
+row_meaning: One row is a persisted model-output record; it is inspected only for output-plane quality
+  and lineage, never as a feature source.
+column_descriptions:
+  as_of_date: Snapshot date represented by the stored vintage.
+  commodity: Governed or source-normalized commodity identifier.
+  country: Country represented by the observation.
+  crop_year: Crop year locating the observation on its source reporting calendar.
+  cv_policy: Named cv policy applied when producing the row.
+  dataset_key: Stable dataset identifier used for lineage and controlled joins.
+  feature_set_id: Stable feature set identifier used for lineage and controlled joins.
+  feature_set_sha: Stable content fingerprint used to identify and reproduce the originating artifact.
+  model: Generated-output model identifier retained only for storage and lineage QA; it is prohibited
+    as feature evidence.
+  model_dataset_version: Version identifier for the model dataset artifact or logic.
+  model_family: Physical model family partition value used to establish source coverage.
+  prediction_as_of_date: Prediction as of date locating the observation on its source reporting calendar.
+  prediction_date: Date associated with the generated prediction record.
+  prior_year_anomaly_baseline: Prior year anomaly baseline locating the observation on its source reporting
+    calendar.
+  run_id: Stable run identifier used for lineage and controlled joins.
+  snapshot_policy: Named snapshot policy applied when producing the row.
+  snapshot_stage: Processing classification locating the row within the snapshot stage hierarchy.
+  source_dataset_version: Source provenance value identifying the dataset version used to produce this
+    row.
+  target: Generated-output target identifier retained only for storage and lineage QA; it is prohibited
+    as feature evidence.
+  target_key: Stable target identifier used for lineage and controlled joins.
+  tier: Processing classification locating the row within the tier hierarchy.
+  trailing_mean_anomaly_baseline: Reference baseline for trailing mean anomaly used to calculate anomalies.
+  trailing_trend_anomaly_baseline: Reference baseline for trailing trend anomaly used to calculate anomalies.
+  y_actual: Persisted outcome used for output evaluation; prohibited as a feature.
+  y_pred: Persisted model prediction; prohibited as a feature.
+  zero_anomaly_baseline: Reference baseline for zero anomaly used to calculate anomalies.
+why_it_matters:
+  as_of_date: Anchors temporal coverage.
+  commodity: Supports entity segmentation.
+  country: Supports entity segmentation.
+  crop_year: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  cv_policy: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  dataset_key: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  feature_set_id: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  feature_set_sha: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  model: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  model_dataset_version: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  model_family: Controls physical coverage.
+  prediction_as_of_date: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  prediction_date: Controls physical coverage.
+  prior_year_anomaly_baseline: Provides explanatory context or a candidate diagnostic at the declared
+    row grain.
+  run_id: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  snapshot_policy: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  snapshot_stage: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  source_dataset_version: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  target: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  target_key: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  tier: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  trailing_mean_anomaly_baseline: Provides explanatory context or a candidate diagnostic at the declared
+    row grain.
+  trailing_trend_anomaly_baseline: Provides explanatory context or a candidate diagnostic at the declared
+    row grain.
+  y_actual: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  y_pred: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  zero_anomaly_baseline: Provides explanatory context or a candidate diagnostic at the declared row grain.
+primary_measures: []
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Output records
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns: []
+  id: schema_completeness
+  kind: schema_completeness
+  kpi_id: schema_completeness
+  label: Schema completeness
+- columns: []
+  id: partition_coverage
+  kind: partition_coverage
+  kpi_id: partition_coverage
+  label: Partition coverage
+- columns: []
+  id: null_coverage
+  kind: missingness
+  kpi_id: null_coverage
+  label: Null coverage
+- columns: []
+  id: inferred_grain_duplicates
+  kind: inferred_duplicates
+  kpi_id: inferred_grain_duplicates
+  label: Candidate-grain duplicates
+quality_rules:
+- columns: []
+  detail: Infer grain for evidence only; do not repair the registry contract.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: blocker
+  unsupported_result: not_assessed
+- columns: []
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - as_of_date
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - as_of_date
+  - commodity
+  - country
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - country
+  - crop_year
+  - snapshot_stage
+  - snapshot_policy
+  - y_actual
+  - y_pred
+  - zero_anomaly_baseline
+  - prior_year_anomaly_baseline
+  - trailing_mean_anomaly_baseline
+  - trailing_trend_anomaly_baseline
+  - commodity
+  - tier
+  - feature_set_id
+  - target
+  - dataset_key
+  - target_key
+  - model_dataset_version
+  - source_dataset_version
+  - model
+  - cv_policy
+  - feature_set_sha
+  - run_id
+  - as_of_date
+  - prediction_as_of_date
+  - model_family
+  - prediction_date
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: output_missingness
+  chart_type: missingness_bar
+  columns: []
+  coverage_grain: null
+  cutoff_mode: null
+  id: output_missingness
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Assess storage quality without evaluating model performance.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Output-plane field completeness
+  type: missingness_bar
+  unit_column: null
+- chart_id: output_coverage
+  chart_type: coverage_heatmap
+  columns:
+  - as_of_date
+  - commodity
+  - country
+  coverage_grain: null
+  cutoff_mode: null
+  id: output_coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose partition and entity coverage without using actuals or predictions.
+  series_dimensions:
+  - commodity
+  - country
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Output record coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns: []
+  id: schema_quality
+  insight_id: schema_quality
+  kind: schema_completeness
+  minimum_rows: 1
+  purpose: Explain missing or unexpected output fields.
+- columns:
+  - as_of_date
+  - commodity
+  - country
+  id: record_coverage
+  insight_id: record_coverage
+  kind: coverage
+  minimum_rows: 1
+  purpose: Explain where output records exist.
+- columns:
+  - as_of_date
+  - commodity
+  - country
+  id: candidate_grain
+  insight_id: candidate_grain
+  kind: inferred_grain
+  minimum_rows: 1
+  purpose: Report duplicate evidence without declaring a repaired key.
+preview_strata:
+- as_of_date
+- commodity
+- country
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+- PIT feature analysis is prohibited because this is generated output, not an input source.
+anti_features:
+- Model predictions, actual outcomes, baselines, run identifiers, and output metadata are prohibited input
+  features.
+- Do not compute target associations, performance charts, or feature candidates from this table.
+- Do not infer a production key from observed output rows and silently promote it.
+feature_quarantined: true

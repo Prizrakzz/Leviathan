@@ -1,0 +1,296 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_wap_table01_revisions
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 4
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - coarse_grains
+  - cotton
+  - oilseeds
+  - rice
+  - total_grains
+  - wheat
+  applicable_geographies:
+  - all_others
+  - argentina
+  - australia
+  - brazil
+  - canada
+  - china
+  - eu27
+  - india
+  - indonesia
+  - mexico
+  - pakistan
+  - russia
+  - south_africa
+  - thailand
+  - total_foreign
+  - turkey
+  - ukraine
+  - us
+  - world
+  candidate_id: eda:silver_wap_table01_revisions:row_label:do_not_derive
+  classification: anti_feature
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: none
+  counter_evidence:
+  - No target-aware analysis was run; prohibition is semantic.
+  - Source unit is not yet governed for feature promotion.
+  evidence:
+  - metric:pit_leakage.feature_eligible_source
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_month <= prediction_as_of
+  lag: null
+  mechanism: Post-outcome/final-state semantics create an unacceptable leakage risk.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_month x commodity x country x marketing_year x row_label
+  readiness: blocked
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wap_revisions'
+  source_columns:
+  - row_label
+  - marketing_year
+  - release_month
+  source_table: silver_wap_table01_revisions
+  transformation:
+    column: row_label
+    operation: prohibited
+    source_context:
+      existing_feature_families:
+      - wap_nonUS_revision
+      source_keys:
+      - wap_revisions
+  unit: null
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - coarse_grains
+  - cotton
+  - oilseeds
+  - rice
+  - total_grains
+  - wheat
+  applicable_geographies:
+  - all_others
+  - argentina
+  - australia
+  - brazil
+  - canada
+  - china
+  - eu27
+  - india
+  - indonesia
+  - mexico
+  - pakistan
+  - russia
+  - south_africa
+  - thailand
+  - total_foreign
+  - turkey
+  - ukraine
+  - us
+  - world
+  candidate_id: eda:silver_wap_table01_revisions:value_mmt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.value_mmt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.value_mmt
+  - cell:missingness-validity-output
+  expected_range: observed [-71.0, 3013.8]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_month <= prediction_as_of
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_month x commodity x country x marketing_year x row_label
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wap_revisions'
+  source_columns:
+  - value_mmt
+  - marketing_year
+  - release_month
+  source_table: silver_wap_table01_revisions
+  transformation:
+    column: value_mmt
+    operation: identity
+    source_context:
+      existing_feature_families:
+      - wap_nonUS_revision
+      source_keys:
+      - wap_revisions
+  unit: million metric tonnes
+  visibility_class: review_required
+- aggregation_window: null
+  applicable_commodities:
+  - coarse_grains
+  - cotton
+  - oilseeds
+  - rice
+  - total_grains
+  - wheat
+  applicable_geographies:
+  - all_others
+  - argentina
+  - australia
+  - brazil
+  - canada
+  - china
+  - eu27
+  - india
+  - indonesia
+  - mexico
+  - pakistan
+  - russia
+  - south_africa
+  - thailand
+  - total_foreign
+  - turkey
+  - ukraine
+  - us
+  - world
+  candidate_id: eda:silver_wap_table01_revisions:value_mmt:official_revision
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: vintage_difference
+  counter_evidence:
+  - Synthetic/backfilled vintages and final/latest flags are prohibited as historical release evidence.
+  evidence:
+  - metric:distributions.numeric_distributions.value_mmt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.value_mmt
+  - cell:missingness-validity-output
+  - metric:pit_leakage.revision_trajectory_evidence
+  - cell:pit-leakage-output
+  expected_range: null
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_month <= prediction_as_of
+  lag: 1
+  mechanism: Change between genuine official releases captures newly published source information without
+    comparing across outcome seasons.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none; compare consecutive genuine releases only
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_month x commodity x country x marketing_year x row_label
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wap_revisions'
+  source_columns:
+  - value_mmt
+  - commodity
+  - country
+  - marketing_year
+  - row_label
+  - release_month
+  source_table: silver_wap_table01_revisions
+  transformation:
+    column: value_mmt
+    genuine_vintage_only: true
+    group_by:
+    - commodity
+    - country
+    - marketing_year
+    - row_label
+    knowledge_by: release_month
+    operation: vintage_difference
+    order_by: release_month
+    source_context:
+      existing_feature_families:
+      - wap_nonUS_revision
+      source_keys:
+      - wap_revisions
+  unit: million metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - coarse_grains
+  - cotton
+  - oilseeds
+  - rice
+  - total_grains
+  - wheat
+  applicable_geographies:
+  - all_others
+  - argentina
+  - australia
+  - brazil
+  - canada
+  - china
+  - eu27
+  - india
+  - indonesia
+  - mexico
+  - pakistan
+  - russia
+  - south_africa
+  - thailand
+  - total_foreign
+  - turkey
+  - ukraine
+  - us
+  - world
+  candidate_id: eda:silver_wap_table01_revisions:value_mmt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence: []
+  evidence:
+  - metric:distributions.numeric_distributions.value_mmt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: require non-null release_month <= prediction_as_of
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by marketing_year within entity grain
+  output_grain: release_month x commodity x country x marketing_year x row_label
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: wap_revisions'
+  source_columns:
+  - value_mmt
+  - marketing_year
+  - release_month
+  source_table: silver_wap_table01_revisions
+  transformation:
+    center: past_only_median
+    column: value_mmt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families:
+      - wap_nonUS_revision
+      source_keys:
+      - wap_revisions
+  unit: million metric tonnes
+  visibility_class: review_required

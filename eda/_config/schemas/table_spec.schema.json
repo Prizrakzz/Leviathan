@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "leviathan/silver-eda/table-spec/1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "table_name",
+    "title",
+    "analysis_role",
+    "feature_disposition",
+    "adapters",
+    "entity_columns",
+    "numeric_columns",
+    "known_hazards"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "table_name": {"type": "string", "pattern": "^silver_"},
+    "title": {"type": "string", "minLength": 1},
+    "analysis_role": {"enum": ["source", "derived", "serving_copy", "generated"]},
+    "feature_disposition": {
+      "enum": ["candidate_source", "diagnostic_only", "blocked", "excluded_leakage"]
+    },
+    "adapters": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+    "observation_time_candidates": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "knowledge_time": {"type": ["string", "null"]},
+    "knowledge_semantics": {"type": ["string", "null"]},
+    "entity_columns": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "categorical_columns": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "numeric_columns": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "units": {"type": "object", "additionalProperties": {"type": "string"}},
+    "meaningful_groupings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "declared_relationships": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "source_keys": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "existing_table_feature_families": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "existing_feature_families": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "existing_feature_family_scope": {"type": "string"},
+    "existing_feature_visibility": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "existing_candidate_families": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "extension_candidate_kinds": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "existing_feature_coverage": {
+      "type": "object",
+      "required": [
+        "status",
+        "table_level_families",
+        "verified_candidate_kind_to_family",
+        "verified_source_columns",
+        "column_coverage_status",
+        "candidate_classification_verified",
+        "classification_policy"
+      ],
+      "properties": {
+        "status": {"type": "string"},
+        "table_level_families": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "verified_candidate_kind_to_family": {"type": "object", "additionalProperties": {"type": "string"}},
+        "verified_source_columns": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "column_coverage_status": {"type": "string"},
+        "candidate_classification_verified": {"type": "boolean"},
+        "classification_policy": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "governed_mapping_status": {
+      "type": "object",
+      "required": ["status", "reason", "observed_frame_coverage_assessed", "source_only", "serving_gold_followed", "work_orders"],
+      "properties": {
+        "status": {"type": "string"},
+        "reason": {"type": "string"},
+        "observed_frame_coverage_assessed": {"type": "boolean"},
+        "source_only": {"const": true},
+        "serving_gold_followed": {"const": false},
+        "config_inventory": {"type": "object"},
+        "join_axes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "work_orders": {"type": "array", "items": {"$ref": "#/$defs/workOrder"}}
+      },
+      "additionalProperties": true
+    },
+    "lineage_status": {
+      "type": "object",
+      "required": ["status", "lineage_status", "parity_assessed", "parity_claimed", "repair_required", "evidence", "work_orders"],
+      "properties": {
+        "status": {"type": "string"},
+        "lineage_status": {"type": "string"},
+        "peer_table": {"type": ["string", "null"]},
+        "parity_assessed": {"type": "boolean"},
+        "parity_claimed": {"type": "boolean"},
+        "repair_required": {"type": "boolean"},
+        "evidence": {"type": "string"},
+        "work_orders": {"type": "array", "items": {"$ref": "#/$defs/workOrder"}}
+      },
+      "additionalProperties": false
+    },
+    "semantic_work_orders": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/workOrder"}
+    },
+    "feature_hypothesis_templates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["family", "mechanism"],
+        "properties": {"family": {"type": "string"}, "mechanism": {"type": "string"}},
+        "additionalProperties": false
+      }
+    },
+    "archetype": {
+      "enum": [
+        "spatial_weather_vegetation",
+        "continuous_market_macro_climate",
+        "annual_geographic_production",
+        "monthly_domain",
+        "progressive_cumulative",
+        "vintage_revision",
+        "esr_paired",
+        "small_derived_contract_incomplete",
+        "generated_output_quarantine"
+      ]
+    },
+    "row_meaning": {"type": "string", "minLength": 1},
+    "column_descriptions": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "why_it_matters": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "primary_measures": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "dashboard_kpis": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 8,
+      "items": {"type": "object"}
+    },
+    "quality_rules": {
+      "type": "array",
+      "minItems": 8,
+      "items": {"type": "object"}
+    },
+    "chart_plan": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {"type": "object"}
+    },
+    "insight_rules": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 10,
+      "items": {"type": "object"}
+    },
+    "preview_strata": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "pit_notes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "anti_features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "feature_quarantined": {"type": "boolean"},
+    "known_hazards": {"type": "array", "items": {"type": "string"}},
+    "no_candidate_reason": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "workOrder": {
+      "type": "object",
+      "required": ["id", "priority", "title", "required_evidence"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "priority": {"enum": ["critical", "high", "medium", "low"]},
+        "title": {"type": "string", "minLength": 1},
+        "required_evidence": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

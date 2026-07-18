@@ -1,0 +1,4598 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 10
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 2
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "date",
+          "year"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 1872,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 1872
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 10,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [
+      "iod_climate"
+    ],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "iod"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:dmi_value:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.dmi_value",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.dmi_value",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.date",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "dmi_value",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "column": "dmi_value",
+        "group_by": [],
+        "operation": "difference",
+        "order_by": "date",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:dmi_value:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.dmi_value",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.dmi_value",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.date",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "dmi_value",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "column": "dmi_value",
+        "group_by": [],
+        "operation": "lag",
+        "order_by": "date",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:dmi_value:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.dmi_value",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.dmi_value",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [-1.634, 1.279]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed climate level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "dmi_value",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "column": "dmi_value",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:dmi_value:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.dmi_value",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "dmi_value",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "dmi_value",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:dmi_value:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.dmi_value",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.dmi_value",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.date",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "dmi_value",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "closed": "left",
+        "column": "dmi_value",
+        "group_by": [],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "date",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:iod_dmi_3month_avg:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.iod_dmi_3month_avg",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.iod_dmi_3month_avg",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.date",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "iod_dmi_3month_avg",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "column": "iod_dmi_3month_avg",
+        "group_by": [],
+        "operation": "difference",
+        "order_by": "date",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:iod_dmi_3month_avg:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.iod_dmi_3month_avg",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.iod_dmi_3month_avg",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.date",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "iod_dmi_3month_avg",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "column": "iod_dmi_3month_avg",
+        "group_by": [],
+        "operation": "lag",
+        "order_by": "date",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:iod_dmi_3month_avg:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.iod_dmi_3month_avg",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.iod_dmi_3month_avg",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [-1.2437, 1.005]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed climate level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "iod_dmi_3month_avg",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "column": "iod_dmi_3month_avg",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:iod_dmi_3month_avg:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.iod_dmi_3month_avg",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "iod_dmi_3month_avg",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "iod_dmi_3month_avg",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        }
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "all_observed"
+      ],
+      "applicable_geographies": [
+        "all_observed"
+      ],
+      "candidate_id": "eda:silver_noaa_iod:iod_dmi_3month_avg:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag.",
+        "Source unit is not yet governed for feature promotion."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.iod_dmi_3month_avg",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.iod_dmi_3month_avg",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.date",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by date within entity grain",
+      "output_grain": "year x month",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only climate evidence; registered source keys: iod",
+      "source_columns": [
+        "iod_dmi_3month_avg",
+        "date"
+      ],
+      "source_table": "silver_noaa_iod",
+      "transformation": {
+        "closed": "left",
+        "column": "iod_dmi_3month_avg",
+        "group_by": [],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "date",
+        "source_context": {
+          "existing_feature_families": [
+            "iod_climate"
+          ],
+          "source_keys": [
+            "iod"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "source-native / verify",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 10
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": [
+        "iod_climate"
+      ]
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 10
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "iod"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "time_series",
+      "annual_or_seasonal_panel"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      },
+      {
+        "code": "EDA-SEMANTIC-UNIT-001",
+        "confidence": "high",
+        "evidence": [
+          "overlay.units",
+          "schema_contract.column_contract"
+        ],
+        "message": "No governed unit or row-level unit column is available for: dmi_value, iod_dmi_3month_avg.",
+        "remediation": "Govern source units and conversion policy for every feature-bearing value column before prototype promotion.",
+        "risk": "Feature magnitudes and cross-era comparisons may mix incompatible units.",
+        "severity": "high",
+        "title": "Feature-bearing units are not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "month",
+              "year"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "iod_dmi_ethiopia_lag4",
+              "month",
+              "year"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "One stable governed entity/vocabulary axis, its 20 most frequent groups, and at most six governed numeric value columns; all analyzed rows contribute.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": [
+              {
+                "group": "negative",
+                "group_column": "iod_phase",
+                "median": -0.563,
+                "n": 573,
+                "q25": -0.706,
+                "q75": -0.469,
+                "value_column": "dmi_value"
+              },
+              {
+                "group": "neutral",
+                "group_column": "iod_phase",
+                "median": -0.135,
+                "n": 1215,
+                "q25": -0.266,
+                "q75": 0.0285,
+                "value_column": "dmi_value"
+              },
+              {
+                "group": "positive",
+                "group_column": "iod_phase",
+                "median": 0.544,
+                "n": 76,
+                "q25": 0.45775,
+                "q75": 0.6745000000000001,
+                "value_column": "dmi_value"
+              },
+              {
+                "group": "negative",
+                "group_column": "iod_phase",
+                "median": -0.50535,
+                "n": 572,
+                "q25": -0.651725,
+                "q75": -0.399525,
+                "value_column": "iod_dmi_3month_avg"
+              },
+              {
+                "group": "neutral",
+                "group_column": "iod_phase",
+                "median": -0.153,
+                "n": 1215,
+                "q25": -0.2875,
+                "q75": -0.01035,
+                "value_column": "iod_dmi_3month_avg"
+              },
+              {
+                "group": "positive",
+                "group_column": "iod_phase",
+                "median": 0.46699999999999997,
+                "n": 76,
+                "q25": 0.3374,
+                "q75": 0.60105,
+                "value_column": "iod_dmi_3month_avg"
+              },
+              {
+                "group": "unknown",
+                "group_column": "iod_phase",
+                "median": 0.104,
+                "n": 1,
+                "q25": 0.104,
+                "q75": 0.104,
+                "value_column": "iod_dmi_3month_avg"
+              }
+            ]
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "dmi_value": {
+                "count": 1864,
+                "distinct_count": 996,
+                "iqr": 0.42825,
+                "iqr_outlier_count": 37,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.01984978540772532,
+                "mad": 0.21500000000000002,
+                "mad_outlier_count": 8,
+                "mad_outlier_rate": 0.004291845493562232,
+                "max": 1.279,
+                "mean": -0.2337017167381974,
+                "min": -1.634,
+                "quantiles": {
+                  "0.01": -1.04544,
+                  "0.05": -0.78885,
+                  "0.25": -0.45225000000000004,
+                  "0.5": -0.245,
+                  "0.75": -0.024,
+                  "0.95": 0.3466999999999998,
+                  "0.99": 0.6761799999999986
+                },
+                "skew": 0.18059164462010704,
+                "std": 0.3462212812729507
+              },
+              "iod_dmi_3month_avg": {
+                "count": 1864,
+                "distinct_count": 1417,
+                "iqr": 0.38137499999999996,
+                "iqr_outlier_count": 42,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.022532188841201718,
+                "mad": 0.1907,
+                "mad_outlier_count": 13,
+                "mad_outlier_rate": 0.006974248927038627,
+                "max": 1.005,
+                "mean": -0.23370005364806867,
+                "min": -1.2437,
+                "quantiles": {
+                  "0.01": -0.959922,
+                  "0.05": -0.7206549999999999,
+                  "0.25": -0.433075,
+                  "0.5": -0.24,
+                  "0.75": -0.0517,
+                  "0.95": 0.300955,
+                  "0.99": 0.6228499999999983
+                },
+                "skew": 0.2996474454769625,
+                "std": 0.31231463053044445
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "iod_phase": {
+                "distinct_count": 4,
+                "normalisation_collisions": {},
+                "rare_category_count": 1,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 8,
+                "rare_row_rate": 0.004273504273504274,
+                "top_values": [
+                  {
+                    "count": 1215,
+                    "rate": 0.6490384615384616,
+                    "value": "neutral"
+                  },
+                  {
+                    "count": 573,
+                    "rate": 0.3060897435897436,
+                    "value": "negative"
+                  },
+                  {
+                    "count": 76,
+                    "rate": 0.0405982905982906,
+                    "value": "positive"
+                  },
+                  {
+                    "count": 8,
+                    "rate": 0.004273504273504274,
+                    "value": "unknown"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 1872,
+                    "rate": 1.0,
+                    "value": "noaa_iod"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 2
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "year",
+              "month"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 1872,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "date",
+              "month",
+              "year"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "date": {
+                "distinct_count": 1872,
+                "non_null_count": 1872,
+                "non_null_rate": 1.0
+              },
+              "month": {
+                "distinct_count": 12,
+                "non_null_count": 1872,
+                "non_null_rate": 1.0
+              },
+              "year": {
+                "distinct_count": 156,
+                "non_null_count": 1872,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "year x month"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 1872,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": [
+              {
+                "both_missing_count": 7,
+                "both_missing_rate": 0.0037393162393162395,
+                "left": "dmi_value",
+                "left_missing_given_right_missing": 0.875,
+                "missingness_lift": 204.74999999999997,
+                "phi": 0.8744635193133047,
+                "right": "iod_dmi_3month_avg",
+                "right_missing_given_left_missing": 0.875
+              },
+              {
+                "both_missing_count": 4,
+                "both_missing_rate": 0.002136752136752137,
+                "left": "iod_dmi_3month_avg",
+                "left_missing_given_right_missing": 0.5,
+                "missingness_lift": 116.99999999999999,
+                "phi": 0.4978540772532189,
+                "right": "iod_dmi_ethiopia_lag4",
+                "right_missing_given_left_missing": 0.5
+              },
+              {
+                "both_missing_count": 3,
+                "both_missing_rate": 0.0016025641025641025,
+                "left": "dmi_value",
+                "left_missing_given_right_missing": 0.375,
+                "missingness_lift": 87.74999999999997,
+                "phi": 0.3723175965665236,
+                "right": "iod_dmi_ethiopia_lag4",
+                "right_missing_given_left_missing": 0.375
+              }
+            ]
+          },
+          "column_missingness": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "date": {
+                "non_null_count": 1872,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0
+              },
+              "dmi_value": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 1444,
+                "negative_rate": 0.7713675213675214,
+                "non_null_count": 1864,
+                "non_null_rate": 0.9957264957264957,
+                "null_count": 8,
+                "null_rate": 0.004273504273504274,
+                "zero_count": 2,
+                "zero_rate": 0.0010683760683760685
+              },
+              "iod_dmi_3month_avg": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 1496,
+                "negative_rate": 0.7991452991452992,
+                "non_null_count": 1864,
+                "non_null_rate": 0.9957264957264957,
+                "null_count": 8,
+                "null_rate": 0.004273504273504274,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "iod_dmi_ethiopia_lag4": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 1496,
+                "negative_rate": 0.7991452991452992,
+                "non_null_count": 1864,
+                "non_null_rate": 0.9957264957264957,
+                "null_count": 8,
+                "null_rate": 0.004273504273504274,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "iod_phase": {
+                "empty_string_count": 0,
+                "non_null_count": 1872,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 8,
+                "sentinel_rate": 0.004273504273504274
+              },
+              "month": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 1872,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 1872,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "year": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 1872,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 1872,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": [
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "unknown",
+                "missing_count": 8,
+                "missing_rate": 1.0,
+                "missingness_lift": 233.99999999999997,
+                "n": 8,
+                "target_column": "dmi_value"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "negative",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 573,
+                "target_column": "dmi_value"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "neutral",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1215,
+                "target_column": "dmi_value"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "positive",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 76,
+                "target_column": "dmi_value"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "unknown",
+                "missing_count": 7,
+                "missing_rate": 0.875,
+                "missingness_lift": 204.74999999999997,
+                "n": 8,
+                "target_column": "iod_dmi_3month_avg"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "negative",
+                "missing_count": 1,
+                "missing_rate": 0.0017452006980802793,
+                "missingness_lift": 0.4083769633507853,
+                "n": 573,
+                "target_column": "iod_dmi_3month_avg"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "neutral",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 1215,
+                "target_column": "iod_dmi_3month_avg"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "positive",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 76,
+                "target_column": "iod_dmi_3month_avg"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "unknown",
+                "missing_count": 3,
+                "missing_rate": 0.375,
+                "missingness_lift": 87.74999999999999,
+                "n": 8,
+                "target_column": "iod_dmi_ethiopia_lag4"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "neutral",
+                "missing_count": 3,
+                "missing_rate": 0.0024691358024691358,
+                "missingness_lift": 0.5777777777777777,
+                "n": 1215,
+                "target_column": "iod_dmi_ethiopia_lag4"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "negative",
+                "missing_count": 2,
+                "missing_rate": 0.0034904013961605585,
+                "missingness_lift": 0.8167539267015707,
+                "n": 573,
+                "target_column": "iod_dmi_ethiopia_lag4"
+              },
+              {
+                "baseline_missing_rate": 0.004273504273504274,
+                "condition_column": "iod_phase",
+                "condition_value": "positive",
+                "missing_count": 0,
+                "missing_rate": 0.0,
+                "missingness_lift": 0.0,
+                "n": 76,
+                "target_column": "iod_dmi_ethiopia_lag4"
+              }
+            ]
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 3,
+                "pair_count": 3,
+                "reason": "All frame rows were evaluated for the deterministically selected columns.",
+                "selected_column_count": 3,
+                "status": "supported"
+              },
+              "conditional_missingness": {
+                "condition_columns": [
+                  "iod_phase"
+                ],
+                "reason": "Missingness is conditioned on bounded low-cardinality source segments.",
+                "record_count": 12,
+                "status": "supported",
+                "target_columns": [
+                  "dmi_value",
+                  "iod_dmi_3month_avg",
+                  "iod_dmi_ethiopia_lag4"
+                ]
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 1872
+          },
+          "required_complete_row_rate": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 9360,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 3744
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [
+                  "dmi_value",
+                  "iod_dmi_3month_avg",
+                  "iod_dmi_ethiopia_lag4"
+                ],
+                "negative_count": [
+                  "dmi_value",
+                  "iod_dmi_3month_avg",
+                  "iod_dmi_ethiopia_lag4"
+                ],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": [
+                  "dmi_value"
+                ]
+              },
+              "finite_count": 9336,
+              "infinite_count": 0,
+              "nan_or_null_count": 24,
+              "negative_count": 4436,
+              "numeric_cell_count": 9360,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.002564102564102564,
+                "negative_count": 0.4739316239316239,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.00021367521367521368
+              },
+              "string_cell_count": 3744,
+              "string_sentinel_columns": [
+                "iod_phase"
+              ],
+              "string_sentinel_count": 8,
+              "string_sentinel_rate": 0.002136752136752137,
+              "zero_count": 2
+            }
+          },
+          "value_column_population": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "dmi_value": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 1864,
+                "non_null_rate": 0.9957264957264957,
+                "passes_floor": true
+              },
+              "iod_dmi_3month_avg": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 1864,
+                "non_null_rate": 0.9957264957264957,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "date",
+                "resolution": "day"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "date": {
+                "declared_nullable": true,
+                "declared_type": "timestamp[us]",
+                "deprecated": false,
+                "observed_dtype": "datetime64[us]",
+                "partition": false,
+                "status": "matched"
+              },
+              "dmi_value": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "iod_dmi_3month_avg": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "iod_dmi_ethiopia_lag4": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "iod_phase": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "month": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "year": {
+                "declared_nullable": false,
+                "declared_type": "int64",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": false,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 8
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 8
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "year",
+              "month",
+              "date",
+              "dmi_value",
+              "iod_dmi_3month_avg",
+              "iod_phase",
+              "iod_dmi_ethiopia_lag4",
+              "source"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 1872
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 1,
+              "partition_stratum_count": 1,
+              "source_compressed_bytes": 53141,
+              "source_row_count": 1872
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {},
+                "row_count": 1872,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "e6eaffb83c3383aea366ae7fd5a510a77ad961d14358eab00583a7295baf2297": 1
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "dmi_value",
+                "lag_1_autocorrelation": 0.7774196067422025,
+                "n_effective_pairs": 1863,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              },
+              {
+                "column": "iod_dmi_3month_avg",
+                "lag_1_autocorrelation": 0.9268315581195863,
+                "n_effective_pairs": 1863,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "monthly",
+              "declared_matches_inferred": true,
+              "distinct_timestamp_count": 1872,
+              "gap_count": 1871,
+              "gap_days_max": 31.0,
+              "gap_days_median": 31.0,
+              "gap_days_mode": 31.0,
+              "gap_days_p95": 31.0,
+              "inferred_cadence": "monthly",
+              "large_gap_count": 0,
+              "large_gap_rate": 0.0
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "monthly"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": [
+              {
+                "column": "dmi_value",
+                "early_n": 375,
+                "early_quantiles": {
+                  "0.1": -0.739,
+                  "0.5": -0.368,
+                  "0.9": -0.08099999999999989
+                },
+                "late_n": 367,
+                "late_quantiles": {
+                  "0.1": -0.3646,
+                  "0.5": 0.01,
+                  "0.9": 0.4494000000000002
+                },
+                "median_shift": 0.378,
+                "robust_median_shift_iqr": 0.882661996497373
+              },
+              {
+                "column": "iod_dmi_3month_avg",
+                "early_n": 374,
+                "early_quantiles": {
+                  "0.1": -0.681,
+                  "0.5": -0.364,
+                  "0.9": -0.11871000000000007
+                },
+                "late_n": 368,
+                "late_quantiles": {
+                  "0.1": -0.3033,
+                  "0.5": 0.0085,
+                  "0.9": 0.4176
+                },
+                "median_shift": 0.3725,
+                "robust_median_shift_iqr": 0.9767289413307113
+              }
+            ]
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {}
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 0.017,
+                "after_timestamp_count": 373,
+                "before_median": -0.3,
+                "before_timestamp_count": 1491,
+                "column": "dmi_value",
+                "median_shift": 0.317,
+                "robust_shift_score": 1.4744186046511627,
+                "split_timestamp": "1994-04-01T00:00:00+00:00"
+              },
+              {
+                "after_median": 0.0207,
+                "after_timestamp_count": 373,
+                "before_median": -0.304,
+                "before_timestamp_count": 1491,
+                "column": "iod_dmi_3month_avg",
+                "median_shift": 0.3247,
+                "robust_shift_score": 1.702674357629785,
+                "split_timestamp": "1994-05-01T00:00:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": [
+              {
+                "column": "dmi_value",
+                "eta_squared_month_of_year": 0.04089656177814549,
+                "month_counts": {
+                  "1": 156,
+                  "10": 155,
+                  "11": 155,
+                  "12": 155,
+                  "2": 156,
+                  "3": 156,
+                  "4": 156,
+                  "5": 155,
+                  "6": 155,
+                  "7": 155,
+                  "8": 155,
+                  "9": 155
+                },
+                "month_medians": {
+                  "1": -0.1835,
+                  "10": -0.417,
+                  "11": -0.289,
+                  "12": -0.248,
+                  "2": -0.1635,
+                  "3": -0.146,
+                  "4": -0.201,
+                  "5": -0.205,
+                  "6": -0.178,
+                  "7": -0.348,
+                  "8": -0.319,
+                  "9": -0.351
+                },
+                "n_timestamps": 1864,
+                "year_count": 156
+              },
+              {
+                "column": "iod_dmi_3month_avg",
+                "eta_squared_month_of_year": 0.0371369603924745,
+                "month_counts": {
+                  "1": 155,
+                  "10": 155,
+                  "11": 155,
+                  "12": 155,
+                  "2": 156,
+                  "3": 156,
+                  "4": 156,
+                  "5": 156,
+                  "6": 155,
+                  "7": 155,
+                  "8": 155,
+                  "9": 155
+                },
+                "month_medians": {
+                  "1": -0.2357,
+                  "10": -0.3777,
+                  "11": -0.369,
+                  "12": -0.336,
+                  "2": -0.17685,
+                  "3": -0.1655,
+                  "4": -0.16765000000000002,
+                  "5": -0.189,
+                  "6": -0.1983,
+                  "7": -0.2453,
+                  "8": -0.288,
+                  "9": -0.335
+                },
+                "n_timestamps": 1864,
+                "year_count": 156
+              }
+            ]
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 2,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "configured_window_fraction": 0.2,
+                "early_cutoff": "1901-03-01T00:00:00+00:00",
+                "late_cutoff": "1994-10-01T00:00:00+00:00",
+                "reason": "Earliest and latest timestamp quartiles are compared descriptively; composition changes can mimic distribution drift.",
+                "series_count": 2,
+                "status": "supported"
+              },
+              "panel_balance": {
+                "reason": "No governed or semantic entity columns are available for a panel.",
+                "status": "unsupported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 2,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "Month-of-year effect size uses timestamp-level cross-sectional medians; it is descriptive and not a causal seasonality test.",
+                "series_count": 2,
+                "status": "supported"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 2
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "date": {
+                "coverage_month_counts": {
+                  "2006-01": 1,
+                  "2006-02": 1,
+                  "2006-03": 1,
+                  "2006-04": 1,
+                  "2006-05": 1,
+                  "2006-06": 1,
+                  "2006-07": 1,
+                  "2006-08": 1,
+                  "2006-09": 1,
+                  "2006-10": 1,
+                  "2006-11": 1,
+                  "2006-12": 1,
+                  "2007-01": 1,
+                  "2007-02": 1,
+                  "2007-03": 1,
+                  "2007-04": 1,
+                  "2007-05": 1,
+                  "2007-06": 1,
+                  "2007-07": 1,
+                  "2007-08": 1,
+                  "2007-09": 1,
+                  "2007-10": 1,
+                  "2007-11": 1,
+                  "2007-12": 1,
+                  "2008-01": 1,
+                  "2008-02": 1,
+                  "2008-03": 1,
+                  "2008-04": 1,
+                  "2008-05": 1,
+                  "2008-06": 1,
+                  "2008-07": 1,
+                  "2008-08": 1,
+                  "2008-09": 1,
+                  "2008-10": 1,
+                  "2008-11": 1,
+                  "2008-12": 1,
+                  "2009-01": 1,
+                  "2009-02": 1,
+                  "2009-03": 1,
+                  "2009-04": 1,
+                  "2009-05": 1,
+                  "2009-06": 1,
+                  "2009-07": 1,
+                  "2009-08": 1,
+                  "2009-09": 1,
+                  "2009-10": 1,
+                  "2009-11": 1,
+                  "2009-12": 1,
+                  "2010-01": 1,
+                  "2010-02": 1,
+                  "2010-03": 1,
+                  "2010-04": 1,
+                  "2010-05": 1,
+                  "2010-06": 1,
+                  "2010-07": 1,
+                  "2010-08": 1,
+                  "2010-09": 1,
+                  "2010-10": 1,
+                  "2010-11": 1,
+                  "2010-12": 1,
+                  "2011-01": 1,
+                  "2011-02": 1,
+                  "2011-03": 1,
+                  "2011-04": 1,
+                  "2011-05": 1,
+                  "2011-06": 1,
+                  "2011-07": 1,
+                  "2011-08": 1,
+                  "2011-09": 1,
+                  "2011-10": 1,
+                  "2011-11": 1,
+                  "2011-12": 1,
+                  "2012-01": 1,
+                  "2012-02": 1,
+                  "2012-03": 1,
+                  "2012-04": 1,
+                  "2012-05": 1,
+                  "2012-06": 1,
+                  "2012-07": 1,
+                  "2012-08": 1,
+                  "2012-09": 1,
+                  "2012-10": 1,
+                  "2012-11": 1,
+                  "2012-12": 1,
+                  "2013-01": 1,
+                  "2013-02": 1,
+                  "2013-03": 1,
+                  "2013-04": 1,
+                  "2013-05": 1,
+                  "2013-06": 1,
+                  "2013-07": 1,
+                  "2013-08": 1,
+                  "2013-09": 1,
+                  "2013-10": 1,
+                  "2013-11": 1,
+                  "2013-12": 1,
+                  "2014-01": 1,
+                  "2014-02": 1,
+                  "2014-03": 1,
+                  "2014-04": 1,
+                  "2014-05": 1,
+                  "2014-06": 1,
+                  "2014-07": 1,
+                  "2014-08": 1,
+                  "2014-09": 1,
+                  "2014-10": 1,
+                  "2014-11": 1,
+                  "2014-12": 1,
+                  "2015-01": 1,
+                  "2015-02": 1,
+                  "2015-03": 1,
+                  "2015-04": 1,
+                  "2015-05": 1,
+                  "2015-06": 1,
+                  "2015-07": 1,
+                  "2015-08": 1,
+                  "2015-09": 1,
+                  "2015-10": 1,
+                  "2015-11": 1,
+                  "2015-12": 1,
+                  "2016-01": 1,
+                  "2016-02": 1,
+                  "2016-03": 1,
+                  "2016-04": 1,
+                  "2016-05": 1,
+                  "2016-06": 1,
+                  "2016-07": 1,
+                  "2016-08": 1,
+                  "2016-09": 1,
+                  "2016-10": 1,
+                  "2016-11": 1,
+                  "2016-12": 1,
+                  "2017-01": 1,
+                  "2017-02": 1,
+                  "2017-03": 1,
+                  "2017-04": 1,
+                  "2017-05": 1,
+                  "2017-06": 1,
+                  "2017-07": 1,
+                  "2017-08": 1,
+                  "2017-09": 1,
+                  "2017-10": 1,
+                  "2017-11": 1,
+                  "2017-12": 1,
+                  "2018-01": 1,
+                  "2018-02": 1,
+                  "2018-03": 1,
+                  "2018-04": 1,
+                  "2018-05": 1,
+                  "2018-06": 1,
+                  "2018-07": 1,
+                  "2018-08": 1,
+                  "2018-09": 1,
+                  "2018-10": 1,
+                  "2018-11": 1,
+                  "2018-12": 1,
+                  "2019-01": 1,
+                  "2019-02": 1,
+                  "2019-03": 1,
+                  "2019-04": 1,
+                  "2019-05": 1,
+                  "2019-06": 1,
+                  "2019-07": 1,
+                  "2019-08": 1,
+                  "2019-09": 1,
+                  "2019-10": 1,
+                  "2019-11": 1,
+                  "2019-12": 1,
+                  "2020-01": 1,
+                  "2020-02": 1,
+                  "2020-03": 1,
+                  "2020-04": 1,
+                  "2020-05": 1,
+                  "2020-06": 1,
+                  "2020-07": 1,
+                  "2020-08": 1,
+                  "2020-09": 1,
+                  "2020-10": 1,
+                  "2020-11": 1,
+                  "2020-12": 1,
+                  "2021-01": 1,
+                  "2021-02": 1,
+                  "2021-03": 1,
+                  "2021-04": 1,
+                  "2021-05": 1,
+                  "2021-06": 1,
+                  "2021-07": 1,
+                  "2021-08": 1,
+                  "2021-09": 1,
+                  "2021-10": 1,
+                  "2021-11": 1,
+                  "2021-12": 1,
+                  "2022-01": 1,
+                  "2022-02": 1,
+                  "2022-03": 1,
+                  "2022-04": 1,
+                  "2022-05": 1,
+                  "2022-06": 1,
+                  "2022-07": 1,
+                  "2022-08": 1,
+                  "2022-09": 1,
+                  "2022-10": 1,
+                  "2022-11": 1,
+                  "2022-12": 1,
+                  "2023-01": 1,
+                  "2023-02": 1,
+                  "2023-03": 1,
+                  "2023-04": 1,
+                  "2023-05": 1,
+                  "2023-06": 1,
+                  "2023-07": 1,
+                  "2023-08": 1,
+                  "2023-09": 1,
+                  "2023-10": 1,
+                  "2023-11": 1,
+                  "2023-12": 1,
+                  "2024-01": 1,
+                  "2024-02": 1,
+                  "2024-03": 1,
+                  "2024-04": 1,
+                  "2024-05": 1,
+                  "2024-06": 1,
+                  "2024-07": 1,
+                  "2024-08": 1,
+                  "2024-09": 1,
+                  "2024-10": 1,
+                  "2024-11": 1,
+                  "2024-12": 1,
+                  "2025-01": 1,
+                  "2025-02": 1,
+                  "2025-03": 1,
+                  "2025-04": 1,
+                  "2025-05": 1,
+                  "2025-06": 1,
+                  "2025-07": 1,
+                  "2025-08": 1,
+                  "2025-09": 1,
+                  "2025-10": 1,
+                  "2025-11": 1,
+                  "2025-12": 1
+                },
+                "coverage_truncated_to_latest_240_months": true,
+                "distinct_timestamp_count": 1872,
+                "first": "1870-01-01T00:00:00+00:00",
+                "gap_days_max": 31.0,
+                "gap_days_median": 31.0,
+                "gap_days_p95": 31.0,
+                "last": "2025-12-01T00:00:00+00:00",
+                "parseable_count": 1872,
+                "parseable_rate": 1.0
+              },
+              "month": {
+                "parseable_count": 0,
+                "parseable_rate": 0.0
+              },
+              "year": {
+                "coverage_month_counts": {
+                  "1870-01": 12,
+                  "1871-01": 12,
+                  "1872-01": 12,
+                  "1873-01": 12,
+                  "1874-01": 12,
+                  "1875-01": 12,
+                  "1876-01": 12,
+                  "1877-01": 12,
+                  "1878-01": 12,
+                  "1879-01": 12,
+                  "1880-01": 12,
+                  "1881-01": 12,
+                  "1882-01": 12,
+                  "1883-01": 12,
+                  "1884-01": 12,
+                  "1885-01": 12,
+                  "1886-01": 12,
+                  "1887-01": 12,
+                  "1888-01": 12,
+                  "1889-01": 12,
+                  "1890-01": 12,
+                  "1891-01": 12,
+                  "1892-01": 12,
+                  "1893-01": 12,
+                  "1894-01": 12,
+                  "1895-01": 12,
+                  "1896-01": 12,
+                  "1897-01": 12,
+                  "1898-01": 12,
+                  "1899-01": 12,
+                  "1900-01": 12,
+                  "1901-01": 12,
+                  "1902-01": 12,
+                  "1903-01": 12,
+                  "1904-01": 12,
+                  "1905-01": 12,
+                  "1906-01": 12,
+                  "1907-01": 12,
+                  "1908-01": 12,
+                  "1909-01": 12,
+                  "1910-01": 12,
+                  "1911-01": 12,
+                  "1912-01": 12,
+                  "1913-01": 12,
+                  "1914-01": 12,
+                  "1915-01": 12,
+                  "1916-01": 12,
+                  "1917-01": 12,
+                  "1918-01": 12,
+                  "1919-01": 12,
+                  "1920-01": 12,
+                  "1921-01": 12,
+                  "1922-01": 12,
+                  "1923-01": 12,
+                  "1924-01": 12,
+                  "1925-01": 12,
+                  "1926-01": 12,
+                  "1927-01": 12,
+                  "1928-01": 12,
+                  "1929-01": 12,
+                  "1930-01": 12,
+                  "1931-01": 12,
+                  "1932-01": 12,
+                  "1933-01": 12,
+                  "1934-01": 12,
+                  "1935-01": 12,
+                  "1936-01": 12,
+                  "1937-01": 12,
+                  "1938-01": 12,
+                  "1939-01": 12,
+                  "1940-01": 12,
+                  "1941-01": 12,
+                  "1942-01": 12,
+                  "1943-01": 12,
+                  "1944-01": 12,
+                  "1945-01": 12,
+                  "1946-01": 12,
+                  "1947-01": 12,
+                  "1948-01": 12,
+                  "1949-01": 12,
+                  "1950-01": 12,
+                  "1951-01": 12,
+                  "1952-01": 12,
+                  "1953-01": 12,
+                  "1954-01": 12,
+                  "1955-01": 12,
+                  "1956-01": 12,
+                  "1957-01": 12,
+                  "1958-01": 12,
+                  "1959-01": 12,
+                  "1960-01": 12,
+                  "1961-01": 12,
+                  "1962-01": 12,
+                  "1963-01": 12,
+                  "1964-01": 12,
+                  "1965-01": 12,
+                  "1966-01": 12,
+                  "1967-01": 12,
+                  "1968-01": 12,
+                  "1969-01": 12,
+                  "1970-01": 12,
+                  "1971-01": 12,
+                  "1972-01": 12,
+                  "1973-01": 12,
+                  "1974-01": 12,
+                  "1975-01": 12,
+                  "1976-01": 12,
+                  "1977-01": 12,
+                  "1978-01": 12,
+                  "1979-01": 12,
+                  "1980-01": 12,
+                  "1981-01": 12,
+                  "1982-01": 12,
+                  "1983-01": 12,
+                  "1984-01": 12,
+                  "1985-01": 12,
+                  "1986-01": 12,
+                  "1987-01": 12,
+                  "1988-01": 12,
+                  "1989-01": 12,
+                  "1990-01": 12,
+                  "1991-01": 12,
+                  "1992-01": 12,
+                  "1993-01": 12,
+                  "1994-01": 12,
+                  "1995-01": 12,
+                  "1996-01": 12,
+                  "1997-01": 12,
+                  "1998-01": 12,
+                  "1999-01": 12,
+                  "2000-01": 12,
+                  "2001-01": 12,
+                  "2002-01": 12,
+                  "2003-01": 12,
+                  "2004-01": 12,
+                  "2005-01": 12,
+                  "2006-01": 12,
+                  "2007-01": 12,
+                  "2008-01": 12,
+                  "2009-01": 12,
+                  "2010-01": 12,
+                  "2011-01": 12,
+                  "2012-01": 12,
+                  "2013-01": 12,
+                  "2014-01": 12,
+                  "2015-01": 12,
+                  "2016-01": 12,
+                  "2017-01": 12,
+                  "2018-01": 12,
+                  "2019-01": 12,
+                  "2020-01": 12,
+                  "2021-01": 12,
+                  "2022-01": 12,
+                  "2023-01": 12,
+                  "2024-01": 12,
+                  "2025-01": 12
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 156,
+                "first": "1870-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 366.0,
+                "last": "2025-01-01T00:00:00+00:00",
+                "parseable_count": 1872,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "date",
+              "resolution": "day"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "date",
+              "year"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 1872,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": [
+              "iod_phase"
+            ]
+          },
+          "categorical_associations": {
+            "denominator": 1872,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": []
+          },
+          "correlation_columns": {
+            "detail": "At most 20 non-constant governed numeric value columns in contract order; calendar/time identifiers are excluded.",
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "dmi_value",
+              "iod_dmi_3month_avg"
+            ]
+          },
+          "correlation_pairs": {
+            "detail": "Pearson and Spearman are paired with effective pairwise sample size.",
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": [
+              {
+                "abs_max_correlation": 0.8810893749077697,
+                "left": "dmi_value",
+                "n": 1863,
+                "pearson": 0.8810893749077697,
+                "right": "iod_dmi_3month_avg",
+                "spearman": 0.8616926397783583
+              }
+            ]
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": [
+              {
+                "abs_max_correlation": 0.8810893749077697,
+                "left": "dmi_value",
+                "n": 1863,
+                "pearson": 0.8810893749077697,
+                "right": "iod_dmi_3month_avg",
+                "spearman": 0.8616926397783583
+              }
+            ]
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {
+              "dmi_value": {
+                "dmi_value": 1.0,
+                "iod_dmi_3month_avg": 0.8810893749077697
+              },
+              "iod_dmi_3month_avg": {
+                "dmi_value": 0.8810893749077697,
+                "iod_dmi_3month_avg": 1.0
+              }
+            }
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "reason": "Fewer than two categorical columns have between 2 and 30 observed levels.",
+                "selected_columns": [
+                  "iod_phase"
+                ],
+                "status": "unsupported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {
+              "dmi_value": {
+                "dmi_value": 1.0,
+                "iod_dmi_3month_avg": 0.8616926397783583
+              },
+              "iod_dmi_3month_avg": {
+                "dmi_value": 0.8616926397783583,
+                "iod_dmi_3month_avg": 1.0
+              }
+            }
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_noaa_iod"
+  },
+  "provenance": {
+    "analysis_rows": 1872,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/weather/source=noaa_iod",
+    "contract_sha256": "5fbc42a9e1b64161209f5a8278f34bb7a78e533540a18a399f3c0d1a345ab72d",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 1,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {},
+          "row_count": 1872,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 1,
+      "schema_sha256_object_counts": {
+        "e6eaffb83c3383aea366ae7fd5a510a77ad961d14358eab00583a7295baf2297": 1
+      },
+      "source_compressed_bytes": 53141,
+      "source_row_count": 1872
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "25ace83fc0b5243700f4eec6b3f6f63bc9ac9ed8b6fe28293959cae3d1da33b2",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 1,
+    "object_sample": [
+      {
+        "etag": "0d0096540be433c3e27684ad6d45eb20",
+        "last_modified": "2026-07-16T00:05:05Z",
+        "partition_values": {},
+        "size": 53141,
+        "uri": "s3://leviathan-dev-shahem-001/silver/weather/source=noaa_iod/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": false,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 0,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "source",
+        "year",
+        "date",
+        "month",
+        "dmi_value",
+        "iod_dmi_3month_avg",
+        "iod_phase",
+        "iod_dmi_ethiopia_lag4"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 8674329154553798684,
+      "snapshot_row_count": 1872,
+      "source_compressed_bytes": 53141,
+      "source_row_count": 1872,
+      "stratum_columns": [
+        "source",
+        "year",
+        "date"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "d74a044c2d4d48a4de6f761e7f3d34f2b190499fa2f2332f8568e47437f4c5f4",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/source_replica/manifest.json",
+      "object_count": 1,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/source_replica/objects",
+      "replica_manifest_sha256": "047b81d8abe48652d685d345b70df3dc754de9f6c5a1c4294aa29a911ae12be8",
+      "source_manifest_sha256": "d74a044c2d4d48a4de6f761e7f3d34f2b190499fa2f2332f8568e47437f4c5f4",
+      "total_bytes": 53141
+    },
+    "source_rows": 1872,
+    "source_specific_checks": [
+      {
+        "consumer_rows": 1872,
+        "duplicate_affected_rows": 0,
+        "duplicate_group_count": 0,
+        "exactness": "exact",
+        "key": [
+          "year",
+          "month"
+        ],
+        "numeric_aggregate_delta": {
+          "dmi_value": {
+            "consumer_non_null_count": 1864,
+            "consumer_sum": -435.62,
+            "raw_non_null_count": 1864,
+            "raw_sum": -435.62,
+            "sum_delta": 0.0
+          },
+          "iod_dmi_3month_avg": {
+            "consumer_non_null_count": 1864,
+            "consumer_sum": -435.6169,
+            "raw_non_null_count": 1864,
+            "raw_sum": -435.6169,
+            "sum_delta": 0.0
+          }
+        },
+        "raw_profile_preserved": true,
+        "raw_rows": 1872,
+        "removed_row_rate": 0.0,
+        "removed_rows": 0,
+        "status": "complete",
+        "table_name": "silver_noaa_iod",
+        "view": "raw_vs_documented_consumer_dedup"
+      }
+    ],
+    "source_total_bytes": 53141,
+    "source_total_rows": 1872,
+    "spec_sha256": "efa1b011706d7c7902ce6cff22c1f82c182201002da1e2ea1e37eb4a71cd0acb"
+  },
+  "reader": {
+    "analysis_rows": 1872,
+    "anti_feature_summary": {
+      "analysis_rows": 1872,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "reviewed-4",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently replace raw duplicate evidence with the consumer view."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 1872
+    },
+    "archetype": "continuous_market_macro_climate",
+    "chart_execution": {
+      "omission_reasons": [
+        "The requested heatmap has 1,864 populated cells; narrow its scope.",
+        "Chart exceeds the 4-ready-chart notebook cap."
+      ],
+      "omitted_chart_count": 2,
+      "plotted_rows": 13047,
+      "ready_chart_count": 4,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": "median only within duplicate x/series/measure rows",
+        "analysis_rows": 1872,
+        "chart_id": "history",
+        "exactness": "exact",
+        "plotted_rows": 3728,
+        "reason": null,
+        "scope": "selected 1 of 1 complete semantic series by distinct-position count, contributing rows, then label; excluded series=0 (complete but outside cap=0, underpowered=0); label dimensions=none; no pooling; time=date; measures=dmi_value, iod_dmi_3month_avg",
+        "source_rows": 1872,
+        "status": "ready",
+        "title": "Historical levels — dmi value",
+        "unit": "unit not declared"
+      },
+      {
+        "aggregation": "first differences within preserved series; no cross-series pooling; all finite values",
+        "analysis_rows": 1872,
+        "chart_id": "changes",
+        "exactness": "exact",
+        "plotted_rows": 1863,
+        "reason": null,
+        "scope": "all 1 semantic series; label dimensions=none; measures=dmi_value; time=date",
+        "source_rows": 1872,
+        "status": "ready",
+        "title": "Changes and regimes",
+        "unit": "change in unit not declared"
+      },
+      {
+        "aggregation": null,
+        "analysis_rows": 1872,
+        "chart_id": "seasonality",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "The requested heatmap has 1,864 populated cells; narrow its scope.",
+        "scope": "frozen analysis frame",
+        "source_rows": 1872,
+        "status": "omitted",
+        "title": "Calendar structure",
+        "unit": null
+      },
+      {
+        "aggregation": "raw finite observations; no cross-series pooling; all finite values",
+        "analysis_rows": 1872,
+        "chart_id": "measure_distribution",
+        "exactness": "exact",
+        "plotted_rows": 3728,
+        "reason": null,
+        "scope": "all 1 semantic series; label dimensions=none; measures=dmi_value, iod_dmi_3month_avg",
+        "source_rows": 1872,
+        "status": "ready",
+        "title": "Measure distributions — dmi value",
+        "unit": "unit not declared"
+      },
+      {
+        "aggregation": "median only within duplicate x/series/measure rows",
+        "analysis_rows": 1872,
+        "chart_id": "history__iod_dmi_3month_avg",
+        "exactness": "exact",
+        "plotted_rows": 3728,
+        "reason": null,
+        "scope": "selected 1 of 1 complete semantic series by distinct-position count, contributing rows, then label; excluded series=0 (complete but outside cap=0, underpowered=0); label dimensions=none; no pooling; time=date; measures=dmi_value, iod_dmi_3month_avg",
+        "source_rows": 1872,
+        "status": "ready",
+        "title": "Historical levels — iod dmi 3month avg",
+        "unit": "unit not declared"
+      },
+      {
+        "aggregation": null,
+        "analysis_rows": 1872,
+        "chart_id": "measure_distribution__iod_dmi_3month_avg",
+        "exactness": "exact",
+        "plotted_rows": 0,
+        "reason": "Chart exceeds the 4-ready-chart notebook cap.",
+        "scope": "frozen analysis frame",
+        "source_rows": 1872,
+        "status": "omitted",
+        "title": "Measure distributions — iod dmi 3month avg",
+        "unit": null
+      }
+    ],
+    "chart_omission_reasons": [
+      "The requested heatmap has 1,864 populated cells; narrow its scope.",
+      "Chart exceeds the 4-ready-chart notebook cap."
+    ],
+    "chart_plan": {
+      "analysis_rows": 1872,
+      "charts": [
+        {
+          "analysis_rows": 1872,
+          "chart_id": "history",
+          "chart_type": "line",
+          "columns": [
+            "date",
+            "dmi_value",
+            "iod_dmi_3month_avg"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 1863,
+          "exactness": "exact",
+          "id": "history",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "dmi_value",
+            "iod_dmi_3month_avg"
+          ],
+          "measure_units": {
+            "dmi_value": "source-native / verify",
+            "iod_dmi_3month_avg": "source-native / verify"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show the full observed time path.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 1872,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Historical levels",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 1872,
+          "chart_id": "changes",
+          "chart_type": "change_distribution",
+          "columns": [
+            "date",
+            "dmi_value"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 1864,
+          "exactness": "exact",
+          "id": "changes",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "dmi_value"
+          ],
+          "measure_units": {
+            "dmi_value": "source-native / verify"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show changes, volatility, and regime behavior.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 1872,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Changes and regimes",
+          "type": "change_distribution",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 1872,
+          "chart_id": "seasonality",
+          "chart_type": "calendar_heatmap",
+          "columns": [
+            "date",
+            "dmi_value"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 1864,
+          "exactness": "exact",
+          "id": "seasonality",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "dmi_value"
+          ],
+          "measure_units": {
+            "dmi_value": "source-native / verify"
+          },
+          "minimum_rows": 12,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Reveal recurring calendar patterns and gaps.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 1872,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Calendar structure",
+          "type": "calendar_heatmap",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 1872,
+          "chart_id": "measure_distribution",
+          "chart_type": "distribution",
+          "columns": [
+            "dmi_value",
+            "iod_dmi_3month_avg"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 1863,
+          "exactness": "exact",
+          "id": "measure_distribution",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "dmi_value",
+            "iod_dmi_3month_avg"
+          ],
+          "measure_units": {
+            "dmi_value": "source-native / verify",
+            "iod_dmi_3month_avg": "source-native / verify"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Summarize center, spread, skew, and tails.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [],
+          "series_selection": "most_complete",
+          "source_rows": 1872,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Measure distributions",
+          "type": "distribution",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 7454,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 2,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 4,
+      "ready_chart_count": 4,
+      "source_rows": 1872
+    },
+    "column_dictionary": [
+      {
+        "column": "year",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 156,
+        "example": 1870,
+        "meaning": "Calendar year associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; is required by the source contract."
+      },
+      {
+        "column": "month",
+        "declared_nullable": false,
+        "declared_type": "int64",
+        "distinct_count": 12,
+        "example": 1,
+        "meaning": "Calendar month associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; is required by the source contract."
+      },
+      {
+        "column": "date",
+        "declared_nullable": true,
+        "declared_type": "timestamp[us]",
+        "distinct_count": 1872,
+        "example": "1870-01-01T00:00:00",
+        "meaning": "Calendar observation date; not automatically a publication timestamp.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "datetime64[us]",
+        "present": true,
+        "roles": [
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Anchors temporal coverage."
+      },
+      {
+        "column": "dmi_value",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 996,
+        "example": -0.0,
+        "meaning": "Governed numeric dipole mode index value measure used for source-level analytical comparisons.",
+        "null_count": 8,
+        "null_rate": 0.004273504273504274,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "source-native / verify",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "iod_dmi_3month_avg",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 1417,
+        "example": -0.002,
+        "meaning": "Governed numeric iod dipole mode index 3month average measure used for source-level analytical comparisons.",
+        "null_count": 8,
+        "null_rate": 0.004273504273504274,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "source-native / verify",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "iod_phase",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 4,
+        "example": "negative",
+        "meaning": "Categorical iod state derived or reported for this row.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "iod_dmi_ethiopia_lag4",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 1417,
+        "example": -0.002,
+        "meaning": "Iod dipole mode index ethiopia shifted back 4 reporting periods.",
+        "null_count": 8,
+        "null_rate": 0.004273504273504274,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "noaa_iod",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 1872,
+        "columns": [],
+        "detail": "1,872 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 1872,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872
+        },
+        "source_rows": 1872,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 1872
+      },
+      {
+        "analysis_rows": 1872,
+        "columns": [],
+        "detail": "The analysis frame exposes 8 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 1872,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872
+        },
+        "source_rows": 1872,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 8
+      },
+      {
+        "analysis_rows": 1872,
+        "columns": [
+          "date"
+        ],
+        "detail": "Coverage spans 1870-01-01 through 2025-12-01 across 1,872 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 1872,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872
+        },
+        "source_rows": 1872,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 1872,
+          "end": "2025-12-01T00:00:00",
+          "start": "1870-01-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 1872,
+        "columns": [],
+        "detail": "Distinct entity counts were computed for source.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 1872,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872
+        },
+        "source_rows": 1872,
+        "status": "evaluated",
+        "value": {
+          "source": 1
+        }
+      },
+      {
+        "analysis_rows": 1872,
+        "columns": [
+          "dmi_value",
+          "iod_dmi_3month_avg"
+        ],
+        "detail": "Minimum completeness across 2 assessed columns is 99.6%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 1872,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872
+        },
+        "source_rows": 1872,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.9957264957264957
+      },
+      {
+        "analysis_rows": 1872,
+        "columns": [
+          "year",
+          "month"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 1,872 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 1872,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872
+        },
+        "source_rows": 1872,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 1872,
+        "columns": [
+          "dmi_value"
+        ],
+        "detail": "Latest unambiguous dmi_value value at 2025-04-01.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 1872,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872
+        },
+        "source_rows": 1872,
+        "status": "evaluated",
+        "value": 0.149
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 1872 entries, 0 to 1871\nData columns (total 8 columns):\n #   Column                 Non-Null Count  Dtype         \n---  ------                 --------------  -----         \n 0   year                   1872 non-null   int64         \n 1   month                  1872 non-null   int64         \n 2   date                   1872 non-null   datetime64[us]\n 3   dmi_value              1864 non-null   float64       \n 4   iod_dmi_3month_avg     1864 non-null   float64       \n 5   iod_phase              1872 non-null   str           \n 6   iod_dmi_ethiopia_lag4  1864 non-null   float64       \n 7   source                 1872 non-null   str           \ndtypes: datetime64[us](1), float64(3), int64(2), str(2)\nmemory usage: 145.2 KB\n",
+    "display_policy": {
+      "analysis_rows": 1872,
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "deterministic_preview",
+      "plotted_rows": 13047,
+      "preview_max_rows": 40,
+      "source_rows": 1872
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 1872,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "earliest date"
+          ],
+          "row": {
+            "date": "1870-01-01T00:00:00",
+            "dmi_value": -0.438,
+            "iod_dmi_3month_avg": null,
+            "iod_dmi_ethiopia_lag4": null,
+            "iod_phase": "negative",
+            "month": 1,
+            "source": "noaa_iod",
+            "year": 1870
+          }
+        },
+        {
+          "reasons": [
+            "minimum dmi_value"
+          ],
+          "row": {
+            "date": "1906-09-01T00:00:00",
+            "dmi_value": -1.634,
+            "iod_dmi_3month_avg": -1.235,
+            "iod_dmi_ethiopia_lag4": -0.5743,
+            "iod_phase": "negative",
+            "month": 9,
+            "source": "noaa_iod",
+            "year": 1906
+          }
+        },
+        {
+          "reasons": [
+            "minimum iod_dmi_3month_avg"
+          ],
+          "row": {
+            "date": "1906-10-01T00:00:00",
+            "dmi_value": -1.012,
+            "iod_dmi_3month_avg": -1.2437,
+            "iod_dmi_ethiopia_lag4": -0.5343,
+            "iod_phase": "negative",
+            "month": 10,
+            "source": "noaa_iod",
+            "year": 1906
+          }
+        },
+        {
+          "reasons": [
+            "maximum dmi_value"
+          ],
+          "row": {
+            "date": "1997-11-01T00:00:00",
+            "dmi_value": 1.279,
+            "iod_dmi_3month_avg": 0.9743,
+            "iod_dmi_ethiopia_lag4": 0.1847,
+            "iod_phase": "positive",
+            "month": 11,
+            "source": "noaa_iod",
+            "year": 1997
+          }
+        },
+        {
+          "reasons": [
+            "maximum iod_dmi_3month_avg"
+          ],
+          "row": {
+            "date": "1997-12-01T00:00:00",
+            "dmi_value": 0.863,
+            "iod_dmi_3month_avg": 1.005,
+            "iod_dmi_ethiopia_lag4": 0.3877,
+            "iod_phase": "positive",
+            "month": 12,
+            "source": "noaa_iod",
+            "year": 1997
+          }
+        },
+        {
+          "reasons": [
+            "most missing fields"
+          ],
+          "row": {
+            "date": "2025-10-01T00:00:00",
+            "dmi_value": null,
+            "iod_dmi_3month_avg": null,
+            "iod_dmi_ethiopia_lag4": null,
+            "iod_phase": "unknown",
+            "month": 10,
+            "source": "noaa_iod",
+            "year": 2025
+          }
+        },
+        {
+          "reasons": [
+            "latest date"
+          ],
+          "row": {
+            "date": "2025-12-01T00:00:00",
+            "dmi_value": null,
+            "iod_dmi_3month_avg": null,
+            "iod_dmi_ethiopia_lag4": null,
+            "iod_phase": "unknown",
+            "month": 12,
+            "source": "noaa_iod",
+            "year": 2025
+          }
+        }
+      ],
+      "source_rows": 1872,
+      "status": "available"
+    },
+    "omitted_chart_count": 2,
+    "ordinary_statistics": {
+      "analysis_rows": 1872,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "iod_phase",
+            "count": 1872,
+            "freq": 1215,
+            "top": "neutral",
+            "unique": 4
+          },
+          {
+            "column": "source",
+            "count": 1872,
+            "freq": 1872,
+            "top": "noaa_iod",
+            "unique": 1
+          }
+        ],
+        "row_count": 2
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 1908.75,
+            "50%": 1947.5,
+            "75%": 1986.25,
+            "column": "year",
+            "count": 1872.0,
+            "max": 2025.0,
+            "mean": 1947.5,
+            "min": 1870.0,
+            "std": 45.04442845095877
+          },
+          {
+            "25%": 3.75,
+            "50%": 6.5,
+            "75%": 9.25,
+            "column": "month",
+            "count": 1872.0,
+            "max": 12.0,
+            "mean": 6.5,
+            "min": 1.0,
+            "std": 3.452974921676585
+          },
+          {
+            "25%": -0.45225000000000004,
+            "50%": -0.245,
+            "75%": -0.024,
+            "column": "dmi_value",
+            "count": 1864.0,
+            "max": 1.279,
+            "mean": -0.23370171673819742,
+            "min": -1.634,
+            "std": 0.3462212812729507
+          },
+          {
+            "25%": -0.433075,
+            "50%": -0.24,
+            "75%": -0.0517,
+            "column": "iod_dmi_3month_avg",
+            "count": 1864.0,
+            "max": 1.005,
+            "mean": -0.23370005364806867,
+            "min": -1.2437,
+            "std": 0.31231463053044445
+          },
+          {
+            "25%": -0.433075,
+            "50%": -0.24,
+            "75%": -0.0517,
+            "column": "iod_dmi_ethiopia_lag4",
+            "count": 1864.0,
+            "max": 1.005,
+            "mean": -0.23370005364806867,
+            "min": -1.2437,
+            "std": 0.31231463053044445
+          }
+        ],
+        "row_count": 5
+      },
+      "plotted_rows": null,
+      "source_rows": 1872,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "year",
+            "count": 1872,
+            "distinct": 156,
+            "max": "2025-01-01T00:00:00",
+            "min": "1870-01-01T00:00:00"
+          },
+          {
+            "column": "month",
+            "count": 0,
+            "distinct": 0,
+            "max": null,
+            "min": null
+          },
+          {
+            "column": "date",
+            "count": 1872,
+            "distinct": 1872,
+            "max": "2025-12-01T00:00:00",
+            "min": "1870-01-01T00:00:00"
+          }
+        ],
+        "row_count": 3
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 1872,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 1872,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 13047,
+    "preview": {
+      "analysis_rows": 1872,
+      "columns": [
+        "year",
+        "month",
+        "date",
+        "dmi_value",
+        "iod_dmi_3month_avg",
+        "iod_phase",
+        "iod_dmi_ethiopia_lag4",
+        "source"
+      ],
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "mode": "deterministic_preview",
+      "plotted_rows": null,
+      "records": [
+        {
+          "date": "1870-01-01T00:00:00",
+          "dmi_value": -0.438,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "negative",
+          "month": 1,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1870-02-01T00:00:00",
+          "dmi_value": -0.336,
+          "iod_dmi_3month_avg": -0.387,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "neutral",
+          "month": 2,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1870-03-01T00:00:00",
+          "dmi_value": 0.177,
+          "iod_dmi_3month_avg": -0.199,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "neutral",
+          "month": 3,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1870-04-01T00:00:00",
+          "dmi_value": -0.048,
+          "iod_dmi_3month_avg": -0.069,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "neutral",
+          "month": 4,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1870-05-01T00:00:00",
+          "dmi_value": -0.48,
+          "iod_dmi_3month_avg": -0.117,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "negative",
+          "month": 5,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1870-06-01T00:00:00",
+          "dmi_value": -0.548,
+          "iod_dmi_3month_avg": -0.3587,
+          "iod_dmi_ethiopia_lag4": -0.387,
+          "iod_phase": "negative",
+          "month": 6,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1870-07-01T00:00:00",
+          "dmi_value": -0.65,
+          "iod_dmi_3month_avg": -0.5593,
+          "iod_dmi_ethiopia_lag4": -0.199,
+          "iod_phase": "negative",
+          "month": 7,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1870-08-01T00:00:00",
+          "dmi_value": -0.522,
+          "iod_dmi_3month_avg": -0.5733,
+          "iod_dmi_ethiopia_lag4": -0.069,
+          "iod_phase": "negative",
+          "month": 8,
+          "source": "noaa_iod",
+          "year": 1870
+        },
+        {
+          "date": "1882-11-01T00:00:00",
+          "dmi_value": -0.377,
+          "iod_dmi_3month_avg": -0.513,
+          "iod_dmi_ethiopia_lag4": -0.124,
+          "iod_phase": "neutral",
+          "month": 11,
+          "source": "noaa_iod",
+          "year": 1882
+        },
+        {
+          "date": "1902-09-01T00:00:00",
+          "dmi_value": 0.209,
+          "iod_dmi_3month_avg": 0.1573,
+          "iod_dmi_ethiopia_lag4": -0.0807,
+          "iod_phase": "neutral",
+          "month": 9,
+          "source": "noaa_iod",
+          "year": 1902
+        },
+        {
+          "date": "1910-02-01T00:00:00",
+          "dmi_value": -0.169,
+          "iod_dmi_3month_avg": -0.3253,
+          "iod_dmi_ethiopia_lag4": -0.878,
+          "iod_phase": "neutral",
+          "month": 2,
+          "source": "noaa_iod",
+          "year": 1910
+        },
+        {
+          "date": "1910-05-01T00:00:00",
+          "dmi_value": -0.531,
+          "iod_dmi_3month_avg": -0.4713,
+          "iod_dmi_ethiopia_lag4": -0.4103,
+          "iod_phase": "negative",
+          "month": 5,
+          "source": "noaa_iod",
+          "year": 1910
+        },
+        {
+          "date": "1911-03-01T00:00:00",
+          "dmi_value": -0.735,
+          "iod_dmi_3month_avg": -0.4717,
+          "iod_dmi_ethiopia_lag4": -0.919,
+          "iod_phase": "negative",
+          "month": 3,
+          "source": "noaa_iod",
+          "year": 1911
+        },
+        {
+          "date": "1915-11-01T00:00:00",
+          "dmi_value": -0.227,
+          "iod_dmi_3month_avg": -0.3067,
+          "iod_dmi_ethiopia_lag4": -0.467,
+          "iod_phase": "neutral",
+          "month": 11,
+          "source": "noaa_iod",
+          "year": 1915
+        },
+        {
+          "date": "1917-12-01T00:00:00",
+          "dmi_value": -0.67,
+          "iod_dmi_3month_avg": -0.877,
+          "iod_dmi_ethiopia_lag4": -0.4557,
+          "iod_phase": "negative",
+          "month": 12,
+          "source": "noaa_iod",
+          "year": 1917
+        },
+        {
+          "date": "1923-06-01T00:00:00",
+          "dmi_value": -0.102,
+          "iod_dmi_3month_avg": -0.2173,
+          "iod_dmi_ethiopia_lag4": -0.307,
+          "iod_phase": "neutral",
+          "month": 6,
+          "source": "noaa_iod",
+          "year": 1923
+        },
+        {
+          "date": "1923-09-01T00:00:00",
+          "dmi_value": 0.241,
+          "iod_dmi_3month_avg": -0.0543,
+          "iod_dmi_ethiopia_lag4": -0.2773,
+          "iod_phase": "neutral",
+          "month": 9,
+          "source": "noaa_iod",
+          "year": 1923
+        },
+        {
+          "date": "1934-09-01T00:00:00",
+          "dmi_value": -0.497,
+          "iod_dmi_3month_avg": -0.278,
+          "iod_dmi_ethiopia_lag4": -0.1667,
+          "iod_phase": "negative",
+          "month": 9,
+          "source": "noaa_iod",
+          "year": 1934
+        },
+        {
+          "date": "1941-11-01T00:00:00",
+          "dmi_value": 0.274,
+          "iod_dmi_3month_avg": -0.0827,
+          "iod_dmi_ethiopia_lag4": -0.358,
+          "iod_phase": "neutral",
+          "month": 11,
+          "source": "noaa_iod",
+          "year": 1941
+        },
+        {
+          "date": "1945-01-01T00:00:00",
+          "dmi_value": -0.14,
+          "iod_dmi_3month_avg": -0.07,
+          "iod_dmi_ethiopia_lag4": 0.035,
+          "iod_phase": "neutral",
+          "month": 1,
+          "source": "noaa_iod",
+          "year": 1945
+        },
+        {
+          "date": "1947-02-01T00:00:00",
+          "dmi_value": 0.029,
+          "iod_dmi_3month_avg": -0.1697,
+          "iod_dmi_ethiopia_lag4": -0.0283,
+          "iod_phase": "neutral",
+          "month": 2,
+          "source": "noaa_iod",
+          "year": 1947
+        },
+        {
+          "date": "1949-11-01T00:00:00",
+          "dmi_value": -0.396,
+          "iod_dmi_3month_avg": -0.2033,
+          "iod_dmi_ethiopia_lag4": -0.0363,
+          "iod_phase": "neutral",
+          "month": 11,
+          "source": "noaa_iod",
+          "year": 1949
+        },
+        {
+          "date": "1959-04-01T00:00:00",
+          "dmi_value": -0.357,
+          "iod_dmi_3month_avg": -0.4707,
+          "iod_dmi_ethiopia_lag4": -0.7597,
+          "iod_phase": "neutral",
+          "month": 4,
+          "source": "noaa_iod",
+          "year": 1959
+        },
+        {
+          "date": "1965-10-01T00:00:00",
+          "dmi_value": 0.017,
+          "iod_dmi_3month_avg": -0.1423,
+          "iod_dmi_ethiopia_lag4": -0.4373,
+          "iod_phase": "neutral",
+          "month": 10,
+          "source": "noaa_iod",
+          "year": 1965
+        },
+        {
+          "date": "1969-06-01T00:00:00",
+          "dmi_value": -0.626,
+          "iod_dmi_3month_avg": -0.281,
+          "iod_dmi_ethiopia_lag4": -0.1797,
+          "iod_phase": "negative",
+          "month": 6,
+          "source": "noaa_iod",
+          "year": 1969
+        },
+        {
+          "date": "1971-01-01T00:00:00",
+          "dmi_value": 0.198,
+          "iod_dmi_3month_avg": -0.1147,
+          "iod_dmi_ethiopia_lag4": -0.507,
+          "iod_phase": "neutral",
+          "month": 1,
+          "source": "noaa_iod",
+          "year": 1971
+        },
+        {
+          "date": "1986-05-01T00:00:00",
+          "dmi_value": -0.154,
+          "iod_dmi_3month_avg": -0.2133,
+          "iod_dmi_ethiopia_lag4": -0.152,
+          "iod_phase": "neutral",
+          "month": 5,
+          "source": "noaa_iod",
+          "year": 1986
+        },
+        {
+          "date": "1994-12-01T00:00:00",
+          "dmi_value": 0.263,
+          "iod_dmi_3month_avg": 0.419,
+          "iod_dmi_ethiopia_lag4": 0.6003,
+          "iod_phase": "neutral",
+          "month": 12,
+          "source": "noaa_iod",
+          "year": 1994
+        },
+        {
+          "date": "2001-03-01T00:00:00",
+          "dmi_value": -0.01,
+          "iod_dmi_3month_avg": -0.1527,
+          "iod_dmi_ethiopia_lag4": -0.1813,
+          "iod_phase": "neutral",
+          "month": 3,
+          "source": "noaa_iod",
+          "year": 2001
+        },
+        {
+          "date": "2016-04-01T00:00:00",
+          "dmi_value": 0.146,
+          "iod_dmi_3month_avg": 0.009,
+          "iod_dmi_ethiopia_lag4": 0.3673,
+          "iod_phase": "neutral",
+          "month": 4,
+          "source": "noaa_iod",
+          "year": 2016
+        },
+        {
+          "date": "2020-02-01T00:00:00",
+          "dmi_value": 0.054,
+          "iod_dmi_3month_avg": 0.1567,
+          "iod_dmi_ethiopia_lag4": 0.7643,
+          "iod_phase": "neutral",
+          "month": 2,
+          "source": "noaa_iod",
+          "year": 2020
+        },
+        {
+          "date": "2021-10-01T00:00:00",
+          "dmi_value": -0.091,
+          "iod_dmi_3month_avg": -0.0827,
+          "iod_dmi_ethiopia_lag4": 0.0857,
+          "iod_phase": "neutral",
+          "month": 10,
+          "source": "noaa_iod",
+          "year": 2021
+        },
+        {
+          "date": "2025-05-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": 0.104,
+          "iod_dmi_ethiopia_lag4": -0.3033,
+          "iod_phase": "unknown",
+          "month": 5,
+          "source": "noaa_iod",
+          "year": 2025
+        },
+        {
+          "date": "2025-06-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": -0.17,
+          "iod_phase": "unknown",
+          "month": 6,
+          "source": "noaa_iod",
+          "year": 2025
+        },
+        {
+          "date": "2025-07-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": -0.04,
+          "iod_phase": "unknown",
+          "month": 7,
+          "source": "noaa_iod",
+          "year": 2025
+        },
+        {
+          "date": "2025-08-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": 0.075,
+          "iod_phase": "unknown",
+          "month": 8,
+          "source": "noaa_iod",
+          "year": 2025
+        },
+        {
+          "date": "2025-09-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": 0.104,
+          "iod_phase": "unknown",
+          "month": 9,
+          "source": "noaa_iod",
+          "year": 2025
+        },
+        {
+          "date": "2025-10-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "unknown",
+          "month": 10,
+          "source": "noaa_iod",
+          "year": 2025
+        },
+        {
+          "date": "2025-11-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "unknown",
+          "month": 11,
+          "source": "noaa_iod",
+          "year": 2025
+        },
+        {
+          "date": "2025-12-01T00:00:00",
+          "dmi_value": null,
+          "iod_dmi_3month_avg": null,
+          "iod_dmi_ethiopia_lag4": null,
+          "iod_phase": "unknown",
+          "month": 12,
+          "source": "noaa_iod",
+          "year": 2025
+        }
+      ],
+      "selection_reasons": [
+        "earliest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "stratified by source; deterministic coverage fill",
+        "latest coverage",
+        "latest coverage",
+        "latest coverage",
+        "latest coverage",
+        "latest coverage",
+        "latest coverage",
+        "latest coverage",
+        "latest coverage"
+      ],
+      "source_rows": 1872,
+      "strata_columns": [
+        "source"
+      ],
+      "time_column": "date"
+    },
+    "provenance": {
+      "analysis_rows": 1872,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/weather/source=noaa_iod",
+      "contract_sha256": "5fbc42a9e1b64161209f5a8278f34bb7a78e533540a18a399f3c0d1a345ab72d",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 1,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {},
+            "row_count": 1872,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 1,
+        "schema_sha256_object_counts": {
+          "e6eaffb83c3383aea366ae7fd5a510a77ad961d14358eab00583a7295baf2297": 1
+        },
+        "source_compressed_bytes": 53141,
+        "source_row_count": 1872
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "25ace83fc0b5243700f4eec6b3f6f63bc9ac9ed8b6fe28293959cae3d1da33b2",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 1,
+      "object_sample": [
+        {
+          "etag": "0d0096540be433c3e27684ad6d45eb20",
+          "last_modified": "2026-07-16T00:05:05Z",
+          "partition_values": {},
+          "size": 53141,
+          "uri": "s3://leviathan-dev-shahem-001/silver/weather/source=noaa_iod/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": false,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 0,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "source",
+          "year",
+          "date",
+          "month",
+          "dmi_value",
+          "iod_dmi_3month_avg",
+          "iod_phase",
+          "iod_dmi_ethiopia_lag4"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 8674329154553798684,
+        "snapshot_row_count": 1872,
+        "source_compressed_bytes": 53141,
+        "source_row_count": 1872,
+        "stratum_columns": [
+          "source",
+          "year",
+          "date"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "d74a044c2d4d48a4de6f761e7f3d34f2b190499fa2f2332f8568e47437f4c5f4",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/source_replica/manifest.json",
+        "object_count": 1,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_noaa_iod/_machine/source_replica/objects",
+        "replica_manifest_sha256": "047b81d8abe48652d685d345b70df3dc754de9f6c5a1c4294aa29a911ae12be8",
+        "source_manifest_sha256": "d74a044c2d4d48a4de6f761e7f3d34f2b190499fa2f2332f8568e47437f4c5f4",
+        "total_bytes": 53141
+      },
+      "source_rows": 1872,
+      "source_specific_checks": [
+        {
+          "consumer_rows": 1872,
+          "duplicate_affected_rows": 0,
+          "duplicate_group_count": 0,
+          "exactness": "exact",
+          "key": [
+            "year",
+            "month"
+          ],
+          "numeric_aggregate_delta": {
+            "dmi_value": {
+              "consumer_non_null_count": 1864,
+              "consumer_sum": -435.62,
+              "raw_non_null_count": 1864,
+              "raw_sum": -435.62,
+              "sum_delta": 0.0
+            },
+            "iod_dmi_3month_avg": {
+              "consumer_non_null_count": 1864,
+              "consumer_sum": -435.6169,
+              "raw_non_null_count": 1864,
+              "raw_sum": -435.6169,
+              "sum_delta": 0.0
+            }
+          },
+          "raw_profile_preserved": true,
+          "raw_rows": 1872,
+          "removed_row_rate": 0.0,
+          "removed_rows": 0,
+          "status": "complete",
+          "table_name": "silver_noaa_iod",
+          "view": "raw_vs_documented_consumer_dedup"
+        }
+      ],
+      "source_total_bytes": 53141,
+      "source_total_rows": 1872,
+      "spec_sha256": "efa1b011706d7c7902ce6cff22c1f82c182201002da1e2ea1e37eb4a71cd0acb"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 1872,
+      "checks": [
+        {
+          "analysis_rows": 1872,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "year",
+              "month"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 1,872 rows."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.004273504273504274,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "CAVEAT",
+          "summary": "The highest column null rate is 0.4%."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 8,
+            "explicit_sentinels_by_column_token": {
+              "iod_phase": {
+                "unknown": 8
+              }
+            },
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 8
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "CAVEAT",
+          "summary": "Found 8 explicit sentinel token(s), 0 infinite value(s), and 0 blank string(s) in fields explicitly governed as nonblank."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 31.0,
+            "median_gap_days": 31.0,
+            "time_column": "date",
+            "usable_time_points": 1872
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "PASS",
+          "summary": "Observed gaps are consistent with a median cadence of 31 days."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "date",
+            "distinct_points": 1872,
+            "max": "2025-12-01T00:00:00",
+            "min": "1870-01-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "PASS",
+          "summary": "Coverage runs from 1870-01-01 through 2025-12-01."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 1,
+            "footer_complete": true,
+            "object_count": 1,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "e6eaffb83c3383aea366ae7fd5a510a77ad961d14358eab00583a7295baf2297": 1
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "PASS",
+          "summary": "All 1 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        },
+        {
+          "analysis_rows": 1872,
+          "check": "Raw versus consumer-view delta",
+          "check_id": "rule:consumer_view_delta",
+          "evidence": {
+            "consumer_view_rows": null,
+            "raw_rows": 1872
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 1872,
+          "status": "not_assessed",
+          "summary": "Report both raw rows and the documented consumer selection; never mutate raw evidence."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "CAVEAT",
+      "plotted_rows": null,
+      "source_rows": 1872
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 1872,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "date"
+        ],
+        "evidence": {
+          "distinct_time_points": 1872,
+          "end": "2025-12-01T00:00:00",
+          "entity_distinct_counts": {},
+          "start": "1870-01-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history",
+            "seasonality"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 1872,
+        "statement": "Coverage spans 1870-01-01 through 2025-12-01 across 1,872 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 1872,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "dmi_value",
+          "iod_dmi_3month_avg"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "dmi_value": 0.004273504273504274,
+            "iod_dmi_3month_avg": 0.004273504273504274
+          },
+          "highest_null_column": "dmi_value",
+          "highest_null_rate": 0.004273504273504274
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 1872,
+        "statement": "dmi_value has the highest assessed null rate at 0.4%.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 1872,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "date",
+          "dmi_value",
+          "iod_dmi_3month_avg"
+        ],
+        "evidence": {
+          "measures": {
+            "dmi_value": {
+              "count": 1864,
+              "iqr": 0.42825,
+              "iqr_outlier_count": 37,
+              "maximum": 1.279,
+              "median": -0.245,
+              "minimum": -1.634
+            },
+            "iod_dmi_3month_avg": {
+              "count": 1864,
+              "iqr": 0.38137499999999996,
+              "iqr_outlier_count": 42,
+              "maximum": 1.005,
+              "median": -0.24,
+              "minimum": -1.2437
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "changes",
+            "measure_distribution"
+          ],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 1872,
+        "statement": "Robust IQR screening retains 79 notable observations across 2 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 1872,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "date",
+          "dmi_value",
+          "iod_dmi_3month_avg"
+        ],
+        "evidence": {
+          "comparable_group_count": 1,
+          "delta": 0.09,
+          "entity": {},
+          "latest_period": "2025-04-01",
+          "latest_time": "2025-04-01T00:00:00",
+          "latest_value": 0.149,
+          "measure": "dmi_value",
+          "percent_change": 1.5254237288135593,
+          "prior_period": "2025-03-01",
+          "prior_time": "2025-03-01T00:00:00",
+          "prior_value": 0.059,
+          "time_column": "date",
+          "unit": "source-native / verify"
+        },
+        "exactness": "exact",
+        "insight_id": "latest_change",
+        "kind": "latest_change",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 1872,
+        "statement": "For the unsegmented source series, dmi_value (source-native / verify) changed by 0.09 from 2025-03-01 to 2025-04-01.",
+        "status": "evaluated",
+        "title": "Explain the latest comparable movement."
+      }
+    ],
+    "ready_chart_count": 4,
+    "row_meaning": "One row is one monthly Indian Ocean Dipole observation.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 1872,
+    "source_shape": {
+      "analysis_rows": 1872,
+      "analysis_shape": [
+        1872,
+        8
+      ],
+      "column_count": 8,
+      "exactness": "exact",
+      "plotted_rows": 13047,
+      "source_rows": 1872,
+      "source_shape": [
+        1872,
+        8
+      ]
+    },
+    "table_name": "silver_noaa_iod"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [
+    {
+      "consumer_rows": 1872,
+      "duplicate_affected_rows": 0,
+      "duplicate_group_count": 0,
+      "exactness": "exact",
+      "key": [
+        "year",
+        "month"
+      ],
+      "numeric_aggregate_delta": {
+        "dmi_value": {
+          "consumer_non_null_count": 1864,
+          "consumer_sum": -435.62,
+          "raw_non_null_count": 1864,
+          "raw_sum": -435.62,
+          "sum_delta": 0.0
+        },
+        "iod_dmi_3month_avg": {
+          "consumer_non_null_count": 1864,
+          "consumer_sum": -435.6169,
+          "raw_non_null_count": 1864,
+          "raw_sum": -435.6169,
+          "sum_delta": 0.0
+        }
+      },
+      "raw_profile_preserved": true,
+      "raw_rows": 1872,
+      "removed_row_rate": 0.0,
+      "removed_rows": 0,
+      "status": "complete",
+      "table_name": "silver_noaa_iod",
+      "view": "raw_vs_documented_consumer_dedup"
+    }
+  ],
+  "table_name": "silver_noaa_iod"
+}

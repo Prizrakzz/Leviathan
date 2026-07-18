@@ -1,0 +1,8 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_sagis_cec
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 0
+no_candidate_reason: The source is known degraded and cannot support feature proposals until it is repaired
+  and recertified.
+candidates: []

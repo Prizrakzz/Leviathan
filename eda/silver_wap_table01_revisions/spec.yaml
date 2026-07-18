@@ -1,0 +1,475 @@
+schema_version: 1
+table_name: silver_wap_table01_revisions
+title: Wap Table01 Revisions
+analysis_role: derived
+feature_disposition: candidate_source
+adapters:
+- derived_lineage
+- vintage_revision
+- long_metric
+- annual_seasonal_panel
+observation_time_candidates:
+- marketing_year
+knowledge_time: release_month
+knowledge_semantics: year_month
+entity_columns:
+- commodity
+- country
+categorical_columns:
+- commodity
+- row_label
+- vintage_type
+- vintage_status
+- month_abbr
+- country
+- prior_release_month
+numeric_columns:
+- value_mmt
+- prior_value_mmt
+- revision_mmt
+units:
+  revision_mmt: million metric tonnes
+  value_mmt: million metric tonnes
+meaningful_groupings:
+- commodity
+- country
+- release_month
+- marketing_year
+declared_relationships: []
+source_keys:
+- wap_revisions
+existing_table_feature_families: &id001
+- wap_nonUS_revision
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  wap_nonUS_revision: prior_marketing_year
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - commodity
+  - country
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-WAP_TABLE01_REVISIONS
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: lineage_not_assessed
+  lineage_status: lineage_not_assessed
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: true
+  evidence: No governed Silver-to-Silver peer relationship and parity key/value contract is registered
+    for this derived or serving-copy table.
+  work_orders:
+  - &id003
+    id: EDA-LINEAGE-WAP_TABLE01_REVISIONS
+    priority: high
+    title: Register and validate derived-table lineage
+    required_evidence: Declare the canonical Silver upstream, transformation, parity grain, value tolerances,
+      and frozen-frame comparison before claiming parity.
+semantic_work_orders:
+- *id002
+- *id003
+- id: EDA-FEATURE-COVERAGE-WAP_TABLE01_REVISIONS
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: official_revision
+  mechanism: New information revealed between genuine releases.
+- family: forecast_horizon
+  mechanism: Forecast level and uncertainty by time-to-outcome.
+- family: prior_history
+  mechanism: Lagged level, growth, and trailing-trend deviation.
+- family: cross_sectional_rank
+  mechanism: Relative position within a commodity-year panel.
+known_hazards: []
+no_candidate_reason: null
+archetype: vintage_revision
+row_meaning: One row is one WAP Table 01 release-to-release revision for a commodity balance item.
+column_descriptions:
+  commodity: Governed or source-normalized commodity identifier.
+  country: Country represented by the observation.
+  marketing_year: Source-defined commodity marketing year.
+  month_abbr: Human-readable month label used for display.
+  prior_release_month: Prior release month locating the observation on its source reporting calendar.
+  prior_value_mmt: Prior comparable value value, measured in million metric tonnes.
+  release_month: Release month locating the observation on its source reporting calendar.
+  revision_mmt: Change in the estimate from the prior comparable source release, measured in million metric
+    tonnes.
+  row_label: Source category identifying the row label represented by the row.
+  value_mmt: Value reported in million metric tonnes at the declared row grain.
+  vintage_status: Source classification describing the row's vintage status.
+  vintage_type: Source classification describing the row's vintage type.
+why_it_matters:
+  commodity: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  country: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  marketing_year: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  month_abbr: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  prior_release_month: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  prior_value_mmt: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  release_month: Defines row uniqueness; is required by the source contract.
+  revision_mmt: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  row_label: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  value_mmt: Carries a primary analytical measure.
+  vintage_status: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  vintage_type: Provides explanatory context or a candidate diagnostic at the declared row grain.
+primary_measures:
+- value_mmt
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - marketing_year
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - commodity
+  - country
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - value_mmt
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - release_month
+  - commodity
+  - country
+  - marketing_year
+  - row_label
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - value_mmt
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - release_month
+  - commodity
+  - country
+  - marketing_year
+  - row_label
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - release_month
+  - commodity
+  - country
+  - marketing_year
+  - row_label
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - release_month
+  - commodity
+  - country
+  - marketing_year
+  - row_label
+  - value_mmt
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - value_mmt
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - marketing_year
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - release_month
+  - commodity
+  - row_label
+  - marketing_year
+  - vintage_type
+  - vintage_status
+  - month_abbr
+  - country
+  - value_mmt
+  - prior_release_month
+  - prior_value_mmt
+  - revision_mmt
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: vintage_trajectory
+  chart_type: vintage_line
+  columns:
+  - release_month
+  - value_mmt
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  coverage_grain: null
+  cutoff_mode: null
+  id: vintage_trajectory
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - value_mmt
+  measure_units:
+    value_mmt: million metric tonnes
+  minimum_rows: 2
+  purpose: Track one row label and outcome season across publication months without pooling unlike balance
+    items.
+  series_dimensions:
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: WAP value across releases
+  type: vintage_line
+  unit_column: null
+- chart_id: stored_revisions
+  chart_type: revision_distribution
+  columns:
+  - release_month
+  - value_mmt
+  - revision_mmt
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  coverage_grain: null
+  cutoff_mode: null
+  id: stored_revisions
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - value_mmt
+  measure_units:
+    value_mmt: million metric tonnes
+  minimum_rows: 1
+  purpose: Describe the stored revision field directly; never difference revision_mmt again.
+  series_dimensions:
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Stored WAP revisions
+  type: revision_distribution
+  unit_column: null
+- chart_id: release_depth
+  chart_type: release_depth
+  columns:
+  - release_month
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  coverage_grain: null
+  cutoff_mode: null
+  id: release_depth
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Count releases only within the full commodity/country/row-label/season grain.
+  series_dimensions:
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Release depth by WAP series
+  type: release_depth
+  unit_column: null
+- chart_id: first_latest
+  chart_type: first_latest
+  columns:
+  - release_month
+  - value_mmt
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  coverage_grain: null
+  cutoff_mode: null
+  id: first_latest
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - value_mmt
+  measure_units:
+    value_mmt: million metric tonnes
+  minimum_rows: 1
+  purpose: Compare first and latest values within one fully specified WAP series.
+  series_dimensions:
+  - marketing_year
+  - commodity
+  - country
+  - row_label
+  - vintage_type
+  - vintage_status
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: First-to-latest WAP movement
+  type: first_latest
+  unit_column: null
+insight_rules:
+- columns:
+  - marketing_year
+  - commodity
+  - country
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - value_mmt
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - marketing_year
+  - value_mmt
+  - commodity
+  - country
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - marketing_year
+  - value_mmt
+  - commodity
+  - country
+  id: revision_depth
+  insight_id: revision_depth
+  kind: revision_depth
+  minimum_rows: 2
+  purpose: Explain first-to-latest movement and release depth.
+preview_strata:
+- marketing_year
+- commodity
+- country
+- row_label
+pit_notes:
+- Use release_month as the governed knowledge-time boundary (year_month semantics).
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+feature_quarantined: false

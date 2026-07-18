@@ -1,0 +1,506 @@
+schema_version: 1
+table_name: silver_modis_ndvi
+title: Modis Ndvi
+analysis_role: source
+feature_disposition: candidate_source
+adapters:
+- weather
+- wide_time_series
+observation_time_candidates:
+- date
+- ingest_date
+- year
+knowledge_time: null
+knowledge_semantics: null
+entity_columns:
+- commodity
+- country
+- region
+categorical_columns:
+- commodity
+- country
+- region
+numeric_columns:
+- period
+- latitude
+- longitude
+- ndvi_raw
+- ndvi
+- pixel_reliability
+- ndvi_z_score
+- baseline_mean
+- baseline_std
+units:
+  ndvi: source-native / verify
+  ndvi_z_score: standard deviations
+  period: index
+meaningful_groupings:
+- commodity
+- country
+- region
+- date
+- ingest_date
+- year
+declared_relationships: []
+source_keys:
+- weather:modis_ndvi
+existing_table_feature_families: &id001
+- inseason_weather_dense
+- modis_ndvi_z
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  inseason_weather_dense: crop_year_direct
+  modis_ndvi_z: crop_year_direct
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: configured_pending_observed_coverage
+  reason: Governed source-only crop-calendar and geography configs are loaded; the frozen-frame check
+    must still prove coverage, overlap, and join cardinality.
+  config_inventory:
+    status: complete
+    scope: source_only_governed_configuration
+    crop_calendar_path: configs/features/crop_calendars.yaml
+    geography_config_paths:
+    - configs/geographies/arabica_coffee_regions.yaml
+    - configs/geographies/brazilian_arabica_coffee_regions.yaml
+    - configs/geographies/campinas_corn_reference_bmf_regions.yaml
+    - configs/geographies/canola_ice_regions.yaml
+    - configs/geographies/cocoa_regions.yaml
+    - configs/geographies/corn_cbot_regions.yaml
+    - configs/geographies/cotton_regions.yaml
+    - configs/geographies/french_maize_matif_regions.yaml
+    - configs/geographies/french_rapeseed_matif_regions.yaml
+    - configs/geographies/french_wheat_matif_regions.yaml
+    - configs/geographies/frozen_orange_juice_regions.yaml
+    - configs/geographies/hard_red_spring_wheat_mgex_regions.yaml
+    - configs/geographies/hard_red_winter_wheat_kcbt_regions.yaml
+    - configs/geographies/malaysian_crude_palm_oil_cme_regions.yaml
+    - configs/geographies/palm_olein_dce_regions.yaml
+    - configs/geographies/rapeseed_meal_zce_regions.yaml
+    - configs/geographies/rapeseed_oil_zce_regions.yaml
+    - configs/geographies/raw_sugar_regions.yaml
+    - configs/geographies/robusta_coffee_regions.yaml
+    - configs/geographies/rough_rice_cbot_regions.yaml
+    - configs/geographies/soft_red_winter_wheat_cbot_regions.yaml
+    - configs/geographies/south_african_white_maize_jse_regions.yaml
+    - configs/geographies/south_african_yellow_maize_jse_regions.yaml
+    - configs/geographies/soybean_meal_cbot_regions.yaml
+    - configs/geographies/soybean_meal_dce_regions.yaml
+    - configs/geographies/soybean_oil_cbot_regions.yaml
+    - configs/geographies/soybean_oil_dce_regions.yaml
+    - configs/geographies/soybeans_cbot_regions.yaml
+    - configs/geographies/soybeans_no_1_dce_regions.yaml
+    - configs/geographies/soybeans_no_2_dce_regions.yaml
+    - configs/geographies/white_sugar_regions.yaml
+    crop_calendar_commodity_count: 11
+    geography_commodity_count: 31
+    geography_mapping_row_count: 422
+    duplicate_geography_key_count: 0
+    duplicate_geography_key_excess: 0
+    config_validation_errors: []
+    observed_frame_coverage_assessed: false
+    source_only: true
+    serving_gold_followed: false
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-MODIS_NDVI
+    priority: high
+    title: Validate governed weather mapping coverage
+    required_evidence: Measure raw and mapped commodity/geography coverage, unmapped IDs, source overlap,
+      mapping-key uniqueness, and projected row expansion on the frozen Silver frame.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+- id: EDA-FEATURE-COVERAGE-MODIS_NDVI
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: stage_aggregate
+  mechanism: Crop-stage exposure and stress accumulation.
+- family: climatology_anomaly
+  mechanism: Deviation from trailing local seasonal norms.
+- family: threshold_duration
+  mechanism: Duration and count of agronomic threshold breaches.
+- family: rolling_change
+  mechanism: Lagged change, momentum, and rolling dispersion.
+- family: relative_spread
+  mechanism: Relative movement across economically linked measures.
+known_hazards:
+- MODIS period is composite timing metadata, not a continuous sensor measure.
+no_candidate_reason: null
+archetype: spatial_weather_vegetation
+row_meaning: One row is one regional MODIS vegetation composite for a commodity and period date.
+column_descriptions:
+  baseline_mean: Reference baseline for mean used to calculate anomalies.
+  baseline_std: Reference baseline for std used to calculate anomalies.
+  commodity: Governed or source-normalized commodity identifier.
+  country: Country represented by the observation.
+  date: Calendar observation date; not automatically a publication timestamp.
+  ingest_date: Pipeline ingestion date; it is not automatically source publication time.
+  latitude: Geographic latitude coordinate locating the sampled grid cell or observation point.
+  longitude: Geographic longitude coordinate locating the sampled grid cell or observation point.
+  ndvi: Governed numeric normalized difference vegetation index measure used for source-level analytical
+    comparisons.
+  ndvi_raw: Original source-reported normalized difference vegetation index retained before normalization
+    for lineage and mapping review.
+  ndvi_z_score: Standardized anomaly of normalized difference vegetation index relative to its governed
+    baseline.
+  period: MODIS composite-timing metadata, not a continuous sensor measurement.
+  pixel_reliability: Source quality code indicating the reliability of the pixel observation.
+  region: Subnational or crop-growing region represented by the observation.
+  year: Calendar year associated with the observation.
+why_it_matters:
+  baseline_mean: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  baseline_std: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  commodity: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  country: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  date: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  ingest_date: Supports provenance or reproducibility.
+  latitude: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  longitude: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  ndvi: Carries a primary analytical measure.
+  ndvi_raw: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  ndvi_z_score: Carries a primary analytical measure.
+  period: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  pixel_reliability: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  region: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  year: Provides explanatory context or a candidate diagnostic at the declared row grain.
+primary_measures:
+- ndvi
+- ndvi_z_score
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - date
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - commodity
+  - country
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - ndvi
+  - ndvi_z_score
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - commodity
+  - country
+  - region
+  - date
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - ndvi
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - commodity
+  - country
+  - region
+  - date
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - commodity
+  - country
+  - region
+  - date
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - commodity
+  - country
+  - region
+  - date
+  - ndvi
+  - ndvi_z_score
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - ndvi
+  - ndvi_z_score
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  - commodity
+  - country
+  - region
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - date
+  - year
+  - period
+  - commodity
+  - country
+  - region
+  - latitude
+  - longitude
+  - ndvi_raw
+  - ndvi
+  - pixel_reliability
+  - ndvi_z_score
+  - baseline_mean
+  - baseline_std
+  - ingest_date
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: coverage
+  chart_type: coverage_heatmap
+  columns:
+  - date
+  - commodity
+  - country
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose where and when observations exist.
+  series_dimensions:
+  - commodity
+  - country
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Physical and usable coverage
+  type: coverage_heatmap
+  unit_column: null
+- chart_id: climatology
+  chart_type: seasonal_profile
+  columns:
+  - date
+  - ndvi
+  - commodity
+  - country
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: climatology
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - ndvi
+  measure_units:
+    ndvi: source-native / verify
+  minimum_rows: 8
+  purpose: Separate seasonal structure from anomalies.
+  series_dimensions:
+  - commodity
+  - country
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Seasonal climatology
+  type: seasonal_profile
+  unit_column: null
+- chart_id: distribution
+  chart_type: distribution
+  columns:
+  - ndvi
+  - ndvi_z_score
+  coverage_grain: null
+  cutoff_mode: null
+  id: distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - ndvi
+  - ndvi_z_score
+  measure_units:
+    ndvi: source-native / verify
+    ndvi_z_score: standard deviations
+  minimum_rows: 1
+  purpose: Show ordinary distributions, tails, and invalid ranges.
+  series_dimensions: []
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Measure distributions
+  type: distribution
+  unit_column: null
+- chart_id: anomalies
+  chart_type: anomaly_heatmap
+  columns:
+  - date
+  - ndvi
+  - commodity
+  - country
+  - region
+  coverage_grain: null
+  cutoff_mode: null
+  id: anomalies
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - ndvi
+  measure_units:
+    ndvi: source-native / verify
+  minimum_rows: 1
+  purpose: Locate unusual periods without implying target relevance.
+  series_dimensions:
+  - commodity
+  - country
+  - region
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Regional anomalies
+  type: anomaly_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - date
+  - commodity
+  - country
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - ndvi
+  - ndvi_z_score
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - date
+  - ndvi
+  - ndvi_z_score
+  - commodity
+  - country
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - date
+  - ndvi
+  - ndvi_z_score
+  - commodity
+  - country
+  id: climatology_anomaly
+  insight_id: climatology_anomaly
+  kind: climatology_anomaly
+  minimum_rows: 8
+  purpose: Separate seasonal normal from anomalies.
+preview_strata:
+- date
+- commodity
+- country
+- region
+pit_notes:
+- No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes
+  need an explicit cutoff-availability rule.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not treat ingestion or file timestamps as historical publication dates.
+feature_quarantined: false

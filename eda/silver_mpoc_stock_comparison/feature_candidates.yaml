@@ -1,0 +1,105 @@
+schema_version: leviathan.feature-candidates/v1
+table_name: silver_mpoc_stock_comparison
+analysis_scope: source-only canonical Silver; review-only
+production_feature_config_mutated: false
+candidate_count: 2
+no_candidate_reason: null
+candidates:
+- aggregation_window: null
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - bangladesh
+  - china
+  - india
+  - pakistan
+  - usa
+  candidate_id: eda:silver_mpoc_stock_comparison:ending_stocks_mt:level
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: identity
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ending_stocks_mt
+  - cell:distributions-output
+  - metric:missingness_validity.column_missingness.ending_stocks_mt
+  - cell:missingness-validity-output
+  expected_range: observed [250.0, 1178300.0]
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: The observed balance_sheet level may represent contemporaneous source state; economic interpretation
+    must be confirmed during review.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: none
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country x oil_type x year x month
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpoc_stock_comparison'
+  source_columns:
+  - ending_stocks_mt
+  - year
+  source_table: silver_mpoc_stock_comparison
+  transformation:
+    column: ending_stocks_mt
+    operation: identity
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - mpoc_stock_comparison
+  unit: metric tonnes
+  visibility_class: review_required
+- aggregation_window: past-only expanding or domain-reviewed rolling window
+  applicable_commodities:
+  - all_observed
+  applicable_geographies:
+  - bangladesh
+  - china
+  - india
+  - pakistan
+  - usa
+  candidate_id: eda:silver_mpoc_stock_comparison:ending_stocks_mt:robust_deviation
+  classification: new
+  clipping_policy: none; preserve and flag observed outliers
+  computation_primitive: rolling_robust_z
+  counter_evidence:
+  - PIT availability is not yet governed by a complete knowledge timestamp or publication lag.
+  evidence:
+  - metric:distributions.numeric_distributions.ending_stocks_mt
+  - cell:distributions-output
+  expected_range: unbounded robust z-score
+  feature_family: null
+  feature_policy: proposal only; do not write production feature configuration
+  future_target_compatibility: eligible for later PIT-safe evaluation against a new immutable gold target
+    only
+  knowledge_time_rule: derive availability from documented publication cadence/lag before use
+  lag: null
+  mechanism: Deviation from the source's historical median can capture unusual conditions without deleting
+    legitimate tail observations.
+  missingness_policy: preserve null; optionally add an explicit missingness indicator
+  normalization_policy: median/MAD fitted using rows available at prediction_as_of
+  observation_time_rule: order observations by year within entity grain
+  output_grain: country x oil_type x year x month
+  readiness: needs_contract_or_data_fix
+  review_status: unreviewed
+  semantic_scope: 'source-only balance_sheet evidence; registered source keys: mpoc_stock_comparison'
+  source_columns:
+  - ending_stocks_mt
+  - year
+  source_table: silver_mpoc_stock_comparison
+  transformation:
+    center: past_only_median
+    column: ending_stocks_mt
+    operation: rolling_robust_z
+    scale: past_only_mad
+    source_context:
+      existing_feature_families: []
+      source_keys:
+      - mpoc_stock_comparison
+  unit: metric tonnes
+  visibility_class: review_required

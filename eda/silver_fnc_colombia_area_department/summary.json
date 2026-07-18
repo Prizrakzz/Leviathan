@@ -1,0 +1,4715 @@
+{
+  "analysis_scope": {
+    "legacy_gold_read": false,
+    "model_ready_read": false,
+    "production_feature_config_mutated": false,
+    "source_layer": "silver",
+    "target_aware_analysis": false
+  },
+  "decision_capsule": {
+    "analysis_exactness": {
+      "exactness": "exact",
+      "name": "analysis_exactness",
+      "value": "exact"
+    },
+    "blocker_count": {
+      "exactness": "exact",
+      "name": "blocker_count",
+      "unit": "blockers",
+      "value": 0
+    },
+    "candidate_count": {
+      "exactness": "exact",
+      "name": "candidate_count",
+      "unit": "candidates",
+      "value": 5
+    },
+    "disposition": {
+      "exactness": "exact",
+      "name": "disposition",
+      "value": "needs_contract_or_data_fix"
+    },
+    "finding_count": {
+      "exactness": "exact",
+      "name": "finding_count",
+      "unit": "findings",
+      "value": 1
+    },
+    "pit_status": {
+      "exactness": "exact",
+      "name": "pit_status",
+      "value": {
+        "knowledge_semantics": null,
+        "temporal_columns": [
+          "year"
+        ]
+      }
+    },
+    "required_complete_row_rate": {
+      "denominator": 492,
+      "exactness": "exact",
+      "name": "required_complete_row_rate",
+      "unit": "fraction",
+      "value": 1.0
+    },
+    "row_count": {
+      "exactness": "exact",
+      "name": "row_count",
+      "unit": "rows",
+      "value": 492
+    }
+  },
+  "feature_candidate_generation": {
+    "candidate_count": 5,
+    "effective_disposition": "needs_contract_or_data_fix",
+    "existing_feature_families": [],
+    "no_candidate_rationale": null,
+    "review_only": true,
+    "source_keys": [
+      "fnc_colombia_area_department"
+    ]
+  },
+  "feature_candidates": [
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "arabica_coffee"
+      ],
+      "applicable_geographies": [
+        "colombia"
+      ],
+      "candidate_id": "eda:silver_fnc_colombia_area_department:area_ha:change_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "difference",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.area_ha",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.area_ha",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The latest source change may capture direction and acceleration independent of level.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "commodity x year x department",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only production evidence; registered source keys: fnc_colombia_area_department",
+      "source_columns": [
+        "area_ha",
+        "commodity",
+        "department",
+        "year"
+      ],
+      "source_table": "silver_fnc_colombia_area_department",
+      "transformation": {
+        "column": "area_ha",
+        "group_by": [
+          "commodity",
+          "department"
+        ],
+        "operation": "difference",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "fnc_colombia_area_department"
+          ]
+        }
+      },
+      "unit": "hectares",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "arabica_coffee"
+      ],
+      "applicable_geographies": [
+        "colombia"
+      ],
+      "candidate_id": "eda:silver_fnc_colombia_area_department:area_ha:lag_1",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "lag",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.area_ha",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.area_ha",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": 1,
+      "mechanism": "The prior reported source state may capture persistence at the same governed grain.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "commodity x year x department",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only production evidence; registered source keys: fnc_colombia_area_department",
+      "source_columns": [
+        "area_ha",
+        "commodity",
+        "department",
+        "year"
+      ],
+      "source_table": "silver_fnc_colombia_area_department",
+      "transformation": {
+        "column": "area_ha",
+        "group_by": [
+          "commodity",
+          "department"
+        ],
+        "operation": "lag",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "fnc_colombia_area_department"
+          ]
+        }
+      },
+      "unit": "hectares",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": null,
+      "applicable_commodities": [
+        "arabica_coffee"
+      ],
+      "applicable_geographies": [
+        "colombia"
+      ],
+      "candidate_id": "eda:silver_fnc_colombia_area_department:area_ha:level",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "identity",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.area_ha",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.area_ha",
+        "cell:missingness-validity-output"
+      ],
+      "expected_range": "observed [0.0, 154982.92999999993]",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "The observed production level may represent contemporaneous source state; economic interpretation must be confirmed during review.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "commodity x year x department",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only production evidence; registered source keys: fnc_colombia_area_department",
+      "source_columns": [
+        "area_ha",
+        "year"
+      ],
+      "source_table": "silver_fnc_colombia_area_department",
+      "transformation": {
+        "column": "area_ha",
+        "operation": "identity",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "fnc_colombia_area_department"
+          ]
+        }
+      },
+      "unit": "hectares",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "past-only expanding or domain-reviewed rolling window",
+      "applicable_commodities": [
+        "arabica_coffee"
+      ],
+      "applicable_geographies": [
+        "colombia"
+      ],
+      "candidate_id": "eda:silver_fnc_colombia_area_department:area_ha:robust_deviation",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_robust_z",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.area_ha",
+        "cell:distributions-output"
+      ],
+      "expected_range": "unbounded robust z-score",
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "Deviation from the source's historical median can capture unusual conditions without deleting legitimate tail observations.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "median/MAD fitted using rows available at prediction_as_of",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "commodity x year x department",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only production evidence; registered source keys: fnc_colombia_area_department",
+      "source_columns": [
+        "area_ha",
+        "year"
+      ],
+      "source_table": "silver_fnc_colombia_area_department",
+      "transformation": {
+        "center": "past_only_median",
+        "column": "area_ha",
+        "operation": "rolling_robust_z",
+        "scale": "past_only_mad",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "fnc_colombia_area_department"
+          ]
+        }
+      },
+      "unit": "hectares",
+      "visibility_class": "review_required"
+    },
+    {
+      "aggregation_window": "3 prior observations",
+      "applicable_commodities": [
+        "arabica_coffee"
+      ],
+      "applicable_geographies": [
+        "colombia"
+      ],
+      "candidate_id": "eda:silver_fnc_colombia_area_department:area_ha:rolling_mean_3",
+      "classification": "new",
+      "clipping_policy": "none; preserve and flag observed outliers",
+      "computation_primitive": "rolling_mean",
+      "counter_evidence": [
+        "PIT availability is not yet governed by a complete knowledge timestamp or publication lag."
+      ],
+      "evidence": [
+        "metric:distributions.numeric_distributions.area_ha",
+        "cell:distributions-output",
+        "metric:missingness_validity.column_missingness.area_ha",
+        "cell:missingness-validity-output",
+        "metric:temporal_structure.temporal_columns.year",
+        "cell:temporal-structure-output"
+      ],
+      "expected_range": null,
+      "feature_family": null,
+      "feature_policy": "proposal only; do not write production feature configuration",
+      "future_target_compatibility": "eligible for later PIT-safe evaluation against a new immutable gold target only",
+      "knowledge_time_rule": "derive availability from documented publication cadence/lag before use",
+      "lag": null,
+      "mechanism": "A past-only short-window mean may reduce reporting noise while retaining local state.",
+      "missingness_policy": "preserve null; optionally add an explicit missingness indicator",
+      "normalization_policy": "none; compute strictly within past rows at the declared grain",
+      "observation_time_rule": "order observations by year within entity grain",
+      "output_grain": "commodity x year x department",
+      "readiness": "needs_contract_or_data_fix",
+      "review_status": "unreviewed",
+      "semantic_scope": "source-only production evidence; registered source keys: fnc_colombia_area_department",
+      "source_columns": [
+        "area_ha",
+        "commodity",
+        "department",
+        "year"
+      ],
+      "source_table": "silver_fnc_colombia_area_department",
+      "transformation": {
+        "closed": "left",
+        "column": "area_ha",
+        "group_by": [
+          "commodity",
+          "department"
+        ],
+        "min_periods": 2,
+        "operation": "rolling_mean",
+        "order_by": "year",
+        "source_context": {
+          "existing_feature_families": [],
+          "source_keys": [
+            "fnc_colombia_area_department"
+          ]
+        },
+        "window": 3
+      },
+      "unit": "hectares",
+      "visibility_class": "review_required"
+    }
+  ],
+  "feature_opportunity_map": {
+    "candidate_classification_counts": {
+      "exactness": "exact",
+      "name": "candidate_classification_counts",
+      "value": {
+        "new": 5
+      }
+    },
+    "do_not_derive": {
+      "exactness": "exact",
+      "name": "do_not_derive",
+      "value": []
+    },
+    "existing_feature_families": {
+      "exactness": "exact",
+      "name": "existing_feature_families",
+      "value": []
+    },
+    "no_candidate_rationale": {
+      "exactness": "exact",
+      "name": "no_candidate_rationale",
+      "value": null
+    },
+    "review_status_counts": {
+      "exactness": "exact",
+      "name": "review_status_counts",
+      "value": {
+        "unreviewed": 5
+      }
+    },
+    "source_keys": {
+      "exactness": "exact",
+      "name": "source_keys",
+      "value": [
+        "fnc_colombia_area_department"
+      ]
+    }
+  },
+  "profile": {
+    "analysis_exactness": "exact",
+    "analyzer_routes": [
+      "wide_panel",
+      "annual_or_seasonal_panel"
+    ],
+    "blockers": [],
+    "disposition": "needs_contract_or_data_fix",
+    "findings": [
+      {
+        "code": "EDA-PIT-002",
+        "confidence": "high",
+        "evidence": [
+          "pit_leakage.knowledge_time_readiness",
+          "pit_leakage.knowledge_date_column",
+          "pit_leakage.publication_lag_days"
+        ],
+        "message": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+        "remediation": "Declare and validate a fully parseable knowledge-time column, or govern a non-negative publication lag before prototyping time-dependent features.",
+        "risk": "Without a usable knowledge timestamp or governed publication lag, a feature prototype cannot prove availability at prediction cutoff.",
+        "severity": "high",
+        "title": "Feature availability time is not governed"
+      }
+    ],
+    "sections": {
+      "distributions": {
+        "metrics": {
+          "constant_numeric_columns": {
+            "exactness": "exact",
+            "name": "constant_numeric_columns",
+            "unit": "columns",
+            "value": []
+          },
+          "excluded_numeric_identifier_time_columns": {
+            "detail": "Numeric natural-key, partition, identifier, and calendar/time columns are listed for boundary QA and excluded from measure distributions.",
+            "exactness": "exact",
+            "name": "excluded_numeric_identifier_time_columns",
+            "unit": "columns",
+            "value": [
+              "year"
+            ]
+          },
+          "excluded_numeric_non_measure_columns": {
+            "detail": "All numeric columns outside governed registry value_columns are excluded from measure distributions and constant-value findings.",
+            "exactness": "exact",
+            "name": "excluded_numeric_non_measure_columns",
+            "unit": "columns",
+            "value": [
+              "year"
+            ]
+          },
+          "group_heterogeneity": {
+            "detail": "One stable governed entity/vocabulary axis, its 20 most frequent groups, and at most six governed numeric value columns; all analyzed rows contribute.",
+            "exactness": "exact",
+            "name": "group_heterogeneity",
+            "value": [
+              {
+                "group": "antioquia",
+                "group_column": "department",
+                "median": 127446.16,
+                "n": 24,
+                "q25": 118749.315,
+                "q75": 130005.6525,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "boyaca",
+                "group_column": "department",
+                "median": 10875.395,
+                "n": 24,
+                "q25": 10429.1425,
+                "q75": 11237.1175,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "caldas",
+                "group_column": "department",
+                "median": 76043.845,
+                "n": 24,
+                "q25": 62493.682499999995,
+                "q75": 85675.0,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "caqueta",
+                "group_column": "department",
+                "median": 3827.4,
+                "n": 19,
+                "q25": 3557.1500000000005,
+                "q75": 4008.7749999999996,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "casanare",
+                "group_column": "department",
+                "median": 2604.31,
+                "n": 19,
+                "q25": 2503.925,
+                "q75": 2917.8500000000004,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "cauca",
+                "group_column": "department",
+                "median": 90217.315,
+                "n": 24,
+                "q25": 69838.9475,
+                "q75": 93075.83,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "cesar",
+                "group_column": "department",
+                "median": 24023.475,
+                "n": 24,
+                "q25": 22372.555625,
+                "q75": 26649.675000000003,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "choco",
+                "group_column": "department",
+                "median": 171.19,
+                "n": 19,
+                "q25": 164.32999999999998,
+                "q75": 179.49,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "cundinamarca",
+                "group_column": "department",
+                "median": 39395.19000000002,
+                "n": 24,
+                "q25": 30158.005,
+                "q75": 49028.5975,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "huila",
+                "group_column": "department",
+                "median": 144217.19,
+                "n": 24,
+                "q25": 101400.0,
+                "q75": 148262.98,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "la_guajira",
+                "group_column": "department",
+                "median": 5045.3099999999995,
+                "n": 24,
+                "q25": 4244.912499999999,
+                "q75": 5809.240000000001,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "magdalena",
+                "group_column": "department",
+                "median": 18001.690000000002,
+                "n": 24,
+                "q25": 17595.775,
+                "q75": 19865.002500000002,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "meta",
+                "group_column": "department",
+                "median": 2936.46,
+                "n": 19,
+                "q25": 2763.34,
+                "q75": 3368.595,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "n_santander",
+                "group_column": "department",
+                "median": 28370.045,
+                "n": 24,
+                "q25": 24084.3725,
+                "q75": 32100.0,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "narino",
+                "group_column": "department",
+                "median": 35689.354999999996,
+                "n": 24,
+                "q25": 28600.0,
+                "q75": 37156.05500000001,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "quindio",
+                "group_column": "department",
+                "median": 28276.655000000006,
+                "n": 24,
+                "q25": 19929.1425,
+                "q75": 43039.39750000001,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "risaralda",
+                "group_column": "department",
+                "median": 51652.605,
+                "n": 24,
+                "q25": 44963.2575,
+                "q75": 54650.0,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "santander",
+                "group_column": "department",
+                "median": 50216.51999999999,
+                "n": 24,
+                "q25": 42749.8525,
+                "q75": 51512.875,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "tolima",
+                "group_column": "department",
+                "median": 106851.54000000001,
+                "n": 24,
+                "q25": 105298.89527777777,
+                "q75": 111999.76750000007,
+                "value_column": "area_ha"
+              },
+              {
+                "group": "valle",
+                "group_column": "department",
+                "median": 67983.565,
+                "n": 24,
+                "q25": 52157.740000000005,
+                "q75": 78750.0,
+                "value_column": "area_ha"
+              }
+            ]
+          },
+          "numeric_column_count": {
+            "exactness": "exact",
+            "name": "numeric_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "numeric_distributions": {
+            "detail": "Outliers are described with IQR and MAD rules and are not removed.",
+            "exactness": "exact",
+            "name": "numeric_distributions",
+            "value": {
+              "area_ha": {
+                "count": 492,
+                "distinct_count": 487,
+                "iqr": 62456.810000000005,
+                "iqr_outlier_count": 0,
+                "iqr_outlier_multiplier": 1.5,
+                "iqr_outlier_rate": 0.0,
+                "mad": 26875.7,
+                "mad_outlier_count": 0,
+                "mad_outlier_rate": 0.0,
+                "max": 154982.92999999993,
+                "mean": 43210.00119805781,
+                "min": 0.0,
+                "quantiles": {
+                  "0.01": 109.3686,
+                  "0.05": 178.64249999999998,
+                  "0.25": 5173.2925000000005,
+                  "0.5": 30886.194999999992,
+                  "0.75": 67630.10250000001,
+                  "0.95": 128311.569,
+                  "0.99": 149171.52519999997
+                },
+                "skew": 0.9325074754495328,
+                "std": 41085.92730011324
+              }
+            }
+          }
+        },
+        "name": "distributions"
+      },
+      "entity_vocabulary_coverage": {
+        "metrics": {
+          "categorical_column_count": {
+            "exactness": "exact",
+            "name": "categorical_column_count",
+            "unit": "columns",
+            "value": 6
+          },
+          "normalisation_collision_columns": {
+            "exactness": "exact",
+            "name": "normalisation_collision_columns",
+            "value": []
+          },
+          "quarantined_output_value_columns": {
+            "exactness": "exact",
+            "name": "quarantined_output_value_columns",
+            "value": []
+          },
+          "vocabularies": {
+            "exactness": "exact",
+            "name": "vocabularies",
+            "value": {
+              "commodity": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 492,
+                    "rate": 1.0,
+                    "value": "arabica_coffee"
+                  }
+                ]
+              },
+              "country": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 492,
+                    "rate": 1.0,
+                    "value": "colombia"
+                  }
+                ]
+              },
+              "department": {
+                "distinct_count": 23,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "antioquia"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "boyaca"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "caldas"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "cauca"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "cesar"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "cundinamarca"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "huila"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "la_guajira"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "magdalena"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "n_santander"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "narino"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "quindio"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "risaralda"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "santander"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "tolima"
+                  }
+                ]
+              },
+              "department_raw": {
+                "distinct_count": 23,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Antioquia"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Boyaca"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Caldas"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Cauca"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Cesar"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Cundinamarca"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Huila"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "La Guajira"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Magdalena"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "N. Santander"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Nariño"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Quindio"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Risaralda"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Santander"
+                  },
+                  {
+                    "count": 24,
+                    "rate": 0.04878048780487805,
+                    "value": "Tolima"
+                  }
+                ]
+              },
+              "leviathan_slug": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 492,
+                    "rate": 1.0,
+                    "value": "arabica_coffee"
+                  }
+                ]
+              },
+              "source": {
+                "distinct_count": 1,
+                "normalisation_collisions": {},
+                "rare_category_count": 0,
+                "rare_rate_threshold": 0.01,
+                "rare_row_count": 0,
+                "rare_row_rate": 0.0,
+                "top_values": [
+                  {
+                    "count": 492,
+                    "rate": 1.0,
+                    "value": "fnc_colombia"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "entity_vocabulary_coverage"
+      },
+      "feature_engineering_readiness": {
+        "metrics": {
+          "blockers": {
+            "exactness": "exact",
+            "name": "blockers",
+            "value": []
+          },
+          "disposition": {
+            "exactness": "exact",
+            "name": "disposition",
+            "value": "needs_contract_or_data_fix"
+          },
+          "feature_candidate_generation_allowed": {
+            "exactness": "exact",
+            "name": "feature_candidate_generation_allowed",
+            "value": true
+          },
+          "finding_count": {
+            "exactness": "exact",
+            "name": "finding_count",
+            "unit": "findings",
+            "value": 1
+          }
+        },
+        "name": "feature_engineering_readiness"
+      },
+      "grain_integrity": {
+        "metrics": {
+          "contract_natural_key": {
+            "exactness": "exact",
+            "name": "contract_natural_key",
+            "value": [
+              "commodity",
+              "year",
+              "department"
+            ]
+          },
+          "duplicate_exact_row_rate": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "duplicate_exact_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_exact_rows": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "duplicate_exact_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "duplicate_key_excess_rows": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "duplicate_key_excess_rows",
+            "unit": "rows",
+            "value": 0
+          },
+          "duplicate_key_row_rate": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "duplicate_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "duplicate_key_rows": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "duplicate_key_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "inferred_candidate_key": {
+            "detail": "Evidence only; it does not repair or override the registry contract.",
+            "exactness": "exact",
+            "name": "inferred_candidate_key",
+            "value": []
+          },
+          "inferred_candidate_key_unique_rate": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "inferred_candidate_key_unique_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "missing_key_columns": {
+            "exactness": "exact",
+            "name": "missing_key_columns",
+            "value": []
+          },
+          "normalised_key_collision_rows": {
+            "denominator": 492,
+            "detail": "Additional collisions after trim/case/whitespace normalization.",
+            "exactness": "exact",
+            "name": "normalised_key_collision_rows",
+            "unit": "affected rows",
+            "value": 0
+          },
+          "null_key_row_rate": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "null_key_row_rate",
+            "unit": "fraction",
+            "value": 0.0
+          },
+          "null_key_rows": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "null_key_rows",
+            "unit": "rows",
+            "value": 0
+          }
+        },
+        "name": "grain_integrity"
+      },
+      "join_readiness": {
+        "metrics": {
+          "candidate_join_columns": {
+            "exactness": "exact",
+            "name": "candidate_join_columns",
+            "value": [
+              "commodity",
+              "country",
+              "department",
+              "year"
+            ]
+          },
+          "candidate_join_coverage": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "candidate_join_coverage",
+            "value": {
+              "commodity": {
+                "distinct_count": 1,
+                "non_null_count": 492,
+                "non_null_rate": 1.0
+              },
+              "country": {
+                "distinct_count": 1,
+                "non_null_count": 492,
+                "non_null_rate": 1.0
+              },
+              "department": {
+                "distinct_count": 23,
+                "non_null_count": 492,
+                "non_null_rate": 1.0
+              },
+              "year": {
+                "distinct_count": 24,
+                "non_null_count": 492,
+                "non_null_rate": 1.0
+              }
+            }
+          },
+          "pairwise_join_checks_run": {
+            "detail": "The single-table core identifies join surfaces only. Campaign synthesis must run governed pairwise overlap and row-expansion checks.",
+            "exactness": "exact",
+            "name": "pairwise_join_checks_run",
+            "value": false
+          },
+          "registry_coverage_axis": {
+            "exactness": "exact",
+            "name": "registry_coverage_axis",
+            "value": "commodity x year x department"
+          }
+        },
+        "name": "join_readiness"
+      },
+      "missingness_validity": {
+        "metrics": {
+          "co_missingness_pairs": {
+            "denominator": 492,
+            "detail": "All rows; at most 12 partially missing columns, selected by missing count then name.",
+            "exactness": "exact",
+            "name": "co_missingness_pairs",
+            "value": []
+          },
+          "column_missingness": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "column_missingness",
+            "value": {
+              "area_ha": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 1,
+                "zero_rate": 0.0020325203252032522
+              },
+              "commodity": {
+                "empty_string_count": 0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "country": {
+                "empty_string_count": 0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "department": {
+                "empty_string_count": 0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "department_raw": {
+                "empty_string_count": 0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "leviathan_slug": {
+                "empty_string_count": 0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "source": {
+                "empty_string_count": 0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "sentinel_count": 0,
+                "sentinel_rate": 0.0
+              },
+              "year": {
+                "infinite_count": 0,
+                "infinite_rate": 0.0,
+                "negative_count": 0,
+                "negative_rate": 0.0,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "null_count": 0,
+                "null_rate": 0.0,
+                "zero_count": 0,
+                "zero_rate": 0.0
+              }
+            }
+          },
+          "conditional_missingness": {
+            "denominator": 492,
+            "detail": "At most 3 condition columns, 6 targets, and 20 levels.",
+            "exactness": "exact",
+            "name": "conditional_missingness",
+            "value": []
+          },
+          "missingness_analysis_support": {
+            "exactness": "exact",
+            "name": "missingness_analysis_support",
+            "value": {
+              "co_missingness": {
+                "eligible_column_count": 0,
+                "reason": "Fewer than two partially missing columns are available for co-missingness.",
+                "selected_column_count": 0,
+                "status": "no_evidence"
+              },
+              "conditional_missingness": {
+                "reason": "No partially missing column is available as an analysis target.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "required_complete_row_count": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "required_complete_row_count",
+            "unit": "rows",
+            "value": 492
+          },
+          "required_complete_row_rate": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "required_complete_row_rate",
+            "unit": "fraction",
+            "value": 1.0
+          },
+          "validity_analysis_support": {
+            "exactness": "exact",
+            "name": "validity_analysis_support",
+            "value": {
+              "numeric_validity": {
+                "numeric_cell_count": 984,
+                "reason": "Finite, NaN/null, Inf, zero, negative, and common sentinel candidates were counted.",
+                "status": "supported"
+              },
+              "string_sentinels": {
+                "reason": "Configured textual sentinel tokens were counted after trim/case normalization.",
+                "status": "supported",
+                "string_cell_count": 2952
+              }
+            }
+          },
+          "validity_summary": {
+            "detail": "Numeric sentinel counts are heuristic evidence only; values are never removed or declared invalid without a source-specific contract rule.",
+            "exactness": "exact",
+            "name": "validity_summary",
+            "value": {
+              "affected_columns": {
+                "infinite_count": [],
+                "nan_or_null_count": [],
+                "negative_count": [],
+                "numeric_sentinel_candidate_count": [],
+                "zero_count": [
+                  "area_ha"
+                ]
+              },
+              "finite_count": 984,
+              "infinite_count": 0,
+              "nan_or_null_count": 0,
+              "negative_count": 0,
+              "numeric_cell_count": 984,
+              "numeric_sentinel_candidate_count": 0,
+              "rates_over_numeric_cells": {
+                "infinite_count": 0.0,
+                "nan_or_null_count": 0.0,
+                "negative_count": 0.0,
+                "numeric_sentinel_candidate_count": 0.0,
+                "zero_count": 0.0010162601626016261
+              },
+              "string_cell_count": 2952,
+              "string_sentinel_columns": [],
+              "string_sentinel_count": 0,
+              "string_sentinel_rate": 0.0,
+              "zero_count": 1
+            }
+          },
+          "value_column_population": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "value_column_population",
+            "value": {
+              "area_ha": {
+                "available": true,
+                "floor": 0.5,
+                "non_null_count": 492,
+                "non_null_rate": 1.0,
+                "passes_floor": true
+              }
+            }
+          }
+        },
+        "name": "missingness_validity"
+      },
+      "pit_leakage": {
+        "metrics": {
+          "feature_eligible_source": {
+            "exactness": "exact",
+            "name": "feature_eligible_source",
+            "value": true
+          },
+          "knowledge_date_column": {
+            "exactness": "exact",
+            "name": "knowledge_date_column",
+            "value": null
+          },
+          "knowledge_semantics": {
+            "exactness": "exact",
+            "name": "knowledge_semantics",
+            "value": null
+          },
+          "knowledge_time_readiness": {
+            "exactness": "exact",
+            "name": "knowledge_time_readiness",
+            "value": {
+              "basis": null,
+              "declared_knowledge_column": null,
+              "knowledge_date_valid_rate": null,
+              "observation_axis": {
+                "column": "year",
+                "resolution": "annual_proxy"
+              },
+              "publication_lag_days": null,
+              "reason": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+              "status": "needs_contract_or_data_fix"
+            }
+          },
+          "pit_analysis_support": {
+            "exactness": "exact",
+            "name": "pit_analysis_support",
+            "value": {
+              "release_lag": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              },
+              "revision_trajectories": {
+                "reason": "The registry has no knowledge-date column.",
+                "status": "unsupported"
+              }
+            }
+          },
+          "publication_lag_days": {
+            "exactness": "exact",
+            "name": "publication_lag_days",
+            "unit": "days",
+            "value": null
+          },
+          "release_lag_evidence": {
+            "exactness": "exact",
+            "name": "release_lag_evidence",
+            "value": {}
+          },
+          "revision_trajectory_evidence": {
+            "exactness": "exact",
+            "name": "revision_trajectory_evidence",
+            "value": []
+          },
+          "vintage_retention": {
+            "exactness": "exact",
+            "name": "vintage_retention",
+            "value": "latest-only"
+          }
+        },
+        "name": "pit_leakage"
+      },
+      "schema_contract": {
+        "metrics": {
+          "column_contract": {
+            "exactness": "exact",
+            "name": "column_contract",
+            "value": {
+              "area_ha": {
+                "declared_nullable": true,
+                "declared_type": "float64",
+                "deprecated": false,
+                "observed_dtype": "float64",
+                "partition": false,
+                "status": "matched"
+              },
+              "commodity": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": true,
+                "status": "matched"
+              },
+              "country": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "department": {
+                "declared_nullable": false,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "department_raw": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "leviathan_slug": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "source": {
+                "declared_nullable": true,
+                "declared_type": "string",
+                "deprecated": false,
+                "observed_dtype": "str",
+                "partition": false,
+                "status": "matched"
+              },
+              "year": {
+                "declared_nullable": false,
+                "declared_type": "int",
+                "deprecated": false,
+                "observed_dtype": "int64",
+                "partition": true,
+                "status": "matched"
+              }
+            }
+          },
+          "column_count": {
+            "exactness": "exact",
+            "name": "column_count",
+            "unit": "columns",
+            "value": 8
+          },
+          "declared_column_count": {
+            "exactness": "exact",
+            "name": "declared_column_count",
+            "unit": "columns",
+            "value": 8
+          },
+          "duplicate_column_names": {
+            "exactness": "exact",
+            "name": "duplicate_column_names",
+            "value": []
+          },
+          "missing_declared_columns": {
+            "exactness": "exact",
+            "name": "missing_declared_columns",
+            "value": []
+          },
+          "missing_required_columns": {
+            "exactness": "exact",
+            "name": "missing_required_columns",
+            "value": []
+          },
+          "observed_columns": {
+            "exactness": "exact",
+            "name": "observed_columns",
+            "value": [
+              "leviathan_slug",
+              "country",
+              "department",
+              "department_raw",
+              "area_ha",
+              "source",
+              "commodity",
+              "year"
+            ]
+          },
+          "row_count": {
+            "exactness": "exact",
+            "name": "row_count",
+            "unit": "rows",
+            "value": 492
+          },
+          "unexpected_columns": {
+            "exactness": "exact",
+            "name": "unexpected_columns",
+            "value": []
+          }
+        },
+        "name": "schema_contract"
+      },
+      "schema_drift": {
+        "metrics": {
+          "footer_coverage": {
+            "exactness": "footer-derived",
+            "name": "footer_coverage",
+            "value": {
+              "footer_complete": true,
+              "object_count": 24,
+              "partition_stratum_count": 24,
+              "source_compressed_bytes": 121789,
+              "source_row_count": 492
+            }
+          },
+          "partition_strata": {
+            "detail": "All partition strata are shown.",
+            "exactness": "footer-derived",
+            "name": "partition_strata",
+            "value": [
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2002"
+                },
+                "row_count": 16,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2003"
+                },
+                "row_count": 16,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2004"
+                },
+                "row_count": 16,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2005"
+                },
+                "row_count": 16,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2006"
+                },
+                "row_count": 16,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2007"
+                },
+                "row_count": 20,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2008"
+                },
+                "row_count": 20,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2009"
+                },
+                "row_count": 20,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2010"
+                },
+                "row_count": 20,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2011"
+                },
+                "row_count": 20,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2012"
+                },
+                "row_count": 20,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2013"
+                },
+                "row_count": 22,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2014"
+                },
+                "row_count": 22,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2015"
+                },
+                "row_count": 22,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2016"
+                },
+                "row_count": 22,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2017"
+                },
+                "row_count": 22,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2018"
+                },
+                "row_count": 22,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2019"
+                },
+                "row_count": 22,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2020"
+                },
+                "row_count": 23,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2021"
+                },
+                "row_count": 23,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2022"
+                },
+                "row_count": 23,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2023"
+                },
+                "row_count": 23,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2024"
+                },
+                "row_count": 23,
+                "row_group_count": 1,
+                "rows_known": true
+              },
+              {
+                "object_count": 1,
+                "partition_values": {
+                  "commodity": "arabica_coffee",
+                  "year": "2025"
+                },
+                "row_count": 23,
+                "row_group_count": 1,
+                "rows_known": true
+              }
+            ]
+          },
+          "schema_sha256_object_counts": {
+            "detail": "Per-object Parquet footer schema fingerprints; multiple hashes require era/file review.",
+            "exactness": "footer-derived",
+            "name": "schema_sha256_object_counts",
+            "value": {
+              "62f2f6cee137ef3fb428b919c5b7b2dee18a4226c4adada8ccf0716cd11c6ebb": 24
+            }
+          }
+        },
+        "name": "schema_drift"
+      },
+      "temporal_structure": {
+        "metrics": {
+          "autocorrelation_evidence": {
+            "detail": "Ordered timestamp-level medians; includes effective lag-pair counts.",
+            "exactness": "exact",
+            "name": "autocorrelation_evidence",
+            "value": [
+              {
+                "column": "area_ha",
+                "lag_1_autocorrelation": 0.9660536842424357,
+                "n_effective_pairs": 23,
+                "scope": "chronologically ordered cross-sectional median per timestamp"
+              }
+            ]
+          },
+          "cadence_and_gap_evidence": {
+            "exactness": "exact",
+            "name": "cadence_and_gap_evidence",
+            "value": {
+              "declared_cadence": "annual",
+              "declared_matches_inferred": true,
+              "distinct_timestamp_count": 24,
+              "gap_count": 23,
+              "gap_days_max": 366.0,
+              "gap_days_median": 365.0,
+              "gap_days_mode": 365.0,
+              "gap_days_p95": 366.0,
+              "inferred_cadence": "annual",
+              "large_gap_count": 0,
+              "large_gap_rate": 0.0
+            }
+          },
+          "declared_freshness_cadence": {
+            "exactness": "exact",
+            "name": "declared_freshness_cadence",
+            "value": "annual"
+          },
+          "distribution_drift_evidence": {
+            "detail": "Descriptive early/latest temporal-quartile comparison; no target is used.",
+            "exactness": "exact",
+            "name": "distribution_drift_evidence",
+            "value": [
+              {
+                "column": "area_ha",
+                "early_n": 80,
+                "early_quantiles": {
+                  "0.1": 11212.215333333334,
+                  "0.5": 47807.03,
+                  "0.9": 105224.26588888887
+                },
+                "late_n": 115,
+                "late_quantiles": {
+                  "0.1": 181.16799999999995,
+                  "0.5": 23410.6,
+                  "0.9": 106854.404
+                },
+                "median_shift": -24396.43,
+                "robust_median_shift_iqr": -0.39061280907558354
+              }
+            ]
+          },
+          "panel_balance": {
+            "exactness": "exact",
+            "name": "panel_balance",
+            "value": {
+              "analysis_frame_exactness": "exact",
+              "complete_entity_count": 16,
+              "complete_entity_rate": 0.6956521739130435,
+              "entity_columns": [
+                "commodity",
+                "department"
+              ],
+              "entity_count": 23,
+              "full_source_balance_claimed": true,
+              "global_distinct_period_count": 24,
+              "observed_period_count": {
+                "max": 24,
+                "median": 24.0,
+                "min": 6,
+                "p10": 14.200000000000001,
+                "p90": 24.0
+              },
+              "period_coverage_ratio": {
+                "median": 1.0,
+                "p10": 0.5916666666666667,
+                "p90": 1.0
+              },
+              "sampling_artifact_caveat": null,
+              "scope": "full_analysis_frame"
+            }
+          },
+          "progressive_curve_evidence": {
+            "exactness": "exact",
+            "name": "progressive_curve_evidence",
+            "value": []
+          },
+          "regime_shift_evidence": {
+            "detail": "Strongest bounded source-only median split; no target is used.",
+            "exactness": "exact",
+            "name": "regime_shift_evidence",
+            "value": [
+              {
+                "after_median": 24877.83,
+                "after_timestamp_count": 15,
+                "before_median": 47450.0,
+                "before_timestamp_count": 9,
+                "column": "area_ha",
+                "median_shift": -22572.17,
+                "robust_shift_score": 3.520681233898081,
+                "split_timestamp": "2011-01-01T00:00:00+00:00"
+              }
+            ]
+          },
+          "seasonality_evidence": {
+            "exactness": "exact",
+            "name": "seasonality_evidence",
+            "value": []
+          },
+          "temporal_analysis_support": {
+            "exactness": "exact",
+            "name": "temporal_analysis_support",
+            "value": {
+              "autocorrelation": {
+                "reason": "Lag one is over ordered observed timestamps and is not forced to a fixed calendar lag.",
+                "series_count": 1,
+                "status": "supported"
+              },
+              "cadence_and_gaps": {
+                "reason": "Cadence and gaps were computed over all distinct observation timestamps.",
+                "status": "supported"
+              },
+              "distribution_drift": {
+                "configured_window_fraction": 0.2,
+                "early_cutoff": "2006-01-01T00:00:00+00:00",
+                "late_cutoff": "2021-01-01T00:00:00+00:00",
+                "reason": "Earliest and latest timestamp quartiles are compared descriptively; composition changes can mimic distribution drift.",
+                "series_count": 1,
+                "status": "supported"
+              },
+              "panel_balance": {
+                "entity_count": 23,
+                "full_source_balance_claimed": true,
+                "reason": "Entity coverage is measured against the global observed timestamp set; staggered entry can lower this descriptive ratio without implying a defect.",
+                "scope": "full_analysis_frame",
+                "status": "supported"
+              },
+              "progressive_curve": {
+                "reason": "The registry-derived analyzer routes do not identify a curve table.",
+                "status": "not_applicable"
+              },
+              "regime_shifts": {
+                "candidate_splits_per_series_at_most": 40,
+                "reason": "Strongest bounded median split is descriptive change-point evidence; it may reflect composition or source-method changes rather than a physical regime.",
+                "series_count": 1,
+                "status": "supported"
+              },
+              "seasonality": {
+                "reason": "No selected numeric series has at least 24 timestamps, two years, and six months.",
+                "status": "no_evidence"
+              }
+            }
+          },
+          "temporal_column_count": {
+            "exactness": "exact",
+            "name": "temporal_column_count",
+            "unit": "columns",
+            "value": 1
+          },
+          "temporal_columns": {
+            "exactness": "exact",
+            "name": "temporal_columns",
+            "value": {
+              "year": {
+                "coverage_month_counts": {
+                  "2002-01": 16,
+                  "2003-01": 16,
+                  "2004-01": 16,
+                  "2005-01": 16,
+                  "2006-01": 16,
+                  "2007-01": 20,
+                  "2008-01": 20,
+                  "2009-01": 20,
+                  "2010-01": 20,
+                  "2011-01": 20,
+                  "2012-01": 20,
+                  "2013-01": 22,
+                  "2014-01": 22,
+                  "2015-01": 22,
+                  "2016-01": 22,
+                  "2017-01": 22,
+                  "2018-01": 22,
+                  "2019-01": 22,
+                  "2020-01": 23,
+                  "2021-01": 23,
+                  "2022-01": 23,
+                  "2023-01": 23,
+                  "2024-01": 23,
+                  "2025-01": 23
+                },
+                "coverage_truncated_to_latest_240_months": false,
+                "distinct_timestamp_count": 24,
+                "first": "2002-01-01T00:00:00+00:00",
+                "gap_days_max": 366.0,
+                "gap_days_median": 365.0,
+                "gap_days_p95": 366.0,
+                "last": "2025-01-01T00:00:00+00:00",
+                "parseable_count": 492,
+                "parseable_rate": 1.0
+              }
+            }
+          },
+          "temporal_observation_axis": {
+            "exactness": "exact",
+            "name": "temporal_observation_axis",
+            "value": {
+              "column": "year",
+              "resolution": "annual_proxy"
+            }
+          },
+          "usable_temporal_columns": {
+            "exactness": "exact",
+            "name": "usable_temporal_columns",
+            "value": [
+              "year"
+            ]
+          }
+        },
+        "name": "temporal_structure"
+      },
+      "within_source_relationships": {
+        "metrics": {
+          "accounting_relationships": {
+            "denominator": 492,
+            "exactness": "exact",
+            "name": "accounting_relationships",
+            "value": []
+          },
+          "categorical_association_columns": {
+            "exactness": "exact",
+            "name": "categorical_association_columns",
+            "value": [
+              "department",
+              "department_raw"
+            ]
+          },
+          "categorical_associations": {
+            "denominator": 492,
+            "detail": "All rows; at most 6 columns and 30 levels per column.",
+            "exactness": "exact",
+            "name": "categorical_associations",
+            "value": [
+              {
+                "cramers_v": 1.0,
+                "cramers_v_bias_corrected": 1.0,
+                "left": "department",
+                "left_levels": 23,
+                "n": 492,
+                "right": "department_raw",
+                "right_levels": 23
+              }
+            ]
+          },
+          "correlation_columns": {
+            "exactness": "exact",
+            "name": "correlation_columns",
+            "value": [
+              "area_ha"
+            ]
+          },
+          "correlation_pairs": {
+            "exactness": "exact",
+            "name": "correlation_pairs",
+            "value": []
+          },
+          "multicollinearity_candidates": {
+            "detail": "Pairs require |Pearson| or |Spearman| >= 0.85 and n >= 12.",
+            "exactness": "exact",
+            "name": "multicollinearity_candidates",
+            "value": []
+          },
+          "pearson_matrix": {
+            "exactness": "exact",
+            "name": "pearson_matrix",
+            "value": {}
+          },
+          "relationship_analysis_support": {
+            "exactness": "exact",
+            "name": "relationship_analysis_support",
+            "value": {
+              "accounting_relationships": {
+                "reason": "No governed arithmetic identity is registered for the observed column set.",
+                "status": "not_applicable"
+              },
+              "categorical_association": {
+                "eligible_column_count": 2,
+                "pair_count": 1,
+                "reason": "Bias-corrected Cramer's V is descriptive; rare levels and structural mappings can produce strong associations without redundancy.",
+                "selected_columns": [
+                  "department",
+                  "department_raw"
+                ],
+                "status": "supported"
+              }
+            }
+          },
+          "spearman_matrix": {
+            "exactness": "exact",
+            "name": "spearman_matrix",
+            "value": {}
+          }
+        },
+        "name": "within_source_relationships"
+      }
+    },
+    "table_name": "silver_fnc_colombia_area_department"
+  },
+  "provenance": {
+    "analysis_rows": 492,
+    "campaign_id": "readerfirst-final-20260718-a176abf1",
+    "canonical_root": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department",
+    "contract_sha256": "6e643bd019f35606668c2b6683aafc93e568fd4a6939788cc894a056fb9e4ae3",
+    "coverage_catalog": {
+      "analysis_strata_complete": null,
+      "analysis_strata_sample": [],
+      "analysis_strata_sample_is_bounded": false,
+      "analysis_strata_sampled_row_count": null,
+      "analysis_strata_source_row_count": null,
+      "analysis_stratum_count": null,
+      "analysis_stratum_dimensions": [],
+      "exactness": "footer-derived",
+      "footer_complete": true,
+      "object_count": 24,
+      "partition_strata_sample": [
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2002"
+          },
+          "row_count": 16,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2003"
+          },
+          "row_count": 16,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2004"
+          },
+          "row_count": 16,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2005"
+          },
+          "row_count": 16,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2006"
+          },
+          "row_count": 16,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2007"
+          },
+          "row_count": 20,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2008"
+          },
+          "row_count": 20,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2009"
+          },
+          "row_count": 20,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2010"
+          },
+          "row_count": 20,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2011"
+          },
+          "row_count": 20,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2012"
+          },
+          "row_count": 20,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2013"
+          },
+          "row_count": 22,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2014"
+          },
+          "row_count": 22,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2015"
+          },
+          "row_count": 22,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2016"
+          },
+          "row_count": 22,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2017"
+          },
+          "row_count": 22,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2018"
+          },
+          "row_count": 22,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2019"
+          },
+          "row_count": 22,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2020"
+          },
+          "row_count": 23,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2021"
+          },
+          "row_count": 23,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2022"
+          },
+          "row_count": 23,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2023"
+          },
+          "row_count": 23,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2024"
+          },
+          "row_count": 23,
+          "row_group_count": 1,
+          "rows_known": true
+        },
+        {
+          "object_count": 1,
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2025"
+          },
+          "row_count": 23,
+          "row_group_count": 1,
+          "rows_known": true
+        }
+      ],
+      "partition_strata_sample_is_bounded": false,
+      "partition_stratum_count": 24,
+      "schema_sha256_object_counts": {
+        "62f2f6cee137ef3fb428b919c5b7b2dee18a4226c4adada8ccf0716cd11c6ebb": 24
+      },
+      "source_compressed_bytes": 121789,
+      "source_row_count": 492
+    },
+    "dependency_versions": {
+      "leviathan": "0.1.0",
+      "matplotlib": "3.11.1",
+      "nbclient": "0.11.0",
+      "nbformat": "5.10.4",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "papermill": "2.7.0",
+      "pyarrow": "25.0.0",
+      "scipy": "1.17.1",
+      "seaborn": "0.13.2",
+      "statsmodels": "0.14.6"
+    },
+    "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+    "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+    "frozen_frame_sha256": "c54ae206367b25f1b709716ed42fb0cf6e583c85521662fc2e9a351decc423b1",
+    "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+    "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+    "object_count": 24,
+    "object_sample": [
+      {
+        "etag": "a3b4b5619b40a47ddfd860216b4fb780",
+        "last_modified": "2026-06-02T10:46:09Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2002"
+        },
+        "size": 4951,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2002/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "b0dfcd8e574fdd30c360aeb777127385",
+        "last_modified": "2026-06-02T10:46:10Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2003"
+        },
+        "size": 4956,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2003/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "b5d56331843fc6456b42035318a1c25d",
+        "last_modified": "2026-06-02T10:46:10Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2004"
+        },
+        "size": 4954,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2004/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "34c1fb3bedbd1290237c6e50fe2226b0",
+        "last_modified": "2026-06-02T10:46:10Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2005"
+        },
+        "size": 4947,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2005/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "dd5677f35f1cebf10832d0d5a539c667",
+        "last_modified": "2026-06-02T10:46:11Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2006"
+        },
+        "size": 4921,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2006/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "ce1ef0801e86d14dbf5fbb587da69952",
+        "last_modified": "2026-06-02T10:46:11Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2007"
+        },
+        "size": 5031,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2007/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "39928a4bb0939e98913c0aabd3399e3e",
+        "last_modified": "2026-06-02T10:46:11Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2008"
+        },
+        "size": 5029,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2008/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "9de77e9bfce13d6d0924c2ef9d59d97a",
+        "last_modified": "2026-06-02T10:46:12Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2009"
+        },
+        "size": 5065,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2009/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "aee30674e09c226b99de3529260a4ff5",
+        "last_modified": "2026-06-02T10:46:12Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2010"
+        },
+        "size": 5069,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2010/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "710f86b7e0dc5980f5692a2f126ac6cc",
+        "last_modified": "2026-06-02T10:46:12Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2011"
+        },
+        "size": 5069,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2011/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "aebf6da4ee07f20f131724ccdff44d6f",
+        "last_modified": "2026-06-02T10:46:16Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2021"
+        },
+        "size": 5138,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2021/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "a0007de216a9b2612d0b40cb1743995a",
+        "last_modified": "2026-06-02T10:46:16Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2022"
+        },
+        "size": 5146,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2022/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "a59a2222a19922fb3ba1b319733148f1",
+        "last_modified": "2026-06-02T10:46:16Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2023"
+        },
+        "size": 5140,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2023/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "1b1dbe89778eaa4e44652685a62e7fe1",
+        "last_modified": "2026-06-02T10:46:17Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2024"
+        },
+        "size": 5105,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2024/part-000.parquet",
+        "version_id": null
+      },
+      {
+        "etag": "6983118d9244913798c6b283ba2147dd",
+        "last_modified": "2026-06-02T10:46:17Z",
+        "partition_values": {
+          "commodity": "arabica_coffee",
+          "year": "2025"
+        },
+        "size": 5135,
+        "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2025/part-000.parquet",
+        "version_id": null
+      }
+    ],
+    "object_sample_is_bounded": true,
+    "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/manifest.json",
+    "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+    "rejected_control_or_foreign_keys": 24,
+    "relationship_checks": [],
+    "sampled_row_group_count": 0,
+    "sampled_row_group_sample": [],
+    "sampling_strata": [],
+    "sampling_strategy": null,
+    "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/snapshot/manifest.json",
+    "snapshot_policy": {
+      "exactness": "exact",
+      "identity_columns": [
+        "commodity",
+        "year",
+        "leviathan_slug",
+        "country",
+        "department",
+        "department_raw",
+        "area_ha",
+        "source"
+      ],
+      "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+      "seed": 5068461892555042730,
+      "snapshot_row_count": 492,
+      "source_compressed_bytes": 121789,
+      "source_row_count": 492,
+      "stratum_columns": [
+        "commodity",
+        "year",
+        "leviathan_slug",
+        "country"
+      ]
+    },
+    "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/snapshot/part-000.parquet",
+    "source_manifest_sha256": "52f8eb0b289c58de65b720f04f3c78d9c1161afe2bbf240a892bdace5aaa3c90",
+    "source_replica": {
+      "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/source_replica",
+      "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/source_replica/manifest.json",
+      "object_count": 24,
+      "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/source_replica/objects",
+      "replica_manifest_sha256": "da7e7127244fbacc297a67253d8fa585a67beb611c673228cbd1751dce25f4eb",
+      "source_manifest_sha256": "52f8eb0b289c58de65b720f04f3c78d9c1161afe2bbf240a892bdace5aaa3c90",
+      "total_bytes": 121789
+    },
+    "source_rows": 492,
+    "source_specific_checks": [],
+    "source_total_bytes": 121789,
+    "source_total_rows": 492,
+    "spec_sha256": "3edbaf11eed6c21c74d597d3cb4e1e9bc8c75beae22c4efa7359e2596ab0c7bb"
+  },
+  "reader": {
+    "analysis_rows": 492,
+    "anti_feature_summary": {
+      "analysis_rows": 492,
+      "entries": [
+        {
+          "anti_feature_id": "reviewed-1",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not derive same-period or future-looking features without enforcing observation and knowledge-time cutoffs."
+        },
+        {
+          "anti_feature_id": "reviewed-2",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence."
+        },
+        {
+          "anti_feature_id": "reviewed-3",
+          "reason": "Reviewed table-specific exclusion.",
+          "statement": "Do not treat ingestion or file timestamps as historical publication dates."
+        },
+        {
+          "anti_feature_id": "unproven-knowledge-time",
+          "reason": "The current contract does not prove cutoff-time availability.",
+          "statement": "Do not backfill latest or final values into earlier feature cutoffs."
+        }
+      ],
+      "exactness": "exact",
+      "feature_quarantined": false,
+      "plotted_rows": null,
+      "source_rows": 492
+    },
+    "archetype": "annual_geographic_production",
+    "chart_execution": {
+      "omission_reasons": [],
+      "omitted_chart_count": 0,
+      "plotted_rows": 684,
+      "ready_chart_count": 4,
+      "status": "complete"
+    },
+    "chart_manifest": [
+      {
+        "aggregation": "median only within duplicate x/series/measure rows; semantic series remain separate",
+        "analysis_rows": 492,
+        "chart_id": "history",
+        "exactness": "exact",
+        "plotted_rows": 288,
+        "reason": null,
+        "scope": "selected 12 of 22 complete semantic series by distinct-position count, contributing rows, then label; excluded series=11 (complete but outside cap=10, underpowered=1); label dimensions=commodity, leviathan_slug, country, department; no pooling; time=year; measures=area_ha",
+        "source_rows": 492,
+        "status": "ready",
+        "title": "Historical measures",
+        "unit": "hectares"
+      },
+      {
+        "aggregation": "latest comparable period only; median only within duplicate entity-period rows",
+        "analysis_rows": 492,
+        "chart_id": "latest_ranking",
+        "exactness": "exact",
+        "plotted_rows": 12,
+        "reason": null,
+        "scope": "top 12 of 23 semantic series by contributing-row count; excluded series=11; label dimensions=commodity, leviathan_slug, country, department; no pooling; time=year; latest comparable period=2025-01-01; measure=area_ha",
+        "source_rows": 492,
+        "status": "ready",
+        "title": "Latest entity comparison",
+        "unit": "hectares"
+      },
+      {
+        "aggregation": "raw finite observations; no cross-series pooling; all finite values",
+        "analysis_rows": 492,
+        "chart_id": "distribution",
+        "exactness": "exact",
+        "plotted_rows": 96,
+        "reason": null,
+        "scope": "top 4 of 23 semantic series by contributing-row count; excluded series=19; label dimensions=commodity, leviathan_slug, country, department; no pooling; measures=area_ha",
+        "source_rows": 492,
+        "status": "ready",
+        "title": "Cross-sectional distributions",
+        "unit": "hectares"
+      },
+      {
+        "aggregation": "exact contributing-row count by displayed time bucket and entity",
+        "analysis_rows": 492,
+        "chart_id": "coverage",
+        "exactness": "exact",
+        "plotted_rows": 288,
+        "reason": null,
+        "scope": "top 12 of 23 semantic series by contributing-row count; excluded series=11; label dimensions=commodity, leviathan_slug, country, department; no pooling; time=year; calendar-year buckets; 288 populated cells",
+        "source_rows": 492,
+        "status": "ready",
+        "title": "Entity-time coverage",
+        "unit": "rows"
+      }
+    ],
+    "chart_omission_reasons": [],
+    "chart_plan": {
+      "analysis_rows": 492,
+      "charts": [
+        {
+          "analysis_rows": 492,
+          "chart_id": "history",
+          "chart_type": "line",
+          "columns": [
+            "year",
+            "area_ha",
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 492,
+          "exactness": "exact",
+          "id": "history",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "area_ha"
+          ],
+          "measure_units": {
+            "area_ha": "hectares"
+          },
+          "minimum_rows": 8,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show long-run level and direction.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 492,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Historical measures",
+          "type": "line",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 492,
+          "chart_id": "latest_ranking",
+          "chart_type": "ranked_bar",
+          "columns": [
+            "year",
+            "area_ha",
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 492,
+          "exactness": "exact",
+          "id": "latest_ranking",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "area_ha"
+          ],
+          "measure_units": {
+            "area_ha": "hectares"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Compare entities at the latest comparable period.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 492,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Latest entity comparison",
+          "type": "ranked_bar",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 492,
+          "chart_id": "distribution",
+          "chart_type": "distribution",
+          "columns": [
+            "area_ha",
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 492,
+          "exactness": "exact",
+          "id": "distribution",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [
+            "area_ha"
+          ],
+          "measure_units": {
+            "area_ha": "hectares"
+          },
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Show dispersion and outlying entities.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 492,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Cross-sectional distributions",
+          "type": "distribution",
+          "unit_column": null
+        },
+        {
+          "analysis_rows": 492,
+          "chart_id": "coverage",
+          "chart_type": "coverage_heatmap",
+          "columns": [
+            "year",
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "coverage_grain": null,
+          "cutoff_mode": null,
+          "eligible_rows": 492,
+          "exactness": "exact",
+          "id": "coverage",
+          "intentional_points": false,
+          "max_series": 12,
+          "measure_columns": [],
+          "measure_units": {},
+          "minimum_rows": 1,
+          "plotted_rows": null,
+          "preflight_status": "ready",
+          "purpose": "Expose panel gaps and changing coverage.",
+          "reason": "Supported by the analysis frame.",
+          "series_dimensions": [
+            "commodity",
+            "leviathan_slug",
+            "country",
+            "department"
+          ],
+          "series_selection": "most_complete",
+          "source_rows": 492,
+          "split_by": [],
+          "status": "ready",
+          "time_components": [],
+          "title": "Entity-time coverage",
+          "type": "coverage_heatmap",
+          "unit_column": null
+        }
+      ],
+      "eligible_rows": 1968,
+      "exactness": "exact",
+      "execution_status": "complete",
+      "omitted_chart_count": 0,
+      "overall_status": "sufficient",
+      "plotted_rows": null,
+      "preflight_ready_chart_count": 4,
+      "ready_chart_count": 4,
+      "source_rows": 492
+    },
+    "column_dictionary": [
+      {
+        "column": "leviathan_slug",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "arabica_coffee",
+        "meaning": "Leviathan's governed commodity identifier.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports entity segmentation."
+      },
+      {
+        "column": "country",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "colombia",
+        "meaning": "Country represented by the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports entity segmentation."
+      },
+      {
+        "column": "department",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 23,
+        "example": "antioquia",
+        "meaning": "Administrative department represented by the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; supports entity segmentation; is required by the source contract."
+      },
+      {
+        "column": "department_raw",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 23,
+        "example": "Antioquia",
+        "meaning": "Original source-reported department retained before normalization for lineage and mapping review.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Provides explanatory context or a candidate diagnostic at the declared row grain."
+      },
+      {
+        "column": "area_ha",
+        "declared_nullable": true,
+        "declared_type": "float64",
+        "distinct_count": 487,
+        "example": 0.0,
+        "meaning": "Area reported in hectares at the declared row grain.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "float64",
+        "present": true,
+        "roles": [
+          "measure"
+        ],
+        "unit": "hectares",
+        "value_access": "reader_visible",
+        "why_it_matters": "Carries a primary analytical measure."
+      },
+      {
+        "column": "source",
+        "declared_nullable": true,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "fnc_colombia",
+        "meaning": "Source-system label retained for provenance.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Supports provenance or reproducibility."
+      },
+      {
+        "column": "commodity",
+        "declared_nullable": false,
+        "declared_type": "string",
+        "distinct_count": 1,
+        "example": "arabica_coffee",
+        "meaning": "Governed or source-normalized commodity identifier.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "str",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "partition"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; supports entity segmentation; controls physical coverage; is required by the source contract."
+      },
+      {
+        "column": "year",
+        "declared_nullable": false,
+        "declared_type": "int",
+        "distinct_count": 24,
+        "example": 2002,
+        "meaning": "Calendar year associated with the observation.",
+        "null_count": 0,
+        "null_rate": 0.0,
+        "observed_dtype": "int64",
+        "present": true,
+        "roles": [
+          "natural_key",
+          "partition",
+          "time"
+        ],
+        "unit": null,
+        "value_access": "reader_visible",
+        "why_it_matters": "Defines row uniqueness; anchors temporal coverage; controls physical coverage; is required by the source contract."
+      }
+    ],
+    "dashboard_kpis": [
+      {
+        "analysis_rows": 492,
+        "columns": [],
+        "detail": "492 canonical source rows are represented.",
+        "exactness": "exact",
+        "kind": "row_count",
+        "kpi_id": "source_rows",
+        "label": "Source rows",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.source_rows"
+        ],
+        "scope": {
+          "analysis_rows": 492,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492
+        },
+        "source_rows": 492,
+        "status": "evaluated",
+        "unit": "rows",
+        "value": 492
+      },
+      {
+        "analysis_rows": 492,
+        "columns": [],
+        "detail": "The analysis frame exposes 8 columns.",
+        "exactness": "exact",
+        "kind": "column_count",
+        "kpi_id": "column_count",
+        "label": "Columns",
+        "plotted_rows": null,
+        "references": [
+          "source_shape.column_count",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 492,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492
+        },
+        "source_rows": 492,
+        "status": "evaluated",
+        "unit": "columns",
+        "value": 8
+      },
+      {
+        "analysis_rows": 492,
+        "columns": [
+          "year"
+        ],
+        "detail": "Coverage spans 2002-01-01 through 2025-01-01 across 24 time points.",
+        "exactness": "exact",
+        "kind": "time_coverage",
+        "kpi_id": "time_coverage",
+        "label": "Time coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.temporal",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 492,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492
+        },
+        "source_rows": 492,
+        "status": "evaluated",
+        "value": {
+          "distinct_points": 24,
+          "end": "2025-01-01T00:00:00",
+          "start": "2002-01-01T00:00:00"
+        }
+      },
+      {
+        "analysis_rows": 492,
+        "columns": [
+          "commodity",
+          "leviathan_slug"
+        ],
+        "detail": "Distinct entity counts were computed for commodity, leviathan_slug.",
+        "exactness": "exact",
+        "kind": "distinct_entities",
+        "kpi_id": "entity_coverage",
+        "label": "Entity coverage",
+        "plotted_rows": null,
+        "references": [
+          "ordinary_statistics.categorical",
+          "quality_scorecard.checks.coverage"
+        ],
+        "scope": {
+          "analysis_rows": 492,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492
+        },
+        "source_rows": 492,
+        "status": "evaluated",
+        "value": {
+          "commodity": 1,
+          "leviathan_slug": 1
+        }
+      },
+      {
+        "analysis_rows": 492,
+        "columns": [
+          "area_ha"
+        ],
+        "detail": "Minimum completeness across 1 assessed columns is 100.0%.",
+        "exactness": "exact",
+        "kind": "missingness",
+        "kpi_id": "missingness",
+        "label": "Primary-measure completeness",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.missingness",
+          "column_dictionary"
+        ],
+        "scope": {
+          "analysis_rows": 492,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492
+        },
+        "source_rows": 492,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 1.0
+      },
+      {
+        "analysis_rows": 492,
+        "columns": [
+          "commodity",
+          "year",
+          "department"
+        ],
+        "detail": "Declared-key duplicate participation is 0 of 492 rows.",
+        "exactness": "exact",
+        "kind": "duplicate_rate",
+        "kpi_id": "grain_integrity",
+        "label": "Declared-grain integrity",
+        "plotted_rows": null,
+        "references": [
+          "quality_scorecard.checks.grain"
+        ],
+        "scope": {
+          "analysis_rows": 492,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492
+        },
+        "source_rows": 492,
+        "status": "evaluated",
+        "unit": "fraction",
+        "value": 0.0
+      },
+      {
+        "analysis_rows": 492,
+        "columns": [
+          "area_ha"
+        ],
+        "detail": "The latest time has multiple rows and no reviewed entity selection or aggregation.",
+        "exactness": "exact",
+        "kind": "latest_value",
+        "kpi_id": "latest_measure",
+        "label": "Latest primary measure",
+        "plotted_rows": null,
+        "references": [
+          "notable_rows",
+          "ordinary_statistics.temporal"
+        ],
+        "scope": {
+          "analysis_rows": 492,
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492
+        },
+        "source_rows": 492,
+        "status": "not_assessed",
+        "value": null
+      }
+    ],
+    "df_info_text": "<class 'pandas.DataFrame'>\nRangeIndex: 492 entries, 0 to 491\nData columns (total 8 columns):\n #   Column          Non-Null Count  Dtype  \n---  ------          --------------  -----  \n 0   leviathan_slug  492 non-null    str    \n 1   country         492 non-null    str    \n 2   department      492 non-null    str    \n 3   department_raw  492 non-null    str    \n 4   area_ha         492 non-null    float64\n 5   source          492 non-null    str    \n 6   commodity       492 non-null    str    \n 7   year            492 non-null    int64  \ndtypes: float64(1), int64(1), str(6)\nmemory usage: 61.0 KB\n",
+    "display_policy": {
+      "analysis_rows": 492,
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "full_dataframe_max_rows": 200,
+      "mode": "deterministic_preview",
+      "plotted_rows": 684,
+      "preview_max_rows": 40,
+      "source_rows": 492
+    },
+    "exactness": "exact",
+    "feature_quarantined": false,
+    "notable_rows": {
+      "analysis_rows": 492,
+      "exactness": "exact",
+      "plotted_rows": null,
+      "records": [
+        {
+          "reasons": [
+            "minimum area_ha"
+          ],
+          "row": {
+            "area_ha": 0.0,
+            "commodity": "arabica_coffee",
+            "country": "colombia",
+            "department": "putumayo",
+            "department_raw": "Putumayo",
+            "leviathan_slug": "arabica_coffee",
+            "source": "fnc_colombia",
+            "year": 2016
+          }
+        },
+        {
+          "reasons": [
+            "latest year"
+          ],
+          "row": {
+            "area_ha": 108410.56,
+            "commodity": "arabica_coffee",
+            "country": "colombia",
+            "department": "antioquia",
+            "department_raw": "Antioquia",
+            "leviathan_slug": "arabica_coffee",
+            "source": "fnc_colombia",
+            "year": 2025
+          }
+        },
+        {
+          "reasons": [
+            "earliest year"
+          ],
+          "row": {
+            "area_ha": 127992.32,
+            "commodity": "arabica_coffee",
+            "country": "colombia",
+            "department": "antioquia",
+            "department_raw": "Antioquia",
+            "leviathan_slug": "arabica_coffee",
+            "source": "fnc_colombia",
+            "year": 2002
+          }
+        },
+        {
+          "reasons": [
+            "maximum area_ha"
+          ],
+          "row": {
+            "area_ha": 154982.92999999993,
+            "commodity": "arabica_coffee",
+            "country": "colombia",
+            "department": "huila",
+            "department_raw": "Huila",
+            "leviathan_slug": "arabica_coffee",
+            "source": "fnc_colombia",
+            "year": 2014
+          }
+        }
+      ],
+      "source_rows": 492,
+      "status": "available"
+    },
+    "omitted_chart_count": 0,
+    "ordinary_statistics": {
+      "analysis_rows": 492,
+      "categorical": {
+        "columns": [
+          "column",
+          "count",
+          "unique",
+          "top",
+          "freq"
+        ],
+        "records": [
+          {
+            "column": "leviathan_slug",
+            "count": 492,
+            "freq": 492,
+            "top": "arabica_coffee",
+            "unique": 1
+          },
+          {
+            "column": "country",
+            "count": 492,
+            "freq": 492,
+            "top": "colombia",
+            "unique": 1
+          },
+          {
+            "column": "department",
+            "count": 492,
+            "freq": 24,
+            "top": "antioquia",
+            "unique": 23
+          },
+          {
+            "column": "department_raw",
+            "count": 492,
+            "freq": 24,
+            "top": "Antioquia",
+            "unique": 23
+          },
+          {
+            "column": "source",
+            "count": 492,
+            "freq": 492,
+            "top": "fnc_colombia",
+            "unique": 1
+          },
+          {
+            "column": "commodity",
+            "count": 492,
+            "freq": 492,
+            "top": "arabica_coffee",
+            "unique": 1
+          }
+        ],
+        "row_count": 6
+      },
+      "exactness": "exact",
+      "numeric": {
+        "columns": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "25%",
+          "50%",
+          "75%",
+          "max"
+        ],
+        "records": [
+          {
+            "25%": 5173.2925000000005,
+            "50%": 30886.194999999992,
+            "75%": 67630.10250000001,
+            "column": "area_ha",
+            "count": 492.0,
+            "max": 154982.92999999993,
+            "mean": 43210.00119805781,
+            "min": 0.0,
+            "std": 41085.92730011324
+          },
+          {
+            "25%": 2009.0,
+            "50%": 2015.0,
+            "75%": 2020.0,
+            "column": "year",
+            "count": 492.0,
+            "max": 2025.0,
+            "mean": 2014.2865853658536,
+            "min": 2002.0,
+            "std": 6.770095900341895
+          }
+        ],
+        "row_count": 2
+      },
+      "plotted_rows": null,
+      "source_rows": 492,
+      "status": "available",
+      "temporal": {
+        "columns": [
+          "column",
+          "count",
+          "distinct",
+          "min",
+          "max"
+        ],
+        "records": [
+          {
+            "column": "year",
+            "count": 492,
+            "distinct": 24,
+            "max": "2025-01-01T00:00:00",
+            "min": "2002-01-01T00:00:00"
+          }
+        ],
+        "row_count": 1
+      }
+    },
+    "pit_summary": {
+      "analysis_rows": 492,
+      "exactness": "exact",
+      "explanation": "Neither a usable row-level knowledge-time column nor a non-negative governed publication lag is available.",
+      "knowledge_date_column": null,
+      "knowledge_semantics": null,
+      "notes": [
+        "No governed knowledge-time column is declared; descriptive source EDA is valid, but feature prototypes need an explicit cutoff-availability rule."
+      ],
+      "plotted_rows": null,
+      "publication_lag_days": null,
+      "source_rows": 492,
+      "status": "needs_contract_or_data_fix",
+      "use_rule": "Do not use same-season or preseason values until knowledge-time semantics are repaired."
+    },
+    "plotted_rows": 684,
+    "preview": {
+      "analysis_rows": 492,
+      "columns": [
+        "leviathan_slug",
+        "country",
+        "department",
+        "department_raw",
+        "area_ha",
+        "source",
+        "commodity",
+        "year"
+      ],
+      "displayed_rows": 40,
+      "exactness": "exact",
+      "mode": "deterministic_preview",
+      "plotted_rows": null,
+      "records": [
+        {
+          "area_ha": 10261.66,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "boyaca",
+          "department_raw": "Boyaca",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        },
+        {
+          "area_ha": 104266.79,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "tolima",
+          "department_raw": "Tolima",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        },
+        {
+          "area_ha": 1116.6100000000001,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "bolivar",
+          "department_raw": "Bolivar",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2014
+        },
+        {
+          "area_ha": 11272.51,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "boyaca",
+          "department_raw": "Boyaca",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2011
+        },
+        {
+          "area_ha": 11356.366666666665,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "boyaca",
+          "department_raw": "Boyaca",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 117531.59999999999,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "antioquia",
+          "department_raw": "Antioquia",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2020
+        },
+        {
+          "area_ha": 126300.0,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "antioquia",
+          "department_raw": "Antioquia",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2006
+        },
+        {
+          "area_ha": 1403.72,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "bolivar",
+          "department_raw": "Bolivar",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2021
+        },
+        {
+          "area_ha": 171.37,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "choco",
+          "department_raw": "Chocó",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        },
+        {
+          "area_ha": 17450.94,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "magdalena",
+          "department_raw": "Magdalena",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 17510.99,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "quindio",
+          "department_raw": "Quindio",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        },
+        {
+          "area_ha": 21271.53,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "magdalena",
+          "department_raw": "Magdalena",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2014
+        },
+        {
+          "area_ha": 23097.359999999997,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "n_santander",
+          "department_raw": "N. Santander",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2020
+        },
+        {
+          "area_ha": 23889.21,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "cesar",
+          "department_raw": "Cesar",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2020
+        },
+        {
+          "area_ha": 24877.83,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "n_santander",
+          "department_raw": "N. Santander",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        },
+        {
+          "area_ha": 2604.31,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "casanare",
+          "department_raw": "Casanare",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2019
+        },
+        {
+          "area_ha": 28032.72000000001,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "cesar",
+          "department_raw": "Cesar",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2017
+        },
+        {
+          "area_ha": 2877.67,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "la_guajira",
+          "department_raw": "La Guajira",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        },
+        {
+          "area_ha": 29637.219999999998,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "cundinamarca",
+          "department_raw": "Cundinamarca",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2021
+        },
+        {
+          "area_ha": 32053.800000000003,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "n_santander",
+          "department_raw": "N. Santander",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 35759.950000000004,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "narino",
+          "department_raw": "Nariño",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2020
+        },
+        {
+          "area_ha": 3603.3499999999995,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "meta",
+          "department_raw": "Meta",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2013
+        },
+        {
+          "area_ha": 3827.4,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "caqueta",
+          "department_raw": "Caquetá",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2023
+        },
+        {
+          "area_ha": 3922.97,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "caqueta",
+          "department_raw": "Caquetá",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        },
+        {
+          "area_ha": 41100.0,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "santander",
+          "department_raw": "Santander",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2007
+        },
+        {
+          "area_ha": 42093.21,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "santander",
+          "department_raw": "Santander",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 42952.530000000006,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "quindio",
+          "department_raw": "Quindio",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2005
+        },
+        {
+          "area_ha": 4569.54,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "la_guajira",
+          "department_raw": "La Guajira",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 46394.16000000001,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "risaralda",
+          "department_raw": "Risaralda",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2018
+        },
+        {
+          "area_ha": 51395.740000000005,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "valle",
+          "department_raw": "Valle",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2022
+        },
+        {
+          "area_ha": 53174.424444444434,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "cundinamarca",
+          "department_raw": "Cundinamarca",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2004
+        },
+        {
+          "area_ha": 54318.51,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "santander",
+          "department_raw": "Santander",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2022
+        },
+        {
+          "area_ha": 56200.0,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "risaralda",
+          "department_raw": "Risaralda",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2006
+        },
+        {
+          "area_ha": 57776.03,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "risaralda",
+          "department_raw": "Risaralda",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2004
+        },
+        {
+          "area_ha": 59383.44,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "risaralda",
+          "department_raw": "Risaralda",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 65681.16,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "cauca",
+          "department_raw": "Cauca",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 84732.13111111114,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "valle",
+          "department_raw": "Valle",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2005
+        },
+        {
+          "area_ha": 86546.14444444446,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "valle",
+          "department_raw": "Valle",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2002
+        },
+        {
+          "area_ha": 89100.0,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "caldas",
+          "department_raw": "Caldas",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2006
+        },
+        {
+          "area_ha": 96.87,
+          "commodity": "arabica_coffee",
+          "country": "colombia",
+          "department": "arauca",
+          "department_raw": "Arauca",
+          "leviathan_slug": "arabica_coffee",
+          "source": "fnc_colombia",
+          "year": 2025
+        }
+      ],
+      "selection_reasons": [
+        "latest coverage; deterministic coverage fill",
+        "latest coverage; deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage",
+        "earliest coverage",
+        "latest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage; deterministic coverage fill",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "latest coverage",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "stratified by commodity, leviathan_slug, country; deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "earliest coverage",
+        "deterministic coverage fill",
+        "latest coverage"
+      ],
+      "source_rows": 492,
+      "strata_columns": [
+        "commodity",
+        "leviathan_slug",
+        "country"
+      ],
+      "time_column": "year"
+    },
+    "provenance": {
+      "analysis_rows": 492,
+      "campaign_id": "readerfirst-final-20260718-a176abf1",
+      "canonical_root": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department",
+      "contract_sha256": "6e643bd019f35606668c2b6683aafc93e568fd4a6939788cc894a056fb9e4ae3",
+      "coverage_catalog": {
+        "analysis_strata_complete": null,
+        "analysis_strata_sample": [],
+        "analysis_strata_sample_is_bounded": false,
+        "analysis_strata_sampled_row_count": null,
+        "analysis_strata_source_row_count": null,
+        "analysis_stratum_count": null,
+        "analysis_stratum_dimensions": [],
+        "exactness": "footer-derived",
+        "footer_complete": true,
+        "object_count": 24,
+        "partition_strata_sample": [
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2002"
+            },
+            "row_count": 16,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2003"
+            },
+            "row_count": 16,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2004"
+            },
+            "row_count": 16,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2005"
+            },
+            "row_count": 16,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2006"
+            },
+            "row_count": 16,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2007"
+            },
+            "row_count": 20,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2008"
+            },
+            "row_count": 20,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2009"
+            },
+            "row_count": 20,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2010"
+            },
+            "row_count": 20,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2011"
+            },
+            "row_count": 20,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2012"
+            },
+            "row_count": 20,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2013"
+            },
+            "row_count": 22,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2014"
+            },
+            "row_count": 22,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2015"
+            },
+            "row_count": 22,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2016"
+            },
+            "row_count": 22,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2017"
+            },
+            "row_count": 22,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2018"
+            },
+            "row_count": 22,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2019"
+            },
+            "row_count": 22,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2020"
+            },
+            "row_count": 23,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2021"
+            },
+            "row_count": 23,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2022"
+            },
+            "row_count": 23,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2023"
+            },
+            "row_count": 23,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2024"
+            },
+            "row_count": 23,
+            "row_group_count": 1,
+            "rows_known": true
+          },
+          {
+            "object_count": 1,
+            "partition_values": {
+              "commodity": "arabica_coffee",
+              "year": "2025"
+            },
+            "row_count": 23,
+            "row_group_count": 1,
+            "rows_known": true
+          }
+        ],
+        "partition_strata_sample_is_bounded": false,
+        "partition_stratum_count": 24,
+        "schema_sha256_object_counts": {
+          "62f2f6cee137ef3fb428b919c5b7b2dee18a4226c4adada8ccf0716cd11c6ebb": 24
+        },
+        "source_compressed_bytes": 121789,
+        "source_row_count": 492
+      },
+      "dependency_versions": {
+        "leviathan": "0.1.0",
+        "matplotlib": "3.11.1",
+        "nbclient": "0.11.0",
+        "nbformat": "5.10.4",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "papermill": "2.7.0",
+        "pyarrow": "25.0.0",
+        "scipy": "1.17.1",
+        "seaborn": "0.13.2",
+        "statsmodels": "0.14.6"
+      },
+      "eda_config_sha256": "b37062169af7e58b8b7c0bd26cc3d34834704f2901c8bbae8f4977c2f14e9506",
+      "eda_source_sha256": "a176abf1a0cfda3dd07a0a1c9090b3749c81711690fa773da298541421cb9336",
+      "frozen_frame_sha256": "c54ae206367b25f1b709716ed42fb0cf6e583c85521662fc2e9a351decc423b1",
+      "git_sha": "e6146c826dbcd927127104b4bfcb9bb526ddf6b1",
+      "image_digest": "sha256:e9563290bdc62d3216841dfb190b59ef709ac5c5d2e4fc0b894c72de5548bed1",
+      "object_count": 24,
+      "object_sample": [
+        {
+          "etag": "a3b4b5619b40a47ddfd860216b4fb780",
+          "last_modified": "2026-06-02T10:46:09Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2002"
+          },
+          "size": 4951,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2002/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "b0dfcd8e574fdd30c360aeb777127385",
+          "last_modified": "2026-06-02T10:46:10Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2003"
+          },
+          "size": 4956,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2003/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "b5d56331843fc6456b42035318a1c25d",
+          "last_modified": "2026-06-02T10:46:10Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2004"
+          },
+          "size": 4954,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2004/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "34c1fb3bedbd1290237c6e50fe2226b0",
+          "last_modified": "2026-06-02T10:46:10Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2005"
+          },
+          "size": 4947,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2005/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "dd5677f35f1cebf10832d0d5a539c667",
+          "last_modified": "2026-06-02T10:46:11Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2006"
+          },
+          "size": 4921,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2006/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "ce1ef0801e86d14dbf5fbb587da69952",
+          "last_modified": "2026-06-02T10:46:11Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2007"
+          },
+          "size": 5031,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2007/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "39928a4bb0939e98913c0aabd3399e3e",
+          "last_modified": "2026-06-02T10:46:11Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2008"
+          },
+          "size": 5029,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2008/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "9de77e9bfce13d6d0924c2ef9d59d97a",
+          "last_modified": "2026-06-02T10:46:12Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2009"
+          },
+          "size": 5065,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2009/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "aee30674e09c226b99de3529260a4ff5",
+          "last_modified": "2026-06-02T10:46:12Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2010"
+          },
+          "size": 5069,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2010/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "710f86b7e0dc5980f5692a2f126ac6cc",
+          "last_modified": "2026-06-02T10:46:12Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2011"
+          },
+          "size": 5069,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2011/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "aebf6da4ee07f20f131724ccdff44d6f",
+          "last_modified": "2026-06-02T10:46:16Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2021"
+          },
+          "size": 5138,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2021/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "a0007de216a9b2612d0b40cb1743995a",
+          "last_modified": "2026-06-02T10:46:16Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2022"
+          },
+          "size": 5146,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2022/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "a59a2222a19922fb3ba1b319733148f1",
+          "last_modified": "2026-06-02T10:46:16Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2023"
+          },
+          "size": 5140,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2023/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "1b1dbe89778eaa4e44652685a62e7fe1",
+          "last_modified": "2026-06-02T10:46:17Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2024"
+          },
+          "size": 5105,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2024/part-000.parquet",
+          "version_id": null
+        },
+        {
+          "etag": "6983118d9244913798c6b283ba2147dd",
+          "last_modified": "2026-06-02T10:46:17Z",
+          "partition_values": {
+            "commodity": "arabica_coffee",
+            "year": "2025"
+          },
+          "size": 5135,
+          "uri": "s3://leviathan-dev-shahem-001/silver/fnc_colombia/area_department/commodity=arabica_coffee/year=2025/part-000.parquet",
+          "version_id": null
+        }
+      ],
+      "object_sample_is_bounded": true,
+      "portable_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/manifest.json",
+      "registry_sha256": "750ab7cbff35caccea4f9a12fdfe5c06a66a121450ffa1aff8215e075b9c3d5e",
+      "rejected_control_or_foreign_keys": 24,
+      "relationship_checks": [],
+      "sampled_row_group_count": 0,
+      "sampled_row_group_sample": [],
+      "sampling_strata": [],
+      "sampling_strategy": null,
+      "snapshot_manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/snapshot/manifest.json",
+      "snapshot_policy": {
+        "exactness": "exact",
+        "identity_columns": [
+          "commodity",
+          "year",
+          "leviathan_slug",
+          "country",
+          "department",
+          "department_raw",
+          "area_ha",
+          "source"
+        ],
+        "reason": "rows<=5000000 and compressed_bytes<=2147483648",
+        "seed": 5068461892555042730,
+        "snapshot_row_count": 492,
+        "source_compressed_bytes": 121789,
+        "source_row_count": 492,
+        "stratum_columns": [
+          "commodity",
+          "year",
+          "leviathan_slug",
+          "country"
+        ]
+      },
+      "snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/snapshot/part-000.parquet",
+      "source_manifest_sha256": "52f8eb0b289c58de65b720f04f3c78d9c1161afe2bbf240a892bdace5aaa3c90",
+      "source_replica": {
+        "destination": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/source_replica",
+        "manifest_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/source_replica/manifest.json",
+        "object_count": 24,
+        "objects_prefix_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_fnc_colombia_area_department/_machine/source_replica/objects",
+        "replica_manifest_sha256": "da7e7127244fbacc297a67253d8fa585a67beb611c673228cbd1751dce25f4eb",
+        "source_manifest_sha256": "52f8eb0b289c58de65b720f04f3c78d9c1161afe2bbf240a892bdace5aaa3c90",
+        "total_bytes": 121789
+      },
+      "source_rows": 492,
+      "source_specific_checks": [],
+      "source_total_bytes": 121789,
+      "source_total_rows": 492,
+      "spec_sha256": "3edbaf11eed6c21c74d597d3cb4e1e9bc8c75beae22c4efa7359e2596ab0c7bb"
+    },
+    "quality_scorecard": {
+      "analysis_rows": 492,
+      "checks": [
+        {
+          "analysis_rows": 492,
+          "check": "Schema contract",
+          "check_id": "schema",
+          "evidence": {
+            "missing_declared_columns": [],
+            "missing_required_columns": [],
+            "unexpected_columns": []
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "PASS",
+          "summary": "Observed columns match the registry declaration."
+        },
+        {
+          "analysis_rows": 492,
+          "check": "Grain and uniqueness",
+          "check_id": "grain",
+          "evidence": {
+            "duplicate_key_rows": 0,
+            "natural_key": [
+              "commodity",
+              "year",
+              "department"
+            ],
+            "null_key_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "PASS",
+          "summary": "The declared key is unique and complete across 492 rows."
+        },
+        {
+          "analysis_rows": 492,
+          "check": "Missingness",
+          "check_id": "missingness",
+          "evidence": {
+            "maximum_null_rate": 0.0,
+            "required_null_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "PASS",
+          "summary": "No null values are present in the analysis frame."
+        },
+        {
+          "analysis_rows": 492,
+          "check": "Contextual value validity",
+          "check_id": "validity",
+          "evidence": {
+            "blank_strings": 0,
+            "blank_strings_by_column": {},
+            "blank_strings_in_required_nonblank_columns": 0,
+            "blank_strings_in_required_nonblank_columns_by_column": {},
+            "explicit_sentinel_values": 0,
+            "explicit_sentinels_by_column_token": {},
+            "infinite_values": 0,
+            "infinite_values_by_column": {},
+            "required_nonblank_columns": [],
+            "sentinel_values": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "PASS",
+          "summary": "No explicit sentinel tokens, infinite values, or governed nonblank violations were found."
+        },
+        {
+          "analysis_rows": 492,
+          "check": "Temporal cadence",
+          "check_id": "cadence",
+          "evidence": {
+            "largest_gap_days": 366.0,
+            "median_gap_days": 365.0,
+            "time_column": "year",
+            "usable_time_points": 24
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "PASS",
+          "summary": "Observed gaps are consistent with a median cadence of 365 days."
+        },
+        {
+          "analysis_rows": 492,
+          "check": "Temporal coverage",
+          "check_id": "coverage",
+          "evidence": {
+            "coverage_axis": "year",
+            "distinct_points": 24,
+            "max": "2025-01-01T00:00:00",
+            "min": "2002-01-01T00:00:00",
+            "unparseable_rows": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "PASS",
+          "summary": "Coverage runs from 2002-01-01 through 2025-01-01."
+        },
+        {
+          "analysis_rows": 492,
+          "check": "Schema drift by file or era",
+          "check_id": "schema_drift",
+          "evidence": {
+            "counted_objects": 24,
+            "footer_complete": true,
+            "object_count": 24,
+            "schema_hash_count": 1,
+            "schema_sha256_object_counts": {
+              "62f2f6cee137ef3fb428b919c5b7b2dee18a4226c4adada8ccf0716cd11c6ebb": 24
+            }
+          },
+          "exactness": "footer-derived",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "PASS",
+          "summary": "All 24 objects have complete footers with one consistent schema fingerprint."
+        },
+        {
+          "analysis_rows": 492,
+          "check": "Arithmetic identities",
+          "check_id": "arithmetic_identities",
+          "evidence": {
+            "rule_kind": "unsupported",
+            "rules_evaluated": 0
+          },
+          "exactness": "exact",
+          "plotted_rows": null,
+          "source_rows": 492,
+          "status": "not_assessed",
+          "summary": "No governed arithmetic identity is declared."
+        }
+      ],
+      "exactness": "exact",
+      "overall_status": "PASS",
+      "plotted_rows": null,
+      "source_rows": 492
+    },
+    "reader_insights": [
+      {
+        "analysis_rows": 492,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "commodity",
+          "leviathan_slug"
+        ],
+        "evidence": {
+          "distinct_time_points": 24,
+          "end": "2025-01-01T00:00:00",
+          "entity_distinct_counts": {
+            "commodity": 1,
+            "leviathan_slug": 1
+          },
+          "start": "2002-01-01T00:00:00"
+        },
+        "exactness": "exact",
+        "insight_id": "coverage_span",
+        "kind": "coverage_span",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history",
+            "coverage"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "quality_scorecard.checks.coverage"
+          ]
+        },
+        "source_rows": 492,
+        "statement": "Coverage spans 2002-01-01 through 2025-01-01 across 24 distinct time points.",
+        "status": "evaluated",
+        "title": "State the exact time and entity coverage."
+      },
+      {
+        "analysis_rows": 492,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "area_ha"
+        ],
+        "evidence": {
+          "column_null_rates": {
+            "area_ha": 0.0
+          },
+          "highest_null_column": "area_ha",
+          "highest_null_rate": 0.0
+        },
+        "exactness": "exact",
+        "insight_id": "missingness_hotspots",
+        "kind": "missingness",
+        "plotted_rows": null,
+        "references": {
+          "charts": [],
+          "statistics": [
+            "quality_scorecard.checks.missingness",
+            "column_dictionary"
+          ]
+        },
+        "source_rows": 492,
+        "statement": "All 1 assessed measure columns are complete.",
+        "status": "evaluated",
+        "title": "Identify structural and unexpected missingness."
+      },
+      {
+        "analysis_rows": 492,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "area_ha",
+          "commodity",
+          "leviathan_slug"
+        ],
+        "evidence": {
+          "measures": {
+            "area_ha": {
+              "count": 492,
+              "iqr": 62456.810000000005,
+              "iqr_outlier_count": 0,
+              "maximum": 154982.92999999993,
+              "median": 30886.194999999992,
+              "minimum": 0.0
+            }
+          }
+        },
+        "exactness": "exact",
+        "insight_id": "notable_extremes",
+        "kind": "robust_extremes",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "latest_ranking",
+            "distribution"
+          ],
+          "statistics": [
+            "ordinary_statistics.numeric",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 492,
+        "statement": "Robust IQR screening retains 0 notable observations across 1 primary measures.",
+        "status": "evaluated",
+        "title": "Name notable observations and retain them."
+      },
+      {
+        "analysis_rows": 492,
+        "caveat": "Descriptive source evidence only; no target relationship is evaluated.",
+        "columns": [
+          "year",
+          "area_ha",
+          "commodity",
+          "leviathan_slug"
+        ],
+        "evidence": {
+          "comparable_group_count": 23,
+          "delta": -2019.4400000000023,
+          "entity": {
+            "commodity": "arabica_coffee",
+            "department": "antioquia"
+          },
+          "latest_period": "2025",
+          "latest_time": "2025-01-01T00:00:00",
+          "latest_value": 108410.56,
+          "measure": "area_ha",
+          "percent_change": -0.018287059675812754,
+          "prior_period": "2024",
+          "prior_time": "2024-01-01T00:00:00",
+          "prior_value": 110430.0,
+          "time_column": "year",
+          "unit": "hectares"
+        },
+        "exactness": "exact",
+        "insight_id": "latest_change",
+        "kind": "latest_change",
+        "plotted_rows": null,
+        "references": {
+          "charts": [
+            "history"
+          ],
+          "statistics": [
+            "ordinary_statistics.temporal",
+            "notable_rows"
+          ]
+        },
+        "source_rows": 492,
+        "statement": "For commodity=arabica_coffee, department=antioquia, area_ha (hectares) changed by -2,019 from 2024 to 2025.",
+        "status": "evaluated",
+        "title": "Explain the latest comparable movement."
+      }
+    ],
+    "ready_chart_count": 4,
+    "row_meaning": "One row is Colombia coffee area for one department and calendar year.",
+    "schema_version": "leviathan.silver-eda-reader-evidence/v1",
+    "source_rows": 492,
+    "source_shape": {
+      "analysis_rows": 492,
+      "analysis_shape": [
+        492,
+        8
+      ],
+      "column_count": 8,
+      "exactness": "exact",
+      "plotted_rows": 684,
+      "source_rows": 492,
+      "source_shape": [
+        492,
+        8
+      ]
+    },
+    "table_name": "silver_fnc_colombia_area_department"
+  },
+  "relationship_checks": [],
+  "schema_version": "leviathan.silver-eda-summary/v1",
+  "source_specific_checks": [],
+  "table_name": "silver_fnc_colombia_area_department"
+}

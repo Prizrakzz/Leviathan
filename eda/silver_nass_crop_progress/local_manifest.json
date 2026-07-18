@@ -1,0 +1,39 @@
+{
+  "analysis_scope": {
+    "gold_read": false,
+    "live_silver_read": false,
+    "producer_execution": false,
+    "s3_write": false,
+    "target_analysis": false,
+    "training": false
+  },
+  "artifacts": {
+    "feature_candidates": {
+      "bytes": 19612,
+      "sha256": "0a42f9c7f0273d42522f21f3bcb0e9fc7aeb957ff81ac1b3a18ccde84dde9ef7"
+    },
+    "notebook": {
+      "bytes": 757061,
+      "sha256": "379691b993f5c125d41deb2749aa879e88562bbed3fcec3f06c659b62115fcd3"
+    },
+    "spec": {
+      "bytes": 14045,
+      "sha256": "2fc0e15f87011b23b8ece0d0a435dd6063edce0b7c7bff8204ab25ce10477b9b"
+    },
+    "summary": {
+      "bytes": 263550,
+      "sha256": "53b1128213eb99dca42664db18a61dfb29ca98f69c8e93c68b8bc19f2b711437"
+    }
+  },
+  "candidate_count": 9,
+  "local_eda_source_sha256": "ef4c58cb52d33940d46fb323c30d8151388dee05c040beddeed2e83f350488b1",
+  "schema_version": "leviathan.silver-eda-local-notebook/v1",
+  "source_campaign_id": "readerfirst-final-20260718-a176abf1",
+  "source_campaign_manifest": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nass_crop_progress/manifest.json",
+  "source_fingerprint_version": "leviathan.eda-source/v1",
+  "source_layer": "silver",
+  "source_snapshot_sha256": "d98af8278bf37ee293be60f970edc6cb4029e94e39ce98b4a7c0b9c6a8129d4b",
+  "source_snapshot_uri": "s3://leviathan-dev-shahem-001/eda/silver/campaign_id=readerfirst-final-20260718-a176abf1/table=silver_nass_crop_progress/_machine/snapshot/part-000.parquet",
+  "status": "executed_local_from_immutable_campaign_snapshot",
+  "table_name": "silver_nass_crop_progress"
+}

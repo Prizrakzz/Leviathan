@@ -1,0 +1,453 @@
+schema_version: 1
+table_name: silver_sagis_cec
+title: Sagis Cec
+analysis_role: source
+feature_disposition: blocked
+adapters:
+- vintage_revision
+observation_time_candidates:
+- report_month
+- production_year
+knowledge_time: release_date
+knowledge_semantics: vintage
+entity_columns:
+- crop
+- scope
+categorical_columns:
+- season_type
+- crop
+- scope
+- source
+numeric_columns:
+- estimate_number
+- area_planted_ha
+- current_estimate_t
+- prior_estimate_t
+- prior_year_final_t
+- revision_t
+- revision_pct
+- revision_surprise
+units:
+  current_estimate_t: source-native / verify
+  revision_surprise: source-native / verify
+  revision_t: source-native / verify
+meaningful_groupings:
+- crop
+- scope
+- release_date
+- report_month
+- production_year
+declared_relationships: []
+source_keys:
+- sagis_cec
+existing_table_feature_families: &id001
+- sagis_cec_revision
+existing_feature_families: *id001
+existing_feature_family_scope: table_level_source_reference_only
+existing_feature_visibility:
+  sagis_cec_revision: prior_marketing_year
+existing_candidate_families: {}
+extension_candidate_kinds: []
+existing_feature_coverage:
+  status: table_level_source_reference_only
+  table_level_families: *id001
+  verified_candidate_kind_to_family: {}
+  verified_source_columns: []
+  column_coverage_status: not_assessed
+  candidate_classification_verified: false
+  classification_policy: A feature family naming this source proves table-level use only. Candidate-level
+    existing/extension classification requires an explicit reviewed mapping to exact source columns and
+    computation kinds.
+governed_mapping_status:
+  status: not_assessed
+  reason: No governed pairwise mapping relationship is declared for these semantic axes; column-name coincidence
+    is not join evidence.
+  candidate_axes:
+  - crop
+  observed_frame_coverage_assessed: false
+  source_only: true
+  serving_gold_followed: false
+  work_orders:
+  - &id002
+    id: EDA-MAPPING-SAGIS_CEC
+    priority: high
+    title: Declare a governed semantic mapping before pairwise joins
+    required_evidence: Register the canonical mapping and key grain, then measure raw/mapped coverage,
+      overlap, and row expansion.
+lineage_status:
+  status: not_applicable
+  lineage_status: not_applicable
+  peer_table: null
+  parity_assessed: false
+  parity_claimed: false
+  repair_required: false
+  evidence: The registry classifies this table as a source, not a derived/serving copy.
+  work_orders: []
+semantic_work_orders:
+- *id002
+- id: EDA-FEATURE-COVERAGE-SAGIS_CEC
+  priority: medium
+  title: Verify production feature column/computation coverage
+  required_evidence: Map each table-level family to exact source columns and computation kinds before
+    calling any EDA proposal existing or an extension.
+feature_hypothesis_templates:
+- family: official_revision
+  mechanism: New information revealed between genuine releases.
+- family: forecast_horizon
+  mechanism: Forecast level and uncertainty by time-to-outcome.
+known_hazards:
+- Known degraded source; feature promotion stays blocked until repair and recertification.
+- Known degraded source. Feature promotion remains blocked until the source is repaired and recertified.
+no_candidate_reason: The source is known degraded and cannot support feature proposals until it is repaired
+  and recertified.
+archetype: vintage_revision
+row_meaning: One row is one SAGIS crop-estimate release for a production year, crop, scope, and estimate
+  number.
+column_descriptions:
+  area_planted_ha: Area planted reported in hectares at the declared row grain.
+  crop: Crop or agricultural product represented by the observation.
+  current_estimate_t: Current-release estimate value, measured in tonnes.
+  estimate_number: Governed estimate number component that helps uniquely identify the row.
+  prior_estimate_t: Prior comparable estimate value, measured in tonnes.
+  prior_year_final_t: Prior year final t locating the observation on its source reporting calendar.
+  production_year: Production year locating the observation on its source reporting calendar.
+  release_date: Date on which this source release became available.
+  report_month: Report month locating the observation on its source reporting calendar.
+  revision_pct: Change in the estimate from the prior comparable source release, measured in percent.
+  revision_surprise: Change in surprise from the prior comparable source release.
+  revision_t: Change in the estimate from the prior comparable source release, measured in tonnes.
+  scope: Source category identifying the scope represented by the row.
+  season_type: Source classification describing the row's season type.
+  source: Source-system label retained for provenance.
+why_it_matters:
+  area_planted_ha: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  crop: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  current_estimate_t: Carries a primary analytical measure.
+  estimate_number: Defines row uniqueness; is required by the source contract.
+  prior_estimate_t: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  prior_year_final_t: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  production_year: Defines row uniqueness; is required by the source contract.
+  release_date: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  report_month: Defines row uniqueness; anchors temporal coverage; is required by the source contract.
+  revision_pct: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  revision_surprise: Carries a primary analytical measure.
+  revision_t: Carries a primary analytical measure.
+  scope: Defines row uniqueness; supports entity segmentation; is required by the source contract.
+  season_type: Provides explanatory context or a candidate diagnostic at the declared row grain.
+  source: Supports provenance or reproducibility.
+primary_measures:
+- current_estimate_t
+- revision_t
+- revision_surprise
+dashboard_kpis:
+- columns: []
+  id: source_rows
+  kind: row_count
+  kpi_id: source_rows
+  label: Source rows
+- columns: []
+  id: column_count
+  kind: column_count
+  kpi_id: column_count
+  label: Columns
+- columns:
+  - report_month
+  id: time_coverage
+  kind: time_coverage
+  kpi_id: time_coverage
+  label: Time coverage
+- columns:
+  - crop
+  - scope
+  id: entity_coverage
+  kind: distinct_entities
+  kpi_id: entity_coverage
+  label: Entity coverage
+- columns:
+  - current_estimate_t
+  - revision_t
+  - revision_surprise
+  id: missingness
+  kind: missingness
+  kpi_id: missingness
+  label: Primary-measure completeness
+- columns:
+  - production_year
+  - report_month
+  - crop
+  - scope
+  - estimate_number
+  id: grain_integrity
+  kind: duplicate_rate
+  kpi_id: grain_integrity
+  label: Declared-grain integrity
+- columns:
+  - current_estimate_t
+  id: latest_measure
+  kind: latest_value
+  kpi_id: latest_measure
+  label: Latest primary measure
+quality_rules:
+- columns:
+  - production_year
+  - report_month
+  - crop
+  - scope
+  - estimate_number
+  detail: Test the exact declared natural key.
+  id: grain
+  kind: declared_or_inferred_grain
+  label: Declared row grain
+  rule_id: grain
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_year
+  - report_month
+  - crop
+  - scope
+  - estimate_number
+  detail: ''
+  id: duplicates
+  kind: duplicate_rate
+  label: Duplicate rows at grain
+  rule_id: duplicates
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_year
+  - report_month
+  - crop
+  - scope
+  - estimate_number
+  - current_estimate_t
+  - revision_t
+  - revision_surprise
+  detail: ''
+  id: missingness
+  kind: missingness
+  label: Required and primary-field missingness
+  rule_id: missingness
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - current_estimate_t
+  - revision_t
+  - revision_surprise
+  detail: ''
+  id: validity
+  kind: numeric_validity
+  label: Invalid numeric values
+  rule_id: validity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - report_month
+  detail: ''
+  id: cadence
+  kind: temporal_gaps
+  label: Temporal cadence and gaps
+  rule_id: cadence
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - report_month
+  - crop
+  - scope
+  detail: ''
+  id: coverage
+  kind: coverage
+  label: Time and entity coverage
+  rule_id: coverage
+  severity: caveat
+  unsupported_result: not_assessed
+- columns:
+  - production_year
+  - report_month
+  - release_date
+  - season_type
+  - crop
+  - scope
+  - estimate_number
+  - area_planted_ha
+  - current_estimate_t
+  - prior_estimate_t
+  - prior_year_final_t
+  - revision_t
+  - revision_pct
+  - revision_surprise
+  - source
+  detail: ''
+  id: schema_drift
+  kind: schema_drift
+  label: Schema drift by object or era
+  rule_id: schema_drift
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: No governed arithmetic identity is declared.
+  id: identity
+  kind: unsupported
+  label: Domain arithmetic identity
+  rule_id: identity
+  severity: caveat
+  unsupported_result: not_assessed
+- columns: []
+  detail: Source remains blocked until repaired and recertified.
+  id: degraded_source
+  kind: certification_blocker
+  label: Degraded-source certification
+  rule_id: degraded_source
+  severity: blocker
+  unsupported_result: not_assessed
+chart_plan:
+- chart_id: degraded_estimate_sequence
+  chart_type: line
+  columns:
+  - estimate_number
+  - current_estimate_t
+  - production_year
+  - season_type
+  - crop
+  - scope
+  coverage_grain: null
+  cutoff_mode: null
+  id: degraded_estimate_sequence
+  intentional_points: true
+  max_series: 12
+  measure_columns:
+  - current_estimate_t
+  measure_units:
+    current_estimate_t: source-native / verify
+  minimum_rows: 2
+  purpose: Use estimate_number only as ordered release sequence while preserving production year, season
+    type, crop, and scope.
+  series_dimensions:
+  - production_year
+  - season_type
+  - crop
+  - scope
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - estimate_number
+  title: CEC estimates by estimate number
+  type: line
+  unit_column: null
+- chart_id: degraded_revision_distribution
+  chart_type: revision_distribution
+  columns:
+  - release_date
+  - current_estimate_t
+  - revision_t
+  - production_year
+  - season_type
+  - crop
+  - scope
+  coverage_grain: null
+  cutoff_mode: null
+  id: degraded_revision_distribution
+  intentional_points: false
+  max_series: 12
+  measure_columns:
+  - current_estimate_t
+  - revision_t
+  measure_units:
+    current_estimate_t: source-native / verify
+    revision_t: source-native / verify
+  minimum_rows: 1
+  purpose: Describe the degraded stored revision values directly; do not infer or second-difference a
+    release trajectory.
+  series_dimensions:
+  - production_year
+  - season_type
+  - crop
+  - scope
+  series_selection: most_complete
+  split_by: []
+  time_components: []
+  title: Stored CEC revision diagnostic
+  type: revision_distribution
+  unit_column: null
+- chart_id: degraded_coverage
+  chart_type: coverage_heatmap
+  columns:
+  - estimate_number
+  - production_year
+  - season_type
+  - crop
+  - scope
+  coverage_grain: ordered
+  cutoff_mode: null
+  id: degraded_coverage
+  intentional_points: false
+  max_series: 12
+  measure_columns: []
+  measure_units: {}
+  minimum_rows: 1
+  purpose: Expose degraded/missing estimate-number coverage at the full semantic grain.
+  series_dimensions:
+  - production_year
+  - season_type
+  - crop
+  - scope
+  series_selection: most_complete
+  split_by: []
+  time_components:
+  - estimate_number
+  title: CEC estimate-sequence coverage
+  type: coverage_heatmap
+  unit_column: null
+insight_rules:
+- columns:
+  - report_month
+  - crop
+  - scope
+  id: coverage_span
+  insight_id: coverage_span
+  kind: coverage_span
+  minimum_rows: 1
+  purpose: State the exact time and entity coverage.
+- columns:
+  - current_estimate_t
+  - revision_t
+  id: missingness_hotspots
+  insight_id: missingness_hotspots
+  kind: missingness
+  minimum_rows: 1
+  purpose: Identify structural and unexpected missingness.
+- columns:
+  - report_month
+  - current_estimate_t
+  - revision_t
+  - crop
+  - scope
+  id: notable_extremes
+  insight_id: notable_extremes
+  kind: robust_extremes
+  minimum_rows: 4
+  purpose: Name notable observations and retain them.
+- columns:
+  - report_month
+  - current_estimate_t
+  - revision_t
+  - crop
+  - scope
+  id: revision_depth
+  insight_id: revision_depth
+  kind: revision_depth
+  minimum_rows: 2
+  purpose: Explain first-to-latest movement and release depth.
+preview_strata:
+- report_month
+- crop
+- scope
+pit_notes:
+- Use release_date as the governed knowledge-time boundary (vintage semantics).
+- Apply the registry publication lag of 0 day(s) after observation time.
+anti_features:
+- Do not derive same-period or future-looking features without enforcing observation and knowledge-time
+  cutoffs.
+- Do not silently drop outliers, duplicates, missing periods, or unmapped entities from evidence.
+- Do not prototype production features until the degraded source is repaired and recertified.
+feature_quarantined: false
