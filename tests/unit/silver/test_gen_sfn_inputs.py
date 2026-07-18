@@ -34,6 +34,7 @@ EXPECTED_SCHEDULES = {
 # series with a free key). yfinance is the futures source.
 EXPECTED_MODULE_PRODUCERS = {
     "frankfurter_fx", "noaa_iod", "wap_silver", "sagis_deliveries", "psd_silver",
+    "sagis_cec_silver",  # restored 2026-07-18 (task #118): raw->silver-direct era-aware producer
 }
 
 

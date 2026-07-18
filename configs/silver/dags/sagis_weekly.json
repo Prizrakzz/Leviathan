@@ -84,9 +84,23 @@
           "env": {},
           "publishes": true,
           "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "sagis_cec_silver",
+          "invocation_form": "m",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "-m",
+            "jobs.batch.sagis_cec_silver_task"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "discover+skip self-heals. sagis_deliveries is module form [m]. fetch_sagis_cec runs on the named cec raw-backfill jobdef, weekly on the shared runner. fetch_sagis_swb DROPPED 2026-07-17 (user decision): ~780 bulletin PDFs had NO downstream consumer (no silver producer, not in the evidence corpus) and it was the slowest/flakiest fetch in the family; re-add only when a consumer exists. sagis_cec_silver DEFERRED 2026-07-17 (user decision): the cec BRONZE is systemically mislabeled across doc-layout eras (61 equal-key value conflicts spanning 2006/2007/2017/2018/2024 -- developing/total rows tagged commercial) and transform_sagis_cec correctly fails closed on it; canonical silver_sagis_cec stays FROZEN at last-good (still census-gated via gate_tables) and the cec raw FETCH stays for archive continuity. Re-add the silver+promote task after the CEC parser-repair wave re-parses bronze."
+  "notes": "discover+skip self-heals. sagis_deliveries is module form [m]. fetch_sagis_cec runs on the named cec raw-backfill jobdef, weekly on the shared runner. fetch_sagis_swb DROPPED 2026-07-17 (user decision): ~780 bulletin PDFs had NO downstream consumer (no silver producer, not in the evidence corpus) and it was the slowest/flakiest fetch in the family; re-add only when a consumer exists. sagis_cec_silver DEFERRED 2026-07-17 (user decision): the cec BRONZE is systemically mislabeled across doc-layout eras (61 equal-key value conflicts spanning 2006/2007/2017/2018/2024 -- developing/total rows tagged commercial) and transform_sagis_cec correctly fails closed on it; canonical silver_sagis_cec stays FROZEN at last-good (still census-gated via gate_tables) and the cec raw FETCH stays for archive continuity. Re-add the silver+promote task after the CEC parser-repair wave re-parses bronze. | 2026-07-18: sagis_cec_silver RESTORED (task #118 closed): era-aware raw->silver-direct producer (D6a), canonical replaced under approval cec-118-season-repair-20260718; gate table silver_sagis_cec no longer vacuous."
 }

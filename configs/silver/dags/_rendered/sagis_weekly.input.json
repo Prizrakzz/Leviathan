@@ -72,6 +72,18 @@
           "integration": "batch",
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand"
+        },
+        {
+          "command": [
+            "-m",
+            "jobs.batch.sagis_cec_silver_task",
+            "--publish-mode",
+            "shadow"
+          ],
+          "env": [],
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand"
         }
       ]
     }
@@ -103,6 +115,27 @@
         "command": [
           "-m",
           "jobs.batch.sagis_deliveries_task",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "-m",
+          "jobs.batch.sagis_cec_silver_task",
           "--publish-mode",
           "canonical"
         ],
