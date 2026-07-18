@@ -62,6 +62,9 @@ def _cascade_stats(out: dict) -> dict:
             # RF-5: quantify_reroute carries FIRED (opposite-sign) pairs ONLY -- same-sign candidates
             # record nothing, so this count never legitimizes a hallucinated fork heading.
             "reroute_pairs": len((out.get("trace") or {}).get("quantify_reroute") or []),
+            # RV-v2 (C11): quantify_reroute_v2 is ENGINE-written, non-empty IFF the cross-commodity fork
+            # FIRED this turn (never the orchestrator enable). The negative-pin battery asserts it EMPTY.
+            "reroute_v2_pairs": len((out.get("trace") or {}).get("quantify_reroute_v2") or []),
             "statuses": sorted(statuses)}
 
 
@@ -98,7 +101,8 @@ def _pit_clean(out: dict, asof) -> bool:
 
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
-                   "opposite_country_legs", "two_countries_cited", "no_unbacked_fork")
+                   "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
+                   "reroute_v2_expected")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -142,6 +146,19 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             res[k] = (not (heading and not fired)) if bool(want) else True
         elif k == "reroute_fired":
             res[k] = (cs["reroute_pairs"] > 0) == bool(want)
+        elif k == "reroute_v2_expected":
+            # RV-W4.5. The NEGATIVE pin is the load-bearing gate (single-commodity / pronoun follow-up /
+            # context-mention MUST NOT fire); the positive pin is observational (firing depends on the focus
+            # leg's retrieval-derived eras, so a boolean true-pin FLAPS -- C10/gating F3). Both branches also
+            # require the dispatch planner actually ran: a p.fallback turn skips the v2 predicate entirely, so
+            # a negative pin would false-green without ever exercising it (C11c). planner=='llm' == non-fallback.
+            fired_v2 = cs["reroute_v2_pairs"] > 0
+            heading = "## Cross-commodity" in mech
+            non_fallback = ((out.get("intent_decision") or {}).get("planner")) == "llm"
+            if bool(want):
+                res[k] = fired_v2 and heading and non_fallback
+            else:
+                res[k] = (not fired_v2) and (not heading) and non_fallback
         elif k == "opposite_country_legs":                            # the STRONG reroute assert: >=2
             pos, neg = set(), set()                                   # distinct countries whose injected
             for c in cits:                                            # *_delta rows carry OPPOSITE signs

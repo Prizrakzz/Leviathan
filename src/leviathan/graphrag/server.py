@@ -633,6 +633,97 @@ _SUGGEST_DENY = re.compile(
     re.I)
 
 
+def _reroute_v2_on() -> bool:
+    """RV-v2 feature flag, read at the suggester surface so flag-off is BYTE-IDENTICAL here too: when OFF the
+    suggester neither advertises cross-commodity pairs nor runs the framed-cross-ask gate (mirrors the
+    orchestrator's _reroute_v2_on). Default-off, fail-closed."""
+    return os.environ.get("GRAPHRAG_REROUTE_V2", "off").lower() == "on"
+
+
+# ── RV-v2 cross-commodity pairs (allowlist = curated `material` AND per-PAIR census-realizable) ─────────
+# The suggester may propose a cross-commodity CASCADE chip ONLY for a pair whose per-PAIR census verdict is
+# FIRES (cascade_census.pair_realizable -- the Recipe-B World su_ratio probe, NOT contract_can_any_leg_fire).
+# Candidacy from the graph's cross_links is NOT enough; realizability is the gate. A clicked chip re-enters
+# as an ordinary query and must re-pass is_cross_commodity_explicit + the orchestrator LAW, so the chip is
+# never a bypass -- it is only Haiku TEXT, gated here and degrading to [] on any failure.
+_XC_EXCHANGE_TOKENS = frozenset({"cbot", "cme", "dce", "zce", "ice", "matif", "mcpo", "nybot", "liffe",
+                                 "bmd", "crude", "malaysian", "zce", "mcx", "kcbt"})
+
+
+def _leg_word(slug: str) -> str:
+    """A chip-facing commodity phrase from a contract slug: drop exchange/venue tokens, de-underscore
+    ('soybean_oil_cbot' -> 'soybean oil', 'malaysian_crude_palm_oil_cme' -> 'palm oil')."""
+    words = [w for w in str(slug or "").lower().split("_") if w and w not in _XC_EXCHANGE_TOKENS]
+    return " ".join(words)
+
+
+def _leg_tokens(slug: str) -> set:
+    """Distinguishing match tokens for a leg (>=3 chars, exchange tokens stripped)."""
+    return {w for w in _leg_word(slug).split() if len(w) >= 3}
+
+
+def _suggest_pairs() -> list[dict]:
+    """Realizable `material` cross-commodity pairs from lane-A's complex_map, filtered by the per-PAIR census
+    verdict (cascade_census.pair_realizable == True). [] on any failure or when the map is unavailable
+    (fail-closed: the suggester never advertises a pair it cannot realize)."""
+    try:
+        from leviathan.graphrag.complex_map import load_complex_map
+        from leviathan.graphrag.numbers.cascade_census import pair_realizable
+        cm = load_complex_map()
+    except Exception:  # noqa: BLE001 -- map missing/malformed -> no pairs, never an error
+        return []
+    out: list[dict] = []
+    for p in (getattr(cm, "pairs", []) or []):
+        try:
+            if getattr(p, "materiality_tier", None) not in (None, "material"):
+                continue
+            if pair_realizable(getattr(p, "id", None)) is not True:
+                continue
+            legs = list(getattr(p, "pair", ()) or ())
+            if len(legs) != 2:
+                continue
+            out.append({"id": p.id, "legs": legs, "complex_name": getattr(p, "complex_name", None),
+                        "shared_event": getattr(p, "shared_event", None)})
+        except Exception:  # noqa: BLE001 -- skip a malformed pair, never fail the whole suggest
+            continue
+    return out
+
+
+def _names_allowed_pair(text_lc: str, allowed: list[tuple]) -> bool:
+    """True if the chip text mentions a token from BOTH legs of SOME allowlisted realizable pair."""
+    for a_tok, b_tok in allowed:
+        if any(t in text_lc for t in a_tok) and any(t in text_lc for t in b_tok):
+            return True
+    return False
+
+
+def _xc_chip_gate(chips: list[str], catalog: Optional[dict]) -> list[str]:
+    """Positive answerable-gate (RV-W4.4): DROP any chip FRAMED as an explicit cross-commodity ask
+    (self-trips is_cross_commodity_explicit) whose named pair is NOT a realizable material pair. A chip
+    naming an allowlisted realizable pair passes; a single-commodity chip (not framed) passes untouched.
+    Fail-OPEN on any error (the register/deny/number gates still run); the whole suggest still degrades to []
+    on an outer failure."""
+    pairs = (catalog or {}).get("pairs") or []
+    # DISTINGUISHING tokens only: subtract the shared token ('oil' is in both soybean_oil and palm_oil), so a
+    # sunflower-oil chip mentioning 'palm' + 'oil' does NOT false-match the soy<->palm allowlist.
+    allowed = [(a - b, b - a) for a, b in
+               ((_leg_tokens(p["legs"][0]), _leg_tokens(p["legs"][1])) for p in pairs)]
+    try:
+        from leviathan.graphrag.intent import is_cross_commodity_explicit as _xc
+    except Exception:  # noqa: BLE001 -- lane-B detector absent -> cannot identify framing, leave chips as-is
+        return chips
+    out: list[str] = []
+    for s in chips:
+        try:
+            framed = bool(_xc(s)[0])
+        except Exception:  # noqa: BLE001
+            framed = False
+        if framed and not _names_allowed_pair(s.lower(), allowed):
+            continue                                                   # framed cross-ask, non-allowlisted pair
+        out.append(s)
+    return out
+
+
 def _suggest_scope(body: M.SuggestRequest, facts: Optional[dict]) -> list[str]:
     """Lowercased, de-underscored scope terms (the user's markets/regions + the last turn's contracts) used to
     pick which regimes-near-firing to surface. Empty -> global (top-N closest to firing)."""
@@ -669,7 +760,8 @@ def _suggest_catalog(scope: list[str]) -> Optional[dict]:
         return None
     scoped = [c for c in cands if any(t in str(c["contract"]).replace("_", " ").lower() for t in scope)] if scope else []
     pool = sorted(scoped if len(scoped) >= 2 else cands, key=lambda c: -(c["proximity"] or 0.0))[:8]
-    return {"near": pool, "contracts": sorted({c["contract"] for c in cands})}
+    return {"near": pool, "contracts": sorted({c["contract"] for c in cands}),
+            "pairs": _suggest_pairs() if _reroute_v2_on() else []}   # flag off => byte-identical (no pairs)
 
 
 def _suggest_catalog_text(cat: dict) -> str:
@@ -686,6 +778,16 @@ def _suggest_catalog_text(cat: dict) -> str:
             drv = ", ".join(str(d).replace("_", " ") for d in (c.get("matched") or [])[:3])
             rl.append(f"- {c['contract']}: {c['regime']} at {prox} (firing now: {drv or 'none yet'})")
         lines.append("Regimes closest to tipping (drivers firing / threshold to fire):\n" + "\n".join(rl))
+    pairs = cat.get("pairs") or []
+    if pairs:                                                          # RV-v2: only realizable material pairs
+        pl = []
+        for p in pairs:
+            a, b = _leg_word(p["legs"][0]), _leg_word(p["legs"][1])
+            ev = str(p.get("shared_event") or "").replace("_", " ")
+            pl.append(f"- {a} <-> {b}" + (f" (shared event: {ev})" if ev else ""))
+        lines.append("Cross-commodity cascades you MAY ask about (ONLY these pairs; phrase each as an EXPLICIT "
+                     "two-commodity question, e.g. 'palm export ban -- what does that do to soybean oil?'):\n"
+                     + "\n".join(pl))
     lines.append("Answerable fundamentals you may cite: " + _SUGGEST_METRICS)
     lines.append("Any headline shock maps into one of these lanes: " + _SUGGEST_LANES)
     return reg.sanitize("\n".join(lines))
@@ -770,6 +872,8 @@ def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identit
         sug = _parse_suggestions(call(prompt) or "")
         if catalog:                                                    # answerable-gate: drop out-of-domain chips
             sug = [s for s in sug if not _SUGGEST_DENY.search(s)]
+            if _reroute_v2_on():                                       # flag off => gate never runs (byte-identical)
+                sug = _xc_chip_gate(sug, catalog)                      # RV-v2: drop non-allowlisted cross-asks
         return M.SuggestResponse(suggestions=sug).model_dump()
     except Exception:  # noqa: BLE001 — ANY failure (catalog/prompt/model/parse) -> no chips
         return empty

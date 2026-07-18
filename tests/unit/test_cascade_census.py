@@ -202,3 +202,172 @@ def test_check_pin_realizability_catches_stale_negative(monkeypatch):
 def test_real_v4_fixture_pins_are_clean():
     """The shipped fixture (q6 re-pinned to false + cascade_drivers) passes the lint end-to-end."""
     assert cch.check_pin_realizability() == []
+
+
+# -- RV-W4.2 per-PAIR realizability (Recipe-B World synthesis probe) ---------------------------------------
+def _pair(pid, a_slug, b_slug, tier="material"):
+    """A minimal complex_map pair matching the interface contract (.id/.pair/.side_a/.side_b/...)."""
+    return types.SimpleNamespace(
+        id=pid, pair=(a_slug, b_slug), complex_name="veg_oil_complex", shared_event="palm_export_ban",
+        side_a={"contract": a_slug, "ref": "psd_ending_stock_su_ratio", "country_rule": "world"},
+        side_b={"contract": b_slug, "ref": "psd_ending_stock_su_ratio", "country_rule": "world"},
+        direction="opposing", focus_rule="open", materiality_tier=tier)
+
+
+class _PairPg:
+    """pg_query stand-in for the pair probes. Routes by SQL: the per-(country, market_year) era-set query
+    (identified by the 'market_year AS y' alias), then the agg=sum World consumption/ending-stock existence
+    probes. Order matters -- the era-set SQL ALSO contains 'consumption_mt', so 'market_year AS y' is matched
+    FIRST. `year_sets` ({country: [years]}, GAP-capable) takes precedence over `ranges` (contiguous lo..hi,
+    kept for the legacy call sites)."""
+
+    def __init__(self, ranges=None, year_sets=None, cons="100", stk="10"):
+        self.ranges = ranges if ranges is not None else [{"c": "United States", "lo": 1990, "hi": 2026}]
+        self.year_sets = year_sets
+        self.cons, self.stk = cons, stk
+        self.calls: list[str] = []
+
+    def _year_rows(self):
+        if self.year_sets is not None:
+            return [{"c": c, "y": y} for c, ys in self.year_sets.items() for y in ys]
+        return [{"c": r["c"], "y": y} for r in self.ranges for y in range(int(r["lo"]), int(r["hi"]) + 1)]
+
+    def __call__(self, sql: str):
+        self.calls.append(sql)
+        if "market_year AS y" in sql:
+            return self._year_rows()
+        if "consumption_mt" in sql:
+            return [] if self.cons is None else [{"value": self.cons}]
+        if "ending_stocks_mt" in sql:
+            return [] if self.stk is None else [{"value": self.stk}]
+        return []
+
+
+def test_pair_verdict_fires_when_both_legs_synth_and_disjoint():
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg())
+    assert rec["verdict"] == cc.PAIR_FIRES and rec["warn"] is None
+    assert rec["slugs"] == ["soybean_oil_cbot", "malaysian_crude_palm_oil_cme"]
+
+
+def test_pair_verdict_dark_when_world_synth_empty():
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg(cons=None))   # no world consumption -> empty
+    assert rec["verdict"] == cc.PAIR_DARK and rec["reason"].startswith("world-synth-empty")
+
+
+def test_pair_verdict_dark_and_warns_on_eu_era_overlap():
+    """The double-count tripwire: an EU aggregate row whose MY range overlaps a member row -> not-realizable
+    + a VISIBLE warn (never silent)."""
+    overlap = [{"c": "European Union", "lo": 1999, "hi": 2026}, {"c": "France", "lo": 1975, "hi": 2005}]
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg(ranges=overlap))
+    assert rec["verdict"] == cc.PAIR_DARK and rec["reason"] == "era-overlap"
+    assert rec["warn"] and "double-count" in rec["warn"]
+
+
+def test_pair_verdict_disjoint_eu_ranges_pass():
+    disjoint = [{"c": "European Union", "lo": 1999, "hi": 2026}, {"c": "France", "lo": 1975, "hi": 1990}]
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg(ranges=disjoint))
+    assert rec["verdict"] == cc.PAIR_FIRES
+
+
+def test_pair_verdict_post_brexit_uk_and_accession_states_not_flagged():
+    """Regression (adversarial finding 2): the era lint must NOT false-positive on legitimate EU-membership
+    CHANGES. Post-Brexit UK is reported separately (2020+) while the EU aggregate (now sans UK) continues, and
+    Poland was reported individually BEFORE it joined in 2004 -- neither is double-counted, so the flagship
+    pair must FIRE, not go PAIR_DARK. The old min/max RANGE test flagged both (UK's 1964..2026 span overlaps
+    EU 1999..2026); the year-set + membership-window fix clears them."""
+    ys = {
+        "European Union": list(range(1999, 2027)),
+        # pre-EEC accession (<1973) + post-Brexit (2020+), with a GAP the range test used to fill in:
+        "United Kingdom": list(range(1964, 1973)) + list(range(2020, 2027)),
+        "Poland": list(range(1992, 2004)),                       # individual rows BEFORE the 2004 accession
+        "United States": list(range(1964, 2027)),
+    }
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg(year_sets=ys))
+    assert rec["verdict"] == cc.PAIR_FIRES, rec
+    assert rec["warn"] is None
+
+
+def test_pair_verdict_genuine_double_count_still_flagged():
+    """The tripwire must STILL catch a real re-baseline: France (an EU member for the whole aggregate era)
+    reported individually in years the aggregate also covers -> those years ARE double-counted -> PAIR_DARK."""
+    ys = {"European Union": list(range(1999, 2027)),
+          "France": list(range(1999, 2011))}                     # individual 1999-2010 while inside the aggregate
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg(year_sets=ys))
+    assert rec["verdict"] == cc.PAIR_DARK and rec["reason"] == "era-overlap"
+    assert rec["warn"] and "double-count" in rec["warn"]
+
+
+def test_pair_verdict_declines_on_unserved_leg():
+    """A leg with no PSD balance sheet (cocoa/FCOJ) DECLINES HONESTLY -- never a DARK bug."""
+    p = _pair("bad", "soybean_oil_cbot", "cocoa")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg())
+    assert rec["verdict"] == cc.PAIR_DECLINES and "cocoa" in rec["reason"]
+
+
+def test_pair_verdict_probe_error_on_pg_raise():
+    class _Boom:
+        def __call__(self, sql):
+            if "market_year AS y" in sql:
+                return [{"c": "United States", "y": 2026}]
+            raise RuntimeError("mirror gap")
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_Boom())
+    assert rec["verdict"] == cc.PROBE_ERROR and "mirror gap" in rec["reason"]
+
+
+def test_pair_census_and_unwaived_dark_includes_pair_darks(monkeypatch):
+    """census() runs the pair pass when a cmap is injected; a DARK pair trips the un-waived-dark exit gate
+    alongside dark legs."""
+    monkeypatch.setattr(cc, "_contract_index", lambda: {})            # no causal legs -> pair pass only
+    monkeypatch.setattr(cc, "_per_query_realizability", lambda: [])
+    cm = types.SimpleNamespace(pairs=[_pair("good", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme"),
+                                      _pair("bad", "soybean_oil_cbot", "rapeseed_oil_zce")])
+
+    class _Mixed:
+        def __call__(self, sql):
+            if "market_year AS y" in sql:
+                return [{"c": "United States", "y": 2026}]
+            if "rapeseed_oil_zce" in sql and "consumption_mt" in sql:
+                return []                                             # the 'bad' pair's leg has no world rows
+            if "consumption_mt" in sql:
+                return [{"value": "100"}]
+            if "ending_stocks_mt" in sql:
+                return [{"value": "10"}]
+            return []
+
+    art = cc.census(asof="2026-02-15", query_fn=_Mixed(), cmap=cm)
+    verdicts = {p["pair_id"]: p["verdict"] for p in art["pairs"]}
+    assert verdicts == {"good": cc.PAIR_FIRES, "bad": cc.PAIR_DARK}
+    assert art["banner"]["pairs_fire"] == 1 and art["banner"]["pairs_dark"] == 1
+    dark_ids = [d["pair_id"] for d in cc._unwaived_dark(art) if "pair_id" in d]
+    assert dark_ids == ["bad"]
+
+
+def test_census_no_pairs_when_map_absent(monkeypatch):
+    """Byte-identical fence: with lane-A's complex_map absent, the pair pass is a no-op (pairs=[], no pair
+    darks) and the legs census is unchanged."""
+    monkeypatch.setattr(cc, "_load_complex_map", lambda: None)
+    art = cc.census(asof="2026-02-15", query_fn=_MockPg())
+    assert art["pairs"] == [] and art["banner"]["pairs_fire"] == 0 and art["banner"]["pairs_dark"] == 0
+
+
+def test_pair_realizable_public_true_false_none(monkeypatch):
+    """The interface-contract predicate: True (FIRES) / False (DARK) / None (pair absent or pg unavailable)."""
+    from leviathan.graphrag.numbers import pgnumbers
+    cm = types.SimpleNamespace(pairs=[_pair("good", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")])
+    monkeypatch.setattr(cc, "_load_complex_map", lambda: cm)
+    monkeypatch.setattr(pgnumbers, "enabled", lambda: True)
+    monkeypatch.setattr(pgnumbers, "pg_query", _PairPg())
+    cc.pair_realizable.cache_clear()
+    assert cc.pair_realizable("good") is True
+    assert cc.pair_realizable("no_such_pair") is None                # pair not curated -> fail-closed
+    cc.pair_realizable.cache_clear()
+    monkeypatch.setattr(pgnumbers, "enabled", lambda: False)          # pg down -> fail-closed None
+    assert cc.pair_realizable("good") is None
+    cc.pair_realizable.cache_clear()

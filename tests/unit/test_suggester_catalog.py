@@ -169,6 +169,69 @@ def test_route_grounded_returns_chips_without_news(monkeypatch):
     assert not any(k.startswith("suggest_news") for k in sv._STATE)    # no news state written
 
 
+# ── RV-v2 cross-commodity pairs allowlist + positive answerable-gate ─────────────────────────────────
+def _allow_soy_palm(monkeypatch):
+    """Advertise one realizable material pair (soy oil <-> palm) in the catalog."""
+    monkeypatch.setattr(sv, "_suggest_pairs",
+                        lambda: [{"id": "veg_oil_soy_palm",
+                                  "legs": ["soybean_oil_cbot", "malaysian_crude_palm_oil_cme"],
+                                  "complex_name": "veg_oil", "shared_event": "palm_export_ban"}])
+
+
+def _fake_xc(monkeypatch):
+    """A stand-in is_cross_commodity_explicit: a chip that names two commodities is 'framed'. Keyed on the
+    presence of a cross phrasing so single-commodity chips read False."""
+    import types as _t
+    fake = _t.ModuleType("leviathan.graphrag.intent")
+
+    def is_cross_commodity_explicit(q: str):
+        ql = q.lower()
+        framed = ("->" in ql or "does that do to" in ql or " vs " in ql or "impact on" in ql)
+        return (framed, None)
+    fake.is_cross_commodity_explicit = is_cross_commodity_explicit
+    monkeypatch.setitem(__import__("sys").modules, "leviathan.graphrag.intent", fake)
+
+
+def test_catalog_advertises_only_realizable_pairs(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_SUGGEST_CATALOG", "on")
+    monkeypatch.setenv("GRAPHRAG_REROUTE_V2", "on")                     # pairs surface ONLY when the flag is on
+    _warm(monkeypatch)
+    _allow_soy_palm(monkeypatch)
+    txt = sv._suggest_catalog_text(sv._suggest_catalog([]))
+    assert "Cross-commodity cascades you MAY ask about" in txt
+    assert "soybean oil <-> palm oil" in txt                           # _leg_word strips exchange/venue tokens
+
+
+def test_xc_gate_keeps_allowlisted_pair_drops_non_allowlisted(monkeypatch):
+    _fake_xc(monkeypatch)
+    cat = {"pairs": [{"id": "veg_oil_soy_palm",
+                      "legs": ["soybean_oil_cbot", "malaysian_crude_palm_oil_cme"]}]}
+    chips = [
+        "How thin is arabica's certified-stock buffer as the export pace lifts?",  # single-commodity (not framed): kept
+        "palm export ban -- what does that do to soybean oil?",              # framed, allowlisted pair: kept
+        "palm export ban -- what does that do to sunflower oil?",            # framed, NON-allowlisted pair: dropped
+    ]
+    out = sv._xc_chip_gate(chips, cat)
+    assert "soybean oil" in " ".join(out)
+    assert not any("sunflower" in s for s in out)                          # the non-realizable pair chip dropped
+    assert any("arabica" in s for s in out)                                # single-commodity chip untouched
+
+
+def test_xc_gate_drops_all_framed_when_no_realizable_pairs(monkeypatch):
+    _fake_xc(monkeypatch)
+    out = sv._xc_chip_gate(["palm ban -- impact on soybean oil?"], {"pairs": []})
+    assert out == []                                                       # no allowlist -> every cross-ask drops
+
+
+def test_xc_gate_fails_open_when_detector_absent(monkeypatch):
+    """Lane-B's detector absent (parallel build) -> the gate leaves chips untouched (the register/deny/number
+    gates still run); it never errors."""
+    import sys as _sys
+    monkeypatch.setitem(_sys.modules, "leviathan.graphrag.intent", None)   # import raises -> fail-open
+    chips = ["palm ban -- impact on soybean oil?"]
+    assert sv._xc_chip_gate(chips, {"pairs": []}) == chips
+
+
 def test_route_base_prompt_when_flag_off(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_SUGGEST", "on")
     monkeypatch.delenv("GRAPHRAG_SUGGEST_CATALOG", raising=False)

@@ -308,7 +308,23 @@ _SYSTEM_CASCADE = (
     "show BOTH eras' numbers side by side, never blended. If the block carries a line beginning 'REROUTE', the "
     "flow moved between countries over one shared window: render '## Where the record disagrees' and show BOTH "
     "legs' numbers side by side labeled BY COUNTRY (never by era); the flow rerouted -- do not blend the two "
-    "countries into one figure. If there is NO DIVERGENCE line and NO REROUTE line, do NOT invent a fork -- "
+    "countries into one figure. "
+    # RV-v2 (D5): a DEDICATED reserved heading, injected-only, NEVER volunteered from prose.
+    "If the block carries a line beginning 'CROSS-COMMODITY', two DIFFERENT commodities' stocks-to-use ratios "
+    "are being compared on a world basis: render a dedicated '## Cross-commodity' section (NEVER "
+    "'## Where the record disagrees' -- that heading is for same-commodity forks only) and show BOTH "
+    "commodities' su_ratio [N] rows side by side, labeled BY COMMODITY (never by country, never by era). "
+    "Render '## Cross-commodity' ONLY when a 'CROSS-COMMODITY' line is present -- the section exists solely "
+    "when the block supplies the two rows; never volunteer a cross-commodity comparison from prose. Each "
+    "commodity's stocks-to-use is measured on its OWN marketing year, and each world balance sheet aggregates "
+    "differing LOCAL marketing years (e.g. the EU rapeseed year begins July, China's October), so the "
+    "comparison holds at the marketing-year grain, NOT on a shared calendar. The ratio is stocks / domestic "
+    "use on a world basis, a dimensionless fraction, so it is comparable across commodities even though the "
+    "underlying calendars differ; NEVER compare tonnage LEVELS across commodities -- only the su_ratio. In the "
+    "'## Cross-commodity' section you MAY narrate price DIRECTION (which commodity's fundamentals point to "
+    "firmer vs softer prices); you may state a price NUMBER only as a verbatim quote from a cited [E] evidence "
+    "chunk -- never mint a price figure, spread, or basis (there is no price table). "
+    "If there is NO DIVERGENCE line, NO REROUTE line and NO CROSS-COMMODITY line, do NOT invent a fork -- "
     "and a record that contradicts the USER'S PREMISE is NOT a fork: correct that in the TL;DR, never under "
     "'## Where the record disagrees'. "
     "If a leg reads 'not yet in effect as of <asof>' or '(record silent for that era)', narrate that ABSENCE "
@@ -593,7 +609,7 @@ def _emit(on_stage, stage: str, **info) -> None:
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
                extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
-               silver_lookup=None, on_stage=None, numbers_lookup=None) -> dict:
+               silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -638,7 +654,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             _t_quant = time.perf_counter()                        # W6.1-0 stage timer (MsQuantify)
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
-                                                                extra_number_calls=extra_number_calls)
+                                                                extra_number_calls=extra_number_calls,
+                                                                xc_request=xc_request)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]
@@ -917,7 +934,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
            extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
-           silver_lookup=None, on_stage=None, numbers_lookup=None) -> dict:
+           silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -936,7 +953,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=raw_retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
-                          silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup)
+                          silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup,
+                          xc_request=xc_request)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity

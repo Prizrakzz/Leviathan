@@ -224,7 +224,7 @@ def _leg_record(contract, node_id, silver_ref, table, metric, region, country) -
             "verdict": None, "reason": None, "window_count": 0, "pg_rows": None}
 
 
-def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn) -> dict:
+def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn, cmap=None) -> dict:
     """Enumerate every MAPPED leg across the causal YAMLs, replay map_row/_scope/_region_row, probe the pg
     mirror for row existence, and classify each leg. Returns the artifact dict (W1 'Output artifact'):
     per-leg records + per-contract can_any_leg_fire rollup + per-query realizability + the run banner.
@@ -285,6 +285,7 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn) -> dict:
         per_contract[leg["contract"]] = cur or (leg["verdict"] == FIRES)
 
     per_query = _per_query_realizability()
+    pairs = pair_census(asof=asof, query_fn=query_fn, cmap=cmap)      # RV-W4.2 (no-op when the map is absent)
 
     banner = {
         "athena_calls": len(Q.STATS),
@@ -293,10 +294,13 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn) -> dict:
         "declines": sum(1 for leg in legs if leg["verdict"] == DECLINES),
         "dark": sum(1 for leg in legs if leg["verdict"] == DARK),
         "probe_errors": sum(1 for leg in legs if leg["verdict"] == PROBE_ERROR),
+        "pairs_fire": sum(1 for p in pairs if p["verdict"] == PAIR_FIRES),
+        "pairs_dark": sum(1 for p in pairs if p["verdict"] == PAIR_DARK),
+        "pairs_warn": sum(1 for p in pairs if p["warn"]),
     }
     # key renamed from per_contract_can_any_leg_fire: this rollup is pg-FIRES-based, a
     # DIFFERENT fact from the topology-only contract_can_any_leg_fire() function above.
-    return {"as_of_date": asof, "legs": legs, "per_contract_has_firing_leg": per_contract,
+    return {"as_of_date": asof, "legs": legs, "pairs": pairs, "per_contract_has_firing_leg": per_contract,
             "per_query_realizability": per_query, "banner": banner}
 
 
@@ -319,8 +323,236 @@ def _per_query_realizability() -> list[dict]:
     return out
 
 
+# -- RV-v2 cross-commodity PAIR realizability (Recipe-B World synthesis probe, RV-W4.2) --------------------
+# The World stocks-to-use ratio has NO literal country="World" row in silver_psd (S3 parquet probe
+# 2026-07-18: 35,220 rows across all 7 candidate slugs, ZERO world-like country values -- the PSD bulk feed
+# ships no aggregate row). So `country_rule: world` is SYNTHESIZED Recipe-B:
+#   SUM(ending_stocks_mt) / SUM(consumption_mt)  across all countries  per (slug, market_year)
+#   WITHIN A SINGLE release_date vintage (never summed across vintages).
+# A v2 pair FIRES only when BOTH legs' World synthesis is non-empty (a positive summed consumption
+# denominator exists at the census as-of) AND -- the double-count guard -- each slug's EU-AGGREGATE rows
+# ('European Union'/'EU-15') and EU-MEMBER rows occupy DISJOINT market_year ranges. Members end 1990,
+# EU-15 spans 1991-1998, 'European Union' 1999+, so a naive cross-country SUM never double-counts TODAY;
+# the lint asserts that disjointness so a future PSD re-baseline cannot silently reintroduce a double
+# count (probe 2026-07-18 double-count hazard note). An overlap flags the pair not-realizable + WARN.
+PAIR_FIRES = FIRES
+PAIR_DARK = DARK
+PAIR_DECLINES = DECLINES
+
+# EU aggregate titles (silver_psd surface form) whose rows already roll up their members.
+_EU_AGGREGATE_TITLES = frozenset({"European Union", "EU-15", "EU-27", "EU-28"})
+# Historically-tracked EU member-state titles (silver_psd surface form). Not exhaustive of every micro-state
+# -- it is a double-count TRIPWIRE, and the members that actually carry veg-oil/grain balance sheets are the
+# ones that could overlap an aggregate row. Both spellings of the pre-reunification German title are kept.
+_EU_MEMBER_TITLES = frozenset({
+    "France", "Germany", "Germany, West", "W. Germany", "West Germany", "Italy", "Spain",
+    "United Kingdom", "Netherlands", "Poland", "Romania", "Belgium-Luxembourg", "Belgium", "Luxembourg",
+    "Denmark", "Ireland", "Greece", "Portugal", "Hungary", "Czech Republic", "Slovakia", "Austria",
+    "Sweden", "Finland", "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia", "Slovenia", "Cyprus",
+    "Malta",
+})
+
+# EU (and predecessor EEC/EC) membership as PSD market-year WINDOWS: a member's balance sheet is rolled INTO
+# the 'European Union'/'EU-*' aggregate ONLY for accession_my <= market_year < exit_my (exit EXCLUSIVE, None
+# = still a member). OUTSIDE that window a country reported individually is NOT double-counted by a naive
+# cross-country SUM -- the two legitimate cases the old min/max RANGE test false-positived on: (a) post-Brexit
+# UK, reported separately from MY2020/21 while the EU aggregate (now sans UK) continues; (b) accession states
+# reported individually BEFORE they joined. Unlisted members default to "always inside the aggregate"
+# (accession 0, no exit) -- the conservative choice that still flags a genuine future double count.
+_EU_MEMBERSHIP: dict[str, tuple[int, int | None]] = {
+    "United Kingdom": (1973, 2020),          # left the EU; PSD reports it separately from MY2020/21
+    "Ireland": (1973, None), "Denmark": (1973, None),
+    "Greece": (1981, None),
+    "Spain": (1986, None), "Portugal": (1986, None),
+    "Austria": (1995, None), "Sweden": (1995, None), "Finland": (1995, None),
+    "Poland": (2004, None), "Czech Republic": (2004, None), "Slovakia": (2004, None),
+    "Hungary": (2004, None), "Slovenia": (2004, None), "Estonia": (2004, None),
+    "Latvia": (2004, None), "Lithuania": (2004, None), "Cyprus": (2004, None), "Malta": (2004, None),
+    "Bulgaria": (2007, None), "Romania": (2007, None),
+    "Croatia": (2013, None),
+}
+_EU_MEMBERSHIP_DEFAULT = (0, None)
+
+
+def _in_eu_aggregate(country: str, year: int) -> bool:
+    """Is `country`'s tonnage rolled into the EU aggregate in market-year `year`? (accession<=year<exit)."""
+    acc, ex = _EU_MEMBERSHIP.get(country, _EU_MEMBERSHIP_DEFAULT)
+    return year >= acc and (ex is None or year < ex)
+
+
+def _num_first(rows) -> float | None:
+    """First row's `value` as a float, else None. The agg=sum World probe returns one summed row."""
+    for r in (rows or []):
+        v = r.get("value") if isinstance(r, dict) else None
+        if v in (None, ""):
+            continue
+        try:
+            return float(str(v).replace(",", ""))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _world_synth_nonempty(slug: str, *, asof: str, query_fn) -> bool:
+    """Recipe-B EXISTENCE probe for one leg: does the World synthesis have data to divide at asof? Rides
+    Q.build_sql BYTE-IDENTICALLY (agg=sum, country=None => sums the latest-vintage row per country x MY, the
+    'single-vintage per market_year' contract group_cols() enforces). Non-empty with a POSITIVE consumption
+    denominator AND a present stocks numerator => the World su_ratio can be synthesized. Raises on pg failure
+    (the caller records probe-error), never retried on Athena."""
+    cons = query_fn(Q.build_sql(Q.NumberQuery(table="silver_psd", metric="consumption_mt", asof=asof,
+                                              commodity=slug, country=None, agg="sum")))
+    denom = _num_first(cons)
+    if not (denom and denom > 0):                                    # no positive world use -> nothing to divide
+        return False
+    stk = query_fn(Q.build_sql(Q.NumberQuery(table="silver_psd", metric="ending_stocks_mt", asof=asof,
+                                             commodity=slug, country=None, agg="sum")))
+    return _num_first(stk) is not None
+
+
+def _psd_year_sets(slug: str, query_fn) -> dict[str, set[int]]:
+    """{country: {market_year, ...}} -- the EXACT set of reported consumption years per country, NEVER a
+    min/max range. A range collapses a country's GAPS (e.g. UK reported pre-1973 AND again post-Brexit 2020+,
+    with an empty 1973-2019 middle) and spuriously spans the aggregate era; the exact set is what the
+    membership-aware disjointness lint needs. ONE grouped SELECT via the injected pg_query (NEVER a fallback
+    closure: a whole-slug scan on Athena would be a billed scan, the ZERO-Athena W0.2 rule)."""
+    sql = (f"SELECT DISTINCT country AS c, market_year AS y "
+           f"FROM {Q.ATHENA_DB}.silver_psd WHERE leviathan_slug = {Q._q(slug)} "
+           f"AND consumption_mt IS NOT NULL")
+    out: dict[str, set[int]] = {}
+    for r in (query_fn(sql) or []):
+        c = r.get("c")
+        try:
+            y = int(r.get("y"))
+        except (TypeError, ValueError):
+            continue
+        if c not in (None, ""):
+            out.setdefault(str(c), set()).add(y)
+    return out
+
+
+def _era_disjoint(slug: str, *, query_fn) -> tuple[bool, str | None]:
+    """The double-count tripwire, corrected for EU membership CHANGES over time. A naive cross-country SUM
+    double-counts a member ONLY in market_years where the member is BOTH reported individually AND rolled into
+    the 'European Union'/'EU-*' aggregate (i.e. it is an EU member THAT year -- `_in_eu_aggregate`). The old
+    min/max RANGE test false-positived on legitimate coexistence -- post-Brexit UK (individual 2020+, aggregate
+    sans UK) and pre-accession states (individual before joining) -- because their ranges span the aggregate
+    era even though NONE of their individual years fall inside their membership window. Returns (True, None)
+    when no genuinely-double-counted year exists (the common case, and now the flagship pairs on real data);
+    (False, warn) on a real overlap -- a member reported individually while inside the aggregate (a future PSD
+    re-baseline hazard the lint must still catch). Uses EXACT reported year sets, never ranges."""
+    sets = _psd_year_sets(slug, query_fn)
+    agg_years: set[int] = set()
+    for c, ys in sets.items():
+        if c in _EU_AGGREGATE_TITLES:
+            agg_years |= ys
+    if not agg_years:                                              # no aggregate rows -> nothing to double-count
+        return True, None
+    worst: tuple[int, str] | None = None
+    for c, ys in sets.items():
+        if c not in _EU_MEMBER_TITLES:
+            continue
+        clash = sorted(y for y in (ys & agg_years) if _in_eu_aggregate(c, y))
+        if clash:
+            span = clash[-1] - clash[0]
+            msg = (f"member '{c}' reported individually in MY[{clash[0]}-{clash[-1]}] while inside the EU "
+                   f"aggregate (naive world SUM would double-count {slug})")
+            if worst is None or span > worst[0]:
+                worst = (span, msg)
+    if worst:
+        return False, worst[1]
+    return True, None
+
+
+def _pair_leg_slug(side) -> str | None:
+    """The silver_psd leviathan_slug for a pair leg's side dict, resolved through the SAME PSD_SLUG_ALIAS the
+    runtime _scope applies (so the probe reads exactly the runtime slug). None when the side carries no
+    contract."""
+    contract = (side or {}).get("contract") if isinstance(side, dict) else getattr(side, "contract", None)
+    if not contract:
+        return None
+    return casc.PSD_SLUG_ALIAS.get(contract, contract)
+
+
+def _pair_verdict(pair, *, asof: str, query_fn) -> dict:
+    """Per-PAIR realizability record. FIRES iff BOTH legs' World synthesis is non-empty AND both legs are
+    era-disjoint; DECLINES-HONESTLY when a leg has no PSD balance sheet at all (cocoa/FCOJ, PSD_UNSERVED_SLUGS);
+    DARK-WITH-REASON when a resolved leg has zero World rows OR fails the disjointness lint; probe-error on a pg
+    raise. `warn` carries the disjointness message (surfaced, never silent)."""
+    pid = getattr(pair, "id", None)
+    legs = [getattr(pair, "side_a", None), getattr(pair, "side_b", None)]
+    slugs = [_pair_leg_slug(s) for s in legs]
+    rec = {"pair_id": pid, "pair": list(getattr(pair, "pair", ()) or ()), "slugs": slugs,
+           "verdict": None, "reason": None, "warn": None}
+    if not all(slugs):
+        rec["verdict"], rec["reason"] = PAIR_DARK, "unresolved-leg-slug"
+        return rec
+    unserved = [s for s in slugs if s in casc.PSD_UNSERVED_SLUGS]
+    if unserved:
+        rec["verdict"], rec["reason"] = PAIR_DECLINES, f"no PSD balance sheet for {unserved[0]}"
+        return rec
+    try:
+        for s in slugs:
+            ok, warn = _era_disjoint(s, query_fn=query_fn)
+            if not ok:
+                rec["verdict"], rec["reason"], rec["warn"] = PAIR_DARK, "era-overlap", warn
+                return rec
+        for s in slugs:
+            if not _world_synth_nonempty(s, asof=asof, query_fn=query_fn):
+                rec["verdict"], rec["reason"] = PAIR_DARK, f"world-synth-empty:{s}"
+                return rec
+    except Exception as e:  # noqa: BLE001 -- record it; NEVER retry on Athena
+        rec["verdict"], rec["reason"] = PROBE_ERROR, str(e)[:200]
+        return rec
+    rec["verdict"] = PAIR_FIRES
+    return rec
+
+
+def _load_complex_map():
+    """Lazy, fail-closed load of lane-A's complex_map (may be absent during a parallel build). None ->
+    the pair census is a no-op and pair_realizable fails closed."""
+    try:
+        from leviathan.graphrag.complex_map import load_complex_map
+        return load_complex_map()
+    except Exception:  # noqa: BLE001 -- map missing/malformed -> no pair pass, never an error
+        return None
+
+
+def pair_census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn, cmap=None) -> list[dict]:
+    """Per-PAIR verdicts over the curated complex_map (material pairs only -- load_complex_map drops the rest).
+    Injected query_fn (pg_query live, mock in tests); returns [] when the map is unavailable."""
+    cm = cmap if cmap is not None else _load_complex_map()
+    if cm is None:
+        return []
+    return [_pair_verdict(p, asof=asof, query_fn=query_fn) for p in getattr(cm, "pairs", []) or []]
+
+
+@functools.lru_cache(maxsize=64)
+def pair_realizable(pair_id: str) -> bool | None:
+    """RUNTIME gate-C + suggester predicate (interface contract): is this curated pair's per-PAIR census
+    verdict FIRES? Resolves the default pg query_fn and finds the pair by id. Returns True (FIRES) / False
+    (DARK/declines/overlap) / None (pair not found, pg unavailable, or any raise -> callers FAIL CLOSED).
+    Memoized per process -- chips + the gate tolerate staleness; the build-time census calls _pair_verdict
+    directly with its own injected query_fn, never this cache."""
+    try:
+        cm = _load_complex_map()
+        if cm is None:
+            return None
+        pair = next((p for p in getattr(cm, "pairs", []) or [] if getattr(p, "id", None) == pair_id), None)
+        if pair is None:
+            return None
+        from leviathan.graphrag.numbers import pgnumbers
+        if not pgnumbers.enabled():
+            return None
+        rec = _pair_verdict(pair, asof=CENSUS_ASOF_DEFAULT, query_fn=pgnumbers.pg_query)
+        return rec["verdict"] == PAIR_FIRES
+    except Exception:  # noqa: BLE001 -- fail closed, never a 500 on a chip/gate path
+        return None
+
+
 def _unwaived_dark(artifact: dict) -> list[dict]:
-    return [leg for leg in artifact["legs"] if leg["verdict"] == DARK]
+    dark = [leg for leg in artifact["legs"] if leg["verdict"] == DARK]
+    dark += [p for p in artifact.get("pairs", []) if p["verdict"] == PAIR_DARK]
+    return dark
 
 
 # -- Athena firewall (W0.1 source tripwire) ----------------------------------------------------------------
@@ -374,12 +606,20 @@ def _run_live(asof: str, out_path=None) -> int:
     print(f"cascade census as-of {asof} -> {dest}")
     print(f"  legs: {len(artifact['legs'])}  fires={b['fires']} declines={b['declines']} "
           f"dark={b['dark']} probe_errors={b['probe_errors']}  ATHENA_CALLS={b['athena_calls']}")
+    print(f"  pairs: {len(artifact['pairs'])}  fire={b['pairs_fire']} dark={b['pairs_dark']} warn={b['pairs_warn']}")
     dark = _unwaived_dark(artifact)
-    if dark:
-        print(f"FAIL cascade_census: {len(dark)} un-waived DARK-WITH-REASON leg(s):")
-        for leg in dark:
+    leg_dark = [d for d in dark if "node_id" in d]
+    pair_dark = [d for d in dark if "pair_id" in d]
+    if leg_dark:
+        print(f"FAIL cascade_census: {len(leg_dark)} un-waived DARK-WITH-REASON leg(s):")
+        for leg in leg_dark:
             print(f"  - {leg['contract']}/{leg['node_id']} {leg['table']}.{leg['metric']} "
                   f"country={leg['country']} -> {leg['reason']}")
+    if pair_dark:
+        print(f"FAIL cascade_census: {len(pair_dark)} DARK cross-commodity pair(s):")
+        for p in pair_dark:
+            print(f"  - pair {p['pair_id']} {p['slugs']} -> {p['reason']}"
+                  + (f" [WARN: {p['warn']}]" if p["warn"] else ""))
     if b["probe_errors"]:
         print(f"WARN cascade_census: {b['probe_errors']} probe-error leg(s) (mirror gap -- NOT retried on Athena)")
     return 1 if dark else 0
