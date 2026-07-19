@@ -43,6 +43,22 @@ _BARE_TO_SLUG: dict[str, str] = {
     "soybeans":     "soybeans_cbot",
     "corn":         "corn_cbot",
     "wheat":        "soft_red_winter_wheat_cbot",
+    # Trade-shorthand forms (2026-07-19): the detector hands over NATURAL-LANGUAGE spans, and the trade
+    # says "palm"/"soyoil"/"canola" far more often than the curated canonical names -- the clean-window
+    # positive pin failed partly because bare "palm" resolved None. Only UNAMBIGUOUS shorthands are
+    # listed ("maize" is NOT: corn_cbot vs the SAFEX white/yellow maize contracts; "soy" is NOT:
+    # beans/meal/oil). "rapeseed"/"canola" route at the OIL level per the RV-W0 curation note above.
+    "palm":         "malaysian_crude_palm_oil_cme",
+    "soyoil":       "soybean_oil_cbot",
+    "soy_oil":      "soybean_oil_cbot",
+    "soymeal":      "soybean_meal_cbot",
+    "soy_meal":     "soybean_meal_cbot",
+    "soybean":      "soybeans_cbot",
+    "rapeseed":     "rapeseed_oil_zce",
+    "rapeoil":      "rapeseed_oil_zce",
+    "rape_oil":     "rapeseed_oil_zce",
+    "canola":       "rapeseed_oil_zce",
+    "canola_oil":   "rapeseed_oil_zce",
 }
 
 
@@ -70,8 +86,13 @@ def resolve_bare_commodity(name: str, loaded: frozenset[str] | set[str] | None =
     # Normalize separators: the detector captures NATURAL-LANGUAGE spans ("soybean oil", "read-across
     # to palm oil"), while the curated table and the causal-YAML edge targets are underscore forms.
     # Without this fold every multi-word named-target ask resolves None and the gate declines -- the
-    # feature would only ever fire on single-word names (verify-wave finding, 2026-07-18).
-    n = re.sub(r"[\s\-]+", "_", str(name).strip().lower())
+    # feature would only ever fire on single-word names (verify-wave finding, 2026-07-18). Possessive
+    # markers are stripped too ("palm's" -> "palm"): no commodity name contains an apostrophe, and
+    # carried-state / YAML spans may arrive possessive even though the detector now terminates before
+    # the apostrophe (defense in depth, 2026-07-19).
+    n = str(name).strip().lower()
+    n = re.sub(r"['’]s\b", "", n).replace("'", "").replace("’", "")
+    n = re.sub(r"[\s\-]+", "_", n)
     if n in _BARE_TO_SLUG:
         return _BARE_TO_SLUG[n]
     ids = loaded if loaded is not None else _loaded_contract_ids()

@@ -95,6 +95,26 @@ def test_detector_relative_value_returns_second_leg():
     assert it.is_cross_commodity_explicit("which tightens more, soyoil or palm?") == (True, "palm")
 
 
+@pytest.mark.parametrize("q,span", [
+    # 2026-07-19 clean-window positive-pin failure: possessive markers made EVERY shape miss (the capture
+    # class excludes apostrophes and _XC_TERM had no apostrophe terminator). The capture must terminate
+    # cleanly AT the apostrophe, yielding the bare name. First row is the v4-deck query VERBATIM.
+    ("Palm export ban -- what does that do to soybean oil's world stocks-to-use versus palm's?", "palm"),
+    ("how does that affect soyoil's stocks-to-use?", "soyoil"),
+    ("what's the impact on soybean oil's balance sheet?", "soybean oil"),
+    ("what does that do to palm's stocks?", "palm"),
+])
+def test_detector_possessive_commodity_terminates_at_apostrophe(q, span):
+    assert it.is_cross_commodity_explicit(q) == (True, span)
+
+
+def test_detector_vs_shape_wins_over_named_do_to():
+    # "do to X versus Y" must bind Y (the second leg): X is usually the SOURCE itself, and binding X
+    # C8-declines the whole ask (target==source). VS is tried before NAMED for exactly this reason.
+    assert it.is_cross_commodity_explicit(
+        "Palm export ban -- what does that do to soybean oil versus palm?") == (True, "palm")
+
+
 @pytest.mark.parametrize("q", [
     "how is palm doing today?",                                  # single-commodity status
     "what were corn exports in 2023?",                           # a numbers question

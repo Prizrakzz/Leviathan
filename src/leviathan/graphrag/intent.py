@@ -66,10 +66,12 @@ def is_news_explicit(query: str) -> bool:
 # affect?", D7). Off-topic / context-only mentions never match.
 
 # The effected-object capture: a short, NON-GREEDY commodity noun phrase terminated by punctuation,
-# end-of-string, or a connective/attribute word -- so a trailing context clause is never swallowed
-# ("what does that do to palm given the soyoil glut" captures palm, not soyoil).
+# end-of-string, an apostrophe (possessive asks -- "what does that do to palm's stocks" captures palm;
+# the char class excludes apostrophes so without this terminator EVERY possessive phrasing misses, the
+# 2026-07-19 clean-window positive-pin failure), or a connective/attribute word -- so a trailing context
+# clause is never swallowed ("what does that do to palm given the soyoil glut" captures palm, not soyoil).
 _XC_TERM = (
-    r"(?=$|[?.,;:!]|\s+(?:given|amid|amidst|with|because|since|as|when|if|despite|after|before|while|"
+    r"(?=$|[?.,;:!'’]|\s+(?:given|amid|amidst|with|because|since|as|when|if|despite|after|before|while|"
     r"now\s+that|due\s+to|of|and|but|so|then|or|vs\.?|versus|prices?|markets?|demand|supply|output|"
     r"production|futures|glut|surplus|shortage|already|now)\b)")
 
@@ -201,16 +203,16 @@ def is_cross_commodity_explicit(query: str) -> tuple[bool, str | None]:
     q = _xc_final_clause(raw)                             # fence off leading context clauses -- search the ASK only
     if not q:
         return (False, None)
+    for rx in _XC_VS:                                     # relative-value FIRST: "do to X versus Y" must bind
+        m = rx.search(q)                                  # Y (the second leg), not X -- X is usually the SOURCE
+        if m:                                             # itself and NAMED-first would C8-decline the whole ask
+            span = _xc_clean(m.group("y")) or _xc_clean(m.group("x"))
+            if span:
+                return (True, span)
     for rx in _XC_NAMED:                                  # named-target: bind TARGET to the captured <X>
         m = rx.search(q)
         if m:
             span = _xc_clean(m.group("x"))
-            if span:
-                return (True, span)
-    for rx in _XC_VS:                                     # relative-value: the SECOND leg is the target
-        m = rx.search(q)
-        if m:
-            span = _xc_clean(m.group("y")) or _xc_clean(m.group("x"))
             if span:
                 return (True, span)
     for rx in _XC_OPEN:                                   # open-target ask (D7): gate ranks the pairs

@@ -99,6 +99,23 @@ class TestResolver:
     def test_space_and_hyphen_forms_fold_to_curated_keys(self, spoken, slug) -> None:
         assert xcm.resolve_bare_commodity(spoken, frozenset()) == slug
 
+    @pytest.mark.parametrize("spoken, slug", [
+        # Trade-shorthand + possessive forms (2026-07-19 positive-pin failure: bare "palm" resolved None
+        # and possessive spans from carried state / YAML never folded). Ambiguous shorthands stay None.
+        ("palm", "malaysian_crude_palm_oil_cme"),
+        ("palm's", "malaysian_crude_palm_oil_cme"),
+        ("soyoil", "soybean_oil_cbot"),
+        ("soybean oil's", "soybean_oil_cbot"),
+        ("soymeal", "soybean_meal_cbot"),
+        ("canola", "rapeseed_oil_zce"),
+        ("rapeseed", "rapeseed_oil_zce"),
+        ("soybean", "soybeans_cbot"),
+        ("maize", None),                             # ambiguous: corn_cbot vs SAFEX white/yellow maize
+        ("soy", None),                               # ambiguous: beans / meal / oil
+    ])
+    def test_trade_shorthand_and_possessive_forms(self, spoken, slug) -> None:
+        assert xcm.resolve_bare_commodity(spoken, frozenset()) == slug
+
     def test_loaded_slug_passes_through(self) -> None:
         loaded = frozenset({"corn_cbot", "soybean_oil_cbot"})
         assert xcm.resolve_bare_commodity("corn_cbot", loaded) == "corn_cbot"
