@@ -26,7 +26,20 @@ def test_numbers_reconciliation_is_clean(reg):
     assert divs == [], [d.detail for d in divs]
 
 
-def test_all_eight_numbers_tables_carry_back_pointers(reg):
+def test_numbers_tables_matches_tablespec_keys_no_drift():
+    """CORRECTION V3 (numbers-depth wave): NUMBERS_TABLES must enumerate EXACTLY the tables.yaml
+    TableSpec ids. reconcile_numbers iterates ONLY this tuple, so any tables.yaml table absent here is
+    STRUCTURALLY UNCHECKED (its knowledge_date_col / knowledge_semantics / publication_lag_days never
+    reconcile against the F010 registry -- a mis-derived lag would ship live while the gate reports
+    'clean'). This assertion makes the gap impossible to reopen silently."""
+    spec_keys = set(RC._numbers_specs().keys())
+    tuple_keys = set(RC.NUMBERS_TABLES)
+    assert tuple_keys == spec_keys, (
+        f"NUMBERS_TABLES drift -- only-in-tuple={sorted(tuple_keys - spec_keys)}, "
+        f"only-in-tables.yaml={sorted(spec_keys - tuple_keys)}")
+
+
+def test_all_numbers_tables_carry_back_pointers(reg):
     for name in RC.NUMBERS_TABLES:
         c = reg.table(name)
         assert c["numbers_ref"], name

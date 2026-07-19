@@ -166,7 +166,9 @@ def test_feature_only_table_not_in_scope():
     from leviathan.graphrag.numbers.registry import load_registry
     reg = load_registry()
     ids = cch._numbers_table_ids(reg)
-    for feature_only in ("silver_chirps", "silver_cot", "silver_icco_cocoa", "silver_pink_sheet"):
+    # NB: silver_icco_cocoa was a feature-only example until the numbers-depth wave wired it into the
+    # numbers registry -- dropped here (it is now legitimately IN scope); the rest stay feature-only.
+    for feature_only in ("silver_chirps", "silver_cot", "silver_pink_sheet"):
         assert feature_only not in ids
 
 

@@ -46,9 +46,10 @@ def test_branch_selection_all_43_tables():
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
 
-    # Branch A == exactly the 7 pg-mirror tables (== load_pg_numbers.P1_TABLES); every other table -> B.
+    # Branch A == exactly the pg-mirror tables (== load_pg_numbers.P1_TABLES); every other table -> B.
+    # 10 after the numbers-depth wave wired ICCO/MPOB/SAGIS into P1_TABLES (was 7).
     assert branch_a == g.PG_MIRROR_TABLES, branch_a
-    assert len(branch_a) == 7
+    assert len(branch_a) == 10
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 

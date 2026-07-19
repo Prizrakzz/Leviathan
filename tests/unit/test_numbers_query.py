@@ -511,6 +511,134 @@ def test_publication_lag_zero_is_identity_for_other_tables():
     assert "CAST(date AS varchar) <= '2024-06-01'" in sql       # unshifted; _fx() has no publication_lag_days
 
 
+# ── W0-1 (numbers-depth wave, MPOB): publication_lag_days MUST shift the as-of cutoff back under
+#    data_date semantics, not only vintage/ESR. VERIFIED a NO-OP fix: _pub_lagged_asof is applied in
+#    _guard/apply_pit_filter for EVERY non-year_month semantics (query.py), so the lag branch already
+#    covers data_date. These tests PROVE it (an MPOB-shaped spec) so a future regression is caught. ──────
+def _mpob() -> TableSpec:                                  # wide + data_date + publication lag (MPOB shape)
+    return TableSpec(id="silver_mpob", description="", shape="wide", commodity_col="commodity",
+                     period_type="date", date_col="date", knowledge_date_col="date",
+                     knowledge_semantics="data_date", publication_lag_days=43,
+                     metrics={"closing_stocks_palm_oil_mt": Metric(unit="MT")})
+
+
+def test_data_date_publication_lag_shifts_guard_w0_1():
+    ts = _mpob()
+    sql = build_sql(NumberQuery(table="silver_mpob", metric="closing_stocks_palm_oil_mt",
+                                asof="2026-05-01", commodity="malaysian_crude_palm_oil_cme",
+                                agg="latest"), ts)
+    # asof 2026-05-01 minus the 43-day publication lag = 2026-03-19: a data month is citable only once
+    # published (date + 43 <= asof), bound as the sargable equivalent date <= asof-43.
+    assert "CAST(date AS varchar) <= '2026-03-19'" in sql       # lag applied under data_date semantics
+    assert "'2026-05-01'" not in sql                            # the raw (pre-publication) cutoff never appears
+
+
+def test_data_date_lag_boundary_oracle_april_scoped_w0_1():
+    """The April-scoped leakage trap (CORRECTION V1): with lag 43 the April data month (date 2026-04-01)
+    is invisible until 2026-05-14 (2026-04-01 + 43) and visible from then -- proves the lag shift in the
+    pure-Python oracle too, not just build_sql."""
+    ts = _mpob()
+    row = [{"commodity": "malaysian_crude_palm_oil_cme", "date": "2026-04-01",
+            "closing_stocks_palm_oil_mt": 1900000.0}]
+    q = dict(table="silver_mpob", metric="closing_stocks_palm_oil_mt",
+             commodity="malaysian_crude_palm_oil_cme", period_start="2026-04-01", period_end="2026-04-30")
+    assert apply_pit_filter(row, NumberQuery(asof="2026-05-01", **q), ts) == []   # data date passed, not public
+    assert apply_pit_filter(row, NumberQuery(asof="2026-05-13", **q), ts) == []   # still before publication
+    kept = apply_pit_filter(row, NumberQuery(asof="2026-05-14", **q), ts)         # 2026-04-01 + 43d exactly
+    assert len(kept) == 1 and kept[0]["closing_stocks_palm_oil_mt"] == 1900000.0
+
+
+# ── HARDENING (numbers-depth wave): a NULL/empty knowledge date must FAIL CLOSED (not-yet-visible),
+#    never always-visible. The SQL guard already drops NULLs (col <= asof is NULL => excluded); the
+#    Python oracle previously compared str(None or '')='' <= asof == TRUE and leaked every unstamped row. ──
+def test_pit_null_knowledge_date_fails_closed():
+    # data_date table (knowledge col = date): NULL and empty-string dates are dropped, stamped row survives.
+    wx = _weather()
+    rows = [{"commodity": "corn", "country": "US", "date": None, "precipitation_mm": 5.0},
+            {"commodity": "corn", "country": "US", "date": "", "precipitation_mm": 6.0},
+            {"commodity": "corn", "country": "US", "date": "2024-01-15", "precipitation_mm": 7.0}]
+    q = NumberQuery(table="silver_nasa_power", metric="precipitation_mm", asof="2024-06-01",
+                    commodity="corn", country="US")
+    kept = apply_pit_filter(rows, q, wx)
+    assert [r["precipitation_mm"] for r in kept] == [7.0]        # only the knowledge-stamped row survives
+    # vintage table (knowledge col = release_date): a NULL-release row must NOT become the vintage winner.
+    psd = _psd()
+    vrows = [{"leviathan_slug": "corn", "country": "Brazil", "market_year": 2023,
+              "release_date": None, "ending_stocks_mt": 999.0},
+             {"leviathan_slug": "corn", "country": "Brazil", "market_year": 2023,
+              "release_date": "2024-02-08", "ending_stocks_mt": 11.0}]
+    vq = NumberQuery(table="silver_psd", metric="ending_stocks_mt", asof="2024-03-01",
+                     commodity="corn", country="Brazil", period="2023")
+    vkept = apply_pit_filter(vrows, vq, psd)
+    assert len(vkept) == 1 and vkept[0]["ending_stocks_mt"] == 11.0   # NULL-release row excluded, not the winner
+
+
+# ── KILL-SWITCH (numbers-depth wave): env GRAPHRAG_NUMBERS_DISABLE (comma-sep table ids) drops those
+#    tables from the loaded registry -> they vanish from the agent tool enum too; fail-open on junk. ────────
+def test_numbers_disable_kill_switch(monkeypatch):
+    from leviathan.graphrag.numbers import agent as A
+    from leviathan.graphrag.numbers.registry import _disabled_tables, load_registry
+
+    # the parser accepts each NEW table id and trims surrounding whitespace (real ids never hit fail-open).
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_DISABLE", "silver_icco_cocoa, silver_mpob ,silver_sagis_cec")
+    assert _disabled_tables() == frozenset({"silver_icco_cocoa", "silver_mpob", "silver_sagis_cec"})
+
+    # the drop actually happens at load: disable an EXISTING table and confirm it (and its tool-enum entry)
+    # vanish while peers stay -- proves the mechanism on a table guaranteed present in the live tables.yaml.
+    load_registry.cache_clear()
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_DISABLE", "silver_psd,silver_mpob")
+    reg = load_registry()
+    assert "silver_psd" not in reg.tables and "silver_wasde" in reg.tables
+    enum = A.tool_schema(reg)["input_schema"]["properties"]["table"]["enum"]
+    assert "silver_psd" not in enum                             # dropped from the tool enum by construction
+
+    # fail-OPEN on junk: a whitespace/empty env disables nothing (never silently kill the whole stack).
+    load_registry.cache_clear()
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_DISABLE", "   ,  , ")
+    assert _disabled_tables() == frozenset()
+    assert "silver_psd" in load_registry().tables
+
+    # absent env -> identity.
+    load_registry.cache_clear()
+    monkeypatch.delenv("GRAPHRAG_NUMBERS_DISABLE", raising=False)
+    assert "silver_psd" in load_registry().tables
+    load_registry.cache_clear()                                 # leave the cache clean for other tests
+
+
+# ── numbers-depth wave acceptance (integrator): the tool enum gains EXACTLY the three wired ids, and the
+#    kill-switch reverts the enum to the pre-wave 8 -- a total, config-only rollback of the whole wave. ──────
+_NEW_DEPTH_IDS = ("silver_icco_cocoa", "silver_mpob", "silver_sagis_cec")
+_PRE_WAVE_8 = frozenset({
+    "silver_psd", "silver_wasde", "silver_production", "silver_nasa_power",
+    "silver_esr", "silver_fred_fx", "silver_noaa_oni", "gold_weather_z",
+})
+
+
+def _tool_enum():
+    from leviathan.graphrag.numbers import agent as A
+    from leviathan.graphrag.numbers.registry import load_registry
+    return set(A.tool_schema(load_registry())["input_schema"]["properties"]["table"]["enum"])
+
+
+def test_depth_wave_enum_gains_three_and_kill_switch_reverts_to_pre_wave_8(monkeypatch):
+    from leviathan.graphrag.numbers.registry import load_registry
+
+    # (1) env UNSET -> the three freshly wired tables ARE in the agent's tool enum.
+    load_registry.cache_clear()
+    monkeypatch.delenv("GRAPHRAG_NUMBERS_DISABLE", raising=False)
+    live = _tool_enum()
+    assert set(_NEW_DEPTH_IDS) <= live, live
+    assert live == _PRE_WAVE_8 | set(_NEW_DEPTH_IDS)            # exactly the 8 + 3 = 11, nothing else
+
+    # (2) disable all three -> the enum is EXACTLY the pre-wave 8 (total config-only rollback of the wave).
+    load_registry.cache_clear()
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_DISABLE", ",".join(_NEW_DEPTH_IDS))
+    reverted = _tool_enum()
+    assert reverted == _PRE_WAVE_8, reverted
+    assert not (set(_NEW_DEPTH_IDS) & reverted)                 # none of the three survive
+    load_registry.cache_clear()                                 # leave the cache clean for other tests
+
+
 # ── BF-W2 SILVER-F031 option-b: the ESR vintage semantics flip (laneA R2/R3/R4). silver_esr_compact
 #    retains one object per (slug, as_of_date) weekly vintage; as-of truth = latest vintage <= asof. ────────
 def _esr_vintage() -> TableSpec:
