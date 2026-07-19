@@ -23,6 +23,13 @@ _JARGON = re.compile(r"\bnode fired\b|\bthe node\b|\bcausal node\b|\bgraph edge\
 _PROSE_PHRASES = re.compile(
     r"\bcausal graph\b|\bmapped graph\b|\blive-feature layer\b|\bsilver numbers layer\b|\bdated evidence item\b",
     re.I)
+# SAGIS/CEC crop codes (silver_sagis_cec.crop, numbers-depth wave Lane A3) are UNDERSCORED tokens but are
+# NOT contract slugs, so the _slugs() hierarchy check never flags them — yet an underscored crop code in
+# reader prose is the SAME register leak. Detect + rewrite the underscored forms to a friendly label; the
+# single-word SAGIS crops (wheat, soybeans, sorghum, barley, canola, oats, groundnuts) are fine in prose
+# and need no handling. The rewrite is a plain de-underscore, so sanitize() stays idempotent.
+_SAGIS_CROP_CODES = ("total_maize", "white_maize", "yellow_maize", "sunflower_seed", "dry_beans")
+_SAGIS_CROP_RX = re.compile(r"\b(" + "|".join(re.escape(c) for c in _SAGIS_CROP_CODES) + r")\b")
 
 
 @functools.lru_cache(maxsize=1)
@@ -68,6 +75,8 @@ def register_leaks(text: str) -> list[tuple[str, str]]:
     for rid in _regime_ids():                                            # raw convergence-regime id in prose
         for m in re.finditer(r"\b" + re.escape(rid) + r"\b", prose):
             hits.append((rid, _ctx(prose, m)))
+    for m in _SAGIS_CROP_RX.finditer(prose):                             # underscored SAGIS crop code in prose
+        hits.append((m.group(0), _ctx(prose, m)))
     return hits
 
 
@@ -169,6 +178,7 @@ def sanitize(text: str) -> str:
             seg = re.sub(r"\b" + re.escape(slug) + r"\b", disp.get(slug, slug.replace("_", " ")), seg)
         for rid in _regime_ids():                                        # longest-first -> humanize regime ids
             seg = re.sub(r"\b" + re.escape(rid) + r"\b", _regime_label(rid), seg)
+        seg = _SAGIS_CROP_RX.sub(lambda m: m.group(1).replace("_", " "), seg)   # SAGIS crop code -> friendly
         seg = _MOOD.sub(_mood_word, seg)                                 # LAST: neutralize any residual mood word
         parts[i] = seg                                                   #   (from a stale curated label or model)
     return "".join(parts)

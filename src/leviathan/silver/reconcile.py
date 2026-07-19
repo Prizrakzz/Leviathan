@@ -39,8 +39,16 @@ CASCADE_MAP_YAML = _REPO_ROOT / "configs" / "graphrag" / "numbers" / "cascade_ma
 SOURCE_CONTRACTS_YAML = _REPO_ROOT / "configs" / "datasets" / "source_contracts.yaml"
 FEATURES_YAML = _REPO_ROOT / "configs" / "features" / "features.yaml"
 
-# The 8 numbers TableSpec keys (tables.yaml). ``silver_esr`` is the numbers logical key; it serves
+# The numbers TableSpec keys (tables.yaml). ``silver_esr`` is the numbers logical key; it serves
 # from silver_esr_compact (athena_table), recorded as serving_table in the registry.
+#
+# CORRECTION V3 (numbers-depth wave): this MUST enumerate EVERY numbers TableSpec, because
+# ``reconcile_numbers`` iterates ONLY this tuple — a table wired into tables.yaml but absent here is
+# STRUCTURALLY UNCHECKED (its knowledge_date_col / knowledge_semantics / publication_lag_days never
+# reconcile against the F010 registry, so a mis-derived MPOB publication_lag_days would ship live and
+# PIT-leak while the gate reports "clean"). ``silver_icco_cocoa`` / ``silver_mpob`` /
+# ``silver_sagis_cec`` are the three tables this wave wires in. The drift test
+# ``set(NUMBERS_TABLES) == set(tables.yaml keys)`` keeps this from silently reopening.
 NUMBERS_TABLES = (
     "silver_psd",
     "silver_wasde",
@@ -50,6 +58,9 @@ NUMBERS_TABLES = (
     "silver_fred_fx",
     "silver_noaa_oni",
     "gold_weather_z",
+    "silver_icco_cocoa",
+    "silver_mpob",
+    "silver_sagis_cec",
 )
 
 

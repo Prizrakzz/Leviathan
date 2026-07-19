@@ -4,7 +4,7 @@ table_name: silver_sagis_cec
 layer: silver
 domain: production
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/sagis_cec
@@ -122,8 +122,7 @@ required_nonnull:
 - estimate_number
 value_columns:
 - current_estimate_t
-- revision_t
-- revision_surprise
+- area_planted_ha
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: production_year x report_month x crop x scope x estimate_number
@@ -134,8 +133,8 @@ publication_lag_days: 0
 freshness_sla:
   cadence: monthly
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_sagis_cec
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#sagis_cec
 serving_table: null

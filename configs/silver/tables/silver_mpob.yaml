@@ -4,7 +4,7 @@ table_name: silver_mpob
 layer: silver
 domain: balance_sheet
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/mpob
@@ -82,19 +82,20 @@ value_columns:
 - production_cpo_mt
 - closing_stocks_palm_oil_mt
 - exports_palm_oil_mt
+- imports_palm_oil_mt
 - su_ratio
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: commodity x date
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: date
+knowledge_semantics: data_date
+publication_lag_days: 43
 freshness_sla:
   cadence: monthly
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_mpob
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#mpob
 serving_table: null

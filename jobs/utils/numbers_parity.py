@@ -30,7 +30,15 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # contract slugs (verified 2026-07-17: gold/weather_z/corn_cbot.parquet, commodity column
                     # == 'corn_cbot', 44,954 rows 1981-2026). The earlier 'corn' base-name sample made the
                     # panel vacuous the FIRST time the weather gate ran it live (weather-R3 red).
-                    "gold_weather_z": "corn_cbot"}
+                    "gold_weather_z": "corn_cbot",
+                    # NUMBERS-DEPTH WAVE (2026-07-19): the three newly-wired tables. ICCO is a
+                    # single-commodity WORLD table (no commodity axis) -> None. MPOB carries a
+                    # single-valued `commodity` column. SAGIS `commodity_col` is `crop`, a SAGIS crop
+                    # code (NOT a contract slug) -- total_maize is the national headline maize crop
+                    # (probed on S3); a wrong value makes the panel vacuous (0==0 passes blind).
+                    "silver_icco_cocoa": None,
+                    "silver_mpob": "malaysian_crude_palm_oil_cme",
+                    "silver_sagis_cec": "total_maize"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]

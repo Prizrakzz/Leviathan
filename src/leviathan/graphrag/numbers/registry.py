@@ -137,9 +137,28 @@ class NumbersRegistry(BaseModel):
         return self.tables[table_id]
 
 
+def _disabled_tables() -> frozenset[str]:
+    """Kill-switch: table ids to DROP from the loaded registry at load time (env
+    ``GRAPHRAG_NUMBERS_DISABLE``, comma-separated). A dropped table vanishes from the agent's tool
+    enum (``sorted(reg.tables)``) AND its system-prompt card, and every ``build_sql`` lookup for it
+    raises ``KeyError`` (fail-CLOSED for that table) — an instant, config-only rollback for a freshly
+    wired table without touching tables.yaml. Read ONCE per registry load (the load is lru_cached).
+    Parse junk -> EMPTY set (fail-OPEN: a malformed env var must NEVER silently disable the whole
+    numbers stack)."""
+    import os
+    try:
+        raw = os.environ.get("GRAPHRAG_NUMBERS_DISABLE", "") or ""
+        return frozenset(t.strip() for t in raw.split(",") if t.strip())
+    except Exception:  # noqa: BLE001 — env junk must never break registry load
+        return frozenset()
+
+
 @functools.lru_cache(maxsize=4)
 def load_registry(path: Optional[str] = None) -> NumbersRegistry:
     p = Path(path) if path else (ex._CFG / "numbers" / "tables.yaml")
     raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     tables = {tid: TableSpec(id=tid, **spec) for tid, spec in (raw.get("tables") or {}).items()}
+    disabled = _disabled_tables()
+    if disabled:
+        tables = {tid: ts for tid, ts in tables.items() if tid not in disabled}
     return NumbersRegistry(tables=tables)

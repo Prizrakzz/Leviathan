@@ -477,7 +477,15 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
             if spec.period_end and rym > _asof_ym(spec.period_end):
                 return False
             return rym <= ym                                             # the leakage guard (year_month)
-        return str(r.get(kcol) or "") <= guard_asof                      # the leakage guard (date + pub lag)
+        kv = r.get(kcol)
+        if kv is None or str(kv) == "":                                  # NULL/empty knowledge date: FAIL CLOSED —
+            return False                                                 # unstamped == not-yet-visible, never
+            #                                                              always-visible. Mirrors the SQL guard,
+            #                                                              where `col <= asof` is NULL (=> excluded)
+            #                                                              for a NULL knowledge date; the old
+            #                                                              `str(None or '')`='' compared <= asof as
+            #                                                              TRUE, leaking every unstamped row.
+        return str(kv) <= guard_asof                                     # the leakage guard (date + pub lag)
     kept = [r for r in rows if keep(r)]
 
     if ts.knowledge_semantics == "vintage" and kept:

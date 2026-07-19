@@ -4,7 +4,7 @@ table_name: silver_icco_cocoa
 layer: silver
 domain: balance_sheet
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/icco_cocoa
@@ -91,14 +91,14 @@ min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: cocoa_year
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: latest_release_date
+knowledge_semantics: vintage
+publication_lag_days: 0
 freshness_sla:
   cadence: annual
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_icco_cocoa
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#icco_cocoa
 serving_table: null

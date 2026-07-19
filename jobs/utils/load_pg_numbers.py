@@ -34,8 +34,16 @@ from leviathan.common.logging import get_logger
 logger = get_logger("load_pg_numbers")
 
 P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "silver_fred_fx",
-             "silver_noaa_oni", "gold_weather_z"]        # gold_weather_z: small tall z-table (D-W4);
-#                                                          silver_nasa_power stays EXCLUDED (size, above)
+             "silver_noaa_oni", "gold_weather_z",         # gold_weather_z: small tall z-table (D-W4);
+             #                                              silver_nasa_power stays EXCLUDED (size, above)
+             # numbers-depth wave (W0-4 / D3): three freshly wired WIDE tables. All small-to-modest and
+             # numeric-column-safe under the type doctrine: ICCO metrics production_kt/grindings_kt/
+             # end_stocks_kt/su_ratio, MPOB *_mt + su_ratio, SAGIS current_estimate_t/area_planted_ha
+             # mirror as numeric; every date/slug/scope/period-string column stays ISO TEXT. SAGIS's
+             # production_year (period_sql_type=int) also mirrors numeric. Justified by the serving
+             # fast-path + the per-lane golden-vocabulary fixtures (NOT a C002 requirement; C002's
+             # wide-metric check is AWS-free -- CORRECTION V2).
+             "silver_icco_cocoa", "silver_mpob", "silver_sagis_cec"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 
