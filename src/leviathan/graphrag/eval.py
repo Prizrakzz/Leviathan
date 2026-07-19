@@ -948,6 +948,15 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None) ->
     judged = [r["judge"] for r in rows if r.get("judge")]
     intent_rows = [r for r in rows if r["rubric"].get("expected_intent")]
     lines = [f"# graphdev eval v3 — {model}", ""]
+    # Run-validity gate (2026-07-19 RCA 8b): a run where the synthesis tier floored a material share
+    # of turns measures the OUTAGE, not the pipeline -- its judge/strip aggregates must never be
+    # compared against a healthy baseline (two such runs mis-attributed an Anthropic tier window to
+    # a feature flag). 15% ~= one floored turn on the small decks.
+    floored = sum(1 for r in rows if (r.get("out") or {}).get("model") == "(unavailable)")
+    if rows and floored / len(rows) > 0.15:
+        lines += [f"> **RUN INCONCLUSIVE -- {floored}/{len(rows)} turns floored to the evidence-only "
+                  "fallback (model unavailable). Aggregates below measure the outage, not the "
+                  "pipeline; do NOT compare against baselines.**", ""]
     if graph_version:
         lines.append(f"- graph: `{graph_version}` (causal-YAML content hash — the graph this run scored)")
     lines.append(f"- contract routed correctly: **{routed}/{len(rows)}**")

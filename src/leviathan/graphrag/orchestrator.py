@@ -903,6 +903,10 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                                 silver_lookup=silver_lookup, on_stage=on_stage,
                                 focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
+        # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
+        # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged
+        # (trace.error carries it to the caller, but batch/eval logs only showed the floor).
+        print(f"[floor] kind={kind} cause={type(e).__name__}: {str(e)[:200]}", flush=True)
         an._emit(on_stage, "floor")
         res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)
     if att["suppressed_note"]:
