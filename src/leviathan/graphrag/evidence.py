@@ -195,7 +195,14 @@ def _doc_date(doc: dict, key: str) -> date:
 # Sources that discuss MANY commodities (so every node should draw from them, not only its dedicated GAIN source):
 _ALL_COMMODITY_SOURCES = frozenset({"wb_cmo_outlook", "usda_wasde", "usda_wap", "usda_gain_grain_monthly", "conab"})
 # Specialized NON-GAIN sources keyed by a commodity token (their names don't contain the commodity):
-_SPECIALIZED_SOURCES = {"coffee": ("fnc", "usda_fas_coffee_wmt"), "palm": ("mpoc", "mpob")}
+# "maize" (not "corn") keys sagis_cec so SA white/yellow maize nodes gain the committee narrative
+# while US corn_cbot (token "corn") does not -- the CEC covers South Africa only (Track B, 2026-07-19).
+_SPECIALIZED_SOURCES = {
+    "coffee": ("fnc", "usda_fas_coffee_wmt"),
+    "palm": ("mpoc", "mpob"),
+    "cocoa": ("icco_qbcs_summary", "icco_ewg_stocks"),
+    "maize": ("sagis_cec",),
+}
 _DEDICATED_FRAC = 0.6                                  # dedicated source gets ~60% (depth); the rest is multi-source breadth
 
 
