@@ -51,14 +51,18 @@ def test_system_cascade_appended_under_quant_flag(monkeypatch):
 
 
 # -- W4.5 eval pins: trace.quantify_reroute_v2 (ENGINE-written), judge-free ------------------------------
-def _out(*, v2=0, heading=False, planner="llm"):
+def _out(*, v2=0, heading=False, planner="llm", xc_tier=None):
     """A minimal eval out dict. v2 = number of fired cross-commodity pairs in the engine-written trace key;
-    heading = whether '## Cross-commodity' rendered in the mechanism; planner = the dispatch decision."""
+    heading = whether '## Cross-commodity' rendered in the mechanism; planner = the dispatch decision;
+    xc_tier (W2) = intent_decision.xc_detect.tier when the orchestrator stamped one (None = pre-W2 shape)."""
     mech = ("## Cross-commodity\n- [N1] World soybean-oil stocks-to-use MY2025: 8.1%"
             if heading else "## Mechanism\nplain prose, no reserved heading")
+    dec = {"planner": planner}
+    if xc_tier is not None:
+        dec["xc_detect"] = {"tier": xc_tier, "llm_consulted": True, "target_span": "palm"}
     return {"trace": {"quantify": [], "quantify_reroute_v2": [{"pair_id": "veg_oil_soy_palm"}] * v2},
             "structured": {"tldr": "", "mechanism": mech}, "citations": [],
-            "intent_decision": {"planner": planner}}
+            "intent_decision": dec}
 
 
 def test_cascade_stats_counts_reroute_v2_pairs():
@@ -106,3 +110,56 @@ def test_byte_identical_when_pin_absent():
     res = ev._cascade_asserts(q, _out(v2=1, heading=True))            # v2 fired, but the pin is absent
     assert "reroute_v2_expected" not in res
     assert res == {"cascade_fired": True}                             # unchanged: trace.quantify empty -> not fired
+
+
+# -- W2 (D15 amended): the detection_tier pin -- planner AND-guard, False-never-KeyError ------------------
+def test_detection_tier_pin_true_and_false():
+    q = {"expect": {"detection_tier": "llm"}}
+    assert ev._cascade_asserts(q, _out(xc_tier="llm"))["detection_tier"] is True
+    assert ev._cascade_asserts(q, _out(xc_tier="regex"))["detection_tier"] is False
+    assert ev._cascade_asserts({"expect": {"detection_tier": "regex"}},
+                               _out(xc_tier="regex"))["detection_tier"] is True
+    assert ev._cascade_asserts({"expect": {"detection_tier": "none"}},
+                               _out(xc_tier="none"))["detection_tier"] is True
+
+
+def test_detection_tier_pin_fails_on_dispatch_fallback():
+    """The C11c AND-guard: a fallback turn never exercised the composite, so even a 'matching' tier stamp
+    FAILS the pin rather than false-greening (mirrors reroute_v2_expected)."""
+    q = {"expect": {"detection_tier": "llm"}}
+    assert ev._cascade_asserts(q, _out(xc_tier="llm", planner=None))["detection_tier"] is False
+
+
+def test_detection_tier_pin_fails_without_xc_detect_stamp():
+    # a pre-W2 / flag-off-image turn: planner ran but no xc_detect key -> False, not a KeyError
+    q = {"expect": {"detection_tier": "llm"}}
+    assert ev._cascade_asserts(q, _out())["detection_tier"] is False
+
+
+def test_detection_tier_non_orchestrator_out_false_never_keyerror():
+    """D15 stated limit: the default answer.answer() eval path has no intent_decision at all -- the pin
+    must yield False (meaningful only on --via-orchestrator runs), never raise."""
+    q = {"expect": {"detection_tier": "llm"}}
+    out = {"answer": "prose", "citations": []}
+    assert ev._cascade_asserts(q, out)["detection_tier"] is False
+
+
+def test_detection_tier_unknown_expect_keys_still_dropped():
+    q = {"expect": {"detection_tier_v9": "llm", "detection_tier": "llm"}}
+    res = ev._cascade_asserts(q, _out(xc_tier="llm"))
+    assert set(res) == {"detection_tier"}                             # whitelist: unknown keys silently dropped
+
+
+# -- W2 (D15): reroute_v2_pairs + detection_tier ride the per-answer record -------------------------------
+def test_per_answer_record_carries_reroute_v2_pairs_and_tier():
+    out = {"answer": "a", "structured": None, "intent": "reasoning", "citations": [],
+           "trace": {"quantify_reroute_v2": [{"pair_id": "p"}]},
+           "intent_decision": {"planner": "llm", "xc_detect": {"tier": "llm", "llm_consulted": True,
+                                                               "target_span": "palm"}}}
+    rec = ev._per_answer_record({"q": {"id": "x1"}, "out": out, "rubric": {}}, "single")
+    assert rec["reroute_v2_pairs"] == 1 and rec["detection_tier"] == "llm"
+
+
+def test_per_answer_record_tier_none_on_non_orchestrator_row():
+    rec = ev._per_answer_record({"q": {"id": "x2"}, "out": {"answer": ""}}, "single")
+    assert rec["reroute_v2_pairs"] == 0 and rec["detection_tier"] is None

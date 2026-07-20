@@ -1162,6 +1162,12 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
         windows = _xc_focus_windows(sg, graph, groups, source, near, asof)
         if not windows:
             return [], None
-        return _reroute_xc(pair_row, source, target, windows, qfn, asof, calls, len(calls), sg)
+        block, fired = _reroute_xc(pair_row, source, target, windows, qfn, asof, calls, len(calls), sg)
+        if fired:
+            # RV2 W2 tier telemetry (D7, S2-2): the fired trace records the DETECTING tier HERE, after the
+            # call -- _reroute_xc has no xc_request in scope. A 3-key request (legacy/injected) reads None;
+            # the engine itself still consumes only pair_id/source/target, so the key rides inert.
+            fired["detect_tier"] = (xc_request or {}).get("detect_tier")
+        return block, fired
     except Exception:  # noqa: BLE001
         return [], None

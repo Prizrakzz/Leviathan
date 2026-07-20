@@ -102,7 +102,7 @@ def _pit_clean(out: dict, asof) -> bool:
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
-                   "reroute_v2_expected")
+                   "reroute_v2_expected", "detection_tier")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -159,6 +159,13 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
                 res[k] = fired_v2 and heading and non_fallback
             else:
                 res[k] = (not fired_v2) and (not heading) and non_fallback
+        elif k == "detection_tier":
+            # RV2 W2 (D15 amended): the tier pin requires the dispatch planner ACTUALLY ran (the same C11c
+            # fallback-vacuity guard as reroute_v2_expected) AND the stamped tier to match -- a fallback,
+            # flag-off, or non-orchestrator out (answer.answer() has no intent_decision) yields False,
+            # never KeyError. Meaningful only on --via-orchestrator runs by construction.
+            dec = out.get("intent_decision") or {}
+            res[k] = (dec.get("planner") == "llm") and ((dec.get("xc_detect") or {}).get("tier") == want)
         elif k == "opposite_country_legs":                            # the STRONG reroute assert: >=2
             pos, neg = set(), set()                                   # distinct countries whose injected
             for c in cits:                                            # *_delta rows carry OPPOSITE signs
@@ -269,6 +276,10 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "n_cascade_cited": cs["n_cited"],
             "divergence_nodes": cs["divergence_nodes"],
             "reroute_pairs": cs["reroute_pairs"],
+            # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
+            # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
+            "reroute_v2_pairs": cs["reroute_v2_pairs"],
+            "detection_tier": ((out.get("intent_decision") or {}).get("xc_detect") or {}).get("tier"),
             "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
             # R3 F12: without degraded_model in the record a degraded turn is byte-indistinguishable from a
             # clean one and the transient-error policy is un-enforceable (set at answer.py:663,960; a

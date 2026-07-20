@@ -11,7 +11,7 @@ from __future__ import annotations
 import types
 
 import pytest
-
+from leviathan.graphrag import dispatch as dp
 from leviathan.graphrag import intent as it
 from leviathan.graphrag import orchestrator as orch
 
@@ -299,6 +299,111 @@ def test_gate_open_target_skips_unrealizable_pairs():
 
 
 # ════════════════════════════════════════════════════════════════════════════════════════════════════
+# D17 (W0.a) -- target-aware SOURCE binding: a NAMED-target ask resolves the target FIRST, then binds
+# SOURCE to the first route hit forming a curated material pair with it. Under the old route[0] binding
+# every self-contained two-commodity ask declined (S2-1): the first hit was an exchange sibling in no
+# curated pair, or the target itself.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+SOYDCE = "soybean_oil_dce"        # exchange sibling: routes FIRST on soyoil queries, in NO curated pair
+
+
+def _resolve_vegoil(s):
+    """A faithful vegoil bare-name resolver (what complex_map's curated table returns for these spans)."""
+    t = s.strip().lower()
+    if "palm" in t:
+        return PALM
+    if "soy" in t:
+        return SOY
+    return None
+
+
+@pytest.mark.parametrize("q,route,src,tgt", [
+    # the four S2-1 repro phrasings, REAL detector: each declined under route[0] binding (sibling-first
+    # route, or the target routing first -> C8); D17 binds the pair-forming hit and the fork fires.
+    ("Palm export ban -- what does that do to soybean oil's world stocks-to-use versus palm's?",
+     [SOYDCE, SOY, PALM], SOY, PALM),
+    ("how does soybean oil's balance sheet compare versus palm's?",
+     [SOYDCE, SOY, PALM], SOY, PALM),
+    ("palm ban -- what does that do to soyoil?",
+     [SOY, PALM], PALM, SOY),                        # target routes FIRST: old code C8-declined here
+    ("How does soybean oil's balance sheet compare relative to palm?",
+     [SOYDCE, SOY], SOY, PALM),
+])
+def test_gate_d17_self_contained_two_commodity_asks_fire(q, route, src, tgt):
+    out = _gate(q, graph=_graph(PALM, SOY, SOYDCE),
+                detect=it.is_cross_commodity_explicit,
+                route=route, resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out == {"pair_id": "soyoil_palm_vegoil", "source_slug": src, "target_slug": tgt}
+
+
+def test_gate_d17_exchange_sibling_route_first_binds_curated_leg():
+    # route yields the DCE sibling first; only the CBOT leg is in the curated pair -> SOURCE binds the
+    # CBOT leg (the allowlist itself is the binding criterion), never the sibling.
+    out = _gate("what does that do to palm?",
+                graph=_graph(PALM, SOY, SOYDCE),
+                detect=lambda q: (True, "palm"),
+                route=[SOYDCE, SOY], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out == {"pair_id": "soyoil_palm_vegoil", "source_slug": SOY, "target_slug": PALM}
+
+
+def test_gate_d17_route_hits_but_none_pair_forming_declines():
+    # hits exist but NONE forms a curated pair with the target -> explicit fail-closed decline; the old
+    # arbitrary route[0] SOURCE is never minted.
+    out = _gate("what does that do to palm?",
+                graph=_graph(PALM, CORN, SOYDCE),
+                detect=lambda q: (True, "palm"),
+                route=[SOYDCE, CORN], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out is None
+
+
+def test_gate_d17_all_route_hits_are_target_c8_declines():
+    # every hit IS the resolved target -> no SOURCE candidate -> C8 decline.
+    out = _gate("what does that do to palm?",
+                graph=_graph(PALM, SOY),
+                detect=lambda q: (True, "palm"),
+                route=[PALM, PALM], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out is None
+
+
+def test_gate_d17_open_target_source_binding_unchanged_route_first():
+    # OPEN asks are untouched by D17: SOURCE stays the route FIRST hit even when a later hit would have
+    # curated pairs -- the sibling binds, has none, and the gate declines (D7 semantics preserved).
+    out = _gate("what else does this affect?",
+                graph=_graph(PALM, SOY, SOYDCE),
+                detect=lambda q: (True, None),
+                route=[SOYDCE, SOY], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out is None
+
+
+def test_gate_d17_empty_route_state_fallback_uncurated_still_declines():
+    # empty route -> carried session contract EXACTLY as before, then the normal gates run: a state
+    # SOURCE in no curated pair with the target still declines at gate 3.
+    out = _gate("what does that do to soyoil?",
+                graph=_graph(CORN, SOY),
+                state=types.SimpleNamespace(contracts=[CORN]),
+                detect=lambda q: (True, "soyoil"),
+                route=[], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out is None
+
+
+def test_gate_d17_empty_route_state_fallback_equal_target_c8_declines():
+    # a state-carried SOURCE equal to the resolved target still C8-declines (the check D17 preserved).
+    out = _gate("what does that do to soyoil?",
+                graph=_graph(PALM, SOY),
+                state=types.SimpleNamespace(contracts=[SOY]),
+                detect=lambda q: (True, "soyoil"),
+                route=[], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out is None
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
 # RV-W1.4 -- the D-cases (hard negatives): a context/pronoun/same-commodity turn NEVER produces xc_request
 # ════════════════════════════════════════════════════════════════════════════════════════════════════
 def test_dcase_same_commodity_object_declines():
@@ -538,3 +643,313 @@ def test_respond_numbers_branch_never_computes_xc_request(monkeypatch):
     orch.respond("what were palm exports?", graph=_respond_graph(), asof="2026-06-01",
                  classify=_force("numbers_only"))
     assert called["n"] == 0
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# RV2 W2 -- the LLM detection tier: kill-switch, the shared two-tier composite, tier telemetry,
+# dark observables. The existing respond() pins inject `classify` (dispatch skipped, plan None), so
+# ordering/recall behavior is pinned on the MODULE SYMBOL directly (S2-6), plus ONE call-injected
+# respond() integration test exercising the flag-on plan-span path end-to-end.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+_XC_MISS_Q = "how does a palm export ban affect soybean oil?"     # the S2-1 recall shape the regex misses
+
+
+def _mkplan(target="palm", explicit=True, degraded=False):
+    return dp.Plan(steps=["reasoning"], contracts=[], xc_explicit=explicit, xc_target=target,
+                   degraded=degraded)
+
+
+@pytest.mark.parametrize("val,want", [
+    ("on", True), ("ON", True), ("1", True), ("true", True), ("TRUE", True), (" on ", True),
+    ("off", False), ("0", False), ("yes", False), ("enabled", False), ("garbage", False), ("", False),
+])
+def test_xc_llm_detect_flag_fail_closed(monkeypatch, val, want):
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", val)
+    assert orch._xc_llm_detect_on() is want
+
+
+def test_xc_llm_detect_flag_default_off(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_XC_LLM_DETECT", raising=False)
+    assert orch._xc_llm_detect_on() is False
+
+
+def test_composite_regex_hit_wins_and_plan_span_ignored(monkeypatch):
+    # D2 ordering: any floor hit returns immediately -- the plan span is NEVER read on a regex hit.
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    det = orch.xc_detect_two_tier(_mkplan(target="palm"))
+    assert det("palm ban -- what does that do to soyoil?") == (True, "soyoil")   # regex span, NOT "palm"
+    assert det.tier == "regex" and det.llm_consulted is False    # LLM never consulted on a floor hit
+
+
+def test_composite_gate_regex_span_beats_c8_declining_plan_span(monkeypatch):
+    # the plan span ("palm") would resolve to SOURCE and C8-decline the whole ask; the regex span
+    # ("soyoil") fires it. Ordering is load-bearing, so it is pinned END-TO-END through the gate.
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    det = orch.xc_detect_two_tier(_mkplan(target="palm"))
+    out = _gate("palm ban -- what does that do to soyoil?", graph=_graph(PALM, SOY),
+                detect=det, route=[PALM], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out == {"pair_id": "soyoil_palm_vegoil", "source_slug": PALM, "target_slug": SOY,
+                   "detect_tier": "regex"}
+
+
+def test_composite_recall_add_named_span(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    det = orch.xc_detect_two_tier(_mkplan(target="soybean oil"))
+    assert it.is_cross_commodity_explicit(_XC_MISS_Q) == (False, None)   # honest premise: a REAL tier-1 miss
+    assert det(_XC_MISS_Q) == (True, "soybean oil")
+    assert det.tier == "llm" and det.llm_consulted is True
+
+
+def test_composite_open_span_not_consumed(monkeypatch):
+    # D19: xc_explicit=true with a null target is emitted+traced but NEVER routed (no LLM open lane).
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    det = orch.xc_detect_two_tier(_mkplan(target=None))
+    assert det(_XC_MISS_Q) == (False, None)
+    assert det.tier == "none" and det.llm_consulted is True      # consulted-and-declined, attributable
+
+
+def test_composite_plan_none_is_floor_only(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    det = orch.xc_detect_two_tier(None)                          # dispatch fallback (D11)
+    assert det(_XC_MISS_Q) == (False, None)
+    assert det.tier == "none" and det.llm_consulted is False
+
+
+def test_composite_degraded_plan_not_consumed(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    det = orch.xc_detect_two_tier(_mkplan(target="soybean oil", degraded=True))
+    assert det(_XC_MISS_Q) == (False, None)                      # D2: never the deck-uncertified model
+    assert det.tier == "none" and det.llm_consulted is False
+
+
+@pytest.mark.parametrize("flagval", [None, "off", "0", "yes", "enabled", "on extra"])
+def test_composite_flag_off_or_unrecognized_tier2_unreachable(monkeypatch, flagval):
+    if flagval is None:
+        monkeypatch.delenv("GRAPHRAG_XC_LLM_DETECT", raising=False)
+    else:
+        monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", flagval)
+    det = orch.xc_detect_two_tier(_mkplan(target="soybean oil"))
+    assert det(_XC_MISS_Q) == (False, None)
+    assert det.tier == "none" and det.llm_consulted is False
+
+
+def test_gate_llm_tier_span_reaches_the_law(monkeypatch):
+    # recall-add through the REAL gate: the plan span binds via resolve_bare + curated-pair LAW exactly
+    # like a regex span, and the fired request carries detect_tier="llm" (the 4th, engine-inert key).
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    det = orch.xc_detect_two_tier(_mkplan(target="soybean oil"))
+    out = _gate(_XC_MISS_Q, graph=_graph(PALM, SOY),
+                detect=det, route=[PALM], resolve=_resolve_vegoil,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert out == {"pair_id": "soyoil_palm_vegoil", "source_slug": PALM, "target_slug": SOY,
+                   "detect_tier": "llm"}
+
+
+def test_gate_injected_detector_request_stays_three_key():
+    # a plain injected detector has no tier attribute -> no detect_tier key: every legacy seam and the
+    # engine's 3-key contract are byte-identical (the existing exact-equality pins above stay honest).
+    out = _gate("what does that do to soyoil?", graph=_graph(PALM, SOY),
+                detect=lambda q: (True, "soyoil"), route=[PALM], resolve=lambda s: SOY,
+                pairs=[_Pair("soyoil_palm_vegoil", SOY, PALM)])
+    assert set(out) == {"pair_id", "source_slug", "target_slug"}
+
+
+# ── D7 tier telemetry at the respond() level (stamped for reasoning/hybrid turns incl. DECLINED ones) ──
+def test_respond_stamps_xc_detect_regex_tier_even_with_v2_off(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(orch.an, "answer", rec)
+    monkeypatch.delenv("GRAPHRAG_REROUTE_V2", raising=False)
+    monkeypatch.delenv("GRAPHRAG_XC_LLM_DETECT", raising=False)
+    out = orch.respond("palm ban -- what does that do to soyoil?", graph=_respond_graph(),
+                       asof="2026-06-01", classify=_force("reasoning"))
+    assert out["intent_decision"]["xc_detect"] == {"tier": "regex", "llm_consulted": False,
+                                                   "target_span": "soyoil"}
+    assert "xc_request" not in rec.kwargs             # v2 off: the seam stays byte-identical (routing)
+
+
+def test_respond_stamps_xc_detect_none_tier_on_declined_turn(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(orch.an, "answer", rec)
+    monkeypatch.setenv("GRAPHRAG_REROUTE_V2", "on")
+    monkeypatch.delenv("GRAPHRAG_XC_LLM_DETECT", raising=False)
+    out = orch.respond("why did palm rally?", graph=_respond_graph(), asof="2026-06-01",
+                       classify=_force("reasoning"))
+    assert out["intent_decision"]["xc_detect"] == {"tier": "none", "llm_consulted": False,
+                                                   "target_span": None}
+    assert "xc_request" not in rec.kwargs             # gate declined -> no request (unchanged)
+
+
+def test_respond_flag_on_but_plan_none_tier2_unreachable(monkeypatch):
+    # extends the flag pins: injected classify skips dispatch -> plan None -> even with the flag ON the
+    # tier-2 branch is unreachable and llm_consulted stays False (fallback distinguishable from flag-off
+    # only through the planner key, which is absent here).
+    rec = _Recorder()
+    monkeypatch.setattr(orch.an, "answer", rec)
+    monkeypatch.setenv("GRAPHRAG_REROUTE_V2", "on")
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    out = orch.respond(_XC_MISS_Q, graph=_respond_graph(), asof="2026-06-01",
+                       classify=_force("reasoning"))
+    assert out["intent_decision"]["xc_detect"] == {"tier": "none", "llm_consulted": False,
+                                                   "target_span": None}
+    assert "xc_request" not in rec.kwargs
+
+
+def test_respond_fallback_dispatch_stamps_none_tier(monkeypatch):
+    # dispatch RAN and fell back (raising set_plan) -> legacy classifier path; the turn still stamps
+    # xc_detect (regex floor attribution) and carries no planner key (the eval AND-guard reads that).
+    rec = _Recorder()
+    monkeypatch.setattr(orch.an, "answer", rec)
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+
+    def call(system, user, *, model, tool, **kw):
+        if tool["name"] == "set_plan":
+            raise RuntimeError("dispatch down")
+        return {"tldr": "t", "mechanism": "m", "diagram_mermaid": "", "sources": []}
+    out = orch.respond("why did palm rally?", graph=_respond_graph(), asof="2026-06-01", call=call)
+    assert out["intent"] == "reasoning"
+    assert "planner" not in out["intent_decision"]
+    assert out["intent_decision"]["xc_detect"] == {"tier": "none", "llm_consulted": False,
+                                                   "target_span": None}
+
+
+def test_respond_numbers_turn_has_no_xc_detect(monkeypatch):
+    monkeypatch.setattr(orch, "run_numbers_only", lambda *a, **k: {
+        "answer": "n", "number_calls": [], "intent": "numbers_only", "contract": None,
+        "contracts": [], "structured": None, "evidence": [], "citations": []})
+    out = orch.respond("what were palm exports?", graph=_respond_graph(), asof="2026-06-01",
+                       classify=_force("numbers_only"))
+    assert "xc_detect" not in (out.get("intent_decision") or {})   # D7 covers reasoning/hybrid only
+
+
+# ── the ONE call-injected respond() integration test (S2-6): dual-duty fake call, flag-on plan span ──
+def test_respond_llm_tier_end_to_end_dual_duty_call(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_REROUTE_V2", "on")
+    monkeypatch.setenv("GRAPHRAG_XC_LLM_DETECT", "on")
+    from leviathan.graphrag import evidence as ev
+    monkeypatch.setattr(ev, "embed", lambda texts, **kw: [[1.0, 0.0, 0.0, 0.0] for _ in texts])
+
+    def call(system, user, *, model, tool, **kw):                  # answers set_plan AND the synthesis tool
+        if tool["name"] == "set_plan":
+            return {"steps": ["reasoning"], "contracts": [PALM],
+                    "xc_explicit": True, "xc_target": "soybean oil"}
+        return {"tldr": "t", "mechanism": "m", "diagram_mermaid": "", "sources": []}
+
+    def retrieve(q, node, *, k, asof=None, near=None):
+        return [{"date": "2024-01-01", "source": "usda_wasde", "source_key": f"s3://{node}",
+                 "text": "note"}]
+
+    seen = {}
+    real = orch._xc_request
+
+    def spy(q, **kw):                                              # REAL gate, hermetic lane-A/D stubs
+        seen["req"] = real(q, **kw, resolve_bare=_resolve_vegoil,
+                           load_map=lambda: _Map([_Pair("soyoil_palm_vegoil", SOY, PALM)]),
+                           realizable=lambda pid: True)
+        return seen["req"]
+    monkeypatch.setattr(orch, "_xc_request", spy)
+
+    out = orch.respond(_XC_MISS_Q, graph=_respond_graph(), asof="2026-06-01",
+                       call=call, retrieve=retrieve)
+    assert out["intent"] == "reasoning"
+    # the regex misses this shape; the request exists ONLY because the plan span was consumed (tier 2)
+    assert seen["req"] == {"pair_id": "soyoil_palm_vegoil", "source_slug": PALM, "target_slug": SOY,
+                           "detect_tier": "llm"}
+    assert out["intent_decision"]["xc_detect"] == {"tier": "llm", "llm_consulted": True,
+                                                   "target_span": "soybean oil"}
+    assert out["intent_decision"]["xc_explicit"] is True           # the W1 dark channel still rides trace()
+
+
+# ── R3/D10 attachment-ordering pin: the planner (and thus detection input) runs BEFORE the concat ──
+def test_plan_computed_before_attachment_concat(monkeypatch):
+    seen = {}
+
+    def call(system, user, *, model, tool, **kw):
+        if tool["name"] == "set_plan":
+            seen["planner_user"] = user
+            return {"steps": ["reasoning"], "contracts": [PALM]}
+        return {"tldr": "t", "mechanism": "m", "diagram_mermaid": "", "sources": []}
+    rec = _Recorder()
+    monkeypatch.setattr(orch.an, "answer", rec)
+    out = orch.respond("what is driving palm?", graph=_respond_graph(), asof="2026-06-01", call=call,
+                       context=[{"type": "node", "contract": PALM, "driver_id": "export_ban"}])
+    assert "USER-ATTACHED FOCUS" not in seen["planner_user"]       # attachments can't shape xc fields
+    assert "USER-ATTACHED FOCUS" in rec.kwargs["extra_context"]    # ...but the turn still carried them
+    assert out["intent_decision"]["attachments"]["focus_driver"] == "export_ban"
+
+
+# ── detect_tier rides into the FIRED trace via cascade._run_xc (stamped AFTER the call, S2-2) ──
+def test_run_xc_stamps_detect_tier_on_fired_trace(monkeypatch):
+    from leviathan.graphrag.numbers import cascade as casc
+    calls = []
+    monkeypatch.setattr(casc, "_load_pair_row", lambda pid: object())
+    monkeypatch.setattr(casc, "_xc_focus_windows", lambda *a: ["w"])
+    monkeypatch.setattr(casc, "_reroute_xc",
+                        lambda pair_row, source, target, *a: (
+                            calls.append((source, target))
+                            or (["line"], {"pair_id": "p", "reroute_v2": True})))
+    req = {"pair_id": "p", "source_slug": PALM, "target_slug": SOY, "detect_tier": "llm"}
+    block, fired = casc._run_xc(req, None, None, [], None, "2026-06-01", None, [])
+    assert block == ["line"] and fired["detect_tier"] == "llm"
+    # 3-key request (legacy/injected shape): the engine consumes the SAME 3 keys, tier stamps None
+    req3 = {"pair_id": "p", "source_slug": PALM, "target_slug": SOY}
+    _, fired3 = casc._run_xc(req3, None, None, [], None, "2026-06-01", None, [])
+    assert fired3["detect_tier"] is None
+    assert calls == [(PALM, SOY), (PALM, SOY)]        # extra-key inertness: identical engine invocation
+
+
+def test_run_xc_decline_path_unaffected_by_detect_tier(monkeypatch):
+    from leviathan.graphrag.numbers import cascade as casc
+    monkeypatch.setattr(casc, "_load_pair_row", lambda pid: object())
+    monkeypatch.setattr(casc, "_xc_focus_windows", lambda *a: ["w"])
+    monkeypatch.setattr(casc, "_reroute_xc", lambda *a: ([], None))
+    req = {"pair_id": "p", "source_slug": PALM, "target_slug": SOY, "detect_tier": "regex"}
+    assert casc._run_xc(req, None, None, [], None, "2026-06-01", None, []) == ([], None)
+
+
+# ── W2 dark observables in the respond() EMF block (XcLlmWouldFire / PlannerFallback / dark line) ──
+def _capture_emf(monkeypatch) -> dict:
+    from leviathan.graphrag import emf
+    captured = {}
+    monkeypatch.setattr(emf, "emit",
+                        lambda metrics, *, dimensions=None, units=None: captured.update(metrics))
+    return captured
+
+
+def test_emf_xc_would_fire_and_dark_line(monkeypatch, capsys):
+    monkeypatch.delenv("GRAPHRAG_XC_LLM_DETECT", raising=False)   # emitted REGARDLESS of the flag (D20)
+    captured = _capture_emf(monkeypatch)
+    canned = {"answer": "a", "intent": "reasoning", "model": "m",
+              "intent_decision": {"planner": "llm", "xc_explicit": True, "xc_target": "palm oil"},
+              "trace": {"ms_dispatch": 120}, "session": {"id": "s1", "turn": 3}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    assert captured["XcLlmWouldFire"] == 1 and captured["PlannerFallback"] == 0
+    assert "XC_DETECT_DARK turn=s1/3 target=palm oil" in capsys.readouterr().out
+
+
+def test_emf_no_would_fire_no_dark_line(monkeypatch, capsys):
+    captured = _capture_emf(monkeypatch)
+    canned = {"answer": "a", "intent": "reasoning", "model": "m",
+              "intent_decision": {"planner": "llm", "xc_explicit": False, "xc_target": None},
+              "trace": {"ms_dispatch": 120}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    assert captured["XcLlmWouldFire"] == 0
+    assert "XC_DETECT_DARK" not in capsys.readouterr().out
+
+
+def test_emf_planner_fallback_only_when_dispatch_ran(monkeypatch, capsys):
+    captured = _capture_emf(monkeypatch)
+    fb = {"answer": "a", "intent": "reasoning", "model": "m",
+          "intent_decision": {"intent": "reasoning"}, "trace": {"ms_dispatch": 33}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: fb)
+    orch.respond("q", graph=None)
+    assert captured["PlannerFallback"] == 1 and captured["XcLlmWouldFire"] == 0
+    assert "XC_DETECT_DARK" not in capsys.readouterr().out        # a fallback turn emits no plan fields
+    # injected-classify / trivial / guardrail turns never stamp ms_dispatch -> never counted as fallback
+    nofb = {"answer": "a", "intent": "reasoning", "model": "m",
+            "intent_decision": {"intent": "reasoning"}, "trace": {}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: nofb)
+    orch.respond("q", graph=None)
+    assert captured["PlannerFallback"] == 0

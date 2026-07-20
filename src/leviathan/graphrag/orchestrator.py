@@ -355,6 +355,46 @@ def _reroute_v2_on() -> bool:
     return os.environ.get("GRAPHRAG_REROUTE_V2", "off").lower() == "on"
 
 
+def _xc_llm_detect_on() -> bool:
+    """LLM cross-commodity detection tier kill-switch (RV2 D6). DEFAULT-OFF; only a case-insensitive
+    on/1/true enables it, and ANY other value (unset, off, typo, 'yes') stays off -- fail-closed, so the
+    deterministic regex remains the whole detector unless explicitly flipped. Gates CONSUMPTION only: the
+    planner keeps emitting xc_explicit/xc_target dark either way (the D20 soak channel). Rollback = drop
+    the env var (single flag, instant, no redeploy) -- byte-identical to the regex-floor behavior."""
+    return os.environ.get("GRAPHRAG_XC_LLM_DETECT", "").strip().lower() in ("on", "1", "true")
+
+
+def xc_detect_two_tier(plan):
+    """The SHARED two-tier cross-commodity detector factory (RV2 W2, S3-F6): builds the `detect(q)` closure
+    `_xc_request` consumes AND the W3 fence harness scores through -- one module-level symbol, so deck
+    attribution can never drift from prod. Tier 1 is the deterministic regex FLOOR: any hit returns
+    immediately and the LLM is NEVER consulted (D2 -- the tier adds recall, never suppresses). Tier 2
+    consumes the dispatch planner's strict-validated fields only when the kill-switch is on, the plan
+    exists (D11: fallback turns are floor-only), the call did not degrade Sonnet->Haiku (D2 amendment:
+    the degraded model is never deck-certified), xc_explicit is literally True, and xc_target is NAMED
+    (D19: the open-target lane stays regex-only). The closure cannot raise (pure regex + dataclass reads
+    -- D8 by construction) and self-records `tier`/`llm_consulted` as attributes for the D7 telemetry
+    stamp -- out-of-band, so the (matched, span) seam contract and every injected test fake stay
+    byte-identical. `llm_consulted` is True iff tier-2 was actually reachable this call (regex missed,
+    flag on, plan present, not degraded) -- consulted-and-declined is distinguishable from flag-off and
+    from planner fallback."""
+    def detect(q):
+        m, span = it.is_cross_commodity_explicit(q)              # tier 1: deterministic floor
+        if m:
+            detect.tier, detect.llm_consulted = "regex", False   # regex hit -> LLM NEVER consulted (D2)
+            return (m, span)
+        consulted = (_xc_llm_detect_on() and plan is not None
+                     and not getattr(plan, "degraded", False))   # S1-F2: degraded turns are floor-only
+        if (consulted and getattr(plan, "xc_explicit", False) is True
+                and getattr(plan, "xc_target", None)):           # D19: NAMED targets only
+            detect.tier, detect.llm_consulted = "llm", True
+            return (True, plan.xc_target)                        # tier 2: adds recall only
+        detect.tier, detect.llm_consulted = "none", consulted
+        return (False, None)
+    detect.tier, detect.llm_consulted = None, False
+    return detect
+
+
 # ── reroute v2 gate helpers (RV-W1.3): produce the cross-commodity request; NO firing logic lives here ────
 # The engine (lane C) decides whether the fork fires; the gate only resolves SOURCE + TARGET and selects the
 # single curated MATERIAL, census-realizable pair. Everything is fail-closed: any miss -> None (no fork).
@@ -393,49 +433,73 @@ def _xc_realizable_default(pair_id: str):
 def _xc_request(query: str, *, graph, state, detect=None, route=None, resolve_bare=None,
                 load_map=None, realizable=None) -> dict | None:
     """Produce the cross-commodity RV request dict {pair_id, target_slug, source_slug} threaded into the
-    cascade quantify seam, or None (the default and every fail-closed outcome). RV-W1.3, extended with the
-    D7 open-target PAIR_CAP=1 and the C8 target binding. Dependencies default to the real symbols but are
-    INJECTABLE for hermetic tests (lanes A/D build concurrently). The whole body is try-wrapped: any
-    exception -- a raising detector, a missing lane-A/lane-D symbol, a cold-cache glob failure -- yields
-    None (fail-closed, C12), never a propagated 500."""
+    cascade quantify seam (plus `detect_tier` when the W2 two-tier composite detected -- pure telemetry,
+    stamped onto the fired trace in cascade._run_xc), or None (the default and every fail-closed outcome).
+    RV-W1.3, extended with the
+    D7 open-target PAIR_CAP=1, the C8 target binding, and the D17 target-aware SOURCE binding (a NAMED-target
+    ask resolves the target FIRST, then binds SOURCE to the first route hit forming a curated pair with it --
+    the old route[0] binding declined nearly every self-contained two-commodity ask, S2-1). Dependencies
+    default to the real symbols but are INJECTABLE for hermetic tests (lanes A/D build concurrently). The
+    whole body is try-wrapped: any exception -- a raising detector, a missing lane-A/lane-D symbol, a
+    cold-cache glob failure -- yields None (fail-closed, C12), never a propagated 500."""
     try:
         detect = detect or it.is_cross_commodity_explicit
         matched, target_span = detect(query)
         if not matched:                                            # gate 1: the narrow explicit-ask matcher
             return None
+        # W2 tier telemetry (D7): the two-tier composite self-records which tier matched; a plain/injected
+        # detector carries no attribute -> no key (byte-identical dicts on every legacy seam). The engine
+        # reads only pair_id/source/target (cascade.py) so the extra key rides inert to the fired trace.
+        _tier = getattr(detect, "tier", None)
+        _tk = {"detect_tier": _tier} if _tier else {}
         route = route or an.route
-        # gate 2 SOURCE = this-turn lexical route first hit, else the carried session contract (coreference).
-        src_hits = [c for c in (route(query, graph) or []) if c in graph.contracts]
-        source = src_hits[0] if src_hits else (
-            state.contracts[0] if (state and state.contracts
-                                   and state.contracts[0] in graph.contracts) else None)
-        if not source:
-            return None
-        if resolve_bare is None or load_map is None:               # lazy lane-A import (fail-closed on miss)
-            from leviathan.graphrag import complex_map as cm
-            resolve_bare = resolve_bare or cm.resolve_bare_commodity
+        if resolve_bare is None or load_map is None:               # lazy lane-A import (fail-closed on miss);
+            from leviathan.graphrag import complex_map as cm       # hoisted above SOURCE binding: D17 needs
+            resolve_bare = resolve_bare or cm.resolve_bare_commodity   # the resolved TARGET to pick SOURCE
             load_map = load_map or cm.load_complex_map
         realizable = realizable or _xc_realizable_default
         material = [p for p in getattr(load_map(), "pairs", [])
                     if getattr(p, "materiality_tier", None) == "material"]
+        src_hits = [c for c in (route(query, graph) or []) if c in graph.contracts]
 
-        if target_span is None:                                    # D7 OPEN-target: rank SOURCE's pairs
+        if target_span is None:
+            # gate 2 OPEN-target (D7, binding byte-unchanged by D17): SOURCE = this-turn lexical route
+            # first hit, else the carried session contract (coreference); then rank SOURCE's pairs.
+            source = src_hits[0] if src_hits else (
+                state.contracts[0] if (state and state.contracts
+                                       and state.contracts[0] in graph.contracts) else None)
+            if not source:
+                return None
             cands = sorted((p for p in material if source in _xc_pair_slugs(p)), key=lambda p: p.id)
             for p in cands:                                        # PAIR_CAP=1: first realizable in id order
                 if realizable(p.id) is True:                       # fail-closed: only an explicit True fires
                     tgt = _xc_other(p, source)
                     if tgt:
-                        return {"pair_id": p.id, "source_slug": source, "target_slug": tgt}
+                        return {"pair_id": p.id, "source_slug": source, "target_slug": tgt, **_tk}
             return None
 
-        # gate 2 NAMED-target: bind TARGET to the captured <X>; a same-commodity object declines (C8).
+        # gate 2 NAMED-target (D17): resolve TARGET first, then bind SOURCE target-aware.
         target = resolve_bare(target_span)
-        if not target or target == source or target not in graph.contracts:
+        if not target or target not in graph.contracts:
+            return None
+        if src_hits:
+            # SOURCE = the FIRST route hit forming a CURATED material pair with the resolved target --
+            # the allowlist itself is the binding criterion. A hit equal to the target is never a SOURCE
+            # candidate, and a target SIBLING (a hit resolving to the target's commodity) forms no curated
+            # pair with it (curated pairs are cross-commodity by construction) so it can never bind either.
+            # No pair-forming hit -> None: all-hits-are-target is the C8 decline, and a non-pair-forming
+            # route declines EXPLICITLY instead of minting an arbitrary decline-shaped SOURCE.
+            source = next((c for c in src_hits
+                           if c != target and _xc_find_pair(material, c, target) is not None), None)
+        else:                                                      # empty route: carried session contract,
+            source = (state.contracts[0]                           # exactly as before -- normal gates run
+                      if (state and state.contracts and state.contracts[0] in graph.contracts) else None)
+        if not source or source == target:                         # C8: a state-carried SOURCE may equal target
             return None
         pair = _xc_find_pair(material, source, target)             # gate 3: curated + material (order-insensitive)
         if pair is None or realizable(pair.id) is not True:        # + per-pair census FIRES (fail-closed)
             return None
-        return {"pair_id": pair.id, "source_slug": source, "target_slug": target}
+        return {"pair_id": pair.id, "source_slug": source, "target_slug": target, **_tk}
     except Exception:  # noqa: BLE001 -- a detector/resolver/census failure disables v2 this turn, never 500s
         return None
 
@@ -647,6 +711,20 @@ def respond(*args, **kwargs) -> dict:
         _ans = res.get("answer") or ""
         injected_n = int(tr.get("injected_n") or 0)
         cited_n = len(set(re.findall(r"\[N\d+\]", _ans)))
+        # RV2 W2 dark observables (S3-F1, S2-4): XcLlmWouldFire counts planner would-fires REGARDLESS of
+        # the GRAPHRAG_XC_LLM_DETECT flag (the D20 counted-soak channel -- response dicts alone are not a
+        # queryable surface); PlannerFallback is 1 iff dispatch actually RAN (ms_dispatch stamped) and no
+        # llm plan resulted (the W4 hard-bound metric -- injected-classify and trivial/guardrail turns
+        # never count). The ASCII log line is the Logs Insights grep surface for per-turn user disposition
+        # (scripts/xc_soak_scan.py); the span is model output, so it is ascii-replaced defensively.
+        dec = res.get("intent_decision") or {}
+        xc_would = 1 if dec.get("xc_explicit") is True else 0
+        planner_fb = 1 if (tr.get("ms_dispatch") is not None and dec.get("planner") != "llm") else 0
+        if xc_would:
+            _sess = res.get("session") or {}
+            _tid = f"{_sess.get('id')}/{_sess.get('turn')}" if _sess.get("id") else "-"
+            _tgt = str(dec.get("xc_target") or "").encode("ascii", "replace").decode()
+            print(f"XC_DETECT_DARK turn={_tid} target={_tgt}", flush=True)
         from leviathan.graphrag import emf
         # Stage timers (Ms*) pass None when the stage did not run; emf.emit drops None -> NO zero-fill.
         emf.emit({"TurnLatencyMs": total, "MsFill": gm.get("fill"), "MsRest": gm.get("rest"),
@@ -662,7 +740,8 @@ def respond(*args, **kwargs) -> dict:
                   # else 0. Social turns emit under intent="social"/model="(canned)" -- a fresh dimension
                   # bucket that never pollutes the reasoning/hybrid/numbers strip metrics (0-semantics, like
                   # CascadeFired). Always 0 when GRAPHRAG_TRIVIAL_ROUTER is off (no turn stamps trace.trivial).
-                  "TrivialShortCircuit": 1 if tr.get("trivial") else 0},
+                  "TrivialShortCircuit": 1 if tr.get("trivial") else 0,
+                  "XcLlmWouldFire": xc_would, "PlannerFallback": planner_fb},
                  dimensions={"intent": res.get("intent"), "model": res.get("model")},
                  units={"TurnLatencyMs": "Milliseconds", "MsFill": "Milliseconds",
                         "MsRest": "Milliseconds", "MsDispatch": "Milliseconds", "MsNumbers": "Milliseconds",
@@ -670,7 +749,8 @@ def respond(*args, **kwargs) -> dict:
                         "StripCount": "Count", "CascadeFired": "Count",
                         "CascadeNodes": "Count", "DivergenceNodes": "Count", "RerouteFired": "Count",
                         "MultiCountryTurn": "Count", "CitedN": "Count", "InjectedN": "Count",
-                        "AnswerChars": "Count", "TrivialShortCircuit": "Count"})
+                        "AnswerChars": "Count", "TrivialShortCircuit": "Count",
+                        "XcLlmWouldFire": "Count", "PlannerFallback": "Count"})
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res
@@ -863,9 +943,19 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     # request at all; the ENGINE (lane C) is gated by the xc_request ARGUMENT, never by reading the flag --
     # so a mis-plumbed enable can never fire the fork on an unasked turn (C9). Flag off => None => the
     # reasoning/hybrid call is byte-identical to today.
+    # W2 (D7): detection is ATTRIBUTED on every reasoning/hybrid turn, incl. DECLINED and v2-flag-off ones
+    # -- the gate returns bare None, so this is the only place a decline is attributable. The shared
+    # composite (built here, plan in scope) rides the EXISTING detect= seam so the LAW body is untouched;
+    # the direct call below is idempotent with the gate's own (pure regex + dataclass reads, cannot raise).
     xc_request = None
-    if _reroute_v2_on() and kind in ("reasoning", "hybrid"):
-        xc_request = _xc_request(query, graph=graph, state=state)
+    if kind in ("reasoning", "hybrid"):
+        _xc_det = xc_detect_two_tier(plan)
+        _, _xc_span = _xc_det(query)
+        decided = (decided or {}) | {"xc_detect": {"tier": _xc_det.tier or "none",
+                                                   "llm_consulted": bool(_xc_det.llm_consulted),
+                                                   "target_span": _xc_span}}
+        if _reroute_v2_on():
+            xc_request = _xc_request(query, graph=graph, state=state, detect=_xc_det)
     try:
         if kind == "live":
             # Thread coreference reaches the news SEARCH ("any news related to that?"): the plan's
