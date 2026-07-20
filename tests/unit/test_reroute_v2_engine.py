@@ -109,6 +109,69 @@ def test_world_su_ratio_pit_guard_hides_future_vintage():
     assert pct == pytest.approx(100.0 * 10 / 80, rel=1e-9)
 
 
+# ── membership-window dedup in the World SUM (the 2026-07-20 UK-backfill fix) ─────────────────────────
+def test_world_su_ratio_dedups_uk_inside_eu_aggregate_window():
+    """The live case, arithmetic PINNED: MY2019 has BOTH an EU aggregate row (EU-28, still carrying the UK)
+    and a backfilled individual UK row. The UK sits inside its EU_MEMBERSHIP window (1973 <= 2019 < 2020), so
+    its individual rows are EXCLUDED from the World SUM -- stocks 20+10 (NOT +5), use 100+60 (NOT +30)."""
+    fx = {
+        ("ending_stocks_mt", 2019): [_row("European Union", 20, "2026-05-10"),
+                                     _row("United Kingdom", 5, "2026-05-10"),
+                                     _row("United States", 10, "2026-05-10")],
+        ("consumption_mt", 2019): [_row("European Union", 100, "2026-05-10"),
+                                   _row("United Kingdom", 30, "2026-05-10"),
+                                   _row("United States", 60, "2026-05-10")],
+    }
+    pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 2019, "2026-06-01")
+    assert n == 2                                                # EU + US; the UK row never enters the SUM
+    assert pct == pytest.approx(100.0 * (20 + 10) / (100 + 60), rel=1e-9)
+
+
+def test_world_su_ratio_counts_uk_from_my2020_outside_window():
+    """From MY2020 the UK is OUTSIDE its membership window (exit 2020, exclusive) -- post-Brexit PSD reports
+    it separately and the EU aggregate no longer carries it, so its individual rows COUNT."""
+    fx = {
+        ("ending_stocks_mt", 2020): [_row("European Union", 20, "2026-05-10"),
+                                     _row("United Kingdom", 5, "2026-05-10"),
+                                     _row("United States", 10, "2026-05-10")],
+        ("consumption_mt", 2020): [_row("European Union", 100, "2026-05-10"),
+                                   _row("United Kingdom", 30, "2026-05-10"),
+                                   _row("United States", 60, "2026-05-10")],
+    }
+    pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 2020, "2026-06-01")
+    assert n == 3
+    assert pct == pytest.approx(100.0 * (20 + 10 + 5) / (100 + 60 + 30), rel=1e-9)
+
+
+def test_world_su_ratio_keeps_member_rows_when_no_aggregate_row():
+    """No EU aggregate row in the snapshot (the pre-1991 shape: members reported ONLY individually) -> the
+    dedup must NOT fire, or the world would be UNDER-counted. UK inside its window but nothing carries it."""
+    fx = {
+        ("ending_stocks_mt", 1985): [_row("United Kingdom", 5, "2026-05-10"),
+                                     _row("United States", 10, "2026-05-10")],
+        ("consumption_mt", 1985): [_row("United Kingdom", 30, "2026-05-10"),
+                                   _row("United States", 60, "2026-05-10")],
+    }
+    pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 1985, "2026-06-01")
+    assert n == 2
+    assert pct == pytest.approx(100.0 * (10 + 5) / (60 + 30), rel=1e-9)
+
+
+def test_world_su_ratio_never_dedups_member_without_explicit_window():
+    """A member title with NO curated EU_MEMBERSHIP window (France, a pre-EU-15 founder) is NEVER silently
+    dropped from the SUM -- guessing its window could as easily under-count. The census era-overlap lint is
+    the guard that DARKs such a pair instead (fail-closed division of labor)."""
+    fx = {
+        ("ending_stocks_mt", 2005): [_row("European Union", 20, "2026-05-10"),
+                                     _row("France", 5, "2026-05-10")],
+        ("consumption_mt", 2005): [_row("European Union", 100, "2026-05-10"),
+                                   _row("France", 30, "2026-05-10")],
+    }
+    pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 2005, "2026-06-01")
+    assert n == 2                                                # France stays in -- visible, not hidden
+    assert pct == pytest.approx(100.0 * (20 + 5) / (100 + 30), rel=1e-9)
+
+
 # ── the sign-oppose fork ──────────────────────────────────────────────────────────────────────────────
 def _patch_world(monkeypatch, table: dict):
     """Stub _world_su_ratio with a {(slug, my): pct} table (rd/n fixed)."""

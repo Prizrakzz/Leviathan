@@ -900,6 +900,72 @@ def _reroute(pairs: list, deltas_by_key: dict) -> tuple:
 _XC_SU_STOCKS = "ending_stocks_mt"
 _XC_SU_USE = "consumption_mt"
 
+# ── EU membership-window dedup (the 2026-07-20 UK-backfill fix; SINGLE SOURCE, census imports these) ────
+# USDA PSD backfills INDIVIDUAL member rows for marketing years the EU aggregate ALSO covers (live case:
+# 'United Kingdom' rows for MY2016-2019 while the EU-28 aggregate for those same MYs still includes the UK).
+# A naive cross-country World SUM would double-count such a member. The ratified design (REROUTE_V2_RV_PLAN
+# addendum): membership WINDOWS make the SUM disjoint BY CONSTRUCTION -- a member's individual rows are
+# EXCLUDED from the World SUM for exactly the marketing years the member is inside the EU aggregate (the
+# aggregate row already carries its tonnage). These tables lived in cascade_census; they moved HERE so the
+# engine SUM (`_world_su_ratio`) and the census lint (`_era_disjoint`) read ONE table and cannot drift
+# (census imports cascade; the reverse import would be circular).
+EU_AGGREGATE_TITLES = frozenset({"European Union", "EU-15", "EU-27", "EU-28"})
+# Historically-tracked EU member-state titles (silver_psd surface form). Not exhaustive of every micro-state
+# -- it is a double-count TRIPWIRE, and the members that actually carry veg-oil/grain balance sheets are the
+# ones that could overlap an aggregate row. Both spellings of the pre-reunification German title are kept.
+EU_MEMBER_TITLES = frozenset({
+    "France", "Germany", "Germany, West", "W. Germany", "West Germany", "Italy", "Spain",
+    "United Kingdom", "Netherlands", "Poland", "Romania", "Belgium-Luxembourg", "Belgium", "Luxembourg",
+    "Denmark", "Ireland", "Greece", "Portugal", "Hungary", "Czech Republic", "Slovakia", "Austria",
+    "Sweden", "Finland", "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia", "Slovenia", "Cyprus",
+    "Malta",
+})
+# EU (and predecessor EEC/EC) membership as PSD market-year WINDOWS: a member's balance sheet is rolled INTO
+# the 'European Union'/'EU-*' aggregate ONLY for accession_my <= market_year < exit_my (exit EXCLUSIVE, None
+# = still a member). OUTSIDE that window a country reported individually is NOT double-counted: (a) post-Brexit
+# UK, reported separately from MY2020/21 while the EU aggregate (now sans UK) continues; (b) accession states
+# reported individually BEFORE they joined. Members ABSENT from this dict (the pre-EU-15 founders) are NEVER
+# deduped by `eu_member_deduped` -- an actual overlap for them stays a census DARK (fail-closed), because
+# silently guessing their window could just as easily UNDER-count.
+EU_MEMBERSHIP: dict[str, tuple[int, int | None]] = {
+    "United Kingdom": (1973, 2020),          # left the EU; PSD reports it separately from MY2020/21
+    "Ireland": (1973, None), "Denmark": (1973, None),
+    "Greece": (1981, None),
+    "Spain": (1986, None), "Portugal": (1986, None),
+    "Austria": (1995, None), "Sweden": (1995, None), "Finland": (1995, None),
+    "Poland": (2004, None), "Czech Republic": (2004, None), "Slovakia": (2004, None),
+    "Hungary": (2004, None), "Slovenia": (2004, None), "Estonia": (2004, None),
+    "Latvia": (2004, None), "Lithuania": (2004, None), "Cyprus": (2004, None), "Malta": (2004, None),
+    "Bulgaria": (2007, None), "Romania": (2007, None),
+    "Croatia": (2013, None),
+}
+EU_MEMBERSHIP_DEFAULT = (0, None)
+
+
+def _in_eu_aggregate(country: str, year: int) -> bool:
+    """Is `country`'s tonnage rolled into the EU aggregate in market-year `year`? (accession<=year<exit).
+    Unlisted members default to "always inside" -- the CONSERVATIVE reading the census lint wants (flags a
+    genuine future double count); the dedup itself never trusts this default (see eu_member_deduped)."""
+    acc, ex = EU_MEMBERSHIP.get(country, EU_MEMBERSHIP_DEFAULT)
+    return year >= acc and (ex is None or year < ex)
+
+
+def eu_member_deduped(country, my, *, aggregate_present: bool) -> bool:
+    """THE dedup rule, shared by the engine World SUM and the census lint's reasoning: must `country`'s
+    INDIVIDUAL row be EXCLUDED from a World-basis SUM for marketing year `my`? True iff an EU aggregate row
+    is present in the same single-vintage snapshot (it already carries the member -- without one, exclusion
+    would UNDER-count, e.g. pre-1991 vintages where members are reported ONLY individually) AND the member
+    has an EXPLICIT membership window it is inside for `my`. A member title WITHOUT an explicit window entry
+    is never deduped here -- the census era-overlap lint DARKs such an overlap instead (fail-closed)."""
+    if not aggregate_present or country is None or my is None:
+        return False
+    c = str(country)
+    if c not in EU_MEMBERSHIP:                                  # no curated window -> never silently dropped
+        return False
+    acc, ex = EU_MEMBERSHIP[c]
+    y = int(my)
+    return y >= acc and (ex is None or y < ex)
+
 
 def _as_float(v) -> float | None:
     try:
@@ -930,8 +996,11 @@ def _psd_component_rows(qfn, slug: str, metric: str, my: int, asof) -> list:
 def _world_su_ratio(qfn, slug: str, my: int, asof) -> tuple | None:
     """Recipe-B World stocks-to-use for (slug, MY) as a pre-scaled '%': SUM(ending_stocks_mt)/SUM(consumption_mt)
     across ALL countries at the SINGLE latest release_date <= asof (ADDENDUM P1 -- no literal country='World'
-    row exists; NEVER sum across vintages). Returns (ratio_pct, release_date, n_countries) or None (no coherent
-    single-vintage snapshot -> the leg declines honestly)."""
+    row exists; NEVER sum across vintages), with the EU membership-window DEDUP: when an EU aggregate row is
+    present in the snapshot, a member's individual row is EXCLUDED for marketing years the member is inside
+    the aggregate per EU_MEMBERSHIP (the aggregate already carries it -- the backfilled-UK double-count fix).
+    Returns (ratio_pct, release_date, n_countries) or None (no coherent single-vintage snapshot -> the leg
+    declines honestly)."""
     st = _psd_component_rows(qfn, slug, _XC_SU_STOCKS, my, asof)
     us = _psd_component_rows(qfn, slug, _XC_SU_USE, my, asof)
     if not st or not us:
@@ -942,6 +1011,8 @@ def _world_su_ratio(qfn, slug: str, my: int, asof) -> tuple | None:
     rd = max(rds)                                                # single-vintage lock: only the latest snapshot
 
     def _sum_at(rows: list) -> tuple:
+        agg_present = any(_release_of(r) == rd and str(r.get("country")) in EU_AGGREGATE_TITLES
+                          for r in rows)
         seen: dict = {}                                          # per-country, drop every OTHER vintage
         for r in rows:
             if _release_of(r) != rd:
@@ -949,6 +1020,8 @@ def _world_su_ratio(qfn, slug: str, my: int, asof) -> tuple | None:
             c = r.get("country")
             if c in seen:                                        # a country twice at one release: idempotent
                 continue
+            if eu_member_deduped(c, my, aggregate_present=agg_present):
+                continue                                        # inside the EU aggregate this MY: already counted
             v = _as_float(r.get("value"))
             if v is not None:
                 seen[c] = v

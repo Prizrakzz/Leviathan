@@ -293,14 +293,50 @@ def test_pair_verdict_post_brexit_uk_and_accession_states_not_flagged():
 
 
 def test_pair_verdict_genuine_double_count_still_flagged():
-    """The tripwire must STILL catch a real re-baseline: France (an EU member for the whole aggregate era)
-    reported individually in years the aggregate also covers -> those years ARE double-counted -> PAIR_DARK."""
+    """The tripwire must STILL catch a real re-baseline the dedup CANNOT resolve: France (a pre-EU-15 founder
+    with NO explicit casc.EU_MEMBERSHIP window -- eu_member_deduped refuses to guess it) reported individually
+    in years the aggregate also covers -> those years stay double-counted in the SUM -> PAIR_DARK, fail-closed
+    until a window is curated."""
     ys = {"European Union": list(range(1999, 2027)),
           "France": list(range(1999, 2011))}                     # individual 1999-2010 while inside the aggregate
     p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
     rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg(year_sets=ys))
     assert rec["verdict"] == cc.PAIR_DARK and rec["reason"] == "era-overlap"
     assert rec["warn"] and "double-count" in rec["warn"]
+    assert "NO explicit membership window" in rec["warn"]        # names WHY the dedup can't resolve it
+
+
+def test_pair_verdict_fires_on_backfilled_uk_rows_dedup_resolves_overlap():
+    """THE LIVE 2026-07-20 DARK, reproduced exactly: USDA PSD backfills individual 'United Kingdom' rows for
+    MY2016-2019 while the EU aggregate for those same MYs still includes the UK (EU-28 until 2020) -- the old
+    lint darked ALL 7 curated pairs on this warn ("member 'United Kingdom' reported individually in
+    MY[2016-2019] while inside the EU aggregate"). Under the ratified fix the membership window makes the SUM
+    disjoint BY CONSTRUCTION (casc.eu_member_deduped excludes UK's individual rows from the World SUM for
+    MY2016-2019; from MY2020 -- outside the window -- they count), so the pair must FIRE with NO warn."""
+    ys = {
+        "European Union": list(range(1999, 2027)),
+        "United Kingdom": list(range(2016, 2027)),               # backfilled 2016-2019 + separate post-Brexit 2020+
+        "United States": list(range(1964, 2027)),
+    }
+    p = _pair("veg_oil_soy_palm", "soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+    rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg(year_sets=ys))
+    assert rec["verdict"] == cc.PAIR_FIRES, rec
+    assert rec["warn"] is None
+
+
+def test_eu_membership_tables_are_single_source_with_engine():
+    """The census aliases must BE the engine's tables (moved to cascade.py so the SUM dedup and the lint read
+    one source and cannot drift)."""
+    from leviathan.graphrag.numbers import cascade as casc
+    assert cc._EU_AGGREGATE_TITLES is casc.EU_AGGREGATE_TITLES
+    assert cc._EU_MEMBER_TITLES is casc.EU_MEMBER_TITLES
+    assert cc._EU_MEMBERSHIP is casc.EU_MEMBERSHIP
+    assert cc._in_eu_aggregate is casc._in_eu_aggregate
+    # the dedup rule and the lint agree on the live case: UK deduped 2016-2019, counted from 2020
+    assert casc.eu_member_deduped("United Kingdom", 2019, aggregate_present=True) is True
+    assert casc.eu_member_deduped("United Kingdom", 2020, aggregate_present=True) is False
+    assert casc.eu_member_deduped("United Kingdom", 2019, aggregate_present=False) is False   # no aggregate row
+    assert casc.eu_member_deduped("France", 2019, aggregate_present=True) is False            # no curated window
 
 
 def test_pair_verdict_declines_on_unserved_leg():

@@ -330,54 +330,26 @@ def _per_query_realizability() -> list[dict]:
 #   SUM(ending_stocks_mt) / SUM(consumption_mt)  across all countries  per (slug, market_year)
 #   WITHIN A SINGLE release_date vintage (never summed across vintages).
 # A v2 pair FIRES only when BOTH legs' World synthesis is non-empty (a positive summed consumption
-# denominator exists at the census as-of) AND -- the double-count guard -- each slug's EU-AGGREGATE rows
-# ('European Union'/'EU-15') and EU-MEMBER rows occupy DISJOINT market_year ranges. Members end 1990,
-# EU-15 spans 1991-1998, 'European Union' 1999+, so a naive cross-country SUM never double-counts TODAY;
-# the lint asserts that disjointness so a future PSD re-baseline cannot silently reintroduce a double
-# count (probe 2026-07-18 double-count hazard note). An overlap flags the pair not-realizable + WARN.
+# denominator exists at the census as-of) AND -- the double-count guard -- each slug is era-DISJOINT
+# AFTER the membership-window dedup (2026-07-20 fix): the engine SUM excludes a member's individual rows
+# for marketing years the member sits inside its explicit `casc.EU_MEMBERSHIP` window while an EU-aggregate
+# row is present (the aggregate already carries it), so a PSD backfill like the UK's individual MY2016-2019
+# rows under the EU-28 aggregate is disjoint BY CONSTRUCTION and no longer darks the pair. The lint stays
+# a genuine tripwire for overlaps the dedup cannot resolve -- a member title with NO curated membership
+# window (fail-closed) -- and flags those pairs not-realizable + WARN.
 PAIR_FIRES = FIRES
 PAIR_DARK = DARK
 PAIR_DECLINES = DECLINES
 
-# EU aggregate titles (silver_psd surface form) whose rows already roll up their members.
-_EU_AGGREGATE_TITLES = frozenset({"European Union", "EU-15", "EU-27", "EU-28"})
-# Historically-tracked EU member-state titles (silver_psd surface form). Not exhaustive of every micro-state
-# -- it is a double-count TRIPWIRE, and the members that actually carry veg-oil/grain balance sheets are the
-# ones that could overlap an aggregate row. Both spellings of the pre-reunification German title are kept.
-_EU_MEMBER_TITLES = frozenset({
-    "France", "Germany", "Germany, West", "W. Germany", "West Germany", "Italy", "Spain",
-    "United Kingdom", "Netherlands", "Poland", "Romania", "Belgium-Luxembourg", "Belgium", "Luxembourg",
-    "Denmark", "Ireland", "Greece", "Portugal", "Hungary", "Czech Republic", "Slovakia", "Austria",
-    "Sweden", "Finland", "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia", "Slovenia", "Cyprus",
-    "Malta",
-})
-
-# EU (and predecessor EEC/EC) membership as PSD market-year WINDOWS: a member's balance sheet is rolled INTO
-# the 'European Union'/'EU-*' aggregate ONLY for accession_my <= market_year < exit_my (exit EXCLUSIVE, None
-# = still a member). OUTSIDE that window a country reported individually is NOT double-counted by a naive
-# cross-country SUM -- the two legitimate cases the old min/max RANGE test false-positived on: (a) post-Brexit
-# UK, reported separately from MY2020/21 while the EU aggregate (now sans UK) continues; (b) accession states
-# reported individually BEFORE they joined. Unlisted members default to "always inside the aggregate"
-# (accession 0, no exit) -- the conservative choice that still flags a genuine future double count.
-_EU_MEMBERSHIP: dict[str, tuple[int, int | None]] = {
-    "United Kingdom": (1973, 2020),          # left the EU; PSD reports it separately from MY2020/21
-    "Ireland": (1973, None), "Denmark": (1973, None),
-    "Greece": (1981, None),
-    "Spain": (1986, None), "Portugal": (1986, None),
-    "Austria": (1995, None), "Sweden": (1995, None), "Finland": (1995, None),
-    "Poland": (2004, None), "Czech Republic": (2004, None), "Slovakia": (2004, None),
-    "Hungary": (2004, None), "Slovenia": (2004, None), "Estonia": (2004, None),
-    "Latvia": (2004, None), "Lithuania": (2004, None), "Cyprus": (2004, None), "Malta": (2004, None),
-    "Bulgaria": (2007, None), "Romania": (2007, None),
-    "Croatia": (2013, None),
-}
-_EU_MEMBERSHIP_DEFAULT = (0, None)
-
-
-def _in_eu_aggregate(country: str, year: int) -> bool:
-    """Is `country`'s tonnage rolled into the EU aggregate in market-year `year`? (accession<=year<exit)."""
-    acc, ex = _EU_MEMBERSHIP.get(country, _EU_MEMBERSHIP_DEFAULT)
-    return year >= acc and (ex is None or year < ex)
+# EU aggregate/member titles + membership windows: SINGLE SOURCE in cascade.py (the 2026-07-20 UK-backfill
+# fix moved them next to the engine's World SUM, where `eu_member_deduped` applies them at quantify time;
+# census imports cascade, so this direction is the only non-circular one). The underscored aliases keep the
+# census's public surface stable for tests and callers.
+_EU_AGGREGATE_TITLES = casc.EU_AGGREGATE_TITLES
+_EU_MEMBER_TITLES = casc.EU_MEMBER_TITLES
+_EU_MEMBERSHIP = casc.EU_MEMBERSHIP
+_EU_MEMBERSHIP_DEFAULT = casc.EU_MEMBERSHIP_DEFAULT
+_in_eu_aggregate = casc._in_eu_aggregate
 
 
 def _num_first(rows) -> float | None:
@@ -397,8 +369,11 @@ def _world_synth_nonempty(slug: str, *, asof: str, query_fn) -> bool:
     """Recipe-B EXISTENCE probe for one leg: does the World synthesis have data to divide at asof? Rides
     Q.build_sql BYTE-IDENTICALLY (agg=sum, country=None => sums the latest-vintage row per country x MY, the
     'single-vintage per market_year' contract group_cols() enforces). Non-empty with a POSITIVE consumption
-    denominator AND a present stocks numerator => the World su_ratio can be synthesized. Raises on pg failure
-    (the caller records probe-error), never retried on Athena."""
+    denominator AND a present stocks numerator => the World su_ratio can be synthesized. This EXISTENCE
+    verdict is invariant under the engine's membership-window dedup (`casc.eu_member_deduped`): the dedup
+    only ever removes member rows when the EU AGGREGATE row is present in the same snapshot, and that
+    aggregate row itself is never removed -- so the deduped SUM is non-empty/positive exactly when this
+    naive probe is. Raises on pg failure (the caller records probe-error), never retried on Athena."""
     cons = query_fn(Q.build_sql(Q.NumberQuery(table="silver_psd", metric="consumption_mt", asof=asof,
                                               commodity=slug, country=None, agg="sum")))
     denom = _num_first(cons)
@@ -431,15 +406,18 @@ def _psd_year_sets(slug: str, query_fn) -> dict[str, set[int]]:
 
 
 def _era_disjoint(slug: str, *, query_fn) -> tuple[bool, str | None]:
-    """The double-count tripwire, corrected for EU membership CHANGES over time. A naive cross-country SUM
-    double-counts a member ONLY in market_years where the member is BOTH reported individually AND rolled into
-    the 'European Union'/'EU-*' aggregate (i.e. it is an EU member THAT year -- `_in_eu_aggregate`). The old
-    min/max RANGE test false-positived on legitimate coexistence -- post-Brexit UK (individual 2020+, aggregate
-    sans UK) and pre-accession states (individual before joining) -- because their ranges span the aggregate
-    era even though NONE of their individual years fall inside their membership window. Returns (True, None)
-    when no genuinely-double-counted year exists (the common case, and now the flagship pairs on real data);
-    (False, warn) on a real overlap -- a member reported individually while inside the aggregate (a future PSD
-    re-baseline hazard the lint must still catch). Uses EXACT reported year sets, never ranges."""
+    """The double-count tripwire, verified AFTER the membership-window DEDUP (the 2026-07-20 UK-backfill fix).
+    A naive cross-country SUM double-counts a member ONLY in market_years where the member is BOTH reported
+    individually AND rolled into the 'European Union'/'EU-*' aggregate. But the World SUM is no longer naive:
+    `casc.eu_member_deduped` EXCLUDES a member's individual rows for exactly the years it sits inside its
+    EXPLICIT `casc.EU_MEMBERSHIP` window when an aggregate row is present -- so such an overlap (the live case:
+    USDA PSD backfilling individual UK rows for MY2016-2019 under the still-EU-28 aggregate) is disjoint BY
+    CONSTRUCTION and must NOT dark the pair. What remains a genuine hazard is an overlap the dedup CANNOT
+    resolve: a member title with NO explicit membership window (e.g. the pre-EU-15 founders -- France) reported
+    individually in aggregate-covered years. The dedup refuses to guess their window (silently dropping them
+    could as easily UNDER-count), so that overlap stays (False, warn) -- fail-closed until a window is curated.
+    Overlaps OUTSIDE a member's window (post-Brexit UK 2020+, pre-accession states) were never double-counted.
+    Uses EXACT reported year sets, never min/max ranges (a range collapses gaps and spuriously spans eras)."""
     sets = _psd_year_sets(slug, query_fn)
     agg_years: set[int] = set()
     for c, ys in sets.items():
@@ -452,12 +430,18 @@ def _era_disjoint(slug: str, *, query_fn) -> tuple[bool, str | None]:
         if c not in _EU_MEMBER_TITLES:
             continue
         clash = sorted(y for y in (ys & agg_years) if _in_eu_aggregate(c, y))
-        if clash:
-            span = clash[-1] - clash[0]
-            msg = (f"member '{c}' reported individually in MY[{clash[0]}-{clash[-1]}] while inside the EU "
-                   f"aggregate (naive world SUM would double-count {slug})")
-            if worst is None or span > worst[0]:
-                worst = (span, msg)
+        if not clash:
+            continue
+        if c in _EU_MEMBERSHIP:
+            # Resolved BY CONSTRUCTION: eu_member_deduped excludes this member's rows from every World SUM
+            # for precisely these years (explicit window + aggregate present) -- no double count survives.
+            continue
+        span = clash[-1] - clash[0]
+        msg = (f"member '{c}' reported individually in MY[{clash[0]}-{clash[-1]}] while inside the EU "
+               f"aggregate with NO explicit membership window -- the SUM dedup cannot resolve it "
+               f"(naive world SUM would double-count {slug})")
+        if worst is None or span > worst[0]:
+            worst = (span, msg)
     if worst:
         return False, worst[1]
     return True, None
