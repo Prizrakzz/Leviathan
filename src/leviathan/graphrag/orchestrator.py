@@ -32,7 +32,16 @@ def _today() -> str:
 
 def _numbers_block(calls: list) -> str:
     body = cit.render(cit.unify(None, calls)) or "(none retrieved)"
-    return "SILVER NUMBERS (observed values, as-known at asof):\n" + body
+    block = "SILVER NUMBERS (observed values, as-known at asof):\n" + body
+    # ESR destination-scope honesty: the numbers agent stamps `scope_note` on export-sales lookups that
+    # answered a destination-scoped ask with a national total. The hybrid path consumes CALLS, not the
+    # agent's prose, so the agent's reader-facing caveat would be lost here — carry the note into the
+    # synthesis prompt so the writer states the national-total limitation instead of presenting the
+    # figure as the destination cut. Absent scope_note (every national ask), the block is byte-identical.
+    notes = sorted({c.get("scope_note") for c in (calls or []) if isinstance(c, dict) and c.get("scope_note")})
+    if notes:
+        block += "\nSCOPE NOTE (state this limitation explicitly in the answer): " + " ".join(notes)
+    return block
 
 
 def _footer(cits) -> str:
