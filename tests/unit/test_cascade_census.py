@@ -339,6 +339,20 @@ def test_eu_membership_tables_are_single_source_with_engine():
     assert casc.eu_member_deduped("France", 2019, aggregate_present=True) is False            # no curated window
 
 
+def test_world_synth_probe_sql_sums_per_country_latest_union():
+    """Census/engine SEMANTICS COHERENCE (the 2026-07-20 delta-vintage fix): the existence probe's compiled
+    SQL must sum the per-country-latest union -- ROW_NUMBER vintage dedup per (slug, country, MY) then SUM
+    over the _rn=1 survivors -- with NO lock to any single release_date. PSD vintages are deltas (a release
+    carries only revised countries), so a single-vintage lock would probe a revision subset; this is the
+    SAME construction the engine's _world_su_ratio computes, so probe and quantify cannot disagree."""
+    sql = Q.build_sql(Q.NumberQuery(table="silver_psd", metric="consumption_mt", asof="2026-02-15",
+                                    commodity="malaysian_crude_palm_oil_cme", country=None, agg="sum"))
+    assert "ROW_NUMBER() OVER (PARTITION BY" in sql              # per-(country x MY) vintage dedup...
+    assert "release_date DESC" in sql and "_rn = 1" in sql       # ...keeping each country's OWN latest
+    assert "sum(value)" in sql                                   # summed ACROSS the deduped union
+    assert "release_date =" not in sql                           # never pinned to one shared vintage
+
+
 def test_pair_verdict_declines_on_unserved_leg():
     """A leg with no PSD balance sheet (cocoa/FCOJ) DECLINES HONESTLY -- never a DARK bug."""
     p = _pair("bad", "soybean_oil_cbot", "cocoa")

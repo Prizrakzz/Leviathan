@@ -1,7 +1,8 @@
 """Reroute v2 engine (RV-W2) -- the cross-COMMODITY relative-value fork in numbers.cascade.
 
 Lane C. Every test injects fetch functions (a fake query_fn or a monkeypatched _world_su_ratio); none hits
-AWS. Covers: Recipe-B World synthesis (single-vintage + the two-vintage no-cross-sum proof), the sign-oppose
+AWS. Covers: Recipe-B World synthesis (per-country-latest union over DELTA vintages -- the 2026-07-20 fix --
+incl. the revised-twice-counts-once proof and the real palm MY2024 placeholder shape), the sign-oppose
 fork (fires / same-sign declines / empty-leg declines), crush + feed narration selection, the fail-closed
 sides guard, the MY_START_MONTH additions, engine-written trace key on fire, flag-off (xc_request None) parity.
 """
@@ -52,8 +53,8 @@ def _row(country, value, rd):
     return {"country": country, "value": value, "knowledge_date": rd}
 
 
-# ── Recipe-B World synthesis ──────────────────────────────────────────────────────────────────────────
-def test_world_su_ratio_single_vintage_aggregates_across_countries():
+# ── Recipe-B World synthesis (per-country-latest union; PSD vintages are DELTAS) ─────────────────────
+def test_world_su_ratio_same_release_aggregates_across_countries():
     # stocks: US 10 + Brazil 6 = 16 ; use: US 80 + Brazil 4 = 84 -> 16/84 * 100 = 19.047...%
     fx = {
         ("ending_stocks_mt", 2025): [_row("United States", 10, "2026-05-10"), _row("Brazil", 6, "2026-05-10")],
@@ -66,12 +67,14 @@ def test_world_su_ratio_single_vintage_aggregates_across_countries():
     assert pct == pytest.approx(100.0 * 16 / 84, rel=1e-9)
 
 
-def test_world_su_ratio_two_vintage_uses_latest_only_no_cross_sum():
-    # US revised between two releases; the OLD vintage must NOT be summed in (single-vintage lock).
+def test_world_su_ratio_country_revised_twice_counts_once_at_latest():
+    """A country's OWN vintages are never mixed with each other: US revised between two releases counts ONCE,
+    at its latest value (the within-country half of the per-country-latest rule -- an injected qfn can hand
+    back raw multi-vintage rows, the live SQL's ROW_NUMBER dedup notwithstanding)."""
     fx = {
         ("ending_stocks_mt", 2025): [
-            _row("United States", 100, "2026-04-01"),   # stale vintage -- must be dropped
-            _row("United States", 120, "2026-05-01"),   # latest vintage -> the only stocks row counted
+            _row("United States", 100, "2026-04-01"),   # stale US vintage -- superseded, must be dropped
+            _row("United States", 120, "2026-05-01"),   # US latest vintage -> the only US stocks row counted
         ],
         ("consumption_mt", 2025): [
             _row("United States", 900, "2026-04-01"),
@@ -81,6 +84,44 @@ def test_world_su_ratio_two_vintage_uses_latest_only_no_cross_sum():
     pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 2025, "2026-06-01")
     assert rd == "2026-05-01" and n == 1
     assert pct == pytest.approx(100.0 * 120 / 1000, rel=1e-9)   # 12.0, NOT (100+120)/(900+1000)
+
+
+def test_world_su_ratio_delta_vintages_sum_per_country_latest_union():
+    """THE 2026-07-20 ROOT CAUSE, reproduced in shape: PSD releases are DELTAS -- each release_date carries
+    ONLY revised countries (live palm MY2024: n=30, 40, 5, 2, then ONE zero 'Other' placeholder row). The
+    retired rows-at-max-release lock summed only that placeholder -> World su_ratio 0.00%. The fix sums the
+    per-country-latest union: Malaysia counts ONCE at its Jan revision (not its Dec print), every country's
+    latest row joins regardless of which release stamped it, and release_date returns as the MAX across the
+    summed set (a freshness stamp, not a single-vintage claim)."""
+    fx = {
+        ("ending_stocks_mt", 2024): [
+            _row("Indonesia", 2_000_000, "2024-12-10"),   # only ever printed in Dec
+            _row("Malaysia", 1_500_000, "2024-12-10"),    # superseded by the Jan revision below
+            _row("Malaysia", 1_700_000, "2025-01-10"),    # Malaysia's latest -> the value that counts
+            _row("India", 900_000, "2025-01-10"),
+            _row("China", 400_000, "2025-02-10"),
+            _row("Thailand", 100_000, "2025-04-10"),
+            _row("Other", 0.0, "2025-06-10"),             # the latest release: ONE placeholder row, value 0
+        ],
+        ("consumption_mt", 2024): [
+            _row("Indonesia", 6_000_000, "2024-12-10"),
+            _row("Malaysia", 3_000_000, "2024-12-10"),
+            _row("Malaysia", 3_400_000, "2025-01-10"),
+            _row("India", 9_000_000, "2025-01-10"),
+            _row("China", 7_000_000, "2025-02-10"),
+            _row("Thailand", 600_000, "2025-04-10"),
+            _row("Other", 0.0, "2025-06-10"),
+        ],
+    }
+    got = cq._world_su_ratio(_qfn_from(fx), "malaysian_crude_palm_oil_cme", 2024, "2026-06-20")
+    assert got is not None
+    pct, rd, n = got
+    # stocks: 2.0M + 1.7M(Jan, NOT Dec's 1.5M) + 0.9M + 0.4M + 0.1M + 0 = 5.1M
+    # use:    6.0M + 3.4M            + 9.0M + 7.0M + 0.6M + 0 = 26.0M -> 19.615...%
+    assert pct == pytest.approx(100.0 * 5_100_000 / 26_000_000, rel=1e-9)
+    assert pct > 0.0                                             # NEVER the placeholder-only 0.00% again
+    assert rd == "2025-06-10"                                    # freshness stamp = max release in the set
+    assert n == 6                                                # all six countries, each at its own latest
 
 
 def test_world_su_ratio_missing_component_declines():
@@ -111,9 +152,10 @@ def test_world_su_ratio_pit_guard_hides_future_vintage():
 
 # ── membership-window dedup in the World SUM (the 2026-07-20 UK-backfill fix) ─────────────────────────
 def test_world_su_ratio_dedups_uk_inside_eu_aggregate_window():
-    """The live case, arithmetic PINNED: MY2019 has BOTH an EU aggregate row (EU-28, still carrying the UK)
-    and a backfilled individual UK row. The UK sits inside its EU_MEMBERSHIP window (1973 <= 2019 < 2020), so
-    its individual rows are EXCLUDED from the World SUM -- stocks 20+10 (NOT +5), use 100+60 (NOT +30)."""
+    """The live case, arithmetic PINNED: MY2019's per-country-latest set has BOTH an EU aggregate row (EU-28,
+    still carrying the UK) and a backfilled individual UK row. The UK sits inside its EU_MEMBERSHIP window
+    (1973 <= 2019 < 2020), so its individual rows are EXCLUDED from the World SUM -- stocks 20+10 (NOT +5),
+    use 100+60 (NOT +30)."""
     fx = {
         ("ending_stocks_mt", 2019): [_row("European Union", 20, "2026-05-10"),
                                      _row("United Kingdom", 5, "2026-05-10"),
@@ -125,6 +167,43 @@ def test_world_su_ratio_dedups_uk_inside_eu_aggregate_window():
     pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 2019, "2026-06-01")
     assert n == 2                                                # EU + US; the UK row never enters the SUM
     assert pct == pytest.approx(100.0 * (20 + 10) / (100 + 60), rel=1e-9)
+
+
+def test_world_su_ratio_dedup_aggregate_present_across_vintages():
+    """aggregate_present is evaluated against the per-country-latest SET, not any one release: the EU
+    aggregate's latest print (Apr) is OLDER than the UK's backfilled row (May) -- delta vintages, the EU
+    simply wasn't revised in May. The aggregate still counts as PRESENT, so the UK row is still deduped;
+    under the retired rows-at-max-release lock the EU row would have vanished and the UK double-counted."""
+    fx = {
+        ("ending_stocks_mt", 2019): [_row("European Union", 20, "2026-04-10"),
+                                     _row("United Kingdom", 5, "2026-05-10"),
+                                     _row("United States", 10, "2026-05-10")],
+        ("consumption_mt", 2019): [_row("European Union", 100, "2026-04-10"),
+                                   _row("United Kingdom", 30, "2026-05-10"),
+                                   _row("United States", 60, "2026-05-10")],
+    }
+    pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 2019, "2026-06-01")
+    assert n == 2                                                # EU (Apr latest) + US; UK still excluded
+    assert rd == "2026-05-10"                                    # freshness stamp spans the union
+    assert pct == pytest.approx(100.0 * (20 + 10) / (100 + 60), rel=1e-9)
+
+
+def test_world_su_ratio_null_valued_aggregate_never_triggers_dedup():
+    """A NULL-valued EU aggregate row must NOT count as aggregate_present: it carries no member tonnage, so
+    deduping the UK against it would DROP the UK's numbers from the World SUM entirely (neither the aggregate
+    nor the member contributing -- skeptic probe T3, 2026-07-20) and split the engine from the census
+    existence probe, whose SQL sum(value) ignores NULLs and keeps the member. The UK stays IN."""
+    fx = {
+        ("ending_stocks_mt", 2019): [_row("European Union", None, "2026-05-10"),
+                                     _row("United Kingdom", 8, "2026-05-10"),
+                                     _row("United States", 10, "2026-05-10")],
+        ("consumption_mt", 2019): [_row("European Union", None, "2026-05-10"),
+                                   _row("United Kingdom", 30, "2026-05-10"),
+                                   _row("United States", 60, "2026-05-10")],
+    }
+    pct, rd, n = cq._world_su_ratio(_qfn_from(fx), "soybean_oil_cbot", 2019, "2026-06-01")
+    assert n == 2                                                # UK + US; the NULL EU row joins neither side
+    assert pct == pytest.approx(100.0 * (8 + 10) / (30 + 60), rel=1e-9)
 
 
 def test_world_su_ratio_counts_uk_from_my2020_outside_window():
@@ -144,8 +223,9 @@ def test_world_su_ratio_counts_uk_from_my2020_outside_window():
 
 
 def test_world_su_ratio_keeps_member_rows_when_no_aggregate_row():
-    """No EU aggregate row in the snapshot (the pre-1991 shape: members reported ONLY individually) -> the
-    dedup must NOT fire, or the world would be UNDER-counted. UK inside its window but nothing carries it."""
+    """No EU aggregate row in the per-country-latest set (the pre-1991 shape: members reported ONLY
+    individually) -> the dedup must NOT fire, or the world would be UNDER-counted. UK inside its window but
+    nothing carries it."""
     fx = {
         ("ending_stocks_mt", 1985): [_row("United Kingdom", 5, "2026-05-10"),
                                      _row("United States", 10, "2026-05-10")],

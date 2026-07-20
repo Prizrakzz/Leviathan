@@ -895,8 +895,9 @@ def _reroute(pairs: list, deltas_by_key: dict) -> tuple:
 #
 # World is SYNTHESIZED, not fetched: silver_psd has NO literal country="World" row (the 2026-07-18 probe P1
 # refuted the plan body's assumption). su_ratio-World == Recipe-B total-use synthesis:
-# SUM(ending_stocks_mt)/SUM(consumption_mt) across ALL countries at the SINGLE latest release_date <= asof
-# (NEVER across vintages), pre-scaled x100 to narrate '%' (reconciled to 0.03% vs USDA's published World Total).
+# SUM(ending_stocks_mt)/SUM(consumption_mt) over EACH COUNTRY'S OWN LATEST release_date <= asof (the
+# per-country-latest union -- PSD vintages are DELTAS, so no single shared vintage exists; see
+# _world_su_ratio), pre-scaled x100 to narrate '%'.
 _XC_SU_STOCKS = "ending_stocks_mt"
 _XC_SU_USE = "consumption_mt"
 
@@ -953,8 +954,8 @@ def _in_eu_aggregate(country: str, year: int) -> bool:
 def eu_member_deduped(country, my, *, aggregate_present: bool) -> bool:
     """THE dedup rule, shared by the engine World SUM and the census lint's reasoning: must `country`'s
     INDIVIDUAL row be EXCLUDED from a World-basis SUM for marketing year `my`? True iff an EU aggregate row
-    is present in the same single-vintage snapshot (it already carries the member -- without one, exclusion
-    would UNDER-count, e.g. pre-1991 vintages where members are reported ONLY individually) AND the member
+    is present in the same per-country-latest set (it already carries the member -- without one, exclusion
+    would UNDER-count, e.g. pre-1991 eras where members are reported ONLY individually) AND the member
     has an EXPLICIT membership window it is inside for `my`. A member title WITHOUT an explicit window entry
     is never deduped here -- the census era-overlap lint DARKs such an overlap instead (fail-closed)."""
     if not aggregate_present or country is None or my is None:
@@ -976,7 +977,7 @@ def _as_float(v) -> float | None:
 
 def _release_of(row: dict) -> str | None:
     """The PSD publication vintage of a fetched row: silver stores it as 'release_date', Q.run's SELECT aliases
-    it to 'knowledge_date' -- read either so the single-vintage lock works on live rows AND on test fixtures."""
+    it to 'knowledge_date' -- read either so per-country-latest selection works on live rows AND test fixtures."""
     for k in ("release_date", "knowledge_date"):
         v = (row or {}).get(k)
         if v:
@@ -995,42 +996,74 @@ def _psd_component_rows(qfn, slug: str, metric: str, my: int, asof) -> list:
 
 def _world_su_ratio(qfn, slug: str, my: int, asof) -> tuple | None:
     """Recipe-B World stocks-to-use for (slug, MY) as a pre-scaled '%': SUM(ending_stocks_mt)/SUM(consumption_mt)
-    across ALL countries at the SINGLE latest release_date <= asof (ADDENDUM P1 -- no literal country='World'
-    row exists; NEVER sum across vintages), with the EU membership-window DEDUP: when an EU aggregate row is
-    present in the snapshot, a member's individual row is EXCLUDED for marketing years the member is inside
-    the aggregate per EU_MEMBERSHIP (the aggregate already carries it -- the backfilled-UK double-count fix).
-    Returns (ratio_pct, release_date, n_countries) or None (no coherent single-vintage snapshot -> the leg
-    declines honestly)."""
+    over EACH COUNTRY'S OWN LATEST vintage <= asof (the per-country-latest union; no literal country='World'
+    row exists), with the EU membership-window DEDUP: when an EU aggregate title is present in the
+    per-country-latest set for a metric, a member's individual row is EXCLUDED for marketing years the member
+    is inside the aggregate per EU_MEMBERSHIP (the aggregate already carries it -- the backfilled-UK
+    double-count fix).
+
+    WHY per-country-latest, NOT a single release_date (the 2026-07-20 delta-vintage fix): the addendum-P1
+    rule ("sum only rows at the single latest release_date; NEVER sum across vintages") assumed PSD releases
+    are FULL-MATRIX -- every country reprinted each month. They are not: PSD vintages are DELTAS, each
+    monthly release_date carries ONLY the countries whose numbers changed (probed live 2026-07-20 on
+    malaysian_crude_palm_oil_cme MY2024 ending_stocks_mt: releases carried n=30, 40, 5, 2, then a single
+    zero 'Other' placeholder row). Under the old rows-at-max-release lock every output was a revision
+    SUBSET mislabeled as World (palm MY2024 read 0.00% from that one placeholder row; MY2023 read Ecuador
+    alone). World-as-known-at-asof = each country's OWN latest row <= asof: every row is individually
+    PIT-safe, a country's vintages are never mixed WITH EACH OTHER, and the cross-country set INTENTIONALLY
+    spans release dates -- that is exactly what "as known now" means. This is also the arithmetic the census
+    existence probe already runs (_world_synth_nonempty rides build_sql agg=sum/country=None, which sums the
+    same per-country-latest set), so engine and census are coherent by construction.
+
+    Returns (ratio_pct, release_date, n_countries) or None (missing component / empty sum / zero use -> the
+    leg declines honestly). release_date is the MAX release across the summed rows -- an as-of FRESHNESS
+    STAMP for the citation, NOT a claim that every summed row came from that vintage."""
     st = _psd_component_rows(qfn, slug, _XC_SU_STOCKS, my, asof)
     us = _psd_component_rows(qfn, slug, _XC_SU_USE, my, asof)
     if not st or not us:
         return None
-    rds = [r for r in (_release_of(x) for x in (st + us)) if r]
-    if not rds:
-        return None
-    rd = max(rds)                                                # single-vintage lock: only the latest snapshot
 
-    def _sum_at(rows: list) -> tuple:
-        agg_present = any(_release_of(r) == rd and str(r.get("country")) in EU_AGGREGATE_TITLES
-                          for r in rows)
-        seen: dict = {}                                          # per-country, drop every OTHER vintage
+    def _latest_per_country(rows: list) -> dict:
+        """{country: (row, release)} -- each country's OWN latest stamped vintage. The live SQL already
+        collapses to one row per country (ROW_NUMBER over group_cols ORDER BY release_date DESC, _rn=1), so
+        this is a pass-through there; an injected qfn (tests, cache wrappers) may hand back raw multi-vintage
+        rows, so latest-wins is enforced here too. Unstamped rows (no release) drop -- fail closed, mirroring
+        apply_pit_filter's NULL-knowledge-date rule. First-seen wins a same-release tie (idempotent)."""
+        best: dict = {}
         for r in rows:
-            if _release_of(r) != rd:
+            c, rd = r.get("country"), _release_of(r)
+            if c is None or rd is None:
                 continue
-            c = r.get("country")
-            if c in seen:                                        # a country twice at one release: idempotent
-                continue
+            prev = best.get(c)
+            if prev is None or rd > prev[1]:
+                best[c] = (r, rd)
+        return best
+
+    def _sum_latest(rows: list) -> tuple:
+        latest = _latest_per_country(rows)
+        # aggregate_present demands a NUMERIC aggregate value, not mere row presence: a NULL-valued EU row
+        # carries NO member tonnage, so deduping against it would DROP the member from the sum outright
+        # (skeptic probe T3, 2026-07-20) -- and split the engine from the census existence probe, whose
+        # SQL sum(value) ignores NULLs and keeps the member.
+        agg_present = any(str(c) in EU_AGGREGATE_TITLES and _as_float(r.get("value")) is not None
+                          for c, (r, _rd) in latest.items())
+        tot, n, mx = 0.0, 0, None
+        for c, (r, rd) in latest.items():
             if eu_member_deduped(c, my, aggregate_present=agg_present):
                 continue                                        # inside the EU aggregate this MY: already counted
             v = _as_float(r.get("value"))
-            if v is not None:
-                seen[c] = v
-        return sum(seen.values()), len(seen)
+            if v is None:
+                continue
+            tot, n = tot + v, n + 1
+            if mx is None or rd > mx:
+                mx = rd
+        return tot, n, mx
 
-    s_tot, s_n = _sum_at(st)
-    u_tot, u_n = _sum_at(us)
+    s_tot, s_n, s_rd = _sum_latest(st)
+    u_tot, u_n, u_rd = _sum_latest(us)
     if s_n == 0 or u_n == 0 or u_tot == 0:
         return None
+    rd = max(x for x in (s_rd, u_rd) if x is not None)           # freshness stamp over the summed set
     return (100.0 * s_tot / u_tot, rd, min(s_n, u_n))
 
 

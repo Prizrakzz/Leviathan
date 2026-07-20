@@ -328,7 +328,13 @@ def _per_query_realizability() -> list[dict]:
 # 2026-07-18: 35,220 rows across all 7 candidate slugs, ZERO world-like country values -- the PSD bulk feed
 # ships no aggregate row). So `country_rule: world` is SYNTHESIZED Recipe-B:
 #   SUM(ending_stocks_mt) / SUM(consumption_mt)  across all countries  per (slug, market_year)
-#   WITHIN A SINGLE release_date vintage (never summed across vintages).
+#   over EACH COUNTRY'S OWN LATEST release_date <= asof (the per-country-latest union).
+# PSD vintages are DELTAS (probed live 2026-07-20): a monthly release_date carries ONLY the countries whose
+# numbers changed, so "one shared vintage" does not exist -- the retired single-vintage rule summed a
+# revision SUBSET mislabeled as World (palm MY2024 read 0.00% off one placeholder row). Per-country-latest
+# is what group_cols() ROW_NUMBER dedup in Q.build_sql produces AND what the engine's _world_su_ratio sums:
+# each row individually PIT-safe, a country's vintages never mixed with each other, the cross-country set
+# intentionally spanning releases because that IS "as known at asof".
 # A v2 pair FIRES only when BOTH legs' World synthesis is non-empty (a positive summed consumption
 # denominator exists at the census as-of) AND -- the double-count guard -- each slug is era-DISJOINT
 # AFTER the membership-window dedup (2026-07-20 fix): the engine SUM excludes a member's individual rows
@@ -367,13 +373,17 @@ def _num_first(rows) -> float | None:
 
 def _world_synth_nonempty(slug: str, *, asof: str, query_fn) -> bool:
     """Recipe-B EXISTENCE probe for one leg: does the World synthesis have data to divide at asof? Rides
-    Q.build_sql BYTE-IDENTICALLY (agg=sum, country=None => sums the latest-vintage row per country x MY, the
-    'single-vintage per market_year' contract group_cols() enforces). Non-empty with a POSITIVE consumption
+    Q.build_sql BYTE-IDENTICALLY (agg=sum, country=None => sums each country's OWN latest vintage <= asof,
+    the per-country-latest union group_cols()'s ROW_NUMBER dedup produces -- the SAME set the engine's
+    _world_su_ratio sums since the 2026-07-20 delta-vintage fix). Non-empty with a POSITIVE consumption
     denominator AND a present stocks numerator => the World su_ratio can be synthesized. This EXISTENCE
     verdict is invariant under the engine's membership-window dedup (`casc.eu_member_deduped`): the dedup
-    only ever removes member rows when the EU AGGREGATE row is present in the same snapshot, and that
-    aggregate row itself is never removed -- so the deduped SUM is non-empty/positive exactly when this
-    naive probe is. Raises on pg failure (the caller records probe-error), never retried on Athena."""
+    only ever removes member rows when an EU AGGREGATE row with a NUMERIC value sits in the same
+    per-country-latest set (a NULL-valued aggregate row never triggers it -- skeptic probe T3, 2026-07-20),
+    and that numeric aggregate row itself always joins the SUM -- so wherever this naive probe fires the
+    deduped SUM is non-empty too (a contradictory zero-valued aggregate print can still zero the engine's
+    denominator, which declines honestly at quantify time; existence is what THIS probe answers). Raises on
+    pg failure (the caller records probe-error), never retried on Athena."""
     cons = query_fn(Q.build_sql(Q.NumberQuery(table="silver_psd", metric="consumption_mt", asof=asof,
                                               commodity=slug, country=None, agg="sum")))
     denom = _num_first(cons)
