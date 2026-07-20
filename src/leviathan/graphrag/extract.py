@@ -488,16 +488,21 @@ def _usage_from(u) -> Usage:
 
 
 def call_opus(client, system: str, user: str, *, model: str = MODEL,
-              max_tokens: int = 4096, tool: dict | None = None) -> tuple[dict, Usage]:
+              max_tokens: int = 4096, tool: dict | None = None,
+              temperature: float | None = None) -> tuple[dict, Usage]:
     """One forced-tool extraction call. Returns (tool_input_dict, usage). Retries are the caller's job
     (kept thin so the unit test can pass a trivial fake client). `tool` defaults to the full schema; pass
-    extraction_tool(lean=True) for the lean schema (e.g. the bake-off)."""
+    extraction_tool(lean=True) for the lean schema (e.g. the bake-off). `temperature` reaches
+    messages.create only when provided (D18: the dispatch planner pins 0) — every existing caller omits
+    it and stays byte-identical at the API default."""
     tool = tool or extraction_tool()
+    _t = {} if temperature is None else {"temperature": temperature}
     resp = client.messages.create(
         model=model, max_tokens=max_tokens, system=system,
         messages=[{"role": "user", "content": user}],
         tools=[tool],
         tool_choice={"type": "tool", "name": tool["name"]},
+        **_t,
     )
     if getattr(resp, "stop_reason", None) == "max_tokens":
         # NEVER silently accept a truncated structured result — a partial tool_use drops trailing fields

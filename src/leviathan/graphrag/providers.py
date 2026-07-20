@@ -101,13 +101,17 @@ def with_retry(fn):
 
 
 def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, tool: dict,
-                 degrade_to: Optional[str] = None) -> tuple[dict, Optional[str]]:
+                 degrade_to: Optional[str] = None,
+                 temperature: Optional[float] = None) -> tuple[dict, Optional[str]]:
     """One forced-tool serving call with the full fallback chain. Returns (tool_input, degraded_model)
     where degraded_model is None on the primary path and the ALIAS (e.g. 'claude-haiku-4-5') when the
-    degraded attempt served the answer — callers surface that as a visible caveat + trace entry."""
+    degraded attempt served the answer — callers surface that as a visible caveat + trace entry.
+    `temperature` is forwarded only when provided (D18: the dispatch planner pins 0; both the primary
+    and the degraded attempt carry it so a degraded dispatch stays deterministic too)."""
+    _t = {} if temperature is None else {"temperature": temperature}
     try:
         out, _ = with_retry(lambda: ex.call_opus(client, system, user, model=model,
-                                                 max_tokens=max_tokens, tool=tool))
+                                                 max_tokens=max_tokens, tool=tool, **_t))
         return out, None
     except RETRYABLE:
         fallback = resolve_model(degrade_to) if degrade_to else None
@@ -117,7 +121,7 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
         @retry(retry=retry_if_exception_type(RETRYABLE), reraise=True,
                wait=wait_exponential(multiplier=2, min=2, max=8), stop=stop_after_attempt(2))
         def degraded():
-            return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool)
+            return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool, **_t)
         out, _ = degraded()
         return out, degrade_to
 

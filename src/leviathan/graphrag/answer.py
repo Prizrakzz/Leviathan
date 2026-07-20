@@ -903,7 +903,7 @@ def _pop_degraded(structured) -> str | None:
     return structured.pop("_degraded_model", None) if isinstance(structured, dict) else None
 
 
-def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None) -> dict:
+def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temperature=None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
     production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
     system prompt is always a cached block, and when `user` arrives as a (stable_prefix, volatile_tail)
@@ -911,7 +911,9 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None) -> d
     gets its own cache breakpoint (manual blocks work identically on both providers). Turn 2+ of a
     conversation reads the shared prefix at ~0.1x input price. Injected test fakes keep the plain-string
     `user` API; only this real path structures blocks. When `on_token` is set (SSE turns) the note STREAMS
-    token-by-token via serving_call_stream (buffered otherwise — byte-identical for eval/POST)."""
+    token-by-token via serving_call_stream (buffered otherwise — byte-identical for eval/POST).
+    `temperature` (D18) is forwarded only when provided — the dispatch planner pins 0; synthesis callers
+    never pass it, and the streaming (synthesis-only) path never carries it."""
     from leviathan.graphrag import providers as pv
     client = pv.make_client()
     sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
@@ -924,6 +926,8 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None) -> d
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
     else:
+        if temperature is not None:
+            kw["temperature"] = temperature    # dispatch-only kw (D18); dropped if ever paired with on_token
         out, degraded = pv.serving_call(client, sys_blocks, user, **kw)
     if degraded and isinstance(out, dict):
         out["_degraded_model"] = degraded          # popped by the consumer -> visible caveat + trace
