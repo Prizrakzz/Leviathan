@@ -25,6 +25,10 @@ logger = get_logger("numbers_parity")
 # VACUOUS — 0 rows == 0 rows passes without proving anything.
 SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_production": "corn_cbot",
                     "silver_esr": "corn_cbot", "silver_fred_fx": None, "silver_noaa_oni": None,
+                    # PRICE_OBSERVABILITY W3.3: pink_sheet has NO commodity col (the metric IS the
+                    # series); the wide sampler takes the FIRST FOUR declared metrics, which the W2 card
+                    # ordered to span price/fertilizer/energy/zscore exactly for this panel.
+                    "silver_pink_sheet": None,
                     # gold_weather_z is a TALL z-table keyed by CONTRACT slug: the gold task's 'all'
                     # mode discovers commodities from silver/weather canonical partitions, which are the 31
                     # contract slugs (verified 2026-07-17: gold/weather_z/corn_cbot.parquet, commodity column

@@ -43,7 +43,11 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # production_year (period_sql_type=int) also mirrors numeric. Justified by the serving
              # fast-path + the per-lane golden-vocabulary fixtures (NOT a C002 requirement; C002's
              # wide-metric check is AWS-free -- CORRECTION V2).
-             "silver_icco_cocoa", "silver_mpob", "silver_sagis_cec"]
+             "silver_icco_cocoa", "silver_mpob", "silver_sagis_cec",
+             # PRICE_OBSERVABILITY W3.3: pink_sheet is a small flat wide table (798 rows); metric columns
+             # mirror numeric, `date` (physical timestamp) stringifies to the Athena render and stays
+             # TEXT COLLATE "C" -- the DP-5 substr normalization makes both backends compare identically.
+             "silver_pink_sheet"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

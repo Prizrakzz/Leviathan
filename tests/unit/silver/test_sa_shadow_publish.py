@@ -39,10 +39,14 @@ _BUCKET = "leviathan-test"
 
 # --------------------------------------------------------------------------- pink_sheet (F023)
 def _pink_silver() -> pd.DataFrame:
+    # 120 months of history so the rolling 5-yr z-scores (min 36 months) are ~70% non-null -- the F010
+    # value_columns now spans all 32 governed columns (W2), so the publisher's 0.5 non-null floor applies
+    # to the 16 zscore columns too; a single-month frame would fail validation on all-null zscores.
+    months = [date(2016 + (m // 12), (m % 12) + 1, 1) for m in range(120)]
     rows = [{
-        "date": date(2026, 1, 1), "series_name": bn, "value_usd": 100.0 + i,
+        "date": d, "series_name": bn, "value_usd": 100.0 + i + (j % 7),
         "release_ym": "2026M05", "source": "world_bank_pink_sheet",
-    } for i, bn in enumerate(_SERIES_RENAME)]
+    } for i, bn in enumerate(_SERIES_RENAME) for j, d in enumerate(months)]
     return build_silver([pd.DataFrame(rows)])
 
 
