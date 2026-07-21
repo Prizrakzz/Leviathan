@@ -39,7 +39,10 @@ def test_price_language_clause_direction_only():
     s = an._SYSTEM_CASCADE
     assert "narrate price DIRECTION" in s
     assert "verbatim quote from a cited [E]" in s
-    assert "never mint a price figure, spread, or basis" in s
+    # W1.5 fence relocation: "no price table" is false post-registration; the force moves to cite-or-silent
+    assert "NEVER mint an uncited price figure" in s
+    assert "spread/basis MAGNITUDES remain derive-word-only" in s
+    assert "cite them with their [N] handle" in s
 
 
 def test_system_cascade_appended_under_quant_flag(monkeypatch):

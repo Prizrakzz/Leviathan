@@ -20,14 +20,25 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from leviathan.graphrag import extract as ex  # ex._CFG -> configs/graphrag
 
 
 class Metric(BaseModel):
+    # extra="forbid": a typoed key (unit_overides) would otherwise be silently dropped, disarming the
+    # unit rewrite, the build_sql commodity raise, AND the R1/R3 lint in one keystroke -- fail at load.
+    model_config = ConfigDict(extra="forbid")
     unit: str = ""
     desc: str = ""
+    unit_overrides: dict[str, str] = {}                      # DP-1 (PRICE_OBSERVABILITY W1.1): per-commodity unit
+    #                                                          for a metric whose SOURCE carries no governed unit
+    #                                                          (silver avg_farm_price's `unit` column is null/junk
+    #                                                          section-heading text). Q.run POST-FETCH sets
+    #                                                          r["unit"] = unit_overrides.get(spec.commodity, "")
+    #                                                          on EVERY row (incl. agg-shaped rows, which emit no
+    #                                                          extras); build_sql RAISES if it is set and the query
+    #                                                          carries no commodity (unattributable blank-unit rows).
 
 
 class VintageTiebreakTerm(BaseModel):
@@ -39,6 +50,7 @@ class VintageTiebreakTerm(BaseModel):
     ``col dir [NULLS first|last]`` term. Directions AND null placement are emitted EXPLICITLY because Presto
     (Athena) and Postgres disagree on the DEFAULT null placement for DESC — a bare DESC on a nullable column
     would order differently on the two engines and reopen the parity break."""
+    model_config = ConfigDict(extra="forbid")
     col: str
     dir: Literal["asc", "desc"] = "asc"
     nulls: Optional[Literal["first", "last"]] = None
@@ -46,8 +58,13 @@ class VintageTiebreakTerm(BaseModel):
 
 
 class TableSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     id: str
     description: str
+    quarantined: bool = False                                # SILVER-F047 marker (silver_nasa_power). Declared so
+    #                                                          extra="forbid" keeps loading the yaml; NOT yet read
+    #                                                          by dispatch -- the serving protections are the
+    #                                                          gold_weather_z weather path + the INV-3 lint.
     athena_table: Optional[str] = None                       # physical Glue table when it differs from the id —
     #                                                          e.g. silver_esr serves from silver_esr_compact
     #                                                          (registered partitions; the projected original
@@ -62,6 +79,21 @@ class TableSpec(BaseModel):
     period_offset: int = 0                                   # source-label translation: OUR convention is MY=START
     #                                                          year; ESR labels by END year -> offset +1 at compile
     date_col: Optional[str] = None                           # the DATA date (weather obs date, week ending, ...)
+    date_col_type: Literal["string", "timestamp"] = "string"  # DP-5 (PRICE_OBSERVABILITY W1.1): physical type of
+    #                                                          the date col. "timestamp" -> the query builder emits
+    #                                                          substr(CAST(date_col AS varchar), 1, 10) for that
+    #                                                          column in BOTH the _extras aliases AND every guard/
+    #                                                          window predicate, so Athena's timestamp(3) render
+    #                                                          ('2026-06-01 00:00:00.000') and the pg TEXT mirror
+    #                                                          ('2026-06-01 00:00:00') both normalize to
+    #                                                          'YYYY-MM-DD' -- else parity breaks and a window's
+    #                                                          boundary month is silently excluded. "string"
+    #                                                          (default) -> byte-identical to before.
+    provenance_col: Optional[str] = None                     # DP-2 (PRICE_OBSERVABILITY W1.1): a revision/vintage-
+    #                                                          stamp column surfaced by _extras as alias
+    #                                                          `revision_stamp` (wasde estimate_role -> projection
+    #                                                          vs actual visible on the row; pink_sheet
+    #                                                          latest_release_ym -> "as published, WB release ...").
     year_col: Optional[str] = None                           # year_month semantics: the year column
     month_col: Optional[str] = None                          # year_month semantics: the month column
     knowledge_date_col: Optional[str] = None                 # the vintage/publication/ingest date

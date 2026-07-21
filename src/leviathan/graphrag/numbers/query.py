@@ -55,6 +55,35 @@ def _dcol(col: str) -> str:
     return f"CAST({col} AS varchar)"
 
 
+def _norm_ts_date(col: str) -> str:
+    """DP-5 (PRICE_OBSERVABILITY W1.1): normalize a physical TIMESTAMP date column to a 'YYYY-MM-DD' string.
+    Athena stringifies a timestamp(3) as '2026-06-01 00:00:00.000' and the pg mirror stores str(datetime) as
+    '2026-06-01 00:00:00', so a naive text compare (a) breaks parity (every non-vacuous _rows_key mismatches)
+    and (b) EXCLUDES a window's boundary month ('2026-06-01 00:00:00.000' > '2026-06-01'). substr(CAST(...),1,10)
+    collapses both renders to the same 'YYYY-MM-DD' -- CAST is a no-op on the pg TEXT column and Athena substrs
+    the varchar render. The table is flat/unpartitioned so sargability is moot (the no-CAST rule targets
+    PROJECTED partition columns only, never this)."""
+    return f"substr(CAST({col} AS varchar), 1, 10)"
+
+
+def _dcmp(ts: TableSpec, col: str) -> str:
+    """The text-comparable render of a knowledge/date column for a PREDICATE. DP-5: a physical TIMESTAMP date
+    column normalizes to 'YYYY-MM-DD' (both backends agree, boundary month included); every other column keeps
+    the type-agnostic CAST-as-varchar form (_dcol)."""
+    if ts.date_col_type == "timestamp" and col == ts.date_col:
+        return _norm_ts_date(col)
+    return _dcol(col)
+
+
+def _sel_date(ts: TableSpec, col: str) -> str:
+    """The SELECT-list render of a date/knowledge column surfaced in _extras. DP-5: a physical TIMESTAMP date
+    column is normalized to 'YYYY-MM-DD' so a monthly series never renders a raw timestamp in its [N] meta and
+    the alias sorts lexically == chronologically; every other column is a bare reference."""
+    if ts.date_col_type == "timestamp" and col == ts.date_col:
+        return _norm_ts_date(col)
+    return col
+
+
 def _fmt_pdate(iso: str, fmt: str) -> str:
     """ISO 'YYYY-MM-DD' -> the partition-value format ('yyyyMMdd' strips dashes; 'iso' is identity)."""
     return iso.replace("-", "") if fmt == "yyyyMMdd" else iso
@@ -216,9 +245,9 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
             val = _q(spec.period)
         w.append(f"{ts.period_col} = {val}")
     if ts.date_col and spec.period_start:
-        w.append(f"{_dcol(ts.date_col)} >= {_q(spec.period_start)}")
+        w.append(f"{_dcmp(ts, ts.date_col)} >= {_q(spec.period_start)}")   # DP-5: substr-normalized if timestamp
     if ts.date_col and spec.period_end:
-        w.append(f"{_dcol(ts.date_col)} <= {_q(spec.period_end)}")
+        w.append(f"{_dcmp(ts, ts.date_col)} <= {_q(spec.period_end)}")     # DP-5: boundary month included
     if ts.year_col:
         # sargable bare-column year bounds: neither the ym EXPRESSION (year_month tables) nor a guard
         # on a date DATA column (silver_nasa_power, whose year/month are projected partitions) can
@@ -274,7 +303,7 @@ def _guard(spec: NumberQuery, ts: TableSpec) -> str:
         # non-sargable, so Athena enumerates the whole projected grid (silver_wasde: 19.5K daily
         # candidates over 461 real monthly partitions — the WASDE arm of the Jul-2026 LIST storm).
         return f"{col} <= {_q(_fmt_pdate(asof, ts.vintage_partition_format))}"
-    return f"{_dcol(col)} <= {_q(asof)}"
+    return f"{_dcmp(ts, col)} <= {_q(asof)}"                  # DP-5: substr-normalized when col is a timestamp date
 
 
 def _order_col(ts: TableSpec) -> Optional[str]:
@@ -291,9 +320,11 @@ def _extras(ts: TableSpec) -> list[tuple[str, str]]:
     published) — a series row that carries only a bare value is unattributable and gets misread."""
     out: list[tuple[str, str]] = []
     if ts.knowledge_date_col:
-        out.append((ts.knowledge_date_col, "knowledge_date"))
+        out.append((_sel_date(ts, ts.knowledge_date_col), "knowledge_date"))   # DP-5: normalize a timestamp date
     if ts.date_col and ts.date_col != ts.knowledge_date_col:
-        out.append((ts.date_col, "data_date"))
+        out.append((_sel_date(ts, ts.date_col), "data_date"))                  # DP-5: normalize a timestamp date
+    if ts.provenance_col:                                # DP-2: revision/vintage stamp -> citation meta
+        out.append((ts.provenance_col, "revision_stamp"))
     if ts.period_col and ts.period_col not in (ts.knowledge_date_col, ts.date_col):
         out.append((ts.period_col, "period"))
     if ts.country_col:                                   # without it a multi-country row is unattributable
@@ -382,6 +413,13 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     """Compile a NumberQuery to leakage-safe Athena SQL. The as-of guard is injected unconditionally; for
     `vintage` tables it also collapses to the LATEST vintage published on/before asof (as-known-at-asof)."""
     ts = ts or load_registry().get(spec.table)
+    # DP-1 GUARD: a metric carrying unit_overrides is keyed by commodity for its unit (avg_farm_price). A
+    # commodity-less query would serve unattributable blank-unit rows -- RAISE deterministically (the
+    # Conventions bullet is discipline; this is enforcement).
+    _m = ts.metrics.get(spec.metric)
+    if _m is not None and getattr(_m, "unit_overrides", None) and spec.commodity is None:
+        raise ValueError(f"metric {spec.table}.{spec.metric} carries unit_overrides but the query has no "
+                         f"commodity -- a commodity-less farm-price query serves unattributable blank-unit rows")
     val = _value_expr(spec, ts)
     extras = _extras(ts)
     where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts)])
@@ -501,14 +539,32 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     return kept
 
 
+def _apply_unit_overrides(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
+    """DP-1 POST-FETCH (PRICE_OBSERVABILITY W1.1): a metric carrying unit_overrides has NO governed source unit
+    (silver avg_farm_price's `unit` column is null / junk section-heading text). SET r["unit"] to the
+    per-commodity override on EVERY returned row -- INCLUDING agg-shaped rows, which emit no extras (the agg SQL
+    is SELECT avg(value) AS value FROM (...)) so a "mean farm price over 5 MYs" would otherwise cite unitless.
+    Blank ("") on an unresolvable commodity beats serving the junk unit. citations.py reads r["unit"] FIRST, so
+    this drives the citation unit; the choke point is Q.run (all backends flow through it)."""
+    m = ts.metrics.get(spec.metric)
+    ov = getattr(m, "unit_overrides", None) if m else None
+    if not ov:
+        return rows
+    unit = ov.get(spec.commodity, "")                    # blank-on-unresolvable; build_sql already raised if None
+    for r in rows:
+        r["unit"] = unit
+    return rows
+
+
 def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB) -> list[dict]:
     """Execute on the active backend (or an injected query_fn(sql)->rows for tests/session-cache wrappers).
     Returns rows as list[dict]. The pg mirror's schema is NAMED like the Athena db, so the compiled SQL is
-    backend-agnostic — routing is purely a choice of executor."""
-    sql = build_sql(spec, db=db)
-    if query_fn is not None:
-        return query_fn(sql)
-    return default_query_fn(db=db)(sql)
+    backend-agnostic -- routing is purely a choice of executor. POST-FETCH: apply DP-1 unit_overrides so every
+    returned row (agg-shaped rows included) carries the correct per-commodity unit."""
+    ts = load_registry().get(spec.table)
+    sql = build_sql(spec, ts, db=db)
+    rows = query_fn(sql) if query_fn is not None else default_query_fn(db=db)(sql)
+    return _apply_unit_overrides(rows, spec, ts)
 
 
 def default_query_fn(db: str = ATHENA_DB):

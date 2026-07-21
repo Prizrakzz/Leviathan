@@ -27,9 +27,12 @@ _DDL = _REPO / "sql" / "athena" / "ddl"
 # fenced at the metric level, not here.
 PRICE_TABLES = ("silver_pink_sheet",)
 POSITIONING_TABLES = ("silver_cot",)
-# The curated avg_farm_price coverage set -- W1 populates it when the metric is whitelisted. Empty today, so R1's
-# EXACT-equality branch is vacuous (avg_farm_price carries no unit_overrides yet) and drift either way will fail.
-_FARM_PRICE_COMMODITIES: frozenset = frozenset()
+# The curated avg_farm_price coverage set. PRICE_OBSERVABILITY W1.2 whitelisted the metric with a PROVISIONAL
+# per-commodity unit_overrides map; R1 now BINDS -- the metric's unit_overrides keys must EQUAL this set exactly
+# (drift either way fails the build). This is the provisional 5-commodity map (corn/rice grain-multiplicity-
+# suspect, sorghum dropped, soy oil/meal presence-conditional, barley/oats/sugar dropped); the W3.0 probe
+# battery resolves it and this set + the tables.yaml map move together.
+_FARM_PRICE_COMMODITIES: frozenset = frozenset({"corn", "wheat", "soybeans", "cotton", "rice"})
 # NONE-tier decline names (R5 census). Every one must own a decline template that passes register_leaks clean --
 # checked once the W2.5 numbers-agent template registry exists (vacuous-pass with a printed note until then).
 _NONE_TIER_DECLINE = ("robusta", "white_sugar", "french_wheat_matif", "french_maize_matif",
@@ -458,7 +461,12 @@ def check_price_register() -> list[str]:
     wasde = tables.get("silver_wasde")
     if wasde is not None and "avg_farm_price" in wasde.metrics and getattr(
             wasde.metrics["avg_farm_price"], "unit_overrides", None):
-        if not any(t.role_order[:1] == ["estimate_role"] for t in wasde.vintage_tiebreak):
+        # estimate_role-first: the FIRST vintage_tiebreak term ranks on the estimate_role column with a role
+        # priority list (actual < estimate < projection) so the most-settled figure wins any tie. (role_order
+        # holds the priority VALUES; the column is t.col -- the earlier `t.role_order[:1] == ['estimate_role']`
+        # was a W0 coding slip, vacuous until avg_farm_price was whitelisted and now corrected.)
+        tb0 = wasde.vintage_tiebreak[0] if wasde.vintage_tiebreak else None
+        if not (tb0 and tb0.col == "estimate_role" and tb0.role_order):
             errs.append("R3 silver_wasde: avg_farm_price whitelisted but no estimate_role-first vintage_tiebreak")
         if getattr(wasde, "provenance_col", None) != "estimate_role":
             errs.append("R3 silver_wasde: avg_farm_price whitelisted but provenance_col != 'estimate_role'")
