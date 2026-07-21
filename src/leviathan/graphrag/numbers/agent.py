@@ -171,6 +171,101 @@ def _is_esr_call(c: dict) -> bool:
     return (c.get("query") or {}).get("table") == "silver_esr"
 
 
+# -- R5 price-coverage decline guard (PRICE_OBSERVABILITY W2.5) ----------------------------------------
+# silver_pink_sheet carries a FIXED set of governed price columns. Several commodities a pro desk asks
+# about by name have NO column (NONE-tier): robusta coffee, white/refined sugar, MATIF (EU) milling wheat
+# and maize, JSE/SAFEX South-African white and yellow maize, and rapeseed MEAL. Cloning the ESR
+# destination guard: when a question is UNAMBIGUOUSLY a PRICE ask for one of these, we PREPEND a
+# reader-facing caveat that names the nearest governed proxy WITH its basis caveat -- so the decline
+# never depends on prompt discipline. Detection is conservative: a NONE-tier NAME must co-occur with
+# PRICE-INTENT phrasing; ambiguity (a bare mention, or no price intent) fails toward None so a covered
+# ask (palm / soy oil / US HRW wheat / raw sugar) is byte-identical (the guard never fires on it). The
+# templates below are censused by config_check.check_price_register R5 (they must pass register_leaks
+# clean) and the keys EXACTLY match config_check._NONE_TIER_DECLINE.
+DECLINE_TEMPLATES: dict[str, str] = {
+    # robusta template wording is fixed by the plan (S2.F7 -- the raw WB workbook DOES carry robusta, so a
+    # false-scarcity claim is banned; the honest framing is "not in our GOVERNED columns", candidate add).
+    "robusta": ("no robusta series is in our governed price columns (the raw source is retained -- a "
+                "candidate column add); arabica (KC) is not a substitute -- the arabica-robusta spread is "
+                "itself the story"),
+    "white_sugar": ("no white (refined) sugar series is in our governed price columns; the raw-sugar world "
+                    "benchmark we do carry is a different product, and the white-raw premium (the refining "
+                    "differential) is exactly what it leaves out"),
+    "french_wheat_matif": ("no MATIF (EU milling) wheat series is in our governed price columns; the US hard- "
+                           "and soft-red-winter wheat benchmarks we carry are a different origin, separated by "
+                           "currency, freight and milling-quality basis"),
+    "french_maize_matif": ("no MATIF (EU) maize series is in our governed price columns, and there is no world "
+                           "maize price benchmark there at all; the nearest governed maize price is the US "
+                           "survey-based farm price, a farm-gate figure of a different origin, not an exchange "
+                           "level"),
+    "jse_white_maize": ("no JSE/SAFEX South-African white-maize series is in our governed price columns; the "
+                        "nearest governed maize price is the US survey-based farm price, a different origin on "
+                        "a farm-gate (not exchange) basis"),
+    "jse_yellow_maize": ("no JSE/SAFEX South-African yellow-maize series is in our governed price columns; the "
+                         "nearest governed maize price is the US survey-based farm price, a different origin on "
+                         "a farm-gate (not exchange) basis"),
+    "rapeseed_meal_zce": ("no rapeseed-meal series is in our governed price columns; we carry rapeseed OIL and "
+                          "soybean meal, but neither is a rapeseed-meal price -- the oil-versus-meal split and "
+                          "the rape-versus-soy protein basis separate them"),
+}
+
+# Conservative price-INTENT vocabulary (F2): each token must be a genuine VALUATION signal, not a generic
+# quantity/logistics word. Deliberately NARROW so a non-price mention of a NONE-tier name fails toward None:
+#   - bare "level(s)" is DROPPED (production/inventory/stock LEVELS are volume, not price; "price level(s)"
+#     is still caught by "price");
+#   - bare "how much" is DROPPED ("how much robusta was exported/produced" is volume; "how much does X cost"
+#     still fires via cost/worth/per-tonne);
+#   - "trade/trades/traded/trading" must be followed by a price-context word (trading AT/around/higher/...),
+#     so "trading houses/desks/firms" (merchants) does NOT fire;
+#   - "basis" excludes "basis risk" (operational risk, not the cash-futures basis).
+_PRICE_INTENT = re.compile(
+    r"\b(?:price|prices|priced|pricing|quote[sd]?|worth|cost|costs|"
+    r"benchmark|per\s+(?:tonne|ton|mt|bushel)|\$\s*/?\s*(?:mt|t|bbl|bu)|spread|premium|discount|"
+    r"basis(?!\s+risk)|"
+    r"trad(?:e|es|ed|ing)\s+(?:at|around|near|above|below|higher|lower|up|down|flat))\b")
+# One (display name, compiled name-pattern) per NONE-tier commodity, checked in priority order. Each
+# pattern is deliberately narrow so a COVERED ask never matches: "white sugar" excludes bare "sugar" and
+# "raw sugar"; "rapeseed meal" excludes covered "rapeseed oil"; the maize/wheat patterns require an
+# EXCHANGE/origin qualifier (matif/euronext/jse/safex/south african/eu/european/french) so a generic
+# corn/wheat ask (routed to WASDE farm price) is untouched. In particular "milling wheat" (F2: also a
+# global quality grade, milling vs feed) fires french_wheat_matif ONLY with such an EU/MATIF qualifier --
+# a bare "us milling wheat price" is a COVERED wheat_us_hrw/srw ask and must not degrade.
+_PRICE_DECLINE_PATTERNS: list[tuple[str, "re.Pattern[str]"]] = [
+    ("jse_white_maize", re.compile(r"\b(?:jse|safex|south[ -]?african|s\.?a\.?)\b[\w %'-]*?\bwhite\s+maize\b"
+                                   r"|\bwhite\s+maize\b[\w %'-]*?\b(?:jse|safex|south[ -]?african)\b")),
+    ("jse_yellow_maize", re.compile(r"\b(?:jse|safex|south[ -]?african|s\.?a\.?)\b[\w %'-]*?\byellow\s+maize\b"
+                                    r"|\byellow\s+maize\b[\w %'-]*?\b(?:jse|safex|south[ -]?african)\b")),
+    ("french_wheat_matif", re.compile(r"\b(?:matif|euronext)\b[\w %'-]*?\bwheat\b"
+                                      r"|\bwheat\b[\w %'-]*?\b(?:matif|euronext)\b"
+                                      r"|\b(?:matif|euronext|eu|european|french|france)\b[\w %'-]*?\bmilling\s+wheat\b"
+                                      r"|\bmilling\s+wheat\b[\w %'-]*?\b(?:matif|euronext|eu|european|french|france)\b")),
+    ("french_maize_matif", re.compile(r"\b(?:matif|euronext)\b[\w %'-]*?\b(?:maize|corn)\b"
+                                      r"|\b(?:maize|corn)\b[\w %'-]*?\b(?:matif|euronext)\b")),
+    ("white_sugar", re.compile(r"\b(?:white|refined)\s+sugar\b|\blondon\s+(?:no\.?\s*5\s+)?sugar\b")),
+    ("rapeseed_meal_zce", re.compile(r"\brape(?:seed)?\s*meal\b|\bcanola\s+meal\b")),
+    ("robusta", re.compile(r"\brobusta\b")),
+]
+
+
+def price_coverage_scope(question: str) -> Optional[str]:
+    """The NONE-tier decline key when the question is UNAMBIGUOUSLY a PRICE ask for a commodity with no
+    governed silver_pink_sheet column, else None. A NONE-tier NAME must co-occur with price-intent
+    phrasing; ambiguity fails toward None so a covered ask (or a non-price mention) is byte-identical."""
+    q = re.sub(r"\s+", " ", (question or "").lower())
+    if not _PRICE_INTENT.search(q):
+        return None                                            # no price intent -> never fire (fail toward None)
+    for name, rx in _PRICE_DECLINE_PATTERNS:
+        if rx.search(q):
+            return name
+    return None
+
+
+def _price_decline_preface(name: str) -> str:
+    """Reader-facing honest decline of an uncovered price series (mentor register -- no internal slugs).
+    PREPENDED deterministically so an uncaveated proxy can never pose as the asked-for series."""
+    return f"One limitation to flag before the numbers: {DECLINE_TEMPLATES[name]}.\n\n"
+
+
 def tool_schema(reg: NumbersRegistry) -> dict:
     """The single tool. `table` is an enum over the registry; asof is DELIBERATELY absent (the harness forces it)."""
     return {
@@ -247,6 +342,14 @@ def system_prompt(reg: NumbersRegistry) -> str:
         "figure (the row's revision_stamp / estimate_role says which) -- attribute it as a USDA projection, "
         "never present it as a market forecast of ours. It is a survey-based farm-gate price, NOT a futures "
         "settle.\n"
+        "- silver_pink_sheet is the World Bank Pink Sheet of MONTHLY WORLD BENCHMARK price averages in US "
+        "dollars: it has NO commodity/country arguments -- the METRIC NAME IS the series (e.g. "
+        "palm_oil_cpo_usd_t, soybean_oil_usd_t, urea_usd_mt, brent_crude_usd_bbl). State the month + unit + "
+        "'WB monthly average'; these are monthly averages, NOT exchange settles. For US farm-gate crop prices "
+        "prefer silver_wasde avg_farm_price instead. Its input-cost series (fertilizers, natural gas, Brent) are "
+        "relevant context for ANY contract's cost side. It carries NO corn, coffee, cotton, rice or cocoa price "
+        "column -- if asked for one, say plainly it is not in the governed price series rather than substituting "
+        "a different one.\n"
         "- State prices, premiums, discounts, and spreads as an observed level + date + historical percentile, "
         "in PAST or PRESENT tense. NEVER characterize a level as cheap, rich, or attractive; never forecast that "
         "a spread narrows, normalizes, or corrects; never give timing.\n"
@@ -289,6 +392,9 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # when an ESR lookup actually executes — a destination-worded question that never touches export
     # sales stays byte-identical. None (the common case) is a no-op everywhere below.
     dest = esr_destination_scope(question)
+    # Price-coverage decline guard: detect a NONE-tier PRICE ask (no governed pink_sheet column) ONCE, up
+    # front. None (the common case) is a no-op everywhere below -- a covered/non-price ask is byte-identical.
+    price_scope = price_coverage_scope(question)
 
     for _ in range(max_calls):
         def _one():
@@ -297,13 +403,22 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         resp = pv.with_retry(_one) if pv else _one()
         uses = [b for b in resp.content if getattr(b, "type", None) == "tool_use"]
         if not uses:
-            text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text")
+            text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
+            result: dict = {"answer": text, "calls": calls}
+            preface = ""
+            if price_scope:
+                # deterministic decline of an uncovered price series: the caveat is PREPENDED regardless of
+                # what the model wrote, so an uncaveated proxy can never pose as the asked-for series.
+                preface += _price_decline_preface(price_scope)
+                result["price_decline_guard"] = price_scope
             if dest and any(_is_esr_call(c) for c in calls):
                 # deterministic decline of the destination cut: the caveat is PREPENDED regardless of what
                 # the model wrote, so an uncaveated national number can never pose as a destination answer.
-                return {"answer": _esr_destination_preface(dest) + text.strip(), "calls": calls,
-                        "esr_destination_guard": dest}
-            return {"answer": text.strip(), "calls": calls}
+                preface += _esr_destination_preface(dest)
+                result["esr_destination_guard"] = dest
+            if preface:
+                result["answer"] = (preface + text).strip()
+            return result
         convo.append({"role": "assistant", "content": resp.content})
 
         def _exec(b) -> dict:

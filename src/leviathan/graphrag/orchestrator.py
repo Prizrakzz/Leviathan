@@ -69,12 +69,18 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
             mc = [c for c in an.route(query, graph) if c in graph.contracts][:2]
         except Exception:  # noqa: BLE001 — routing must never break a numbers answer
             mc = []
+    # W2.5: the agent's honesty-guard keys live only in answer_numbers' return dict (dropped here otherwise);
+    # copy them onto the trace so the eval deck can pin them (the ESR destination guard AND the new
+    # price-coverage decline guard). Absent (the common case) -> the trace is byte-identical to before.
+    _trace = {"numbers_verifier": nv, "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow}
+    for _gk in ("esr_destination_guard", "price_decline_guard"):
+        if out.get(_gk) is not None:
+            _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",
             "citations": [c.model_dump() for c in cits], "number_calls": out.get("calls", []),
             "evidence": [], "asof": asof, "structured": None,
             "contract": (mc[0] if mc else None), "contracts": mc,
-            "trace": {"numbers_verifier": nv, "banned_valuation_words": _banned_val,
-                      "banned_flow_words": _banned_flow}}
+            "trace": _trace}
 
 
 def _verify_numbers_answer(answer: str, calls: list) -> dict:

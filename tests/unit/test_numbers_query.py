@@ -612,6 +612,10 @@ _PRE_WAVE_8 = frozenset({
     "silver_psd", "silver_wasde", "silver_production", "silver_nasa_power",
     "silver_esr", "silver_fred_fx", "silver_noaa_oni", "gold_weather_z",
 })
+# PRICE_OBSERVABILITY W2 wired silver_pink_sheet in as a LATER wave; it is present regardless of the
+# depth-wave kill-switch, so the depth-wave enum baseline is the pre-wave 8 PLUS the price table.
+_PRICE_IDS = ("silver_pink_sheet",)
+_DEPTH_BASELINE = _PRE_WAVE_8 | set(_PRICE_IDS)
 
 
 def _tool_enum():
@@ -628,13 +632,14 @@ def test_depth_wave_enum_gains_three_and_kill_switch_reverts_to_pre_wave_8(monke
     monkeypatch.delenv("GRAPHRAG_NUMBERS_DISABLE", raising=False)
     live = _tool_enum()
     assert set(_NEW_DEPTH_IDS) <= live, live
-    assert live == _PRE_WAVE_8 | set(_NEW_DEPTH_IDS)            # exactly the 8 + 3 = 11, nothing else
+    assert live == _DEPTH_BASELINE | set(_NEW_DEPTH_IDS)       # exactly the (8 + pink_sheet) + 3, nothing else
 
-    # (2) disable all three -> the enum is EXACTLY the pre-wave 8 (total config-only rollback of the wave).
+    # (2) disable all three -> the enum reverts to the depth-wave baseline (pre-wave 8 + pink_sheet); a
+    #     total, config-only rollback of the depth wave that leaves the separately-wired price table intact.
     load_registry.cache_clear()
     monkeypatch.setenv("GRAPHRAG_NUMBERS_DISABLE", ",".join(_NEW_DEPTH_IDS))
     reverted = _tool_enum()
-    assert reverted == _PRE_WAVE_8, reverted
+    assert reverted == _DEPTH_BASELINE, reverted
     assert not (set(_NEW_DEPTH_IDS) & reverted)                 # none of the three survive
     load_registry.cache_clear()                                 # leave the cache clean for other tests
 

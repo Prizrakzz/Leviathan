@@ -61,6 +61,7 @@ NUMBERS_TABLES = (
     "silver_icco_cocoa",
     "silver_mpob",
     "silver_sagis_cec",
+    "silver_pink_sheet",                # PRICE_OBSERVABILITY W2: WB Pink Sheet monthly price benchmarks
 )
 
 

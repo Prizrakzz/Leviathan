@@ -66,6 +66,20 @@ def _norm_ts_date(col: str) -> str:
     return f"substr(CAST({col} AS varchar), 1, 10)"
 
 
+def _pit_dval(ts: TableSpec, col: str, val) -> str:
+    """DP-5 in the pure-Python PIT oracle (apply_pit_filter), mirroring _norm_ts_date's SQL substr. A physical
+    TIMESTAMP date column's row value renders as '2026-06-01 00:00:00[.000]' from BOTH Athena and the pg mirror;
+    truncating to the first 10 chars collapses it to 'YYYY-MM-DD', so the oracle keeps the boundary month at a
+    window edge AND at the exact publication-lag boundary -- byte-for-byte the property build_sql's
+    `substr(CAST(date AS varchar),1,10) <= cutoff` encodes (query.py:306, W2.6). Without this the raw
+    '2026-06-01 00:00:00.000' > '2026-06-01' (and <= a 2026-06-01 lag cutoff is False), and the oracle diverges
+    from the SQL it exists to verify. Applies ONLY to the date_col of a timestamp-typed table; every other
+    column (and every string-typed table) is byte-identical to str(val)."""
+    if ts.date_col_type == "timestamp" and col == ts.date_col:
+        return str(val)[:10]
+    return str(val)
+
+
 def _dcmp(ts: TableSpec, col: str) -> str:
     """The text-comparable render of a knowledge/date column for a PREDICATE. DP-5: a physical TIMESTAMP date
     column normalizes to 'YYYY-MM-DD' (both backends agree, boundary month included); every other column keeps
@@ -504,9 +518,9 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
                     return False
             elif rv != pv:
                 return False
-        if spec.period_start and ts.date_col and str(r.get(ts.date_col)) < spec.period_start:
+        if spec.period_start and ts.date_col and _pit_dval(ts, ts.date_col, r.get(ts.date_col)) < spec.period_start:
             return False
-        if spec.period_end and ts.date_col and str(r.get(ts.date_col)) > spec.period_end:
+        if spec.period_end and ts.date_col and _pit_dval(ts, ts.date_col, r.get(ts.date_col)) > spec.period_end:
             return False
         if ts.knowledge_semantics == "year_month":
             rym = int(r.get(ts.year_col)) * 100 + int(r.get(ts.month_col))
@@ -523,7 +537,7 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
             #                                                              for a NULL knowledge date; the old
             #                                                              `str(None or '')`='' compared <= asof as
             #                                                              TRUE, leaking every unstamped row.
-        return str(kv) <= guard_asof                                     # the leakage guard (date + pub lag)
+        return _pit_dval(ts, kcol, kv) <= guard_asof                     # DP-5-normalized leakage guard (date + pub lag)
     kept = [r for r in rows if keep(r)]
 
     if ts.knowledge_semantics == "vintage" and kept:
