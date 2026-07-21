@@ -266,3 +266,27 @@ def test_config_check_wrapper_delegates(tmp_path, monkeypatch):
         assert any("dark id lonely_dark" in e for e in cc.check_driver_slices())
     finally:
         _reset()
+
+
+# -- PRICE_OBSERVABILITY W0.2 -- price/positioning register-fence lint ---------------------------------------
+def test_check_register_detector_ships_lexicon():
+    # the R2/R8 probe: every banned term + class rule flags, every ag-collision probe stays clean.
+    assert cc._check_register_detector() == []
+
+
+def test_no_engine_ref_flags_and_passes():
+    assert cc._check_no_engine_ref({"r1": {"table": "silver_pink_sheet"}}, cc.PRICE_TABLES, "R4", "price")
+    assert cc._check_no_engine_ref({"r1": {"table": "silver_cot"}}, cc.POSITIONING_TABLES, "R9", "positioning")
+    assert cc._check_no_engine_ref({"r1": {"table": "silver_wasde"}}, cc.PRICE_TABLES, "R4", "price") == []
+    assert cc._check_no_engine_ref({}, cc.PRICE_TABLES, "R4", "price") == []
+
+
+def test_decline_census_vacuous_until_template_registry():
+    # R5: the W2.5 numbers-agent template registry does not exist yet -> vacuous pass (printed note, no errors).
+    assert cc._check_decline_census() == []
+
+
+def test_check_price_and_cot_register_green_on_real_config():
+    # W0 GATE: both new checks pass on the live config -- nothing registered yet, R4/R9 active and clean.
+    assert cc.check_price_register() == []
+    assert cc.check_cot_register() == []

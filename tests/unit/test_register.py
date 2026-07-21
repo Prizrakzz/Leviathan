@@ -170,3 +170,158 @@ def test_eval_metric_and_panel_pick_up_leaks(monkeypatch):
     # _hier at teardown but NOT the lru_cache -> without this, () leaks forward and later tests that rely on
     # sanitize() humanizing real slugs (e.g. test_suggester_catalog) fail depending on collection order.
     reg._slugs.cache_clear(); reg._display_map.cache_clear()
+
+
+# -- PRICE_OBSERVABILITY W0.1/W0.3 -- price/positioning register fence ------------------------------------
+_LANE_A_VALUATION = (
+    "raise the price target", "take-profit here", "a stop-loss below", "go long soyoil", "buy the dip",
+    "fade the rally", "worth fading", "the spread looks cheap", "a relative value trade", "undervalued",
+    "overvalued", "mispriced", "dislocated", "overdone", "overshot", "at attractive levels", "fair value",
+    "it screens rich")
+_LANE_A_FLOW = (
+    "squeeze potential", "vulnerable to a squeeze", "a short squeeze", "a pain trade", "forced liquidation",
+    "forced covering", "capitulation", "shorts would need to chase", "a crowded long", "one-sided positioning",
+    "offside", "a coiled spring", "dry powder", "stretched positioning", "if funds cover")
+# every S1.F4 evasion sentence -- the class fence, not the word list. These are the plan's (W0.3) EXACT bare
+# strings; do NOT strengthen them to easier-to-flag variants (S1.F3) -- the detector must catch the plan form.
+_CLASS_POSITIVES = (
+    "the discount has room to normalize", "spreads this wide rarely persist",
+    "due for a correction", "mean reversion favors the discount narrowing",
+    "squeeze potential", "forced liquidation", "shorts would need to chase",
+    "the premium should converge next quarter", "this premium is unsustainable",
+    "the basis cannot last at these levels")
+# ag prose that collides with the fence vocabulary but is honest fundamentals -- must all pass clean
+_MUST_NOT_FLAG = (
+    "the spread narrowed in 2016", "the premium averaged $250 [N1]", "stocks are rich relative to use",
+    "the crop is vulnerable to frost", "a crowded export lineup", "short crop", "long-term outlook",
+    "the drought squeeze regime aligns with a dry Brazil", "a supply squeeze in the balance sheet")
+
+
+def test_lane_a_valuation_and_flow_phrases_flagged():
+    for t in _LANE_A_VALUATION:
+        assert reg.register_leaks(t), t                              # Lane A rides register_leaks (chip-safe)
+        assert reg.count_valuation_words(t) >= 1, t
+    for t in _LANE_A_FLOW:
+        assert reg.register_leaks(t), t
+        assert reg.count_flow_words(t) >= 1, t
+
+
+def test_class_rule_positives_flagged():
+    for t in _CLASS_POSITIVES:
+        assert reg.register_leaks(t), t                              # forward-convergence / persistence-denial
+
+
+def test_price_fence_must_not_flag_ag_prose():
+    for t in _MUST_NOT_FLAG:
+        assert reg.register_leaks(t) == [], t
+        assert reg.count_valuation_words(t) == 0, t
+        assert reg.count_flow_words(t) == 0, t
+
+
+def test_lane_b_windowed_words_and_excluded_nouns():
+    # bare mood adjective + a window noun (or a relative-value comparison) fires Lane B ...
+    assert reg.lane_b_hits("the premium looks cheap") >= 1
+    assert reg.lane_b_hits("positioning looks stretched") >= 1
+    assert reg.lane_b_hits("net length looks rich") >= 1
+    assert reg.lane_b_hits("Is palm cheap vs soyoil?") >= 1          # comparison marker is the window here
+    # ... but an ag-collision noun suppresses it, and a bare adjective with no window is legal
+    assert reg.lane_b_hits("stocks are rich relative to use") == 0
+    assert reg.lane_b_hits("the crop is vulnerable to frost") == 0
+    assert reg.lane_b_hits("a crowded export lineup") == 0
+    assert reg.lane_b_hits("coffee is cheap this year") == 0         # no window noun -> not Lane B
+
+
+def test_raw_counters_split_valuation_from_flow():
+    assert reg.count_valuation_words("undervalued and mispriced") == 2 and reg.count_flow_words("undervalued") == 0
+    assert reg.count_flow_words("a short squeeze and forced liquidation") == 2
+    assert reg.count_valuation_words("the discount should normalize soon") == 1   # class rule counts as valuation
+    assert reg.count_valuation_words("stocks-to-use fell 5-10% into 2021") == 0   # honest fundamentals
+
+
+def test_sanitize_strips_price_sentences_invariant_and_idempotent():
+    dirty = ("Ending stocks fell to 44.8 MMT [N1]. The spread looks cheap and is undervalued. "
+             "The discount has room to normalize. Is palm cheap vs soyoil?")
+    clean = reg.sanitize(dirty)
+    assert "44.8 MMT" in clean and "[N1]" in clean                   # the honest dated sentence survives
+    assert reg.register_leaks(clean) == []                           # the load-bearing invariant (DP-6 strip)
+    assert reg.count_valuation_words(clean) == 0 and reg.count_flow_words(clean) == 0
+    assert "undervalued" not in clean and "room to normalize" not in clean
+    assert reg.sanitize(clean) == clean                              # idempotent under re-application
+
+
+def test_sanitize_strip_never_paraphrases_regime_squeeze(monkeypatch):
+    _hier_stub(monkeypatch)
+    try:
+        # the FUNDAMENTAL drought-squeeze regime vocabulary must survive the strip (only positioning squeezes go)
+        clean = reg.sanitize("The drought squeeze tightens the balance sheet; forced liquidation is a risk.")
+        assert "drought squeeze" in clean                            # fundamental regime word kept
+        assert "forced liquidation" not in clean                    # positioning-flow sentence stripped
+        assert reg.register_leaks(clean) == []
+    finally:
+        reg._slugs.cache_clear()
+        reg._display_map.cache_clear()
+
+
+# -- S1.F1: the forward-convergence verbs must NOT match the -ly ADVERBS (open \w* stems were the bug) --------
+_CONVERGE_ADVERB_CLEAN = (
+    "The premium should be watched closely.",
+    "The basis will be monitored closely by the desk.",
+    "The spread is narrowly defined and will be reported.",
+    "The premium should be interpreted correctly.")
+
+
+def test_convergence_verbs_do_not_false_flag_adverbs():
+    for t in _CONVERGE_ADVERB_CLEAN:
+        assert reg.register_leaks(t) == [], t                        # 'closely'/'narrowly'/'correctly' are honest
+        assert reg.count_valuation_words(t) == 0, t
+        # and the honest sentence is NOT silently stripped out of an answer
+        combined = t + " Ending stocks fell to 1.2 bt [N1]."
+        clean = reg.sanitize(combined)
+        assert t.split(".")[0] in clean, t                           # the first clause survives sanitize
+        assert "1.2 bt [N1]" in clean, t
+
+
+def test_convergence_verbs_still_flag_real_verb_forms():
+    # the anchored forms must still catch genuine convergence verbs with a spread noun + futurity
+    for t in ("the spread should narrow", "the premium will close the gap next quarter",
+              "the discount is due to narrow", "the basis should correct"):
+        assert reg.register_leaks(t), t
+
+
+# -- S1.F2/W0-1: register_leaks(sanitize(x)) == [] must hold across bare-newline (bulleted) class-rule prose ---
+_NEWLINE_LEAK_PROSE = (
+    "The premium is wide today\nand it should narrow before year end",
+    "The premium is wide\nand it should narrow soon.",
+    "Prices look fine but the premium is wide\nand should narrow soon in the note.",
+    "- The soy/palm premium is at multi-year highs\n- it should compress as palm output recovers",
+    "Drivers:\n- premium wide\n- likely to narrow into Q4")
+
+
+def test_newline_spanning_class_rule_invariant_holds():
+    for x in _NEWLINE_LEAK_PROSE:
+        assert reg.register_leaks(x), x                              # the scanner DOES flag the line-wrapped triple
+        assert reg.register_leaks(reg.sanitize(x)) == [], x          # ... and the strip removes exactly that unit
+
+
+# -- S1.F4/W0-2/R8: positioning/timing squeeze evasions flag; the fundamental regime squeeze stays clean -------
+_SQUEEZE_POSITIONING = (
+    "primed for a squeeze", "ripe for a squeeze", "positioning is set up for a squeeze",
+    "the market could squeeze higher", "a violent squeeze higher looks likely",
+    "a squeeze is coming", "shorts are trapped and a squeeze looms", "shorts are getting squeezed",
+    "expect a squeeze soon", "a squeeze could send prices higher")
+_SQUEEZE_FUNDAMENTAL_CLEAN = (
+    "the drought squeeze regime aligns with a dry Brazil", "a supply squeeze in the balance sheet",
+    "the China demand squeeze tightens the balance sheet", "a delivery squeeze in the physical market",
+    "the feedstock squeeze supports crush margins")
+
+
+def test_positioning_squeeze_evasions_flag():
+    for t in _SQUEEZE_POSITIONING:
+        assert reg.register_leaks(t), t
+        assert reg.count_flow_words(t) >= 1, t
+
+
+def test_fundamental_regime_squeeze_stays_clean():
+    for t in _SQUEEZE_FUNDAMENTAL_CLEAN:
+        assert reg.register_leaks(t) == [], t
+        assert reg.count_flow_words(t) == 0, t

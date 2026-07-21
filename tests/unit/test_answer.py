@@ -314,6 +314,16 @@ def test_banned_mood_words_counted_pre_sanitize():
     assert "bullish" not in reg.sanitize(raw["tldr"]) and "bearish" not in reg.sanitize(raw["mechanism"])
 
 
+def test_banned_valuation_and_flow_counted_pre_sanitize():
+    """DP-6: the valuation/flow counters run on RAW tldr+mechanism (mirror _count_banned_mood)."""
+    raw = {"tldr": "The spread looks cheap and is undervalued.",
+           "mechanism": "A short squeeze looms; the discount should normalize."}
+    assert an._count_banned_valuation(raw) >= 2                       # 'looks cheap' + 'undervalued' + class rule
+    assert an._count_banned_flow(raw) >= 1                            # 'short squeeze'
+    assert an._count_banned_valuation({"tldr": "", "mechanism": ""}) == 0
+    assert an._count_banned_flow({"tldr": "stocks-to-use fell", "mechanism": ""}) == 0
+
+
 def test_ev_block_renders_usable_event_date_only():
     """P9-A W0: '; event <date>' renders only for a REAL event date — sentinel/None/same-as-report stay silent."""
     base = {"source": "usda_gain", "date": "2010-09-01", "text": "Russia bans wheat exports."}

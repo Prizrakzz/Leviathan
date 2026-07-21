@@ -606,8 +606,8 @@ def _parse_suggestions(raw: str) -> list[str]:
         if not isinstance(s, str):
             continue
         s = s.strip().strip('"').strip()
-        if not s or len(s) > 140 or s in out or reg.register_leaks(s) or _mints_number(s):
-            continue
+        if not s or len(s) > 140 or s in out or reg.register_leaks(s) or reg.lane_b_hits(s) or _mints_number(s):
+            continue                                                  # Lane A rides register_leaks; Lane B is the +1
         out.append(s)
     return out[:4]
 

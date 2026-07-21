@@ -349,6 +349,20 @@ def _count_banned_mood(structured: dict) -> int:
     return len(reg._MOOD.findall((structured.get("tldr") or "") + " " + (structured.get("mechanism") or "")))
 
 
+def _structured_prose(structured: dict) -> str:
+    return (structured.get("tldr") or "") + " " + (structured.get("mechanism") or "")
+
+
+def _count_banned_valuation(structured: dict) -> int:
+    """PRICE_OBSERVABILITY DP-6: raw pre-sanitize valuation count on tldr+mechanism (mirror _count_banned_mood)."""
+    return reg.count_valuation_words(_structured_prose(structured))
+
+
+def _count_banned_flow(structured: dict) -> int:
+    """PRICE_OBSERVABILITY DP-6: raw pre-sanitize flow/positioning count on tldr+mechanism."""
+    return reg.count_flow_words(_structured_prose(structured))
+
+
 def _system() -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
@@ -693,6 +707,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     structured = call(_system(), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
+    _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
+    _banned_flow = _count_banned_flow(structured)
     degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
@@ -727,6 +743,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits], "evidence": evidence,
             "model": model, "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
                                       "citation_verifier": verifier, "banned_mood_words": _banned_mood,
+                                      "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                                       **({"degraded_model": degraded} if degraded else {}),
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
@@ -993,6 +1010,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     structured = call(_system(), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
+    _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
+    _banned_flow = _count_banned_flow(structured)
     degraded = _pop_degraded(structured)
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
@@ -1026,6 +1045,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits],
             "evidence": evidence, "model": model,
             "trace": {"routed": routed, "contracts": contracts, "banned_mood_words": _banned_mood,
+                      "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),

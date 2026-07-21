@@ -165,3 +165,12 @@ def test_system_prompt_has_length_discipline_and_eval_tracks_chars():
     assert E._metrics(row)["answer_chars"] == 500
     panel = "\n".join(E.register_report([row]))
     assert "answer length: mean 500" in panel
+
+
+def test_suggest_drops_lane_b_valuation_chip():
+    """PRICE_OBSERVABILITY W0.3 (S1.F9): a Lane B windowed-valuation chip drops via the server.py:609
+    guard; Lane A already rides register_leaks. An honest fundamental chip survives."""
+    raw = ('["Is palm cheap vs soyoil?", "Is the drought squeeze regime firing for coffee?"]')
+    out = sv._parse_suggestions(raw)
+    assert "Is palm cheap vs soyoil?" not in out                       # Lane B (cheap + comparison) dropped
+    assert out == ["Is the drought squeeze regime firing for coffee?"]  # fundamental squeeze regime survives

@@ -102,6 +102,36 @@ def test_reasoning_runs_graph_skips_numbers():
     assert "[E1]" not in out["answer"]                                # parallel [E1] footer no longer renders)
 
 
+def test_run_numbers_only_trace_carries_valuation_flow_counts(monkeypatch):
+    """DP-6: the price-serving numbers lane computes valuation/flow on the RAW agent text, pre-sanitize."""
+    from leviathan.graphrag.numbers import agent as na
+    monkeypatch.setattr(na, "answer_numbers",
+                        lambda *a, **k: {"answer": "The spread looks cheap; a short squeeze looms.", "calls": []})
+    out = orch.run_numbers_only("q", "2024-06-01", graph=_graph())
+    assert out["trace"]["banned_valuation_words"] >= 1 and out["trace"]["banned_flow_words"] >= 1
+    assert "numbers_verifier" in out["trace"]                          # the pre-existing key still rides
+    assert "cheap" not in out["answer"]                               # ... and sanitize STILL strips the body
+
+
+def test_run_live_folds_header_valuation_flow_counts(monkeypatch):
+    """DP-6: the live-context path counts the RAW header (its own minted prose) into the trace."""
+    import types
+    from leviathan.graphrag.news import extract_live as nx
+    from leviathan.graphrag.news import fetch as nf
+    ev0 = types.SimpleNamespace(source="reuters", summary="palm screens cheap; a short squeeze looms",
+                                driver_id=None, commodity="", model_dump=lambda: {})
+    monkeypatch.setattr(nf, "snapshot", lambda items: None)
+    monkeypatch.setattr(nx, "live_context_block", lambda events, now: "LIVE BLOCK")
+    monkeypatch.setattr(orch.an, "answer",
+                        lambda q, **k: {"answer": "body", "trace": {"banned_valuation_words": 0,
+                                                                    "banned_flow_words": 0}})
+    out = orch.run_live("any news?", "2024-06-01", graph=_graph(),
+                        gather=lambda terms: [{"fetched_at": "2024-06-02"}],
+                        extract=lambda items, **k: [ev0])
+    assert out["intent"] == "live"
+    assert out["trace"]["banned_valuation_words"] >= 1 and out["trace"]["banned_flow_words"] >= 1
+
+
 def test_hybrid_injects_numbers_and_unifies_citations():
     out = orch.respond("given low ending stocks is corn a buy", graph=_graph(), asof="2024-06-01",
                        classify=_force("hybrid"), call=_reason_call, retrieve=_retrieve,

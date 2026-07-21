@@ -21,6 +21,36 @@ _REPO = Path(__file__).resolve().parents[3]
 _CFG = _REPO / "configs" / "graphrag"
 _DDL = _REPO / "sql" / "athena" / "ddl"
 
+# PRICE_OBSERVABILITY W0.2: tables-of-interest for the register fence lint. These live HERE (no registry-schema
+# creep). PRICE_TABLES/POSITIONING_TABLES must never feed an engine (R4/R9). silver_wasde is NOT a price table --
+# it carries fundamentals cascade legitimately consumes; the avg_farm_price price-leg is a section-6 follow-on,
+# fenced at the metric level, not here.
+PRICE_TABLES = ("silver_pink_sheet",)
+POSITIONING_TABLES = ("silver_cot",)
+# The curated avg_farm_price coverage set -- W1 populates it when the metric is whitelisted. Empty today, so R1's
+# EXACT-equality branch is vacuous (avg_farm_price carries no unit_overrides yet) and drift either way will fail.
+_FARM_PRICE_COMMODITIES: frozenset = frozenset()
+# NONE-tier decline names (R5 census). Every one must own a decline template that passes register_leaks clean --
+# checked once the W2.5 numbers-agent template registry exists (vacuous-pass with a printed note until then).
+_NONE_TIER_DECLINE = ("robusta", "white_sugar", "french_wheat_matif", "french_maize_matif",
+                      "jse_white_maize", "jse_yellow_maize", "rapeseed_meal_zce")
+# R2/R8 detector probes: one banned sentence per term + per class rule (must FLAG), the Lane B windowed probes,
+# and the ag-collision must-NOT-flag battery. Green in W0 by construction -- this tests the detector, not tables.
+_DETECTOR_FLAG = (
+    "raise the price target", "take-profit here", "a stop-loss below", "go long soyoil", "buy the dip",
+    "fade the rally", "worth fading", "the spread looks cheap", "a relative value trade", "undervalued",
+    "overvalued", "mispriced", "dislocated", "overdone", "overshot", "at attractive levels", "fair value",
+    "it screens rich", "squeeze potential", "a pain trade", "forced liquidation", "capitulation",
+    "shorts would need to chase", "a crowded long", "one-sided positioning", "offside", "a coiled spring",
+    "dry powder", "stretched positioning", "if funds cover",
+    "the discount has room to normalize", "spreads this wide rarely persist",
+    "due for a correction", "mean reversion favors the discount narrowing",
+    "the premium should converge next quarter", "this premium is unsustainable")
+_DETECTOR_LANE_B = ("Is palm cheap vs soyoil?", "positioning looks stretched", "the book is crowded")
+_DETECTOR_CLEAN = (
+    "the spread narrowed in 2016", "the premium averaged $250 [N1]", "stocks are rich relative to use",
+    "the crop is vulnerable to frost", "a crowded export lineup", "short crop", "long-term outlook")
+
 
 def _load(name: str) -> dict:
     return yaml.safe_load((_CFG / name).read_text(encoding="utf-8"))
@@ -350,6 +380,112 @@ def blurb_presence_warnings() -> list[str]:
     return [f"{t['contract']}/{t['id']} ({t['kind']})" for t in bl._targets()]
 
 
+def _check_register_detector() -> list[str]:
+    from leviathan.graphrag import register as reg
+    errs: list[str] = []
+    for probe in _DETECTOR_FLAG:
+        if not (reg.register_leaks(probe) or reg.count_valuation_words(probe) or reg.count_flow_words(probe)):
+            errs.append(f"R2/R8 detector: banned probe not flagged: {probe!r}")
+    for probe in _DETECTOR_LANE_B:
+        if not reg.lane_b_hits(probe):
+            errs.append(f"R2/R8 Lane B: windowed probe not flagged: {probe!r}")
+    for probe in _DETECTOR_CLEAN:
+        if reg.register_leaks(probe) or reg.count_valuation_words(probe) or reg.count_flow_words(probe):
+            errs.append(f"R2/R8 detector: honest probe FALSE-flagged: {probe!r}")
+    return errs
+
+
+def _check_no_engine_ref(cmap, tables, rule: str, label: str) -> list[str]:
+    """R4/R9: no cascade_map ref may point at a fenced table. complex_map sides carry cascade refs (side.ref),
+    so they inherit this check for free -- a price/positioning leg can never resolve through the engine map."""
+    errs: list[str] = []
+    for ref, row in (cmap or {}).items():
+        if (row or {}).get("table") in tables:
+            errs.append(f"{rule} cascade_map {ref!r}: {label} table {row.get('table')!r} must never feed an engine")
+    return errs
+
+
+def _check_decline_census() -> list[str]:
+    """R5: every NONE-tier name owns a decline template that passes register_leaks. The template registry is a
+    W2.5 numbers-agent artifact; census it once the attribute exists, else vacuous-pass with a printed note."""
+    from leviathan.graphrag import register as reg
+    try:
+        from leviathan.graphrag.numbers import agent as na
+    except Exception:  # noqa: BLE001 -- agent import must never break the lint
+        na = None
+    templates = getattr(na, "DECLINE_TEMPLATES", None) if na is not None else None
+    if not templates:
+        print("NOTE price_register R5: decline-template registry not built yet (W2.5) -- vacuous pass")
+        return []
+    errs: list[str] = []
+    for name in _NONE_TIER_DECLINE:
+        t = templates.get(name)
+        if not t:
+            errs.append(f"R5 decline census: no decline template for NONE-tier {name!r}")
+        elif reg.register_leaks(str(t)):
+            errs.append(f"R5 decline census: template for {name!r} carries a register leak")
+    return errs
+
+
+def check_price_register() -> list[str]:
+    """PRICE_OBSERVABILITY W0.2 -- the register fence lint (AWS-free, pure). R1 unit/override discipline
+    (conditional on registration -- vacuous today), R2/R8 detector probe (green now by construction), R3 wasde
+    provenance (conditional -- vacuous today), R4 no PRICE_TABLE feeds an engine (active now), R5 decline census
+    (vacuous until the W2.5 template registry exists)."""
+    from leviathan.graphrag.numbers.cascade import load_map
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = []
+    tables = load_registry().tables
+    # R1: pink_sheet metrics declare a unit; unit_overrides only on a commodity_col table + curated-set equality.
+    ps = tables.get("silver_pink_sheet")
+    if ps is not None:
+        for mname, m in ps.metrics.items():
+            if not (m.unit or "").strip():
+                errs.append(f"R1 silver_pink_sheet.{mname}: metric declares no unit")
+    for tid, ts in tables.items():
+        for mname, m in ts.metrics.items():
+            ov = getattr(m, "unit_overrides", None)
+            if not ov:
+                continue
+            if not ts.commodity_col:
+                errs.append(f"R1 {tid}.{mname}: unit_overrides on a table with no commodity_col")
+            if tid == "silver_wasde" and mname == "avg_farm_price" and set(ov) != _FARM_PRICE_COMMODITIES:
+                errs.append(f"R1 silver_wasde.avg_farm_price: unit_overrides keys {sorted(ov)} != "
+                            f"curated coverage {sorted(_FARM_PRICE_COMMODITIES)}")
+    # R2/R8: the lexicon provably ships before any flag.
+    errs += _check_register_detector()
+    # R3: avg_farm_price (once whitelisted) demands estimate_role-first vintage_tiebreak + provenance_col.
+    wasde = tables.get("silver_wasde")
+    if wasde is not None and "avg_farm_price" in wasde.metrics and getattr(
+            wasde.metrics["avg_farm_price"], "unit_overrides", None):
+        if not any(t.role_order[:1] == ["estimate_role"] for t in wasde.vintage_tiebreak):
+            errs.append("R3 silver_wasde: avg_farm_price whitelisted but no estimate_role-first vintage_tiebreak")
+        if getattr(wasde, "provenance_col", None) != "estimate_role":
+            errs.append("R3 silver_wasde: avg_farm_price whitelisted but provenance_col != 'estimate_role'")
+    # R4: price tables never feed an engine (complex_map inherits via its cascade refs).
+    errs += _check_no_engine_ref(load_map(), PRICE_TABLES, "R4", "price")
+    # R5: decline census.
+    errs += _check_decline_census()
+    return errs
+
+
+def check_cot_register() -> list[str]:
+    """PRICE_OBSERVABILITY W0.2 (the W4 gate) -- positioning-table fence. R9: no engine ref points at a
+    POSITIONING_TABLE (active now). R7/R10: silver_cot metric + suggester-source discipline -- vacuously green
+    until W4 registers silver_cot."""
+    from leviathan.graphrag.numbers.cascade import load_map
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = _check_no_engine_ref(load_map(), POSITIONING_TABLES, "R9", "positioning")
+    cot = load_registry().tables.get("silver_cot")
+    if cot is None:
+        return errs   # R7/R10 vacuous until W4 registers silver_cot
+    from leviathan.graphrag import register as reg
+    for mname, m in cot.metrics.items():
+        if reg.count_valuation_words(m.desc) or reg.count_flow_words(m.desc):
+            errs.append(f"R7 silver_cot.{mname}: metric desc carries a banned valuation/flow word")
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -360,7 +496,9 @@ def main() -> int:
                         ("complex_map", check_complex_map()),
                         ("pin_realizability", check_pin_realizability()),
                         ("driver_slices", check_driver_slices()),
-                        ("edge_blurbs", check_edge_blurbs())):
+                        ("edge_blurbs", check_edge_blurbs()),
+                        ("price_register", check_price_register()),
+                        ("cot_register", check_cot_register())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

@@ -52,7 +52,10 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
                      graph=None, contracts=None) -> dict:
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn)
     cits = cit.unify(None, out.get("calls"))
-    body = reg.sanitize((out.get("answer", "") + _footer(cits)).strip())   # strip leaked slugs/tokens from the numbers footer
+    _raw = out.get("answer", "")                                    # DP-6: raw pre-sanitize agent text
+    _banned_val = reg.count_valuation_words(_raw)                   # the price-serving lane -- counts must ride trace
+    _banned_flow = reg.count_flow_words(_raw)
+    body = reg.sanitize((_raw + _footer(cits)).strip())            # strip leaked slugs/tokens from the numbers footer
     nv = _verify_numbers_answer(out.get("answer", ""), out.get("calls") or [])
     if nv.get("mismatched"):                                       # the citv2b 0.107-vs-0.3636 fabrication class:
         body = ("_[verifier: a value stated below does not match any looked-up row — treat stated "
@@ -70,7 +73,8 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
             "citations": [c.model_dump() for c in cits], "number_calls": out.get("calls", []),
             "evidence": [], "asof": asof, "structured": None,
             "contract": (mc[0] if mc else None), "contracts": mc,
-            "trace": {"numbers_verifier": nv}}
+            "trace": {"numbers_verifier": nv, "banned_valuation_words": _banned_val,
+                      "banned_flow_words": _banned_flow}}
 
 
 def _verify_numbers_answer(answer: str, calls: list) -> dict:
@@ -331,6 +335,9 @@ def run_live(query: str, asof: str, *, graph, call=None, retrieve=None, model: s
         f"[{e.source}] {e.summary}" for e in events) + \
         "\n\n_Live headlines are context only - the cascade below cites dated corpus evidence._\n\n"
     out["answer"] = reg.sanitize(header) + (out.get("answer") or "")
+    _tr = out.setdefault("trace", {})                               # DP-6: fold the live header's RAW valuation/flow
+    _tr["banned_valuation_words"] = _tr.get("banned_valuation_words", 0) + reg.count_valuation_words(header)
+    _tr["banned_flow_words"] = _tr.get("banned_flow_words", 0) + reg.count_flow_words(header)
     out["intent"] = "live"
     out.setdefault("number_calls", [])
     out["asof"] = asof

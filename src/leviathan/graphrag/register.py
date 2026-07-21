@@ -62,13 +62,192 @@ def _ctx(text: str, m) -> str:
     return text[max(0, m.start() - 12):m.end() + 12].replace("\n", " ").strip()
 
 
+# -- Price/positioning register fence (PRICE_OBSERVABILITY W0.1) -----------------------------------------
+# The fence lives in the REGISTER, not the DATA: valuation/flow prose is a leak even when no row could back
+# it. Lane A = hard-leak phrase CLASSES (`_VALUATION_PHRASES`=R2, `_FLOW_PHRASES`=R8) plus two structural
+# CLASS rules (forward-convergence, persistence-denial) that fence the CLASS, not a word list. Lane B = bare
+# mood-adjectives gated on a price/positioning WINDOW noun (ag prose collides on bare 'rich'/'crowded', so a
+# window noun must be present and the ag-collision nouns are excluded). Lane A + class rules ride
+# register_leaks (so they extend to the suggester's chip drop for free); Lane B rides the raw counters
+# (`count_valuation_words`/`count_flow_words`) plus `lane_b_hits` for the chip guard. sanitize() STRIPS the
+# offending sentence for every new lane -- never a paraphrase, which would mint a claim no row backs.
+_VALUATION_PHRASES = re.compile(
+    r"\bprice (target|objective)s?\b"
+    r"|\btake[- ]profits?\b"
+    r"|\bstop[- ]loss(es)?\b"
+    r"|\b(go|get|stay|add to) (long|short)s?\b"
+    r"|\bbuy the dip\b"
+    r"|\b(fade|fading) the (move|rally|spread|breakout)\b"
+    r"|\bworth fading\b"
+    r"|\b(spread|premium|discount|basis)s? (is|are|looks?|trades?|sits?|screens?|seems?|appears?)"
+    r"( \w+ly)? (cheap|rich|expensive)\b"
+    r"|\brelative value trade\b"
+    r"|\b(under|over)valued\b"
+    r"|\bmispriced\b"
+    r"|\bdislocated\b"
+    r"|\boverdone\b"
+    r"|\bovershot\b"
+    r"|\bat attractive levels\b"
+    r"|\bfair value\b"
+    r"|\bscreens (cheap|rich|expensive)\b"
+    # Reversion idioms that carry the forward-convergence CLASS without an in-sentence spread-noun (W0.3
+    # S1.F4: the plan enumerates bare "due for a correction" / "mean reversion favors the discount narrowing"
+    # as class positives; the spread-noun+verb+futurity triple misses them, so fence the idiom directly).
+    r"|\bdue for a (correction|pullback|reversal|bounce|snapback|reversion)\b"
+    r"|\bmean[- ]reversion\b",
+    re.I)
+_FLOW_PHRASES = re.compile(
+    # POSITIONING squeeze only (R8 intent: "squeeze risk/potential", "vulnerable to a squeeze") -- the
+    # FUNDAMENTAL "drought squeeze"/"supply squeeze" regime vocabulary is legitimate researcher prose and the
+    # display registry humanizes regime ids INTO it, so a bare squeez\w* would false-flag the mentor voice.
+    r"\bsqueez\w* (risk|potential|play|setup|target)"
+    r"|\b(short|long|bear|bull|positioning|funds?)[ -]squeez\w*"
+    r"|\bvulnerable to (a |an |the )?squeez\w*"
+    r"|\b(risk|threat) of (a |an |the )?squeez\w*"
+    r"|\bsqueeze the (shorts|longs)\b"
+    # POSITIONING/timing squeeze evasions (S1.F4/W0-2/R8): the plan's literal `squeez\w*` cannot ship bare --
+    # the display registry humanizes ~24 regime ids INTO "<fundamental> squeeze (price-supportive)" prose
+    # ("drought/supply/China demand/delivery/crush/feedstock/premium squeeze"), so a bare stem strips honest
+    # mentor content. These idioms are provably disjoint from that regime vocabulary (no regime label carries
+    # primed/ripe/poised/set-up-for, "squeeze higher/lower", "squeeze is coming/looms", "getting squeezed",
+    # "expect a squeeze", or "squeeze <modal>"), so they widen positioning coverage without the collision.
+    r"|\b(primed|ripe|poised|readied) (for|to) (a |an |the )?squeez\w*"
+    r"|\bset ?up for (a |an |the )?squeez\w*"
+    r"|\bsqueez\w* (higher|lower|sharply|violently)\b"
+    r"|\b(a |an |the )?squeez\w* (is |looks? |appears? |seems? )?(coming|looms|looming|imminent|brewing|building|ahead)\b"
+    r"|\b(getting|get|got|being) squeez(e|es|ed|ing)\b"
+    r"|\bexpect\w* (a |an |the )?squeez\w*"
+    r"|\bsqueez\w* (could|would|will|should|may|might)\b"
+    r"|\bpain trade\b"
+    r"|\bforced (covering|liquidation|selling)\b"
+    r"|\bcapitulat\w*"
+    r"|\b(shorts|longs) (will|would) (have to|need to)( \w+)?"
+    r"|\bcrowded (long|short|trade|position\w*)"
+    r"|\bone-sided positioning\b"
+    r"|\boffside\b"
+    r"|\bcoiled spring\b"
+    r"|\bdry powder\b"
+    r"|\bstretched positioning\b"
+    r"|\bif funds (cover|liquidate|unwind)\b",
+    re.I)
+# CLASS rule members (both pure regex): a spread-noun + a convergence verb + a modal/futurity marker in ONE
+# sentence is a forward-convergence claim; a persistence-denial word beside a price/spread noun is the mirror.
+# Past-tense dated facts ("the spread narrowed through 2016 [N2]") carry no futurity marker and stay legal.
+_SPREAD_NOUN = re.compile(r"\b(premium|discount|spread|basis|gap)\b", re.I)
+_CONVERGE_VERB = re.compile(
+    # Inflectional forms only (S1.F1): open `\w*` stems for narrow/close/correct greedily match the -ly ADVERBS
+    # 'narrowly'/'closely'/'correctly' -- honest prose ("watched closely", "narrowly defined", "interpreted
+    # correctly"), NOT convergence verbs. Anchoring to the verb inflections stops the false fence while still
+    # catching narrow(s|ed|ing) / close(s|d)/closing / correct(s|ed|ing|ion).
+    r"\b(normali[sz]\w*|revert\w*|converge\w*|narrow(s|ed|ing)?|clos(e|es|ed|ing)"
+    r"|resolv\w*|correct(s|ed|ing|ion|ions)?|compress\w*|unwind\w*|snap)\b",
+    re.I)
+_FUTURITY = re.compile(r"\b(should|will|would|could|likely|room to|due|poised|set to|expect\w*)\b", re.I)
+_PRICE_SPREAD_NOUN = re.compile(r"\b(price|spread|premium|discount|basis|gap)s?\b", re.I)
+_PERSISTENCE = re.compile(r"\b(unsustainable|cannot last|won[\u2019']?t last|rarely persists?|never stays)\b", re.I)
+# Lane B: the ambiguous mood-adjectives split into a valuation triad and a positioning triad, each gated on a
+# WINDOW noun (or a relative-value comparison marker) and suppressed when an ag-collision noun is the subject.
+_LANE_B_VAL_RX = re.compile(r"\b(cheap|rich|expensive)\b", re.I)
+_LANE_B_FLOW_RX = re.compile(r"\b(stretched|vulnerable|crowded)\b", re.I)
+_LANE_B_ADJ = re.compile(r"\b(cheap|rich|expensive|stretched|vulnerable|crowded)\b", re.I)
+_WINDOW_NOUN = re.compile(
+    r"\b(prices?|premiums?|discounts?|spreads?|basis|valuation|positioning|net (long|short)|net length"
+    r"|book|longs|shorts)\b", re.I)
+_WINDOW_COMPARISON = re.compile(
+    r"\b(vs\.?|versus|relative to|compared (to|with)|cheaper than|richer than)\b", re.I)
+_EXCLUDED_NOUN = re.compile(r"\b(stocks?|supplies|crop|soil|lineup)\b", re.I)   # honest ag fundamentals -> not Lane B
+_SENT_ITER = re.compile(r"(?<=[.!?;])\s+")                                      # sentence boundaries (counter/scan)
+# The strip MUST segment identically to the scanner (S1.F2/W0-1): the scanner (_SENT_ITER) does NOT break on a
+# bare `\n` lacking terminal punctuation, so a line-wrapped/bulleted class-rule triple is ONE sentence and IS
+# flagged. A prior `|\n+` here split that unit into leak-free fragments -> the strip removed nothing and
+# register_leaks(sanitize(x)) != [] (invariant broken). Dropping `\n+` keeps the two passes on the same unit.
+_SENT_KEEP = re.compile(r"([.!?;]\s+)")                                         # sentence + delimiter (strip)
+
+
+def _lane_b_in_sentence(sent: str, rx) -> int:
+    if _EXCLUDED_NOUN.search(sent):
+        return 0
+    if _WINDOW_NOUN.search(sent) or _WINDOW_COMPARISON.search(sent):
+        return len(rx.findall(sent))
+    return 0
+
+
+def _class_rule_hits(prose: str) -> list[tuple[str, str]]:
+    hits: list[tuple[str, str]] = []
+    for sent in _SENT_ITER.split(prose):
+        if _SPREAD_NOUN.search(sent) and _CONVERGE_VERB.search(sent) and _FUTURITY.search(sent):
+            hits.append(("forward-convergence", sent.strip()[:60]))
+        if _PERSISTENCE.search(sent) and _PRICE_SPREAD_NOUN.search(sent):
+            hits.append(("persistence-denial", sent.strip()[:60]))
+    return hits
+
+
+def count_valuation_words(text: str) -> int:
+    """RAW pre-sanitize valuation count (DP-6): Lane A R2 phrases + both class rules + Lane B valuation triad."""
+    prose = _strip_mermaid(text)
+    n = len(_VALUATION_PHRASES.findall(prose))
+    for sent in _SENT_ITER.split(prose):
+        if _SPREAD_NOUN.search(sent) and _CONVERGE_VERB.search(sent) and _FUTURITY.search(sent):
+            n += 1
+        if _PERSISTENCE.search(sent) and _PRICE_SPREAD_NOUN.search(sent):
+            n += 1
+        n += _lane_b_in_sentence(sent, _LANE_B_VAL_RX)
+    return n
+
+
+def count_flow_words(text: str) -> int:
+    """RAW pre-sanitize flow/positioning count (DP-6): Lane A R8 phrases + Lane B positioning triad."""
+    prose = _strip_mermaid(text)
+    n = len(_FLOW_PHRASES.findall(prose))
+    for sent in _SENT_ITER.split(prose):
+        n += _lane_b_in_sentence(sent, _LANE_B_FLOW_RX)
+    return n
+
+
+def lane_b_hits(text: str) -> int:
+    """Lane B windowed-adjective count only (the suggester chip guard: Lane A already rides register_leaks)."""
+    prose = _strip_mermaid(text)
+    n = 0
+    for sent in _SENT_ITER.split(prose):
+        n += _lane_b_in_sentence(sent, _LANE_B_VAL_RX) + _lane_b_in_sentence(sent, _LANE_B_FLOW_RX)
+    return n
+
+
+def _is_banned_sentence(sent: str) -> bool:
+    if _VALUATION_PHRASES.search(sent) or _FLOW_PHRASES.search(sent):
+        return True
+    if _SPREAD_NOUN.search(sent) and _CONVERGE_VERB.search(sent) and _FUTURITY.search(sent):
+        return True
+    if _PERSISTENCE.search(sent) and _PRICE_SPREAD_NOUN.search(sent):
+        return True
+    return bool(_lane_b_in_sentence(sent, _LANE_B_VAL_RX) or _lane_b_in_sentence(sent, _LANE_B_FLOW_RX))
+
+
+def _strip_banned_sentences(seg: str) -> str:
+    """Drop each sentence carrying a Lane A / class-rule / Lane B leak (the verify.py strip precedent). Never
+    a paraphrase. Superset of register_leaks' new-lane conditions, so register_leaks(sanitize(x)) == [] holds."""
+    if not (_VALUATION_PHRASES.search(seg) or _FLOW_PHRASES.search(seg) or _LANE_B_ADJ.search(seg)
+            or _PERSISTENCE.search(seg) or (_SPREAD_NOUN.search(seg) and _CONVERGE_VERB.search(seg))):
+        return seg
+    toks = _SENT_KEEP.split(seg)
+    out: list[str] = []
+    for i in range(0, len(toks), 2):
+        text = toks[i]
+        delim = toks[i + 1] if i + 1 < len(toks) else ""
+        if text and _is_banned_sentence(text):
+            continue
+        out.append(text + delim)
+    return "".join(out)
+
+
 def register_leaks(text: str) -> list[tuple[str, str]]:
     """(token, short-context) for each internal-representation leak in the reader prose. Empty list = clean."""
     prose = _strip_mermaid(text)
     hits: list[tuple[str, str]] = []
-    for rx in (_MARKERS, _SIGN, _JARGON, _PROSE_PHRASES):
+    for rx in (_MARKERS, _SIGN, _JARGON, _PROSE_PHRASES, _VALUATION_PHRASES, _FLOW_PHRASES):
         for m in rx.finditer(prose):
             hits.append((m.group(0).strip(), _ctx(prose, m)))
+    hits += _class_rule_hits(prose)
     for slug in _slugs():
         for m in re.finditer(r"\b" + re.escape(slug) + r"\b", prose):
             hits.append((slug, _ctx(prose, m)))
@@ -179,6 +358,7 @@ def sanitize(text: str) -> str:
         for rid in _regime_ids():                                        # longest-first -> humanize regime ids
             seg = re.sub(r"\b" + re.escape(rid) + r"\b", _regime_label(rid), seg)
         seg = _SAGIS_CROP_RX.sub(lambda m: m.group(1).replace("_", " "), seg)   # SAGIS crop code -> friendly
-        seg = _MOOD.sub(_mood_word, seg)                                 # LAST: neutralize any residual mood word
-        parts[i] = seg                                                   #   (from a stale curated label or model)
+        seg = _MOOD.sub(_mood_word, seg)                                 # neutralize any residual mood word
+        seg = _strip_banned_sentences(seg)                               # LAST: strip valuation/flow/Lane-B sentences
+        parts[i] = seg                                                   #   (never a paraphrase -- DP-6 strip)
     return "".join(parts)
