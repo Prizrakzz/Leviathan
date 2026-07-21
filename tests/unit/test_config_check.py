@@ -321,3 +321,21 @@ def test_nasa_power_excluded_from_pg_mirror():
               if isinstance(node, ast.Assign)
               and any(getattr(t, "id", None) == "P1_TABLES" for t in node.targets))
     assert "silver_nasa_power" not in p1 and "silver_psd" in p1
+
+
+# -- numbers card-vs-DDL schema pins (the silver_nasa_power COLUMN_NOT_FOUND incident, 2026-07-21) --
+def test_numbers_schema_pins_green_on_live_config():
+    # every numbers-registry table's referenced columns resolve in its checked-in DDL (nasa_power's DDL
+    # was synced to the compacted [commodity, year] + in-file country/region/month layout in the same fix)
+    assert cc.check_numbers_schema_pins() == []
+
+
+def test_numbers_schema_pins_flag_a_missing_column(monkeypatch, tmp_path):
+    # a card referencing a column absent from its DDL must fail the build
+    import leviathan.graphrag.numbers.registry as R
+    live = R.load_registry()
+    nasa = live.get("silver_nasa_power").model_copy(update={"country_col": "countryy_typo"})
+    reg = R.NumbersRegistry(tables={**live.tables, "silver_nasa_power": nasa})
+    monkeypatch.setattr(R, "load_registry", lambda path=None: reg)
+    errs = cc.check_numbers_schema_pins()
+    assert any("countryy_typo" in e and "silver_nasa_power" in e for e in errs)

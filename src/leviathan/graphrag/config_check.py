@@ -510,6 +510,33 @@ def check_price_register() -> list[str]:
     return errs
 
 
+def check_numbers_schema_pins() -> list[str]:
+    """Card-vs-DDL column pins for EVERY numbers-registry table (AWS-free; the node_silver_map pattern).
+    Born from the silver_nasa_power incident (2026-07-21): the BF-W1 compaction moved country/region/month
+    in-file, the rebuilt Glue catalog never declared them, and NO gate compared the numbers card against a
+    schema artifact (contract_check's INV-3 exclusion left nasa_power probe-less) -- every weather lookup
+    died COLUMN_NOT_FOUND for weeks. This lint pins each card's referenced columns against the checked-in
+    sql/athena/ddl/<table>.sql so card-vs-DDL drift fails the build; tables without a DDL file skip with a
+    printed note (never a silent pass)."""
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = []
+    for tid, ts in load_registry().tables.items():
+        ddl = _DDL / f"{(ts.athena_table or tid)}.sql"
+        if not ddl.exists():
+            print(f"NOTE numbers_schema_pins: no DDL file for {tid} -- skipped")
+            continue
+        text = ddl.read_text(encoding="utf-8")
+        refs = {ts.commodity_col, ts.country_col, ts.period_col, ts.date_col, ts.knowledge_date_col,
+                ts.year_col, ts.month_col, ts.provenance_col, ts.vintage_partition_col,
+                getattr(ts, "metric_col", None), getattr(ts, "value_col", None), getattr(ts, "unit_col", None)}
+        if ts.shape == "wide":
+            refs |= set(ts.metrics)
+        for col in sorted(c for c in refs if c):
+            if not re.search(rf"\b{re.escape(col)}\b", text):
+                errs.append(f"numbers_schema_pins {tid}: card references column {col!r} absent from {ddl.name}")
+    return errs
+
+
 def check_quarantine() -> list[str]:
     """SILVER-F047 -- a quarantined table (TableSpec.quarantined) keeps serving DIRECT agent lookups (raw
     daily weather has no gold replacement; gold_weather_z serves anomalies, not observations), but no engine
@@ -553,6 +580,7 @@ def main() -> int:
                         ("edge_blurbs", check_edge_blurbs()),
                         ("price_register", check_price_register()),
                         ("quarantine", check_quarantine()),
+                        ("numbers_schema_pins", check_numbers_schema_pins()),
                         ("cot_register", check_cot_register())):
         if errs:
             failures += len(errs)
